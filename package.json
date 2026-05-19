@@ -1,0 +1,78 @@
+{
+  "name": "roubo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local development environment manager for parallel worktree-based development.",
+  "author": "David Poxon",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/davidpoxon/roubo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidpoxon/roubo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidpoxon/roubo/issues"
+  },
+  "engines": {
+    "node": ">=24.14.0"
+  },
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "client",
+    "electron"
+  ],
+  "scripts": {
+    "dev": "npm run dev --prefix server & npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "electron:dev": "concurrently -k -n vite,server,electron -c cyan,magenta,yellow \"npm run dev:client\" \"npm run dev:server\" \"npm run start:dev --prefix electron\"",
+    "electron:start": "npm run start --prefix electron",
+    "electron:make": "npm run build && npm run make --prefix electron",
+    "electron:publish": "npm run publish --prefix electron",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npx -w client tsc --noEmit && npx -w server tsc --noEmit"
+  },
+  "dependencies": {
+    "@roubo/shared": "file:./shared",
+    "ajv": "8.18.0",
+    "cors": "2.8.6",
+    "dockerode": "4.0.10",
+    "express": "5.2.1",
+    "mssql": "12.3.1",
+    "node-pty": "1.1.0",
+    "octokit": "5.0.5",
+    "tree-kill": "1.2.2",
+    "ws": "8.20.0",
+    "yaml": "2.8.3",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.12.2",
+    "@types/supertest": "7.2.0",
+    "@vitest/coverage-v8": "4.1.4",
+    "concurrently": "9.2.1",
+    "cross-env": "10.1.0",
+    "eslint": "10.2.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.2",
+    "globals": "17.5.0",
+    "jsdom": "29.0.2",
+    "prettier": "3.8.3",
+    "supertest": "7.2.2",
+    "typescript-eslint": "8.58.2",
+    "vitest": "4.1.4"
+  }
+}

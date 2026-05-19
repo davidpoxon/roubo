@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["dist", "**/*.test.ts", "test", "tsup.config.ts"]
+}

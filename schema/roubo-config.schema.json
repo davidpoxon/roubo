@@ -1,0 +1,202 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Roubo Configuration",
+  "description": "Schema for roubo.yaml project bench configuration",
+  "type": "object",
+  "required": ["project", "layout", "components", "ports", "benches"],
+  "additionalProperties": false,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["name", "displayName", "type", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "displayName": { "type": "string" },
+        "type": { "type": "string", "enum": ["web", "native", "api-only"] },
+        "repo": { "type": "string" },
+        "github": {
+          "type": "object",
+          "properties": {
+            "project": { "type": "integer" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["meta-repo", "monorepo", "single-repo"] },
+        "submodules": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "if": { "properties": { "type": { "const": "process" } }, "required": ["type"] },
+        "then": { "required": ["command"] },
+        "properties": {
+          "type": { "type": "string", "enum": ["database", "process"] },
+          "dependsOn": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Names of components that must be started before this one"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to run for process components (e.g. dotnet run --project src/Api/Api.csproj)"
+          },
+          "setup": {
+            "type": "string",
+            "description": "Command to run before starting the component (e.g. npm ci, dotnet restore)"
+          },
+          "docker": {
+            "type": "object",
+            "required": ["composeFile", "service"],
+            "additionalProperties": false,
+            "properties": {
+              "composeFile": { "type": "string" },
+              "service": { "type": "string" },
+              "initService": { "type": "string" },
+              "portEnvVar": { "type": "string" }
+            }
+          },
+          "migration": {
+            "type": "object",
+            "required": ["command"],
+            "additionalProperties": false,
+            "properties": {
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "connection": {
+            "type": "object",
+            "required": ["template"],
+            "additionalProperties": false,
+            "properties": {
+              "template": { "type": "string" }
+            }
+          },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "directory": { "type": "string" },
+          "envFile": { "type": "string" },
+          "envVars": { "type": "object", "additionalProperties": { "type": "string" } },
+          "image": { "type": "string" }
+        }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["base"],
+        "additionalProperties": false,
+        "properties": {
+          "base": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "https": { "type": "boolean" }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "icon", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "icon": { "type": "string" },
+          "type": { "type": "string", "enum": ["browser", "shell"] },
+          "url": { "type": "string" },
+          "command": { "type": "string" },
+          "requires": { "type": "string" },
+          "login": {
+            "type": "object",
+            "required": ["steps"],
+            "additionalProperties": false,
+            "properties": {
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["selector", "action"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "selector": { "type": "string" },
+                    "action": { "type": "string", "enum": ["fill", "click"] },
+                    "value": { "type": "string", "minLength": 1 }
+                  },
+                  "if": { "properties": { "action": { "const": "fill" } }, "required": ["action"] },
+                  "then": { "required": ["value"] }
+                }
+              }
+            }
+          }
+        },
+        "if": { "properties": { "type": { "const": "shell" } }, "required": ["type"] },
+        "then": { "not": { "required": ["login"] } }
+      }
+    },
+    "inspection": {
+      "type": "object",
+      "required": ["framework", "directory", "command"],
+      "additionalProperties": false,
+      "properties": {
+        "framework": { "type": "string" },
+        "directory": { "type": "string" },
+        "command": { "type": "string" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "benches": {
+      "type": "object",
+      "required": ["max"],
+      "additionalProperties": false,
+      "properties": {
+        "max": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "setup": { "type": "string", "description": "Command to run once at workspace root before components start" },
+        "autoClear": { "type": "boolean", "description": "Automatically clear benches when their assigned issue moves to Done or is closed. Defaults to true." }
+      }
+    },
+    "blueprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultBlueprint": { "type": "string" },
+        "issueTypeMappings": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "users": {
+      "type": "array",
+      "description": "List of users to seed in the bench environment. Only non-sensitive properties should be stored here — do not commit passwords or secrets directly; use environment variable references instead.",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["name", "properties"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "properties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

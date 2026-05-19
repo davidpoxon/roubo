@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+coverage
+**/dist
+client/.vite
+client/tsconfig.tsbuildinfo
+electron/out
+electron/build
+package-lock.json
+**/*.min.js
+client/src/assets
+schema/roubo-config.schema.json
+specs/projects-settings-prototypes-v2.html
+.roubo
+.claude/settings.local.json
+.github/workflows

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!--
+    Roubo logomark — mortise-and-tenon joint in cross-section.
+
+    Two timber pieces meeting: the mortise piece (left, receiving)
+    and the tenon piece (right, inserted), with the solid tenon
+    projecting from one into the other. The mark is about precision
+    fit — how things come together with exactness.
+
+    Uses layered opacity to express depth: the two timber bodies
+    are translucent, the tenon joint itself is solid. The joint
+    is the focus — the most important part of any piece of furniture.
+
+    Inherits color via currentColor for flexible theming.
+  -->
+
+  <!-- Mortise piece (the receiving timber) -->
+  <rect x="2" y="3" width="12" height="26" rx="1.5" fill="currentColor" opacity="0.35"/>
+
+  <!-- Tenon piece (the inserted timber) -->
+  <rect x="14" y="3" width="16" height="26" rx="1.5" fill="currentColor" opacity="0.2"/>
+
+  <!-- The tenon projection — the joint itself, solid -->
+  <rect x="8" y="10" width="14" height="12" rx="1" fill="currentColor"/>
+</svg>

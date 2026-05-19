@@ -1,0 +1,46 @@
+project:
+  name: roubo
+  displayName: Roubo
+  type: web
+  repo: davidpoxon/roubo
+  github:
+    project: 1
+layout:
+  type: single-repo
+components:
+  server:
+    type: process
+    command: npx tsx watch server/index.ts
+    env:
+      ROUBO_PORT: "{{ports.server}}"
+  client:
+    type: process
+    command: npm run dev
+    directory: client
+    dependsOn:
+      - server
+    env:
+      DEV_PORT: "{{ports.client}}"
+      DEV_API_PORT: "{{ports.server}}"
+ports:
+  server:
+    base: 4100
+  client:
+    base: 4200
+tools:
+  - name: Web App
+    icon: globe
+    type: browser
+    url: "{{urls.client}}"
+    requires: client
+  - name: VS Code
+    icon: code
+    type: shell
+    command: code "{{workspace}}"
+inspection:
+  framework: vitest
+  directory: .
+  command: npx vitest run
+benches:
+  max: 6
+  setup: npm ci

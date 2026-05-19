@@ -1,0 +1,93 @@
+name: dco
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  dco-check:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify DCO sign-off on every commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Ensure the base commit is reachable in this checkout
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" 2>/dev/null || true
+
+          commits=$(git log --no-merges --format='%H' "${BASE_SHA}".."${HEAD_SHA}")
+
+          if [ -z "$commits" ]; then
+            echo "No non-merge commits to check."
+            exit 0
+          fi
+
+          missing=()
+          for sha in $commits; do
+            author_email=$(git log -1 --format='%ae' "$sha")
+            body=$(git log -1 --format='%B' "$sha")
+
+            # The sign-off must appear in the message and contain the author email.
+            if ! printf '%s\n' "$body" | grep -qiE "^Signed-off-by: .+<.+@.+>$"; then
+              missing+=("$sha")
+              continue
+            fi
+
+            if ! printf '%s\n' "$body" | grep -qiE "^Signed-off-by: .+<${author_email}>$"; then
+              missing+=("$sha")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            {
+              echo "## DCO sign-off missing"
+              echo ""
+              echo "The following commit(s) are missing a valid \`Signed-off-by:\` line matching the commit author's email:"
+              echo ""
+              for sha in "${missing[@]}"; do
+                subject=$(git log -1 --format='%s' "$sha")
+                short=$(git log -1 --format='%h' "$sha")
+                echo "- \`${short}\` ${subject}"
+              done
+              echo ""
+              echo "### How to fix"
+              echo ""
+              echo "If only the most recent commit is missing sign-off:"
+              echo ""
+              echo '```bash'
+              echo "git commit --amend --no-edit --signoff"
+              echo "git push --force-with-lease"
+              echo '```'
+              echo ""
+              echo "If multiple commits in this pull request are missing sign-off:"
+              echo ""
+              echo '```bash'
+              echo "git rebase --signoff origin/${{ github.event.pull_request.base.ref }}"
+              echo "git push --force-with-lease"
+              echo '```'
+              echo ""
+              echo "See [CONTRIBUTING.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.pull_request.head.sha }}/CONTRIBUTING.md#developer-certificate-of-origin-dco) for full instructions."
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            echo "::error::One or more commits are missing DCO sign-off. See the job summary for the list and the fix."
+            exit 1
+          fi
+
+          echo "All commits have a valid DCO sign-off."
