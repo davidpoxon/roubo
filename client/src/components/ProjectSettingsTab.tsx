@@ -1,0 +1,378 @@
+import { useEffect, useState } from "react";
+import { Button } from "react-aria-components";
+import { useParams, Routes, Route, useBlocker, useNavigate, Link } from "react-router-dom";
+import { Plus, Zap } from "lucide-react";
+import type { BlueprintMeta, BlueprintReference } from "@roubo/shared";
+import { useProjects } from "../hooks/useProjects";
+import { useToast } from "../hooks/useToast";
+import {
+  useBlueprints,
+  useDeleteProjectBlueprint,
+  useDuplicateProjectBlueprint,
+} from "../hooks/useBlueprints";
+import { ApiError, isBlueprintReferencedError } from "../lib/api";
+import Spinner from "./Spinner";
+import { ProjectDefaultBlueprintTile } from "./ProjectDefaultBlueprintTile";
+import SetupTile from "./settings/SetupTile";
+import DefaultBranchTile from "./settings/DefaultBranchTile";
+import PortAssignmentTile from "./settings/PortAssignmentTile";
+import Tile from "./settings/Tile";
+import { OverrideBadge } from "./settings/OverrideBadge";
+import { WorkspaceSourceTile } from "./project-settings/WorkspaceSourceTile";
+import { AutoClearOverrideTile } from "./project-settings/AutoClearOverrideTile";
+import { EnforceIssueDependenciesOverrideTile } from "./project-settings/EnforceIssueDependenciesOverrideTile";
+import { WorkUnitAutoClearOverrideTile } from "./project-settings/WorkUnitAutoClearOverrideTile";
+import { SettingsSaveBar } from "./project-settings/SettingsSaveBar";
+import { IssueTypeMappingsSection } from "./project-settings/IssueTypeMappingsSection";
+import { useSettingsOverviewDraft } from "./project-settings/useSettingsOverviewDraft";
+import UnsavedChangesDialog from "./blueprint-editor/UnsavedChangesDialog";
+import BlueprintRow from "./blueprint-editor/BlueprintRow";
+import DeleteBlueprintDialog from "./blueprint-editor/DeleteBlueprintDialog";
+import Setup from "./setup/Setup";
+import type { RegisteredProject } from "@roubo/shared";
+import DangerZoneTile from "./settings/DangerZoneTile";
+import { ProjectPermissionsInlineSection } from "./project-settings/ProjectPermissionsInlineSection";
+import { ProjectPermissionsEditorPage } from "./project-settings/ProjectPermissionsEditorPage";
+
+function ProjectCustomBlueprintsList({ projectId }: { projectId: string }) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const { data: blueprints, isLoading } = useBlueprints(projectId);
+  const remove = useDeleteProjectBlueprint(projectId);
+  const duplicate = useDuplicateProjectBlueprint(projectId);
+
+  const [deletingBlueprint, setDeletingBlueprint] = useState<BlueprintMeta | null>(null);
+  const [deleteReferences, setDeleteReferences] = useState<BlueprintReference[] | undefined>();
+
+  const projectBlueprints = (blueprints ?? []).filter((bp) => bp.source === "project");
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingBlueprint) return;
+    try {
+      await remove.mutateAsync(deletingBlueprint.id);
+      setDeletingBlueprint(null);
+      setDeleteReferences(undefined);
+      addToast("Blueprint deleted.");
+    } catch (err) {
+      if (isBlueprintReferencedError(err)) {
+        setDeleteReferences(err.details.references);
+      } else if (err instanceof ApiError) {
+        addToast(err.message);
+        setDeletingBlueprint(null);
+      } else {
+        addToast("Failed to delete blueprint.");
+        setDeletingBlueprint(null);
+      }
+    }
+  };
+
+  const handleDuplicate = (bp: BlueprintMeta) => {
+    void duplicate
+      .mutateAsync({ id: bp.id })
+      .then((created) => navigate(`/projects/${projectId}/blueprints/edit/${created.id}`))
+      .catch((err: unknown) => {
+        if (err instanceof ApiError) addToast(err.message);
+        else addToast("Failed to duplicate blueprint.");
+      });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+          Custom blueprints
+        </h3>
+        <Link
+          to={`/projects/${projectId}/blueprints/new`}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+        >
+          <Plus size={12} />
+          New blueprint
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-stone-400 dark:text-stone-600">Loading…</p>
+      ) : projectBlueprints.length === 0 ? (
+        <p className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
+          No project blueprints yet. Create one to override or supplement app-level blueprints for
+          this project.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {projectBlueprints.map((blueprint) => (
+            <BlueprintRow
+              key={blueprint.id}
+              blueprint={blueprint}
+              editHref={`/projects/${projectId}/blueprints/edit/${blueprint.id}`}
+              onDelete={(bp) => {
+                setDeleteReferences(undefined);
+                setDeletingBlueprint(bp);
+              }}
+              onDuplicate={handleDuplicate}
+              isDuplicating={duplicate.isPending}
+            />
+          ))}
+        </div>
+      )}
+
+      <p className="mt-4 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+        Project blueprints live in{" "}
+        <span className="font-mono text-stone-500 dark:text-stone-500">
+          &lt;repo&gt;/.roubo/blueprints/*.md
+        </span>
+        .
+      </p>
+
+      {deletingBlueprint && (
+        <DeleteBlueprintDialog
+          isOpen={!!deletingBlueprint}
+          blueprint={deletingBlueprint}
+          onCancel={() => {
+            setDeletingBlueprint(null);
+            setDeleteReferences(undefined);
+          }}
+          onConfirm={handleDeleteConfirm}
+          references={deleteReferences}
+          isPending={remove.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+function SettingsOverview({ project }: { project: RegisteredProject }) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const {
+    draftWorktreeSource,
+    setDraftWorktreeSource,
+    draftBlueprint,
+    setDraftBlueprint,
+    draftAutoClear,
+    setDraftAutoClear,
+    draftEnforceIssueDependencies,
+    setDraftEnforceIssueDependencies,
+    draftWorkUnitAutoClear,
+    setDraftWorkUnitAutoClear,
+    draftIssueTypeMappings,
+    setDraftIssueTypeMappings,
+    originalWorktreeSource,
+    hasAnyDirty,
+    isBlueprintDirty,
+    isIssueTypeMappingsDirty,
+    isSaving,
+    saveErrors,
+    save,
+    discard,
+    justSavedRef,
+  } = useSettingsOverviewDraft(project.id, project);
+
+  const isBlueprintOverridden = draftBlueprint != null;
+  const hasIssueTypeOverrides = Object.keys(draftIssueTypeMappings ?? {}).length > 0;
+  const blueprintsTileOverridden = isBlueprintOverridden || hasIssueTypeOverrides;
+  const blueprintsTileDirty = Boolean(isBlueprintDirty || isIssueTypeMappingsDirty);
+
+  const isMetaRepo = project.config?.layout?.type === "meta-repo";
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasAnyDirty && !justSavedRef.current && currentLocation.pathname !== nextLocation.pathname,
+  );
+
+  useEffect(() => {
+    if (!hasAnyDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasAnyDirty]);
+
+  const handleSave = async () => {
+    const result = await save();
+    if (result.ok) {
+      addToast("Settings saved.");
+    }
+  };
+
+  return (
+    <>
+      <div data-testid="project-settings-content" className="w-full p-8 space-y-8">
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Setup
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <SetupTile projectId={project.id} />
+            <DefaultBranchTile projectId={project.id} />
+          </div>
+        </section>
+        <section>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                Bench behaviour
+              </h2>
+            </div>
+            <p className="text-[11px] text-stone-400 dark:text-stone-600">
+              Project overrides are marked{" "}
+              <span className="text-amber-500 font-medium">override</span>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <WorkspaceSourceTile
+              projectId={project.id}
+              draft={draftWorktreeSource}
+              onChange={setDraftWorktreeSource}
+              original={originalWorktreeSource}
+            />
+            <AutoClearOverrideTile draft={draftAutoClear} onChange={setDraftAutoClear} />
+            <PortAssignmentTile projectId={project.id} />
+            <EnforceIssueDependenciesOverrideTile
+              draft={draftEnforceIssueDependencies}
+              onChange={setDraftEnforceIssueDependencies}
+            />
+            {isMetaRepo && (
+              <WorkUnitAutoClearOverrideTile
+                draft={draftWorkUnitAutoClear}
+                onChange={setDraftWorkUnitAutoClear}
+              />
+            )}
+          </div>
+        </section>
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Blueprints
+            </h2>
+          </div>
+          <Tile
+            icon={<Zap size={13} aria-hidden />}
+            title="Blueprint"
+            isOverridden={blueprintsTileOverridden}
+            isDirty={blueprintsTileDirty}
+            headerAction={blueprintsTileOverridden ? <OverrideBadge /> : undefined}
+          >
+            <ProjectDefaultBlueprintTile
+              project={project}
+              showProjectName={false}
+              embedded
+              draft={draftBlueprint}
+              onChange={setDraftBlueprint}
+            />
+            <div className="mt-8">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600 mb-3">
+                Issue type mappings
+              </h3>
+              <IssueTypeMappingsSection
+                projectId={project.id}
+                draft={draftIssueTypeMappings}
+                onChange={setDraftIssueTypeMappings}
+                embedded
+              />
+            </div>
+            <p className="text-[11px] text-stone-400 dark:text-stone-600 mt-6 leading-relaxed">
+              Changes write to{" "}
+              <span className="font-mono text-stone-500 dark:text-stone-500">
+                {"<repo>/.roubo/roubo.yaml"}
+              </span>{" "}
+              — commit alongside your other work.
+            </p>
+          </Tile>
+          <div className="mt-6">
+            <ProjectCustomBlueprintsList projectId={project.id} />
+          </div>
+        </section>
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                Claude Code permissions
+              </h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-stone-400 dark:text-stone-600">
+                Merged into <span className="font-mono">.claude/settings.local.json</span> on bench
+                setup
+              </span>
+              <Button
+                onPress={() => navigate(`/projects/${project.id}/settings/permissions`)}
+                className="text-[11px] px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400 transition-colors duration-150 shrink-0"
+              >
+                Edit permissions →
+              </Button>
+            </div>
+          </div>
+          <ProjectPermissionsInlineSection projectId={project.id} />
+        </section>
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-400 dark:bg-red-600 shrink-0" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Danger zone
+            </h2>
+          </div>
+          <DangerZoneTile projectId={project.id} />
+        </section>
+      </div>
+
+      <SettingsSaveBar
+        hasAnyDirty={hasAnyDirty}
+        isSaving={isSaving}
+        saveErrors={saveErrors}
+        onSave={handleSave}
+        onDiscard={discard}
+      />
+
+      <UnsavedChangesDialog
+        isOpen={blocker.state === "blocked"}
+        onConfirm={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
+    </>
+  );
+}
+
+export default function ProjectSettingsTab() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const { data: projects, isLoading } = useProjects();
+  const project = projects?.find((p) => p.id === projectId);
+
+  if (isLoading) {
+    return (
+      <div className="h-full overflow-y-auto overscroll-contain flex items-center gap-2 p-8 text-xs text-stone-400 dark:text-stone-600">
+        <Spinner />
+        Loading…
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="h-full overflow-y-auto overscroll-contain p-8 text-xs text-stone-400 dark:text-stone-600">
+        Project not found.
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-y-auto overscroll-contain">
+      <Routes>
+        <Route index element={<SettingsOverview project={project} />} />
+        <Route path="setup" element={<Setup />} />
+        <Route
+          path="permissions"
+          element={<ProjectPermissionsEditorPage projectId={projectId as string} />}
+        />
+      </Routes>
+    </div>
+  );
+}

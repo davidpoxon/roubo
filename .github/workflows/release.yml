@@ -1,0 +1,170 @@
+name: release
+
+concurrency:
+  group: release-${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to upload artifacts to (must already exist as a GitHub Release)'
+        required: true
+
+jobs:
+  validate-version:
+    name: validate version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Verify release tag is v-prefixed
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RELEASE_TAG}" ]]; then
+            echo "::error::No release tag available on this event"
+            exit 1
+          fi
+          if [[ "${RELEASE_TAG}" != v* ]]; then
+            echo "::error::Release tag '${RELEASE_TAG}' must start with 'v' (e.g. v1.2.3)"
+            exit 1
+          fi
+          echo "Release tag format valid: ${RELEASE_TAG}"
+
+  build:
+    needs: [validate-version]
+    name: build (${{ matrix.os }} / ${{ matrix.arch }})
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+          # - os: macos-latest
+          #   arch: x64
+          # - os: ubuntu-22.04
+          #   arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Stamp version from release tag
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          jq --arg v "$version" '.version = $v' electron/package.json > electron/package.json.tmp
+          mv electron/package.json.tmp electron/package.json
+          echo "Stamped electron/package.json version to ${version}"
+
+      - run: npm run build
+
+      - name: Import codesigning certificate
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
+            echo "::warning::CSC_LINK or CSC_KEY_PASSWORD not set — skipping certificate import"
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/roubo-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          CERT_PATH="$RUNNER_TEMP/signing-cert.p12"
+
+          echo -n "$CSC_LINK" | base64 --decode > "$CERT_PATH"
+
+          cert_size="$(wc -c < "$CERT_PATH")"
+          if [[ "$cert_size" -lt 500 ]]; then
+            echo "::error::Decoded CSC_LINK is suspiciously small (${cert_size} bytes) — CSC_LINK may be truncated or mis-encoded"
+            exit 1
+          fi
+          P12ERR="$RUNNER_TEMP/p12err.txt"
+          if ! openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$CSC_KEY_PASSWORD" 2>"$P12ERR"; then
+            if grep -qE 'Mac verify error|mac verify failure|invalid password' "$P12ERR"; then
+              echo "::error::CSC_KEY_PASSWORD does not match the .p12 in CSC_LINK — re-export the cert and re-set both secrets (see RELEASING.md)"
+            else
+              echo "::error::Decoded CSC_LINK is not a valid PKCS#12 bundle:"
+              cat "$P12ERR"
+            fi
+            exit 1
+          fi
+          echo "Preflight OK: decoded .p12 is valid and password matches."
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          rm -f "$CERT_PATH"
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Package Electron app
+        if: runner.os == 'macOS'
+        working-directory: electron
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
+          APPLE_ID: ${{ vars.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: npm run make -- --arch=${{ matrix.arch }}
+
+      - name: Install squashfs-tools for AppImage packaging
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y squashfs-tools
+
+      - name: Package Electron app
+        if: runner.os == 'Linux'
+        working-directory: electron
+        run: npm run make -- --arch=${{ matrix.arch }}
+
+      - name: Upload artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          files=()
+          while IFS= read -r -d '' f; do
+            files+=("$f")
+          done < <(find electron/out/make \
+            \( -name '*.dmg' -o -name '*.zip' -o -name '*.deb' -o -name '*.AppImage' \) \
+            -type f -print0)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No artifacts produced for ${{ matrix.os }}/${{ matrix.arch }}. Check electron/forge.config.ts makers."
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+
+      - name: Cleanup signing keychain
+        if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/roubo-signing.keychain-db" || true

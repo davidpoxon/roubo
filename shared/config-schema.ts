@@ -1,0 +1,287 @@
+import { z } from "zod";
+
+// ── Sub-schemas ──
+
+export const BlueprintSettingsSchema = z.object({
+  autoInject: z.boolean(),
+  autoExecute: z.boolean(),
+  defaultBlueprintId: z.string().optional(),
+  issueTypeMappings: z.record(z.string(), z.string()).optional(),
+});
+export type BlueprintSettings = z.infer<typeof BlueprintSettingsSchema>;
+
+export const ProjectConfigSchema = z
+  .object({
+    name: z
+      .string()
+      .regex(/^[a-z0-9-]+$/, "Must contain only lowercase letters, numbers, and hyphens"),
+    displayName: z.string().min(1, "Required"),
+    type: z.enum(["web", "native", "api-only"]),
+    repo: z.string().min(1, "Required"),
+    github: z.object({ project: z.int() }).strict().optional(),
+    blueprintSettings: BlueprintSettingsSchema.optional(),
+  })
+  .strict();
+export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
+
+export const LayoutConfigSchema = z
+  .object({
+    type: z.enum(["meta-repo", "monorepo", "single-repo"]),
+    submodules: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+export type LayoutConfig = z.infer<typeof LayoutConfigSchema>;
+
+export const DockerComponentConfigSchema = z
+  .object({
+    composeFile: z.string(),
+    service: z.string(),
+    initService: z.string().optional(),
+    portEnvVar: z.string().optional(),
+  })
+  .strict();
+export type DockerComponentConfig = z.infer<typeof DockerComponentConfigSchema>;
+
+export const MigrationConfigSchema = z
+  .object({
+    command: z.string(),
+    args: z.array(z.string()).optional(),
+  })
+  .strict();
+export type MigrationConfig = z.infer<typeof MigrationConfigSchema>;
+
+export const ConnectionConfigSchema = z
+  .object({
+    template: z.string(),
+  })
+  .strict();
+export type ConnectionConfig = z.infer<typeof ConnectionConfigSchema>;
+
+export const ComponentConfigSchema = z
+  .object({
+    type: z.enum(["database", "process"]),
+    dependsOn: z.array(z.string()).optional(),
+    command: z.string().optional(),
+    setup: z.string().optional(),
+    docker: DockerComponentConfigSchema.optional(),
+    migration: MigrationConfigSchema.optional(),
+    connection: ConnectionConfigSchema.optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    directory: z.string().optional(),
+    envFile: z.string().optional(),
+    envVars: z.record(z.string(), z.string()).optional(),
+    image: z.string().optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.type === "process" && !val.command) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["command"],
+        message: "Required for process components",
+      });
+    }
+  });
+export type ComponentType = "database" | "process";
+export type ComponentConfig = z.infer<typeof ComponentConfigSchema>;
+
+export const PortConfigSchema = z
+  .object({
+    base: z.int().min(1).max(65535),
+    https: z.boolean().optional(),
+  })
+  .strict();
+export type PortConfig = z.infer<typeof PortConfigSchema>;
+
+const LoginStepFillSchema = z
+  .object({
+    selector: z.string(),
+    action: z.literal("fill"),
+    value: z.string().min(1),
+  })
+  .strict();
+
+const LoginStepClickSchema = z
+  .object({
+    selector: z.string(),
+    action: z.literal("click"),
+    value: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const LoginStepSchema = z.discriminatedUnion("action", [
+  LoginStepFillSchema,
+  LoginStepClickSchema,
+]);
+export type LoginStep = z.infer<typeof LoginStepSchema>;
+
+export const LoginConfigSchema = z
+  .object({
+    steps: z.array(LoginStepSchema).min(1),
+  })
+  .strict();
+export type LoginConfig = z.infer<typeof LoginConfigSchema>;
+
+const BrowserToolConfigSchema = z
+  .object({
+    type: z.literal("browser"),
+    name: z.string(),
+    icon: z.string(),
+    url: z.string().optional(),
+    requires: z.string().optional(),
+    login: LoginConfigSchema.optional(),
+  })
+  .strict();
+
+const ShellToolConfigSchema = z
+  .object({
+    type: z.literal("shell"),
+    name: z.string(),
+    icon: z.string(),
+    command: z.string().optional(),
+    requires: z.string().optional(),
+  })
+  .strict();
+
+export const ToolConfigSchema = z.discriminatedUnion("type", [
+  BrowserToolConfigSchema,
+  ShellToolConfigSchema,
+]);
+// Flat type for backward compat — Zod validates using the strict discriminated union above.
+export type ToolConfig = {
+  type: "browser" | "shell";
+  name: string;
+  icon: string;
+  url?: string;
+  command?: string;
+  requires?: string;
+  login?: LoginConfig;
+};
+
+export const InspectionConfigSchema = z
+  .object({
+    framework: z.string(),
+    directory: z.string(),
+    command: z.string(),
+    env: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+export type InspectionConfig = z.infer<typeof InspectionConfigSchema>;
+
+export const BenchesConfigSchema = z
+  .object({
+    max: z.int().min(1).max(99),
+    setup: z.string().optional(),
+    autoClear: z.boolean().optional(),
+    enforceIssueDependencies: z.boolean().optional(),
+    workUnitAutoClear: z.boolean().optional(),
+  })
+  .strict();
+export type BenchesConfig = z.infer<typeof BenchesConfigSchema>;
+
+export const BlueprintsConfigSchema = z
+  .object({
+    defaultBlueprint: z.string().optional(),
+    issueTypeMappings: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+export type BlueprintsConfig = z.infer<typeof BlueprintsConfigSchema>;
+
+export const UserConfigSchema = z
+  .object({
+    name: z.string().min(1),
+    properties: z.record(z.string(), z.string()),
+  })
+  .strict();
+export type UserConfig = z.infer<typeof UserConfigSchema>;
+
+const ComponentsMapSchema = z.record(z.string(), ComponentConfigSchema).superRefine((val, ctx) => {
+  if (Object.keys(val).length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "At least one component is required",
+    });
+  }
+});
+
+const PortsMapSchema = z.record(z.string(), PortConfigSchema).superRefine((val, ctx) => {
+  if (Object.keys(val).length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "At least one port is required",
+    });
+  }
+});
+
+const UsersArraySchema = z.array(UserConfigSchema).superRefine((users, ctx) => {
+  const seen = new Set<string>();
+  for (let i = 0; i < users.length; i++) {
+    const key =
+      users[i].name +
+      "\0" +
+      JSON.stringify(Object.fromEntries(Object.entries(users[i].properties).sort()));
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [i],
+        message: "Duplicate user entries are not allowed",
+      });
+      return;
+    }
+    seen.add(key);
+  }
+});
+
+export const RouboConfigSchema = z
+  .object({
+    project: ProjectConfigSchema,
+    layout: LayoutConfigSchema,
+    components: ComponentsMapSchema,
+    ports: PortsMapSchema,
+    tools: z.array(ToolConfigSchema).optional(),
+    inspection: InspectionConfigSchema.optional(),
+    benches: BenchesConfigSchema,
+    blueprints: BlueprintsConfigSchema.optional(),
+    users: UsersArraySchema.optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    const submodules = val.layout?.submodules;
+    if (submodules && "." in submodules) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["layout", "submodules"],
+        message:
+          'submodule key "." is reserved for the meta-repo root work unit and cannot be declared in roubo.yaml',
+      });
+    }
+  });
+// Use the flat ToolConfig type for the tools field so callers don't need to narrow the discriminated union.
+export type RouboConfig = Omit<z.infer<typeof RouboConfigSchema>, "tools"> & {
+  tools?: ToolConfig[];
+};
+
+// ── Helpers ──
+
+export interface ConfigFieldError {
+  path: string;
+  message: string;
+}
+
+export function zodIssuesToValidationErrors(issues: z.ZodIssue[]): ConfigFieldError[] {
+  return issues.map((issue) => ({
+    path: issue.path.join("."),
+    message: issue.message,
+  }));
+}
+
+export function zodIssuesToFieldMap(issues: z.ZodIssue[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path.join(".");
+    if (key && !(key in map)) {
+      map[key] = issue.message;
+    }
+  }
+  return map;
+}
