@@ -2,6 +2,14 @@
 
 Local development environment manager for parallel worktree-based development. Named after André-Jacob Roubo, the 18th-century French master carpenter whose workbench design is the gold standard of precision and craft. See [docs/brand.md](docs/brand.md) for the full brand guide and vocabulary.
 
+## Positioning
+
+Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, and others). It is not a Claude Code-only product, even though parts of the current codebase and vocabulary lean Claude Code-specific.
+
+- In marketing copy, marketplace listings, README, `/docs`, in-app strings, and any other user-facing prose, use generic terms like "AI coding agent" or "AI coding tool" rather than naming a specific agent.
+- Reserve specific tool names (Claude Code, Codex, Gemini CLI) for technical docs, integration lists, and feature pages where naming the integration is the point.
+- When touching code or vocabulary that hardcodes "Claude Code" (e.g. the Blueprint definition below, the `/api/projects/:projectId/permissions` endpoint comments), flag it as a candidate for generalization as multi-agent support expands.
+
 ## Writing Style
 
 - **Never use em dashes (—).** Not in code comments, commit messages, PR descriptions, README, `/docs`, in-app strings, or any other prose we ship or commit. Pick the right punctuation for the case: period for a sentence break, comma for an aside, colon for a label/definition, parentheses for a true parenthetical, semicolon for two tightly linked independent clauses. This rule applies to all writing produced in this repo.
@@ -133,7 +141,7 @@ Always use the Roubo vocabulary in all new code, UI text, and documentation:
 | **Component**  | Service     | A running part of a bench (database, backend, frontend)          |
 | **Tool**       | Launcher    | Quick-open action (browser, IDE, shell)                          |
 | **Inspection** | Testing     | Quality checks run against a bench                               |
-| **Blueprint**  | Prompt      | Claude Code agent instructions                                   |
+| **Blueprint**  | Prompt      | AI coding agent instructions injected into the bench workspace   |
 | **Workspace**  | Worktree    | The git worktree directory for a bench                           |
 
 ## Design Philosophy
