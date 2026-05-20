@@ -15,15 +15,8 @@ Run many isolated dev environments off the same repository, each with its own gi
 
 </div>
 
-<!--
-  TODO: replace docs/assets/hero.svg with a real screenshot at docs/assets/hero.png.
-  Ideal shot: the benches dashboard with 3–4 active benches across two projects, light mode,
-  cropped tight enough that branch names and ports are readable. The placeholder below uses
-  the brand palette so the README looks intentional until you swap it in.
--->
-
 <p align="center">
-  <img src="./docs/assets/hero.svg" alt="Roubo dashboard showing multiple active benches" width="900" />
+  <img src="./docs/assets/product-screenshot.png" alt="Roubo desktop app showing five parallel benches against a GitHub project, each bound to an issue and running on its own isolated ports" width="900" />
 </p>
 
 ## Why Roubo
