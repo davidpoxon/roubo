@@ -34,9 +34,10 @@ prior issue. Just open the PR.
 
 ## Development setup
 
-See [README.md](README.md) for installation, build, and dev-server
-instructions. See [CLAUDE.md](CLAUDE.md) for architecture and conventions.
-Before opening a PR:
+See [docs/development.md](docs/development.md) for setup, build, and
+dev-server instructions. See [docs/architecture.md](docs/architecture.md)
+for how Roubo is put together, and [CLAUDE.md](CLAUDE.md) for the working
+conventions enforced in review. Before opening a PR:
 
 ```bash
 npm run lint
@@ -53,7 +54,7 @@ too.
 Roubo uses a specific vocabulary: bench, project, component, tool,
 inspection, blueprint, workspace. UI text, error messages, and
 user-facing documentation must use these terms. See
-[BRANDING.md](BRANDING.md) for the full guide. Contributions that
+[docs/brand.md](docs/brand.md) for the full guide. Contributions that
 introduce competing vocabulary will be asked to align before merging.
 
 ## Developer Certificate of Origin (DCO)
