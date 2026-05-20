@@ -38,8 +38,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Ensure the base commit is reachable in this checkout
-          git fetch --no-tags --depth=1 origin "$BASE_SHA" 2>/dev/null || true
+          # Fetch the base branch with full history (not --depth=1) so
+          # BASE_SHA's ancestry is known to git. A shallow fetch of just
+          # BASE_SHA treats it as having no ancestors, which makes
+          # `BASE_SHA..HEAD` incorrectly include commits that are on the
+          # base branch, flagging them as "missing sign-off" when they
+          # belong to other contributors entirely.
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
           commits=$(git log --no-merges --format='%H' "${BASE_SHA}".."${HEAD_SHA}")
 
@@ -60,7 +65,12 @@ jobs:
               continue
             fi
 
-            if ! printf '%s\n' "$body" | grep -qiE "^Signed-off-by: .+<${author_email}>$"; then
+            # Escape ERE metacharacters in the email so emails containing
+            # `+`, `[`, `.`, etc. (Renovate's bot email, plus-aliased human
+            # emails) compare as literal strings rather than as regex.
+            escaped_email=$(printf '%s' "$author_email" | sed 's/[].[\\$*^+?()|{}]/\\&/g')
+
+            if ! printf '%s\n' "$body" | grep -qiE "^Signed-off-by: .+<${escaped_email}>$"; then
               missing+=("$sha")
             fi
           done
