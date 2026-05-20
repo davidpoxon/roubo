@@ -1,172 +1,97 @@
+<div align="center">
+
+<img src="./client/src/assets/roubo-logo.svg" alt="Roubo" width="72" height="72" />
+
 # Roubo
 
-Local development environment manager for parallel worktree-based development. Provides a single dashboard to set up, monitor, and clear isolated development environments (benches) for any registered project.
+**A workbench for parallel development.**
 
-Named after André-Jacob Roubo (1739–1791), French master carpenter and author of _L'Art du Menuisier_. His workbench design — precise, purposeful, nothing superfluous — is the inspiration for this tool.
+Run many isolated dev environments off the same repository, each with its own git worktree, database, ports, and processes, so several streams of work can run side by side without colliding.
 
-## Prerequisites
+[![Latest release](https://img.shields.io/github/v/release/davidpoxon/roubo?display_name=tag&sort=semver&color=d97706&label=release)](https://github.com/davidpoxon/roubo/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/davidpoxon/roubo/pr-check.yml?branch=main&label=CI)](https://github.com/davidpoxon/roubo/actions/workflows/pr-check.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](./LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%28Apple%20Silicon%29-78716c)](https://github.com/davidpoxon/roubo/releases/latest)
 
-- Node.js >=24.14.0
-- Docker Desktop (for database containers)
-- Git
+</div>
 
-## Quick Start
+<!--
+  TODO: replace docs/assets/hero.svg with a real screenshot at docs/assets/hero.png.
+  Ideal shot: the benches dashboard with 3–4 active benches across two projects, light mode,
+  cropped tight enough that branch names and ports are readable. The placeholder below uses
+  the brand palette so the README looks intentional until you swap it in.
+-->
 
-```bash
-# Install dependencies
-npm install
+<p align="center">
+  <img src="./docs/assets/hero.svg" alt="Roubo dashboard showing multiple active benches" width="900" />
+</p>
 
-# Start both server and client in dev mode
-npm run dev
-```
+## Why Roubo
 
-The server runs on **http://localhost:3333** and the client dev server on **http://localhost:3334** (proxies API requests to the server).
+Most local-dev tooling assumes one branch at a time. That falls apart the moment you're running an AI coding agent on a feature, want to test a hotfix on `main`, and need a third environment to reproduce a bug, all at the same project.
 
-## Install Globally
+Roubo solves that. Each **bench** is a git worktree pinned to its own branch, its own port range, and its own container set. You can run several in parallel from one window, hand any of them to an agent, and never untangle a port collision again.
 
-> **Requires Node.js >=24.14.0**
+- **Isolated by construction.** Worktrees, ports, and database containers are allocated per bench. Components in bench 1 cannot reach bench 2 by accident.
+- **Configured per project.** A small `roubo.yaml` checked into your repo describes the components, ports, and tools for that project. Anyone who clones the repo gets the same setup.
+- **Designed for AI coding tools.** Every action in the UI is also a REST endpoint. An AI coding agent can register a project, set up a bench, run inspection, and tear down, all without a human in the loop. See [Supported AI coding tools](#supported-ai-coding-tools).
 
-```bash
-# Build client + server and install globally
-# (the prepare script runs the full build automatically; postinstall compiles native bindings)
-npm install -g .
+## Install
 
-# Start Roubo
-roubo
+Roubo currently ships for **macOS on Apple Silicon**. Intel macOS, Windows, and Linux builds are on the roadmap.
 
-# Open browser automatically after start
-roubo --open
-```
+1. Download the latest `.dmg` from the [latest release](https://github.com/davidpoxon/roubo/releases/latest).
+2. Open the DMG and drag **Roubo** to `Applications`.
+3. Launch Roubo. The web UI opens at `http://localhost:3333` and runs entirely on your machine.
 
-Open **http://localhost:3333** in your browser, then go to Settings to register your first project by providing the path to a repo containing a `roubo.yaml`.
+Builds are signed and notarized, so Gatekeeper opens them cleanly.
 
-### CLI Options
+## Quick start
 
-```
-roubo [options]
+<p align="center">
+  <a href="https://github.com/davidpoxon/roubo/releases/latest"><strong>Download Roubo for macOS &nbsp;&rarr;</strong></a>
+</p>
 
-Options:
-  -p, --port <number>  Port to listen on (default: 3333)
-  -o, --open           Open browser after server starts
-  -q, --quiet          Suppress update notices
-  -v, --version        Print version number
-  -h, --help           Print this help message
-```
+After installing:
 
-> **Note:** Port 3334 is only used in development mode (`npm run dev`). The globally installed `roubo` serves the pre-built client SPA directly from the Express server on port 3333.
+1. Add a `.roubo/roubo.yaml` to a project repo that describes its components and ports. The minimal shape is half a screen of YAML. See [Getting Started](./docs/getting-started.md).
+2. In Roubo, open **Settings → Register project** and point it at the repo.
+3. Click **Set up bench**, then **Start**. Roubo allocates the next bench number, creates a worktree, brings up the database, runs migrations, starts the processes, and shows you the resolved URLs.
 
-## Development
+Spin up a second bench from a different branch to run two streams of work in parallel. Each gets its own port range and its own database. They do not interact.
 
-### Running
+## Supported AI coding tools
 
-```bash
-# Start everything (server + client)
-npm run dev
+Every bench operation Roubo exposes through its UI is also a JSON REST endpoint on `localhost`. The full integration surface (endpoints, request/response shapes, error codes, a worked end-to-end curl example) is in the [API Reference](./docs/api.md). Anything that can speak HTTP from the same machine can drive a bench.
 
-# Or run individually
-npm run dev:server    # Express server on :3333
-npm run dev:client    # Vite dev server on :3334
-```
+One tool has end-to-end integration today:
 
-### Code Quality
+- **[Claude Code](https://www.anthropic.com/claude-code)**: Anthropic's command-line coding agent. First-class. Blueprints inject Claude Code agent instructions directly into the bench workspace, and Roubo's `permissions` API is wired to Claude Code's tool permission model.
 
-```bash
-# Lint
-npm run lint
-npm run lint:fix
+Other tools (Cursor, Windsurf, Aider, OpenAI Codex CLI, and friends) can already drive Roubo via the [API](./docs/api.md). They do not yet have the first-class blueprint and permission integrations described above. If you've built a deeper integration worth upstreaming, [open an issue](https://github.com/davidpoxon/roubo/issues).
 
-# Format (CI runs `format:check` and fails on drift)
-npm run format
-npm run format:check
+## Documentation
 
-# Type-check
-npx -w client tsc --noEmit
-npx -w server tsc --noEmit
-```
+| Topic                                              | What's in it                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [Getting Started](./docs/getting-started.md)       | Install, register a project, set up your first bench.                                |
+| [Configuration Reference](./docs/configuration.md) | Every field in `roubo.yaml`, with examples.                                          |
+| [API Reference](./docs/api.md)                     | Endpoint reference for driving Roubo from external tools, with curl examples.        |
+| [Architecture](./docs/architecture.md)             | How benches, ports, components, and the API fit together.                            |
+| [Development](./docs/development.md)               | Running Roubo from source, code quality, building the desktop app.                   |
+| [Brand Guide](./docs/brand.md)                     | Vocabulary, design philosophy, and tone.                                             |
+| [Contributing](./CONTRIBUTING.md)                  | Issue reporting, PR process, DCO sign-off.                                           |
+| [Releasing](./docs/releasing.md)                   | How releases are cut, signed, and published.                                         |
+| [Integrations](./docs/integrations.md)             | Configuring GitHub OAuth and other external services.                                |
 
-### Project Structure
+## Project status
 
-```
-roubo/
-├── shared/           # Shared TypeScript types (@roubo/shared)
-├── server/           # Express API server
-│   ├── index.ts      # Entry point (port 3333)
-│   ├── routes/       # API route handlers
-│   └── services/     # Business logic
-├── client/           # React frontend (Vite)
-│   └── src/
-│       ├── components/
-│       ├── hooks/    # React Query data fetching
-│       └── lib/      # API client
-├── schema/           # JSON Schema for roubo.yaml validation
-└── eslint.config.js  # ESLint 9 flat config
-```
+Roubo is **early**. The current release is `v0.1.0`, the surface area is small but real, and the data format (`roubo.yaml`, `~/.roubo/state.json`) may still change before a 1.0. Bug reports and design feedback are welcome; please open an [issue](https://github.com/davidpoxon/roubo/issues) before sending a large PR so we can align on direction.
 
-This is an npm workspaces monorepo. Shared types in `shared/` are imported by both server and client as `@roubo/shared`.
+## The name
 
-### Tech Stack
+Roubo is named after [André-Jacob Roubo](https://en.wikipedia.org/wiki/Andr%C3%A9_Jacob_Roubo) (1739–1791), the French master carpenter whose workbench design (precise, purposeful, nothing superfluous) is the gold standard of fine woodworking. The software aims at the same standard for the workbench you build software on.
 
-| Layer         | Technology                                                      |
-| ------------- | --------------------------------------------------------------- |
-| Server        | Express 5, TypeScript, dockerode, tsx                           |
-| Client        | React 19, Vite, Tailwind CSS 4, React Aria Components           |
-| Data fetching | TanStack React Query (5s polling)                               |
-| State         | `~/.roubo/` (JSON files)                                        |
-| Config        | `roubo.yaml` per project repo, validated with JSON Schema + ajv |
+## Licence and trademark
 
-## How It Works
-
-### Project Registration
-
-Each project repo includes a `roubo.yaml` at `.roubo/roubo.yaml` that describes how to provision benches. Register a project by providing the repo path — Roubo parses and validates the config, checks for port conflicts with other registered projects, and adds it to the registry.
-
-### Benches
-
-A bench is an isolated dev environment for one project: a git worktree, Docker containers, and managed processes. Each bench gets its own port range calculated from the base ports in the project's config.
-
-Setting up a bench:
-
-1. Claims the next available bench number (1 to `benches.max`)
-2. Allocates ports: `base + (benchNumber - 1)` for each component
-3. Creates a git worktree at `~/.roubo/workspaces/<projectName>/bench-<N>/`
-4. Initializes submodules (for meta-repos)
-
-Starting components within a bench:
-
-1. **Database** — `docker compose up` with port overrides, wait for healthy, run migrations
-2. **Backend** — `dotnet run` with resolved environment variables
-3. **Frontend** — generates `.env` file, runs `npm run dev`
-
-### API
-
-All operations are available via REST API so Claude Code agents can self-serve:
-
-```
-GET    /api/projects                                      # List registered projects
-POST   /api/projects                                      # Register { repoPath }
-DELETE /api/projects/:projectId                           # Unregister
-GET    /api/benches                                       # All benches across projects
-POST   /api/projects/:projectId/benches                   # Set up bench { branch? }
-DELETE /api/projects/:projectId/benches/:id               # Clear bench
-POST   /api/projects/:projectId/benches/:id/start         # Start all components
-POST   /api/projects/:projectId/benches/:id/stop          # Stop all components
-POST   /api/projects/:projectId/benches/:id/components/:name/start
-POST   /api/projects/:projectId/benches/:id/components/:name/stop
-GET    /api/projects/:projectId/benches/:id/components/:name/logs
-```
-
-### roubo.yaml
-
-See `BRANDING.md` for vocabulary and `schema/roubo-config.schema.json` for the full config schema.
-
-## Building the Desktop App
-
-```bash
-npm run electron:make
-```
-
-This produces a local unsigned build. Unsigned artifacts trigger Gatekeeper warnings on other machines.
-
-Internally, `npm run electron:make` performs a nested `npm install` inside `electron/` before running `electron-forge make`. This populates `electron/node_modules/` with the production deps (`mssql`, `node-pty`, `update-electron-app`) that npm otherwise hoists to the repo root — `electron-forge`'s dependency walker (`flora-colossus`) cannot follow the hoist, so the packaging step would fail without it. The install uses `--no-save --package-lock=false` and does not mutate any tracked files.
-
-For signed/notarized release builds and the full release checklist, see [RELEASING.md](RELEASING.md).
+Roubo is released under the [Apache License 2.0](./LICENSE). The name "Roubo" and the Roubo logomark are trademarks governed by [TRADEMARK.md](./TRADEMARK.md), not by the Apache 2.0 licence.
