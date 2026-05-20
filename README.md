@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./client/src/assets/roubo-logo.svg" alt="Roubo" width="72" height="72" />
+<img src="./docs/assets/roubo-logo.svg" alt="Roubo" width="72" height="72" />
 
 # Roubo
 
