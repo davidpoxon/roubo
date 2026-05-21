@@ -88,6 +88,13 @@ the equivalent is to append a `Signed-off-by:` line to the commit message
 yourself, matching the email on the commit. The git CLI does this for you
 when you pass `-s`.
 
+### Bot exemption
+
+Automated dependency-update bots (currently Dependabot) are exempt from
+the per-commit sign-off requirement. The DCO is an attestation of human
+authorship; a bot cannot meaningfully attest to that. The allowlist of
+exempt author emails lives in [.github/workflows/dco.yml](.github/workflows/dco.yml).
+
 ### If you forgot to sign off
 
 The DCO check on your pull request will fail with the specific commits
