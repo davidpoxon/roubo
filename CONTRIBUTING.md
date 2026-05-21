@@ -67,6 +67,12 @@ contribute it under Roubo's licence (Apache 2.0). The full text is below.
 The DCO is enforced automatically. A pull request with any unsigned
 commits will be blocked from merging until every commit is signed off.
 
+When you run `npm install` in your clone, Roubo configures a local
+`commit-msg` git hook that rejects commits missing a `Signed-off-by:`
+line matching your configured git email. If a commit is rejected, re-commit
+with `git commit -s` or amend with `git commit --amend --signoff`. The
+hook is the same check the PR-time workflow runs, just earlier.
+
 ### How to sign off
 
 Add the `-s` flag to your commit command. Git will append a
@@ -87,6 +93,15 @@ If you commit through an IDE or tool that doesn't surface the `-s` flag,
 the equivalent is to append a `Signed-off-by:` line to the commit message
 yourself, matching the email on the commit. The git CLI does this for you
 when you pass `-s`.
+
+### Maintainer setup (one-time)
+
+The DCO workflow is the gate, but it only matters if GitHub treats it as
+required. On the `main` branch protection rule, add `DCO sign-off` (the
+job name in `.github/workflows/dco.yml`) to the list of required status
+checks. Without this, the check can go red and a maintainer can still
+click merge; with it, the merge button stays disabled until every commit
+is signed off.
 
 ### Bot exemption
 
