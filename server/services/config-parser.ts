@@ -26,18 +26,7 @@ function toParseResult(zodResult: ReturnType<typeof RouboConfigSchema.safeParse>
 }
 
 export function parseConfig(repoPath: string): ParseResult {
-  const resolvedPath = path.resolve(repoPath);
-  let repoStat: fs.Stats;
-  try {
-    repoStat = fs.statSync(resolvedPath);
-  } catch {
-    return { valid: false, errors: [`Project folder no longer exists at ${resolvedPath}`] };
-  }
-  if (!repoStat.isDirectory()) {
-    return { valid: false, errors: [`Project path is not a directory: ${resolvedPath}`] };
-  }
-
-  const configPath = path.join(resolvedPath, ".roubo", "roubo.yaml");
+  const configPath = path.join(repoPath, ".roubo", "roubo.yaml");
 
   if (!fs.existsSync(configPath)) {
     return { valid: false, errors: [`roubo.yaml not found at ${configPath}`] };
