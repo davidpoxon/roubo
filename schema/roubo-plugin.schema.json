@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Roubo Plugin Manifest",
+  "description": "Schema for roubo-plugin.yaml plugin manifest",
+  "type": "object",
+  "required": ["id", "name", "version", "description", "kind", "roubo", "entry", "permissions"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Kebab-case plugin id"
+    },
+    "name": { "type": "string", "minLength": 1, "description": "Human-readable plugin name" },
+    "version": { "type": "string", "minLength": 1, "description": "Plugin semver version" },
+    "description": { "type": "string", "minLength": 1, "description": "One-line description" },
+    "kind": {
+      "type": "string",
+      "enum": ["integration"],
+      "description": "Plugin kind. Future kinds will widen this enum without breaking existing manifests."
+    },
+    "roubo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Semver range for the host API version the plugin requires"
+    },
+    "entry": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relative path to the Node entry script"
+    },
+    "configSchema": {
+      "type": "object",
+      "description": "JSON Schema object describing the user-facing configuration this plugin exposes. Opaque to Roubo at manifest-load time.",
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prSync": {
+          "type": "boolean",
+          "description": "Whether the host should route PR-sync calls to this plugin"
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Manifest-declared permissions. Additional categories may appear in future host versions and are accepted without error.",
+      "required": ["network", "credentials", "filesystem", "processes"],
+      "additionalProperties": true,
+      "properties": {
+        "network": {
+          "type": "object",
+          "required": ["hosts"],
+          "additionalProperties": false,
+          "properties": {
+            "hosts": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Glob patterns for permitted outbound hosts"
+            }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "required": ["slots"],
+          "additionalProperties": false,
+          "properties": {
+            "slots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["slot", "scope", "description"],
+                "additionalProperties": false,
+                "properties": {
+                  "slot": { "type": "string", "minLength": 1 },
+                  "scope": { "type": "string", "enum": ["read", "read-write"] },
+                  "description": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "filesystem": {
+          "type": "object",
+          "required": ["paths"],
+          "additionalProperties": false,
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Absolute or ~-prefixed paths the plugin may access beyond its own directory"
+            }
+          }
+        },
+        "processes": {
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            {
+              "type": "object",
+              "required": ["executables"],
+              "additionalProperties": false,
+              "properties": {
+                "executables": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          ],
+          "description": "Either false (no child-process spawning) or an object listing the executables the plugin may spawn"
+        }
+      }
+    }
+  }
+}

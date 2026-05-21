@@ -10,7 +10,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 1. Top-level Plugins settings page  *(supports US-004, US-007, US-009)*
+## 1. Top-level Plugins settings page _(supports US-004, US-007, US-009)_
 
 **Where:** new top-level entry on Roubo's settings screen, alongside Projects, Connections, etc.
 
@@ -42,7 +42,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 2. Install plugin dialog  *(supports US-004, US-007)*
+## 2. Install plugin dialog _(supports US-004, US-007)_
 
 **Triggered from:** `Install plugin` button on the Plugins page.
 
@@ -74,7 +74,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 3. Install permissions dialog  *(supports US-007, FR-007)*
+## 3. Install permissions dialog _(supports US-007, FR-007)_
 
 **Triggered after** the Install dialog successfully reads a manifest.
 
@@ -105,7 +105,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 4. Per-plugin configure dialog  *(supports US-001, US-002, FR-034)*
+## 4. Per-plugin configure dialog _(supports US-001, US-002, FR-034)_
 
 **Triggered from:** `Configure` button on a plugin card (Plugins page), OR `Configure` button on the Issue source tile in a project detail page (see screen 6). The dialog renders the plugin's `configSchema` (from manifest) as a form.
 
@@ -120,7 +120,7 @@ Component vocabulary (matches Roubo's existing conventions):
 **GitHub Enterprise plugin:**
 
 - `TextField` labelled `Instance URL`. Placeholder: `https://ghe.acme.com`. Mono font in the value.
-- `TextField` labelled `Personal access token`. Type: password. Help text: `Token must have `repo` and `read:project` scopes.`
+- `TextField` labelled `Personal access token`. Type: password. Help text: `Token must have `repo`and`read:project` scopes.`
 - `Checkbox` labelled `Allow self-signed TLS certificates`. Default off. Help text below: `Only enable if your GHE instance uses an internal CA. A warning will appear in the Plugins page.`
 
 **Jira (self-hosted) plugin:**
@@ -151,7 +151,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 5. Per-plugin log viewer  *(supports US-009, FR-015)*
+## 5. Per-plugin log viewer _(supports US-009, FR-015)_
 
 **Triggered from:** `View logs` on a plugin card.
 
@@ -172,7 +172,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 6. Per-project Issue source tile  *(supports US-001, US-002, US-006, US-010, FR-018, FR-023)*
+## 6. Per-project Issue source tile _(supports US-001, US-002, US-006, US-010, FR-018, FR-023)_
 
 **Where:** the project detail page, sitting alongside other tiles (e.g. Containers, Inspections, Tools).
 
@@ -205,7 +205,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 7. Switch integration dialog  *(supports US-006)*
+## 7. Switch integration dialog _(supports US-006)_
 
 **Triggered from:** `Switch integration...` on the Issue source tile, OR `Choose integration` from the unconfigured tile state.
 
@@ -231,7 +231,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 8. Source picker — `multi-list` shape  *(GitHub.com / GHE; supports US-001)*
+## 8. Source picker — `multi-list` shape _(GitHub.com / GHE; supports US-001)_
 
 **Triggered from:** `Configure sources` action inside the Configure dialog (screen 4), OR via the Issue source tile.
 
@@ -255,7 +255,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 9. Source picker — `categorized-multi-list` shape  *(Jira; supports US-002)*
+## 9. Source picker — `categorized-multi-list` shape _(Jira; supports US-002)_
 
 **Triggered from:** same actions as screen 8, when the active integration is Jira (self-hosted).
 
@@ -278,7 +278,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 10. Bench view: Transition dropdown  *(supports US-008, FR-036)*
+## 10. Bench view: Transition dropdown _(supports US-008, FR-036)_
 
 **Where:** the existing bench view, near the assigned issue display.
 
@@ -296,7 +296,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 11. Bench view: Assign / unassign control  *(supports FR-037)*
+## 11. Bench view: Assign / unassign control _(supports FR-037)_
 
 **Where:** next to the Transition dropdown.
 
@@ -311,7 +311,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 12. Soft-block warning banner  *(supports FR-030)*
+## 12. Soft-block warning banner _(supports FR-030)_
 
 **Where:** in the bench-creation flow (Issue picker modal or wherever a user starts a bench from an issue), AND on the bench detail page if a bench is open against a blocked issue.
 
@@ -328,7 +328,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 13. Migration banner  *(supports US-003, FR-027)*
+## 13. Migration banner _(supports US-003, FR-027)_
 
 **Where:** top of the application shell, shown once after a successful migration.
 
@@ -342,7 +342,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 14. Missing-plugin prompt on project load  *(supports US-005, FR-024)*
+## 14. Missing-plugin prompt on project load _(supports US-005, FR-024)_
 
 **Triggered when:** the user opens a project whose effective integration config references a `plugin` id that is not installed locally.
 
@@ -362,7 +362,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 15. Active-bench badge: `Issue from previous integration`  *(supports US-006, FR-028)*
+## 15. Active-bench badge: `Issue from previous integration` _(supports US-006, FR-028)_
 
 **Where:** within an existing bench's header, when the bench was created against an integration that has since been changed.
 
@@ -374,7 +374,7 @@ Component vocabulary (matches Roubo's existing conventions):
 
 ---
 
-## 16. Plugin restart and recovery surfaces  *(supports US-009, FR-013, FR-014)*
+## 16. Plugin restart and recovery surfaces _(supports US-009, FR-013, FR-014)_
 
 Two related affordances:
 

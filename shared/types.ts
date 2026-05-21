@@ -43,6 +43,30 @@ export {
   zodIssuesToFieldMap,
 } from "./config-schema.js";
 
+// ── roubo-plugin.yaml manifest types (derived from Zod schema in plugin-manifest-schema.ts) ──
+
+export {
+  PluginManifestSchema,
+  CredentialSlotSchema,
+  NetworkPermissionsSchema,
+  CredentialsPermissionsSchema,
+  FilesystemPermissionsSchema,
+  ProcessesPermissionSchema,
+  PluginPermissionsSchema,
+  PluginCapabilitiesSchema,
+} from "./plugin-manifest-schema.js";
+
+export type {
+  PluginManifest,
+  CredentialSlot,
+  NetworkPermissions,
+  CredentialsPermissions,
+  FilesystemPermissions,
+  ProcessesPermission,
+  PluginPermissions,
+  PluginCapabilities,
+} from "./plugin-manifest-schema.js";
+
 export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]);
 
 // ── Project registry types ──
