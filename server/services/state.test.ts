@@ -377,6 +377,112 @@ describe("loadState", () => {
     existsSync.mockReturnValue(false);
     expect(stateModule.loadState()).toEqual({ benches: [] });
   });
+
+  it("fills integrationId='github-com' and externalId=String(number) on a pre-plugin assignedIssue", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+            assignedIssue: { number: 42, title: "Fix it" },
+          },
+        ],
+      }),
+    );
+    const { benches } = stateModule.loadState();
+    expect(benches[0].assignedIssue).toEqual({
+      number: 42,
+      integrationId: "github-com",
+      externalId: "42",
+      title: "Fix it",
+    });
+  });
+
+  it("leaves an already-migrated assignedIssue unchanged (idempotent)", () => {
+    existsSync.mockReturnValue(true);
+    const migrated = {
+      number: 42,
+      integrationId: "jira-cloud",
+      externalId: "PROJ-7",
+      title: "Fix it",
+    };
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+            assignedIssue: migrated,
+          },
+        ],
+      }),
+    );
+    const { benches } = stateModule.loadState();
+    expect(benches[0].assignedIssue).toEqual(migrated);
+  });
+
+  it("leaves benches with no assignedIssue unchanged", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+          },
+        ],
+      }),
+    );
+    const { benches } = stateModule.loadState();
+    expect(benches[0].assignedIssue).toBeUndefined();
+  });
+
+  it("round-trips a migrated assignedIssue through save → load", () => {
+    existsSync.mockReturnValue(true);
+    // First load: pre-plugin bench, migration applies.
+    readFileSync.mockReturnValueOnce(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+            assignedIssue: { number: 42, title: "Fix it" },
+          },
+        ],
+      }),
+    );
+    const first = stateModule.loadState();
+    stateModule.saveState(first);
+
+    // Capture what was written, feed it back into the next load.
+    const written = writeFileSync.mock.calls[0][1] as string;
+    readFileSync.mockReturnValueOnce(written);
+    const second = stateModule.loadState();
+    expect(second.benches[0].assignedIssue).toEqual({
+      number: 42,
+      integrationId: "github-com",
+      externalId: "42",
+      title: "Fix it",
+    });
+  });
 });
 
 describe("addProject", () => {

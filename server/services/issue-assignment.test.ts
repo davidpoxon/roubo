@@ -164,6 +164,8 @@ describe("assignIssue", () => {
 
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
     });
@@ -271,7 +273,12 @@ describe("assignIssue", () => {
   it("overwrites existing issue assignment", async () => {
     const benchWithIssue = {
       ...bench,
-      assignedIssue: { number: 10, title: "Old issue" },
+      assignedIssue: {
+        number: 10,
+        integrationId: "github-com",
+        externalId: "10",
+        title: "Old issue",
+      },
     };
     vi.mocked(benchManager.getBench).mockReturnValue({ ...benchWithIssue });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
@@ -304,6 +311,8 @@ describe("assignIssue", () => {
     const result = await assignIssue("project1", 1, 42);
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "New issue",
       linkedPullRequests: [],
     });
@@ -637,6 +646,8 @@ describe("assignIssue", () => {
     const result = await assignIssue("project1", 1, 42);
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
     });
@@ -758,6 +769,8 @@ describe("assignIssue", () => {
 
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [{ repoFullName: "org/repo", number: 99 }],
     });
@@ -868,6 +881,8 @@ describe("createBenchAndAssignIssue", () => {
     expect(benchManager.createBench).toHaveBeenCalledWith("project1", "issue-42-fix-login-bug");
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
     });
@@ -901,6 +916,8 @@ describe("createBenchAndAssignIssue", () => {
     if (result.status !== "success") throw new Error("expected success");
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
     });
@@ -936,6 +953,8 @@ describe("createBenchAndAssignIssue", () => {
     if (result.status !== "success") throw new Error("expected success");
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
     });
@@ -1312,6 +1331,8 @@ describe("createBenchAndAssignIssue", () => {
     expect(result.status).toBe("success");
     expect(result.status === "success" && result.bench.assignedIssue).toEqual({
       number: 42,
+      integrationId: "github-com",
+      externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [
         { repoFullName: "org/repo", number: 55 },
@@ -1346,7 +1367,12 @@ describe("unassignIssue", () => {
       components: {},
       status: "idle" as const,
       provisioningSteps: [],
-      assignedIssue: { number: 42, title: "Fix it" },
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix it",
+      },
     };
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
 
@@ -1391,7 +1417,12 @@ describe("unassignIssue", () => {
       provisioningSteps: [],
       teardownSteps: [],
       notifications: [],
-      assignedIssue: { number: 42, title: "Fix it" },
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix it",
+      },
       workUnits,
     });
 
@@ -1412,7 +1443,12 @@ describe("unassignIssue", () => {
       status: "idle" as const,
       provisioningSteps: [],
       notifications: [],
-      assignedIssue: { number: 42, title: "Fix it" },
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix it",
+      },
       injectedBlueprintId: "my-blueprint",
       injectedBlueprintSource: "issue-type-mapping" as const,
     });

@@ -130,7 +130,16 @@ describe("BenchCard", () => {
 
     it("renders assigned issue number and title", () => {
       makeDefaultMutations();
-      renderCard(makeBench({ assignedIssue: { number: 42, title: "Fix the login bug" } }));
+      renderCard(
+        makeBench({
+          assignedIssue: {
+            number: 42,
+            integrationId: "github-com",
+            externalId: "42",
+            title: "Fix the login bug",
+          },
+        }),
+      );
       expect(screen.getByText("#42")).toBeInTheDocument();
       expect(screen.getByText("Fix the login bug")).toBeInTheDocument();
     });
