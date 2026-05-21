@@ -93,7 +93,7 @@ export function saveProjects(data: PersistedProjects) {
  * Fills integrationId + externalId on a pre-plugin assignedIssue snapshot.
  * Pre-plugin benches only have `number` and `title`; this defaults them to
  * the github-com integration and stringifies `number` into `externalId`.
- * Idempotent — a fully-formed snapshot passes through unchanged.
+ * Idempotent: a fully-formed snapshot passes through unchanged.
  */
 export function migrateAssignedIssue(issue: AssignedIssue | undefined): AssignedIssue | undefined {
   if (!issue) return issue;

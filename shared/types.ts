@@ -649,7 +649,7 @@ export interface GitHubIssueComment {
  * this shape; every Roubo consumer reads this shape.
  *
  * Intentionally excludes sprint, fixVersion, custom fields, attachments,
- * comments, and hierarchical links (parent/children/epic) — see FR-021.
+ * comments, and hierarchical links (parent/children/epic). See FR-021.
  */
 export interface NormalizedIssue {
   integrationId: string;
