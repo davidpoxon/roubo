@@ -5,10 +5,21 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Roubo is built with the bundled github-com, ghe, and jira-self-hosted plugin directories under plugins/", "No prior ~/.roubo/plugins/ entries", "hostApiVersion is 1.0.0"],
+    "preconditions": [
+      "Roubo is built with the bundled github-com, ghe, and jira-self-hosted plugin directories under plugins/",
+      "No prior ~/.roubo/plugins/ entries",
+      "hostApiVersion is 1.0.0"
+    ],
     "steps": [
-      {"action": "Start the Roubo host process"},
-      {"action": "Observe the Plugins page", "expected": ["Each bundled plugin appears with status enabled or disabled", "No errored or incompatible badges for the bundled set", "Plugin id, version, source label 'Bundled', and one-line description are visible per card"]}
+      { "action": "Start the Roubo host process" },
+      {
+        "action": "Observe the Plugins page",
+        "expected": [
+          "Each bundled plugin appears with status enabled or disabled",
+          "No errored or incompatible badges for the bundled set",
+          "Plugin id, version, source label 'Bundled', and one-line description are visible per card"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-001", "FR-002", "FR-016", "FR-033"],
@@ -20,10 +31,20 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["~/.roubo/plugins/broken-plugin/roubo-plugin.yaml is missing the required 'entry' field"],
+    "preconditions": [
+      "~/.roubo/plugins/broken-plugin/roubo-plugin.yaml is missing the required 'entry' field"
+    ],
     "steps": [
-      {"action": "Start the Roubo host process"},
-      {"action": "Observe the Plugins page", "expected": ["broken-plugin appears with status errored", "The error reason names the missing 'entry' field", "Other plugins still load and are usable", "The Roubo host did not exit"]}
+      { "action": "Start the Roubo host process" },
+      {
+        "action": "Observe the Plugins page",
+        "expected": [
+          "broken-plugin appears with status errored",
+          "The error reason names the missing 'entry' field",
+          "Other plugins still load and are usable",
+          "The Roubo host did not exit"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-001", "FR-033", "NFR-008"],
@@ -37,8 +58,15 @@
     "type": "functional",
     "preconditions": ["A plugin declares roubo: ^2.0.0; current hostApiVersion is 1.0.0"],
     "steps": [
-      {"action": "Open the Plugins page"},
-      {"action": "Locate the plugin", "expected": ["Status pill reads 'Incompatible'", "Banner copy explains the host range mismatch", "No child process is spawned for this plugin"]}
+      { "action": "Open the Plugins page" },
+      {
+        "action": "Locate the plugin",
+        "expected": [
+          "Status pill reads 'Incompatible'",
+          "Banner copy explains the host range mismatch",
+          "No child process is spawned for this plugin"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-005"],
@@ -52,7 +80,14 @@
     "type": "functional",
     "preconditions": ["A bundled plugin is enabled"],
     "steps": [
-      {"action": "Inspect the host process tree", "expected": ["A child Node process exists per enabled plugin instance", "The child's stdin and stdout are piped to the host", "The plugin's working directory matches its install path"]}
+      {
+        "action": "Inspect the host process tree",
+        "expected": [
+          "A child Node process exists per enabled plugin instance",
+          "The child's stdin and stdout are piped to the host",
+          "The plugin's working directory matches its install path"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-003"],
@@ -66,8 +101,15 @@
     "type": "functional",
     "preconditions": ["A plugin is enabled"],
     "steps": [
-      {"action": "Call a plugin method via the host RPC layer (e.g. listSourceCandidates)"},
-      {"action": "Inspect the wire log", "expected": ["Each message has a Content-Length header and a JSON body", "Requests and responses match by id", "Plugin response satisfies the declared JSON-RPC shape"]}
+      { "action": "Call a plugin method via the host RPC layer (e.g. listSourceCandidates)" },
+      {
+        "action": "Inspect the wire log",
+        "expected": [
+          "Each message has a Content-Length header and a JSON body",
+          "Requests and responses match by id",
+          "Plugin response satisfies the declared JSON-RPC shape"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-004"],
@@ -79,10 +121,18 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin manifest declares permissions.network.hosts, permissions.credentials.slots, permissions.filesystem.paths, and permissions.processes"],
+    "preconditions": [
+      "A plugin manifest declares permissions.network.hosts, permissions.credentials.slots, permissions.filesystem.paths, and permissions.processes"
+    ],
     "steps": [
-      {"action": "Enable the plugin"},
-      {"action": "Read the parsed manifest record", "expected": ["All four permission categories are present", "Each has the same shape as the zod schema in shared/plugin-manifest-schema.ts"]}
+      { "action": "Enable the plugin" },
+      {
+        "action": "Read the parsed manifest record",
+        "expected": [
+          "All four permission categories are present",
+          "Each has the same shape as the zod schema in shared/plugin-manifest-schema.ts"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-006"],
@@ -96,8 +146,19 @@
     "type": "functional",
     "preconditions": ["Roubo is running", "User opens the Install plugin dialog"],
     "steps": [
-      {"action": "Paste a valid Git URL pointing at a plugin repository", "expected": ["Host clones the repo into ~/.roubo/plugins/<id>/"]},
-      {"action": "Wait for the permissions dialog", "expected": ["Dialog lists every declared permission category with detail", "Dialog shows the Git URL as the install source", "Install and enable button is the only path forward", "Cancel reverts state with no partial install"]}
+      {
+        "action": "Paste a valid Git URL pointing at a plugin repository",
+        "expected": ["Host clones the repo into ~/.roubo/plugins/<id>/"]
+      },
+      {
+        "action": "Wait for the permissions dialog",
+        "expected": [
+          "Dialog lists every declared permission category with detail",
+          "Dialog shows the Git URL as the install source",
+          "Install and enable button is the only path forward",
+          "Cancel reverts state with no partial install"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-007", "FR-017", "NFR-003"],
@@ -111,7 +172,14 @@
     "type": "security",
     "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
     "steps": [
-      {"action": "Plugin calls host.fetch('https://example.com/secret')", "expected": ["host.fetch rejects with a structured permission error", "No outbound network request is made", "Denial is written to the plugin's log file"]}
+      {
+        "action": "Plugin calls host.fetch('https://example.com/secret')",
+        "expected": [
+          "host.fetch rejects with a structured permission error",
+          "No outbound network request is made",
+          "Denial is written to the plugin's log file"
+        ]
+      }
     ],
     "tags": ["security", "automated"],
     "linked_requirement_ids": ["FR-008", "NFR-001"],
@@ -125,7 +193,14 @@
     "type": "performance",
     "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
     "steps": [
-      {"action": "Plugin calls host.fetch against an endpoint that returns ETag and Retry-After", "expected": ["Plugin receives the ETag header value verbatim", "Plugin receives the Retry-After header value verbatim", "Plugin receives rate-limit headers (X-RateLimit-Remaining, X-RateLimit-Reset) verbatim"]}
+      {
+        "action": "Plugin calls host.fetch against an endpoint that returns ETag and Retry-After",
+        "expected": [
+          "Plugin receives the ETag header value verbatim",
+          "Plugin receives the Retry-After header value verbatim",
+          "Plugin receives rate-limit headers (X-RateLimit-Remaining, X-RateLimit-Reset) verbatim"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-008", "NFR-006", "FR-039"],
@@ -139,9 +214,24 @@
     "type": "security",
     "preconditions": ["A fresh plugin install with no prior config"],
     "steps": [
-      {"action": "Open the plugin configure dialog", "expected": ["The 'Allow self-signed TLS certificates' Checkbox is unchecked", "Help text explains the risk"]},
-      {"action": "Toggle the checkbox on", "expected": ["A warning is shown explaining the risk"]},
-      {"action": "Save the configuration", "expected": ["host.fetch for this plugin now uses a Dispatcher with rejectUnauthorized: false", "Other plugins' Dispatchers are unaffected"]}
+      {
+        "action": "Open the plugin configure dialog",
+        "expected": [
+          "The 'Allow self-signed TLS certificates' Checkbox is unchecked",
+          "Help text explains the risk"
+        ]
+      },
+      {
+        "action": "Toggle the checkbox on",
+        "expected": ["A warning is shown explaining the risk"]
+      },
+      {
+        "action": "Save the configuration",
+        "expected": [
+          "host.fetch for this plugin now uses a Dispatcher with rejectUnauthorized: false",
+          "Other plugins' Dispatchers are unaffected"
+        ]
+      }
     ],
     "tags": ["security", "automated"],
     "linked_requirement_ids": ["FR-009"],
@@ -155,8 +245,15 @@
     "type": "security",
     "preconditions": ["Running on macOS", "Keychain accessible"],
     "steps": [
-      {"action": "Plugin calls host.credentials.set('jira-token', 'secret-value')"},
-      {"action": "Plugin calls host.credentials.get('jira-token')", "expected": ["Returned value equals 'secret-value'", "No file under ~/.roubo/ contains the plaintext value", "The credential is visible in Keychain Access under a Roubo-namespaced item"]}
+      { "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')" },
+      {
+        "action": "Plugin calls host.credentials.get('jira-token')",
+        "expected": [
+          "Returned value equals 'secret-value'",
+          "No file under ~/.roubo/ contains the plaintext value",
+          "The credential is visible in Keychain Access under a Roubo-namespaced item"
+        ]
+      }
     ],
     "tags": ["security", "macos", "automated"],
     "linked_requirement_ids": ["FR-010", "NFR-002"],
@@ -168,10 +265,19 @@
     "area": "credential-store",
     "level": 1,
     "type": "security",
-    "preconditions": ["Running on Ubuntu with gnome-keyring or kwallet present", "secret-tool CLI installed"],
+    "preconditions": [
+      "Running on Ubuntu with gnome-keyring or kwallet present",
+      "secret-tool CLI installed"
+    ],
     "steps": [
-      {"action": "Plugin calls host.credentials.set('jira-token', 'secret-value')"},
-      {"action": "Plugin calls host.credentials.get('jira-token')", "expected": ["Returned value equals 'secret-value'", "No file under ~/.roubo/ contains the plaintext value"]}
+      { "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')" },
+      {
+        "action": "Plugin calls host.credentials.get('jira-token')",
+        "expected": [
+          "Returned value equals 'secret-value'",
+          "No file under ~/.roubo/ contains the plaintext value"
+        ]
+      }
     ],
     "tags": ["security", "linux", "automated"],
     "linked_requirement_ids": ["FR-010", "NFR-002"],
@@ -185,8 +291,18 @@
     "type": "functional",
     "preconditions": ["An enabled plugin"],
     "steps": [
-      {"action": "Click Disable on the plugin card", "expected": ["Plugin child process exits within 5 seconds", "Status pill changes to Disabled", "Existing bench snapshots still render with the last-good badge"]},
-      {"action": "Click Enable on the plugin card", "expected": ["A fresh plugin child process is spawned", "Status pill changes to Enabled"]}
+      {
+        "action": "Click Disable on the plugin card",
+        "expected": [
+          "Plugin child process exits within 5 seconds",
+          "Status pill changes to Disabled",
+          "Existing bench snapshots still render with the last-good badge"
+        ]
+      },
+      {
+        "action": "Click Enable on the plugin card",
+        "expected": ["A fresh plugin child process is spawned", "Status pill changes to Enabled"]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-011", "FR-016"],
@@ -200,8 +316,15 @@
     "type": "functional",
     "preconditions": ["A fixture plugin that hangs on listIssues"],
     "steps": [
-      {"action": "Host calls listIssues with default timeout (30s)"},
-      {"action": "Wait for timeout", "expected": ["Host returns a structured timeout error to the caller", "Plugin child process is not orphaned", "Plugin remains running and can respond to subsequent calls"]}
+      { "action": "Host calls listIssues with default timeout (30s)" },
+      {
+        "action": "Wait for timeout",
+        "expected": [
+          "Host returns a structured timeout error to the caller",
+          "Plugin child process is not orphaned",
+          "Plugin remains running and can respond to subsequent calls"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-012"],
@@ -215,8 +338,15 @@
     "type": "functional",
     "preconditions": ["A fixture plugin that exits immediately on every start"],
     "steps": [
-      {"action": "Enable the plugin"},
-      {"action": "Observe the restart loop", "expected": ["Host attempts restart with exponential backoff", "After the 3rd restart inside a 5-minute window, plugin status becomes errored", "No further restart attempts occur until the user manually intervenes"]}
+      { "action": "Enable the plugin" },
+      {
+        "action": "Observe the restart loop",
+        "expected": [
+          "Host attempts restart with exponential backoff",
+          "After the 3rd restart inside a 5-minute window, plugin status becomes errored",
+          "No further restart attempts occur until the user manually intervenes"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-013", "NFR-008"],
@@ -228,10 +358,20 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin successfully fetched issues recently", "Plugin then enters errored state"],
+    "preconditions": [
+      "A plugin successfully fetched issues recently",
+      "Plugin then enters errored state"
+    ],
     "steps": [
-      {"action": "Open the project that uses the plugin"},
-      {"action": "Observe issue list", "expected": ["The last-good issues are visible", "A global banner reads 'Showing the last successful issue snapshot from <Plugin Name>. The plugin is currently unavailable.'", "Manage plugins link navigates to the Plugins page"]}
+      { "action": "Open the project that uses the plugin" },
+      {
+        "action": "Observe issue list",
+        "expected": [
+          "The last-good issues are visible",
+          "A global banner reads 'Showing the last successful issue snapshot from <Plugin Name>. The plugin is currently unavailable.'",
+          "Manage plugins link navigates to the Plugins page"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-014", "NFR-008"],
@@ -245,9 +385,18 @@
     "type": "functional",
     "preconditions": ["An enabled plugin that emits stdout and stderr output"],
     "steps": [
-      {"action": "Cause the plugin to emit log output via host.logger.info / warn / error"},
-      {"action": "Check the filesystem", "expected": ["~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"]},
-      {"action": "Open the View logs dialog from the Plugins page", "expected": ["Recent entries are visible without leaving Roubo", "Entries include timestamp, level, and message"]}
+      { "action": "Cause the plugin to emit log output via host.logger.info / warn / error" },
+      {
+        "action": "Check the filesystem",
+        "expected": ["~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"]
+      },
+      {
+        "action": "Open the View logs dialog from the Plugins page",
+        "expected": [
+          "Recent entries are visible without leaving Roubo",
+          "Entries include timestamp, level, and message"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-015", "NFR-010"],
@@ -259,9 +408,18 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["The Plugins page is open with at least one bundled and one third-party plugin"],
+    "preconditions": [
+      "The Plugins page is open with at least one bundled and one third-party plugin"
+    ],
     "steps": [
-      {"action": "Inspect each card's action row", "expected": ["Configure, View logs, Enable/Disable are present on all cards", "Uninstall is present only on third-party cards", "Install plugin button is present in the page header"]}
+      {
+        "action": "Inspect each card's action row",
+        "expected": [
+          "Configure, View logs, Enable/Disable are present on all cards",
+          "Uninstall is present only on third-party cards",
+          "Install plugin button is present in the page header"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-016"],
@@ -275,8 +433,16 @@
     "type": "functional",
     "preconditions": ["A local directory at /tmp/my-plugin with a valid roubo-plugin.yaml"],
     "steps": [
-      {"action": "Open Install plugin, switch to 'From local directory' tab, enter /tmp/my-plugin"},
-      {"action": "Click Install", "expected": ["Permissions dialog shows the local path as the source", "On accept, plugin appears on the Plugins page"]}
+      {
+        "action": "Open Install plugin, switch to 'From local directory' tab, enter /tmp/my-plugin"
+      },
+      {
+        "action": "Click Install",
+        "expected": [
+          "Permissions dialog shows the local path as the source",
+          "On accept, plugin appears on the Plugins page"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-017"],
@@ -290,8 +456,15 @@
     "type": "functional",
     "preconditions": ["A project with the github-com plugin selected"],
     "steps": [
-      {"action": "Open the Issue source tile and click Switch integration"},
-      {"action": "Select jira-self-hosted and confirm", "expected": ["Effective config now has integration.plugin = jira-self-hosted", "github-com is no longer the project's active source", "Confirmation dialog explained the bench-survival behaviour before the switch"]}
+      { "action": "Open the Issue source tile and click Switch integration" },
+      {
+        "action": "Select jira-self-hosted and confirm",
+        "expected": [
+          "Effective config now has integration.plugin = jira-self-hosted",
+          "github-com is no longer the project's active source",
+          "Confirmation dialog explained the bench-survival behaviour before the switch"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-018"],
@@ -305,8 +478,15 @@
     "type": "functional",
     "preconditions": ["Active integration is github-com or ghe"],
     "steps": [
-      {"action": "Open Configure sources"},
-      {"action": "Observe the picker", "expected": ["A single combined list shows repositories and Projects with type labels", "Selection across types is supported", "Selected items appear in a removable chip strip"]}
+      { "action": "Open Configure sources" },
+      {
+        "action": "Observe the picker",
+        "expected": [
+          "A single combined list shows repositories and Projects with type labels",
+          "Selection across types is supported",
+          "Selected items appear in a removable chip strip"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-019"],
@@ -320,8 +500,15 @@
     "type": "functional",
     "preconditions": ["Active integration is jira-self-hosted"],
     "steps": [
-      {"action": "Open Configure sources"},
-      {"action": "Observe the picker", "expected": ["Three tabs are present: Boards, Epics, Filters", "Each tab has its own search field and list", "Tab badges show per-category selected counts"]}
+      { "action": "Open Configure sources" },
+      {
+        "action": "Observe the picker",
+        "expected": [
+          "Three tabs are present: Boards, Epics, Filters",
+          "Each tab has its own search field and list",
+          "Tab badges show per-category selected counts"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-019"],
@@ -333,10 +520,18 @@
     "area": "issue-list",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A GitHub issue is reachable via both a selected Project and a selected repo"],
+    "preconditions": [
+      "A GitHub issue is reachable via both a selected Project and a selected repo"
+    ],
     "steps": [
-      {"action": "Refresh the issue list"},
-      {"action": "Inspect the rendered list", "expected": ["The issue appears exactly once", "Its key matches (github-com, '<repo>#<number>')"]}
+      { "action": "Refresh the issue list" },
+      {
+        "action": "Inspect the rendered list",
+        "expected": [
+          "The issue appears exactly once",
+          "Its key matches (github-com, '<repo>#<number>')"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-020"],
@@ -350,7 +545,13 @@
     "type": "functional",
     "preconditions": ["A plugin returns an issue from listIssues"],
     "steps": [
-      {"action": "Inspect the issue object received by the host", "expected": ["Fields present: integrationId, externalId, externalUrl, title, body, currentState, allowedTransitions, assignees, labels, issueType, blocks, blockedBy, updatedAt, raw", "No deprecated fields (sprint, fixVersion, custom fields, attachments, comments, parent, children, epic) appear"]}
+      {
+        "action": "Inspect the issue object received by the host",
+        "expected": [
+          "Fields present: integrationId, externalId, externalUrl, title, body, currentState, allowedTransitions, assignees, labels, issueType, blocks, blockedBy, updatedAt, raw",
+          "No deprecated fields (sprint, fixVersion, custom fields, attachments, comments, parent, children, epic) appear"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-021"],
@@ -362,10 +563,20 @@
     "area": "issue-list",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin configured with default page size", "Source contains at least 120 issues"],
+    "preconditions": [
+      "A plugin configured with default page size",
+      "Source contains at least 120 issues"
+    ],
     "steps": [
-      {"action": "Open the issue picker"},
-      {"action": "Observe paging", "expected": ["First page returns up to 50 items and a nextCursor", "Subsequent pages are fetched via useInfiniteQuery", "UI does not block on any individual page"]}
+      { "action": "Open the issue picker" },
+      {
+        "action": "Observe paging",
+        "expected": [
+          "First page returns up to 50 items and a nextCursor",
+          "Subsequent pages are fetched via useInfiniteQuery",
+          "UI does not block on any individual page"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-022", "NFR-005"],
@@ -377,10 +588,20 @@
     "area": "project-config",
     "level": 1,
     "type": "functional",
-    "preconditions": ["roubo.yaml: integration: { plugin: jira-self-hosted, instance: 'https://jira.acme.com' }", "User override: integration: { sources: { boards: [12] } }"],
+    "preconditions": [
+      "roubo.yaml: integration: { plugin: jira-self-hosted, instance: 'https://jira.acme.com' }",
+      "User override: integration: { sources: { boards: [12] } }"
+    ],
     "steps": [
-      {"action": "Compute the effective integration config"},
-      {"action": "Inspect the result", "expected": ["plugin = jira-self-hosted (from roubo.yaml)", "instance = 'https://jira.acme.com' (from roubo.yaml)", "sources.boards = [12] (from override)"]}
+      { "action": "Compute the effective integration config" },
+      {
+        "action": "Inspect the result",
+        "expected": [
+          "plugin = jira-self-hosted (from roubo.yaml)",
+          "instance = 'https://jira.acme.com' (from roubo.yaml)",
+          "sources.boards = [12] (from override)"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-023"],
@@ -392,10 +613,19 @@
     "area": "project-config",
     "level": 1,
     "type": "functional",
-    "preconditions": ["roubo.yaml: integration.sources.boards = [12, 34]", "User override: integration.sources.boards = [99]"],
+    "preconditions": [
+      "roubo.yaml: integration.sources.boards = [12, 34]",
+      "User override: integration.sources.boards = [99]"
+    ],
     "steps": [
-      {"action": "Compute the effective integration config"},
-      {"action": "Inspect sources.boards", "expected": ["sources.boards equals [99]", "Values 12 and 34 are NOT present in the effective config"]}
+      { "action": "Compute the effective integration config" },
+      {
+        "action": "Inspect sources.boards",
+        "expected": [
+          "sources.boards equals [99]",
+          "Values 12 and 34 are NOT present in the effective config"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-023"],
@@ -407,11 +637,24 @@
     "area": "project-config",
     "level": 1,
     "type": "functional",
-    "preconditions": ["roubo.yaml references plugin: 'jira-self-hosted'", "jira-self-hosted is NOT installed locally"],
+    "preconditions": [
+      "roubo.yaml references plugin: 'jira-self-hosted'",
+      "jira-self-hosted is NOT installed locally"
+    ],
     "steps": [
-      {"action": "Open the project"},
-      {"action": "Observe the prompt", "expected": ["Dialog reads 'Plugin needed for this project'", "If roubo.yaml carries integration.pluginSource, a one-click Install button is offered using that source", "If not, the user can paste a Git URL or local path"]},
-      {"action": "Click Install and accept permissions", "expected": ["Plugin installs", "Project loads normally"]}
+      { "action": "Open the project" },
+      {
+        "action": "Observe the prompt",
+        "expected": [
+          "Dialog reads 'Plugin needed for this project'",
+          "If roubo.yaml carries integration.pluginSource, a one-click Install button is offered using that source",
+          "If not, the user can paste a Git URL or local path"
+        ]
+      },
+      {
+        "action": "Click Install and accept permissions",
+        "expected": ["Plugin installs", "Project loads normally"]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-024"],
@@ -423,10 +666,20 @@
     "area": "jira-plugin",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A Jira instance with default link type names", "Issue PROJ-200 is linked 'blocks' to PROJ-201"],
+    "preconditions": [
+      "A Jira instance with default link type names",
+      "Issue PROJ-200 is linked 'blocks' to PROJ-201"
+    ],
     "steps": [
-      {"action": "Plugin returns the normalized PROJ-200 issue"},
-      {"action": "Inspect blocks / blockedBy", "expected": ["PROJ-200.blocks contains 'PROJ-201'", "PROJ-201.blockedBy contains 'PROJ-200'", "Other Jira link types are ignored"]}
+      { "action": "Plugin returns the normalized PROJ-200 issue" },
+      {
+        "action": "Inspect blocks / blockedBy",
+        "expected": [
+          "PROJ-200.blocks contains 'PROJ-201'",
+          "PROJ-201.blockedBy contains 'PROJ-200'",
+          "Other Jira link types are ignored"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-025"],
@@ -440,8 +693,14 @@
     "type": "functional",
     "preconditions": ["Plugin has a stored last-poll timestamp for a source"],
     "steps": [
-      {"action": "Trigger a poll"},
-      {"action": "Inspect the JQL sent", "expected": ["JQL includes 'updated >= <last-poll>'", "Plugin updates its last-poll timestamp on successful response"]}
+      { "action": "Trigger a poll" },
+      {
+        "action": "Inspect the JQL sent",
+        "expected": [
+          "JQL includes 'updated >= <last-poll>'",
+          "Plugin updates its last-poll timestamp on successful response"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-026"],
@@ -453,10 +712,23 @@
     "area": "migration",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A pre-plugin ~/.roubo with auth.json (plaintext token), projects.json referencing a GitHub.com Project, and state.json with assignedIssue numeric fields"],
+    "preconditions": [
+      "A pre-plugin ~/.roubo with auth.json (plaintext token), projects.json referencing a GitHub.com Project, and state.json with assignedIssue numeric fields"
+    ],
     "steps": [
-      {"action": "Start the new Roubo binary"},
-      {"action": "Observe migration", "expected": ["bundled github-com plugin is enabled", "OAuth token moved to OS keyring slot via host.credentials.set", "Per-user override file ~/.roubo/integrations/<projectId>.yaml is created with the existing GitHub Project as a selected source", "state.json schemaVersion bumped", "auth.json is deleted only AFTER schemaVersion bump", "Re-running the binary is a no-op", "One-time migration banner shown"]}
+      { "action": "Start the new Roubo binary" },
+      {
+        "action": "Observe migration",
+        "expected": [
+          "bundled github-com plugin is enabled",
+          "OAuth token moved to OS keyring slot via host.credentials.set",
+          "Per-user override file ~/.roubo/integrations/<projectId>.yaml is created with the existing GitHub Project as a selected source",
+          "state.json schemaVersion bumped",
+          "auth.json is deleted only AFTER schemaVersion bump",
+          "Re-running the binary is a no-op",
+          "One-time migration banner shown"
+        ]
+      }
     ],
     "tags": ["smoke", "migration", "automated"],
     "linked_requirement_ids": ["FR-027", "FR-028", "NFR-009"],
@@ -470,8 +742,17 @@
     "type": "functional",
     "preconditions": ["A migrated bench from a pre-plugin Roubo"],
     "steps": [
-      {"action": "Inspect the bench's assignedIssue", "expected": ["integrationId is 'github-com'", "externalId is the string form of the legacy number"]},
-      {"action": "Create a new bench against a new integration", "expected": ["integrationId reflects the new active integration"]}
+      {
+        "action": "Inspect the bench's assignedIssue",
+        "expected": [
+          "integrationId is 'github-com'",
+          "externalId is the string form of the legacy number"
+        ]
+      },
+      {
+        "action": "Create a new bench against a new integration",
+        "expected": ["integrationId reflects the new active integration"]
+      }
     ],
     "tags": ["automated", "migration"],
     "linked_requirement_ids": ["FR-028"],
@@ -483,9 +764,17 @@
     "area": "blueprint-mappings",
     "level": 1,
     "type": "integration",
-    "preconditions": ["A project with jira-self-hosted active; the Jira plugin exposes issue types ['Bug', 'Story', 'Epic']"],
+    "preconditions": [
+      "A project with jira-self-hosted active; the Jira plugin exposes issue types ['Bug', 'Story', 'Epic']"
+    ],
     "steps": [
-      {"action": "GET /api/projects/<projectId>/issue-types", "expected": ["Response lists the strings from the Jira plugin", "Shape Record<string, string> is preserved on the mappings PUT"]}
+      {
+        "action": "GET /api/projects/<projectId>/issue-types",
+        "expected": [
+          "Response lists the strings from the Jira plugin",
+          "Shape Record<string, string> is preserved on the mappings PUT"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-029"],
@@ -499,9 +788,18 @@
     "type": "functional",
     "preconditions": ["Issue PROJ-200 has blockedBy: ['PROJ-100']", "PROJ-100 is open"],
     "steps": [
-      {"action": "Open the Issue Picker on PROJ-200"},
-      {"action": "Observe the banner", "expected": ["Amber-tinted banner names PROJ-100 as an open blocker", "Create bench button remains enabled"]},
-      {"action": "Click Create bench", "expected": ["Bench is created successfully", "No hard-block error is thrown"]}
+      { "action": "Open the Issue Picker on PROJ-200" },
+      {
+        "action": "Observe the banner",
+        "expected": [
+          "Amber-tinted banner names PROJ-100 as an open blocker",
+          "Create bench button remains enabled"
+        ]
+      },
+      {
+        "action": "Click Create bench",
+        "expected": ["Bench is created successfully", "No hard-block error is thrown"]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-030"],
@@ -515,8 +813,14 @@
     "type": "functional",
     "preconditions": ["@roubo/plugin-sdk is published or available as a local package"],
     "steps": [
-      {"action": "Author imports definePlugin and calls it with a contract object"},
-      {"action": "Run the plugin", "expected": ["RPC binding is established without the author writing stdio framing", "host.fetch, host.credentials, host.logger are reachable inside the contract methods"]}
+      { "action": "Author imports definePlugin and calls it with a contract object" },
+      {
+        "action": "Run the plugin",
+        "expected": [
+          "RPC binding is established without the author writing stdio framing",
+          "host.fetch, host.credentials, host.logger are reachable inside the contract methods"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-031"],
@@ -530,7 +834,14 @@
     "type": "functional",
     "preconditions": ["A built Roubo distribution"],
     "steps": [
-      {"action": "Inspect schema/roubo-plugin.schema.json", "expected": ["File exists", "Shape matches the runtime zod schema in shared/plugin-manifest-schema.ts", "An invalid roubo-plugin.yaml fails validation against it in an IDE-class JSON Schema validator"]}
+      {
+        "action": "Inspect schema/roubo-plugin.schema.json",
+        "expected": [
+          "File exists",
+          "Shape matches the runtime zod schema in shared/plugin-manifest-schema.ts",
+          "An invalid roubo-plugin.yaml fails validation against it in an IDE-class JSON Schema validator"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-032"],
@@ -544,8 +855,16 @@
     "type": "functional",
     "preconditions": ["GHE plugin configure dialog is open with instance URL and PAT entered"],
     "steps": [
-      {"action": "Click Test connection"},
-      {"action": "Wait for result", "expected": ["validateConfig is called with the entered config", "On success: result strip shows green check and 'Connected as <Display Name>'", "On auth failure: red dot and a structured error message", "Save button is enabled only after a successful test for the current values"]}
+      { "action": "Click Test connection" },
+      {
+        "action": "Wait for result",
+        "expected": [
+          "validateConfig is called with the entered config",
+          "On success: result strip shows green check and 'Connected as <Display Name>'",
+          "On auth failure: red dot and a structured error message",
+          "Save button is enabled only after a successful test for the current values"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-034", "FR-035"],
@@ -559,8 +878,14 @@
     "type": "functional",
     "preconditions": ["Test connection has succeeded with a valid PAT"],
     "steps": [
-      {"action": "Save the configuration"},
-      {"action": "Inspect the per-user override", "expected": ["The captured external user id is persisted on the project's integration record", "Subsequent assign operations use this id as the 'me' target"]}
+      { "action": "Save the configuration" },
+      {
+        "action": "Inspect the per-user override",
+        "expected": [
+          "The captured external user id is persisted on the project's integration record",
+          "Subsequent assign operations use this id as the 'me' target"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-035"],
@@ -572,10 +897,18 @@
     "area": "bench-view",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A bench against an issue whose allowedTransitions is ['In Review', 'Blocked']"],
+    "preconditions": [
+      "A bench against an issue whose allowedTransitions is ['In Review', 'Blocked']"
+    ],
     "steps": [
-      {"action": "Open the Transition control"},
-      {"action": "Inspect the menu", "expected": ["Exactly two entries: 'In Review' and 'Blocked'", "No other states (e.g. 'Done', 'To Do') are shown"]}
+      { "action": "Open the Transition control" },
+      {
+        "action": "Inspect the menu",
+        "expected": [
+          "Exactly two entries: 'In Review' and 'Blocked'",
+          "No other states (e.g. 'Done', 'To Do') are shown"
+        ]
+      }
     ],
     "tags": ["smoke", "automated"],
     "linked_requirement_ids": ["FR-036"],
@@ -587,10 +920,19 @@
     "area": "bench-view",
     "level": 1,
     "type": "functional",
-    "preconditions": ["The user's captured identity is 'jane.doe@acme.com'", "A bench against an issue with assignees: []"],
+    "preconditions": [
+      "The user's captured identity is 'jane.doe@acme.com'",
+      "A bench against an issue with assignees: []"
+    ],
     "steps": [
-      {"action": "Click Assign to me"},
-      {"action": "Observe the call", "expected": ["plugin.assignIssue is called with externalId and 'jane.doe@acme.com'", "On success, assignees array updates to include jane.doe@acme.com optimistically"]}
+      { "action": "Click Assign to me" },
+      {
+        "action": "Observe the call",
+        "expected": [
+          "plugin.assignIssue is called with externalId and 'jane.doe@acme.com'",
+          "On success, assignees array updates to include jane.doe@acme.com optimistically"
+        ]
+      }
     ],
     "tags": ["automated"],
     "linked_requirement_ids": ["FR-037"],
@@ -604,8 +946,17 @@
     "type": "functional",
     "preconditions": ["The slug folder contains the paper sketch"],
     "steps": [
-      {"action": "Verify the sketch exists under .specifications/integration-plugins/ and is referenced from architecture.md"},
-      {"action": "Verify content", "expected": ["Sketch outlines AI-agent plugin manifest fields and methods", "Sketch outlines project-component plugin manifest fields and methods", "Sketch passes through the same host RPC primitives without proposed major-version changes"]}
+      {
+        "action": "Verify the sketch exists under .specifications/integration-plugins/ and is referenced from architecture.md"
+      },
+      {
+        "action": "Verify content",
+        "expected": [
+          "Sketch outlines AI-agent plugin manifest fields and methods",
+          "Sketch outlines project-component plugin manifest fields and methods",
+          "Sketch passes through the same host RPC primitives without proposed major-version changes"
+        ]
+      }
     ],
     "tags": ["manual", "review-gate"],
     "linked_requirement_ids": ["FR-038", "NFR-011"],
@@ -617,10 +968,20 @@
     "area": "github-com-plugin",
     "level": 1,
     "type": "performance",
-    "preconditions": ["The bundled github-com plugin is enabled", "A prior request stored an ETag for /repos/foo/bar/issues"],
+    "preconditions": [
+      "The bundled github-com plugin is enabled",
+      "A prior request stored an ETag for /repos/foo/bar/issues"
+    ],
     "steps": [
-      {"action": "Plugin issues a second request to the same URL"},
-      {"action": "Inspect the call", "expected": ["Plugin sends If-None-Match with the stored ETag", "On 304 response, plugin short-circuits and returns the cached payload", "ETag store survives across plugin process restarts only inasmuch as the plugin persists it; otherwise behaviour matches the live source"]}
+      { "action": "Plugin issues a second request to the same URL" },
+      {
+        "action": "Inspect the call",
+        "expected": [
+          "Plugin sends If-None-Match with the stored ETag",
+          "On 304 response, plugin short-circuits and returns the cached payload",
+          "ETag store survives across plugin process restarts only inasmuch as the plugin persists it; otherwise behaviour matches the live source"
+        ]
+      }
     ],
     "tags": ["automated", "github-parity"],
     "linked_requirement_ids": ["FR-039"],
@@ -632,10 +993,19 @@
     "area": "github-com-plugin",
     "level": 1,
     "type": "performance",
-    "preconditions": ["The bundled github-com plugin is enabled", "A request elicits a 429 with Retry-After: 30"],
+    "preconditions": [
+      "The bundled github-com plugin is enabled",
+      "A request elicits a 429 with Retry-After: 30"
+    ],
     "steps": [
-      {"action": "Plugin issues a subsequent request to the same endpoint"},
-      {"action": "Inspect timing", "expected": ["Plugin waits at least 30 seconds before retrying", "Plugin surfaces a structured rate-limit error to the host if the budget is exceeded"]}
+      { "action": "Plugin issues a subsequent request to the same endpoint" },
+      {
+        "action": "Inspect timing",
+        "expected": [
+          "Plugin waits at least 30 seconds before retrying",
+          "Plugin surfaces a structured rate-limit error to the host if the budget is exceeded"
+        ]
+      }
     ],
     "tags": ["automated", "github-parity"],
     "linked_requirement_ids": ["FR-039"],
@@ -649,8 +1019,14 @@
     "type": "security",
     "preconditions": ["A plugin attempts an out-of-allowlist host.fetch"],
     "steps": [
-      {"action": "Trigger the denial"},
-      {"action": "Inspect the plugin log file", "expected": ["A line containing pluginId, methodName, and the denied URL is present", "Banner copy on the Plugins page references the same pluginId.methodName identifier"]}
+      { "action": "Trigger the denial" },
+      {
+        "action": "Inspect the plugin log file",
+        "expected": [
+          "A line containing pluginId, methodName, and the denied URL is present",
+          "Banner copy on the Plugins page references the same pluginId.methodName identifier"
+        ]
+      }
     ],
     "tags": ["automated", "security"],
     "linked_requirement_ids": ["NFR-001", "NFR-010"],
@@ -664,10 +1040,16 @@
     "type": "security",
     "preconditions": ["A plugin returns a normalized issue with a populated 'raw' field"],
     "steps": [
-      {"action": "Assign the issue to a bench"},
-      {"action": "Inspect ~/.roubo/state.json", "expected": ["The active bench's assignedIssue.raw is present"]},
-      {"action": "Clear the bench"},
-      {"action": "Re-inspect ~/.roubo/state.json", "expected": ["No 'raw' field remains anywhere in state.json after the bench is cleared"]}
+      { "action": "Assign the issue to a bench" },
+      {
+        "action": "Inspect ~/.roubo/state.json",
+        "expected": ["The active bench's assignedIssue.raw is present"]
+      },
+      { "action": "Clear the bench" },
+      {
+        "action": "Re-inspect ~/.roubo/state.json",
+        "expected": ["No 'raw' field remains anywhere in state.json after the bench is cleared"]
+      }
     ],
     "tags": ["automated", "security"],
     "linked_requirement_ids": ["NFR-004"],
@@ -681,8 +1063,17 @@
     "type": "accessibility",
     "preconditions": ["Plugins page is open"],
     "steps": [
-      {"action": "Press Tab repeatedly through the page", "expected": ["Focus moves through Install plugin button, each plugin card, and each card action in a sensible order", "Visible focus ring is present on every focusable element"]},
-      {"action": "Open the Install dialog and press Escape", "expected": ["Dialog closes", "Focus returns to the Install plugin button"]}
+      {
+        "action": "Press Tab repeatedly through the page",
+        "expected": [
+          "Focus moves through Install plugin button, each plugin card, and each card action in a sensible order",
+          "Visible focus ring is present on every focusable element"
+        ]
+      },
+      {
+        "action": "Open the Install dialog and press Escape",
+        "expected": ["Dialog closes", "Focus returns to the Install plugin button"]
+      }
     ],
     "tags": ["accessibility", "manual"],
     "linked_requirement_ids": ["NFR-007"],
@@ -696,14 +1087,20 @@
     "type": "functional",
     "preconditions": ["GHE plugin is bundled", "User has a valid GHE PAT and instance URL"],
     "steps": [
-      {"action": "Open Plugins page, enable GHE plugin"},
-      {"action": "Open project Issue source tile, choose GHE"},
-      {"action": "Enter instance URL and PAT in the configure dialog"},
-      {"action": "Click Test connection", "expected": ["Returns 'Connected as <user>' inline"]},
-      {"action": "Click Save"},
-      {"action": "Open Configure sources", "expected": ["multi-list picker shows the user's repos and Projects"]},
-      {"action": "Select at least one repo and one Project, click Select"},
-      {"action": "Open the issue queue", "expected": ["Issues from the selected sources appear", "Cross-source dedup applies"]}
+      { "action": "Open Plugins page, enable GHE plugin" },
+      { "action": "Open project Issue source tile, choose GHE" },
+      { "action": "Enter instance URL and PAT in the configure dialog" },
+      { "action": "Click Test connection", "expected": ["Returns 'Connected as <user>' inline"] },
+      { "action": "Click Save" },
+      {
+        "action": "Open Configure sources",
+        "expected": ["multi-list picker shows the user's repos and Projects"]
+      },
+      { "action": "Select at least one repo and one Project, click Select" },
+      {
+        "action": "Open the issue queue",
+        "expected": ["Issues from the selected sources appear", "Cross-source dedup applies"]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-018", "FR-019", "FR-022", "FR-034", "FR-035"],
@@ -715,17 +1112,39 @@
     "area": "jira-plugin",
     "level": 2,
     "type": "functional",
-    "preconditions": ["Jira plugin is bundled", "User has a valid Jira Data Center PAT and instance URL"],
+    "preconditions": [
+      "Jira plugin is bundled",
+      "User has a valid Jira Data Center PAT and instance URL"
+    ],
     "steps": [
-      {"action": "Enable jira-self-hosted plugin"},
-      {"action": "Configure plugin: enter instance URL and PAT"},
-      {"action": "Click Test connection", "expected": ["Returns 'Connected as <displayName>' inline"]},
-      {"action": "Save"},
-      {"action": "Open Configure sources, select a board, an epic, and a filter"},
-      {"action": "Open the issue queue", "expected": ["Issues appear; blocks/blocked-by are honoured (soft banner where applicable)", "Issue type strings from Jira drive the issue-type mappings"]}
+      { "action": "Enable jira-self-hosted plugin" },
+      { "action": "Configure plugin: enter instance URL and PAT" },
+      {
+        "action": "Click Test connection",
+        "expected": ["Returns 'Connected as <displayName>' inline"]
+      },
+      { "action": "Save" },
+      { "action": "Open Configure sources, select a board, an epic, and a filter" },
+      {
+        "action": "Open the issue queue",
+        "expected": [
+          "Issues appear; blocks/blocked-by are honoured (soft banner where applicable)",
+          "Issue type strings from Jira drive the issue-type mappings"
+        ]
+      }
     ],
     "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-018", "FR-019", "FR-022", "FR-025", "FR-026", "FR-029", "FR-030", "FR-034", "FR-035"],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-019",
+      "FR-022",
+      "FR-025",
+      "FR-026",
+      "FR-029",
+      "FR-030",
+      "FR-034",
+      "FR-035"
+    ],
     "linked_user_story_ids": ["US-002"]
   },
   {
@@ -734,12 +1153,28 @@
     "area": "migration",
     "level": 2,
     "type": "integration",
-    "preconditions": ["A real pre-plugin ~/.roubo fixture is set up (auth.json, projects.json with GitHub Project, state.json with two assigned benches)"],
+    "preconditions": [
+      "A real pre-plugin ~/.roubo fixture is set up (auth.json, projects.json with GitHub Project, state.json with two assigned benches)"
+    ],
     "steps": [
-      {"action": "Start the new Roubo binary"},
-      {"action": "Observe migration banner", "expected": ["Single one-time success banner"]},
-      {"action": "Open both pre-existing projects", "expected": ["Issue sources are pre-selected from the GitHub Project", "Existing assigned benches still link to their issues"]},
-      {"action": "Inspect filesystem", "expected": ["auth.json deleted", "state.json schemaVersion bumped", "~/.roubo/integrations/<projectId>.yaml created per migrated project", "OS keyring contains the OAuth token"]}
+      { "action": "Start the new Roubo binary" },
+      { "action": "Observe migration banner", "expected": ["Single one-time success banner"] },
+      {
+        "action": "Open both pre-existing projects",
+        "expected": [
+          "Issue sources are pre-selected from the GitHub Project",
+          "Existing assigned benches still link to their issues"
+        ]
+      },
+      {
+        "action": "Inspect filesystem",
+        "expected": [
+          "auth.json deleted",
+          "state.json schemaVersion bumped",
+          "~/.roubo/integrations/<projectId>.yaml created per migrated project",
+          "OS keyring contains the OAuth token"
+        ]
+      }
     ],
     "tags": ["journey", "migration", "automated"],
     "linked_requirement_ids": ["FR-010", "FR-027", "FR-028", "NFR-002", "NFR-009"],
@@ -751,13 +1186,18 @@
     "area": "sdk",
     "level": 2,
     "type": "functional",
-    "preconditions": ["@roubo/plugin-sdk is available; user has a local /tmp/linear-plugin/ directory with a valid roubo-plugin.yaml and entry point"],
+    "preconditions": [
+      "@roubo/plugin-sdk is available; user has a local /tmp/linear-plugin/ directory with a valid roubo-plugin.yaml and entry point"
+    ],
     "steps": [
-      {"action": "Open Install plugin, From local directory, enter /tmp/linear-plugin"},
-      {"action": "Accept permissions dialog"},
-      {"action": "Configure plugin with Linear API token"},
-      {"action": "Add the plugin as the project's integration"},
-      {"action": "Observe issue queue", "expected": ["Linear issues appear in the normalized shape"]}
+      { "action": "Open Install plugin, From local directory, enter /tmp/linear-plugin" },
+      { "action": "Accept permissions dialog" },
+      { "action": "Configure plugin with Linear API token" },
+      { "action": "Add the plugin as the project's integration" },
+      {
+        "action": "Observe issue queue",
+        "expected": ["Linear issues appear in the normalized shape"]
+      }
     ],
     "tags": ["journey", "manual"],
     "linked_requirement_ids": ["FR-007", "FR-017", "FR-018", "FR-021", "FR-031"],
@@ -769,13 +1209,22 @@
     "area": "project-config",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A repo's roubo.yaml declares plugin: jira-self-hosted with pluginSource hint", "Teammate's Roubo has jira-self-hosted NOT installed"],
+    "preconditions": [
+      "A repo's roubo.yaml declares plugin: jira-self-hosted with pluginSource hint",
+      "Teammate's Roubo has jira-self-hosted NOT installed"
+    ],
     "steps": [
-      {"action": "Teammate opens the project"},
-      {"action": "Missing-plugin prompt appears", "expected": ["One-click Install button is shown using the pluginSource"]},
-      {"action": "Click Install and accept permissions"},
-      {"action": "Configure the plugin (teammate enters their own credentials)"},
-      {"action": "Open the issue queue", "expected": ["Teammate sees their own slice of issues per the merged effective config"]}
+      { "action": "Teammate opens the project" },
+      {
+        "action": "Missing-plugin prompt appears",
+        "expected": ["One-click Install button is shown using the pluginSource"]
+      },
+      { "action": "Click Install and accept permissions" },
+      { "action": "Configure the plugin (teammate enters their own credentials)" },
+      {
+        "action": "Open the issue queue",
+        "expected": ["Teammate sees their own slice of issues per the merged effective config"]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-017", "FR-023", "FR-024"],
@@ -789,9 +1238,21 @@
     "type": "functional",
     "preconditions": ["A project on github-com with two active benches against GitHub issues"],
     "steps": [
-      {"action": "Open Switch integration, pick jira-self-hosted, confirm"},
-      {"action": "Inspect the active benches", "expected": ["Each bench shows the 'Issue from previous integration' badge", "Source-sync controls are visibly disabled for those benches"]},
-      {"action": "Create a new bench", "expected": ["New bench uses jira-self-hosted as the integration", "Issue source tile shows Jira sources"]}
+      { "action": "Open Switch integration, pick jira-self-hosted, confirm" },
+      {
+        "action": "Inspect the active benches",
+        "expected": [
+          "Each bench shows the 'Issue from previous integration' badge",
+          "Source-sync controls are visibly disabled for those benches"
+        ]
+      },
+      {
+        "action": "Create a new bench",
+        "expected": [
+          "New bench uses jira-self-hosted as the integration",
+          "Issue source tile shows Jira sources"
+        ]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-018", "FR-028"],
@@ -805,11 +1266,11 @@
     "type": "functional",
     "preconditions": ["A reachable Git URL hosting a valid plugin"],
     "steps": [
-      {"action": "Open Install plugin, From Git URL tab, paste the URL"},
-      {"action": "Click Install", "expected": ["Host clones into ~/.roubo/plugins/<id>/"]},
-      {"action": "Accept permissions dialog"},
-      {"action": "Configure plugin"},
-      {"action": "Confirm plugin is enabled and reachable from a project's Issue source tile"}
+      { "action": "Open Install plugin, From Git URL tab, paste the URL" },
+      { "action": "Click Install", "expected": ["Host clones into ~/.roubo/plugins/<id>/"] },
+      { "action": "Accept permissions dialog" },
+      { "action": "Configure plugin" },
+      { "action": "Confirm plugin is enabled and reachable from a project's Issue source tile" }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-007", "FR-017"],
@@ -823,8 +1284,15 @@
     "type": "functional",
     "preconditions": ["A bench against an issue whose allowedTransitions = ['In Review', 'Done']"],
     "steps": [
-      {"action": "Open the Transition control"},
-      {"action": "Select 'In Review'", "expected": ["plugin.applyTransition is called", "Optimistic UI updates the state pill to 'In Review'", "On success, the source system reflects the transition on next refresh"]}
+      { "action": "Open the Transition control" },
+      {
+        "action": "Select 'In Review'",
+        "expected": [
+          "plugin.applyTransition is called",
+          "Optimistic UI updates the state pill to 'In Review'",
+          "On success, the source system reflects the transition on next refresh"
+        ]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-036"],
@@ -836,11 +1304,22 @@
     "area": "plugin-runtime",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plugin successfully fetched issues; plugin then crashes 3 times within 5 minutes"],
+    "preconditions": [
+      "A plugin successfully fetched issues; plugin then crashes 3 times within 5 minutes"
+    ],
     "steps": [
-      {"action": "Observe Plugins page", "expected": ["Plugin status is errored after the 3rd crash"]},
-      {"action": "Open a project that uses this plugin", "expected": ["Last-good snapshot is served with a global banner"]},
-      {"action": "Click Restart on the errored card", "expected": ["Restart counter clears", "Plugin starts; status becomes Enabled"]}
+      {
+        "action": "Observe Plugins page",
+        "expected": ["Plugin status is errored after the 3rd crash"]
+      },
+      {
+        "action": "Open a project that uses this plugin",
+        "expected": ["Last-good snapshot is served with a global banner"]
+      },
+      {
+        "action": "Click Restart on the errored card",
+        "expected": ["Restart counter clears", "Plugin starts; status becomes Enabled"]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-013", "FR-014", "FR-015", "FR-016"],
@@ -852,11 +1331,24 @@
     "area": "project-config",
     "level": 2,
     "type": "functional",
-    "preconditions": ["Project's roubo.yaml has no integration block", "User creates a per-user override picking jira-self-hosted with one filter"],
+    "preconditions": [
+      "Project's roubo.yaml has no integration block",
+      "User creates a per-user override picking jira-self-hosted with one filter"
+    ],
     "steps": [
-      {"action": "Open the project"},
-      {"action": "Inspect effective config", "expected": ["plugin = jira-self-hosted", "instance and sources from override only", "Issue source tile caption reads 'Configuration from your override; roubo.yaml has no integration block'"]},
-      {"action": "Inspect git status", "expected": ["No changes to roubo.yaml (override is per-user, not committed)"]}
+      { "action": "Open the project" },
+      {
+        "action": "Inspect effective config",
+        "expected": [
+          "plugin = jira-self-hosted",
+          "instance and sources from override only",
+          "Issue source tile caption reads 'Configuration from your override; roubo.yaml has no integration block'"
+        ]
+      },
+      {
+        "action": "Inspect git status",
+        "expected": ["No changes to roubo.yaml (override is per-user, not committed)"]
+      }
     ],
     "tags": ["journey", "automated"],
     "linked_requirement_ids": ["FR-023"],
@@ -870,8 +1362,15 @@
     "type": "performance",
     "preconditions": ["A source with exactly 500 issues", "Page size = 50"],
     "steps": [
-      {"action": "Open the issue picker and scroll to the bottom"},
-      {"action": "Observe paging", "expected": ["10 pages are fetched in sequence via useInfiniteQuery", "Each page's spinner-to-rendered round trip is bounded; the UI does not block scroll", "Final count of rendered issues is 500"]}
+      { "action": "Open the issue picker and scroll to the bottom" },
+      {
+        "action": "Observe paging",
+        "expected": [
+          "10 pages are fetched in sequence via useInfiniteQuery",
+          "Each page's spinner-to-rendered round trip is bounded; the UI does not block scroll",
+          "Final count of rendered issues is 500"
+        ]
+      }
     ],
     "tags": ["performance", "automated", "slow"],
     "linked_requirement_ids": ["FR-022", "NFR-005"],
@@ -885,8 +1384,15 @@
     "type": "negative",
     "preconditions": ["Install dialog open"],
     "steps": [
-      {"action": "Paste https://github.com/this-repo/does-not-exist.git"},
-      {"action": "Click Install", "expected": ["Inline red banner reports 'Could not clone repository. git exited with code 128: Repository not found.'", "No partial directory left in ~/.roubo/plugins/", "User can correct the URL and try again"]}
+      { "action": "Paste https://github.com/this-repo/does-not-exist.git" },
+      {
+        "action": "Click Install",
+        "expected": [
+          "Inline red banner reports 'Could not clone repository. git exited with code 128: Repository not found.'",
+          "No partial directory left in ~/.roubo/plugins/",
+          "User can correct the URL and try again"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-017"],
@@ -900,8 +1406,14 @@
     "type": "negative",
     "preconditions": ["Install dialog open"],
     "steps": [
-      {"action": "Paste a local directory path that has no roubo-plugin.yaml"},
-      {"action": "Click Install", "expected": ["Inline red banner names the missing manifest", "No plugin appears on the Plugins page"]}
+      { "action": "Paste a local directory path that has no roubo-plugin.yaml" },
+      {
+        "action": "Click Install",
+        "expected": [
+          "Inline red banner names the missing manifest",
+          "No plugin appears on the Plugins page"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-017"],
@@ -915,7 +1427,14 @@
     "type": "negative",
     "preconditions": ["GHE configure dialog open with a valid instance URL but a junk PAT"],
     "steps": [
-      {"action": "Click Test connection", "expected": ["validateConfig returns auth-failed error", "Result strip shows red dot and the structured error: 'Authentication failed: 401 Unauthorized. Check that the token is valid and has the required scopes.'", "Save remains disabled"]}
+      {
+        "action": "Click Test connection",
+        "expected": [
+          "validateConfig returns auth-failed error",
+          "Result strip shows red dot and the structured error: 'Authentication failed: 401 Unauthorized. Check that the token is valid and has the required scopes.'",
+          "Save remains disabled"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-034"],
@@ -929,7 +1448,13 @@
     "type": "negative",
     "preconditions": ["Jira configure dialog with a non-resolving instance URL"],
     "steps": [
-      {"action": "Click Test connection", "expected": ["Result strip shows red dot and 'Could not reach <URL>: ENOTFOUND. Check the URL and your VPN.'", "Save remains disabled"]}
+      {
+        "action": "Click Test connection",
+        "expected": [
+          "Result strip shows red dot and 'Could not reach <URL>: ENOTFOUND. Check the URL and your VPN.'",
+          "Save remains disabled"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-034"],
@@ -941,10 +1466,25 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Jira instance is reachable but uses a self-signed cert", "Self-signed TLS is off"],
+    "preconditions": [
+      "Jira instance is reachable but uses a self-signed cert",
+      "Self-signed TLS is off"
+    ],
     "steps": [
-      {"action": "Click Test connection", "expected": ["Result strip shows red dot and 'TLS error: self-signed certificate.'", "Inline Enable button is offered"]},
-      {"action": "Click Enable inline", "expected": ["Self-signed TLS toggle flips on with the warning shown", "Test connection re-runs and now succeeds"]}
+      {
+        "action": "Click Test connection",
+        "expected": [
+          "Result strip shows red dot and 'TLS error: self-signed certificate.'",
+          "Inline Enable button is offered"
+        ]
+      },
+      {
+        "action": "Click Enable inline",
+        "expected": [
+          "Self-signed TLS toggle flips on with the warning shown",
+          "Test connection re-runs and now succeeds"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-009", "FR-034"],
@@ -956,9 +1496,20 @@
     "area": "bench-view",
     "level": 3,
     "type": "negative",
-    "preconditions": ["A bench against an issue with allowedTransitions = ['Done']", "User's token lacks transition permission on this workflow"],
+    "preconditions": [
+      "A bench against an issue with allowedTransitions = ['Done']",
+      "User's token lacks transition permission on this workflow"
+    ],
     "steps": [
-      {"action": "Click Transition > Done", "expected": ["plugin.applyTransition is called", "Plugin returns a structured error 'Your token lacks permission to transition this workflow.'", "UI reverts the optimistic update", "Inline red banner under the Transition control surfaces the error verbatim"]}
+      {
+        "action": "Click Transition > Done",
+        "expected": [
+          "plugin.applyTransition is called",
+          "Plugin returns a structured error 'Your token lacks permission to transition this workflow.'",
+          "UI reverts the optimistic update",
+          "Inline red banner under the Transition control surfaces the error verbatim"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-036"],
@@ -972,11 +1523,17 @@
     "type": "edge_case",
     "preconditions": ["A bench is created against an issue in state 'To Do'"],
     "steps": [
-      {"action": "Create the bench"},
-      {"action": "Start all components"},
-      {"action": "Merge the linked PR"},
-      {"action": "Clear the bench"},
-      {"action": "Inspect plugin RPC log", "expected": ["No applyTransition call was sent for any of the lifecycle events", "Source state remains 'To Do' unless the user explicitly transitioned"]}
+      { "action": "Create the bench" },
+      { "action": "Start all components" },
+      { "action": "Merge the linked PR" },
+      { "action": "Clear the bench" },
+      {
+        "action": "Inspect plugin RPC log",
+        "expected": [
+          "No applyTransition call was sent for any of the lifecycle events",
+          "Source state remains 'To Do' unless the user explicitly transitioned"
+        ]
+      }
     ],
     "tags": ["edge_case", "automated"],
     "linked_requirement_ids": ["FR-036"],
@@ -988,10 +1545,19 @@
     "area": "project-config",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["roubo.yaml: integration.sources.boards = [12]", "User override: integration.sources.boards = []"],
+    "preconditions": [
+      "roubo.yaml: integration.sources.boards = [12]",
+      "User override: integration.sources.boards = []"
+    ],
     "steps": [
-      {"action": "Compute effective config"},
-      {"action": "Inspect sources.boards", "expected": ["Effective sources.boards equals []", "Empty array in override is a valid replacement, not 'unset'"]}
+      { "action": "Compute effective config" },
+      {
+        "action": "Inspect sources.boards",
+        "expected": [
+          "Effective sources.boards equals []",
+          "Empty array in override is a valid replacement, not 'unset'"
+        ]
+      }
     ],
     "tags": ["edge_case", "automated"],
     "linked_requirement_ids": ["FR-023"],
@@ -1003,10 +1569,20 @@
     "area": "project-config",
     "level": 3,
     "type": "negative",
-    "preconditions": ["roubo.yaml carries integration.pluginSource pointing at a removed repository", "Teammate does not have the plugin installed"],
+    "preconditions": [
+      "roubo.yaml carries integration.pluginSource pointing at a removed repository",
+      "Teammate does not have the plugin installed"
+    ],
     "steps": [
-      {"action": "Open the project"},
-      {"action": "Missing-plugin prompt appears", "expected": ["One-click Install button attempts the pluginSource URL", "Clone fails with structured error", "User is offered to paste a different Git URL or local directory path"]}
+      { "action": "Open the project" },
+      {
+        "action": "Missing-plugin prompt appears",
+        "expected": [
+          "One-click Install button attempts the pluginSource URL",
+          "Clone fails with structured error",
+          "User is offered to paste a different Git URL or local directory path"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-024"],
@@ -1020,7 +1596,14 @@
     "type": "negative",
     "preconditions": ["roubo.yaml: integration: { plugin: 'jira-self-hosted', bogus_field: true }"],
     "steps": [
-      {"action": "Parse roubo.yaml", "expected": ["zod schema rejects 'bogus_field' with a clear error", "Roubo refuses to load the project until the file is fixed", "Existing files without an integration block continue to validate"]}
+      {
+        "action": "Parse roubo.yaml",
+        "expected": [
+          "zod schema rejects 'bogus_field' with a clear error",
+          "Roubo refuses to load the project until the file is fixed",
+          "Existing files without an integration block continue to validate"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-023"],
@@ -1034,8 +1617,15 @@
     "type": "edge_case",
     "preconditions": ["Migration has already completed once; schemaVersion is bumped"],
     "steps": [
-      {"action": "Restart Roubo"},
-      {"action": "Inspect migration logs", "expected": ["Migration code path detects the bumped schemaVersion and exits early", "No files are modified", "No migration banner is shown a second time"]}
+      { "action": "Restart Roubo" },
+      {
+        "action": "Inspect migration logs",
+        "expected": [
+          "Migration code path detects the bumped schemaVersion and exits early",
+          "No files are modified",
+          "No migration banner is shown a second time"
+        ]
+      }
     ],
     "tags": ["edge_case", "automated", "migration"],
     "linked_requirement_ids": ["FR-027", "NFR-009"],
@@ -1049,9 +1639,17 @@
     "type": "negative",
     "preconditions": ["Migration is run with the OS keyring temporarily unavailable"],
     "steps": [
-      {"action": "Start Roubo"},
-      {"action": "Migration attempts to move auth.json token into keyring; keyring set fails"},
-      {"action": "Inspect ~/.roubo", "expected": ["auth.json is still present (NOT deleted)", "schemaVersion is unchanged (NOT bumped)", "No partial integration override file remains", "Roubo surfaces the rolled-back-migration banner with a link to the Plugins page"]}
+      { "action": "Start Roubo" },
+      { "action": "Migration attempts to move auth.json token into keyring; keyring set fails" },
+      {
+        "action": "Inspect ~/.roubo",
+        "expected": [
+          "auth.json is still present (NOT deleted)",
+          "schemaVersion is unchanged (NOT bumped)",
+          "No partial integration override file remains",
+          "Roubo surfaces the rolled-back-migration banner with a link to the Plugins page"
+        ]
+      }
     ],
     "tags": ["negative", "automated", "migration"],
     "linked_requirement_ids": ["FR-027", "NFR-009"],
@@ -1063,10 +1661,20 @@
     "area": "credential-store",
     "level": 3,
     "type": "security",
-    "preconditions": ["Plugin manifest declares credentials.slots: ['jira-token']", "Plugin attempts host.credentials.get('github-token')"],
+    "preconditions": [
+      "Plugin manifest declares credentials.slots: ['jira-token']",
+      "Plugin attempts host.credentials.get('github-token')"
+    ],
     "steps": [
-      {"action": "Plugin issues the disallowed get"},
-      {"action": "Inspect the RPC response", "expected": ["Host returns a structured permission error", "Plugin does NOT receive the credential value", "Denial is logged with stable pluginId.methodName identifier"]}
+      { "action": "Plugin issues the disallowed get" },
+      {
+        "action": "Inspect the RPC response",
+        "expected": [
+          "Host returns a structured permission error",
+          "Plugin does NOT receive the credential value",
+          "Denial is logged with stable pluginId.methodName identifier"
+        ]
+      }
     ],
     "tags": ["security", "automated"],
     "linked_requirement_ids": ["FR-006", "FR-010", "NFR-001"],
@@ -1078,10 +1686,19 @@
     "area": "issue-list",
     "level": 3,
     "type": "negative",
-    "preconditions": ["A misbehaving plugin that always returns the same page regardless of cursor"],
+    "preconditions": [
+      "A misbehaving plugin that always returns the same page regardless of cursor"
+    ],
     "steps": [
-      {"action": "Open the issue picker and scroll"},
-      {"action": "Observe", "expected": ["Host detects an unchanging nextCursor or duplicate items by (integrationId, externalId) and stops fetching", "UI shows a 'Plugin paging appears stuck. Try a refresh.' inline note", "Roubo does not crash or loop"]}
+      { "action": "Open the issue picker and scroll" },
+      {
+        "action": "Observe",
+        "expected": [
+          "Host detects an unchanging nextCursor or duplicate items by (integrationId, externalId) and stops fetching",
+          "UI shows a 'Plugin paging appears stuck. Try a refresh.' inline note",
+          "Roubo does not crash or loop"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-020", "FR-022"],
@@ -1093,9 +1710,15 @@
     "area": "jira-plugin",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["A Jira instance where 'blocks' is renamed to 'depends on'", "Plugin config sets blocksLinkTypeName = 'depends on'"],
+    "preconditions": [
+      "A Jira instance where 'blocks' is renamed to 'depends on'",
+      "Plugin config sets blocksLinkTypeName = 'depends on'"
+    ],
     "steps": [
-      {"action": "Plugin normalises a linked issue", "expected": ["The custom-named link is correctly mapped to blocks / blockedBy"]}
+      {
+        "action": "Plugin normalises a linked issue",
+        "expected": ["The custom-named link is correctly mapped to blocks / blockedBy"]
+      }
     ],
     "tags": ["edge_case", "automated"],
     "linked_requirement_ids": ["FR-025"],
@@ -1109,8 +1732,15 @@
     "type": "negative",
     "preconditions": ["A fixture plugin that emits a chunk of non-JSON to stdout"],
     "steps": [
-      {"action": "Host receives the malformed message"},
-      {"action": "Observe behaviour", "expected": ["Host surfaces a parse error", "Outstanding RPC promises reject with a structured error", "Plugin remains running (single bad message does not crash plugin or host)"]}
+      { "action": "Host receives the malformed message" },
+      {
+        "action": "Observe behaviour",
+        "expected": [
+          "Host surfaces a parse error",
+          "Outstanding RPC promises reject with a structured error",
+          "Plugin remains running (single bad message does not crash plugin or host)"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-004", "NFR-008"],
@@ -1124,8 +1754,15 @@
     "type": "performance",
     "preconditions": ["A fixture plugin that returns a 10MB+ payload for listIssues"],
     "steps": [
-      {"action": "Host receives the payload"},
-      {"action": "Observe", "expected": ["Host either handles the message or rejects with a size-limit error", "Host does not crash or stall the other plugins", "Behaviour is documented in the plugin SDK guide"]}
+      { "action": "Host receives the payload" },
+      {
+        "action": "Observe",
+        "expected": [
+          "Host either handles the message or rejects with a size-limit error",
+          "Host does not crash or stall the other plugins",
+          "Behaviour is documented in the plugin SDK guide"
+        ]
+      }
     ],
     "tags": ["performance", "automated", "slow"],
     "linked_requirement_ids": ["FR-004", "NFR-008"],
@@ -1139,8 +1776,16 @@
     "type": "accessibility",
     "preconditions": ["A screen reader (VoiceOver on macOS or Orca on Linux) is running"],
     "steps": [
-      {"action": "Trigger the install permissions dialog"},
-      {"action": "Navigate via the screen reader", "expected": ["Dialog announces its title and role", "Each permission category is announced with its label and detail", "The install button is clearly identified as the primary action", "Cancel button is clearly identified"]}
+      { "action": "Trigger the install permissions dialog" },
+      {
+        "action": "Navigate via the screen reader",
+        "expected": [
+          "Dialog announces its title and role",
+          "Each permission category is announced with its label and detail",
+          "The install button is clearly identified as the primary action",
+          "Cancel button is clearly identified"
+        ]
+      }
     ],
     "tags": ["accessibility", "manual"],
     "linked_requirement_ids": ["NFR-003", "NFR-007"],
@@ -1154,8 +1799,17 @@
     "type": "accessibility",
     "preconditions": ["categorized-multi-list source picker is open"],
     "steps": [
-      {"action": "Tab through tabs and items", "expected": ["Focus moves predictably from tab list to items to selected-strip", "Arrow keys navigate items inside a tab"]},
-      {"action": "Use Space / Enter to select", "expected": ["Selection state updates and is announced"]}
+      {
+        "action": "Tab through tabs and items",
+        "expected": [
+          "Focus moves predictably from tab list to items to selected-strip",
+          "Arrow keys navigate items inside a tab"
+        ]
+      },
+      {
+        "action": "Use Space / Enter to select",
+        "expected": ["Selection state updates and is announced"]
+      }
     ],
     "tags": ["accessibility", "manual"],
     "linked_requirement_ids": ["NFR-007"],
@@ -1169,8 +1823,15 @@
     "type": "edge_case",
     "preconditions": ["Two plugins are running"],
     "steps": [
-      {"action": "Send SIGTERM to the host"},
-      {"action": "Observe", "expected": ["Plugin children receive SIGTERM and exit within 5 seconds", "No plugin processes outlive the host", "Logs record clean shutdown"]}
+      { "action": "Send SIGTERM to the host" },
+      {
+        "action": "Observe",
+        "expected": [
+          "Plugin children receive SIGTERM and exit within 5 seconds",
+          "No plugin processes outlive the host",
+          "Logs record clean shutdown"
+        ]
+      }
     ],
     "tags": ["reliability", "automated"],
     "linked_requirement_ids": ["NFR-008"],
@@ -1182,10 +1843,19 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["Host is killed with SIGKILL", "Plugin children are spawned with detached: false (the default)"],
+    "preconditions": [
+      "Host is killed with SIGKILL",
+      "Plugin children are spawned with detached: false (the default)"
+    ],
     "steps": [
-      {"action": "SIGKILL the host"},
-      {"action": "Observe child behaviour", "expected": ["Child processes receive SIGHUP on parent exit on POSIX systems", "Children exit shortly after; no zombies"]}
+      { "action": "SIGKILL the host" },
+      {
+        "action": "Observe child behaviour",
+        "expected": [
+          "Child processes receive SIGHUP on parent exit on POSIX systems",
+          "Children exit shortly after; no zombies"
+        ]
+      }
     ],
     "tags": ["reliability", "automated"],
     "linked_requirement_ids": ["NFR-008"],
@@ -1197,10 +1867,19 @@
     "area": "issue-list",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Plugin returns successfully for page 1, errors for page 2, returns successfully for page 3"],
+    "preconditions": [
+      "Plugin returns successfully for page 1, errors for page 2, returns successfully for page 3"
+    ],
     "steps": [
-      {"action": "Scroll through pages"},
-      {"action": "Observe", "expected": ["Page 1 renders", "Page 2 surfaces a per-page error banner with retry", "Page 3 renders without re-fetching page 1 or 2"]}
+      { "action": "Scroll through pages" },
+      {
+        "action": "Observe",
+        "expected": [
+          "Page 1 renders",
+          "Page 2 surfaces a per-page error banner with retry",
+          "Page 3 renders without re-fetching page 1 or 2"
+        ]
+      }
     ],
     "tags": ["negative", "automated"],
     "linked_requirement_ids": ["FR-022", "NFR-005"],
@@ -1214,7 +1893,13 @@
     "type": "security",
     "preconditions": ["Plugin manifest declares no filesystem permission beyond its plugin dir"],
     "steps": [
-      {"action": "Plugin attempts to write to /tmp/exfiltrate.txt", "expected": ["Host-mediated filesystem operation is denied", "If the plugin bypasses host helpers and uses raw fs (which is possible in Node), this is documented as a limitation, and Spike B includes a test that the host's audit log records the bypass via process-monitoring"]}
+      {
+        "action": "Plugin attempts to write to /tmp/exfiltrate.txt",
+        "expected": [
+          "Host-mediated filesystem operation is denied",
+          "If the plugin bypasses host helpers and uses raw fs (which is possible in Node), this is documented as a limitation, and Spike B includes a test that the host's audit log records the bypass via process-monitoring"
+        ]
+      }
     ],
     "tags": ["security", "manual", "review-gate"],
     "linked_requirement_ids": ["FR-006", "NFR-001"],
@@ -1228,8 +1913,15 @@
     "type": "performance",
     "preconditions": ["A Jira instance with 300+ filters visible to the user"],
     "steps": [
-      {"action": "Open the source picker, Filters tab"},
-      {"action": "Observe", "expected": ["List renders without freezing the UI", "Search filtering responds within 200ms", "If unacceptable, file a follow-on to paginate listSourceCandidates"]}
+      { "action": "Open the source picker, Filters tab" },
+      {
+        "action": "Observe",
+        "expected": [
+          "List renders without freezing the UI",
+          "Search filtering responds within 200ms",
+          "If unacceptable, file a follow-on to paginate listSourceCandidates"
+        ]
+      }
     ],
     "tags": ["performance", "manual", "exploratory", "slow"],
     "linked_requirement_ids": ["FR-019"],
@@ -1243,8 +1935,15 @@
     "type": "edge_case",
     "preconditions": ["A community plugin whose configSchema includes nested objects and arrays"],
     "steps": [
-      {"action": "Open the plugin configure dialog"},
-      {"action": "Observe the form rendering", "expected": ["Form renders without breaking the layout", "Validation messages appear inline", "Any pathological schema is documented as needing renderer improvement in a follow-on"]}
+      { "action": "Open the plugin configure dialog" },
+      {
+        "action": "Observe the form rendering",
+        "expected": [
+          "Form renders without breaking the layout",
+          "Validation messages appear inline",
+          "Any pathological schema is documented as needing renderer improvement in a follow-on"
+        ]
+      }
     ],
     "tags": ["exploratory", "manual"],
     "linked_requirement_ids": ["FR-034"],
@@ -1256,10 +1955,21 @@
     "area": "credential-store",
     "level": 4,
     "type": "integration",
-    "preconditions": ["A clean headless Ubuntu environment (no graphical session)", "secret-tool present, gnome-keyring-daemon not running by default"],
+    "preconditions": [
+      "A clean headless Ubuntu environment (no graphical session)",
+      "secret-tool present, gnome-keyring-daemon not running by default"
+    ],
     "steps": [
-      {"action": "Run the documented dbus-run-session + gnome-keyring-daemon --start --components=secrets recipe"},
-      {"action": "Set and get a credential via host.credentials", "expected": ["Credentials work after the recipe is applied", "If the recipe fails, the open Spike A unknown is updated with the failing condition"]}
+      {
+        "action": "Run the documented dbus-run-session + gnome-keyring-daemon --start --components=secrets recipe"
+      },
+      {
+        "action": "Set and get a credential via host.credentials",
+        "expected": [
+          "Credentials work after the recipe is applied",
+          "If the recipe fails, the open Spike A unknown is updated with the failing condition"
+        ]
+      }
     ],
     "tags": ["exploratory", "manual", "linux", "headless"],
     "linked_requirement_ids": ["FR-010", "NFR-002"],
@@ -1273,8 +1983,17 @@
     "type": "integration",
     "preconditions": ["Slug for AI-agent plugins is in interview / feasibility"],
     "steps": [
-      {"action": "Compare the AI-agent slug's manifest and method-set proposal to the paper sketch"},
-      {"action": "Verify", "expected": ["No host-API major-version bump is required", "Any deviations from the sketch are recorded as decisions with rationale", "The paper sketch's predictions are validated or revised in real time"]}
+      {
+        "action": "Compare the AI-agent slug's manifest and method-set proposal to the paper sketch"
+      },
+      {
+        "action": "Verify",
+        "expected": [
+          "No host-API major-version bump is required",
+          "Any deviations from the sketch are recorded as decisions with rationale",
+          "The paper sketch's predictions are validated or revised in real time"
+        ]
+      }
     ],
     "tags": ["exploratory", "manual", "future-slug"],
     "linked_requirement_ids": ["FR-038", "NFR-011"],

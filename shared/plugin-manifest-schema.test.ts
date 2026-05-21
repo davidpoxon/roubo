@@ -52,7 +52,7 @@ function omitField<T extends object, K extends keyof T>(obj: T, key: K): Omit<T,
   return rest;
 }
 
-describe("PluginManifestSchema — TC-006 happy paths", () => {
+describe("PluginManifestSchema: TC-006 happy paths", () => {
   it("accepts a manifest with all four permission categories populated", () => {
     const manifest = makeManifest({
       permissions: {
@@ -101,7 +101,7 @@ describe("PluginManifestSchema — TC-006 happy paths", () => {
   });
 });
 
-describe("PluginManifestSchema — missing required top-level fields", () => {
+describe("PluginManifestSchema: missing required top-level fields", () => {
   const requiredTopLevelFields: Array<keyof PluginManifest> = [
     "id",
     "name",
@@ -121,7 +121,7 @@ describe("PluginManifestSchema — missing required top-level fields", () => {
   }
 });
 
-describe("PluginManifestSchema — missing required permission categories", () => {
+describe("PluginManifestSchema: missing required permission categories", () => {
   const categories = ["network", "credentials", "filesystem", "processes"] as const;
 
   for (const category of categories) {
@@ -133,7 +133,7 @@ describe("PluginManifestSchema — missing required permission categories", () =
   }
 });
 
-describe("PluginManifestSchema — strict top-level", () => {
+describe("PluginManifestSchema: strict top-level", () => {
   it("rejects unknown top-level fields", () => {
     const manifest = { ...makeManifest(), unexpectedField: "nope" } as unknown as PluginManifest;
     const result = PluginManifestSchema.safeParse(manifest);
@@ -144,7 +144,7 @@ describe("PluginManifestSchema — strict top-level", () => {
   });
 });
 
-describe("PluginManifestSchema — value validation", () => {
+describe("PluginManifestSchema: value validation", () => {
   it("rejects non-kebab-case id", () => {
     const result = PluginManifestSchema.safeParse(makeManifest({ id: "GitHub_Com" }));
     expectFieldError(result, "id");
@@ -239,7 +239,7 @@ describe("PluginManifestSchema — value validation", () => {
   });
 });
 
-describe("PluginManifestSchema — forward-compat passthrough", () => {
+describe("PluginManifestSchema: forward-compat passthrough", () => {
   it("accepts unknown permission categories so future 1.x minors can add them", () => {
     const manifest = {
       ...makeManifest(),
@@ -252,7 +252,7 @@ describe("PluginManifestSchema — forward-compat passthrough", () => {
   });
 });
 
-describe("schema/roubo-plugin.schema.json — JSON Schema artifact", () => {
+describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const jsonSchemaPath = resolve(here, "..", "schema", "roubo-plugin.schema.json");
   const jsonSchema = JSON.parse(readFileSync(jsonSchemaPath, "utf-8")) as Record<string, unknown>;
