@@ -195,6 +195,16 @@ export const UserConfigSchema = z
   .strict();
 export type UserConfig = z.infer<typeof UserConfigSchema>;
 
+export const IntegrationConfigSchema = z
+  .object({
+    plugin: z.string().optional(),
+    instance: z.string().optional(),
+    sources: z.record(z.string(), z.array(z.union([z.string(), z.number()]))).optional(),
+    pluginSource: z.string().optional(),
+  })
+  .strict();
+export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
+
 const ComponentsMapSchema = z.record(z.string(), ComponentConfigSchema).superRefine((val, ctx) => {
   if (Object.keys(val).length === 0) {
     ctx.addIssue({
@@ -242,6 +252,7 @@ export const RouboConfigSchema = z
     inspection: InspectionConfigSchema.optional(),
     benches: BenchesConfigSchema,
     blueprints: BlueprintsConfigSchema.optional(),
+    integration: IntegrationConfigSchema.optional(),
     users: UsersArraySchema.optional(),
   })
   .strict()
