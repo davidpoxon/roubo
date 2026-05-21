@@ -54,10 +54,33 @@ jobs:
             exit 0
           fi
 
+          # Author emails belonging to automated dependency-update bots that
+          # are exempt from the per-commit DCO requirement. DCO is a legal
+          # attestation by a human contributor; bots cannot meaningfully
+          # attest, which is why mainstream DCO tooling (e.g. the GitHub DCO
+          # App) ships with an equivalent allowlist. Spoofing the author email
+          # gains nothing here: the regex below already trusts that same email
+          # as the basis for what trailer it accepts, so the threat model is
+          # unchanged.
+          bot_authors=(
+            "49699333+dependabot[bot]@users.noreply.github.com"
+          )
+
           missing=()
           for sha in $commits; do
             author_email=$(git log -1 --format='%ae' "$sha")
             body=$(git log -1 --format='%B' "$sha")
+
+            skip=0
+            for bot in "${bot_authors[@]}"; do
+              if [ "$author_email" = "$bot" ]; then
+                skip=1
+                break
+              fi
+            done
+            if [ "$skip" -eq 1 ]; then
+              continue
+            fi
 
             # The sign-off must appear in the message and contain the author email.
             if ! printf '%s\n' "$body" | grep -qiE "^Signed-off-by: .+<.+@.+>$"; then
