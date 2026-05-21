@@ -31,7 +31,7 @@
     "node-pty": "1.1.0",
     "octokit": "5.0.5",
     "tree-kill": "1.2.2",
-    "ws": "8.20.0"
+    "ws": "8.20.1"
   },
   "devDependencies": {
     "@types/cors": "2.8.19",
