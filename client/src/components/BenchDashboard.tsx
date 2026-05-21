@@ -173,14 +173,17 @@ export default function BenchDashboard() {
               setBranchConflict({ ...response.branchConflict, issueNumber });
             }
           },
-          onError: () => {
+          onError: (err) => {
             removePending(issueNumber);
             clearPendingAssignment(issueNumber);
+            addToast(err instanceof Error && err.message ? err.message : "Failed to create bench", {
+              duration: 8000,
+            });
           },
         },
       );
     },
-    [projectId, createBench, removePending, clearPendingAssignment],
+    [projectId, createBench, removePending, clearPendingAssignment, addToast],
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {

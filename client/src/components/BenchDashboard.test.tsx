@@ -293,7 +293,7 @@ const mockedUseGitHubAuth = vi.mocked(useGitHubAuth);
 
 type MutateOptions = {
   onSuccess?: (result: unknown) => void;
-  onError?: () => void;
+  onError?: (err: unknown) => void;
 };
 
 function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProject {
@@ -379,6 +379,7 @@ function stubDefaults({
   });
   return {
     createMutate,
+    addToast,
     getCapturedOptions: () => capturedOptions,
     getCapturedToastOptions: () => capturedToastOptions,
   };
@@ -688,8 +689,8 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("conflict-dialog")).not.toBeInTheDocument();
     });
 
-    it("clears pending when createBench fails", async () => {
-      const { getCapturedOptions, getCapturedToastOptions } = stubDefaults({
+    it("clears pending and surfaces error toast when createBench fails", async () => {
+      const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
         projects: [makeProject()],
         benches: [],
       });
@@ -699,10 +700,36 @@ describe("BenchDashboard", () => {
       act(() => {
         getCapturedToastOptions().onExpire?.();
       });
-      // onError should not throw
+      addToast.mockClear();
       await act(async () => {
-        getCapturedOptions().onError?.();
+        getCapturedOptions().onError?.(new Error("Issue is blocked by unresolved dependencies"));
       });
+      expect(screen.queryByTestId("pending-bench-card")).not.toBeInTheDocument();
+      expect(addToast).toHaveBeenCalledWith(
+        "Issue is blocked by unresolved dependencies",
+        expect.objectContaining({ duration: 8000 }),
+      );
+    });
+
+    it("uses fallback toast message when onError receives a non-Error value", async () => {
+      const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getByTestId("pick-issue-1"));
+      await userEvent.click(screen.getByTestId("issue-picker-select"));
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      addToast.mockClear();
+      await act(async () => {
+        getCapturedOptions().onError?.("not an error");
+      });
+      expect(addToast).toHaveBeenCalledWith(
+        "Failed to create bench",
+        expect.objectContaining({ duration: 8000 }),
+      );
     });
 
     it("shows pending bench card when issue is selected from IssuePickerModal", async () => {
