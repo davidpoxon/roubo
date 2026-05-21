@@ -442,6 +442,59 @@ describe("users", () => {
   });
 });
 
+describe("integration block", () => {
+  it("accepts a config without an integration block (backward compatibility)", () => {
+    expect(RouboConfigSchema.safeParse(makeConfig()).success).toBe(true);
+  });
+
+  it("accepts an empty integration block (all fields optional)", () => {
+    expect(RouboConfigSchema.safeParse(makeConfig({ integration: {} })).success).toBe(true);
+  });
+
+  it("accepts an integration block with only plugin", () => {
+    const config = makeConfig({ integration: { plugin: "github-com" } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("accepts an integration block with plugin, instance, sources, and pluginSource", () => {
+    const config = makeConfig({
+      integration: {
+        plugin: "jira-self-hosted",
+        instance: "https://jira.acme.com",
+        sources: { boards: [12], repos: ["owner/repo"] },
+        pluginSource: "git@github.com:acme/roubo-jira-plugin.git",
+      },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("accepts numeric-only and string-only source arrays", () => {
+    const config = makeConfig({
+      integration: { sources: { boards: [12, 34], repos: ["a/b", "c/d"] } },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("rejects unknown fields inside the integration block", () => {
+    const result = RouboConfigSchema.safeParse({
+      ...makeConfig(),
+      integration: { plugin: "jira-self-hosted", bogus_field: true },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const paths = result.error.issues.map((i) => i.path.join("."));
+    expect(paths.some((p) => p.includes("bogus_field") || p.startsWith("integration"))).toBe(true);
+  });
+
+  it("rejects a non-array value inside sources", () => {
+    const result = RouboConfigSchema.safeParse({
+      ...makeConfig(),
+      integration: { sources: { boards: "not-an-array" } },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("zodIssuesToValidationErrors", () => {
   it("converts issues to path/message pairs", () => {
     const result = RouboConfigSchema.safeParse({

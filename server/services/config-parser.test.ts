@@ -398,6 +398,78 @@ describe("parseConfig", () => {
     expect(result.config.inspection?.env?.CI).toBe("true");
   });
 
+  it("surfaces the integration block in the parsed config", () => {
+    const yamlContent = [
+      "project:",
+      "  name: test-project",
+      "  displayName: Test Project",
+      "  type: web",
+      "  repo: org/test-project",
+      "layout:",
+      "  type: single-repo",
+      "components:",
+      "  backend:",
+      "    type: process",
+      "    command: npm run dev",
+      "ports:",
+      "  backend:",
+      "    base: 5000",
+      "benches:",
+      "  max: 5",
+      "integration:",
+      "  plugin: jira-self-hosted",
+      "  instance: https://jira.acme.com",
+      "  sources:",
+      "    boards: [12]",
+      "    repos: ['owner/repo']",
+      "  pluginSource: git@github.com:acme/roubo-jira-plugin.git",
+    ].join("\n");
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
+    vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
+    const result = parseConfig("/some/repo");
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(result.config.integration?.plugin).toBe("jira-self-hosted");
+    expect(result.config.integration?.instance).toBe("https://jira.acme.com");
+    expect(result.config.integration?.sources?.boards).toEqual([12]);
+    expect(result.config.integration?.sources?.repos).toEqual(["owner/repo"]);
+    expect(result.config.integration?.pluginSource).toBe(
+      "git@github.com:acme/roubo-jira-plugin.git",
+    );
+  });
+
+  it("rejects unknown fields under the integration block", () => {
+    const yamlContent = [
+      "project:",
+      "  name: test-project",
+      "  displayName: Test Project",
+      "  type: web",
+      "  repo: org/test-project",
+      "layout:",
+      "  type: single-repo",
+      "components:",
+      "  backend:",
+      "    type: process",
+      "    command: npm run dev",
+      "ports:",
+      "  backend:",
+      "    base: 5000",
+      "benches:",
+      "  max: 5",
+      "integration:",
+      "  plugin: jira-self-hosted",
+      "  bogus_field: true",
+    ].join("\n");
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
+    vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
+    const result = parseConfig("/some/repo");
+    expect(result.valid).toBe(false);
+    if (!result.errors) throw new Error("expected errors");
+    expect(result.errors.some((e) => e.includes("integration") || e.includes("bogus_field"))).toBe(
+      true,
+    );
+  });
+
   it('rejects a submodule key of "." via parseConfig', () => {
     const config = makeConfig({
       layout: {

@@ -181,6 +181,22 @@
         }
       }
     },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plugin": { "type": "string" },
+        "instance": { "type": "string" },
+        "sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": ["string", "number"] }
+          }
+        },
+        "pluginSource": { "type": "string" }
+      }
+    },
     "users": {
       "type": "array",
       "description": "List of users to seed in the bench environment. Only non-sensitive properties should be stored here — do not commit passwords or secrets directly; use environment variable references instead.",
