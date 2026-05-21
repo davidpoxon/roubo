@@ -25,6 +25,8 @@ export type {
   BenchesConfig,
   BlueprintsConfig,
   UserConfig,
+  IntegrationConfig,
+  IntegrationOverride,
   ConfigFieldError,
   BlueprintSettings,
 } from "./config-schema.js";
@@ -39,9 +41,13 @@ export {
   InspectionConfigSchema,
   BenchesConfigSchema,
   UserConfigSchema,
+  IntegrationConfigSchema,
+  IntegrationOverrideSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
 } from "./config-schema.js";
+
+export { deepMergeIntegration } from "./deep-merge.js";
 
 // ── roubo-plugin.yaml manifest types (derived from Zod schema in plugin-manifest-schema.ts) ──
 
