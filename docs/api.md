@@ -10,10 +10,10 @@ This document is the authoritative reference for the integration surface. Routes
 
 Roubo runs as a local Electron app or a local Node server. In both modes the API listens on **`127.0.0.1`** only (it does not bind a network interface), so it is reachable from the same machine and only the same machine.
 
-| Mode               | Base URL                  |
-| ------------------ | ------------------------- |
-| Production / app   | `http://localhost:3333`   |
-| `npm run dev`      | `http://localhost:3335`   |
+| Mode             | Base URL                |
+| ---------------- | ----------------------- |
+| Production / app | `http://localhost:3333` |
+| `npm run dev`    | `http://localhost:3335` |
 
 CORS is open (`Access-Control-Allow-Origin: *`); any browser-based tool on the same machine can call the API directly. Request bodies must be JSON with `Content-Type: application/json`. The JSON body limit is **210 KB**.
 
@@ -36,12 +36,12 @@ Errors are JSON. A typical error response looks like:
 
 The `code` field is present for known, classified errors. The status code is set as follows:
 
-| Status | Meaning                                                     | Common `code` values                                  |
-| ------ | ----------------------------------------------------------- | ----------------------------------------------------- |
-| `400`  | Validation failure or invalid state for the requested action | `INVALID_CONFIG`, `NO_CONFIG`, untyped errors         |
-| `404`  | Referenced resource does not exist                          | `NOT_FOUND`, `PROJECT_NOT_FOUND`, `CONTAINER_NOT_FOUND` |
-| `409`  | Conflict that the client can resolve                        | `DUPLICATE`, `PORT_CONFLICT`, `HAS_BENCHES`, `NO_BENCHES`, `INVALID_STATE`, `bench-dirty` |
-| `500`  | Unhandled server error                                      | (no code)                                             |
+| Status | Meaning                                                      | Common `code` values                                                                      |
+| ------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `400`  | Validation failure or invalid state for the requested action | `INVALID_CONFIG`, `NO_CONFIG`, untyped errors                                             |
+| `404`  | Referenced resource does not exist                           | `NOT_FOUND`, `PROJECT_NOT_FOUND`, `CONTAINER_NOT_FOUND`                                   |
+| `409`  | Conflict that the client can resolve                         | `DUPLICATE`, `PORT_CONFLICT`, `HAS_BENCHES`, `NO_BENCHES`, `INVALID_STATE`, `bench-dirty` |
+| `500`  | Unhandled server error                                       | (no code)                                                                                 |
 
 Some endpoints return additional fields alongside `error` and `code`:
 
@@ -140,11 +140,13 @@ curl -X POST http://localhost:3333/api/projects \
 
 ```
 DELETE /api/projects/:projectId
+DELETE /api/projects/:projectId?force=true
 ```
 
 - `204 No Content` on success
 - `404 NOT_FOUND` if no such project
 - `409 HAS_BENCHES` if any bench still exists for the project (clear them first)
+- Pass `?force=true` (or `?force=1`) to drop bench state records without clearing benches first. Use this when the project folder is no longer accessible or its `roubo.yaml` can't be loaded, so the normal "clear benches first" flow is unreachable. No filesystem cleanup is performed; leftover worktree files on disk are left alone.
 
 ### Get parsed config
 

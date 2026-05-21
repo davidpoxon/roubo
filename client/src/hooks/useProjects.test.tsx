@@ -65,9 +65,17 @@ describe("useUnregisterProject", () => {
   it("calls unregisterProject with projectId", async () => {
     mockedApi.unregisterProject.mockResolvedValue(undefined);
     const { result } = renderHookWithProviders(() => useUnregisterProject());
-    result.current.mutate("p1");
+    result.current.mutate({ projectId: "p1" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.unregisterProject).toHaveBeenCalledWith("p1");
+    expect(mockedApi.unregisterProject).toHaveBeenCalledWith("p1", { force: undefined });
+  });
+
+  it("forwards force=true to the API client", async () => {
+    mockedApi.unregisterProject.mockResolvedValue(undefined);
+    const { result } = renderHookWithProviders(() => useUnregisterProject());
+    result.current.mutate({ projectId: "p1", force: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.unregisterProject).toHaveBeenCalledWith("p1", { force: true });
   });
 });
 

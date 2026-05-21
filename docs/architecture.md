@@ -6,15 +6,15 @@ This document describes how Roubo is put together: the concepts you'll see in th
 
 Roubo's vocabulary is deliberate; every term carries meaning. See [brand.md](./brand.md) for the full glossary; the essentials are below.
 
-| Term           | What it is                                                                                |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| **Project**    | A registered repository with a `roubo.yaml` config.                                       |
+| Term           | What it is                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| **Project**    | A registered repository with a `roubo.yaml` config.                                         |
 | **Bench**      | An isolated dev environment for one project: a git worktree, ports, and running components. |
-| **Component**  | A running part of a bench, typically a database, backend, and frontend.                   |
+| **Component**  | A running part of a bench, typically a database, backend, and frontend.                     |
 | **Tool**       | A quick-open action defined in `roubo.yaml`: open the browser, launch the IDE, run a shell. |
-| **Inspection** | Running quality checks (tests, lints) against the work on a bench.                        |
-| **Blueprint**  | AI coding agent instructions injected into a bench's workspace.                           |
-| **Workspace** | The git worktree directory on disk for a specific bench.                                  |
+| **Inspection** | Running quality checks (tests, lints) against the work on a bench.                          |
+| **Blueprint**  | AI coding agent instructions injected into a bench's workspace.                             |
+| **Workspace**  | The git worktree directory on disk for a specific bench.                                    |
 
 A project can have multiple benches. Each bench is fully isolated from the others: its own worktree, its own port range, its own database container, its own running processes. This is the whole point of Roubo: you can run several agents (or several streams of your own work) against the same project, in parallel, with no collisions.
 
@@ -92,10 +92,10 @@ Components are torn down in reverse dependency order on **Stop**.
 
 Two kinds of component are supported, declared by the `type` field in `roubo.yaml`:
 
-| `type`     | Backed by                                | Used for                          |
-| ---------- | ---------------------------------------- | --------------------------------- |
-| `process`  | A long-running process Roubo supervises  | Backend servers, frontend dev servers, any `npm`/`node`/`dotnet`/etc. process. |
-| `database` | A `docker compose` service               | Postgres, SQL Server, Redis, etc. |
+| `type`     | Backed by                               | Used for                                                                       |
+| ---------- | --------------------------------------- | ------------------------------------------------------------------------------ |
+| `process`  | A long-running process Roubo supervises | Backend servers, frontend dev servers, any `npm`/`node`/`dotnet`/etc. process. |
+| `database` | A `docker compose` service              | Postgres, SQL Server, Redis, etc.                                              |
 
 For `process` components, Roubo manages stdout/stderr capture, port-templating of environment variables, restart-on-fail policy, and graceful shutdown.
 

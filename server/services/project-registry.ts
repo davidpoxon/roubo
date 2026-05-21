@@ -100,7 +100,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   return project;
 }
 
-export function unregisterProject(projectId: string) {
+export function unregisterProject(projectId: string, opts: { force?: boolean } = {}) {
   const project = projects.get(projectId);
   if (!project) {
     throw new ProjectRegistryError(`Project '${projectId}' not found`, "NOT_FOUND");
@@ -108,10 +108,18 @@ export function unregisterProject(projectId: string) {
 
   const benches = state.getPersistedBenches(projectId);
   if (benches.length > 0) {
-    throw new ProjectRegistryError(
-      `Cannot unregister '${projectId}': ${benches.length} active bench(es). Clear them first.`,
-      "HAS_BENCHES",
-    );
+    if (!opts.force) {
+      throw new ProjectRegistryError(
+        `Cannot unregister '${projectId}': ${benches.length} active bench(es). Clear them first.`,
+        "HAS_BENCHES",
+      );
+    }
+    // Force path: drop bench records from state.json. No filesystem cleanup —
+    // worktree dirs may not exist (folder was deleted) and we can't safely act
+    // on a missing repo.
+    for (const bench of benches) {
+      state.removeBench(projectId, bench.id);
+    }
   }
 
   projects.delete(projectId);

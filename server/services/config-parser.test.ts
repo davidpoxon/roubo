@@ -262,7 +262,30 @@ describe("resolveServiceEnv", () => {
 // --- Functions that use filesystem ---
 
 describe("parseConfig", () => {
+  const mockDirStat = () =>
+    vi.spyOn(fs, "statSync").mockReturnValue({ isDirectory: () => true } as fs.Stats);
+
+  it("returns invalid when project folder does not exist", () => {
+    vi.spyOn(fs, "statSync").mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    const result = parseConfig("/missing/repo");
+    expect(result.valid).toBe(false);
+    if (!result.errors) throw new Error("expected errors");
+    expect(result.errors[0]).toContain("Project folder no longer exists");
+    expect(result.errors[0]).toContain("/missing/repo");
+  });
+
+  it("returns invalid when project path is not a directory", () => {
+    vi.spyOn(fs, "statSync").mockReturnValue({ isDirectory: () => false } as fs.Stats);
+    const result = parseConfig("/some/file");
+    expect(result.valid).toBe(false);
+    if (!result.errors) throw new Error("expected errors");
+    expect(result.errors[0]).toContain("not a directory");
+  });
+
   it("returns invalid when config file does not exist", () => {
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(false);
     const result = parseConfig("/some/repo");
     expect(result.valid).toBe(false);
@@ -271,6 +294,7 @@ describe("parseConfig", () => {
   });
 
   it("returns invalid when YAML is malformed", () => {
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue("invalid: yaml: {{{}}}" as any);
     const result = parseConfig("/some/repo");
@@ -280,6 +304,7 @@ describe("parseConfig", () => {
   });
 
   it("returns invalid when schema validation fails", () => {
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue("name: wrong-structure\n" as any);
     const result = parseConfig("/some/repo");
@@ -291,6 +316,7 @@ describe("parseConfig", () => {
   it("returns valid config when YAML is correct", () => {
     const validConfig = makeConfig();
     const yamlStr = JSON.stringify(validConfig);
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     // YAML.parse can parse JSON as valid YAML
     vi.spyOn(fs, "readFileSync").mockReturnValue(yamlStr as any);
@@ -322,6 +348,7 @@ describe("parseConfig", () => {
       "benches:",
       "  max: 5",
     ].join("\n");
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
     const result = parseConfig("/some/repo");
@@ -354,6 +381,7 @@ describe("parseConfig", () => {
       "benches:",
       "  max: 5",
     ].join("\n");
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
     const result = parseConfig("/some/repo");
@@ -389,6 +417,7 @@ describe("parseConfig", () => {
       "    TEST_PORT: 9999",
       "    CI: true",
     ].join("\n");
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
     const result = parseConfig("/some/repo");
@@ -405,6 +434,7 @@ describe("parseConfig", () => {
         submodules: { ".": "git@github.com:org/root.git", "sub-a": "git@github.com:org/sub-a.git" },
       },
     });
+    mockDirStat();
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.spyOn(fs, "readFileSync").mockReturnValue(JSON.stringify(config) as any);
     const result = parseConfig("/some/repo");

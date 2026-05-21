@@ -31,7 +31,8 @@ export function useRegisterProject() {
 export function useUnregisterProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (projectId: string) => api.unregisterProject(projectId),
+    mutationFn: ({ projectId, force }: { projectId: string; force?: boolean }) =>
+      api.unregisterProject(projectId, { force }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
     },

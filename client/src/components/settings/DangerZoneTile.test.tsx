@@ -174,7 +174,7 @@ describe("DangerZoneTile", () => {
       }),
     );
     expect(mockMutate).toHaveBeenCalledWith(
-      "proj-1",
+      { projectId: "proj-1", force: false },
       expect.objectContaining({
         onSuccess: expect.any(Function),
         onError: expect.any(Function),
@@ -184,7 +184,10 @@ describe("DangerZoneTile", () => {
 
   it("navigates to / and adds a success toast on onSuccess", async () => {
     const mutateFn = vi.fn(
-      (_id: string, options?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
         options?.onSuccess?.();
       },
     );
@@ -205,7 +208,10 @@ describe("DangerZoneTile", () => {
   it("adds an error toast with the error message on onError", async () => {
     const testError = new Error("Server unreachable");
     const mutateFn = vi.fn(
-      (_id: string, options?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
         options?.onError?.(testError);
       },
     );
@@ -226,7 +232,10 @@ describe("DangerZoneTile", () => {
 
   it("adds a generic error toast when the error has no message", async () => {
     const mutateFn = vi.fn(
-      (_id: string, options?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
         options?.onError?.({});
       },
     );
@@ -247,7 +256,10 @@ describe("DangerZoneTile", () => {
 
   it("adds a generic error toast when the error message is an empty string", async () => {
     const mutateFn = vi.fn(
-      (_id: string, options?: { onSuccess?: () => void; onError?: (err: unknown) => void }) => {
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
         options?.onError?.(new Error(""));
       },
     );
@@ -432,6 +444,75 @@ describe("DangerZoneTile", () => {
       }),
     );
     expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  // --- force-unregister (project folder missing) ---
+
+  function setupErroredProject(benches: Bench[]) {
+    vi.mocked(useProjects).mockReturnValue({
+      data: [
+        makeProject({
+          config: undefined,
+          configValid: false,
+          repoPath: "/repos/gone",
+        }),
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useProjects>);
+    vi.mocked(useUnregisterProject).mockReturnValue({
+      mutate: mockMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUnregisterProject>);
+    vi.mocked(useToast).mockReturnValue({
+      addToast: mockAddToast,
+      removeToast: vi.fn(),
+    });
+    vi.mocked(useProjectBenches).mockReturnValue({
+      data: benches,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useProjectBenches>);
+  }
+
+  it("renders the force note and Force unregister button for an errored project with benches", async () => {
+    setupErroredProject([makeBench()]);
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    expect(screen.getByTestId("force-unregister-note")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
+    ).toBeInTheDocument();
+    // The non-force "will stop being monitored" warning should not show
+    expect(screen.queryByText(/will stop being monitored/)).not.toBeInTheDocument();
+  });
+
+  it("calls mutate with force=true when confirming an errored project with benches", async () => {
+    setupErroredProject([makeBench(), makeBench({ id: 2 })]);
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "/repos/gone");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
+    );
+    expect(mockMutate).toHaveBeenCalledWith(
+      { projectId: "proj-1", force: true },
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    );
+  });
+
+  it("does not show the force note for an errored project with no benches", async () => {
+    setupErroredProject([]);
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    expect(screen.queryByTestId("force-unregister-note")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    ).toBeInTheDocument();
   });
 
   it("resets the typed name after the dialog closes via Cancel", async () => {
