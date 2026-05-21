@@ -75,5 +75,8 @@
     "supertest": "7.2.2",
     "typescript-eslint": "8.59.0",
     "vitest": "4.1.4"
+  },
+  "overrides": {
+    "tar": "7.5.15"
   }
 }
