@@ -230,7 +230,12 @@ describe("IssueQueuePanel", () => {
         provisioningSteps: [],
         teardownSteps: [],
         notifications: [],
-        assignedIssue: { number: 1, title: "Issue 1" },
+        assignedIssue: {
+          number: 1,
+          integrationId: "github-com",
+          externalId: "1",
+          title: "Issue 1",
+        },
       },
     ];
 

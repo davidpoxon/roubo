@@ -643,8 +643,39 @@ export interface GitHubIssueComment {
   createdAt: string;
 }
 
+/**
+ * Plugin-produced normalized issue contract. Every integration plugin
+ * (github-com, github-enterprise, jira, third-party) returns issues in
+ * this shape; every Roubo consumer reads this shape.
+ *
+ * Intentionally excludes sprint, fixVersion, custom fields, attachments,
+ * comments, and hierarchical links (parent/children/epic) — see FR-021.
+ */
+export interface NormalizedIssue {
+  integrationId: string;
+  externalId: string;
+  externalUrl: string;
+  title: string;
+  body: string | null;
+  currentState: string;
+  allowedTransitions: string[];
+  assignees: Array<{ externalId: string; displayName: string }>;
+  labels: string[];
+  issueType: string | null;
+  blocks: string[];
+  blockedBy: string[];
+  updatedAt: string;
+  raw: unknown;
+}
+
 export interface AssignedIssue {
+  // Legacy GitHub issue number. Today only github-com produces issues, so this
+  // is always present; load-time migration derives externalId from this for
+  // pre-plugin benches. A later WU makes this optional when non-github plugins
+  // land and updates downstream consumers accordingly.
   number: number;
+  integrationId: string;
+  externalId: string;
   title: string;
   blockedBy?: Array<{ number: number; title: string }>;
   /**

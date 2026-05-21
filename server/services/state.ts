@@ -9,6 +9,7 @@ import {
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
 import type {
+  AssignedIssue,
   Bench,
   PersistedProjects,
   PersistedProjectEntry,
@@ -88,12 +89,32 @@ export function saveProjects(data: PersistedProjects) {
   atomicWrite(PROJECTS_FILE, JSON.stringify(data, null, 2));
 }
 
+/**
+ * Fills integrationId + externalId on a pre-plugin assignedIssue snapshot.
+ * Pre-plugin benches only have `number` and `title`; this defaults them to
+ * the github-com integration and stringifies `number` into `externalId`.
+ * Idempotent — a fully-formed snapshot passes through unchanged.
+ */
+export function migrateAssignedIssue(issue: AssignedIssue | undefined): AssignedIssue | undefined {
+  if (!issue) return issue;
+  if (issue.integrationId && issue.externalId) return issue;
+  return {
+    ...issue,
+    integrationId: issue.integrationId ?? "github-com",
+    externalId: issue.externalId ?? String(issue.number ?? ""),
+  };
+}
+
 export function loadState(): PersistedState {
   ensureDirs();
   if (!fs.existsSync(STATE_FILE)) {
     return { benches: [] };
   }
-  return JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+  const data: PersistedState = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+  for (const bench of data.benches) {
+    bench.assignedIssue = migrateAssignedIssue(bench.assignedIssue);
+  }
+  return data;
 }
 
 export function saveState(data: PersistedState) {

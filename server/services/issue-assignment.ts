@@ -200,6 +200,8 @@ export async function createBenchAndAssignIssue(
   // Assign issue metadata including seeded linked PRs
   bench.assignedIssue = {
     number: issueNumber,
+    integrationId: "github-com",
+    externalId: String(issueNumber),
     title: issue.title,
     linkedPullRequests,
   };
@@ -309,6 +311,8 @@ export async function assignIssue(
   bench.branch = branchName;
   bench.assignedIssue = {
     number: issueNumber,
+    integrationId: "github-com",
+    externalId: String(issueNumber),
     title: issue.title,
     linkedPullRequests,
   };
