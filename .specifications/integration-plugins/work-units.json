@@ -1,0 +1,1085 @@
+[
+  {
+    "id": "WU-001",
+    "title": "Plugin manifest schema (zod) + JSON Schema artifact",
+    "description": "Define the canonical `roubo-plugin.yaml` manifest shape in `shared/plugin-manifest-schema.ts` as a zod schema covering id, name, version, roubo (host API range), kind: 'integration', entry, configSchema (JSON Schema for user config), and the four permission categories (network.hosts, credentials.slots, filesystem.paths, processes). Publish a matching `schema/roubo-plugin.schema.json` artifact so editors validate YAML. Reject manifests with missing or invalid required fields; reject unknown fields with a clear error. Existing roubo.yaml files (no integration block) must continue to validate.",
+    "acceptance_criteria": [
+      "shared/plugin-manifest-schema.ts exports a zod schema with the four permission categories and required fields",
+      "schema/roubo-plugin.schema.json exists and mirrors the zod schema for IDE tooling",
+      "Manifest with all four permission categories parses successfully",
+      "Manifest with a missing required field is rejected with a clear error naming the field",
+      "Unknown top-level fields are rejected by .strict()",
+      "Test coverage from TC-006 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-006",
+      "FR-032"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-006"
+    ],
+    "estimate": "M",
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/17",
+      "id": 17,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-002",
+    "title": "NormalizedIssue contract + bench-snapshot integration fields",
+    "description": "Extend `shared/types.ts` with the new `NormalizedIssue` shape (integrationId, externalId, externalUrl, title, body, currentState, allowedTransitions, assignees, labels, issueType, blocks, blockedBy, updatedAt, raw). Add `integrationId` and `externalId` fields to the bench snapshot (`AssignedIssue` / `PersistedBench`). Provide a migration path that defaults pre-migration benches to integrationId: 'github-com' and stringifies the legacy numeric `number` to `externalId`. Update server-side consumers (`server/services/state.ts`, `server/services/issue-assignment.ts`) to read/write the new fields without breaking existing callers.",
+    "acceptance_criteria": [
+      "NormalizedIssue type exported from shared/types.ts with all listed fields",
+      "AssignedIssue / PersistedBench carry integrationId + externalId (string)",
+      "Pre-migration benches default to integrationId: 'github-com' and externalId derived from legacy 'number'",
+      "Server compiles without breaking existing consumers (adapter where needed)",
+      "Test coverage from TC-024, TC-032 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-021",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ],
+    "linked_test_ids": [
+      "TC-024",
+      "TC-032"
+    ],
+    "estimate": "M",
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/18",
+      "id": 18,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-003",
+    "title": "roubo.yaml integration block + zod + JSON Schema update",
+    "description": "Add the new optional `integration` block to the roubo.yaml zod schema (`shared/config-schema.ts`) with field-level optionality: `plugin`, `instance`, `sources`, and `pluginSource` (Git URL or local path hint for missing-plugin prompts). Update `schema/roubo-config.schema.json` to match. Existing roubo.yaml files without an integration block must continue to validate. Wire `server/services/config-parser.ts` to surface the new block in the parsed config.",
+    "acceptance_criteria": [
+      "shared/config-schema.ts accepts the integration block with every subfield optional",
+      "schema/roubo-config.schema.json mirrors the zod additions",
+      "Existing roubo.yaml files (no integration block) validate unchanged",
+      "Unknown subfields under integration are rejected per the existing .strict() pattern",
+      "Test coverage from TC-026 (input parse path) and TC-067 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-026",
+      "TC-067"
+    ],
+    "estimate": "S",
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/19",
+      "id": 19,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-004",
+    "title": "Per-user override file + effective-config deep-merge resolver",
+    "description": "Define the per-user override file at `~/.roubo/integrations/<projectId>.yaml` with envelope `{ schemaVersion: 1, integration: {...} }` and its own zod schema. Implement a deep-merge resolver that combines the committed roubo.yaml integration block with the user override per field; arrays REPLACE (not concat). Expose the effective integration config via a server service consumed by routes and the UI. Implementation note: prefer a small hand-rolled deep-merge over a heavy lib, given the field set is tiny.",
+    "acceptance_criteria": [
+      "~/.roubo/integrations/<projectId>.yaml format + zod schema landed",
+      "Effective-config resolver merges roubo.yaml + override per field (deep merge)",
+      "Array fields (sources.boards / sources.repos / etc.) REPLACE on override",
+      "Empty array in override replaces a non-empty roubo.yaml array",
+      "Resolver exposed as a server service consumed by routes",
+      "Test coverage from TC-026, TC-027, TC-065 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-026",
+      "TC-027",
+      "TC-065"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-003"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/20",
+      "id": 20,
+      "blocked_by": [
+        19
+      ]
+    }
+  },
+  {
+    "id": "WU-005",
+    "title": "Plugin host supervisor + JSON-RPC over stdio (lifecycle, timeout, restart, logs)",
+    "description": "Implement `server/services/plugin-manager.ts` as the plugin process supervisor. Discover plugins under bundled `plugins/` and `~/.roubo/plugins/<plugin-id>/`. Spawn each enabled plugin as a child Node process via `child_process.spawn` with `vscode-jsonrpc` framed messages over stdio. Implement enable / disable / restart lifecycle hooks. Enforce a per-call RPC timeout (default 30s, plugin-method-overridable). Implement auto-restart with exponential backoff capped at 3 attempts per 5-minute rolling window per plugin; mark `errored` after budget exceeded. Write stdout/stderr to `~/.roubo/plugins/<id>/logs/current.log` with size-based rotation to `previous.log`. Refuse incompatible plugins (manifest `roubo` range mismatch). Continue boot if any single plugin fails to load. Tear down children cleanly on host SIGTERM and rely on POSIX SIGHUP-on-parent-exit for hard crashes (macOS + Linux only).",
+    "acceptance_criteria": [
+      "plugin-manager.ts loads bundled + ~/.roubo/plugins/ at boot",
+      "Each enabled plugin runs as an isolated child Node process",
+      "JSON-RPC over stdio framed via vscode-jsonrpc",
+      "Per-call timeout (default 30s) cancels hanging calls without orphaning the child",
+      "Auto-restart bounded by 3-in-5-minutes per plugin; status flips to errored after budget exceeded",
+      "stdout / stderr written to ~/.roubo/plugins/<id>/logs/current.log; rotated to previous.log by size",
+      "Incompatible plugins shown as 'incompatible' on Plugins page; not spawned",
+      "Host boot completes even if zero plugins load",
+      "Host shutdown tears down children within 5s; no zombies on macOS + Linux",
+      "Test coverage from TC-001 through TC-005, TC-013, TC-014, TC-015, TC-033, TC-073, TC-074, TC-077, TC-078 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-002",
+      "FR-003",
+      "FR-004",
+      "FR-005",
+      "FR-011",
+      "FR-012",
+      "FR-013",
+      "FR-014",
+      "FR-015",
+      "FR-033",
+      "NFR-008",
+      "NFR-010"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ],
+    "linked_test_ids": [
+      "TC-001",
+      "TC-002",
+      "TC-003",
+      "TC-004",
+      "TC-005",
+      "TC-013",
+      "TC-014",
+      "TC-015",
+      "TC-033",
+      "TC-073",
+      "TC-074",
+      "TC-077",
+      "TC-078"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-001"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/21",
+      "id": 21,
+      "blocked_by": [
+        17
+      ]
+    }
+  },
+  {
+    "id": "WU-006",
+    "title": "host.fetch HTTP client (allowlist, proxy, self-signed opt-in, header passthrough)",
+    "description": "Implement `server/services/plugin-http.ts` as the host-provided HTTP client plugins call via the RPC channel. Use `undici` with an `EnvHttpProxyAgent` honouring `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`. Enforce the plugin manifest's `network.hosts` glob allowlist before dispatch. Allow a per-plugin-instance self-signed TLS opt-in via a custom Dispatcher with `rejectUnauthorized: false`. Surface raw response headers (ETag, Retry-After, X-RateLimit-*) verbatim across the RPC boundary so plugin-internal caching and backoff remain implementable.",
+    "acceptance_criteria": [
+      "host.fetch dispatches via undici with EnvHttpProxyAgent",
+      "Manifest network.hosts allowlist enforced before dispatch; out-of-allowlist URLs rejected with structured error",
+      "Per-plugin self-signed TLS toggle uses a custom Dispatcher with rejectUnauthorized: false when enabled",
+      "Raw response headers (ETag, Retry-After, X-RateLimit-*) surfaced verbatim to the plugin",
+      "Denials logged with stable pluginId.methodName identifier",
+      "Test coverage from TC-008, TC-009, TC-010 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-008",
+      "FR-009",
+      "NFR-001",
+      "NFR-006"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-008",
+      "TC-009",
+      "TC-010"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/23",
+      "id": 23,
+      "blocked_by": [
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-007",
+    "title": "Credential store (pure-JS shellout, macOS + Linux) with slot-scope enforcement",
+    "description": "Implement `server/services/credential-store.ts` that stores plugin credentials in the OS keyring via pure-JS shellouts: `security` on macOS (Keychain), `secret-tool` on Linux (Secret Service / gnome-keyring). NO native modules. NO Windows path (Roubo does not support Windows). Expose `host.credentials.get(slot)` and `host.credentials.set(slot, value)` as RPC methods. Enforce that a plugin can only read/write slots it declared in its manifest's credentials.slots; deny others with a structured error. Document the Ubuntu headless recipe (`dbus-run-session` + `gnome-keyring-daemon --start --components=secrets`) in the credential-store module's README and in architecture.md.",
+    "acceptance_criteria": [
+      "credential-store.ts implements set/get via `security` on macOS and `secret-tool` on Linux",
+      "No native modules added to dependencies",
+      "host.credentials.get / set are exposed via RPC and slot-scope enforced",
+      "Plugin reading a slot it did not declare receives a structured permission error; nothing leaks",
+      "Plaintext credential never appears in any file under ~/.roubo/",
+      "Ubuntu headless recipe documented in module README + architecture.md",
+      "Test coverage from TC-011, TC-012, TC-070 passes; TC-083 covers the headless recipe manually"
+    ],
+    "linked_requirement_ids": [
+      "FR-006",
+      "FR-010",
+      "NFR-001",
+      "NFR-002"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-011",
+      "TC-012",
+      "TC-070",
+      "TC-083"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/24",
+      "id": 24,
+      "blocked_by": [
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-008",
+    "title": "Permission enforcement: filesystem + child-process categories + cross-category tests",
+    "description": "Complete the four-permission-category model started in WU-001/006/007 by enforcing the filesystem and child-process categories: confine each plugin to its own directory by default, deny declared filesystem paths if the host detects access outside them, deny child-process spawning unless declared. Document the limitation that a plugin process could still bypass host helpers and use raw `fs` / `child_process` directly (a documented trust boundary; the host audits via process monitoring where feasible). Add cross-category enforcement tests.",
+    "acceptance_criteria": [
+      "Filesystem access category enforced via host helper (host.fs.* if exposed) or as a documented best-effort boundary",
+      "Child-process category enforced via host helper or documented boundary",
+      "Bypass-via-raw-fs limitation documented in the SDK / plugin author docs",
+      "Test coverage from TC-080 passes; TC-070 cross-checked"
+    ],
+    "linked_requirement_ids": [
+      "FR-006",
+      "NFR-001"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-080"
+    ],
+    "estimate": "S",
+    "depends_on": [
+      "WU-006",
+      "WU-007"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/29",
+      "id": 29,
+      "blocked_by": [
+        23,
+        24
+      ]
+    }
+  },
+  {
+    "id": "WU-009",
+    "title": "Plugin SDK package (@roubo/plugin-sdk) + author docs",
+    "description": "Ship `@roubo/plugin-sdk` (initially under `shared/plugin-sdk/` or `plugins/sdk/`; final package name decided during build). Export `definePlugin({...})` that wires stdio binding via vscode-jsonrpc and binds host helpers (`host.fetch`, `host.credentials.get`, `host.credentials.set`, `host.logger.{info,warn,error}`). Plugin author writes only contract methods; the SDK handles the RPC framing. Include author docs covering manifest format, contract methods (listSourceCandidates, listIssues, getIssue, getCurrentUser, validateConfig, applyTransition, assignIssue, unassignIssue), pagination shape, error shapes, and the trust boundaries.",
+    "acceptance_criteria": [
+      "@roubo/plugin-sdk exports definePlugin and host helper bindings",
+      "A reference plugin (in tests fixtures) imports the SDK and runs end-to-end",
+      "Author docs cover manifest, all contract methods, error shapes, and pagination",
+      "Test coverage from TC-035 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-031"
+    ],
+    "linked_user_story_ids": [
+      "US-004"
+    ],
+    "linked_test_ids": [
+      "TC-035"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-001",
+      "WU-005",
+      "WU-006",
+      "WU-007"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/30",
+      "id": 30,
+      "blocked_by": [
+        17,
+        21,
+        23,
+        24
+      ]
+    }
+  },
+  {
+    "id": "WU-010",
+    "title": "Plugins settings page (list, status, View logs)",
+    "description": "New top-level 'Plugins' settings tab. Render installed plugins as cards with name, version, status pill (enabled / disabled / errored / incompatible), source label ('Bundled' or '~/.roubo/plugins/<id>/'), description, and an action row (Configure, View logs, Enable/Disable, Uninstall for third-party only). Show errored cards with a red banner ('Plugin failed to start after 3 restart attempts. Showing your last successful issue snapshot.') and inline Restart + View logs. Show incompatible cards with an amber banner. Empty third-party state with an 'Install plugin' CTA. View logs opens a wide React Aria `Dialog` showing recent log content with timestamp + level + message; no new Drawer primitive this slug.",
+    "acceptance_criteria": [
+      "Plugins settings tab present at top level",
+      "Cards render status pill, source label, action row per the prototype mockup (screen 1)",
+      "Errored / incompatible variants render their banners",
+      "View logs Dialog displays current.log and previous.log with size-rotated content",
+      "Search filter inside the log Dialog works",
+      "Page is keyboard-navigable per Roubo accessibility conventions",
+      "Test coverage from TC-001, TC-002, TC-003, TC-013, TC-016, TC-017, TC-018 passes; TC-046 (keyboard nav) passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-014",
+      "FR-015",
+      "FR-016",
+      "NFR-007",
+      "NFR-010"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ],
+    "linked_test_ids": [
+      "TC-001",
+      "TC-002",
+      "TC-003",
+      "TC-013",
+      "TC-016",
+      "TC-017",
+      "TC-018",
+      "TC-046"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/25",
+      "id": 25,
+      "blocked_by": [
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-011",
+    "title": "Install plugin dialog + permissions acceptance (Git URL + local directory)",
+    "description": "Install plugin Dialog with two tabs (Git URL, Local directory). On Install: clone Git URL via `git clone` shellout into `~/.roubo/plugins/<id>/`, or validate the local directory contains a valid `roubo-plugin.yaml`. After manifest validation, show the permissions Dialog listing every declared permission category with detail (network host globs, credential slots, filesystem paths, child-process flag), plus the install source URL or absolute path. Install proceeds only after user acceptance. Cancel reverts without partial state.",
+    "acceptance_criteria": [
+      "Install Dialog with Git URL + local directory tabs",
+      "Git URL flow shells out to `git clone` into ~/.roubo/plugins/<id>/",
+      "Local dir flow validates roubo-plugin.yaml presence + parses manifest",
+      "Failures surface as inline red banners (unreachable URL, missing manifest, incompatible host range); no partial install",
+      "Permissions Dialog lists every declared permission category + the install source",
+      "Cancel from permissions Dialog reverts cleanly (no orphan files / state)",
+      "Test coverage from TC-007, TC-019, TC-058, TC-059, TC-075 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-007",
+      "FR-017",
+      "NFR-003",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-004",
+      "US-007"
+    ],
+    "linked_test_ids": [
+      "TC-007",
+      "TC-019",
+      "TC-058",
+      "TC-059",
+      "TC-075"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-001",
+      "WU-005",
+      "WU-010"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/31",
+      "id": 31,
+      "blocked_by": [
+        17,
+        21,
+        25
+      ]
+    }
+  },
+  {
+    "id": "WU-012",
+    "title": "Per-plugin configure dialog + Test connection + identity capture",
+    "description": "Render the plugin's `configSchema` as a form (TextField, Checkbox, password fields). Add a `Test connection` button that calls `plugin.validateConfig(config)` and an inline result strip showing success ('Connected as <Display Name>') / auth error / network error / TLS error variants. On TLS error, offer an inline 'Enable self-signed TLS' button that flips the toggle and re-runs. On Save, call `plugin.getCurrentUser(config)` once, capture the external user id, and persist it to the per-user override; Save is gated by a successful Test connection for the current values (dialog-local React state `hasTestedSuccessfully`, reset on any field change). Save writes to the per-user override file, NOT roubo.yaml.",
+    "acceptance_criteria": [
+      "Configure Dialog renders form fields driven by the plugin's manifest configSchema",
+      "Test connection button calls validateConfig and renders all four result-strip states",
+      "TLS-error variant offers an inline 'Enable self-signed TLS' button that re-runs the test",
+      "Save calls getCurrentUser once and stores the captured external id on the per-user override",
+      "Save is enabled only after a successful Test connection for the current values (dialog-local hasTestedSuccessfully state, reset on field change)",
+      "Save writes to ~/.roubo/integrations/<projectId>.yaml (override), not roubo.yaml",
+      "Test coverage from TC-037, TC-038, TC-060, TC-061, TC-062 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-009",
+      "FR-034",
+      "FR-035",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-037",
+      "TC-038",
+      "TC-060",
+      "TC-061",
+      "TC-062"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-004",
+      "WU-005",
+      "WU-006",
+      "WU-010"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/32",
+      "id": 32,
+      "blocked_by": [
+        20,
+        21,
+        23,
+        25
+      ]
+    }
+  },
+  {
+    "id": "WU-013",
+    "title": "Issue source tile + Switch integration dialog + active-bench badge",
+    "description": "Per-project 'Issue source' tile on the project detail page. Show configured state (active integration pill, instance URL, selected sources grouped by category, effective-config caption, Configure / Switch integration actions). Show unconfigured state with 'Choose integration' CTA. Show missing-plugin variant with 'Install plugin' CTA. Switch integration Dialog: radio list of installed integrations, confirmation explaining bench survival behaviour, on confirm: writes new integration choice to per-user override. Active-bench badge: existing benches gain an 'Issue from previous integration' pill when the project's active integration no longer matches their snapshot; source-sync disabled for those benches.",
+    "acceptance_criteria": [
+      "Issue source tile renders configured / unconfigured / missing-plugin variants",
+      "Effective-config caption reads accurately per source (roubo.yaml only, override only, or both)",
+      "Switch integration Dialog confirms before writing the change",
+      "Switch writes to per-user override; roubo.yaml untouched",
+      "Active benches against a now-inactive integration render the 'Issue from previous integration' badge",
+      "Source-sync controls disabled on those benches",
+      "Test coverage from TC-020, TC-028 (variant), TC-052, TC-056 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-006",
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-020",
+      "TC-052",
+      "TC-056"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/26",
+      "id": 26,
+      "blocked_by": [
+        18,
+        20,
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-014",
+    "title": "Declarative source picker renderer (multi-list + categorized-multi-list)",
+    "description": "Build `client/src/components/SourcePicker.tsx` switching on the shape returned by `plugin.listSourceCandidates`. `multi-list`: single combined list with type labels and search (used by GitHub.com + GHE). `categorized-multi-list`: React Aria `Tabs` over Boards / Epics / Filters, each tab with its own search and selection (used by Jira). Selected items render as removable chips below the list. Reuse the existing `client/src/components/MultiSelect.tsx` primitive. No plugin React.",
+    "acceptance_criteria": [
+      "SourcePicker.tsx renders both shapes from a single component, switching on shape",
+      "multi-list: combined repos + Projects list with type label, search, chip strip",
+      "categorized-multi-list: tabs per category, search and selection per tab, chip strip groups by category",
+      "Keyboard navigation works: Tab order is sane, arrow keys navigate items, Space/Enter selects",
+      "Test coverage from TC-021, TC-022, TC-076 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-019",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-021",
+      "TC-022",
+      "TC-076"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-005",
+      "WU-013"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/33",
+      "id": 33,
+      "blocked_by": [
+        21,
+        26
+      ]
+    }
+  },
+  {
+    "id": "WU-015",
+    "title": "Missing-plugin prompt on project load",
+    "description": "When a project's effective integration references a plugin id not installed locally, show a 'Plugin needed for this project' Dialog with three resolution paths: (a) if `roubo.yaml.integration.pluginSource` is set, offer a one-click Install from that source, (b) otherwise let the user paste a Git URL or local path, (c) Skip for now (project loads with the Issue source tile's missing-plugin variant). Install proceeds via the Install permissions Dialog from WU-011, then the project loads.",
+    "acceptance_criteria": [
+      "Missing-plugin Dialog appears on project load when plugin id is referenced but not installed",
+      "pluginSource hint from roubo.yaml drives a one-click Install when present",
+      "Without a hint, user can paste Git URL or local path",
+      "Skip for now is supported; tile shows missing-plugin variant",
+      "Install completes and project loads normally",
+      "Test coverage from TC-028, TC-051, TC-066 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-005"
+    ],
+    "linked_test_ids": [
+      "TC-028",
+      "TC-051",
+      "TC-066"
+    ],
+    "estimate": "S",
+    "depends_on": [
+      "WU-003",
+      "WU-011",
+      "WU-013"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/39",
+      "id": 39,
+      "blocked_by": [
+        19,
+        31,
+        26
+      ]
+    }
+  },
+  {
+    "id": "WU-016",
+    "title": "Issue retrieval routes through active plugin (paginated, dedup, issue types)",
+    "description": "Re-route `server/routes/issues.ts` (`GET /:projectId/issues`, `GET /:projectId/issues/:externalId`, `GET /:projectId/issues/:externalId/comments`, `GET /:projectId/labels`, `GET /:projectId/project-items`) to call the active integration plugin's methods instead of `githubService.*`. Implement paginated listIssues consumption: server forwards `{ pageSize, cursor }` to the plugin and returns `{ items, nextCursor }`; client uses React Query's `useInfiniteQuery`. Dedup across sources keyed on `(integrationId, externalId)`. Update `GET /:projectId/issue-types` to source from the active plugin. Update `IssueQueuePanel`, `IssuePickerModal`, `DraggableIssueCard` to consume `NormalizedIssue`. Detect and stop misbehaving plugins that return non-progressing cursors.",
+    "acceptance_criteria": [
+      "All issue routes route through the active integration plugin",
+      "listIssues is paginated; default page size 50; plugin-overridable via config",
+      "Client uses useInfiniteQuery; UI does not block on any page",
+      "Cross-source dedup applied keyed on (integrationId, externalId)",
+      "Issue-type strings sourced from the active plugin; mapping persistence shape Record<string, string> preserved",
+      "Misbehaving paginator (unchanging cursor) detected; inline UI note shown; no infinite loop",
+      "Server compiles; client renders without referencing GitHub-only fields",
+      "Test coverage from TC-023, TC-025, TC-033, TC-057, TC-071, TC-079 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-020",
+      "FR-022",
+      "FR-029",
+      "NFR-005"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-023",
+      "TC-025",
+      "TC-033",
+      "TC-057",
+      "TC-071",
+      "TC-079"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/27",
+      "id": 27,
+      "blocked_by": [
+        18,
+        20,
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-017",
+    "title": "Soft-block flip: blocks/blocked-by becomes a warning, not a refusal",
+    "description": "Flip `server/services/issue-assignment.ts:102` (`checkIssueDependencies`) from a hard refusal to a warning surface. Update `client/src/components/IssuePickerModal.tsx:91` in lockstep to render an amber-tinted banner naming the open blockers but leave the Create bench button enabled. Update related test fixtures.",
+    "acceptance_criteria": [
+      "server/services/issue-assignment.ts:102 returns an advisory result, not a refusal",
+      "client/src/components/IssuePickerModal.tsx:91 renders the amber banner; Create bench button stays enabled",
+      "Bench creation succeeds even with open blockers",
+      "Existing unit / integration tests are updated to match the new behaviour",
+      "Test coverage from TC-034 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-030"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-034"
+    ],
+    "estimate": "S",
+    "depends_on": [
+      "WU-002"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/22",
+      "id": 22,
+      "blocked_by": [
+        18
+      ]
+    }
+  },
+  {
+    "id": "WU-018",
+    "title": "Bench-view: Transition dropdown + applyTransition wiring",
+    "description": "Add a 'Transition to' control in the bench's issue view rendering the issue's `allowedTransitions` array. On select, call `plugin.applyTransition(externalId, transitionName)` via RPC with optimistic UI (state pill flips immediately). On error from the plugin (structured), revert the optimistic update and show an inline red banner with the plugin's error message verbatim. Do NOT auto-fire transitions on bench lifecycle events (creation, start, clear, PR merge).",
+    "acceptance_criteria": [
+      "Transition control populated only from issue.allowedTransitions",
+      "Empty allowedTransitions array shows 'No transitions available from this state.'",
+      "Selecting a transition optimistically updates the UI and calls plugin.applyTransition",
+      "Plugin errors revert the optimistic update and surface inline",
+      "No applyTransition call is sent for bench lifecycle events",
+      "On host crash mid-flight: no persisted in-flight state; next refresh reconciles from source",
+      "Test coverage from TC-039, TC-054, TC-063, TC-064 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
+    "linked_user_story_ids": [
+      "US-008"
+    ],
+    "linked_test_ids": [
+      "TC-039",
+      "TC-054",
+      "TC-063",
+      "TC-064"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-005",
+      "WU-016"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/34",
+      "id": 34,
+      "blocked_by": [
+        21,
+        27
+      ]
+    }
+  },
+  {
+    "id": "WU-019",
+    "title": "Bench-view: Assign / Unassign control",
+    "description": "Add 'Assign to me' / 'Unassign me' controls in the bench's issue view. On Assign-to-me, call `plugin.assignIssue(externalId, capturedUserId)` using the captured identity from the per-user override. On Unassign, call `plugin.unassignIssue(externalId)`. Optimistic UI; revert + inline error on structured failure.",
+    "acceptance_criteria": [
+      "Assign-to-me uses the captured external user id from the per-user override",
+      "Unassign calls plugin.unassignIssue",
+      "Optimistic UI revert on plugin error",
+      "Test coverage from TC-040 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-037"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-040"
+    ],
+    "estimate": "S",
+    "depends_on": [
+      "WU-018"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/40",
+      "id": 40,
+      "blocked_by": [
+        34
+      ]
+    }
+  },
+  {
+    "id": "WU-020",
+    "title": "GitHub.com plugin: scaffold + read-only methods (preserve githubRequest)",
+    "description": "Build `plugins/github-com/` with manifest, entry, and the SDK-based plugin implementation. Implement listSourceCandidates (repos + GitHub Projects), listIssues (paginated, ETag-aware, GraphQL-batched for blocking relationships), getIssue, getAvailableTransitions, getCurrentUser, validateConfig. Preserve the existing `githubRequest` helper at `server/services/github.ts:255` verbatim inside the plugin; preserve ETag / If-None-Match short-circuiting, primary + secondary rate-limit backoff with Retry-After, 30s TTL caches, GraphQL batching for blocks/blocked-by, GitHub Projects v2 pagination, issue-type fetching.",
+    "acceptance_criteria": [
+      "plugins/github-com/ ships as a bundled plugin",
+      "All read-only methods implemented",
+      "githubRequest helper preserved verbatim",
+      "ETag short-circuiting works (304 returns cached payload)",
+      "Retry-After honoured on 429 / secondary rate-limit",
+      "GraphQL batching for blocks/blockedBy returns the same data as the legacy implementation",
+      "Projects v2 pagination + issue-type fetching parity preserved",
+      "Test coverage from TC-042, TC-043 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-039",
+      "NFR-006"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-042",
+      "TC-043"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/35",
+      "id": 35,
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
+    }
+  },
+  {
+    "id": "WU-021",
+    "title": "GitHub.com plugin: OAuth deep-link + write-back methods",
+    "description": "Wire the `roubo://oauth/github/callback` Electron deep link inside the github-com plugin; retain the existing OAuth flow end-to-end. Implement validateConfig + getCurrentUser via /user endpoint. Implement applyTransition (close / reopen issue) and assignIssue / unassignIssue (PATCH /repos/.../issues/:n with assignees).",
+    "acceptance_criteria": [
+      "OAuth deep-link callback retained at roubo://oauth/github/callback",
+      "validateConfig returns 'Connected as <login>' on success; structured 401 on bad token",
+      "applyTransition maps to close / reopen on GitHub",
+      "assignIssue / unassignIssue update the GitHub issue's assignees array",
+      "Existing Roubo OAuth app continues to work (no client id / secret changes)",
+      "Test coverage tied to TC-037, TC-038, TC-054 (re-runs against github-com)"
+    ],
+    "linked_requirement_ids": [
+      "FR-034",
+      "FR-035",
+      "FR-036",
+      "FR-037",
+      "FR-039"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-037",
+      "TC-038",
+      "TC-054"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-020"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/41",
+      "id": 41,
+      "blocked_by": [
+        35
+      ]
+    }
+  },
+  {
+    "id": "WU-022",
+    "title": "GitHub Enterprise bundled plugin (PAT + instance URL)",
+    "description": "Build `plugins/ghe/` mirroring the github-com plugin but with PAT + instance URL auth. configSchema asks for instance URL + PAT + optional self-signed-TLS toggle. Reuse the same githubRequest helper (parameterized by base URL). Implement the full plugin contract (read-only + write-back).",
+    "acceptance_criteria": [
+      "plugins/ghe/ ships as a bundled plugin",
+      "configSchema: instance URL (string), PAT (password), allow-self-signed-TLS (boolean)",
+      "validateConfig returns 'Connected as <login>' against a real GHE instance",
+      "All read + write methods work against a GHE host",
+      "Self-signed TLS opt-in flows end-to-end via host.fetch",
+      "Test coverage from TC-047, TC-062 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-001"
+    ],
+    "linked_test_ids": [
+      "TC-047",
+      "TC-062"
+    ],
+    "estimate": "M",
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/36",
+      "id": 36,
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
+    }
+  },
+  {
+    "id": "WU-023",
+    "title": "Self-hosted Jira bundled plugin (Data Center 8.14+, PAT, JQL polling, ADF→markdown, blocks mapping)",
+    "description": "Build `plugins/jira-self-hosted/` with manifest, entry, full plugin contract. PAT + instance URL auth (Data Center 8.14+). Incremental polling via JQL `updated >= <last-poll-timestamp>`. ADF (Atlassian Document Format) → markdown walker for issue bodies (hand-rolled; no @atlaskit deps). Blocks / is blocked by link-type mapping configurable per project (defaults: 'blocks', 'is blocked by'). categorized-multi-list source picker shape returning Boards, Epics, Filters. Write-back: applyTransition via Jira transitions API; assignIssue via PUT /rest/api/2/issue/<key>/assignee.",
+    "acceptance_criteria": [
+      "plugins/jira-self-hosted/ ships as a bundled plugin",
+      "PAT auth works on Data Center 8.14+",
+      "JQL incremental polling keyed off a stored last-poll timestamp per source",
+      "ADF → markdown walker produces readable output for body / comments",
+      "blocks / is blocked by link types map to NormalizedIssue.blocks / blockedBy; configurable names per project",
+      "applyTransition uses Jira's transitions API; allowedTransitions returned by getIssue",
+      "assignIssue updates the assignee via PUT /assignee",
+      "Source picker returns categorized-multi-list shape (Boards, Epics, Filters)",
+      "Test coverage from TC-029, TC-030, TC-048, TC-063, TC-072 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-025",
+      "FR-026",
+      "FR-036",
+      "FR-037"
+    ],
+    "linked_user_story_ids": [
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-029",
+      "TC-030",
+      "TC-048",
+      "TC-063",
+      "TC-072"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/37",
+      "id": 37,
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
+    }
+  },
+  {
+    "id": "WU-024",
+    "title": "Atomic migration of existing GitHub.com projects + migration banner",
+    "description": "Build `server/services/migrate.ts` runnable from `server/index.ts` boot sequence (before plugin-manager initialise). For each persisted project with a configured GitHub.com source: write a per-user override (~/.roubo/integrations/<projectId>.yaml) recording the existing GitHub Project as a selected source; enable the bundled github-com plugin; move the OAuth token from ~/.roubo/auth.json into the OS keyring slot via host.credentials.set; bump state.json schemaVersion as the SINGLE commit point; delete auth.json AFTER the bump. All file writes via `atomicWrite`. On any failure prior to the bump, roll back. Idempotent: detect a bumped schemaVersion and exit early. Render a one-time migration banner (success or rolled-back variants) at the top of the app shell; persist a dismissal marker so the banner is shown at most once forever.",
+    "acceptance_criteria": [
+      "migrate.ts runs at boot before plugin-manager initialise",
+      "Per-user override written for each migrated project; roubo.yaml UNTOUCHED",
+      "OAuth token moved from auth.json into OS keyring; auth.json deleted AFTER schemaVersion bump",
+      "Bumped schemaVersion is the single commit point; rollback restores everything else if any earlier step fails",
+      "Idempotent: re-running on a bumped state is a no-op",
+      "Migration banner success / rolled-back variants render once and respect a persistent dismissal marker",
+      "Integration test boots Roubo on a fixture pre-plugin ~/.roubo and asserts post-boot shape; runs in CI",
+      "Test coverage from TC-031, TC-049, TC-068, TC-069 passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-010",
+      "FR-027",
+      "FR-028",
+      "NFR-002",
+      "NFR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ],
+    "linked_test_ids": [
+      "TC-031",
+      "TC-049",
+      "TC-068",
+      "TC-069"
+    ],
+    "estimate": "L",
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-007",
+      "WU-020"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/42",
+      "id": 42,
+      "blocked_by": [
+        18,
+        20,
+        24,
+        35
+      ]
+    }
+  },
+  {
+    "id": "WU-025",
+    "title": "Raw field handling: no PII persistence beyond active bench",
+    "description": "On bench clear, strip the `raw` field from `assignedIssue` before any persistence to ~/.roubo/state.json. Document the plugin-author contract: `raw` is plugin-scoped and ephemeral; plugins MUST NOT include PII unless functionally required. Audit `server/services/state.ts` write paths to enforce this.",
+    "acceptance_criteria": [
+      "Bench clear removes raw from any persisted record",
+      "state.json scrubbed of raw for cleared benches",
+      "Plugin author docs include the raw-field contract",
+      "Test coverage from TC-045 passes"
+    ],
+    "linked_requirement_ids": [
+      "NFR-004"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-045"
+    ],
+    "estimate": "XS",
+    "depends_on": [
+      "WU-002",
+      "WU-016"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/38",
+      "id": 38,
+      "blocked_by": [
+        18,
+        27
+      ]
+    }
+  },
+  {
+    "id": "WU-026",
+    "title": "Forward-compat paper sketch for AI-agent + project-component plugin kinds",
+    "description": "Write a one-page sketch in `.specifications/integration-plugins/forward-compat-sketch.md` showing what AI-agent and project-component plugin manifests + method sets would look like. Verify the host API surface designed in this slug can host them without a major-version bump. Reference the sketch from `architecture.md`. Reviewed and approved before `hostApiVersion` 1.0.0 freeze (build-time gate).",
+    "acceptance_criteria": [
+      "forward-compat-sketch.md exists at .specifications/integration-plugins/forward-compat-sketch.md",
+      "Sketch covers AI-agent plugin manifest fields + methods",
+      "Sketch covers project-component plugin manifest fields + methods",
+      "Sketch confirms (or flags deviations from) the current host API surface",
+      "architecture.md references the sketch",
+      "Reviewed before hostApiVersion 1.0.0 freeze",
+      "Test coverage from TC-041 (existence + reference) passes; TC-084 covers later validation"
+    ],
+    "linked_requirement_ids": [
+      "FR-038",
+      "NFR-011"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-041",
+      "TC-084"
+    ],
+    "estimate": "XS",
+    "depends_on": [
+      "WU-005"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/28",
+      "id": 28,
+      "blocked_by": [
+        21
+      ]
+    }
+  },
+  {
+    "id": "WU-027",
+    "title": "Accessibility audit across plugin surfaces",
+    "description": "Cross-cutting accessibility audit: keyboard navigation, focus management on dialog open / close, screen-reader semantics on permissions dialogs, source pickers, transition dropdowns, log viewer. Surfaces audited: Plugins page (WU-010), Install dialog (WU-011), Configure dialog (WU-012), Issue source tile + Switch integration (WU-013), Source picker (WU-014), Missing-plugin prompt (WU-015), Transition dropdown (WU-018), Assign control (WU-019). Capture any regressions vs the existing Roubo accessibility baseline and fix in this WU.",
+    "acceptance_criteria": [
+      "All listed surfaces are keyboard-navigable end to end",
+      "Focus management on Dialog open / close: focus moves to first interactive element on open, returns to trigger on close",
+      "Permissions Dialog announces role, title, and each permission category to a screen reader",
+      "Source picker categorized-multi-list announces tab + selection state",
+      "No accessibility regressions vs the existing Roubo baseline (measured via the existing Vitest + React Testing Library a11y checks)",
+      "Test coverage from TC-046, TC-075, TC-076 passes"
+    ],
+    "linked_requirement_ids": [
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [],
+    "linked_test_ids": [
+      "TC-046",
+      "TC-075",
+      "TC-076"
+    ],
+    "estimate": "S",
+    "depends_on": [
+      "WU-010",
+      "WU-011",
+      "WU-012",
+      "WU-013",
+      "WU-014",
+      "WU-015",
+      "WU-018",
+      "WU-019"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/43",
+      "id": 43,
+      "blocked_by": [
+        25,
+        31,
+        32,
+        26,
+        33,
+        39,
+        34,
+        40
+      ]
+    }
+  }
+]

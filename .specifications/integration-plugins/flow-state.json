@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "slug": "integration-plugins",
+  "started_at": "2026-05-21T11:45:00Z",
+  "last_updated_at": "2026-05-21T13:40:00Z",
+  "last_completed_stage": "align",
+  "stages_completed": ["interview", "feasibility", "prd", "prototype", "architecture", "tests", "work-breakdown", "align"],
+  "pending_decisions": [
+    {
+      "id": "PD-001",
+      "raised_during": "align",
+      "question": "Spike A outcome on Ubuntu headless (keyring fallback)",
+      "deferred_at": "2026-05-21T13:40:00Z",
+      "source_finding_category": "unresolved_refinement_marker",
+      "source_finding_identifiers": ["architecture.md:527"],
+      "resurface_trigger": "never"
+    },
+    {
+      "id": "PD-002",
+      "raised_during": "align",
+      "question": "Paper sketch output may force ports / docker permission categories now rather than later",
+      "deferred_at": "2026-05-21T13:40:00Z",
+      "source_finding_category": "unresolved_refinement_marker",
+      "source_finding_identifiers": ["architecture.md:538"],
+      "resurface_trigger": "never"
+    },
+    {
+      "id": "PD-003",
+      "raised_during": "align",
+      "question": "Source picker pagination on very large Jira instances",
+      "deferred_at": "2026-05-21T13:40:00Z",
+      "source_finding_category": "unresolved_refinement_marker",
+      "source_finding_identifiers": ["architecture.md:541"],
+      "resurface_trigger": "never"
+    }
+  ],
+  "issue_target": "github",
+  "jira_epic_key": null,
+  "github_milestone_number": null
+}
