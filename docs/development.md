@@ -99,15 +99,15 @@ This is an npm-workspaces monorepo. The `shared/` workspace exports types as `@r
 
 ## Tech stack
 
-| Layer            | Technology                                                       |
-| ---------------- | ---------------------------------------------------------------- |
-| Server           | Express 5, TypeScript, dockerode, tsx                            |
-| Client           | React 19, Vite, Tailwind CSS 4, React Aria Components            |
-| Data fetching    | TanStack React Query (5s polling for live state)                 |
-| Desktop wrapper  | Electron 38 + electron-forge                                     |
-| Persistent state | `~/.roubo/` (JSON files)                                         |
-| Project config   | `roubo.yaml`, validated with JSON Schema + AJV                   |
-| Tests            | Vitest, Testing Library, supertest, jsdom                        |
+| Layer            | Technology                                            |
+| ---------------- | ----------------------------------------------------- |
+| Server           | Express 5, TypeScript, dockerode, tsx                 |
+| Client           | React 19, Vite, Tailwind CSS 4, React Aria Components |
+| Data fetching    | TanStack React Query (5s polling for live state)      |
+| Desktop wrapper  | Electron 38 + electron-forge                          |
+| Persistent state | `~/.roubo/` (JSON files)                              |
+| Project config   | `roubo.yaml`, validated with JSON Schema + AJV        |
+| Tests            | Vitest, Testing Library, supertest, jsdom             |
 
 Dependencies are pinned (no `^` ranges) and updated by Renovate. Never widen a range manually.
 

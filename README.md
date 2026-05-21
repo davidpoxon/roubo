@@ -65,17 +65,17 @@ Other tools (Cursor, Windsurf, Aider, OpenAI Codex CLI, and friends) can already
 
 ## Documentation
 
-| Topic                                              | What's in it                                                                         |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [Getting Started](./docs/getting-started.md)       | Install, register a project, set up your first bench.                                |
-| [Configuration Reference](./docs/configuration.md) | Every field in `roubo.yaml`, with examples.                                          |
-| [API Reference](./docs/api.md)                     | Endpoint reference for driving Roubo from external tools, with curl examples.        |
-| [Architecture](./docs/architecture.md)             | How benches, ports, components, and the API fit together.                            |
-| [Development](./docs/development.md)               | Running Roubo from source, code quality, building the desktop app.                   |
-| [Brand Guide](./docs/brand.md)                     | Vocabulary, design philosophy, and tone.                                             |
-| [Contributing](./CONTRIBUTING.md)                  | Issue reporting, PR process, DCO sign-off.                                           |
-| [Releasing](./docs/releasing.md)                   | How releases are cut, signed, and published.                                         |
-| [Integrations](./docs/integrations.md)             | Configuring GitHub OAuth and other external services.                                |
+| Topic                                              | What's in it                                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [Getting Started](./docs/getting-started.md)       | Install, register a project, set up your first bench.                         |
+| [Configuration Reference](./docs/configuration.md) | Every field in `roubo.yaml`, with examples.                                   |
+| [API Reference](./docs/api.md)                     | Endpoint reference for driving Roubo from external tools, with curl examples. |
+| [Architecture](./docs/architecture.md)             | How benches, ports, components, and the API fit together.                     |
+| [Development](./docs/development.md)               | Running Roubo from source, code quality, building the desktop app.            |
+| [Brand Guide](./docs/brand.md)                     | Vocabulary, design philosophy, and tone.                                      |
+| [Contributing](./CONTRIBUTING.md)                  | Issue reporting, PR process, DCO sign-off.                                    |
+| [Releasing](./docs/releasing.md)                   | How releases are cut, signed, and published.                                  |
+| [Integrations](./docs/integrations.md)             | Configuring GitHub OAuth and other external services.                         |
 
 ## Project status
 

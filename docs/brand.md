@@ -46,17 +46,17 @@ All user-facing text uses the Roubo vocabulary. Internal code should also use th
 | **Tool**       | A quick-open action: open the browser, launch the IDE, start a shell. Tools are what you reach for.                                      |
 | **Inspection** | Running quality checks against the work on a bench.                                                                                      |
 | **Blueprint**  | A set of instructions for an AI coding agent working on a bench. A blueprint is a detailed drawing that guides the build.                |
-| **Workspace** | The git worktree directory on disk for a specific bench.                                                                                  |
+| **Workspace**  | The git worktree directory on disk for a specific bench.                                                                                 |
 
 ### Status Labels
 
-| Status       | When                                                                               |
-| ------------ | ---------------------------------------------------------------------------------- |
-| `idle`       | Bench exists but nothing is running.                                               |
-| `preparing`  | Bench is being set up: creating workspace, pulling containers, running migrations. |
-| `active`     | All components are running. Work is underway.                                      |
-| `clearing`   | Components are shutting down. The bench is being tidied.                           |
-| `error`      | Something went wrong. (No metaphor here; clarity trumps style.)                    |
+| Status      | When                                                                               |
+| ----------- | ---------------------------------------------------------------------------------- |
+| `idle`      | Bench exists but nothing is running.                                               |
+| `preparing` | Bench is being set up: creating workspace, pulling containers, running migrations. |
+| `active`    | All components are running. Work is underway.                                      |
+| `clearing`  | Components are shutting down. The bench is being tidied.                           |
+| `error`     | Something went wrong. (No metaphor here; clarity trumps style.)                    |
 
 ### Action Labels
 
@@ -264,8 +264,8 @@ Roubo speaks like a skilled colleague: competent, direct, and economical with wo
 
 ## Related files
 
-| File                                                                          | Purpose                                                                              |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`client/src/assets/roubo-logo.svg`](../client/src/assets/roubo-logo.svg)     | The canonical logomark SVG. Uses `currentColor`.                                     |
-| [`../CLAUDE.md`](../CLAUDE.md)                                                | Contributor instructions. Cross-references this document for brand compliance.       |
-| [`../schema/roubo-config.schema.json`](../schema/roubo-config.schema.json)    | JSON Schema for `roubo.yaml` validation. Field names follow Roubo's vocabulary.      |
+| File                                                                       | Purpose                                                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`client/src/assets/roubo-logo.svg`](../client/src/assets/roubo-logo.svg)  | The canonical logomark SVG. Uses `currentColor`.                                |
+| [`../CLAUDE.md`](../CLAUDE.md)                                             | Contributor instructions. Cross-references this document for brand compliance.  |
+| [`../schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) | JSON Schema for `roubo.yaml` validation. Field names follow Roubo's vocabulary. |

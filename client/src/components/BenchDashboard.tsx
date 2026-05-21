@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { useParams, Outlet, NavLink, useMatch, useLocation } from "react-router-dom";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useParams, Outlet, NavLink, useMatch, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "react-aria-components";
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Plus, PanelLeft } from "lucide-react";
@@ -57,6 +57,7 @@ const tabClassName = ({ isActive }: { isActive: boolean }) =>
 export default function BenchDashboard() {
   const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const isOnSettings = !!useMatch("/projects/:projectId/settings/*"); // keep in sync with the 'settings/*' child route in App.tsx
   const { data: projects, isLoading: projectsLoading } = useProjects();
   const { data: benches, isLoading: benchesLoading } = useProjectBenches(projectId);
@@ -110,6 +111,16 @@ export default function BenchDashboard() {
   }, []);
 
   const currentProject = projects?.find((a) => a.id === projectId);
+  const hasConfig = !!currentProject?.config;
+
+  // An errored project (folder gone / roubo.yaml missing) has no config.
+  // The Benches tab can't render without config, so redirect to Settings,
+  // where the user can fix the config or unregister the project.
+  useEffect(() => {
+    if (currentProject && !hasConfig && !isOnSettings && projectId) {
+      navigate(`/projects/${projectId}/settings`, { replace: true });
+    }
+  }, [currentProject, hasConfig, isOnSettings, projectId, navigate]);
 
   const hasGitHub =
     !!currentProject?.config?.project?.github?.project || !!currentProject?.config?.project?.repo;
@@ -328,8 +339,10 @@ export default function BenchDashboard() {
     ],
   );
 
-  // All-projects view (/ route) and fallback when project data is loading
-  if (!projectId || !currentProject || !currentProject.config) {
+  // All-projects view (/ route) and fallback when project data is loading.
+  // Registered-but-errored projects (no config) still render the single-project
+  // layout below so the user can reach Settings and unregister.
+  if (!projectId || !currentProject) {
     return (
       <div className="p-8 max-w-[1200px]">
         <div className="flex items-start justify-between mb-8">
@@ -390,9 +403,10 @@ export default function BenchDashboard() {
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
         <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-6">
-          {githubStatus !== undefined &&
+          {hasConfig &&
+            githubStatus !== undefined &&
             !githubStatus.connected &&
-            !!currentProject.config.project?.repo && (
+            !!currentProject.config?.project?.repo && (
               <GitHubErrorState
                 error={buildNotConnectedError()}
                 variant="banner"
@@ -400,7 +414,7 @@ export default function BenchDashboard() {
               />
             )}
           <nav aria-label="Project tabs" className="flex items-center gap-1">
-            {hasGitHub && issueQueueCollapsed && !isOnSettings && (
+            {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button
                 onPress={onToggleIssueQueue}
                 className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1"
@@ -409,9 +423,11 @@ export default function BenchDashboard() {
                 <PanelLeft size={16} />
               </Button>
             )}
-            <NavLink to="." end className={tabClassName}>
-              Benches
-            </NavLink>
+            {hasConfig && (
+              <NavLink to="." end className={tabClassName}>
+                Benches
+              </NavLink>
+            )}
             <NavLink to="settings" className={tabClassName}>
               Settings
             </NavLink>
@@ -419,7 +435,7 @@ export default function BenchDashboard() {
         </div>
 
         <div key={location.pathname} className="flex-1 min-h-0 overflow-hidden animate-tab-fade-in">
-          <Outlet context={outletContext} />
+          {hasConfig || isOnSettings ? <Outlet context={outletContext} /> : null}
         </div>
       </div>
 
@@ -438,36 +454,40 @@ export default function BenchDashboard() {
         )}
       </DragOverlay>
 
-      <CreateBenchModal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        projectId={projectId}
-      />
+      {currentProject.config && (
+        <>
+          <CreateBenchModal
+            isOpen={showCreate}
+            onClose={() => setShowCreate(false)}
+            projectId={projectId}
+          />
 
-      <IssuePickerModal
-        isOpen={showIssuePicker}
-        onClose={() => setShowIssuePicker(false)}
-        onSelect={handleIssuePickerSelect}
-        projectId={projectId}
-        projectConfig={currentProject.config}
-        benches={benches ?? []}
-        pendingIssueNumbers={pendingIssueNumbers}
-      />
+          <IssuePickerModal
+            isOpen={showIssuePicker}
+            onClose={() => setShowIssuePicker(false)}
+            onSelect={handleIssuePickerSelect}
+            projectId={projectId}
+            projectConfig={currentProject.config}
+            benches={benches ?? []}
+            pendingIssueNumbers={pendingIssueNumbers}
+          />
 
-      {branchConflict && (
-        <BranchConflictDialog
-          isOpen
-          onClose={() => setBranchConflict(null)}
-          conflict={branchConflict}
-          onResume={() => {
-            handleCreateBenchWithIssue(branchConflict.issueNumber, "resume");
-            setBranchConflict(null);
-          }}
-          onCreateNew={() => {
-            handleCreateBenchWithIssue(branchConflict.issueNumber, "new");
-            setBranchConflict(null);
-          }}
-        />
+          {branchConflict && (
+            <BranchConflictDialog
+              isOpen
+              onClose={() => setBranchConflict(null)}
+              conflict={branchConflict}
+              onResume={() => {
+                handleCreateBenchWithIssue(branchConflict.issueNumber, "resume");
+                setBranchConflict(null);
+              }}
+              onCreateNew={() => {
+                handleCreateBenchWithIssue(branchConflict.issueNumber, "new");
+                setBranchConflict(null);
+              }}
+            />
+          )}
+        </>
       )}
     </DndContext>
   );

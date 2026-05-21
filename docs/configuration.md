@@ -7,15 +7,15 @@ The full working example used to develop Roubo itself is checked in at [`.roubo/
 ## File structure at a glance
 
 ```yaml
-project:        # Identity: name, displayName, type, repo, GitHub integration
-layout:         # Repo shape: single-repo, monorepo, or meta-repo
-components:     # The processes and containers a bench runs
-ports:          # Port allocation bases per component
-tools:          # Quick-open actions in the UI (browser, shell)
-inspection:     # Test/QA command
-benches:        # Bench cap, root setup command, auto-clear policy
-blueprints:     # Optional: default AI coding agent blueprint and issue-type mappings
-users:          # Optional: non-sensitive seed users
+project: # Identity: name, displayName, type, repo, GitHub integration
+layout: # Repo shape: single-repo, monorepo, or meta-repo
+components: # The processes and containers a bench runs
+ports: # Port allocation bases per component
+tools: # Quick-open actions in the UI (browser, shell)
+inspection: # Test/QA command
+benches: # Bench cap, root setup command, auto-clear policy
+blueprints: # Optional: default AI coding agent blueprint and issue-type mappings
+users: # Optional: non-sensitive seed users
 ```
 
 `project`, `layout`, `components`, `ports`, and `benches` are **required**. Everything else is optional.
@@ -28,21 +28,21 @@ Identifies the project and links it to its repo on GitHub.
 
 ```yaml
 project:
-  name: my-app                    # kebab-case, [a-z0-9-]+ only
-  displayName: My App             # shown in the UI
-  type: web                       # web | native | api-only
-  repo: my-org/my-app             # owner/repo on GitHub
+  name: my-app # kebab-case, [a-z0-9-]+ only
+  displayName: My App # shown in the UI
+  type: web # web | native | api-only
+  repo: my-org/my-app # owner/repo on GitHub
   github:
-    project: 1                    # optional, GitHub Project (v2) number
+    project: 1 # optional, GitHub Project (v2) number
 ```
 
-| Field         | Required | Type    | Notes                                                    |
-| ------------- | -------- | ------- | -------------------------------------------------------- |
-| `name`        | yes      | string  | Must match `^[a-z0-9-]+$`. Used as the workspace folder name. |
-| `displayName` | yes      | string  | Human-readable title.                                    |
-| `type`        | yes      | enum    | `web`, `native`, or `api-only`.                          |
-| `repo`        | yes      | string  | `owner/repo` form. Used for GitHub integration.          |
-| `github.project` | no    | integer | GitHub Projects v2 number. Used for issue assignment.    |
+| Field            | Required | Type    | Notes                                                         |
+| ---------------- | -------- | ------- | ------------------------------------------------------------- |
+| `name`           | yes      | string  | Must match `^[a-z0-9-]+$`. Used as the workspace folder name. |
+| `displayName`    | yes      | string  | Human-readable title.                                         |
+| `type`           | yes      | enum    | `web`, `native`, or `api-only`.                               |
+| `repo`           | yes      | string  | `owner/repo` form. Used for GitHub integration.               |
+| `github.project` | no       | integer | GitHub Projects v2 number. Used for issue assignment.         |
 
 ---
 
@@ -55,11 +55,11 @@ layout:
   type: single-repo
 ```
 
-| `type`        | Use when                                                                  |
-| ------------- | ------------------------------------------------------------------------- |
-| `single-repo` | A single repo holds all the code.                                         |
-| `monorepo`    | A single repo with multiple workspaces/packages.                          |
-| `meta-repo`   | A parent repo that pins sub-repos as git submodules.                      |
+| `type`        | Use when                                             |
+| ------------- | ---------------------------------------------------- |
+| `single-repo` | A single repo holds all the code.                    |
+| `monorepo`    | A single repo with multiple workspaces/packages.     |
+| `meta-repo`   | A parent repo that pins sub-repos as git submodules. |
 
 For `meta-repo`, declare the submodules so Roubo can initialise them:
 
@@ -109,33 +109,33 @@ components:
 
 ### Fields common to both component types
 
-| Field        | Type   | Notes                                                                    |
-| ------------ | ------ | ------------------------------------------------------------------------ |
-| `type`       | enum   | **Required.** `process` or `database`.                                   |
-| `dependsOn`  | array  | Component names that must be running before this one starts.             |
-| `setup`      | string | Command run once before the component starts (e.g. `npm ci`).            |
-| `env`        | object | Environment variables. Values support template substitution (see below). |
-| `directory`  | string | Working directory, relative to the workspace.                            |
-| `envFile`    | string | Path to a file to load additional env from.                              |
+| Field       | Type   | Notes                                                                    |
+| ----------- | ------ | ------------------------------------------------------------------------ |
+| `type`      | enum   | **Required.** `process` or `database`.                                   |
+| `dependsOn` | array  | Component names that must be running before this one starts.             |
+| `setup`     | string | Command run once before the component starts (e.g. `npm ci`).            |
+| `env`       | object | Environment variables. Values support template substitution (see below). |
+| `directory` | string | Working directory, relative to the workspace.                            |
+| `envFile`   | string | Path to a file to load additional env from.                              |
 
 ### `type: process` fields
 
-| Field       | Required | Notes                                                            |
-| ----------- | -------- | ---------------------------------------------------------------- |
-| `command`   | yes      | The command Roubo runs to start the process.                     |
+| Field     | Required | Notes                                        |
+| --------- | -------- | -------------------------------------------- |
+| `command` | yes      | The command Roubo runs to start the process. |
 
 ### `type: database` fields
 
-| Field                  | Required | Notes                                                                                                  |
-| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `docker.composeFile`   | yes      | Path to a `docker-compose.yaml` in the repo.                                                           |
-| `docker.service`       | yes      | The service key inside the compose file Roubo should run.                                              |
-| `docker.initService`   | no       | An init/migration sidecar service to run before the main service.                                      |
-| `docker.portEnvVar`    | no       | The env var name the compose file reads for the host port (so Roubo can override it per bench).        |
-| `migration.command`    | no       | Migration command Roubo runs once the container reports healthy.                                       |
-| `migration.args`       | no       | Optional argument array.                                                                               |
-| `connection.template`  | no       | Connection string template (resolved with `{{ports.x}}`, etc.) made available to other components as `{{connection.<name>}}`. |
-| `image`                | no       | Pinned image override.                                                                                 |
+| Field                 | Required | Notes                                                                                                                         |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `docker.composeFile`  | yes      | Path to a `docker-compose.yaml` in the repo.                                                                                  |
+| `docker.service`      | yes      | The service key inside the compose file Roubo should run.                                                                     |
+| `docker.initService`  | no       | An init/migration sidecar service to run before the main service.                                                             |
+| `docker.portEnvVar`   | no       | The env var name the compose file reads for the host port (so Roubo can override it per bench).                               |
+| `migration.command`   | no       | Migration command Roubo runs once the container reports healthy.                                                              |
+| `migration.args`      | no       | Optional argument array.                                                                                                      |
+| `connection.template` | no       | Connection string template (resolved with `{{ports.x}}`, etc.) made available to other components as `{{connection.<name>}}`. |
+| `image`               | no       | Pinned image override.                                                                                                        |
 
 ### Template substitution
 
@@ -160,13 +160,13 @@ ports:
     base: 5100
   frontend:
     base: 5200
-    https: true        # optional, Roubo treats this component as serving https
+    https: true # optional, Roubo treats this component as serving https
 ```
 
-| Field   | Required | Type    | Range       | Notes                                          |
-| ------- | -------- | ------- | ----------- | ---------------------------------------------- |
-| `base`  | yes      | integer | 1–65535     | The port assigned to bench 1.                  |
-| `https` | no       | boolean | n/a         | Used when generating `{{urls.<name>}}`.        |
+| Field   | Required | Type    | Range   | Notes                                   |
+| ------- | -------- | ------- | ------- | --------------------------------------- |
+| `base`  | yes      | integer | 1–65535 | The port assigned to bench 1.           |
+| `https` | no       | boolean | n/a     | Used when generating `{{urls.<name>}}`. |
 
 Roubo refuses to register a project whose `base` values would collide with any already-registered project's port range. Pick bases that leave a comfortable gap (e.g. 4100, 4200, 4300, never 4100, 4101).
 
@@ -189,15 +189,15 @@ tools:
     command: code "{{workspace}}"
 ```
 
-| Field      | Required | Type   | Notes                                                                |
-| ---------- | -------- | ------ | -------------------------------------------------------------------- |
-| `name`     | yes      | string | Label shown in the UI.                                               |
-| `icon`     | yes      | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`).     |
-| `type`     | yes      | enum   | `browser` or `shell`.                                                |
-| `url`      | yes¹     | string | For `browser` tools.                                                 |
-| `command`  | yes¹     | string | For `shell` tools.                                                   |
-| `requires` | no       | string | Component name that must be running for the tool to be enabled.      |
-| `login`    | no       | object | Browser tools only; automated login steps. See below.                |
+| Field      | Required | Type   | Notes                                                            |
+| ---------- | -------- | ------ | ---------------------------------------------------------------- |
+| `name`     | yes      | string | Label shown in the UI.                                           |
+| `icon`     | yes      | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`). |
+| `type`     | yes      | enum   | `browser` or `shell`.                                            |
+| `url`      | yes¹     | string | For `browser` tools.                                             |
+| `command`  | yes¹     | string | For `shell` tools.                                               |
+| `requires` | no       | string | Component name that must be running for the tool to be enabled.  |
+| `login`    | no       | object | Browser tools only; automated login steps. See below.            |
 
 ¹ `url` is required for `browser` tools; `command` for `shell` tools.
 
@@ -241,12 +241,12 @@ inspection:
     CI: "1"
 ```
 
-| Field       | Required | Notes                                                              |
-| ----------- | -------- | ------------------------------------------------------------------ |
-| `framework` | yes      | Free-form label (`vitest`, `playwright`, `jest`, …). UI only.      |
-| `directory` | yes      | Working directory relative to the workspace.                       |
-| `command`   | yes      | The command to run.                                                |
-| `env`       | no       | Extra environment for the command.                                 |
+| Field       | Required | Notes                                                         |
+| ----------- | -------- | ------------------------------------------------------------- |
+| `framework` | yes      | Free-form label (`vitest`, `playwright`, `jest`, …). UI only. |
+| `directory` | yes      | Working directory relative to the workspace.                  |
+| `command`   | yes      | The command to run.                                           |
+| `env`       | no       | Extra environment for the command.                            |
 
 ---
 
@@ -261,11 +261,11 @@ benches:
   autoClear: true
 ```
 
-| Field       | Required | Type    | Notes                                                                                                            |
-| ----------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
-| `max`       | yes      | integer | 1–99. Hard cap on concurrent benches for this project.                                                           |
+| Field       | Required | Type    | Notes                                                                                                             |
+| ----------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `max`       | yes      | integer | 1–99. Hard cap on concurrent benches for this project.                                                            |
 | `setup`     | no       | string  | Command run once after worktree creation, before components start. Typically `npm ci` or workspace bootstrapping. |
-| `autoClear` | no       | boolean | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed. |
+| `autoClear` | no       | boolean | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed.  |
 
 ---
 
@@ -281,10 +281,10 @@ blueprints:
     Feature: feature
 ```
 
-| Field                | Notes                                                              |
-| -------------------- | ------------------------------------------------------------------ |
-| `defaultBlueprint`   | The blueprint name to use when no issue-type mapping matches.      |
-| `issueTypeMappings`  | Map of GitHub issue type name → blueprint name.                    |
+| Field               | Notes                                                         |
+| ------------------- | ------------------------------------------------------------- |
+| `defaultBlueprint`  | The blueprint name to use when no issue-type mapping matches. |
+| `issueTypeMappings` | Map of GitHub issue type name → blueprint name.               |
 
 Blueprints themselves are managed through the Roubo UI under **Blueprints**. The `roubo.yaml` only declares which blueprint to inject for a given bench.
 
@@ -306,10 +306,10 @@ users:
       email: bob@example.com
 ```
 
-| Field                  | Required | Notes                                                              |
-| ---------------------- | -------- | ------------------------------------------------------------------ |
-| `name`                 | yes      | Unique identifier.                                                 |
-| `properties`           | yes      | Map of arbitrary string properties.                                |
+| Field        | Required | Notes                               |
+| ------------ | -------- | ----------------------------------- |
+| `name`       | yes      | Unique identifier.                  |
+| `properties` | yes      | Map of arbitrary string properties. |
 
 > **Do not** commit passwords, API keys, or other secrets here. Roubo does not encrypt this file.
 

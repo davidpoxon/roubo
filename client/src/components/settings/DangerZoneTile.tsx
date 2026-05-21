@@ -34,27 +34,31 @@ export default function DangerZoneTile({ projectId }: Props) {
 
   const displayName = project.config?.project.displayName ?? project.repoPath;
   const benchCount = benches?.length ?? 0;
+  const needsForce = !project.configValid && benchCount > 0;
   const canConfirm = typedName === displayName && !unregister.isPending;
 
   const handleConfirm = () => {
-    unregister.mutate(projectId, {
-      onSuccess: () => {
-        setIsOpen(false);
-        setTypedName("");
-        navigate("/", { replace: true });
-        addToast(`Unregistered ${displayName}.`);
+    unregister.mutate(
+      { projectId, force: needsForce },
+      {
+        onSuccess: () => {
+          setIsOpen(false);
+          setTypedName("");
+          navigate("/", { replace: true });
+          addToast(`Unregistered ${displayName}.`);
+        },
+        onError: (err) => {
+          setIsOpen(false);
+          setTypedName("");
+          addToast(
+            err instanceof Error && err.message.length > 0
+              ? err.message
+              : "Failed to unregister project.",
+            { duration: 8000 },
+          );
+        },
       },
-      onError: (err) => {
-        setIsOpen(false);
-        setTypedName("");
-        addToast(
-          err instanceof Error && err.message.length > 0
-            ? err.message
-            : "Failed to unregister project.",
-          { duration: 8000 },
-        );
-      },
-    });
+    );
   };
 
   return (
@@ -120,13 +124,26 @@ export default function DangerZoneTile({ projectId }: Props) {
                       <li>Git state</li>
                     </ul>
                   </div>
-                  {benchCount > 0 && (
+                  {benchCount > 0 && !needsForce && (
                     <div className="flex items-start gap-3">
                       <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                       <p className="text-sm text-stone-700 dark:text-stone-300">
                         {benchCount} registered bench
                         {benchCount === 1 ? "" : "es"} will stop being monitored &mdash; clear them
                         first if you want Roubo to clean them up.
+                      </p>
+                    </div>
+                  )}
+                  {needsForce && (
+                    <div
+                      data-testid="force-unregister-note"
+                      className="flex items-start gap-3 rounded-md border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2"
+                    >
+                      <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                        This project&apos;s configuration can&apos;t be loaded. Forcing unregister
+                        will drop {benchCount} tracked bench{benchCount === 1 ? "" : "es"} from
+                        Roubo&apos;s state but leave any worktree files on disk alone.
                       </p>
                     </div>
                   )}
@@ -154,7 +171,11 @@ export default function DangerZoneTile({ projectId }: Props) {
                     onPress={handleConfirm}
                     className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
                   >
-                    {unregister.isPending ? "Unregistering…" : "Unregister"}
+                    {unregister.isPending
+                      ? "Unregistering…"
+                      : needsForce
+                        ? "Force unregister"
+                        : "Unregister"}
                   </Button>
                 </div>
               </>

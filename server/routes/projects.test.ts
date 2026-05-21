@@ -446,6 +446,15 @@ describe("DELETE /:projectId", () => {
 
     const res = await request(app).delete("/project");
     expect(res.status).toBe(204);
+    expect(projectRegistry.unregisterProject).toHaveBeenCalledWith("project", { force: false });
+  });
+
+  it("passes force=true through to unregisterProject", async () => {
+    vi.mocked(projectRegistry.unregisterProject).mockReturnValue(undefined as any);
+
+    const res = await request(app).delete("/project?force=true");
+    expect(res.status).toBe(204);
+    expect(projectRegistry.unregisterProject).toHaveBeenCalledWith("project", { force: true });
   });
 
   it("returns 404 for NOT_FOUND error", async () => {

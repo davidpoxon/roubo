@@ -125,8 +125,12 @@ export function registerProject(repoPath: string): Promise<RegisteredProject> {
   });
 }
 
-export function unregisterProject(projectId: string): Promise<void> {
-  return requestVoid(`/projects/${projectId}`, { method: "DELETE" });
+export function unregisterProject(
+  projectId: string,
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  const query = opts.force ? "?force=true" : "";
+  return requestVoid(`/projects/${projectId}${query}`, { method: "DELETE" });
 }
 
 export function reloadProjectConfig(projectId: string): Promise<RegisteredProject> {

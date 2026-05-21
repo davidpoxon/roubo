@@ -14,6 +14,7 @@ const mockedCheckPortConflicts = vi.mocked(checkPortConflicts);
 const mockedLoadProjects = vi.mocked(state.loadProjects);
 const mockedAddProject = vi.mocked(state.addProject);
 const mockedRemoveProject = vi.mocked(state.removeProject);
+const mockedRemoveBench = vi.mocked(state.removeBench);
 const mockedGetPersistedBenches = vi.mocked(state.getPersistedBenches);
 
 let registryModule: typeof import("./project-registry.js");
@@ -250,6 +251,40 @@ describe("unregisterProject", () => {
         "HAS_BENCHES",
       );
     }
+  });
+
+  it("force-unregisters by dropping persisted benches", () => {
+    const config = makeConfig();
+    mockedParseConfig.mockReturnValue({ valid: true, config });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    registryModule.registerProject("/repos/test-project");
+
+    mockedGetPersistedBenches.mockReturnValue([
+      {
+        id: 1,
+        projectId: "test-project",
+        branch: "main",
+        workspacePath: "/workspace/1",
+        ports: {},
+        createdAt: "now",
+      },
+      {
+        id: 2,
+        projectId: "test-project",
+        branch: "feature",
+        workspacePath: "/workspace/2",
+        ports: {},
+        createdAt: "now",
+      },
+    ]);
+
+    registryModule.unregisterProject("test-project", { force: true });
+
+    expect(mockedRemoveBench).toHaveBeenCalledWith("test-project", 1);
+    expect(mockedRemoveBench).toHaveBeenCalledWith("test-project", 2);
+    expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
+    expect(registryModule.getProject("test-project")).toBeUndefined();
   });
 });
 
