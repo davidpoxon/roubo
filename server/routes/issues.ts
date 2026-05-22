@@ -120,6 +120,27 @@ router.get("/:projectId/issues/:externalId", async (req, res) => {
   }
 });
 
+router.post("/:projectId/issues/:externalId/transitions", async (req, res) => {
+  const active = getActivePluginOrRespond(req.params.projectId, res);
+  if (!active) return;
+
+  const { transitionName } = (req.body ?? {}) as { transitionName?: unknown };
+  if (typeof transitionName !== "string" || transitionName.length === 0) {
+    res.status(400).json({ error: "transitionName is required and must be a non-empty string" });
+    return;
+  }
+
+  try {
+    const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "applyTransition", {
+      externalId: req.params.externalId,
+      transitionName,
+    });
+    res.json(issue);
+  } catch (err) {
+    sendPluginRpcError(res, err);
+  }
+});
+
 router.get("/:projectId/issues/:externalId/comments", async (req, res) => {
   const active = getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;

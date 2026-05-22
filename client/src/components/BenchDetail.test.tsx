@@ -23,6 +23,12 @@ vi.mock("./DatabaseViewer", () => ({ default: () => <div data-testid="database-v
 vi.mock("./TerminalTabs", () => ({ default: () => <div data-testid="terminal-tabs" /> }));
 vi.mock("./InspectionRunner", () => ({ default: () => <div data-testid="inspection-runner" /> }));
 vi.mock("./AssignContainerModal", () => ({ default: () => null }));
+vi.mock("./IssueTransitionDropdown", () => ({
+  default: () => <span data-testid="issue-transition-dropdown" />,
+}));
+vi.mock("../hooks/useBenchIssue", () => ({
+  useBenchIssue: () => ({ data: undefined }),
+}));
 
 import {
   useBenchDetail,
