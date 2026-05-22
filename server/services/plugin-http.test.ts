@@ -115,7 +115,7 @@ function closeServer(s: http.Server | https.Server): Promise<void> {
   return new Promise((resolve) => s.close(() => resolve()));
 }
 
-describe("createPluginFetcher — allowlist enforcement", () => {
+describe("createPluginFetcher: allowlist enforcement", () => {
   it("rejects URLs whose host is not in network.hosts", async () => {
     const logger = vi.fn<(line: PluginHttpLogLine) => void>();
     const fetchImpl = vi.fn(async () => new Response());
@@ -186,7 +186,7 @@ describe("createPluginFetcher — allowlist enforcement", () => {
   });
 });
 
-describe("createPluginFetcher — dispatcher selection", () => {
+describe("createPluginFetcher: dispatcher selection", () => {
   it("uses EnvHttpProxyAgent by default", async () => {
     let captured: unknown = undefined;
     const fetchImpl = vi.fn(async (_url: unknown, init: unknown) => {
@@ -236,7 +236,7 @@ describe("createPluginFetcher — dispatcher selection", () => {
   });
 });
 
-describe("createPluginFetcher — response surfacing", () => {
+describe("createPluginFetcher: response surfacing", () => {
   let serverInfo: RunningServer<http.Server>;
   beforeAll(async () => {
     serverInfo = await startHttpServer((req, res) => {
@@ -341,7 +341,7 @@ describe("createPluginFetcher — response surfacing", () => {
   });
 });
 
-describe("createPluginFetcher — self-signed TLS opt-in (TC-010)", () => {
+describe("createPluginFetcher: self-signed TLS opt-in (TC-010)", () => {
   let tls: RunningServer<https.Server>;
   beforeAll(async () => {
     tls = await startHttpsServer((req, res) => {
