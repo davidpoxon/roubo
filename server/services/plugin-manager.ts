@@ -356,7 +356,7 @@ function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
     const lines = buf.toString("utf8").split("\n");
     for (const raw of lines) {
       if (raw.length === 0) continue;
-      void writeLog(entry, source, raw);
+      writeLog(entry, source, raw).catch(() => {});
     }
   };
   proc.stdout?.on("data", handleData("stdout"));
@@ -426,7 +426,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   try {
     entry.connection = createConnection(proc);
     entry.connection.onError((error) => {
-      void writeLog(entry, "host", `rpc error: ${error.message}`, "warn");
+      writeLog(entry, "host", `rpc error: ${error.message}`, "warn").catch(() => {});
     });
     entry.connection.onClose(() => {
       // connection closed; the 'exit' handler below drives state transitions
@@ -445,7 +445,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     handleChildExit(entry, code);
   });
   proc.on("error", (err) => {
-    void writeLog(entry, "host", `process error: ${err.message}`, "error");
+    writeLog(entry, "host", `process error: ${err.message}`, "error").catch(() => {});
   });
 }
 
@@ -496,18 +496,18 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
       code: "restart-budget-exhausted",
       message: `Plugin exited ${recent.length} times within ${RESTART_WINDOW_MS / 1000}s; auto-restart disabled. Click Restart to retry.`,
     };
-    void writeLog(entry, "host", entry.record.lastError.message, "error");
+    writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
     return;
   }
 
   const attemptIndex = Math.min(recent.length - 1, BACKOFF_SCHEDULE_MS.length - 1);
   const delay = BACKOFF_SCHEDULE_MS[Math.max(0, attemptIndex)];
-  void writeLog(
+  writeLog(
     entry,
     "host",
     `plugin exited (code=${exitCode}); restarting in ${delay}ms (attempt ${recent.length}/${RESTART_BUDGET})`,
     "warn",
-  );
+  ).catch(() => {});
   entry.restartTimer = setTimeout(() => {
     entry.restartTimer = null;
     if (entry.intentionalStop || !initialized) return;
