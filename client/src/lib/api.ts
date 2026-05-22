@@ -492,6 +492,17 @@ export function fetchIssue(projectId: string, externalId: string): Promise<Norma
   return request(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}`);
 }
 
+export function applyTransition(
+  projectId: string,
+  externalId: string,
+  transitionName: string,
+): Promise<NormalizedIssue> {
+  return request(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}/transitions`, {
+    method: "POST",
+    body: JSON.stringify({ transitionName }),
+  });
+}
+
 export function fetchIssueComments(
   projectId: string,
   externalId: string,

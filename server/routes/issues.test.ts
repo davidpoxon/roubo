@@ -170,6 +170,80 @@ describe("GET /:projectId/issues/:externalId", () => {
   });
 });
 
+describe("POST /:projectId/issues/:externalId/transitions", () => {
+  it("returns 503 when no active integration", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: "Done" });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("no-active-integration");
+  });
+
+  it("returns 400 when transitionName is missing", async () => {
+    const res = await request(app).post("/p1/issues/ROUBO-42/transitions").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when transitionName is not a string", async () => {
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: 123 });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when transitionName is an empty string", async () => {
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: "" });
+    expect(res.status).toBe(400);
+  });
+
+  it("invokes applyTransition with externalId + transitionName and returns the refreshed issue (TC-054)", async () => {
+    const refreshed = makeIssue({
+      externalId: "ROUBO-42",
+      currentState: "In Review",
+      allowedTransitions: ["Done"],
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue(refreshed);
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: "In Review" });
+    expect(res.status).toBe(200);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "applyTransition", {
+      externalId: "ROUBO-42",
+      transitionName: "In Review",
+    });
+    expect(res.body).toEqual(refreshed);
+  });
+
+  it("forwards a structured plugin error verbatim with 502 (TC-063)", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue(
+      Object.assign(new Error("Your token lacks permission to transition this workflow."), {
+        code: "rpc-error",
+      }),
+    );
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: "Done" });
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      error: "rpc-error",
+      message: "Your token lacks permission to transition this workflow.",
+    });
+  });
+
+  it("maps timeout to 504", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue(
+      Object.assign(new Error("timed out"), { code: "timeout" }),
+    );
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/transitions")
+      .send({ transitionName: "Done" });
+    expect(res.status).toBe(504);
+  });
+});
+
 describe("GET /:projectId/issues/:externalId/comments", () => {
   it("invokes getComments and returns NormalizedComment[]", async () => {
     const comments = [

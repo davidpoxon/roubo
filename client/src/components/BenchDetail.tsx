@@ -73,6 +73,8 @@ import { useBenchViewState, type BenchTabId } from "../hooks/useBenchViewState";
 import { isDirtyBenchError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
 import { useToast } from "../hooks/useToast";
+import { useBenchIssue } from "../hooks/useBenchIssue";
+import IssueTransitionDropdown from "./IssueTransitionDropdown";
 
 function ComponentStatusText({ status, startedAt }: { status: string; startedAt?: string }) {
   const elapsed = useElapsed(status === "starting" ? startedAt : undefined);
@@ -740,6 +742,25 @@ function InfoTab({ bench }: { bench: Bench }) {
   );
 }
 
+function AssignedIssueTransition({
+  projectId,
+  externalId,
+}: {
+  projectId: string;
+  externalId: string;
+}) {
+  const { data: issue } = useBenchIssue(projectId, externalId);
+  if (!issue) return null;
+  return (
+    <IssueTransitionDropdown
+      projectId={projectId}
+      externalId={externalId}
+      currentState={issue.currentState}
+      allowedTransitions={issue.allowedTransitions}
+    />
+  );
+}
+
 export default function BenchDetail() {
   const { projectId = "", benchId: benchIdStr = "" } = useParams<{
     projectId: string;
@@ -888,6 +909,10 @@ export default function BenchDetail() {
             <div className="flex items-center gap-1.5 text-xs text-stone-500">
               <span className="font-mono text-violet-400">#{bench.assignedIssue.number}</span>
               <span>{bench.assignedIssue.title}</span>
+              <AssignedIssueTransition
+                projectId={projectId}
+                externalId={bench.assignedIssue.externalId}
+              />
               {isFromPreviousIntegration && (
                 <span
                   data-testid="previous-integration-badge"

@@ -42,6 +42,7 @@ import {
   fetchProjectGitHubProjects,
   fetchIssuesPage,
   fetchIssueComments,
+  applyTransition,
   fetchLabels,
   assignIssue,
   unassignIssue,
@@ -748,6 +749,29 @@ describe("fetchIssuesPage", () => {
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).not.toContain("cursor=");
     expect(url).toContain("pageSize=50");
+  });
+});
+
+describe("applyTransition", () => {
+  it("sends POST to /api/projects/:id/issues/:externalId/transitions with transitionName in body", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({}));
+    await applyTransition("p1", "ROUBO-42", "In Review");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/issues/ROUBO-42/transitions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ transitionName: "In Review" }),
+      }),
+    );
+  });
+
+  it("URI-encodes the externalId", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({}));
+    await applyTransition("p1", "a/b", "Done");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/issues/a%2Fb/transitions",
+      expect.anything(),
+    );
   });
 });
 
