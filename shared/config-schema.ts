@@ -205,6 +205,17 @@ export const IntegrationConfigSchema = z
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 
+// Per-user override file at `~/.roubo/integrations/<projectId>.yaml`. The
+// envelope versions the file so a future shape change fails loudly on the
+// `schemaVersion` literal rather than silently mis-merging.
+export const IntegrationOverrideSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    integration: IntegrationConfigSchema,
+  })
+  .strict();
+export type IntegrationOverride = z.infer<typeof IntegrationOverrideSchema>;
+
 const ComponentsMapSchema = z.record(z.string(), ComponentConfigSchema).superRefine((val, ctx) => {
   if (Object.keys(val).length === 0) {
     ctx.addIssue({

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   RouboConfigSchema,
   ProjectConfigSchema,
+  IntegrationOverrideSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
   type RouboConfig,
@@ -492,6 +493,55 @@ describe("integration block", () => {
       integration: { sources: { boards: "not-an-array" } },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("IntegrationOverrideSchema", () => {
+  it("accepts a minimal envelope with an empty integration block", () => {
+    expect(IntegrationOverrideSchema.safeParse({ schemaVersion: 1, integration: {} }).success).toBe(
+      true,
+    );
+  });
+
+  it("accepts a full integration override", () => {
+    const result = IntegrationOverrideSchema.safeParse({
+      schemaVersion: 1,
+      integration: {
+        plugin: "jira-self-hosted",
+        instance: "https://jira.acme.com",
+        sources: { boards: [12], repos: ["owner/repo"] },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a missing schemaVersion", () => {
+    expect(IntegrationOverrideSchema.safeParse({ integration: {} }).success).toBe(false);
+  });
+
+  it("rejects a non-1 schemaVersion", () => {
+    expect(IntegrationOverrideSchema.safeParse({ schemaVersion: 2, integration: {} }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects unknown top-level keys (strict envelope)", () => {
+    expect(
+      IntegrationOverrideSchema.safeParse({
+        schemaVersion: 1,
+        integration: {},
+        extra: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects unknown keys inside integration (strict)", () => {
+    expect(
+      IntegrationOverrideSchema.safeParse({
+        schemaVersion: 1,
+        integration: { bogus: 1 },
+      }).success,
+    ).toBe(false);
   });
 });
 
