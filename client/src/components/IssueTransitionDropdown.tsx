@@ -3,25 +3,13 @@ import { Select, Button, ListBox, ListBoxItem, Popover } from "react-aria-compon
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ChevronDown } from "lucide-react";
 import * as api from "../lib/api";
-import { ApiError } from "../lib/api";
+import { extractPluginErrorMessage } from "../lib/plugin-error";
 
 interface Props {
   projectId: string;
   externalId: string;
   currentState: string;
   allowedTransitions: string[];
-}
-
-function extractPluginErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const details = err.details;
-    if (details && typeof details === "object" && "message" in details) {
-      const m = (details as { message?: unknown }).message;
-      if (typeof m === "string" && m.length > 0) return m;
-    }
-  }
-  if (err instanceof Error && err.message.length > 0) return err.message;
-  return "Transition failed";
 }
 
 export default function IssueTransitionDropdown({
@@ -51,7 +39,7 @@ export default function IssueTransitionDropdown({
     },
     onError: (err) => {
       setOptimisticState(currentState);
-      setError(extractPluginErrorMessage(err));
+      setError(extractPluginErrorMessage(err, "Transition failed"));
     },
   });
 
