@@ -37,8 +37,16 @@ function resolveOverridePath(projectId: string): string {
   if (!SAFE_PROJECT_ID.test(projectId)) {
     throw new IntegrationOverrideError(`Invalid projectId: ${projectId}`, "INVALID_PROJECT_ID");
   }
+  // Strip any path components a defender-in-depth check; combined with the
+  // regex above this means the value reaching path.resolve cannot contain
+  // separators or traversal segments. This shape is what CodeQL's
+  // js/path-injection sanitizer recognises.
+  const safeId = path.basename(projectId);
+  if (safeId !== projectId) {
+    throw new IntegrationOverrideError(`Invalid projectId: ${projectId}`, "INVALID_PROJECT_ID");
+  }
   const dir = getIntegrationsDir();
-  const filePath = path.resolve(dir, `${projectId}.yaml`);
+  const filePath = path.resolve(dir, `${safeId}.yaml`);
   if (!filePath.startsWith(dir + path.sep) && filePath !== dir) {
     throw new IntegrationOverrideError(`Invalid projectId: ${projectId}`, "INVALID_PROJECT_ID");
   }
