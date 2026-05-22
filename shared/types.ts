@@ -73,6 +73,18 @@ export type {
   PluginCapabilities,
 } from "./plugin-manifest-schema.js";
 
+export { parseManifest } from "./plugin-manifest.js";
+export type { ParseManifestResult } from "./plugin-manifest.js";
+
+export type {
+  PluginStatus,
+  PluginSource,
+  RestartEvent,
+  PluginError,
+  LogLine,
+  PluginRecord,
+} from "./plugin-runtime-types.js";
+
 export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]);
 
 // ── Project registry types ──

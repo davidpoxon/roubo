@@ -1,0 +1,14 @@
+id: invalid-manifest
+name: Invalid Fixture
+version: 0.0.0
+description: Missing the entry field
+kind: integration
+roubo: ^1.0.0
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

@@ -1,0 +1,15 @@
+id: slow
+name: Slow Fixture
+version: 0.0.0
+description: Test fixture that never responds
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
