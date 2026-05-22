@@ -23,14 +23,15 @@
     "server",
     "client",
     "electron",
-    "plugins/github-com"
+    "plugins/github-com",
+    "plugins/jira-self-hosted"
   ],
   "scripts": {
     "prepare": "node -e \"try{require('child_process').execSync('git rev-parse --git-dir',{stdio:'ignore'});require('child_process').execSync('git config core.hooksPath scripts/git-hooks',{stdio:'inherit'});require('fs').chmodSync('scripts/git-hooks/commit-msg',0o755)}catch{}\"",
     "dev": "npm run dev --prefix server & npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix plugins/github-com",
+    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix plugins/github-com && npm run build --prefix plugins/jira-self-hosted",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
@@ -42,7 +43,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && npx -w plugins/github-com tsc --noEmit"
+    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && npx -w plugins/github-com tsc --noEmit && npx -w plugins/jira-self-hosted tsc --noEmit"
   },
   "dependencies": {
     "@roubo/shared": "file:./shared",
