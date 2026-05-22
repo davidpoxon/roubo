@@ -6,6 +6,7 @@ import { createConnection, CancellationTokenSource } from "./plugin-rpc.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ECHO_ENTRY = path.join(here, "__fixtures__", "plugins", "echo", "index.cjs");
+const CALLER_ENTRY = path.join(here, "__fixtures__", "plugins", "caller", "index.cjs");
 
 const spawnedProcs: ChildProcess[] = [];
 
@@ -24,6 +25,14 @@ afterEach(async () => {
 
 function spawnEcho(): ChildProcess {
   const proc = spawn(process.execPath, [ECHO_ENTRY], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  spawnedProcs.push(proc);
+  return proc;
+}
+
+function spawnCaller(): ChildProcess {
+  const proc = spawn(process.execPath, [CALLER_ENTRY], {
     stdio: ["pipe", "pipe", "pipe"],
   });
   spawnedProcs.push(proc);
@@ -57,5 +66,24 @@ describe("plugin-rpc", () => {
   it("throws when the child has no piped stdio", () => {
     const fakeProc = {} as ChildProcess;
     expect(() => createConnection(fakeProc)).toThrow();
+  });
+
+  it("dispatches incoming requests from the child to onRequest handlers", async () => {
+    const proc = spawnCaller();
+    const conn = createConnection(proc);
+    conn.onRequest<{ slot: string }, { value: string }>("host.example", (params) => ({
+      value: `got:${params.slot}`,
+    }));
+
+    const tokenSource = new CancellationTokenSource();
+    const response = await conn.sendRequest<{ ok: boolean; result: { value: string } }>(
+      "invokeHost",
+      { method: "host.example", payload: { slot: "abc" } },
+      tokenSource.token,
+    );
+
+    expect(response).toEqual({ ok: true, result: { value: "got:abc" } });
+    conn.dispose();
+    tokenSource.dispose();
   });
 });

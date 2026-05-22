@@ -197,6 +197,56 @@ describe("lifecycle", () => {
     expect(reenabled.pid).not.toBe(firstPid);
   });
 
+  it("dispatches host.credentials.* with slot-scope enforcement (TC-070)", async () => {
+    sandbox = await makeSandbox({ bundled: ["host-credentials-caller"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    // Undeclared slot → structured permission-denied error reaches the plugin.
+    const denied = await mgr.invoke<{
+      ok: false;
+      error: {
+        message: string;
+        code: number;
+        data: { code: string; reason: string; slot: string };
+      };
+    }>("host-credentials-caller", "getCredential", { slot: "undeclared-slot" });
+    expect(denied.ok).toBe(false);
+    expect(denied.error.data).toEqual({
+      code: "permission-denied",
+      category: "credentials",
+      slot: "undeclared-slot",
+      reason: "slot-not-declared",
+    });
+
+    // Read-only-declared slot: set is denied with scope-read-only.
+    const writeDenied = await mgr.invoke<{
+      ok: false;
+      error: { data: { reason: string } };
+    }>("host-credentials-caller", "setCredential", { slot: "declared-ro", value: "x" });
+    expect(writeDenied.ok).toBe(false);
+    expect(writeDenied.error.data.reason).toBe("scope-read-only");
+
+    // Denials are logged with the stable pluginId.methodName identifier.
+    const logs = await mgr.readLogs("host-credentials-caller", "current", 200);
+    expect(
+      logs.some(
+        (line) =>
+          line.source === "host" &&
+          line.text.includes("host-credentials-caller.host.credentials.get") &&
+          line.text.includes("slot-not-declared"),
+      ),
+    ).toBe(true);
+    expect(
+      logs.some(
+        (line) =>
+          line.source === "host" &&
+          line.text.includes("host-credentials-caller.host.credentials.set") &&
+          line.text.includes("scope-read-only"),
+      ),
+    ).toBe(true);
+  });
+
   it("shutdown tears children down within 5s and clears the registry (TC-077)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();

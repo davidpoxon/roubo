@@ -18,6 +18,7 @@ import {
 } from "@roubo/shared";
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
+import { registerHostHandlers } from "./plugin-host-api.js";
 
 export const HOST_API_VERSION = "1.0.0";
 export const RESTART_BUDGET = 3;
@@ -430,6 +431,9 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     });
     entry.connection.onClose(() => {
       // connection closed; the 'exit' handler below drives state transitions
+    });
+    registerHostHandlers(entry.connection, entry.record, (level, text) => {
+      writeLog(entry, "host", text, level).catch(() => {});
     });
   } catch (err) {
     entry.record.status = "errored";

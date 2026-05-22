@@ -82,12 +82,22 @@ export function makeDirent(name: string, isFile: boolean): Dirent {
   } as Dirent;
 }
 
-export function createMockChild(pid = 1234): ChildProcess & EventEmitter {
+export function createMockChild(
+  pid = 1234,
+  options?: { withStdin?: boolean },
+): ChildProcess & EventEmitter {
   const proc = new EventEmitter() as ChildProcess & EventEmitter;
   proc.stdout = new EventEmitter() as any;
   proc.stderr = new EventEmitter() as any;
-  proc.stdin = null as any;
-  proc.stdio = [null, proc.stdout, proc.stderr, null, null] as any;
+  if (options?.withStdin) {
+    const stdin = new EventEmitter() as any;
+    stdin.write = vi.fn();
+    stdin.end = vi.fn();
+    proc.stdin = stdin;
+  } else {
+    proc.stdin = null as any;
+  }
+  proc.stdio = [proc.stdin, proc.stdout, proc.stderr, null, null] as any;
   proc.pid = pid;
   proc.killed = false;
   proc.connected = false;

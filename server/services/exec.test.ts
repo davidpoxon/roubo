@@ -135,6 +135,38 @@ describe("runCommand", () => {
     expect(proc.kill).not.toHaveBeenCalled();
   });
 
+  it("pipes stdin into the spawned process when provided", async () => {
+    const proc = createMockChild(1234, { withStdin: true });
+    vi.mocked(spawn).mockReturnValue(proc);
+
+    const promise = runCommand("cat", [], "/tmp", undefined, undefined, "hello-secret");
+    proc.emit("close", 0);
+    await promise;
+
+    expect(spawn).toHaveBeenCalledWith("cat", [], {
+      cwd: "/tmp",
+      env: expect.any(Object),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    expect(proc.stdin?.write).toHaveBeenCalledWith("hello-secret");
+    expect(proc.stdin?.end).toHaveBeenCalled();
+  });
+
+  it("ignores stdin and uses ignore stdio when stdin is undefined", async () => {
+    const proc = createMockChild();
+    vi.mocked(spawn).mockReturnValue(proc);
+
+    const promise = runCommand("git", ["status"], "/repo");
+    proc.emit("close", 0);
+    await promise;
+
+    expect(spawn).toHaveBeenCalledWith(
+      "git",
+      ["status"],
+      expect.objectContaining({ stdio: ["ignore", "pipe", "pipe"] }),
+    );
+  });
+
   it("resolves with error when spawn fails with ENOENT", async () => {
     const proc = createMockChild();
     vi.mocked(spawn).mockReturnValue(proc);

@@ -35,13 +35,19 @@ export function runCommand(
   cwd: string,
   env?: Record<string, string>,
   timeoutMs?: number,
+  stdin?: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
       cwd,
       env: { ...cleanEnv(), ...env },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [stdin !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
     });
+
+    if (stdin !== undefined && proc.stdin) {
+      proc.stdin.write(stdin);
+      proc.stdin.end();
+    }
 
     let stdout = "";
     let stderr = "";
@@ -59,10 +65,10 @@ export function runCommand(
       if (timer) clearTimeout(timer);
       resolve({ code: 1, stdout, stderr: stderr + err.message });
     });
-    proc.stdout.on("data", (d) => {
+    proc.stdout?.on("data", (d) => {
       stdout += d.toString();
     });
-    proc.stderr.on("data", (d) => {
+    proc.stderr?.on("data", (d) => {
       stderr += d.toString();
     });
     proc.on("close", (code) => {
