@@ -106,7 +106,23 @@ The plugin process calls these via the same JSON-RPC channel; the plugin manager
   - macOS: `security add-generic-password -a <slot> -s roubo-plugins -w <secret> -U` to write; `security find-generic-password -a <slot> -s roubo-plugins -w` to read.
   - Linux: `secret-tool store --label='roubo-<pluginId>-<slot>' service roubo-plugins account <slot>` reading the password from stdin (so it never appears in argv). `secret-tool lookup service roubo-plugins account <slot>` to read.
 - **Slot naming**: slots are namespaced `<pluginId>/<slotName>` at the storage layer to prevent slot-name collisions across plugins. The credential service rejects `get`/`set` requests whose `<slotName>` is not declared in the manifest's `permissions.credentials[].slot` array, providing the cooperative-enforcement boundary noted in feasibility.
-- **Headless-Linux behaviour (open spike)**: on headless Ubuntu (no graphical session, no `gnome-keyring-daemon` running by default), `secret-tool` shellouts will fail. The credential store SHOULD hard-fail at first credential write and surface a clear error directing the user to install `libsecret-tools` and start a keyring daemon (e.g. `gnome-keyring-daemon --start --components=secrets` under an unlocked session, or `dbus-run-session` for fully headless CI/server boxes). The PRD constraint is "no plaintext on disk," so we do not silently fall back to a plaintext file. Whether the recommended `dbus-run-session` recipe is sufficient for typical headless adopters is the remaining open question; this is gated by Spike A and tracked under `risks_and_alternatives`.
+- **Headless-Linux behaviour (open spike)**: on headless Ubuntu (no graphical session, no `gnome-keyring-daemon` running by default), `secret-tool` shellouts will fail. The credential store hard-fails at first credential read/write with `CredentialStoreError("keyring-unavailable", ...)`, surfacing the failure to the calling plugin (which logs it). The PRD constraint is "no plaintext on disk," so we do not silently fall back to a plaintext file. The recommended user recipe, which is documented in full in `server/services/credential-store.README.md`:
+
+  ```bash
+  # one-time install
+  sudo apt-get install -y libsecret-tools gnome-keyring dbus-user-session
+
+  # per shell session (interactive)
+  export $(dbus-launch)
+  printf '\n' | gnome-keyring-daemon --unlock --components=secrets
+  gnome-keyring-daemon --start --components=secrets
+
+  # or as a one-shot wrapper for headless CI / servers
+  dbus-run-session -- sh -c 'printf "\n" | gnome-keyring-daemon --unlock --components=secrets && roubo'
+  ```
+
+  Whether this recipe is sufficient for typical headless adopters is the remaining open question; this is gated by Spike A and tracked under `risks_and_alternatives`.
+
 - **Public interface**: `get(pluginId, slot): Promise<string | null>`, `set(pluginId, slot, value): Promise<void>`, `delete(pluginId, slot): Promise<void>`, `listSlotsForPlugin(pluginId): Promise<string[]>`.
 - **Dependencies**: `exec.ts:32`.
 

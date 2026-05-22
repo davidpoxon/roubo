@@ -11,6 +11,7 @@ import {
 export interface JsonRpcConnection {
   sendRequest<T>(method: string, params: unknown, token: CancellationToken): Promise<T>;
   sendNotification(method: string, params?: unknown): Promise<void>;
+  onRequest<P = unknown, R = unknown>(method: string, handler: (params: P) => R | Promise<R>): void;
   onError(handler: (error: Error) => void): void;
   onClose(handler: () => void): void;
   dispose(): void;
@@ -34,6 +35,9 @@ export function createConnection(proc: ChildProcess): JsonRpcConnection {
     },
     async sendNotification(method: string, params?: unknown) {
       await connection.sendNotification(method, params);
+    },
+    onRequest<P, R>(method: string, handler: (params: P) => R | Promise<R>) {
+      connection.onRequest(method, (params: P) => handler(params));
     },
     onError(handler) {
       connection.onError(([error]) => handler(error));

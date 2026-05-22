@@ -1,0 +1,21 @@
+id: host-credentials-caller
+name: Host Credentials Caller Fixture
+version: 0.0.0
+description: Test fixture that proxies calls to host.credentials.* and returns the result or error
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots:
+      - slot: declared-rw
+        scope: read-write
+        description: Declared read-write slot for tests
+      - slot: declared-ro
+        scope: read
+        description: Declared read-only slot for tests
+  filesystem:
+    paths: []
+  processes: false
