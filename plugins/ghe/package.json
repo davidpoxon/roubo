@@ -1,0 +1,26 @@
+{
+  "name": "@roubo/plugin-ghe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bundled GitHub Enterprise Server integration plugin for Roubo.",
+  "author": "David Poxon",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "roubo-plugin.yaml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@roubo/plugin-sdk": "*",
+    "@roubo/shared": "*",
+    "octokit": "5.0.5"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

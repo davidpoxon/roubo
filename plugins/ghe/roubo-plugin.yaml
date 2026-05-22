@@ -1,0 +1,55 @@
+id: ghe
+name: GitHub Enterprise
+version: 0.1.0
+description: Bundled Roubo integration for self-hosted GitHub Enterprise Server. PAT + instance URL auth with optional self-signed TLS opt-in.
+kind: integration
+roubo: ^1.0.0
+entry: ./dist/index.js
+configSchema:
+  type: object
+  required:
+    - instance
+    - sources
+  properties:
+    instance:
+      type: string
+      title: GHE instance URL
+      description: e.g. https://ghe.acme.example
+      format: uri
+    token:
+      type: string
+      title: Personal access token
+      format: password
+      description: GHE personal access token. Stored in the OS keyring.
+    allowSelfSignedTls:
+      type: boolean
+      title: Allow self-signed TLS
+      default: false
+      description: Enable only for instances using self-signed certificates.
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+            enum:
+              - repo
+              - project
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts:
+      - "**"
+  credentials:
+    slots:
+      - slot: token
+        scope: read
+        description: GitHub Enterprise personal access token.
+  filesystem:
+    paths: []
+  processes: false
