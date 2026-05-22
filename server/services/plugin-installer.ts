@@ -123,43 +123,88 @@ function gitCloneError(code: number, stderr: string): InstallError {
   );
 }
 
-function validateGitUrl(url: string): void {
+function containsControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function validateGitUrl(url: string): string {
   if (typeof url !== "string" || url.trim().length === 0) {
     throw new InstallError("invalid-input", "Git URL is required");
+  }
+  const trimmed = url.trim();
+  // Reject anything that could be parsed as a git CLI option. Without this
+  // an attacker could pass e.g. `--upload-pack=...` and trigger second-order
+  // command execution. We also reject control chars defensively.
+  if (trimmed.startsWith("-")) {
+    throw new InstallError("invalid-input", "Git URL must not start with '-'");
+  }
+  if (containsControlChar(trimmed)) {
+    throw new InstallError("invalid-input", "Git URL contains control characters");
   }
   // Conservative allowlist: https, http, ssh, or scp-style git@host:path.
   // We deliberately reject things git itself accepts (file://, /abs/path) so
   // the local-directory tab is the only path for filesystem sources.
-  const trimmed = url.trim();
   const isUrl = /^(https?|ssh|git):\/\//i.test(trimmed);
-  const isScp = /^[^\s@]+@[^\s:]+:.+$/.test(trimmed);
+  const isScp = /^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+:[^\s]+$/.test(trimmed);
   if (!isUrl && !isScp) {
     throw new InstallError(
       "invalid-input",
       "Git URL must be an http(s), ssh, or git@host:path URL",
     );
   }
+  return trimmed;
 }
 
-function validateLocalPath(absPath: string): void {
+function validateLocalPath(absPath: string): string {
   if (typeof absPath !== "string" || absPath.trim().length === 0) {
     throw new InstallError("invalid-input", "Local path is required");
   }
-  if (!path.isAbsolute(absPath)) {
+  const trimmed = absPath.trim();
+  if (!path.isAbsolute(trimmed)) {
     throw new InstallError("invalid-input", "Local path must be absolute");
   }
+  // Normalize to collapse `..` segments, then re-verify it's still absolute.
+  // This both canonicalizes the path for subsequent fs calls and ensures the
+  // sanitized value is what flows through every downstream filesystem call.
+  const normalized = path.resolve(trimmed);
+  if (!path.isAbsolute(normalized)) {
+    throw new InstallError("invalid-input", "Local path must be absolute");
+  }
+  if (containsControlChar(normalized)) {
+    throw new InstallError("invalid-input", "Local path contains control characters");
+  }
+  return normalized;
 }
 
 export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
-  validateGitUrl(url);
+  const safeUrl = validateGitUrl(url);
   await ensureStagingRoot();
   const token = randomUUID();
   const stagingDir = path.join(stagingRoot(), token);
 
   try {
+    // `--` terminates option parsing so `safeUrl` and `stagingDir` cannot be
+    // re-interpreted as flags even if the validator misses a case. The
+    // explicit `-c protocol.allow=user` lockdown is a defence-in-depth layer
+    // on top of the URL allowlist in validateGitUrl.
     const result = await runCommand(
       "git",
-      ["clone", "--depth", "1", url, stagingDir],
+      [
+        "-c",
+        "protocol.allow=user",
+        "-c",
+        "protocol.file.allow=never",
+        "clone",
+        "--depth",
+        "1",
+        "--",
+        safeUrl,
+        stagingDir,
+      ],
       stagingRoot(),
       undefined,
       GIT_CLONE_TIMEOUT_MS,
@@ -178,7 +223,7 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
     const manifest = await readStagingManifest(stagingDir);
     assertCompatible(manifest);
     assertNotDuplicate(manifest.id);
-    const source: InstallSource = { type: "git", url: url.trim() };
+    const source: InstallSource = { type: "git", url: safeUrl };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
     return { stagingToken: token, manifest, source };
   } catch (err) {
@@ -188,27 +233,30 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
 }
 
 export async function previewFromLocalPath(absPath: string): Promise<InstallPreview> {
-  validateLocalPath(absPath);
+  // `safePath` is the normalized, validated absolute path. Every downstream
+  // filesystem call uses `safePath` rather than the raw `absPath` argument
+  // so the sanitization step is always on the call path.
+  const safePath = validateLocalPath(absPath);
 
   let s;
   try {
-    s = await stat(absPath);
+    s = await stat(safePath);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
-      throw new InstallError("invalid-input", `Path does not exist: ${absPath}`);
+      throw new InstallError("invalid-input", `Path does not exist: ${safePath}`);
     }
     throw new InstallError("invalid-input", (err as Error).message);
   }
   if (!s.isDirectory()) {
-    throw new InstallError("invalid-input", `Path is not a directory: ${absPath}`);
+    throw new InstallError("invalid-input", `Path is not a directory: ${safePath}`);
   }
 
   // Probe the source dir for a manifest before staging anything, so a bad
   // local path doesn't leave a half-copied staging directory behind.
   let sourceManifestPath: string | null = null;
   for (const filename of ["roubo-plugin.yaml", "roubo-plugin.yml"]) {
-    const candidate = path.join(absPath, filename);
+    const candidate = path.join(safePath, filename);
     try {
       await stat(candidate);
       sourceManifestPath = candidate;
@@ -218,7 +266,7 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
     }
   }
   if (!sourceManifestPath) {
-    throw new InstallError("missing-manifest", `No roubo-plugin.yaml found in ${absPath}`);
+    throw new InstallError("missing-manifest", `No roubo-plugin.yaml found in ${safePath}`);
   }
 
   await ensureStagingRoot();
@@ -226,12 +274,12 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
   const stagingDir = path.join(stagingRoot(), token);
 
   try {
-    await cp(absPath, stagingDir, { recursive: true, errorOnExist: true, force: false });
+    await cp(safePath, stagingDir, { recursive: true, errorOnExist: true, force: false });
   } catch (err) {
     await rmStaging(stagingDir);
     throw new InstallError(
       "internal",
-      `Failed to copy ${absPath} into staging: ${(err as Error).message}`,
+      `Failed to copy ${safePath} into staging: ${(err as Error).message}`,
     );
   }
 
@@ -239,7 +287,7 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
     const manifest = await readStagingManifest(stagingDir);
     assertCompatible(manifest);
     assertNotDuplicate(manifest.id);
-    const source: InstallSource = { type: "local", path: absPath };
+    const source: InstallSource = { type: "local", path: safePath };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
     return { stagingToken: token, manifest, source };
   } catch (err) {

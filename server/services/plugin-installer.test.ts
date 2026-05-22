@@ -117,6 +117,29 @@ describe("previewFromGitUrl", () => {
     expect(exec.runCommand).not.toHaveBeenCalled();
   });
 
+  it("rejects URLs that begin with '-' to prevent git option injection", async () => {
+    // Without this guard a value like `--upload-pack=...` would be interpreted
+    // as a git option and could trigger arbitrary command execution.
+    await expect(pluginInstaller.previewFromGitUrl("--upload-pack=evil")).rejects.toMatchObject({
+      code: "invalid-input",
+    });
+    await expect(pluginInstaller.previewFromGitUrl("-fconfig=bad")).rejects.toMatchObject({
+      code: "invalid-input",
+    });
+    expect(exec.runCommand).not.toHaveBeenCalled();
+  });
+
+  it("invokes git clone with '--' before the URL to terminate option parsing", async () => {
+    fakeClone(ECHO_MANIFEST);
+    await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    expect(exec.runCommand).toHaveBeenCalledTimes(1);
+    const args = vi.mocked(exec.runCommand).mock.calls[0][1];
+    const dashDashIdx = args.indexOf("--");
+    const urlIdx = args.indexOf("https://github.com/example/echo.git");
+    expect(dashDashIdx).toBeGreaterThanOrEqual(0);
+    expect(urlIdx).toBeGreaterThan(dashDashIdx);
+  });
+
   it("surfaces git failure with the exit code and stderr tail; leaves no staging dir (TC-058)", async () => {
     fakeCloneFailure(128, "remote: Repository not found.\nfatal: repository ... not found");
     await expect(
@@ -201,6 +224,15 @@ describe("previewFromLocalPath", () => {
     await expect(
       pluginInstaller.previewFromLocalPath(path.join(sourceDir, "missing")),
     ).rejects.toMatchObject({ code: "invalid-input" });
+  });
+
+  it("normalizes the source path before performing filesystem operations", async () => {
+    await writeFile(path.join(sourceDir, "roubo-plugin.yaml"), ECHO_MANIFEST, "utf8");
+    // Pass a path containing `..` segments; the recorded source.path must be
+    // the resolved/normalized form and the filesystem call must still succeed.
+    const messy = path.join(sourceDir, "sub", "..");
+    const preview = await pluginInstaller.previewFromLocalPath(messy);
+    expect(preview.source).toEqual({ type: "local", path: path.resolve(messy) });
   });
 });
 
