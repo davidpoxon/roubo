@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Roubo · Global Bench Limit prototype</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --stone-50: #fafaf9;
+        --stone-100: #f5f5f4;
+        --stone-200: #e7e5e4;
+        --stone-300: #d6d3d1;
+        --stone-400: #a8a29e;
+        --stone-500: #78716c;
+        --stone-600: #57534e;
+        --stone-700: #44403c;
+        --stone-800: #292524;
+        --stone-900: #1c1917;
+        --stone-950: #0c0a09;
+        --amber-400: #fbbf24;
+        --amber-500: #f59e0b;
+        --amber-600: #d97706;
+        --red-500: #ef4444;
+        --green-500: #22c55e;
+        --green-600: #16a34a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--stone-950);
+        color: var(--stone-100);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+      .uppercase-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--stone-500);
+      }
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+      }
+      .panel {
+        border: 1px solid var(--stone-800);
+        border-radius: 12px;
+        background: rgba(28, 25, 23, 0.4);
+        padding: 24px;
+      }
+      .panel h2 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        color: var(--stone-100);
+      }
+      .panel .panel-sub {
+        font-size: 12px;
+        color: var(--stone-500);
+        margin-bottom: 24px;
+      }
+      .scenario-bar {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: var(--stone-900);
+        border: 1px solid var(--stone-800);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+      }
+      .scenario-bar .uppercase-label { margin-right: 8px; }
+      .scenario-btn {
+        font-family: inherit;
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--stone-700);
+        background: transparent;
+        color: var(--stone-300);
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+      .scenario-btn:hover { border-color: var(--stone-500); color: var(--stone-100); }
+      .scenario-btn.active {
+        background: var(--amber-500);
+        color: var(--stone-950);
+        border-color: var(--amber-500);
+        font-weight: 600;
+      }
+      .header {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding-bottom: 8px;
+      }
+      .header h1 {
+        font-size: 22px;
+        margin: 0;
+        font-weight: 600;
+      }
+      .header p {
+        font-size: 12px;
+        color: var(--stone-500);
+        margin: 0;
+      }
+
+      /* Settings panel */
+      .settings-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--stone-800);
+        margin-bottom: 24px;
+      }
+      .settings-tab {
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--stone-500);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        transition: color 150ms ease, border-color 150ms ease;
+      }
+      .settings-tab:hover { color: var(--stone-300); }
+      .settings-tab.active {
+        color: var(--stone-100);
+        border-bottom-color: var(--amber-500);
+      }
+      .field-group { margin-bottom: 24px; }
+      .field-group:last-child { margin-bottom: 0; }
+      .field-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--stone-200);
+        margin-bottom: 6px;
+        display: block;
+      }
+      .field-hint {
+        font-size: 12px;
+        color: var(--stone-500);
+        margin-top: 4px;
+      }
+      .field-row {
+        display: flex;
+        gap: 12px;
+        align-items: stretch;
+      }
+      .toggle {
+        display: inline-flex;
+        background: var(--stone-800);
+        border-radius: 8px;
+        padding: 3px;
+        border: 1px solid var(--stone-700);
+      }
+      .toggle button {
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 6px 14px;
+        border: 0;
+        background: transparent;
+        color: var(--stone-400);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+      .toggle button.active {
+        background: var(--stone-700);
+        color: var(--stone-100);
+      }
+      .num-input {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        padding: 8px 12px;
+        background: var(--stone-900);
+        border: 1px solid var(--stone-700);
+        border-radius: 8px;
+        color: var(--stone-100);
+        width: 100px;
+        text-align: right;
+      }
+      .num-input:focus {
+        outline: 2px solid var(--amber-500);
+        outline-offset: 1px;
+        border-color: var(--amber-500);
+      }
+      .num-input:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .save-row { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+      .btn-primary {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 16px;
+        background: var(--amber-500);
+        color: var(--stone-950);
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 150ms ease;
+      }
+      .btn-primary:hover { background: var(--amber-400); }
+      .save-status {
+        font-size: 12px;
+        color: var(--green-500);
+        opacity: 0;
+        transition: opacity 200ms ease;
+      }
+      .save-status.visible { opacity: 1; }
+      .validation-error {
+        font-size: 12px;
+        color: var(--red-500);
+        margin-top: 6px;
+        display: none;
+      }
+      .validation-error.visible { display: block; }
+
+      /* Dashboard panel */
+      .dashboard-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .global-meter {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: var(--stone-900);
+        border: 1px solid var(--stone-800);
+        border-radius: 8px;
+      }
+      .global-meter .label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--stone-500);
+      }
+      .meter-bar {
+        width: 80px;
+        height: 6px;
+        background: var(--stone-800);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .meter-fill {
+        height: 100%;
+        background: var(--amber-500);
+        border-radius: 3px;
+        transition: width 250ms ease, background-color 200ms ease;
+      }
+      .meter-fill.at-cap { background: var(--red-500); }
+      .meter-count {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--stone-100);
+      }
+      .meter-count .of {
+        color: var(--stone-500);
+        font-weight: 400;
+        margin: 0 2px;
+      }
+
+      .new-bench-wrapper { position: relative; display: inline-block; }
+      .btn-new-bench {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 14px;
+        background: var(--amber-500);
+        color: var(--stone-950);
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 150ms ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-new-bench:hover { background: var(--amber-400); }
+      .btn-new-bench[aria-disabled="true"] {
+        background: var(--stone-800);
+        color: var(--stone-500);
+        cursor: not-allowed;
+      }
+      .btn-new-bench[aria-disabled="true"]:hover { background: var(--stone-800); }
+      .tooltip {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        background: var(--stone-900);
+        border: 1px solid var(--stone-700);
+        color: var(--stone-200);
+        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 150ms ease;
+        z-index: 10;
+      }
+      .new-bench-wrapper:hover .tooltip,
+      .new-bench-wrapper:focus-within .tooltip { opacity: 1; }
+
+      /* Project list */
+      .project-list {
+        display: grid;
+        gap: 12px;
+      }
+      .project-tile {
+        border: 1px solid var(--stone-800);
+        background: rgba(28, 25, 23, 0.6);
+        border-radius: 10px;
+        padding: 14px 16px;
+      }
+      .project-tile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+      }
+      .project-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--stone-100);
+      }
+      .project-count {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        color: var(--stone-400);
+      }
+      .project-meter {
+        width: 100%;
+        height: 4px;
+        background: var(--stone-800);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .project-meter .fill {
+        height: 100%;
+        background: var(--amber-500);
+        border-radius: 2px;
+        transition: width 200ms ease;
+      }
+
+      /* Notes */
+      .notes-panel {
+        grid-column: 1 / -1;
+        background: var(--stone-900);
+        border: 1px solid var(--stone-800);
+        border-radius: 10px;
+        padding: 20px 24px;
+        color: var(--stone-400);
+        font-size: 13px;
+      }
+      .notes-panel h3 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        color: var(--stone-200);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .notes-panel ul { margin: 0; padding-left: 20px; }
+      .notes-panel li { margin-bottom: 4px; }
+      .notes-panel li code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        background: var(--stone-800);
+        color: var(--stone-200);
+        padding: 1px 6px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <h1>Roubo · Global Bench Limit prototype</h1>
+        <p>Static mockup. Toggle scenarios below to see how the surfaces respond.</p>
+      </div>
+
+      <div class="scenario-bar">
+        <span class="uppercase-label">Scenario</span>
+        <button class="scenario-btn" data-scenario="unlimited">No cap (default)</button>
+        <button class="scenario-btn active" data-scenario="below">Cap 5 · 3 in use</button>
+        <button class="scenario-btn" data-scenario="near">Cap 5 · 4 in use (near)</button>
+        <button class="scenario-btn" data-scenario="at">Cap 5 · 5 in use (at cap)</button>
+        <button class="scenario-btn" data-scenario="lowered">Cap 3 · 5 in use (lowered)</button>
+      </div>
+
+      <!-- LEFT: Settings panel -->
+      <div class="panel" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">Settings · Benches tab</h2>
+        <p class="panel-sub">Application-wide. Per-project caps live in each project's page.</p>
+
+        <div class="settings-tabs" role="tablist">
+          <div class="settings-tab active" role="tab" aria-selected="true">Benches</div>
+          <div class="settings-tab" role="tab" aria-selected="false">Appearance</div>
+          <div class="settings-tab" role="tab" aria-selected="false">Blueprints</div>
+          <div class="settings-tab" role="tab" aria-selected="false">Integrations</div>
+          <div class="settings-tab" role="tab" aria-selected="false">Plugins</div>
+          <div class="settings-tab" role="tab" aria-selected="false">Claude Code</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="cap-input">Global bench limit</label>
+          <div class="field-row">
+            <div class="toggle" role="radiogroup" aria-label="Limit mode">
+              <button type="button" id="mode-unlimited" role="radio" aria-checked="false">Unlimited</button>
+              <button type="button" id="mode-limit" role="radio" aria-checked="true" class="active">Limit</button>
+            </div>
+            <input
+              id="cap-input"
+              class="num-input mono"
+              type="number"
+              min="1"
+              step="1"
+              value="5"
+              aria-label="Maximum number of benches across all projects"
+            />
+          </div>
+          <p class="field-hint">
+            Caps the total number of initialised benches across every registered project. Per-project
+            limits in <code class="mono" style="font-size: 11px; padding: 1px 4px; background: var(--stone-800); border-radius: 3px;">roubo.yaml</code>
+            continue to apply.
+          </p>
+          <p class="validation-error" id="cap-error">Must be a positive integer (1 or greater).</p>
+          <div class="save-row">
+            <button class="btn-primary" id="save-btn">Save</button>
+            <span class="save-status" id="save-status">Saved</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Dashboard panel -->
+      <div class="panel" aria-labelledby="dashboard-heading">
+        <h2 id="dashboard-heading">Dashboard</h2>
+        <p class="panel-sub">Where the global meter and the New bench button live.</p>
+
+        <div class="dashboard-toolbar">
+          <div class="global-meter" id="global-meter" role="group" aria-label="Global benches: 3 of 5">
+            <span class="label">Global benches</span>
+            <div class="meter-bar">
+              <div class="meter-fill" id="meter-fill" style="width: 60%;"></div>
+            </div>
+            <span class="meter-count mono">
+              <span id="meter-current">3</span><span class="of">of</span><span id="meter-max">5</span>
+            </span>
+          </div>
+
+          <div class="new-bench-wrapper">
+            <button
+              class="btn-new-bench"
+              id="new-bench-btn"
+              aria-disabled="false"
+              aria-describedby="new-bench-tooltip"
+            >+ New bench</button>
+            <div class="tooltip" id="new-bench-tooltip" role="tooltip">
+              <span id="tooltip-text">Create a new bench</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="uppercase-label" style="margin-bottom: 10px;">Projects</div>
+        <div class="project-list" id="project-list">
+          <div class="project-tile">
+            <div class="project-tile-header">
+              <div class="project-name">roubo</div>
+              <div class="project-count mono"><span data-project-used="roubo">2</span> / 4 benches</div>
+            </div>
+            <div class="project-meter"><div class="fill" data-project-fill="roubo" style="width: 50%;"></div></div>
+          </div>
+          <div class="project-tile">
+            <div class="project-tile-header">
+              <div class="project-name">marketplace</div>
+              <div class="project-count mono"><span data-project-used="marketplace">1</span> / 3 benches</div>
+            </div>
+            <div class="project-meter"><div class="fill" data-project-fill="marketplace" style="width: 33%;"></div></div>
+          </div>
+          <div class="project-tile">
+            <div class="project-tile-header">
+              <div class="project-name">ledger</div>
+              <div class="project-count mono"><span data-project-used="ledger">0</span> / 2 benches</div>
+            </div>
+            <div class="project-meter"><div class="fill" data-project-fill="ledger" style="width: 0%;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notes-panel">
+        <h3>Walkthrough notes</h3>
+        <ul>
+          <li><strong>US-001</strong> Set a cap in Settings · Benches. Toggle between <em>Unlimited</em> and <em>Limit</em>; numeric input is disabled in Unlimited mode.</li>
+          <li><strong>US-002</strong> Switch the scenario to <em>at cap</em>. The "+ New bench" button gains <code>aria-disabled="true"</code>, its visual state, and the tooltip swaps to "Global bench limit reached. 5 of 5 benches in use."</li>
+          <li><strong>US-003</strong> The "Global benches" meter mirrors the per-project meter style. Visible only when a cap is set; the fill bar turns red at the cap.</li>
+          <li><strong>US-004</strong> Switch to <em>lowered</em>. Existing benches stay; meter overflows visually (capped at 100% fill, count shows 5 of 3); New bench is blocked until the count drops below 3.</li>
+          <li><strong>US-005</strong> Switch to <em>No cap</em>. The global meter disappears, the New bench button is always enabled, per-project tiles are unchanged.</li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      // Minimal client-only state model. Switches the rendered surfaces in response to scenario buttons.
+      const scenarios = {
+        unlimited: { cap: null, used: { roubo: 2, marketplace: 1, ledger: 0 } },
+        below:     { cap: 5,    used: { roubo: 2, marketplace: 1, ledger: 0 } },
+        near:      { cap: 5,    used: { roubo: 2, marketplace: 1, ledger: 1 } },
+        at:        { cap: 5,    used: { roubo: 2, marketplace: 2, ledger: 1 } },
+        lowered:   { cap: 3,    used: { roubo: 2, marketplace: 2, ledger: 1 } },
+      };
+      const projectMax = { roubo: 4, marketplace: 3, ledger: 2 };
+
+      const els = {
+        meter: document.getElementById("global-meter"),
+        meterFill: document.getElementById("meter-fill"),
+        meterCurrent: document.getElementById("meter-current"),
+        meterMax: document.getElementById("meter-max"),
+        newBenchBtn: document.getElementById("new-bench-btn"),
+        tooltipText: document.getElementById("tooltip-text"),
+        capInput: document.getElementById("cap-input"),
+        modeUnlimited: document.getElementById("mode-unlimited"),
+        modeLimit: document.getElementById("mode-limit"),
+        capError: document.getElementById("cap-error"),
+        saveBtn: document.getElementById("save-btn"),
+        saveStatus: document.getElementById("save-status"),
+        scenarioBtns: document.querySelectorAll(".scenario-btn"),
+      };
+
+      function totalUsed(used) {
+        return Object.values(used).reduce((a, b) => a + b, 0);
+      }
+
+      function applyScenario(name) {
+        const s = scenarios[name];
+        const used = totalUsed(s.used);
+        const cap = s.cap;
+
+        // Global meter
+        if (cap === null) {
+          els.meter.style.display = "none";
+        } else {
+          els.meter.style.display = "inline-flex";
+          els.meterCurrent.textContent = used;
+          els.meterMax.textContent = cap;
+          const pct = Math.min(100, (used / cap) * 100);
+          els.meterFill.style.width = pct + "%";
+          els.meterFill.classList.toggle("at-cap", used >= cap);
+          els.meter.setAttribute("aria-label", `Global benches: ${used} of ${cap}`);
+        }
+
+        // New-bench button
+        const atCap = cap !== null && used >= cap;
+        els.newBenchBtn.setAttribute("aria-disabled", atCap ? "true" : "false");
+        els.tooltipText.textContent = atCap
+          ? `Global bench limit reached. ${used} of ${cap} benches in use.`
+          : "Create a new bench";
+
+        // Project tiles (just update the in-use count)
+        Object.entries(s.used).forEach(([proj, n]) => {
+          const usedEl = document.querySelector(`[data-project-used="${proj}"]`);
+          const fillEl = document.querySelector(`[data-project-fill="${proj}"]`);
+          if (usedEl) usedEl.textContent = n;
+          if (fillEl) fillEl.style.width = Math.min(100, (n / projectMax[proj]) * 100) + "%";
+        });
+
+        // Settings form
+        if (cap === null) {
+          els.modeUnlimited.classList.add("active");
+          els.modeUnlimited.setAttribute("aria-checked", "true");
+          els.modeLimit.classList.remove("active");
+          els.modeLimit.setAttribute("aria-checked", "false");
+          els.capInput.disabled = true;
+          els.capInput.value = "";
+        } else {
+          els.modeLimit.classList.add("active");
+          els.modeLimit.setAttribute("aria-checked", "true");
+          els.modeUnlimited.classList.remove("active");
+          els.modeUnlimited.setAttribute("aria-checked", "false");
+          els.capInput.disabled = false;
+          els.capInput.value = cap;
+        }
+        els.capError.classList.remove("visible");
+
+        // Scenario button highlighting
+        els.scenarioBtns.forEach((b) =>
+          b.classList.toggle("active", b.dataset.scenario === name),
+        );
+      }
+
+      els.scenarioBtns.forEach((b) =>
+        b.addEventListener("click", () => applyScenario(b.dataset.scenario)),
+      );
+
+      els.modeUnlimited.addEventListener("click", () => {
+        els.modeUnlimited.classList.add("active");
+        els.modeUnlimited.setAttribute("aria-checked", "true");
+        els.modeLimit.classList.remove("active");
+        els.modeLimit.setAttribute("aria-checked", "false");
+        els.capInput.disabled = true;
+        els.capError.classList.remove("visible");
+      });
+      els.modeLimit.addEventListener("click", () => {
+        els.modeLimit.classList.add("active");
+        els.modeLimit.setAttribute("aria-checked", "true");
+        els.modeUnlimited.classList.remove("active");
+        els.modeUnlimited.setAttribute("aria-checked", "false");
+        els.capInput.disabled = false;
+        if (!els.capInput.value) els.capInput.value = "5";
+      });
+
+      els.capInput.addEventListener("input", () => {
+        const val = Number(els.capInput.value);
+        const invalid =
+          els.capInput.value !== "" &&
+          (!Number.isFinite(val) || !Number.isInteger(val) || val < 1);
+        els.capError.classList.toggle("visible", invalid);
+      });
+
+      els.saveBtn.addEventListener("click", () => {
+        if (els.capError.classList.contains("visible")) return;
+        els.saveStatus.classList.add("visible");
+        setTimeout(() => els.saveStatus.classList.remove("visible"), 1500);
+      });
+
+      // Init
+      applyScenario("below");
+    </script>
+  </body>
+</html>
