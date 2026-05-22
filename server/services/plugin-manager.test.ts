@@ -469,3 +469,47 @@ permissions:
     expect(rec.lastError?.code).toBe("invalid-entry");
   });
 });
+
+describe("registerInstalled (WU-011)", () => {
+  async function makeUserPluginDir(parent: string, id: string): Promise<string> {
+    const dir = path.join(parent, id);
+    await symlink(path.join(FIXTURES_ROOT, "echo"), dir, "dir");
+    return dir;
+  }
+
+  it("registers a freshly-installed plugin dir and spawns it", async () => {
+    sandbox = await makeSandbox({ bundled: [] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(mgr.listInstalled()).toHaveLength(0);
+
+    const target = await makeUserPluginDir(sandbox.userDir, "echo");
+    const record = await mgr.registerInstalled(target);
+
+    expect(record.id).toBe("echo");
+    expect(record.status).toBe("enabled");
+    expect(record.source).toBe("user");
+    const installed = findRecord(mgr.listInstalled(), "echo");
+    expect(installed.status).toBe("enabled");
+    expect(typeof installed.pid).toBe("number");
+  });
+
+  it("throws if the plugin id is already registered", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const target = await makeUserPluginDir(sandbox.userDir, "echo");
+    await expect(mgr.registerInstalled(target)).rejects.toThrow(/already registered/);
+  });
+
+  it("throws if the directory contains no manifest", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const empty = path.join(sandbox.userDir, "empty");
+    await mkdir(empty, { recursive: true });
+    await expect(mgr.registerInstalled(empty)).rejects.toThrow(/No roubo-plugin manifest/);
+  });
+});

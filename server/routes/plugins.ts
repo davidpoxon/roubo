@@ -1,5 +1,7 @@
 import { Router } from "express";
+import type { InstallErrorCode } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
+import * as pluginInstaller from "../services/plugin-installer.js";
 
 const router = Router();
 
@@ -14,11 +16,91 @@ function known(id: string): boolean {
   return pluginManager.listInstalled().some((r) => r.id === id);
 }
 
+function installErrorStatus(code: InstallErrorCode): number {
+  switch (code) {
+    case "invalid-input":
+    case "clone-failed":
+    case "missing-manifest":
+    case "invalid-manifest":
+    case "incompatible-host":
+      return 400;
+    case "duplicate-id":
+      return 409;
+    case "unknown-token":
+      return 404;
+    case "internal":
+      return 500;
+  }
+}
+
+function sendInstallError(
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  err: unknown,
+): void {
+  if (err instanceof pluginInstaller.InstallError) {
+    res.status(installErrorStatus(err.code)).json({ error: err.message, code: err.code });
+    return;
+  }
+  res.status(500).json({ error: (err as Error).message, code: "internal" });
+}
+
 router.get("/", (_req, res) => {
   res.json({
     hostApiVersion: pluginManager.HOST_API_VERSION,
     plugins: pluginManager.listInstalled(),
   });
+});
+
+router.post("/install", async (req, res) => {
+  const body = (req.body ?? {}) as { source?: unknown; value?: unknown };
+  if (body.source !== "git" && body.source !== "local") {
+    res.status(400).json({
+      error: "source must be 'git' or 'local'",
+      code: "invalid-input",
+    });
+    return;
+  }
+  if (typeof body.value !== "string" || body.value.trim().length === 0) {
+    res.status(400).json({ error: "value must be a non-empty string", code: "invalid-input" });
+    return;
+  }
+  try {
+    const preview =
+      body.source === "git"
+        ? await pluginInstaller.previewFromGitUrl(body.value)
+        : await pluginInstaller.previewFromLocalPath(body.value);
+    res.status(200).json(preview);
+  } catch (err) {
+    sendInstallError(res, err);
+  }
+});
+
+router.post("/install/:token/confirm", async (req, res) => {
+  const token = req.params.token;
+  if (!pluginInstaller.isValidStagingToken(token)) {
+    res.status(400).json({ error: "Invalid staging token", code: "invalid-input" });
+    return;
+  }
+  try {
+    const plugin = await pluginInstaller.commit(token);
+    res.status(201).json({ plugin });
+  } catch (err) {
+    sendInstallError(res, err);
+  }
+});
+
+router.post("/install/:token/cancel", async (req, res) => {
+  const token = req.params.token;
+  if (!pluginInstaller.isValidStagingToken(token)) {
+    res.status(400).json({ error: "Invalid staging token", code: "invalid-input" });
+    return;
+  }
+  try {
+    await pluginInstaller.cancel(token);
+    res.status(204).end();
+  } catch (err) {
+    sendInstallError(res, err);
+  }
 });
 
 router.post("/:id/enable", async (req, res) => {

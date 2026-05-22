@@ -12,8 +12,28 @@ vi.mock("../services/plugin-manager.js", () => ({
   readLogs: vi.fn(),
 }));
 
+vi.mock("../services/plugin-installer.js", async () => {
+  class InstallError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  }
+  const TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  return {
+    InstallError,
+    isValidStagingToken: (t: string) => TOKEN_RE.test(t),
+    previewFromGitUrl: vi.fn(),
+    previewFromLocalPath: vi.fn(),
+    commit: vi.fn(),
+    cancel: vi.fn(),
+  };
+});
+
 import router from "./plugins.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import * as pluginInstaller from "../services/plugin-installer.js";
 
 const app = express();
 app.use(express.json());
@@ -187,3 +207,180 @@ describe("GET /:id/logs", () => {
     expect(res.body.error).toBe("disk read failed");
   });
 });
+
+describe("POST /install", () => {
+  beforeEach(() => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockReset();
+    vi.mocked(pluginInstaller.previewFromLocalPath).mockReset();
+  });
+
+  it("rejects an unknown source value", async () => {
+    const res = await request(app).post("/install").send({ source: "ftp", value: "x" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("invalid-input");
+  });
+
+  it("rejects an empty value", async () => {
+    const res = await request(app).post("/install").send({ source: "git", value: "" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("invalid-input");
+  });
+
+  it("dispatches to previewFromGitUrl and returns the preview", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockResolvedValue({
+      stagingToken: "11111111-1111-1111-1111-111111111111",
+      manifest: stubManifest(),
+      source: { type: "git", url: "https://github.com/x/y.git" },
+    });
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(200);
+    expect(res.body.stagingToken).toMatch(/^[0-9a-f-]{36}$/);
+    expect(res.body.manifest.id).toBe("echo");
+    expect(pluginInstaller.previewFromGitUrl).toHaveBeenCalledWith("https://github.com/x/y.git");
+  });
+
+  it("dispatches to previewFromLocalPath for source=local", async () => {
+    vi.mocked(pluginInstaller.previewFromLocalPath).mockResolvedValue({
+      stagingToken: "22222222-2222-2222-2222-222222222222",
+      manifest: stubManifest(),
+      source: { type: "local", path: "/tmp/p" },
+    });
+    const res = await request(app).post("/install").send({ source: "local", value: "/tmp/p" });
+    expect(res.status).toBe(200);
+    expect(pluginInstaller.previewFromLocalPath).toHaveBeenCalledWith("/tmp/p");
+  });
+
+  it("maps clone-failed to 400 with the message verbatim (TC-058)", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError(
+        "clone-failed",
+        "Could not clone repository. git exited with code 128: Repository not found.",
+      ),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/missing/missing.git" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("clone-failed");
+    expect(res.body.error).toMatch(/Repository not found/);
+  });
+
+  it("maps missing-manifest to 400 (TC-059)", async () => {
+    vi.mocked(pluginInstaller.previewFromLocalPath).mockRejectedValue(
+      new pluginInstaller.InstallError(
+        "missing-manifest",
+        "No roubo-plugin.yaml found in /tmp/empty",
+      ),
+    );
+    const res = await request(app).post("/install").send({ source: "local", value: "/tmp/empty" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("missing-manifest");
+  });
+
+  it("maps incompatible-host to 400", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError("incompatible-host", "host too old"),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("incompatible-host");
+  });
+
+  it("maps duplicate-id to 409", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError("duplicate-id", "already installed"),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("duplicate-id");
+  });
+});
+
+describe("POST /install/:token/confirm", () => {
+  beforeEach(() => {
+    vi.mocked(pluginInstaller.commit).mockReset();
+  });
+
+  it("rejects a token that fails the uuid shape check", async () => {
+    const res = await request(app).post("/install/not-a-uuid/confirm");
+    expect(res.status).toBe(400);
+    expect(pluginInstaller.commit).not.toHaveBeenCalled();
+  });
+
+  it("returns 201 with the plugin record on success", async () => {
+    vi.mocked(pluginInstaller.commit).mockResolvedValue(
+      stubRecord({ id: "echo", status: "enabled", source: "user" }),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(201);
+    expect(res.body.plugin.id).toBe("echo");
+    expect(res.body.plugin.status).toBe("enabled");
+  });
+
+  it("maps unknown-token to 404", async () => {
+    vi.mocked(pluginInstaller.commit).mockRejectedValue(
+      new pluginInstaller.InstallError("unknown-token", "no such token"),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("unknown-token");
+  });
+});
+
+describe("POST /install/:token/cancel", () => {
+  beforeEach(() => {
+    vi.mocked(pluginInstaller.cancel).mockReset();
+  });
+
+  it("returns 204 and calls cancel", async () => {
+    vi.mocked(pluginInstaller.cancel).mockResolvedValue();
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/cancel");
+    expect(res.status).toBe(204);
+    expect(pluginInstaller.cancel).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111");
+  });
+
+  it("rejects an invalid token shape", async () => {
+    const res = await request(app).post("/install/garbage/cancel");
+    expect(res.status).toBe(400);
+    expect(pluginInstaller.cancel).not.toHaveBeenCalled();
+  });
+});
+
+function stubManifest() {
+  return {
+    id: "echo",
+    name: "Echo",
+    version: "0.0.0",
+    description: "x",
+    kind: "integration",
+    roubo: "^1.0.0",
+    entry: "./index.js",
+    permissions: {
+      network: { hosts: [] },
+      credentials: { slots: [] },
+      filesystem: { paths: [] },
+      processes: false,
+    },
+  };
+}
+
+function stubRecord(overrides: Partial<PluginRecord>): PluginRecord {
+  return {
+    id: "echo",
+    manifest: null,
+    manifestPath: "/p/echo/roubo-plugin.yaml",
+    pluginDir: "/p/echo",
+    source: "user",
+    status: "disabled",
+    lastError: null,
+    restartHistory: [],
+    pid: null,
+    ...overrides,
+  };
+}

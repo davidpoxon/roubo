@@ -87,6 +87,44 @@ export type {
 
 import type { IntegrationConfig } from "./config-schema.js";
 import type { PluginStatus } from "./plugin-runtime-types.js";
+import type { PluginManifest } from "./plugin-manifest-schema.js";
+
+/**
+ * Result of the first stage of the plugin install flow
+ * (`POST /api/plugins/install`). The host has cloned (Git URL flow) or copied
+ * (local directory flow) the candidate plugin into a staging directory under
+ * `~/.roubo/plugins/.staging/<stagingToken>/`, parsed and validated its
+ * `roubo-plugin.yaml`, and is now waiting for the user to either accept the
+ * declared permissions (`POST /install/:token/confirm`) or cancel
+ * (`POST /install/:token/cancel`, which removes the staging directory).
+ */
+export interface InstallPreview {
+  stagingToken: string;
+  manifest: PluginManifest;
+  source: InstallSource;
+}
+
+export type InstallSource = { type: "git"; url: string } | { type: "local"; path: string };
+
+/**
+ * Stable error codes emitted by the install pipeline. Routes map these to
+ * HTTP status codes; the client surfaces the human-readable message in an
+ * inline red banner.
+ */
+export type InstallErrorCode =
+  | "invalid-input"
+  | "clone-failed"
+  | "missing-manifest"
+  | "invalid-manifest"
+  | "incompatible-host"
+  | "duplicate-id"
+  | "unknown-token"
+  | "internal";
+
+export interface InstallErrorBody {
+  error: string;
+  code: InstallErrorCode;
+}
 
 /**
  * Tells the Issue source tile which caption to render under the configured

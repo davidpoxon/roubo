@@ -87,7 +87,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
 
     expect(screen.getByText("Plugins")).toBeTruthy();
     const installBtn = screen.getByTestId("install-plugin");
-    expect(installBtn).toBeDisabled();
+    expect(installBtn).toBeEnabled();
 
     const cards = screen.getAllByTestId("plugin-card");
     expect(cards).toHaveLength(2);

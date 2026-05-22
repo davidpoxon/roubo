@@ -1,8 +1,10 @@
-import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
+import { useState } from "react";
+import { Button } from "react-aria-components";
 import { Plus, Loader2 } from "lucide-react";
 import type { PluginRecord } from "@roubo/shared";
 import { usePlugins } from "../../../hooks/usePlugins";
 import PluginCard from "./PluginCard";
+import InstallPluginDialog from "./InstallPluginDialog";
 
 function partition(plugins: PluginRecord[]) {
   const bundled = plugins.filter((p) => p.source === "bundled");
@@ -12,6 +14,7 @@ function partition(plugins: PluginRecord[]) {
 
 export default function PluginsTab() {
   const { data, isLoading, error } = usePlugins();
+  const [installOpen, setInstallOpen] = useState(false);
 
   return (
     <div className="space-y-8">
@@ -23,20 +26,17 @@ export default function PluginsTab() {
             third-party plugins live under <span className="font-mono">~/.roubo/plugins/</span>.
           </p>
         </div>
-        <TooltipTrigger delay={400}>
-          <Button
-            isDisabled
-            data-testid="install-plugin"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-          >
-            <Plus size={13} />
-            Install plugin
-          </Button>
-          <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
-            Ships in a later work unit
-          </Tooltip>
-        </TooltipTrigger>
+        <Button
+          onPress={() => setInstallOpen(true)}
+          data-testid="install-plugin"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          <Plus size={13} />
+          Install plugin
+        </Button>
       </header>
+
+      <InstallPluginDialog isOpen={installOpen} onClose={() => setInstallOpen(false)} />
 
       {isLoading && (
         <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
@@ -94,7 +94,8 @@ function PluginList({
               No third-party plugins installed yet.
             </p>
             <p className="mt-1 text-[11px] text-stone-400 dark:text-stone-600">
-              Install plugin support ships in a later work unit.
+              Click <span className="font-medium">Install plugin</span> to add one from a Git URL or
+              local directory.
             </p>
           </div>
         ) : (

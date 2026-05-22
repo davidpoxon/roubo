@@ -57,6 +57,16 @@ function userPluginsRoot(): string {
   return path.join(homedir(), ".roubo", "plugins");
 }
 
+/**
+ * Path to the user plugins root (`~/.roubo/plugins/` by default). Exposed so
+ * the install pipeline can place its staging directory under the same root,
+ * which makes the final `rename(staging, target)` an atomic same-filesystem
+ * move.
+ */
+export function getUserPluginsRoot(): string {
+  return userPluginsRoot();
+}
+
 function logDirFor(pluginId: string): string {
   // Logs always live under the user plugins root (typically `~/.roubo/plugins/<id>/logs`),
   // even for bundled plugins. Tests override the root via ROUBO_USER_PLUGINS_DIR.
@@ -110,6 +120,110 @@ async function readManifestFile(dir: string): Promise<{ path: string; text: stri
   return null;
 }
 
+function makeEmptyEntry(record: PluginRecord): PluginEntry {
+  return {
+    record,
+    process: null,
+    connection: null,
+    logStream: null,
+    logBytes: 0,
+    logOpenPromise: null,
+    intentionalStop: false,
+    restartTimer: null,
+  };
+}
+
+interface BuiltEntry {
+  /** The map key under which this entry should be stored (manifest.id when valid, dir name otherwise). */
+  idForMap: string;
+  manifest: PluginManifest | null;
+  entry: PluginEntry;
+}
+
+/**
+ * Builds a single plugin entry from a directory by reading + validating its
+ * manifest. Returns null when the directory contains no manifest file at all
+ * (caller skips it). Duplicate-id handling is the caller's responsibility.
+ */
+async function buildEntryFromDir(
+  pluginDir: string,
+  source: PluginSource,
+  fallbackId: string,
+): Promise<BuiltEntry | null> {
+  const manifestFile = await readManifestFile(pluginDir);
+  if (!manifestFile) return null;
+
+  const parsed = parseManifest(manifestFile.text, manifestFile.path);
+  if (!parsed.ok) {
+    const record = makeRecord(fallbackId, null, manifestFile.path, pluginDir, source, "invalid", {
+      code: "invalid-manifest",
+      message: parsed.error.message,
+    });
+    return { idForMap: fallbackId, manifest: null, entry: makeEmptyEntry(record) };
+  }
+
+  const manifest = parsed.manifest;
+
+  if (!semver.validRange(manifest.roubo)) {
+    const record = makeRecord(
+      manifest.id,
+      manifest,
+      manifestFile.path,
+      pluginDir,
+      source,
+      "invalid",
+      {
+        code: "invalid-roubo-range",
+        message: `Manifest "roubo" field is not a valid semver range: ${manifest.roubo}`,
+      },
+    );
+    return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };
+  }
+
+  if (!semver.satisfies(HOST_API_VERSION, manifest.roubo, { includePrerelease: false })) {
+    const record = makeRecord(
+      manifest.id,
+      manifest,
+      manifestFile.path,
+      pluginDir,
+      source,
+      "incompatible",
+      {
+        code: "incompatible-host",
+        message: `Plugin requires roubo "${manifest.roubo}" but host is ${HOST_API_VERSION}`,
+      },
+    );
+    return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };
+  }
+
+  if (!isValidEntryPath(manifest.entry)) {
+    const record = makeRecord(
+      manifest.id,
+      manifest,
+      manifestFile.path,
+      pluginDir,
+      source,
+      "invalid",
+      {
+        code: "invalid-entry",
+        message: `Manifest "entry" must be a relative path within the plugin directory: ${manifest.entry}`,
+      },
+    );
+    return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };
+  }
+
+  const record = makeRecord(
+    manifest.id,
+    manifest,
+    manifestFile.path,
+    pluginDir,
+    source,
+    "disabled",
+    null,
+  );
+  return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };
+}
+
 async function discoverRoot(
   root: string,
   source: PluginSource,
@@ -125,158 +239,35 @@ async function discoverRoot(
 
   for (const dirent of dirents) {
     if (!dirent.isDirectory() && !dirent.isSymbolicLink()) continue;
+    // Skip the install-staging area used by plugin-installer.
+    if (dirent.name === ".staging") continue;
     const pluginDir = path.join(root, dirent.name);
-    const manifestFile = await readManifestFile(pluginDir);
-    if (!manifestFile) continue;
+    const built = await buildEntryFromDir(pluginDir, source, dirent.name);
+    if (!built) continue;
 
-    const parsed = parseManifest(manifestFile.text, manifestFile.path);
-    if (!parsed.ok) {
-      // Use directory name as id when manifest is invalid.
-      const id = dirent.name;
+    if (acc.has(built.idForMap)) {
       // Bundled wins on duplicate ids: if a bundled entry already claimed
       // this id, mark the user-side one as invalid with a duplicate-id error.
-      if (acc.has(id)) {
-        if (source === "user") {
-          // Add as invalid duplicate (keyed by a synthetic id so the bundled one stays).
-          const dupId = `${id}__user_duplicate`;
-          acc.set(dupId, {
-            record: makeRecord(id, null, manifestFile.path, pluginDir, source, "invalid", {
-              code: "duplicate-id",
-              message: `Plugin id "${id}" is already provided by a bundled plugin`,
-            }),
-            process: null,
-            connection: null,
-            logStream: null,
-            logBytes: 0,
-            logOpenPromise: null,
-            intentionalStop: false,
-            restartTimer: null,
-          });
-        }
-        continue;
-      }
-      acc.set(id, {
-        record: makeRecord(id, null, manifestFile.path, pluginDir, source, "invalid", {
-          code: "invalid-manifest",
-          message: parsed.error.message,
-        }),
-        process: null,
-        connection: null,
-        logStream: null,
-        logBytes: 0,
-        logOpenPromise: null,
-        intentionalStop: false,
-        restartTimer: null,
-      });
-      continue;
-    }
-
-    const manifest = parsed.manifest;
-    if (acc.has(manifest.id)) {
       if (source === "user") {
-        acc.set(`${manifest.id}__user_duplicate`, {
-          record: makeRecord(
-            manifest.id,
-            manifest,
-            manifestFile.path,
-            pluginDir,
-            source,
-            "invalid",
-            {
-              code: "duplicate-id",
-              message: `Plugin id "${manifest.id}" is already provided by a bundled plugin`,
-            },
-          ),
-          process: null,
-          connection: null,
-          logStream: null,
-          logBytes: 0,
-          logOpenPromise: null,
-          intentionalStop: false,
-          restartTimer: null,
-        });
-      }
-      continue;
-    }
-
-    // Compatibility check (semver range).
-    const rangeValid = semver.validRange(manifest.roubo);
-    if (!rangeValid) {
-      acc.set(manifest.id, {
-        record: makeRecord(manifest.id, manifest, manifestFile.path, pluginDir, source, "invalid", {
-          code: "invalid-roubo-range",
-          message: `Manifest "roubo" field is not a valid semver range: ${manifest.roubo}`,
-        }),
-        process: null,
-        connection: null,
-        logStream: null,
-        logBytes: 0,
-        logOpenPromise: null,
-        intentionalStop: false,
-        restartTimer: null,
-      });
-      continue;
-    }
-    if (!semver.satisfies(HOST_API_VERSION, manifest.roubo, { includePrerelease: false })) {
-      acc.set(manifest.id, {
-        record: makeRecord(
-          manifest.id,
-          manifest,
-          manifestFile.path,
+        const manifestPath = built.entry.record.manifestPath;
+        const dupRecord = makeRecord(
+          built.idForMap,
+          built.manifest,
+          manifestPath,
           pluginDir,
           source,
-          "incompatible",
+          "invalid",
           {
-            code: "incompatible-host",
-            message: `Plugin requires roubo "${manifest.roubo}" but host is ${HOST_API_VERSION}`,
+            code: "duplicate-id",
+            message: `Plugin id "${built.idForMap}" is already provided by a bundled plugin`,
           },
-        ),
-        process: null,
-        connection: null,
-        logStream: null,
-        logBytes: 0,
-        logOpenPromise: null,
-        intentionalStop: false,
-        restartTimer: null,
-      });
+        );
+        acc.set(`${built.idForMap}__user_duplicate`, makeEmptyEntry(dupRecord));
+      }
       continue;
     }
 
-    if (!isValidEntryPath(manifest.entry)) {
-      acc.set(manifest.id, {
-        record: makeRecord(manifest.id, manifest, manifestFile.path, pluginDir, source, "invalid", {
-          code: "invalid-entry",
-          message: `Manifest "entry" must be a relative path within the plugin directory: ${manifest.entry}`,
-        }),
-        process: null,
-        connection: null,
-        logStream: null,
-        logBytes: 0,
-        logOpenPromise: null,
-        intentionalStop: false,
-        restartTimer: null,
-      });
-      continue;
-    }
-
-    acc.set(manifest.id, {
-      record: makeRecord(
-        manifest.id,
-        manifest,
-        manifestFile.path,
-        pluginDir,
-        source,
-        "disabled",
-        null,
-      ),
-      process: null,
-      connection: null,
-      logStream: null,
-      logBytes: 0,
-      logOpenPromise: null,
-      intentionalStop: false,
-      restartTimer: null,
-    });
+    acc.set(built.idForMap, built.entry);
   }
 }
 
@@ -660,6 +651,34 @@ export async function restart(pluginId: string): Promise<void> {
   entry.record.restartHistory = [];
   entry.record.lastError = null;
   await spawnPlugin(entry);
+}
+
+/**
+ * Add a freshly-installed plugin directory to the in-memory state and start
+ * it. Called by the plugin-installer after it has moved a validated staging
+ * directory into `~/.roubo/plugins/<id>/`. The caller is responsible for
+ * having ruled out duplicate ids before invoking this — we throw if the id
+ * is already known.
+ */
+export async function registerInstalled(pluginDir: string): Promise<PluginRecord> {
+  const fallbackId = path.basename(pluginDir);
+  const built = await buildEntryFromDir(pluginDir, "user", fallbackId);
+  if (!built) {
+    throw new Error(`No roubo-plugin manifest found in ${pluginDir}`);
+  }
+  if (plugins.has(built.idForMap)) {
+    throw new Error(`Plugin "${built.idForMap}" is already registered`);
+  }
+  plugins.set(built.idForMap, built.entry);
+
+  if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
+    await spawnPlugin(built.entry);
+  }
+
+  return {
+    ...built.entry.record,
+    restartHistory: [...built.entry.record.restartHistory],
+  };
 }
 
 export async function invoke<T = unknown>(
