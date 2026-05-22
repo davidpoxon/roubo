@@ -28,6 +28,8 @@ import { buildNotConnectedError } from "../lib/api";
 import ProjectTile from "./ProjectTile";
 import RegisterProjectTile from "./RegisterProjectTile";
 import { useRegisterProjectModal } from "./RegisterProjectModalProvider";
+import MissingPluginDialog from "./MissingPluginDialog";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
 export type ProjectOutletContext = {
   benchPositions: Array<{ position: number; bench?: Bench }> | null;
@@ -62,6 +64,7 @@ export default function BenchDashboard() {
   const isOnSettings = !!useMatch("/projects/:projectId/settings/*"); // keep in sync with the 'settings/*' child route in App.tsx
   const { data: projects, isLoading: projectsLoading } = useProjects();
   const { data: benches, isLoading: benchesLoading } = useProjectBenches(projectId);
+  const { data: integration } = useProjectIntegration(projectId);
   const { status: githubStatus } = useGitHubAuth();
   const createBench = useCreateBench();
   const { addToast } = useToast();
@@ -88,6 +91,9 @@ export default function BenchDashboard() {
   const [issuePickerPosition, setIssuePickerPosition] = useState<number | null>(null);
   const [filterCache, setFilterCache] = useState<Map<string, FilterState>>(new Map());
   const [groupingCache, setGroupingCache] = useState<Map<string, GroupingState>>(new Map());
+  // Session-scoped suppression of the "Plugin needed" prompt. Resets on page
+  // reload; users always get a fresh chance to install on the next session.
+  const [missingPluginSkipped, setMissingPluginSkipped] = useState<Set<string>>(new Set());
 
   const initialFilters = projectId
     ? (filterCache.get(projectId) ?? createEmptyFilters())
@@ -511,6 +517,19 @@ export default function BenchDashboard() {
               }}
             />
           )}
+
+          {projectId &&
+            integration?.plugin &&
+            !integration.plugin.installed &&
+            !missingPluginSkipped.has(projectId) && (
+              <MissingPluginDialog
+                projectId={projectId}
+                pluginId={integration.plugin.id}
+                pluginSource={integration.effective.pluginSource}
+                onClose={() => setMissingPluginSkipped((prev) => new Set(prev).add(projectId))}
+                onSkip={() => setMissingPluginSkipped((prev) => new Set(prev).add(projectId))}
+              />
+            )}
         </>
       )}
     </DndContext>

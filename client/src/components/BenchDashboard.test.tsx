@@ -12,7 +12,7 @@ import {
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { Bench, RegisteredProject } from "@roubo/shared";
+import type { Bench, ProjectIntegrationState, RegisteredProject } from "@roubo/shared";
 
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -273,11 +273,32 @@ vi.mock("./ProjectTile", () => ({
 vi.mock("./RegisterProjectTile", () => ({
   default: () => <div data-testid="register-project-tile">Register project</div>,
 }));
+vi.mock("../hooks/useProjectIntegration", () => ({
+  useProjectIntegration: vi.fn(() => ({ data: undefined })),
+}));
+vi.mock("./MissingPluginDialog", () => ({
+  default: ({
+    projectId,
+    pluginId,
+    onSkip,
+  }: {
+    projectId: string;
+    pluginId: string;
+    onSkip: () => void;
+  }) => (
+    <div data-testid="missing-plugin-dialog" data-project-id={projectId} data-plugin-id={pluginId}>
+      <button data-testid="missing-plugin-dialog-skip" onClick={onSkip}>
+        Skip for now
+      </button>
+    </div>
+  ),
+}));
 
 import { useProjects } from "../hooks/useProjects";
 import { useProjectBenches, useCreateBench } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
 import { useGitHubAuth } from "../hooks/useGitHubAuth";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import BenchDashboard from "./BenchDashboard";
 import BenchesTab from "./BenchesTab";
 import ProjectSettingsTab from "./ProjectSettingsTab";
@@ -287,6 +308,7 @@ const mockedUseProjectBenches = vi.mocked(useProjectBenches);
 const mockedUseCreateBench = vi.mocked(useCreateBench);
 const mockedUseToast = vi.mocked(useToast);
 const mockedUseGitHubAuth = vi.mocked(useGitHubAuth);
+const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 
 type MutateOptions = {
   onSuccess?: (result: unknown) => void;
@@ -338,12 +360,14 @@ function stubDefaults({
   projectsLoading = false,
   benchesLoading = false,
   githubConnected = true,
+  integration,
 }: {
   projects?: RegisteredProject[];
   benches?: Bench[];
   projectsLoading?: boolean;
   benchesLoading?: boolean;
   githubConnected?: boolean;
+  integration?: ProjectIntegrationState;
 } = {}) {
   let capturedOptions: MutateOptions = {};
   const createMutate = vi.fn((_args: unknown, options?: MutateOptions) => {
@@ -374,6 +398,12 @@ function stubDefaults({
     isLoading: false,
     error: null,
   });
+  mockedUseProjectIntegration.mockReturnValue({
+    data: integration,
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof useProjectIntegration>);
   return {
     createMutate,
     addToast,
@@ -1171,6 +1201,78 @@ describe("BenchDashboard", () => {
       });
       renderDashboard("/projects/proj-1");
       expect(screen.queryByTestId("github-error-state")).toBeNull();
+    });
+  });
+
+  describe("missing-plugin prompt", () => {
+    const missingIntegration: ProjectIntegrationState = {
+      effective: { plugin: "jira-self-hosted", pluginSource: "https://example.com/p.git" },
+      committed: { plugin: "jira-self-hosted", pluginSource: "https://example.com/p.git" },
+      override: null,
+      plugin: { id: "jira-self-hosted", installed: false, status: null, manifest: null },
+      captionKey: "yaml-only",
+    };
+
+    it("renders MissingPluginDialog when integration plugin is not installed", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: missingIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      const dialog = screen.getByTestId("missing-plugin-dialog");
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toHaveAttribute("data-plugin-id", "jira-self-hosted");
+    });
+
+    it("does not render the dialog when no plugin is referenced", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          effective: {},
+          committed: null,
+          override: null,
+          plugin: null,
+          captionKey: "none",
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.queryByTestId("missing-plugin-dialog")).toBeNull();
+    });
+
+    it("does not render the dialog when the plugin is installed", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          effective: { plugin: "github-com" },
+          committed: { plugin: "github-com" },
+          override: null,
+          plugin: {
+            id: "github-com",
+            installed: true,
+            status: "enabled",
+            manifest: { name: "GitHub.com" },
+          },
+          captionKey: "yaml-only",
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.queryByTestId("missing-plugin-dialog")).toBeNull();
+    });
+
+    it("dismisses the dialog after Skip and keeps it dismissed for the session", async () => {
+      const user = userEvent.setup();
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: missingIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByTestId("missing-plugin-dialog")).toBeInTheDocument();
+      await user.click(screen.getByTestId("missing-plugin-dialog-skip"));
+      expect(screen.queryByTestId("missing-plugin-dialog")).toBeNull();
     });
   });
 });
