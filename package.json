@@ -19,6 +19,7 @@
   "type": "module",
   "workspaces": [
     "shared",
+    "plugin-sdk",
     "server",
     "client",
     "electron"
@@ -28,7 +29,7 @@
     "dev": "npm run dev --prefix server & npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "build": "npm run build --prefix client && npm run build --prefix server",
+    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "electron:dev": "concurrently -k -n vite,server,electron -c cyan,magenta,yellow \"npm run dev:client\" \"npm run dev:server\" \"npm run start:dev --prefix electron\"",
@@ -39,7 +40,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npx -w client tsc --noEmit && npx -w server tsc --noEmit"
+    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit"
   },
   "dependencies": {
     "@roubo/shared": "file:./shared",

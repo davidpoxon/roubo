@@ -27,8 +27,13 @@ interface ManifestOverrides {
 
 function makeManifest(
   slots: Array<{ slot: string; scope: "read" | "read-write" }>,
-  overrides: ManifestOverrides = {},
+  networkOrOverrides: string[] | ManifestOverrides = [],
+  overridesArg: ManifestOverrides = {},
 ): PluginManifest {
+  const networkHosts: string[] = Array.isArray(networkOrOverrides) ? networkOrOverrides : [];
+  const overrides: ManifestOverrides = Array.isArray(networkOrOverrides)
+    ? overridesArg
+    : networkOrOverrides;
   return {
     id: "jira-plugin",
     name: "Jira",
@@ -38,7 +43,7 @@ function makeManifest(
     roubo: "^1.0.0",
     entry: "dist/index.js",
     permissions: {
-      network: { hosts: [] },
+      network: { hosts: networkHosts },
       credentials: {
         slots: slots.map((s) => ({ ...s, description: `slot ${s.slot}` })),
       },
@@ -64,20 +69,27 @@ function makeRecord(manifest: PluginManifest, pluginDir = "/fake"): PluginRecord
 
 function makeConnection(): JsonRpcConnection & {
   handlers: Map<string, (params: unknown) => unknown>;
+  notifications: Map<string, (params: unknown) => void>;
 } {
   const handlers = new Map<string, (params: unknown) => unknown>();
+  const notifications = new Map<string, (params: unknown) => void>();
   return {
     sendRequest: vi.fn(),
     sendNotification: vi.fn(),
     onRequest: vi.fn((method: string, handler: (params: unknown) => unknown) => {
       handlers.set(method, handler);
     }),
+    onNotification: vi.fn((method: string, handler: (params: unknown) => void) => {
+      notifications.set(method, handler);
+    }),
     onError: vi.fn(),
     onClose: vi.fn(),
     dispose: vi.fn(),
     handlers,
+    notifications,
   } as unknown as JsonRpcConnection & {
     handlers: Map<string, (params: unknown) => unknown>;
+    notifications: Map<string, (params: unknown) => void>;
   };
 }
 
@@ -300,6 +312,141 @@ describe("plugin-host-api", () => {
       );
       await expect(handler({ slot: "jira-token" })).resolves.toBeNull();
       expect(store.deleteSlot).toHaveBeenCalledWith("jira-plugin", "jira-token");
+    });
+  });
+
+  describe("host.fetch", () => {
+    it("dispatches to the supplied fetcher and returns its result verbatim", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const fetcher = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: { "content-type": "application/json", etag: "abc" },
+        body: '{"ok":true}',
+      });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      const result = await handler({
+        url: "https://api.example.com/me",
+        init: { method: "GET", headers: { authorization: "Bearer t" } },
+      });
+      expect(result).toEqual({
+        status: 200,
+        headers: { "content-type": "application/json", etag: "abc" },
+        body: '{"ok":true}',
+      });
+      expect(fetcher).toHaveBeenCalledWith("https://api.example.com/me", {
+        method: "GET",
+        headers: { authorization: "Bearer t" },
+      });
+    });
+
+    it("rejects out-of-allowlist URLs with a structured network-denied error", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      // Use the real fetcher so it enforces the allowlist; inject a stub fetch
+      // that should never be called.
+      const stubFetch = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest), log, {
+        store,
+        fetcher: (await import("./plugin-http.js")).createPluginFetcher(manifest, {
+          fetchImpl: stubFetch as unknown as typeof globalThis.fetch,
+        }),
+      });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({ url: "https://blocked.example.com/anything", init: {} });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string; host: string; reason: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.data?.code).toBe("network-denied");
+        expect(responseErr.data?.host).toBe("blocked.example.com");
+      }
+      expect(stubFetch).not.toHaveBeenCalled();
+      expect(
+        logCalls.some(
+          ([level, text]) =>
+            level === "warn" &&
+            text.includes("jira-plugin.host.fetch") &&
+            text.includes("blocked.example.com"),
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects invalid params with -32602 invalid-params", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const fetcher = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      await expect(handler({})).rejects.toBeInstanceOf(ResponseError);
+      await expect(
+        handler({ url: "https://api.example.com/", init: { method: 5 } }),
+      ).rejects.toBeInstanceOf(ResponseError);
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it("wraps unexpected fetcher errors as internal errors", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const fetcher = vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error("dns failure"), { code: "ENOTFOUND" }));
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({ url: "https://api.example.com/", init: {} });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.message).toBe("dns failure");
+        expect(responseErr.data?.code).toBe("ENOTFOUND");
+      }
+    });
+  });
+
+  describe("host.logger", () => {
+    it("writes one log line per level for string payloads", async () => {
+      const manifest = makeManifest([]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
+
+      const info = need(connection.notifications.get("host.logger.info"), "host.logger.info");
+      const warn = need(connection.notifications.get("host.logger.warn"), "host.logger.warn");
+      const error = need(connection.notifications.get("host.logger.error"), "host.logger.error");
+
+      info("started");
+      warn("flaky");
+      error("boom");
+
+      expect(logCalls).toEqual([
+        ["info", "started"],
+        ["warn", "flaky"],
+        ["error", "boom"],
+      ]);
+    });
+
+    it("formats {message, data} payloads with the data JSON-encoded", async () => {
+      const manifest = makeManifest([]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
+
+      const info = need(connection.notifications.get("host.logger.info"), "host.logger.info");
+      info({ message: "hit", data: { url: "https://example.com" } });
+
+      expect(logCalls).toEqual([["info", 'hit {"url":"https://example.com"}']]);
     });
   });
 

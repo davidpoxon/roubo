@@ -247,6 +247,93 @@ describe("lifecycle", () => {
     ).toBe(true);
   });
 
+  it("runs the @roubo/plugin-sdk reference fixture end-to-end (TC-035)", async () => {
+    const { createServer } = await import("node:http");
+    const issuePayload = {
+      items: [
+        {
+          integrationId: "sdk-reference",
+          externalId: "ISSUE-1",
+          externalUrl: "http://example/ISSUE-1",
+          title: "First",
+          body: null,
+          currentState: "open",
+          allowedTransitions: [],
+          assignees: [],
+          labels: [],
+          issueType: null,
+          blocks: [],
+          blockedBy: [],
+          updatedAt: "2026-05-22T00:00:00.000Z",
+          raw: null,
+        },
+      ],
+      nextCursor: "page-2",
+    };
+    const server = createServer((req, res) => {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(issuePayload));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port =
+      typeof address === "object" && address && "port" in address
+        ? (address as { port: number }).port
+        : null;
+    if (port === null) throw new Error("expected test HTTP server to have a port");
+    process.env.SDK_REFERENCE_FETCH_URL = `http://127.0.0.1:${port}/issues`;
+
+    try {
+      sandbox = await makeSandbox({ bundled: ["sdk-reference"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      const installed = findRecord(mgr.listInstalled(), "sdk-reference");
+      expect(installed.status).toBe("enabled");
+
+      // validateConfig: exercises a basic contract method + host.logger.warn
+      const validation = await mgr.invoke<{ ok: boolean }>("sdk-reference", "validateConfig", {
+        config: {},
+      });
+      expect(validation).toEqual({ ok: true });
+
+      // listIssues: exercises host.fetch round-trip and the pagination shape
+      const page = await mgr.invoke<{
+        items: Array<{ externalId: string }>;
+        nextCursor: string | null;
+      }>("sdk-reference", "listIssues", { cursor: null, pageSize: 25 });
+      expect(page.nextCursor).toBe("page-2");
+      expect(page.items.map((i) => i.externalId)).toEqual(["ISSUE-1"]);
+
+      // getCurrentUser: exercises host.credentials.get + host.logger.info.
+      // The keyring may be empty in CI; either way the SDK returns cleanly.
+      const user = await mgr.invoke<{ externalId: string }>("sdk-reference", "getCurrentUser", {});
+      expect(typeof user.externalId).toBe("string");
+
+      // host.logger.* lines from the contract methods reach the per-plugin log.
+      const logs = await mgr.readLogs("sdk-reference", "current", 500);
+      expect(
+        logs.some(
+          (line) =>
+            line.source === "host" &&
+            line.level === "warn" &&
+            line.text.includes("validateConfig is a no-op"),
+        ),
+      ).toBe(true);
+      expect(
+        logs.some(
+          (line) =>
+            line.source === "host" &&
+            line.level === "info" &&
+            line.text.includes("getCurrentUser called"),
+        ),
+      ).toBe(true);
+    } finally {
+      delete process.env.SDK_REFERENCE_FETCH_URL;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it("shutdown tears children down within 5s and clears the registry (TC-077)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
