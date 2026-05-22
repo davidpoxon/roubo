@@ -1,17 +1,10 @@
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Button } from "react-aria-components";
-import {
-  RefreshCw,
-  ExternalLink,
-  X,
-  ChevronDown,
-  ChevronRight,
-  PanelLeftClose,
-} from "lucide-react";
+import { RefreshCw, X, ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
 import type { Bench, RouboConfig } from "@roubo/shared";
 import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
-import { useProjectItems, useRefreshProjectItems } from "../hooks/useProjectItems";
+import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -23,8 +16,8 @@ import GitHubErrorState from "./GitHubErrorState";
 export default function IssueQueuePanel({
   projectId,
   benches,
-  projectConfig,
-  pendingIssueNumbers,
+  projectConfig: _projectConfig,
+  pendingIssueExternalIds,
   initialFilters,
   onFiltersChange,
   initialGrouping,
@@ -34,22 +27,23 @@ export default function IssueQueuePanel({
   projectId: string;
   benches: Bench[];
   projectConfig: RouboConfig;
-  pendingIssueNumbers?: Set<number>;
+  pendingIssueExternalIds?: Set<string>;
   initialFilters?: FilterState;
   onFiltersChange?: (projectId: string, filters: FilterState) => void;
   initialGrouping?: GroupingState;
   onGroupingChange?: (projectId: string, grouping: GroupingState) => void;
   onCollapse?: () => void;
 }) {
-  const repo = projectConfig.project.repo;
-  const configuredProject = projectConfig.project.github?.project;
-
   const {
-    data: projectData,
+    issues,
     isLoading: itemsLoading,
     error: itemsError,
-  } = useProjectItems(projectId, configuredProject);
-  const refreshItems = useRefreshProjectItems();
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    stalled,
+  } = useIssues(projectId);
+  const refreshItems = useRefreshIssues();
 
   const [filters, setFilters] = useState<FilterState>(() => initialFilters ?? createEmptyFilters());
 
@@ -82,51 +76,41 @@ export default function IssueQueuePanel({
   const collapseStateKey = `${projectId}:${grouping.groupBy}`;
   const collapsedGroups = collapsedGroupsByKey.get(collapseStateKey) ?? new Set<string>();
 
-  // Map issue numbers to assigned bench IDs
+  // Bench assignment is keyed on NormalizedIssue.externalId; bench state still
+  // carries both a legacy issueNumber and the externalId (see WU-002).
   const assignedMap = useMemo(() => {
-    const map = new Map<number, number>();
+    const map = new Map<string, number>();
     for (const bench of benches) {
-      if (bench.assignedIssue) {
-        map.set(bench.assignedIssue.number, bench.id);
+      if (bench.assignedIssue?.externalId) {
+        map.set(bench.assignedIssue.externalId, bench.id);
       }
     }
     return map;
   }, [benches]);
 
-  // Exclude issues already assigned to benches or pending
   const baseItems = useMemo(() => {
-    if (!projectData?.items) return [];
-    return projectData.items.filter(
-      (item) => !assignedMap.has(item.issue.number) && !pendingIssueNumbers?.has(item.issue.number),
+    return issues.filter(
+      (issue) =>
+        !assignedMap.has(issue.externalId) && !pendingIssueExternalIds?.has(issue.externalId),
     );
-  }, [projectData, assignedMap, pendingIssueNumbers]);
-
-  // Compute available filter options from the base pool
-  const availableMilestones = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of baseItems) {
-      if (item.issue.milestone) set.add(item.issue.milestone);
-    }
-    return [...set].sort();
-  }, [baseItems]);
+  }, [issues, assignedMap, pendingIssueExternalIds]);
 
   const availableTypes = useMemo(() => {
     const set = new Set<string>();
-    for (const item of baseItems) {
-      if (item.issue.type) set.add(item.issue.type);
+    for (const issue of baseItems) {
+      if (issue.issueType) set.add(issue.issueType);
     }
     return [...set].sort();
   }, [baseItems]);
 
   const availableLabels = useMemo(() => {
     const set = new Set<string>();
-    for (const item of baseItems) {
-      for (const label of item.issue.labels) set.add(label);
+    for (const issue of baseItems) {
+      for (const label of issue.labels) set.add(label);
     }
     return [...set].sort();
   }, [baseItems]);
 
-  // Apply user filters on top of base items
   const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
 
   const groups = useMemo(
@@ -134,40 +118,25 @@ export default function IssueQueuePanel({
     [filteredItems, grouping],
   );
 
-  const projectTitle = projectData?.projectTitle;
-
-  // No GitHub project configured
-  if (!configuredProject) {
-    return (
-      <div className="h-full flex flex-col">
-        <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-800/60">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Cut List
-            </h3>
-            {onCollapse && (
-              <Button
-                onPress={onCollapse}
-                className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none shrink-0"
-                aria-label="Hide cut list"
-              >
-                <PanelLeftClose size={14} />
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <p className="text-sm text-stone-500 dark:text-stone-600 mb-2">
-            No GitHub project configured
-          </p>
-          <p className="text-xs text-stone-500 dark:text-stone-700">
-            Add a <code className="text-stone-500 font-mono text-[11px]">github.project</code> field
-            to your roubo.yaml config.
-          </p>
-        </div>
-      </div>
+  // Auto-fetch next page when the sentinel scrolls into view (FR-022, NFR-005).
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasNextPage || isFetchingNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            fetchNextPage();
+            break;
+          }
+        }
+      },
+      { rootMargin: "200px" },
     );
-  }
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="h-full flex flex-col">
@@ -178,11 +147,6 @@ export default function IssueQueuePanel({
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
               Cut List
             </h3>
-            {projectTitle && (
-              <p className="text-[11px] text-stone-400 dark:text-stone-600 truncate mt-0.5">
-                {projectTitle}
-              </p>
-            )}
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
             <Button
@@ -206,13 +170,12 @@ export default function IssueQueuePanel({
       </div>
 
       {/* Filter bar */}
-      {!itemsLoading && !itemsError && projectData && (
+      {!itemsLoading && !itemsError && (
         <div className="flex items-center border-b border-stone-200 dark:border-stone-800/60">
           <div className="flex-1 min-w-0">
             <CutListFilterBar
               filters={filters}
               onFiltersChange={updateFilters}
-              availableMilestones={availableMilestones}
               availableTypes={availableTypes}
               availableLabels={availableLabels}
             />
@@ -232,6 +195,15 @@ export default function IssueQueuePanel({
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {stalled && (
+        <div
+          data-testid="stalled-note"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+        >
+          Plugin paging appears stuck. Try a refresh.
         </div>
       )}
 
@@ -256,11 +228,10 @@ export default function IssueQueuePanel({
         )}
 
         {/* Cut list */}
-        {!itemsLoading && !itemsError && projectData && (
+        {!itemsLoading && !itemsError && (
           <div className="space-y-0.5">
             {filteredItems.length > 0 ? (
               groups.length > 0 ? (
-                // Grouped view: collapsible sections per group
                 groups.map((group) => {
                   const isCollapsed = collapsedGroups.has(group.key);
                   return (
@@ -289,11 +260,11 @@ export default function IssueQueuePanel({
                       </Button>
                       {!isCollapsed && (
                         <div className="space-y-0.5">
-                          {group.items.map((item) => (
+                          {group.items.map((issue) => (
                             <DraggableIssueCard
-                              key={`${group.key}-${item.issue.number}`}
-                              item={item}
-                              assignedBenchId={assignedMap.get(item.issue.number)}
+                              key={`${group.key}-${issue.externalId}`}
+                              issue={issue}
+                              assignedBenchId={assignedMap.get(issue.externalId)}
                               dragIdSuffix={group.key}
                             />
                           ))}
@@ -303,12 +274,11 @@ export default function IssueQueuePanel({
                   );
                 })
               ) : (
-                // Flat view (no grouping)
-                filteredItems.map((item) => (
+                filteredItems.map((issue) => (
                   <DraggableIssueCard
-                    key={item.issue.number}
-                    item={item}
-                    assignedBenchId={assignedMap.get(item.issue.number)}
+                    key={issue.externalId}
+                    issue={issue}
+                    assignedBenchId={assignedMap.get(issue.externalId)}
                   />
                 ))
               )
@@ -317,7 +287,7 @@ export default function IssueQueuePanel({
                 <p className="text-xs text-stone-500 dark:text-stone-600 mb-2">
                   {baseItems.length > 0
                     ? "No cuts match the active filters"
-                    : "No open cuts in this project"}
+                    : "No open cuts available"}
                 </p>
                 {baseItems.length > 0 && (
                   <Button
@@ -327,17 +297,15 @@ export default function IssueQueuePanel({
                     Clear filters
                   </Button>
                 )}
-                {baseItems.length === 0 && repo && (
-                  <a
-                    href={`https://github.com/${repo}/issues/new`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
-                  >
-                    Create one on GitHub
-                    <ExternalLink size={10} />
-                  </a>
-                )}
+              </div>
+            )}
+            {hasNextPage && (
+              <div
+                ref={sentinelRef}
+                data-testid="queue-load-more-sentinel"
+                className="flex items-center justify-center py-4"
+              >
+                {isFetchingNextPage && <Spinner />}
               </div>
             )}
           </div>

@@ -201,6 +201,8 @@ export const IntegrationConfigSchema = z
     instance: z.string().optional(),
     sources: z.record(z.string(), z.array(z.union([z.string(), z.number()]))).optional(),
     pluginSource: z.string().optional(),
+    // Page size forwarded to the plugin's listIssues call. Default 50 (FR-022, NFR-005).
+    pageSize: z.number().int().positive().optional(),
   })
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;

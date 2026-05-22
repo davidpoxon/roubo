@@ -106,7 +106,7 @@ function makeContext(overrides: Partial<ProjectOutletContext> = {}): ProjectOutl
     hasGitHub: false,
     benches: [],
     projectConfig: makeConfig(),
-    pendingIssueNumbers: new Set(),
+    pendingIssueExternalIds: new Set(),
     initialFilters: createEmptyFilters(),
     onFiltersChange: vi.fn(),
     initialGrouping: createEmptyGrouping(),

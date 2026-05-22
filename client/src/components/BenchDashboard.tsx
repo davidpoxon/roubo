@@ -9,10 +9,11 @@ import { useToast } from "../hooks/useToast";
 import type {
   Bench,
   RouboConfig,
-  GitHubProjectItem,
+  NormalizedIssue,
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
 } from "@roubo/shared";
+import { issueNumberFromExternalId } from "../lib/issue-id";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -37,7 +38,7 @@ export type ProjectOutletContext = {
   hasGitHub: boolean;
   benches: Bench[];
   projectConfig: RouboConfig;
-  pendingIssueNumbers: Set<number>;
+  pendingIssueExternalIds: Set<string>;
   initialFilters: FilterState;
   onFiltersChange: (projectId: string, filters: FilterState) => void;
   initialGrouping: GroupingState;
@@ -71,9 +72,16 @@ export default function BenchDashboard() {
   const [branchConflict, setBranchConflict] = useState<
     (BranchConflictInfo & { issueNumber: number }) | null
   >(null);
-  const [draggingItem, setDraggingItem] = useState<GitHubProjectItem | null>(null);
+  const [draggingIssue, setDraggingIssue] = useState<NormalizedIssue | null>(null);
   const [issueQueueCollapsed, setIssueQueueCollapsed] = useState(false);
-  const [pendingIssueNumbers, setPendingIssueNumbers] = useState<Set<number>>(new Set());
+  // Map from bench-assignment issueNumber to the originating NormalizedIssue.externalId.
+  // Tracked so UI filtering (cut list, picker) can dedupe by externalId, while
+  // server callbacks (which key on issueNumber) can still find what to clear.
+  const [pendingByIssueNumber, setPendingByIssueNumber] = useState<Map<number, string>>(new Map());
+  const pendingIssueExternalIds = useMemo(
+    () => new Set(pendingByIssueNumber.values()),
+    [pendingByIssueNumber],
+  );
   const [pendingAssignments, setPendingAssignments] = useState<
     Map<number, { issueNumber: number; issueTitle: string }>
   >(new Map());
@@ -98,13 +106,17 @@ export default function BenchDashboard() {
   const openCreateBench = useCallback(() => setShowCreate(true), []);
   const onToggleIssueQueue = useCallback(() => setIssueQueueCollapsed((prev) => !prev), []);
 
-  const addPending = useCallback((issueNumber: number) => {
-    setPendingIssueNumbers((prev) => new Set(prev).add(issueNumber));
+  const addPending = useCallback((issueNumber: number, externalId: string) => {
+    setPendingByIssueNumber((prev) => {
+      const next = new Map(prev);
+      next.set(issueNumber, externalId);
+      return next;
+    });
   }, []);
 
   const removePending = useCallback((issueNumber: number) => {
-    setPendingIssueNumbers((prev) => {
-      const next = new Set(prev);
+    setPendingByIssueNumber((prev) => {
+      const next = new Map(prev);
       next.delete(issueNumber);
       return next;
     });
@@ -198,38 +210,47 @@ export default function BenchDashboard() {
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const item = event.active.data.current?.item as GitHubProjectItem | undefined;
-    setDraggingItem(item ?? null);
+    const issue = event.active.data.current?.issue as NormalizedIssue | undefined;
+    setDraggingIssue(issue ?? null);
   }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setDraggingItem(null);
+      setDraggingIssue(null);
       const { active, over } = event;
       if (!over || !projectId) return;
 
-      const item = active.data.current?.item as GitHubProjectItem | undefined;
+      const issue = active.data.current?.issue as NormalizedIssue | undefined;
       const position = over.data.current?.position as number | undefined;
-      if (!item || position === undefined) return;
+      if (!issue || position === undefined) return;
 
-      addPending(item.issue.number);
+      const issueNumber = issueNumberFromExternalId(issue.externalId);
+      if (issueNumber === null) {
+        addToast(
+          `Cannot assign ${issue.externalId}: bench creation does not yet support this integration.`,
+          { duration: 8000 },
+        );
+        return;
+      }
+
+      addPending(issueNumber, issue.externalId);
       setPendingAssignments((prev) => {
         const next = new Map(prev);
         next.set(position, {
-          issueNumber: item.issue.number,
-          issueTitle: item.issue.title,
+          issueNumber,
+          issueTitle: issue.title,
         });
         return next;
       });
 
       let cancelled = false;
-      addToast(`Setting up bench for #${item.issue.number} — ${item.issue.title}`, {
+      addToast(`Setting up bench for ${issue.externalId} - ${issue.title}`, {
         duration: 3000,
         action: {
           label: "Cancel",
           onPress: () => {
             cancelled = true;
-            removePending(item.issue.number);
+            removePending(issueNumber);
             setPendingAssignments((prev) => {
               const next = new Map(prev);
               next.delete(position);
@@ -239,7 +260,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue(item.issue.number);
+            handleCreateBenchWithIssue(issueNumber);
           }
         },
       });
@@ -263,7 +284,7 @@ export default function BenchDashboard() {
         hasGitHub,
         benches: benches ?? [],
         projectConfig: currentProject?.config as RouboConfig,
-        pendingIssueNumbers,
+        pendingIssueExternalIds,
         initialFilters,
         onFiltersChange: handleFiltersChange,
         initialGrouping,
@@ -281,7 +302,7 @@ export default function BenchDashboard() {
       hasGitHub,
       benches,
       currentProject?.config,
-      pendingIssueNumbers,
+      pendingIssueExternalIds,
       initialFilters,
       handleFiltersChange,
       initialGrouping,
@@ -296,7 +317,11 @@ export default function BenchDashboard() {
     (issueNumber: number, issueTitle: string) => {
       setShowIssuePicker(false);
       if (!projectId) return;
-      addPending(issueNumber);
+      // Picker bridges back to the legacy assign-issue API (issueNumber). We
+      // synthesise an externalId for pending tracking since the picker today
+      // only surfaces github-style issues (others are disabled in the row).
+      const syntheticExternalId = `${issueNumber}`;
+      addPending(issueNumber, syntheticExternalId);
       const position = issuePickerPosition;
       if (position !== null) {
         setPendingAssignments((prev) => {
@@ -306,7 +331,7 @@ export default function BenchDashboard() {
         });
       }
       let cancelled = false;
-      addToast(`Setting up bench for #${issueNumber} — ${issueTitle}`, {
+      addToast(`Setting up bench for #${issueNumber} - ${issueTitle}`, {
         duration: 3000,
         action: {
           label: "Cancel",
@@ -440,14 +465,14 @@ export default function BenchDashboard() {
       </div>
 
       <DragOverlay>
-        {draggingItem && (
+        {draggingIssue && (
           <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3 py-2 shadow-xl max-w-[280px] opacity-90">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
-                #{draggingItem.issue.number}
+                {draggingIssue.externalId}
               </span>
               <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
-                {draggingItem.issue.title}
+                {draggingIssue.title}
               </span>
             </div>
           </div>
@@ -467,9 +492,8 @@ export default function BenchDashboard() {
             onClose={() => setShowIssuePicker(false)}
             onSelect={handleIssuePickerSelect}
             projectId={projectId}
-            projectConfig={currentProject.config}
             benches={benches ?? []}
-            pendingIssueNumbers={pendingIssueNumbers}
+            pendingIssueExternalIds={pendingIssueExternalIds}
           />
 
           {branchConflict && (

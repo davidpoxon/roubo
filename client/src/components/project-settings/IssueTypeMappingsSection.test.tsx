@@ -43,7 +43,7 @@ describe("IssueTypeMappingsSection", () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
         configured: true,
-        types: [{ id: "1", name: "Bug", color: "ef4444" }],
+        types: ["Bug"],
       },
       isLoading: false,
       isError: false,
@@ -114,10 +114,7 @@ describe("IssueTypeMappingsSection", () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
         configured: true,
-        types: [
-          { id: "1", name: "Bug", color: "ef4444" },
-          { id: "2", name: "Feature", color: "3b82f6" },
-        ],
+        types: ["Bug", "Feature"],
       },
       isLoading: false,
       isError: false,
@@ -133,7 +130,7 @@ describe("IssueTypeMappingsSection", () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
         configured: true,
-        types: [{ id: "1", name: "Bug", color: "ef4444" }],
+        types: ["Bug"],
       },
       isLoading: false,
       isError: false,
@@ -152,7 +149,7 @@ describe("IssueTypeMappingsSection", () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
         configured: true,
-        types: [{ id: "1", name: "Bug", color: "ef4444" }],
+        types: ["Bug"],
       },
       isLoading: false,
       isError: false,

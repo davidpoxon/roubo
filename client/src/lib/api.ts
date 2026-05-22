@@ -16,11 +16,11 @@ import type {
   TerminalSession,
   TerminalCreateResponse,
   InspectionRun,
-  GitHubIssue,
-  GitHubIssueComment,
+  NormalizedIssue,
+  NormalizedComment,
+  PaginatedIssues,
   AssignIssueResponse,
   GitHubProject,
-  GitHubProjectItem,
   CreateBenchWithIssueResponse,
   BlueprintMeta,
   BlueprintDetail,
@@ -39,7 +39,7 @@ import type {
   ProjectSettings,
   ProjectSettingsResponse,
   ProjectDefaultBlueprintResponse,
-  ProjectIssueTypesResponse,
+  ProjectIssueTypesV2Response,
   ProjectIssueTypeMappingsResponse,
   ProjectIntegrationState,
   InstalledPluginSummary,
@@ -474,34 +474,29 @@ export function fetchProjectGitHubProjects(projectId: string): Promise<GitHubPro
   return request(`/projects/${projectId}/projects`);
 }
 
-// GitHub Project Items
-export function fetchProjectItems(
+// Issues — paginated through the active integration plugin (WU-016).
+export function fetchIssuesPage(
   projectId: string,
-  projectNumber: number,
-): Promise<{ items: GitHubProjectItem[]; projectTitle: string }> {
+  opts: { cursor?: string | null; pageSize?: number; labels?: string; search?: string },
+): Promise<PaginatedIssues> {
   const params = new URLSearchParams();
-  params.set("project", String(projectNumber));
-  return request(`/projects/${projectId}/project-items?${params.toString()}`);
-}
-
-// GitHub Issues
-export function fetchIssues(
-  projectId: string,
-  labels?: string,
-  search?: string,
-): Promise<GitHubIssue[]> {
-  const params = new URLSearchParams();
-  if (labels) params.set("labels", labels);
-  if (search) params.set("search", search);
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.pageSize) params.set("pageSize", String(opts.pageSize));
+  if (opts.labels) params.set("labels", opts.labels);
+  if (opts.search) params.set("search", opts.search);
   const qs = params.toString();
   return request(`/projects/${projectId}/issues${qs ? `?${qs}` : ""}`);
 }
 
+export function fetchIssue(projectId: string, externalId: string): Promise<NormalizedIssue> {
+  return request(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}`);
+}
+
 export function fetchIssueComments(
   projectId: string,
-  issueNumber: number,
-): Promise<GitHubIssueComment[]> {
-  return request(`/projects/${projectId}/issues/${issueNumber}/comments`);
+  externalId: string,
+): Promise<NormalizedComment[]> {
+  return request(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}/comments`);
 }
 
 export function fetchLabels(projectId: string): Promise<string[]> {
@@ -640,7 +635,7 @@ export function updateProjectDefaultBlueprint(
   });
 }
 
-export function fetchIssueTypes(projectId: string): Promise<ProjectIssueTypesResponse> {
+export function fetchIssueTypes(projectId: string): Promise<ProjectIssueTypesV2Response> {
   return request(`/projects/${projectId}/issue-types`);
 }
 
