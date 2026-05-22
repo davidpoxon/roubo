@@ -16,7 +16,7 @@ function IssueRow({
   const blockers = issue.blockedBy;
   const isBlocked = blockers.length > 0;
   const issueNumber = issueNumberFromExternalId(issue.externalId);
-  const canSelect = issueNumber !== null && !isBlocked;
+  const canSelect = issueNumber !== null;
 
   return (
     <Button

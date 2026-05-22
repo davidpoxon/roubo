@@ -164,6 +164,21 @@ describe("IssuePickerModal", () => {
     expect(banner).toHaveTextContent("org/repo#3");
   });
 
+  it("calls onSelect when a blocked issue row is clicked (soft-block, TC-034)", async () => {
+    const onSelect = vi.fn();
+    const issue = makeIssue("200", {
+      title: "Add billing dashboard",
+      blockedBy: ["org/repo#100"],
+    });
+    mockUseIssues.mockReturnValue(defaultResult({ issues: [issue] }));
+    render(
+      <IssuePickerModal isOpen onClose={vi.fn()} onSelect={onSelect} projectId="p1" benches={[]} />,
+    );
+    expect(screen.getByTestId("blocked-banner")).toHaveTextContent("org/repo#100");
+    await userEvent.click(screen.getByText("Add billing dashboard"));
+    expect(onSelect).toHaveBeenCalledWith(200, "Add billing dashboard");
+  });
+
   it("surfaces the stalled note when useIssues reports stalled (TC-071)", () => {
     mockUseIssues.mockReturnValue(defaultResult({ stalled: true }));
     render(

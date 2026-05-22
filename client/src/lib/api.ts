@@ -474,7 +474,7 @@ export function fetchProjectGitHubProjects(projectId: string): Promise<GitHubPro
   return request(`/projects/${projectId}/projects`);
 }
 
-// Issues — paginated through the active integration plugin (WU-016).
+// Issues: paginated through the active integration plugin (WU-016).
 export function fetchIssuesPage(
   projectId: string,
   opts: { cursor?: string | null; pageSize?: number; labels?: string; search?: string },
