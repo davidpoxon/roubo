@@ -567,3 +567,11 @@ This design has both `context.md`, `prd.md`, and `feasibility.md` to lean on, pl
 - Source picker pagination on very large Jira instances (re-evaluate after Spike B Jira testing).
 
 **CI matrix recommendation.** GitHub Actions `pr-check` should run the test matrix on `macos-latest` and `ubuntu-latest` only. No Windows runner. The Ubuntu runner should additionally exercise a headless-keyring smoke test (Spike A deliverable) once the recipe lands.
+
+## Forward compatibility
+
+FR-038 and NFR-011 require a one-page paper sketch verifying that the host API surface designed in this slug can host the planned AI-agent and project-component plugin kinds without a host-API major-version bump. That sketch is the build-time review gate before `hostApiVersion` 1.0.0 is frozen.
+
+The sketch's conclusion: 1.0.0 freeze is safe for both kinds. AI-agent plugins fit the current `host.fetch` / `host.credentials` / `host.logger` surface unchanged, with `host.fetchStream` available as a non-breaking 1.x minor when streaming is needed. Project-component plugins fit the runtime surface unchanged, with new `ports` and `docker` permission categories arriving as a non-breaking 1.x minor when the project-component slug ships. Both follow-up additions are anticipated by the existing `kind`-union and permission-category extensibility design.
+
+See [`forward-compat-sketch.md`](./forward-compat-sketch.md) for the full sketch, including proposed manifest deltas and method sets for each kind.
