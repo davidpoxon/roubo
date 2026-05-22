@@ -42,7 +42,7 @@ describe("validateConfig", () => {
     expect(tryGetActiveConfig()).toBeNull();
   });
 
-  it("returns an auth-failure error when /user fails", async () => {
+  it("returns a structured 'unauthorized' error when /user returns 401", async () => {
     mocks.mockOctokit.request.mockRejectedValueOnce({
       status: 401,
       message: "Bad credentials",
@@ -53,7 +53,27 @@ describe("validateConfig", () => {
       config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
     });
     expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toEqual({
+      field: "github-token",
+      message: "GitHub token is invalid or expired",
+      code: "unauthorized",
+    });
+    expect(tryGetActiveConfig()).toBeNull();
+  });
+
+  it("returns a generic auth-failure error when /user fails with a non-401 status", async () => {
+    mocks.mockOctokit.request.mockRejectedValueOnce({
+      status: 500,
+      message: "Internal Server Error",
+      response: { headers: {} },
+    });
+
+    const result = await validateConfig({
+      config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
+    });
+    expect(result.ok).toBe(false);
     expect(result.errors?.[0].message).toMatch(/authenticate/i);
+    expect(result.errors?.[0].code).toBeUndefined();
     expect(tryGetActiveConfig()).toBeNull();
   });
 
