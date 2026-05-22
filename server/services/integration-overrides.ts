@@ -26,10 +26,17 @@ function getIntegrationsDir(): string {
   return path.join(getRouboDir(), "integrations");
 }
 
-// Mirrors the path-traversal guard pattern at state.ts:227. Kept local rather
-// than imported because state.ts's resolvePermissionsPath is private to that
-// module on purpose — each storage area owns its own guard.
+// Strict allowlist for projectId values that can appear in a filesystem path.
+// We disallow anything other than ASCII letters, digits, dot, dash, and
+// underscore; leading dots are rejected to block hidden-file and traversal
+// shapes (".", "..", ".env" etc). This is in addition to the post-resolve
+// containment check below and matches the guard pattern at state.ts:227.
+const SAFE_PROJECT_ID = /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$/;
+
 function resolveOverridePath(projectId: string): string {
+  if (!SAFE_PROJECT_ID.test(projectId)) {
+    throw new IntegrationOverrideError(`Invalid projectId: ${projectId}`, "INVALID_PROJECT_ID");
+  }
   const dir = getIntegrationsDir();
   const filePath = path.resolve(dir, `${projectId}.yaml`);
   if (!filePath.startsWith(dir + path.sep) && filePath !== dir) {
