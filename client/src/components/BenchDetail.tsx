@@ -55,6 +55,7 @@ import type {
 } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useTeardownTracker } from "../hooks/useClearingTracker";
 import { useElapsed } from "../hooks/useElapsed";
 import { useUnassignContainer } from "../hooks/useContainers";
@@ -311,10 +312,12 @@ function WorkUnitsPanel({
   workUnits,
   projectId,
   benchId,
+  disableSourceSync = false,
 }: {
   workUnits: BenchWorkUnit[];
   projectId: string;
   benchId: number;
+  disableSourceSync?: boolean;
 }) {
   const syncWorkUnits = useSyncBenchWorkUnits();
   const [ignoreTarget, setIgnoreTarget] = useState<BenchWorkUnit | null>(null);
@@ -354,14 +357,20 @@ function WorkUnitsPanel({
             {workUnits.length}
           </span>
         </Button>
-        <Button
-          isDisabled={syncWorkUnits.isPending}
-          onPress={() => syncWorkUnits.mutate({ projectId, benchId })}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
-        >
-          <RefreshCw size={11} className={syncWorkUnits.isPending ? "animate-spin" : ""} />
-          {syncWorkUnits.isPending ? "Syncing..." : "Sync Now"}
-        </Button>
+        <TooltipTrigger delay={400} isDisabled={!disableSourceSync}>
+          <Button
+            isDisabled={syncWorkUnits.isPending || disableSourceSync}
+            onPress={() => syncWorkUnits.mutate({ projectId, benchId })}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
+          >
+            <RefreshCw size={11} className={syncWorkUnits.isPending ? "animate-spin" : ""} />
+            {syncWorkUnits.isPending ? "Syncing..." : "Sync Now"}
+          </Button>
+          <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+            This bench was created against a previous integration. Source-sync is disabled. Clear
+            the bench to use the new integration.
+          </Tooltip>
+        </TooltipTrigger>
       </div>
       {isExpanded ? (
         <div className="rounded-lg bg-stone-100 dark:bg-stone-900/50 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30 divide-y divide-stone-200 dark:divide-stone-800/40">
@@ -741,6 +750,13 @@ export default function BenchDetail() {
 
   const { data: bench, isLoading, isError } = useBenchDetail(projectId, benchId);
   const { data: projects } = useProjects();
+  const { data: integration } = useProjectIntegration(projectId);
+  const activeIntegrationId = integration?.plugin?.id ?? null;
+  const benchIntegrationId = bench?.assignedIssue?.integrationId ?? null;
+  const isFromPreviousIntegration =
+    activeIntegrationId !== null &&
+    benchIntegrationId !== null &&
+    benchIntegrationId !== activeIntegrationId;
   const startBench = useStartBench();
   const stopBench = useStopBench();
   const teardown = useTeardownBench();
@@ -872,6 +888,14 @@ export default function BenchDetail() {
             <div className="flex items-center gap-1.5 text-xs text-stone-500">
               <span className="font-mono text-violet-400">#{bench.assignedIssue.number}</span>
               <span>{bench.assignedIssue.title}</span>
+              {isFromPreviousIntegration && (
+                <span
+                  data-testid="previous-integration-badge"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                >
+                  Issue from previous integration
+                </span>
+              )}
               {bench.assignedIssue.blockedBy && bench.assignedIssue.blockedBy.length > 0 && (
                 <TooltipTrigger delay={300}>
                   <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-500/15 text-red-400 outline-none cursor-default">
@@ -960,7 +984,12 @@ export default function BenchDetail() {
       )}
 
       {bench.workUnits && bench.workUnits.length > 0 && (
-        <WorkUnitsPanel workUnits={bench.workUnits} projectId={projectId} benchId={benchId} />
+        <WorkUnitsPanel
+          workUnits={bench.workUnits}
+          projectId={projectId}
+          benchId={benchId}
+          disableSourceSync={isFromPreviousIntegration}
+        />
       )}
 
       <Tabs

@@ -33,6 +33,7 @@ import type { RegisteredProject } from "@roubo/shared";
 import DangerZoneTile from "./settings/DangerZoneTile";
 import { ProjectPermissionsInlineSection } from "./project-settings/ProjectPermissionsInlineSection";
 import { ProjectPermissionsEditorPage } from "./project-settings/ProjectPermissionsEditorPage";
+import IssueSourceTile from "./IssueSourceTile";
 
 function ProjectCustomBlueprintsList({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
@@ -200,6 +201,15 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
   return (
     <>
       <div data-testid="project-settings-content" className="w-full p-8 space-y-8">
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Issue source
+            </h2>
+          </div>
+          <IssueSourceTile projectId={project.id} />
+        </section>
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />

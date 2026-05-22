@@ -34,7 +34,19 @@ const borderColor: Record<string, string> = {
   idle: "border-l-stone-200 dark:border-l-stone-800",
 };
 
-export default function BenchCard({ bench, projectName }: { bench: Bench; projectName?: string }) {
+export default function BenchCard({
+  bench,
+  projectName,
+  activeIntegrationId,
+}: {
+  bench: Bench;
+  projectName?: string;
+  activeIntegrationId?: string | null;
+}) {
+  const isFromPreviousIntegration =
+    !!activeIntegrationId &&
+    !!bench.assignedIssue?.integrationId &&
+    bench.assignedIssue.integrationId !== activeIntegrationId;
   const navigate = useNavigate();
   const startBench = useStartBench();
   const stopBench = useStopBench();
@@ -117,6 +129,17 @@ export default function BenchCard({ bench, projectName }: { bench: Bench; projec
                   #{bench.assignedIssue.number}
                 </span>
                 <span className="truncate">{bench.assignedIssue.title}</span>
+              </div>
+            )}
+
+            {isFromPreviousIntegration && (
+              <div className="mt-1.5 shrink-0">
+                <span
+                  data-testid="previous-integration-badge"
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                >
+                  Issue from previous integration
+                </span>
               </div>
             )}
 
