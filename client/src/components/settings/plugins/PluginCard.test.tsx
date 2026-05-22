@@ -1,0 +1,175 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { PluginRecord, PluginManifest, PluginStatus } from "@roubo/shared";
+
+vi.mock("../../../hooks/usePlugins");
+import {
+  useDisablePlugin as _useDisable,
+  useEnablePlugin as _useEnable,
+  useRestartPlugin as _useRestart,
+  usePluginLogs as _usePluginLogs,
+} from "../../../hooks/usePlugins";
+import PluginCard from "./PluginCard";
+
+const mockedEnable = vi.mocked(_useEnable);
+const mockedDisable = vi.mocked(_useDisable);
+const mockedRestart = vi.mocked(_useRestart);
+const mockedLogs = vi.mocked(_usePluginLogs);
+
+function manifest(over: Partial<PluginManifest> = {}): PluginManifest {
+  return {
+    id: "github-com",
+    name: "GitHub.com",
+    version: "1.2.3",
+    description: "Pulls issues from GitHub.com",
+    kind: "integration",
+    roubo: "^1.0.0",
+    entry: "dist/index.js",
+    permissions: {
+      network: { hosts: ["api.github.com"] },
+      credentials: { slots: [] },
+      filesystem: { paths: [] },
+      processes: false,
+    },
+    ...over,
+  };
+}
+
+function record(over: Partial<PluginRecord> = {}): PluginRecord {
+  return {
+    id: "github-com",
+    manifest: manifest(),
+    manifestPath: "/p/github-com/roubo-plugin.yaml",
+    pluginDir: "/p/github-com",
+    source: "bundled",
+    status: "enabled",
+    lastError: null,
+    restartHistory: [],
+    pid: 1234,
+    ...over,
+  };
+}
+
+beforeEach(() => {
+  const enableMutate = vi.fn();
+  const disableMutate = vi.fn();
+  mockedEnable.mockReturnValue({
+    mutate: enableMutate,
+    isPending: false,
+  } as unknown as ReturnType<typeof _useEnable>);
+  mockedDisable.mockReturnValue({
+    mutate: disableMutate,
+    isPending: false,
+  } as unknown as ReturnType<typeof _useDisable>);
+  mockedRestart.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof _useRestart>);
+  mockedLogs.mockReturnValue({
+    data: { lines: [] },
+    isLoading: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof _usePluginLogs>);
+});
+
+describe("PluginCard (TC-001, TC-013, TC-018)", () => {
+  it("renders name, version, description, and an Enabled pill for a healthy bundled plugin", () => {
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByText("GitHub.com")).toBeTruthy();
+    expect(screen.getByText("v1.2.3")).toBeTruthy();
+    expect(screen.getByText("Pulls issues from GitHub.com")).toBeTruthy();
+    expect(screen.getByTestId("plugin-status-pill").dataset.status).toBe("enabled");
+    expect(screen.getByTestId("plugin-source-label").dataset.source).toBe("bundled");
+  });
+
+  it("shows Disable for enabled plugins and Enable for disabled ones", async () => {
+    const { rerender } = render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Disable" })).toBeTruthy();
+    rerender(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Enable" })).toBeTruthy();
+  });
+
+  it("calls disable mutation when Disable is pressed", async () => {
+    const user = userEvent.setup();
+    const disableMutate = vi.fn();
+    mockedDisable.mockReturnValue({
+      mutate: disableMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof _useDisable>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+    expect(disableMutate).toHaveBeenCalledWith("github-com");
+  });
+
+  it("calls enable mutation when Enable is pressed on a disabled plugin", async () => {
+    const user = userEvent.setup();
+    const enableMutate = vi.fn();
+    mockedEnable.mockReturnValue({
+      mutate: enableMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof _useEnable>);
+    render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Enable" }));
+    expect(enableMutate).toHaveBeenCalledWith("github-com");
+  });
+
+  it("renders Uninstall only on third-party plugins (TC-018)", () => {
+    const { rerender } = render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.queryByRole("button", { name: "Uninstall" })).toBeNull();
+    rerender(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Uninstall" })).toBeTruthy();
+  });
+
+  it("renders Configure as disabled (deferred to later WU)", () => {
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Configure" })).toBeDisabled();
+  });
+
+  it("shows errored banner when status is errored (TC-016)", () => {
+    render(<PluginCard plugin={record({ status: "errored" })} hostApiVersion="1.0.0" />);
+    expect(screen.getByTestId("plugin-errored-banner")).toBeTruthy();
+  });
+
+  it("shows incompatible banner with the manifest range and host version (TC-003)", () => {
+    const r = record({
+      status: "incompatible",
+      manifest: manifest({ roubo: "^2.0.0" }),
+    });
+    render(<PluginCard plugin={r} hostApiVersion="1.0.0" />);
+    const banner = screen.getByTestId("plugin-incompatible-banner");
+    expect(banner.textContent).toContain("^2.0.0");
+    expect(banner.textContent).toContain("1.0.0");
+  });
+
+  it("shows invalid banner with the supervisor's error message (TC-002)", () => {
+    const r = record({
+      status: "invalid",
+      manifest: null,
+      lastError: { code: "invalid-manifest", message: "Missing required field: entry" },
+    });
+    render(<PluginCard plugin={r} hostApiVersion="1.0.0" />);
+    const banner = screen.getByTestId("plugin-invalid-banner");
+    expect(banner.textContent).toContain("Missing required field: entry");
+  });
+
+  it("opens the View logs dialog when the action button is pressed (TC-017)", async () => {
+    const user = userEvent.setup();
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    const actionRow = screen.getByTestId("plugin-card");
+    await user.click(within(actionRow).getByRole("button", { name: "View logs" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("falls back to the plugin id when no manifest is present", () => {
+    render(
+      <PluginCard
+        plugin={record({ manifest: null, status: "invalid" as PluginStatus })}
+        hostApiVersion="1.0.0"
+      />,
+    );
+    expect(screen.getByText("github-com")).toBeTruthy();
+  });
+});

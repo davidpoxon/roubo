@@ -42,6 +42,8 @@ import type {
   ProjectIssueTypesResponse,
   ProjectIssueTypeMappingsResponse,
   DirtyReason,
+  PluginRecord,
+  LogLine,
 } from "@roubo/shared";
 
 const BASE = "/api";
@@ -749,4 +751,36 @@ export function fetchGitHubAuthUrl(): Promise<GitHubAuthUrl> {
 
 export function disconnectGitHub(): Promise<void> {
   return requestVoid("/auth/github", { method: "DELETE" });
+}
+
+// Plugins
+export interface PluginsListResponse {
+  hostApiVersion: string;
+  plugins: PluginRecord[];
+}
+
+export function fetchPlugins(): Promise<PluginsListResponse> {
+  return request("/plugins");
+}
+
+export function enablePlugin(pluginId: string): Promise<void> {
+  return requestVoid(`/plugins/${encodeURIComponent(pluginId)}/enable`, { method: "POST" });
+}
+
+export function disablePlugin(pluginId: string): Promise<void> {
+  return requestVoid(`/plugins/${encodeURIComponent(pluginId)}/disable`, { method: "POST" });
+}
+
+export function restartPlugin(pluginId: string): Promise<void> {
+  return requestVoid(`/plugins/${encodeURIComponent(pluginId)}/restart`, { method: "POST" });
+}
+
+export function fetchPluginLogs(
+  pluginId: string,
+  file: "current" | "previous" = "current",
+  lines?: number,
+): Promise<{ lines: LogLine[] }> {
+  const params = new URLSearchParams({ file });
+  if (lines !== undefined) params.set("lines", String(lines));
+  return request(`/plugins/${encodeURIComponent(pluginId)}/logs?${params.toString()}`);
 }

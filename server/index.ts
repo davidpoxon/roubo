@@ -31,6 +31,7 @@ import benchesSettingsRouter from "./routes/benches-settings.js";
 import authRouter from "./routes/auth.js";
 import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
+import pluginsRouter from "./routes/plugins.js";
 import * as blueprintManager from "./services/blueprint-manager.js";
 import * as autoClear from "./services/auto-clear.js";
 import * as pluginManager from "./services/plugin-manager.js";
@@ -92,6 +93,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/auth/github", authRouter);
   app.use("/api/hooks", hooksRouter);
   app.use("/api/notifications", notificationsRouter);
+  app.use("/api/plugins", pluginsRouter);
 
   app.get("/api/benches", (req, res) => {
     let benches = benchManager.getBenches();
