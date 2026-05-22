@@ -98,13 +98,13 @@ export type ContractMethodName = keyof PluginContract;
 export interface FetchInit {
   method?: string;
   headers?: Record<string, string>;
-  body?: string | ArrayBuffer | Uint8Array;
+  body?: string;
 }
 
 export interface FetchResult {
   status: number;
   headers: Record<string, string | string[]>;
-  body: ArrayBuffer | string;
+  body: string;
 }
 
 export type LogPayload = string | { message: string; data?: unknown };

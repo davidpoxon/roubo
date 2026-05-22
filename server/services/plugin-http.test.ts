@@ -7,6 +7,7 @@ import type { PluginManifest } from "@roubo/shared";
 import {
   createPluginFetcher,
   PluginPermissionDeniedError,
+  PluginUnsupportedResponseError,
   type PluginHttpLogLine,
 } from "./plugin-http.js";
 
@@ -318,12 +319,22 @@ describe("createPluginFetcher: response surfacing", () => {
     expect(typeof result.body).toBe("string");
   });
 
-  it("returns an ArrayBuffer body for binary responses", async () => {
-    const fetcher = createPluginFetcher(manifest(["127.0.0.1"]));
-    const result = await fetcher(serverInfo.url("/png"));
-    expect(result.body).toBeInstanceOf(ArrayBuffer);
-    expect(new Uint8Array(result.body as ArrayBuffer).slice(0, 4)).toEqual(
-      new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+  it("rejects non-textual responses with an unsupported-response error", async () => {
+    const logger = vi.fn<(line: PluginHttpLogLine) => void>();
+    const fetcher = createPluginFetcher(manifest(["127.0.0.1"]), { logger });
+    await expect(fetcher(serverInfo.url("/png"))).rejects.toBeInstanceOf(
+      PluginUnsupportedResponseError,
+    );
+    try {
+      await fetcher(serverInfo.url("/png"));
+    } catch (err) {
+      const e = err as PluginUnsupportedResponseError;
+      expect(e.code).toBe("unsupported-response");
+      expect(e.contentType).toBe("image/png");
+      expect(e.host).toBe("127.0.0.1");
+    }
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({ level: "warn", kind: "unsupported-response" }),
     );
   });
 

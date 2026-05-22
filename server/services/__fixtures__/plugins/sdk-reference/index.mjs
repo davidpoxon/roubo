@@ -21,10 +21,9 @@ definePlugin({
   async listIssues({ cursor, pageSize }) {
     const target = process.env.SDK_REFERENCE_FETCH_URL ?? "http://127.0.0.1:0/issues";
     const res = await host.fetch(`${target}?cursor=${cursor ?? ""}&pageSize=${pageSize}`);
-    const body = typeof res.body === "string" ? res.body : Buffer.from(res.body).toString("utf8");
     let parsed;
     try {
-      parsed = JSON.parse(body);
+      parsed = JSON.parse(res.body);
     } catch {
       parsed = { items: [], nextCursor: null };
     }

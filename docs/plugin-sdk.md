@@ -161,9 +161,9 @@ All helpers are accessible via the top-level `host` export. Calling them before 
 
 Performs an HTTP request through the host. Allowlist enforcement happens on the host before the request is dispatched. Out-of-allowlist URLs reject with a `network-denied` error (see [Error shape](#error-shape)).
 
-`init` accepts `{ method?, headers?, body? }`. `body` accepts `string | ArrayBuffer | Uint8Array`.
+`init` accepts `{ method?, headers?, body? }`. `body` is a string (JSON, form-encoded, or plain text). Binary request bodies are not supported.
 
-`FetchResult` is `{ status, headers, body }`. Response headers are passed through verbatim (including `set-cookie` as an array, and `etag`, `retry-after`, `x-ratelimit-*` exposed for your own caching and backoff). `body` is a string for textual content types (`text/*`, `application/json`, XML, form-encoded) and an `ArrayBuffer` otherwise.
+`FetchResult` is `{ status, headers, body }`. Response headers are passed through verbatim (including `set-cookie` as an array, and `etag`, `retry-after`, `x-ratelimit-*` exposed for your own caching and backoff). `body` is the response text. `host.fetch` currently supports textual content types only (`text/*`, `application/json`, XML, form-encoded); non-textual responses reject with an `unsupported-response` error.
 
 ### `host.credentials.get(slot): Promise<string | null>`
 
@@ -193,12 +193,13 @@ try {
 
 Discriminators:
 
-| `data.code`         | Source               | Meaning                                                                |
-| ------------------- | -------------------- | ---------------------------------------------------------------------- |
-| `permission-denied` | `host.credentials.*` | Slot not declared in the manifest, or scope is read-only on a `set`    |
-| `network-denied`    | `host.fetch`         | Host not in `permissions.network.hosts`, or URL was invalid            |
-| `invalid-params`    | All host RPCs        | Required parameter missing or wrong type                               |
-| `internal-error`    | All host RPCs        | Underlying call (keyring, network) failed; `message` carries the cause |
+| `data.code`            | Source               | Meaning                                                                            |
+| ---------------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| `permission-denied`    | `host.credentials.*` | Slot not declared in the manifest, or scope is read-only on a `set`                |
+| `network-denied`       | `host.fetch`         | Host not in `permissions.network.hosts`, or URL was invalid                        |
+| `unsupported-response` | `host.fetch`         | Response content type is not textual; `data.contentType` carries the rejected type |
+| `invalid-params`       | All host RPCs        | Required parameter missing or wrong type                                           |
+| `internal-error`       | All host RPCs        | Underlying call (keyring, network) failed; `message` carries the cause             |
 
 Errors are also written to the plugin's log with a stable identifier of the form `<pluginId>.<methodName>` (for example `example.host.credentials.get`). This is the line your error banner should reference when something goes wrong.
 

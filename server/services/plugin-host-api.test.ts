@@ -393,6 +393,70 @@ describe("plugin-host-api", () => {
       expect(fetcher).not.toHaveBeenCalled();
     });
 
+    it("surfaces PluginUnsupportedResponseError as a structured unsupported-response error", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const { PluginUnsupportedResponseError } = await import("./plugin-http.js");
+      const fetcher = vi.fn().mockRejectedValue(
+        new PluginUnsupportedResponseError({
+          category: "network",
+          host: "api.example.com",
+          url: "https://api.example.com/avatar.png",
+          contentType: "image/png",
+          reason: 'host.fetch only supports textual content types; got "image/png"',
+        }),
+      );
+      registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({ url: "https://api.example.com/avatar.png", init: {} });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{
+          code: string;
+          host: string;
+          contentType: string | null;
+          reason: string;
+        }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.data?.code).toBe("unsupported-response");
+        expect(responseErr.data?.host).toBe("api.example.com");
+        expect(responseErr.data?.contentType).toBe("image/png");
+      }
+      expect(
+        logCalls.some(
+          ([level, text]) =>
+            level === "warn" &&
+            text.includes("jira-plugin.host.fetch unsupported-response") &&
+            text.includes("image/png"),
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects non-string body params with invalid-params", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const fetcher = vi.fn();
+      registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({
+          url: "https://api.example.com/",
+          init: { body: new Uint8Array([1, 2, 3]) },
+        });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.data?.code).toBe("invalid-params");
+      }
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
     it("wraps unexpected fetcher errors as internal errors", async () => {
       const manifest = makeManifest([], ["api.example.com"]);
       const connection = makeConnection();

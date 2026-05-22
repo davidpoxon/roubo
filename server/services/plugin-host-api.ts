@@ -6,6 +6,7 @@ import * as credentialStore from "./credential-store.js";
 import {
   createPluginFetcher,
   PluginPermissionDeniedError,
+  PluginUnsupportedResponseError,
   type FetchInit,
   type FetchResult,
 } from "./plugin-http.js";
@@ -13,9 +14,10 @@ import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
 import { assertSpawnAllowed, resolveAllowedExecutables } from "./plugin-spawn.js";
 
-// JSON-RPC server-error range; we use a single app-level code and surface the
+// JSON-RPC server-error range; we use app-level codes and surface the
 // specific reason via the structured `data` payload.
 const PERMISSION_DENIED_CODE = -32001;
+const UNSUPPORTED_RESPONSE_CODE = -32002;
 const INVALID_PARAMS_CODE = -32602;
 const INTERNAL_ERROR_CODE = -32603;
 
@@ -62,6 +64,15 @@ export interface NetworkDeniedData {
   category: "network";
   host: string;
   url: string;
+  reason: string;
+}
+
+export interface UnsupportedResponseData {
+  code: "unsupported-response";
+  category: "network";
+  host: string;
+  url: string;
+  contentType: string | null;
   reason: string;
 }
 
@@ -355,6 +366,21 @@ export async function registerHostHandlers(
           log("warn", `${pluginId}.${method} denied: host="${err.host}" reason="${err.reason}"`);
           throw new ResponseError(PERMISSION_DENIED_CODE, err.message, data);
         }
+        if (err instanceof PluginUnsupportedResponseError) {
+          const data: UnsupportedResponseData = {
+            code: "unsupported-response",
+            category: "network",
+            host: err.host,
+            url: err.url,
+            contentType: err.contentType,
+            reason: err.reason,
+          };
+          log(
+            "warn",
+            `${pluginId}.${method} unsupported-response: host="${err.host}" contentType="${err.contentType ?? ""}"`,
+          );
+          throw new ResponseError(UNSUPPORTED_RESPONSE_CODE, err.message, data);
+        }
         wrapInternal(pluginId, method, log, err);
       }
     },
@@ -459,18 +485,13 @@ function normalizeFetchInit(input: unknown): { value: FetchInit | undefined; err
     init.headers = headers;
   }
   if (raw.body !== undefined) {
-    const body = raw.body;
-    if (
-      typeof body !== "string" &&
-      !(body instanceof ArrayBuffer) &&
-      !(body instanceof Uint8Array)
-    ) {
+    if (typeof raw.body !== "string") {
       return {
         value: undefined,
-        error: "host.fetch init.body must be a string, ArrayBuffer, or Uint8Array",
+        error: "host.fetch init.body must be a string",
       };
     }
-    init.body = body;
+    init.body = raw.body;
   }
   return { value: init };
 }
