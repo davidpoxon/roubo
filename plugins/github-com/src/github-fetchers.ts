@@ -58,6 +58,7 @@ export async function fetchIssuesPage(
   const { owner, repo } = parseRepo(repoFullName);
 
   let items: RawIssue[];
+  let rawPageSize: number;
 
   if (options.search) {
     const q = `repo:${repoFullName} is:issue is:open ${options.search}`;
@@ -66,6 +67,7 @@ export async function fetchIssuesPage(
       route: "GET /search/issues",
       params: { q, per_page: perPage, page, sort: "updated", order: "desc" },
     });
+    rawPageSize = result.data.items.length;
     items = result.data.items.filter((item) => !item.pull_request);
   } else {
     const params: Record<string, unknown> = {
@@ -83,10 +85,14 @@ export async function fetchIssuesPage(
       route: "GET /repos/{owner}/{repo}/issues",
       params,
     });
+    rawPageSize = result.data.length;
     items = result.data.filter((item) => !item.pull_request);
   }
 
-  const data: ListIssuesPage = { items, hasNextPage: items.length === perPage };
+  // hasNextPage must be computed from the unfiltered API response length:
+  // `/issues` returns issues AND PRs interleaved, so a full page with PRs
+  // mixed in would otherwise short-circuit pagination after PR filtering.
+  const data: ListIssuesPage = { items, hasNextPage: rawPageSize === perPage };
   issueCache.set(cacheKey, { data, timestamp: Date.now() });
   pruneCache(issueCache);
   return data;

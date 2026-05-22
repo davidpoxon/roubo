@@ -118,6 +118,53 @@ describe("listIssues", () => {
     expect(params.labels).toBe("bug,p1");
   });
 
+  it("reports hasNextPage when the unfiltered API response is a full page, even if PRs were filtered out", async () => {
+    // Regression: `/repos/{owner}/{repo}/issues` returns issues and PRs
+    // interleaved. Computing hasNextPage from the post-filter item count
+    // would short-circuit pagination as soon as a page contained any PR.
+    setActiveConfig({ sources: [{ kind: "repo", externalId: "foo/bar" }] });
+
+    const mixedFullPage = [
+      {
+        number: 1,
+        title: "issue",
+        body: null,
+        state: "open",
+        labels: [],
+        created_at: "x",
+        updated_at: "x",
+        comments: 0,
+        html_url: "u",
+      },
+      {
+        number: 2,
+        title: "pr",
+        body: null,
+        state: "open",
+        labels: [],
+        created_at: "x",
+        updated_at: "x",
+        comments: 0,
+        html_url: "u",
+        pull_request: { url: "https://api.github.com/repos/foo/bar/pulls/2" },
+      },
+    ];
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse(mixedFullPage));
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      repository: {
+        issue_1: {
+          blockedBy: { nodes: [] },
+          blocking: { nodes: [], pageInfo: { hasNextPage: false } },
+        },
+      },
+    });
+
+    const result = await listIssues({ cursor: null, pageSize: 2 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].title).toBe("issue");
+    expect(result.nextCursor).toBe("2");
+  });
+
   it("uses search API when filters.search is set", async () => {
     setActiveConfig({ sources: [{ kind: "repo", externalId: "foo/bar" }] });
 
