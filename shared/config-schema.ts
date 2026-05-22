@@ -195,14 +195,34 @@ export const UserConfigSchema = z
   .strict();
 export type UserConfig = z.infer<typeof UserConfigSchema>;
 
+// Plugin-defined, opaque-to-roubo sub-block (e.g. `allowSelfSignedTls`, Jira
+// link-type names). Validated against the plugin's manifest configSchema once
+// the active plugin is loaded, mirroring how Roubo treats blueprint
+// frontmatter.
+export const IntegrationAdvancedSchema = z.record(z.string(), z.unknown());
+export type IntegrationAdvanced = z.infer<typeof IntegrationAdvancedSchema>;
+
+// Identity captured from `plugin.getCurrentUser` at the last successful
+// `validateConfig` round-trip (FR-035). Persisted per-project so subsequent
+// `assignIssue` calls targeting "me" use the resolved external id.
+export const CapturedUserIdSchema = z
+  .object({
+    externalId: z.string().min(1),
+    displayName: z.string().min(1),
+  })
+  .strict();
+export type CapturedUserId = z.infer<typeof CapturedUserIdSchema>;
+
 export const IntegrationConfigSchema = z
   .object({
     plugin: z.string().optional(),
     instance: z.string().optional(),
     sources: z.record(z.string(), z.array(z.union([z.string(), z.number()]))).optional(),
+    advanced: IntegrationAdvancedSchema.optional(),
     pluginSource: z.string().optional(),
     // Page size forwarded to the plugin's listIssues call. Default 50 (FR-022, NFR-005).
     pageSize: z.number().int().positive().optional(),
+    capturedUserId: CapturedUserIdSchema.optional(),
   })
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;

@@ -42,6 +42,8 @@ import type {
   ProjectIssueTypesV2Response,
   ProjectIssueTypeMappingsResponse,
   ProjectIntegrationState,
+  IntegrationConfigUpdate,
+  IntegrationTestResult,
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
@@ -760,6 +762,26 @@ export function switchProjectIntegration(
   return request(`/projects/${projectId}/integration/override`, {
     method: "PUT",
     body: JSON.stringify({ plugin }),
+  });
+}
+
+export function testIntegrationConnection(
+  projectId: string,
+  config: Record<string, unknown>,
+): Promise<IntegrationTestResult> {
+  return request(`/projects/${projectId}/integration/test`, {
+    method: "POST",
+    body: JSON.stringify({ config }),
+  });
+}
+
+export function saveIntegrationConfig(
+  projectId: string,
+  update: IntegrationConfigUpdate,
+): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration/config`, {
+    method: "PUT",
+    body: JSON.stringify(update),
   });
 }
 
