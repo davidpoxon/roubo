@@ -1,0 +1,39 @@
+id: github-com
+name: GitHub.com
+version: 0.1.0
+description: Bundled integration for issues, projects, and repositories on GitHub.com.
+kind: integration
+roubo: ^1.0.0
+entry: ./dist/index.js
+configSchema:
+  type: object
+  required:
+    - sources
+  properties:
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+            enum:
+              - repo
+              - project
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts:
+      - api.github.com
+  credentials:
+    slots:
+      - slot: github-token
+        scope: read
+        description: Personal access token or OAuth token for GitHub.com
+  filesystem:
+    paths: []
+  processes: false

@@ -14,6 +14,7 @@ export default defineConfig({
       "shared/**/*.test.ts",
       "electron/**/*.test.ts",
       "plugin-sdk/src/**/*.test.ts",
+      "plugins/**/src/**/*.test.ts",
     ],
     environmentMatchGlobs: [["client/src/**", "jsdom"]],
     setupFiles: ["./client/src/test/setup.ts"],
@@ -25,6 +26,7 @@ export default defineConfig({
         "shared/**/*.ts",
         "electron/src/**/*.ts",
         "plugin-sdk/src/**/*.ts",
+        "plugins/**/src/**/*.ts",
       ],
       exclude: [
         "**/*.test.{ts,tsx}",

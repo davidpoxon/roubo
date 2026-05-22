@@ -1,0 +1,75 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { tryGetActiveConfig } from "../active-config.js";
+import { validateConfig } from "../methods/validate-config.js";
+import { installMocks, okResponse, teardownMocks } from "./helpers.js";
+
+describe("validateConfig", () => {
+  let mocks: ReturnType<typeof installMocks>;
+
+  beforeEach(() => {
+    mocks = installMocks();
+  });
+
+  afterEach(() => {
+    teardownMocks();
+  });
+
+  it("returns ok and caches the config when the token + sources resolve", async () => {
+    // GET /user
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
+    // GET /repos/{owner}/{repo}
+    mocks.mockOctokit.request.mockResolvedValueOnce(
+      okResponse({ name: "bar", full_name: "foo/bar" }),
+    );
+
+    const result = await validateConfig({
+      config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
+    });
+    expect(result).toEqual({ ok: true });
+    expect(tryGetActiveConfig()).toEqual({
+      sources: [{ kind: "repo", externalId: "foo/bar" }],
+    });
+  });
+
+  it("rejects a malformed config without contacting GitHub", async () => {
+    const result = await validateConfig({ config: { sources: "no" } });
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toEqual({
+      field: "sources",
+      message: "sources must be an array",
+    });
+    expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
+    expect(tryGetActiveConfig()).toBeNull();
+  });
+
+  it("returns an auth-failure error when /user fails", async () => {
+    mocks.mockOctokit.request.mockRejectedValueOnce({
+      status: 401,
+      message: "Bad credentials",
+      response: { headers: {} },
+    });
+
+    const result = await validateConfig({
+      config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0].message).toMatch(/authenticate/i);
+    expect(tryGetActiveConfig()).toBeNull();
+  });
+
+  it("collects per-source errors", async () => {
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
+    mocks.mockOctokit.request.mockRejectedValueOnce({
+      status: 404,
+      message: "Not Found",
+      response: { headers: {} },
+    });
+
+    const result = await validateConfig({
+      config: { sources: [{ kind: "repo", externalId: "missing/repo" }] },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0].field).toBe("sources[0].externalId");
+    expect(tryGetActiveConfig()).toBeNull();
+  });
+});
