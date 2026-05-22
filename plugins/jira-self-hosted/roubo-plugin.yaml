@@ -1,0 +1,49 @@
+id: jira-self-hosted
+name: Self-hosted Jira
+version: 0.1.0
+description: Roubo integration for self-hosted Atlassian Jira (Data Center 8.14+). PAT auth, JQL incremental polling, configurable blocks / blocked-by link-type mapping.
+kind: integration
+roubo: ^1.0.0
+entry: ./dist/index.js
+capabilities:
+  prSync: false
+configSchema:
+  type: object
+  required:
+    - instance
+    - pat
+  properties:
+    instance:
+      type: string
+      title: Jira instance URL
+      description: e.g. https://jira.acme.example
+      format: uri
+    pat:
+      type: string
+      title: Personal access token
+      description: Data Center personal access token (8.14+). Stored in the OS keyring.
+      format: password
+    blocksLinkTypeName:
+      type: string
+      title: '"blocks" link-type name'
+      default: blocks
+      description: Override if your Jira admin renamed the default link type.
+    isBlockedByLinkTypeName:
+      type: string
+      title: '"is blocked by" link-type name'
+      default: is blocked by
+permissions:
+  network:
+    hosts:
+      - "**"
+  credentials:
+    slots:
+      - slot: pat
+        scope: read
+        description: Jira personal access token (Data Center 8.14+).
+      - slot: state
+        scope: read-write
+        description: Per-source last-poll timestamps. JSON-serialized.
+  filesystem:
+    paths: []
+  processes: false

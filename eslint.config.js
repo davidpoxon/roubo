@@ -39,6 +39,14 @@ export default tseslint.config(
     },
   },
 
+  // Bundled plugins: Node.js environment
+  {
+    files: ["plugins/**/*.ts"],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+
   // JS/MJS/CJS scripts: Node.js environment
   {
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
