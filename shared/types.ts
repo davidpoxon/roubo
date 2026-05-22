@@ -81,6 +81,15 @@ export { parseManifest } from "./plugin-manifest.js";
 export type { ParseManifestResult } from "./plugin-manifest.js";
 
 export type {
+  SourceCandidateIcon,
+  SourceCandidateItem,
+  SourceCandidateCategory,
+  SourceCandidatesShape,
+  SourceCandidatesResponse,
+  SourceSelection,
+} from "./integration-types.js";
+
+export type {
   PluginStatus,
   PluginSource,
   RestartEvent,

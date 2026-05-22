@@ -2,11 +2,16 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "react-aria-components";
 import { Plug, AlertTriangle, Download } from "lucide-react";
-import type { IntegrationCaptionKey, ProjectIntegrationState } from "@roubo/shared";
+import type {
+  IntegrationCaptionKey,
+  ProjectIntegrationState,
+  SourceSelection,
+} from "@roubo/shared";
 import Tile from "./settings/Tile";
 import Spinner from "./Spinner";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
 import PluginConfigureDialog from "./PluginConfigureDialog";
+import SourcePickerDialog from "./SourcePickerDialog";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { titleCase } from "../lib/title-case";
 
@@ -17,16 +22,32 @@ const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
   none: "",
 };
 
+// `effective.sources` is plugin-defined and typed `unknown` in @roubo/shared.
+// Narrow defensively into the `Record<string, string[]>` shape the picker
+// expects; drop entries that don't conform rather than throwing.
+function narrowSources(raw: unknown): SourceSelection {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: SourceSelection = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+      out[key] = value as string[];
+    }
+  }
+  return out;
+}
+
 function ConfiguredBody({
   state,
   onSwitch,
   onConfigure,
+  onChooseSources,
 }: {
   // The "configured" variant only renders when `plugin` is non-null and
   // installed, so this prop carries a narrowed plugin type.
   state: ProjectIntegrationState & { plugin: NonNullable<ProjectIntegrationState["plugin"]> };
   onSwitch: () => void;
   onConfigure: () => void;
+  onChooseSources: () => void;
 }) {
   const { plugin } = state;
   const integrationName = plugin.manifest?.name ?? plugin.id;
@@ -76,7 +97,7 @@ function ConfiguredBody({
         <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">{caption}</p>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <Button
           onPress={onSwitch}
           className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
@@ -88,6 +109,12 @@ function ConfiguredBody({
           className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
         >
           Configure
+        </Button>
+        <Button
+          onPress={onChooseSources}
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
+          Choose sources
         </Button>
       </div>
     </div>
@@ -140,6 +167,7 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, error } = useProjectIntegration(projectId);
   const [switchOpen, setSwitchOpen] = useState(false);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
 
   const variant = (() => {
     if (!data) return "loading";
@@ -149,6 +177,7 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
   })();
 
   const currentPluginId = data?.plugin?.id ?? null;
+  const currentPluginLabel = data?.plugin?.manifest?.name ?? currentPluginId ?? "";
 
   return (
     <Tile
@@ -179,6 +208,7 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
           }
           onSwitch={() => setSwitchOpen(true)}
           onConfigure={() => setConfigureOpen(true)}
+          onChooseSources={() => setSourceDialogOpen(true)}
         />
       )}
       {!isLoading && !isError && variant === "unconfigured" && (
@@ -201,6 +231,16 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
           plugin={data.plugin as NonNullable<ProjectIntegrationState["plugin"]>}
           effective={data.effective}
           onClose={() => setConfigureOpen(false)}
+        />
+      )}
+
+      {sourceDialogOpen && currentPluginId && (
+        <SourcePickerDialog
+          projectId={projectId}
+          pluginId={currentPluginId}
+          pluginLabel={currentPluginLabel}
+          initialValue={narrowSources(data?.effective.sources)}
+          onClose={() => setSourceDialogOpen(false)}
         />
       )}
     </Tile>

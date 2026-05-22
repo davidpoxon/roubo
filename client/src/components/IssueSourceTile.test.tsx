@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import type { ProjectIntegrationState } from "@roubo/shared";
@@ -8,6 +8,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import IssueSourceTile from "./IssueSourceTile";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
+import { useSourceCandidates } from "../hooks/useSourceCandidates";
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(),
@@ -27,6 +28,19 @@ vi.mock("../hooks/useProjectIntegration", () => ({
 
 vi.mock("../hooks/useInstalledPlugins", () => ({
   useInstalledPlugins: vi.fn(() => ({ data: [], isLoading: false })),
+}));
+
+vi.mock("../hooks/useSourceCandidates", () => ({
+  useSourceCandidates: vi.fn(() => ({
+    data: undefined,
+    isLoading: true,
+    isError: false,
+    error: null,
+  })),
+}));
+
+vi.mock("../hooks/useSaveProjectSources", () => ({
+  useSaveProjectSources: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
@@ -179,7 +193,7 @@ describe("IssueSourceTile", () => {
     ).toBeInTheDocument();
   });
 
-  it("enables the Configure button on the configured variant and opens the dialog", async () => {
+  it("enables the Configure button on the configured variant and opens the plugin config dialog", async () => {
     const user = userEvent.setup();
     withData({
       effective: { plugin: "github-com" },
@@ -210,5 +224,42 @@ describe("IssueSourceTile", () => {
     await user.click(configure);
 
     expect(screen.getByRole("dialog", { name: /Configure GitHub\.com/ })).toBeInTheDocument();
+  });
+
+  it("Choose sources opens the source picker dialog", async () => {
+    const user = userEvent.setup();
+    withData({
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: {
+          name: "GitHub.com",
+          configSchema: { type: "object", properties: { instance: { type: "string" } } },
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTile();
+
+    const chooseSources = screen.getByRole("button", { name: /^Choose sources$/ });
+    expect(chooseSources).toBeEnabled();
+
+    await user.click(chooseSources);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /Configure sources/i })).toBeInTheDocument();
+    });
+    expect(vi.mocked(useSourceCandidates)).toHaveBeenCalledWith("demo", "github-com");
   });
 });

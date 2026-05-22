@@ -10,3 +10,8 @@ electron/out
 electron/node_modules
 **/.DS_Store
 client/tsconfig.tsbuildinfo
+
+# Playwright (test:e2e)
+test-results/
+playwright-report/
+.playwright/
