@@ -26,7 +26,9 @@ export type {
   BlueprintsConfig,
   UserConfig,
   IntegrationConfig,
+  IntegrationAdvanced,
   IntegrationOverride,
+  CapturedUserId,
   ConfigFieldError,
   BlueprintSettings,
 } from "./config-schema.js";
@@ -42,7 +44,9 @@ export {
   BenchesConfigSchema,
   UserConfigSchema,
   IntegrationConfigSchema,
+  IntegrationAdvancedSchema,
   IntegrationOverrideSchema,
+  CapturedUserIdSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
 } from "./config-schema.js";
@@ -85,7 +89,8 @@ export type {
   PluginRecord,
 } from "./plugin-runtime-types.js";
 
-import type { IntegrationConfig } from "./config-schema.js";
+import type { CapturedUserId, IntegrationConfig } from "./config-schema.js";
+import type { PluginPermissions } from "./plugin-manifest-schema.js";
 import type { PluginStatus } from "./plugin-runtime-types.js";
 
 /**
@@ -111,9 +116,56 @@ export interface ProjectIntegrationState {
     id: string;
     installed: boolean;
     status: PluginStatus | null;
-    manifest: { name: string } | null;
+    manifest: {
+      name: string;
+      /**
+       * JSON-Schema-derived shape describing the per-project config form.
+       * Opaque to roubo; rendered by the client's ConfigSchemaForm.
+       */
+      configSchema?: Record<string, unknown>;
+      /**
+       * Full declared permissions for the plugin. The Configure dialog reads
+       * `credentials.slots[*].description` to label password fields.
+       */
+      permissions?: PluginPermissions;
+    } | null;
   } | null;
   captionKey: IntegrationCaptionKey;
+}
+
+/**
+ * Classifier for plugin-reported test-connection failures. The host
+ * translates raw plugin error strings into one of these kinds so the
+ * Configure dialog can render the right result-strip variant and the
+ * inline "Enable self-signed TLS" recovery affordance (TC-060/061/062).
+ */
+export type IntegrationTestErrorKind = "auth" | "network" | "tls" | "other";
+
+export interface IntegrationTestErrorPayload {
+  kind: IntegrationTestErrorKind;
+  message: string;
+}
+
+/**
+ * Response shape for `POST /api/projects/:projectId/integration/test`. On
+ * `ok: true`, `identity` carries the value returned by `plugin.getCurrentUser`,
+ * which the dialog stashes and submits as `capturedUserId` when the user saves.
+ */
+export type IntegrationTestResult =
+  | { ok: true; identity: CapturedUserId }
+  | { ok: false; error: IntegrationTestErrorPayload };
+
+/**
+ * Body shape for `PUT /api/projects/:projectId/integration/config`. Every key
+ * is optional; provided keys replace their counterpart in the existing
+ * override (per FR-023's "arrays REPLACE" rule, which extends to objects
+ * here since the override is shallow per top-level key).
+ */
+export interface IntegrationConfigUpdate {
+  instance?: string;
+  sources?: Record<string, Array<string | number>>;
+  advanced?: Record<string, unknown>;
+  capturedUserId?: CapturedUserId;
 }
 
 /**

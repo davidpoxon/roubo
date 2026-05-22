@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import type { ProjectIntegrationState } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -11,6 +12,14 @@ import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(),
   useSwitchProjectIntegration: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
+  useTestIntegrationConnection: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
+  useSaveIntegrationConfig: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
@@ -170,7 +179,8 @@ describe("IssueSourceTile", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables the Configure button on the configured variant", () => {
+  it("enables the Configure button on the configured variant and opens the dialog", async () => {
+    const user = userEvent.setup();
     withData({
       effective: { plugin: "github-com" },
       committed: { plugin: "github-com" },
@@ -179,7 +189,16 @@ describe("IssueSourceTile", () => {
         id: "github-com",
         installed: true,
         status: "enabled",
-        manifest: { name: "GitHub.com" },
+        manifest: {
+          name: "GitHub.com",
+          configSchema: { type: "object", properties: { instance: { type: "string" } } },
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
       },
       captionKey: "yaml-only",
     });
@@ -187,6 +206,9 @@ describe("IssueSourceTile", () => {
     renderTile();
 
     const configure = screen.getByRole("button", { name: /^Configure$/ });
-    expect(configure).toBeDisabled();
+    expect(configure).not.toBeDisabled();
+    await user.click(configure);
+
+    expect(screen.getByRole("dialog", { name: /Configure GitHub\.com/ })).toBeInTheDocument();
   });
 });

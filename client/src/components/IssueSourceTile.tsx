@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
+import { Button } from "react-aria-components";
 import { Plug, AlertTriangle, Download } from "lucide-react";
 import type { IntegrationCaptionKey, ProjectIntegrationState } from "@roubo/shared";
 import Tile from "./settings/Tile";
 import Spinner from "./Spinner";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
+import PluginConfigureDialog from "./PluginConfigureDialog";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { titleCase } from "../lib/title-case";
 
 const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
   "yaml-only": "Configuration from roubo.yaml",
@@ -15,21 +17,16 @@ const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
   none: "",
 };
 
-function titleCase(key: string): string {
-  // Categories are arbitrary plugin-defined keys (`repos`, `boards`, `filters`).
-  // Render them as title-cased English: "repos" → "Repos", "issueTypes" → "Issue Types".
-  const spaced = key.replace(/([A-Z])/g, " $1").replace(/[-_]/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
 function ConfiguredBody({
   state,
   onSwitch,
+  onConfigure,
 }: {
   // The "configured" variant only renders when `plugin` is non-null and
   // installed, so this prop carries a narrowed plugin type.
   state: ProjectIntegrationState & { plugin: NonNullable<ProjectIntegrationState["plugin"]> };
   onSwitch: () => void;
+  onConfigure: () => void;
 }) {
   const { plugin } = state;
   const integrationName = plugin.manifest?.name ?? plugin.id;
@@ -86,17 +83,12 @@ function ConfiguredBody({
         >
           Switch integration
         </Button>
-        <TooltipTrigger delay={400}>
-          <Button
-            isDisabled
-            className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-800 text-stone-400 dark:text-stone-600 cursor-not-allowed outline-none"
-          >
-            Configure
-          </Button>
-          <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 text-xs px-2 py-1 rounded-md shadow-lg">
-            Source picker arrives in a later release.
-          </Tooltip>
-        </TooltipTrigger>
+        <Button
+          onPress={onConfigure}
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
+          Configure
+        </Button>
       </div>
     </div>
   );
@@ -146,7 +138,8 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
 
 export default function IssueSourceTile({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, error } = useProjectIntegration(projectId);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [configureOpen, setConfigureOpen] = useState(false);
 
   const variant = (() => {
     if (!data) return "loading";
@@ -184,21 +177,30 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
               plugin: NonNullable<ProjectIntegrationState["plugin"]>;
             }
           }
-          onSwitch={() => setDialogOpen(true)}
+          onSwitch={() => setSwitchOpen(true)}
+          onConfigure={() => setConfigureOpen(true)}
         />
       )}
       {!isLoading && !isError && variant === "unconfigured" && (
-        <UnconfiguredBody onChoose={() => setDialogOpen(true)} />
+        <UnconfiguredBody onChoose={() => setSwitchOpen(true)} />
       )}
       {!isLoading && !isError && variant === "missing-plugin" && data?.plugin && (
         <MissingPluginBody pluginId={data.plugin.id} />
       )}
 
-      {dialogOpen && (
+      {switchOpen && (
         <SwitchIntegrationDialog
           projectId={projectId}
           currentPluginId={currentPluginId}
-          onClose={() => setDialogOpen(false)}
+          onClose={() => setSwitchOpen(false)}
+        />
+      )}
+      {configureOpen && data?.plugin?.installed && data.plugin.manifest && (
+        <PluginConfigureDialog
+          projectId={projectId}
+          plugin={data.plugin as NonNullable<ProjectIntegrationState["plugin"]>}
+          effective={data.effective}
+          onClose={() => setConfigureOpen(false)}
         />
       )}
     </Tile>
