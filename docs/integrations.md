@@ -86,3 +86,47 @@ Check the Electron main-process logs for errors in `handleDeepLink`. The single-
 
 **"State mismatch" error dialog**  
 OAuth `state` tokens expire after 10 minutes (`STATE_TTL_MS` in `server/services/github-auth.ts`). Start the authorization flow again from Settings.
+
+## Plugin permissions
+
+Integration plugins run as Node subprocesses spawned by the Roubo host. Every plugin ships a manifest (`roubo-plugin.yaml`) that declares the permissions it needs across four categories. The host enforces those declarations at runtime through a small RPC surface; calls that fall outside the declared scope are denied with a structured error and a warning written to the plugin's log file.
+
+The manifest schema lives in [`shared/plugin-manifest-schema.ts`](../shared/plugin-manifest-schema.ts).
+
+### The four categories
+
+| Category      | Manifest field                                         | Host helper                                               |
+| ------------- | ------------------------------------------------------ | --------------------------------------------------------- |
+| Network       | `permissions.network.hosts` (glob list)                | `host.fetch(url, init?)`                                  |
+| Credentials   | `permissions.credentials.slots` (slot + scope)         | `host.credentials.get/set/delete(slot)`                   |
+| Filesystem    | `permissions.filesystem.paths` (extra roots)           | `host.fs.readFile/writeFile/readdir/stat/mkdir`           |
+| Child process | `permissions.processes` (`false` \| `{ executables }`) | `host.process.spawn(executable, args?, { cwd?, stdin? })` |
+
+The plugin's own install directory is always part of the filesystem allowlist; everything else must be listed explicitly. Relative entries in `filesystem.paths` resolve against the plugin directory.
+
+### Denial shape
+
+A denied request returns a JSON-RPC error with `code: -32001` and a structured `data` payload. The shape is consistent across categories:
+
+```jsonc
+{
+  "code": "permission-denied",
+  "category": "filesystem", // or: "credentials" | "processes" | "network"
+  "reason": "path-not-in-allowlist", // category-specific reason string
+  "path": "/tmp/exfiltrate.txt", // category-specific identifier (slot, executable, host)
+}
+```
+
+Every denial is also logged to the plugin's host log line at `warn` level, prefixed with `${pluginId}.${methodName}` so audit grep is straightforward.
+
+### Trust boundary: raw `fs` and `child_process`
+
+The host helpers above are the **mediated** path. They are not a sandbox. A plugin running in a Node subprocess can still write `import { promises as fs } from "node:fs"` or `import { spawn } from "node:child_process"` and bypass the host helpers entirely. We do not run plugins inside a seccomp/sandbox-exec wrapper today.
+
+This is a documented trust boundary, not a bug:
+
+- The manifest is a declarative contract the plugin author publishes and the user accepts at install time. Plugins that bypass their own declared permissions are misbehaving software, not a defeated security control.
+- Host-mediated calls are still the right path for plugin code because they get logged, audited, and surface clear errors to the user when scope is wrong.
+- Future hardening (OS-level audit via process monitoring, per the integration-plugins Spike B) may capture raw bypass attempts. It is not promised in any specific release.
+
+Plugin authors should use `host.fs.*` and `host.process.spawn` exclusively. Reviewers of third-party plugins should treat any raw `node:fs` or `node:child_process` import as a red flag that warrants closer reading of the manifest.
