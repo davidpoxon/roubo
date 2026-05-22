@@ -730,7 +730,15 @@ export async function readLogs(
   }
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
-  const filePath = path.join(logDirFor(pluginId), `${file}.log`);
+  // Confine the resolved log path to the plugin's log directory. Even though pluginId is
+  // regex-validated above, this containment check gives CodeQL a sanitizer it recognizes
+  // for the js/path-injection rule.
+  const root = path.resolve(userPluginsRoot());
+  const filePath = path.resolve(root, pluginId, "logs", `${file}.log`);
+  const rel = path.relative(root, filePath);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`Invalid log path for plugin: ${pluginId}`);
+  }
   let text: string;
   try {
     text = await readFile(filePath, "utf8");
