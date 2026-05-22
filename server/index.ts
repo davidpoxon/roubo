@@ -31,6 +31,7 @@ import benchesSettingsRouter from "./routes/benches-settings.js";
 import authRouter from "./routes/auth.js";
 import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
+import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
 import * as blueprintManager from "./services/blueprint-manager.js";
 import * as autoClear from "./services/auto-clear.js";
@@ -86,6 +87,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", permissionsRouter);
   app.use("/api/projects", projectSettingsRouter);
   app.use("/api/projects", benchesSettingsRouter);
+  app.use("/api/projects", integrationRouter);
+  app.use("/api/plugins", pluginsRouter);
   app.use("/api/blueprints", appBlueprintsRouter);
   app.use("/api/containers", containersRouter);
   app.use("/api/filesystem/browse", filesystemRouter);
@@ -93,7 +96,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/auth/github", authRouter);
   app.use("/api/hooks", hooksRouter);
   app.use("/api/notifications", notificationsRouter);
-  app.use("/api/plugins", pluginsRouter);
 
   app.get("/api/benches", (req, res) => {
     let benches = benchManager.getBenches();

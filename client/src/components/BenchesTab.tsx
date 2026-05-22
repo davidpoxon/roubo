@@ -7,6 +7,7 @@ import EmptyBenchCard from "./EmptyBenchCard";
 import PendingBenchCard from "./PendingBenchCard";
 import Spinner from "./Spinner";
 import IssueQueuePanel from "./IssueQueuePanel";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
 export default function BenchesTab() {
   const {
@@ -27,6 +28,9 @@ export default function BenchesTab() {
     onToggleIssueQueue,
     projectId,
   } = useOutletContext<ProjectOutletContext>();
+
+  const { data: integration } = useProjectIntegration(projectId);
+  const activeIntegrationId = integration?.plugin?.id ?? null;
 
   return (
     <div className="flex h-full">
@@ -81,7 +85,13 @@ export default function BenchesTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {benchPositions.map(({ position, bench }) => {
               if (bench) {
-                return <BenchCard key={`${bench.projectId}-${bench.id}`} bench={bench} />;
+                return (
+                  <BenchCard
+                    key={`${bench.projectId}-${bench.id}`}
+                    bench={bench}
+                    activeIntegrationId={activeIntegrationId}
+                  />
+                );
               }
               const pending = pendingAssignments.get(position);
               if (pending) {

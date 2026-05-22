@@ -41,6 +41,8 @@ import type {
   ProjectDefaultBlueprintResponse,
   ProjectIssueTypesResponse,
   ProjectIssueTypeMappingsResponse,
+  ProjectIntegrationState,
+  InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
   LogLine,
@@ -737,6 +739,39 @@ export function updateProjectBenchOverrides(
   return request(`/projects/${projectId}/benches/overrides`, {
     method: "PUT",
     body: JSON.stringify(patch),
+  });
+}
+
+// Integration plugins
+export function fetchProjectIntegration(projectId: string): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration`);
+}
+
+export function switchProjectIntegration(
+  projectId: string,
+  plugin: string,
+): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration/override`, {
+    method: "PUT",
+    body: JSON.stringify({ plugin }),
+  });
+}
+
+export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]> {
+  // GET /api/plugins returns { hostApiVersion, plugins: PluginRecord[] }. The
+  // Switch integration dialog only needs the serializable summary shape, so we
+  // adapt here rather than threading PluginRecord through the UI.
+  const body = await request<{ hostApiVersion: string; plugins: PluginRecord[] }>("/plugins");
+  return body.plugins.flatMap((r) => {
+    if (!r.manifest) return [];
+    return [
+      {
+        id: r.id,
+        name: r.manifest.name,
+        status: r.status,
+        ...(r.lastError ? { lastError: r.lastError.message } : {}),
+      },
+    ];
   });
 }
 

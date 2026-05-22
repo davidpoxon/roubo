@@ -9,6 +9,9 @@ import { ApiError } from "../lib/api";
 
 vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useProjects");
+vi.mock("../hooks/useProjectIntegration", () => ({
+  useProjectIntegration: vi.fn(() => ({ data: undefined })),
+}));
 vi.mock("../hooks/useClearingTracker");
 vi.mock("../hooks/useContainers");
 vi.mock("../hooks/useToast");
@@ -34,6 +37,7 @@ import {
   useSetWorkUnitIgnored,
 } from "../hooks/useBenches";
 import { useProjects } from "../hooks/useProjects";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useTeardownTracker } from "../hooks/useClearingTracker";
 import { useUnassignContainer } from "../hooks/useContainers";
 import { useToast } from "../hooks/useToast";
@@ -1249,6 +1253,75 @@ describe("BenchDetail", () => {
         await user.click(screen.getByRole("button", { name: /cancel/i }));
         expect(screen.queryByText("Ignore work unit for auto-clear")).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("previous integration handling", () => {
+    const workUnit = {
+      submodule: "root",
+      branch: "feat/x",
+      pullRequest: null,
+      lastSyncedAt: null,
+      ignoredForAutoClear: false,
+      detached: false,
+      dirtyState: null,
+      syncError: null,
+    };
+    const benchWithIssue = {
+      ...baseBench,
+      assignedIssue: {
+        number: 7,
+        integrationId: "github-com",
+        externalId: "7",
+        title: "Old issue",
+      },
+      workUnits: [workUnit],
+    };
+
+    it("renders the badge + disables Sync Now when integration mismatch", async () => {
+      vi.mocked(useProjectIntegration).mockReturnValue({
+        data: {
+          effective: { plugin: "jira-self-hosted" },
+          committed: null,
+          override: { plugin: "jira-self-hosted" },
+          plugin: {
+            id: "jira-self-hosted",
+            installed: true,
+            status: "enabled",
+            manifest: { name: "Jira" },
+          },
+          captionKey: "override-only",
+        },
+      } as never);
+
+      renderBench(benchWithIssue as never);
+
+      expect(screen.getByTestId("previous-integration-badge")).toBeInTheDocument();
+      const syncButton = screen.getByRole("button", { name: /Sync Now/i });
+      expect(syncButton).toBeDisabled();
+    });
+
+    it("does not render the badge or disable Sync when integrations match", async () => {
+      vi.mocked(useProjectIntegration).mockReturnValue({
+        data: {
+          effective: { plugin: "github-com" },
+          committed: { plugin: "github-com" },
+          override: null,
+          plugin: {
+            id: "github-com",
+            installed: true,
+            status: "enabled",
+            manifest: { name: "GitHub.com" },
+          },
+          captionKey: "yaml-only",
+        },
+      } as never);
+
+      renderBench(benchWithIssue as never);
+
+      expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
+      const syncButton = screen.getByRole("button", { name: /Sync Now/i });
+      expect(syncButton).toBeEnabled();
     });
   });
 });

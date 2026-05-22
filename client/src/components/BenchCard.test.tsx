@@ -687,4 +687,73 @@ describe("BenchCard", () => {
       expect(registerTeardown).not.toHaveBeenCalled();
     });
   });
+
+  describe("issue from previous integration badge", () => {
+    function renderWithIntegration(bench: Bench, activeIntegrationId: string | null) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <BenchCard bench={bench} activeIntegrationId={activeIntegrationId} />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    }
+
+    it("renders the badge when the bench's snapshot integration differs from the project's active one", () => {
+      makeDefaultMutations();
+      const bench = makeBench({
+        assignedIssue: {
+          number: 42,
+          integrationId: "github-com",
+          externalId: "42",
+          title: "Wire it up",
+        },
+      });
+
+      renderWithIntegration(bench, "jira-self-hosted");
+
+      expect(screen.getByTestId("previous-integration-badge")).toBeInTheDocument();
+      expect(screen.getByText("Issue from previous integration")).toBeInTheDocument();
+    });
+
+    it("does not render the badge when the integrations match", () => {
+      makeDefaultMutations();
+      const bench = makeBench({
+        assignedIssue: {
+          number: 42,
+          integrationId: "github-com",
+          externalId: "42",
+          title: "Wire it up",
+        },
+      });
+
+      renderWithIntegration(bench, "github-com");
+
+      expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
+    });
+
+    it("does not render the badge when the bench has no assigned issue", () => {
+      makeDefaultMutations();
+      renderWithIntegration(makeBench(), "github-com");
+
+      expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
+    });
+
+    it("does not render the badge when no active integration is known yet", () => {
+      makeDefaultMutations();
+      const bench = makeBench({
+        assignedIssue: {
+          number: 42,
+          integrationId: "github-com",
+          externalId: "42",
+          title: "Wire it up",
+        },
+      });
+
+      renderWithIntegration(bench, null);
+
+      expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
+    });
+  });
 });

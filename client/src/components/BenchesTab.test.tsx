@@ -11,6 +11,9 @@ import { createEmptyGrouping } from "../lib/cut-list-groups";
 vi.mock("./BenchCard", () => ({
   default: ({ bench }: { bench: Bench }) => <div data-testid="bench-card">{bench.id}</div>,
 }));
+vi.mock("../hooks/useProjectIntegration", () => ({
+  useProjectIntegration: vi.fn(() => ({ data: undefined })),
+}));
 vi.mock("./EmptyBenchCard", () => ({
   default: ({
     position,

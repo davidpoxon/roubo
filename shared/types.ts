@@ -85,6 +85,48 @@ export type {
   PluginRecord,
 } from "./plugin-runtime-types.js";
 
+import type { IntegrationConfig } from "./config-schema.js";
+import type { PluginStatus } from "./plugin-runtime-types.js";
+
+/**
+ * Tells the Issue source tile which caption to render under the configured
+ * variant. Derived server-side from the committed roubo.yaml integration block
+ * and the per-user override.
+ */
+export type IntegrationCaptionKey = "yaml-only" | "override-only" | "yaml-and-override" | "none";
+
+/**
+ * Snapshot of a project's effective integration state, returned by
+ * `GET /api/projects/:projectId/integration`. The tile consumes this directly
+ * and routes to one of three variants:
+ *   - `plugin == null`                       → unconfigured
+ *   - `plugin != null && !plugin.installed`  → missing-plugin
+ *   - otherwise                              → configured
+ */
+export interface ProjectIntegrationState {
+  effective: IntegrationConfig;
+  committed: IntegrationConfig | null;
+  override: IntegrationConfig | null;
+  plugin: {
+    id: string;
+    installed: boolean;
+    status: PluginStatus | null;
+    manifest: { name: string } | null;
+  } | null;
+  captionKey: IntegrationCaptionKey;
+}
+
+/**
+ * Serializable subset of `PluginRecord` returned by `GET /api/plugins`. Drives
+ * the radio list inside the Switch integration dialog.
+ */
+export interface InstalledPluginSummary {
+  id: string;
+  name: string;
+  status: PluginStatus;
+  lastError?: string;
+}
+
 export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]);
 
 // ── Project registry types ──
