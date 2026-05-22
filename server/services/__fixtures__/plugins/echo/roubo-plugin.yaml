@@ -1,0 +1,15 @@
+id: echo
+name: Echo Fixture
+version: 0.0.0
+description: Test fixture that echoes requests
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

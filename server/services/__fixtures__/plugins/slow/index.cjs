@@ -1,0 +1,12 @@
+"use strict";
+
+const rpc = require("vscode-jsonrpc/node");
+
+const reader = new rpc.StreamMessageReader(process.stdin);
+const writer = new rpc.StreamMessageWriter(process.stdout);
+const connection = rpc.createMessageConnection(reader, writer);
+
+connection.onRequest("hang", () => new Promise(() => {}));
+connection.onRequest("ping", () => "pong");
+
+connection.listen();

@@ -1,0 +1,15 @@
+id: incompatible
+name: Incompatible Fixture
+version: 0.0.0
+description: Requires a future host API version
+kind: integration
+roubo: ^2.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

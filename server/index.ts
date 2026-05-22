@@ -33,6 +33,7 @@ import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
 import * as blueprintManager from "./services/blueprint-manager.js";
 import * as autoClear from "./services/auto-clear.js";
+import * as pluginManager from "./services/plugin-manager.js";
 import { resolveClientDist } from "./clientDist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -154,6 +155,13 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing project registry...");
   projectRegistry.initialize();
 
+  console.log("Initializing plugin manager...");
+  try {
+    await pluginManager.initialize();
+  } catch (err) {
+    console.error("Plugin manager initialization failed:", (err as Error).message);
+  }
+
   console.log("Initializing bench manager...");
   benchManager.initialize();
 
@@ -197,6 +205,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
     await databaseService.closeAllConnections();
+    await pluginManager.shutdown();
     await processManager.stopAllProcesses();
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => {

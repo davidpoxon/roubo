@@ -1,0 +1,15 @@
+id: garbage-bytes
+name: Garbage Bytes Fixture
+version: 0.0.0
+description: Writes raw garbage bytes to stdout
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

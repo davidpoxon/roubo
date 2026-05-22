@@ -1,0 +1,15 @@
+id: oversized
+name: Oversized Fixture
+version: 0.0.0
+description: Returns a multi-megabyte payload
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
