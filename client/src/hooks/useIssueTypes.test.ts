@@ -4,7 +4,7 @@ import { act, waitFor } from "@testing-library/react";
 import { renderHookWithProviders } from "../test/renderWithProviders";
 import { useIssueTypes, useIssueTypeMappings, useUpdateIssueTypeMappings } from "./useIssueTypes";
 import * as api from "../lib/api";
-import type { ProjectIssueTypesResponse, ProjectIssueTypeMappingsResponse } from "@roubo/shared";
+import type { ProjectIssueTypesV2Response, ProjectIssueTypeMappingsResponse } from "@roubo/shared";
 
 vi.mock("../lib/api", () => ({
   fetchIssueTypes: vi.fn(),
@@ -22,9 +22,9 @@ beforeEach(() => {
 
 describe("useIssueTypes", () => {
   it("returns issue types from the API", async () => {
-    const response: ProjectIssueTypesResponse = {
+    const response: ProjectIssueTypesV2Response = {
       configured: true,
-      types: [{ id: "it-1", name: "Bug", color: "#d73a4a" }],
+      types: ["Bug"],
     };
     mockedFetchIssueTypes.mockResolvedValue(response);
 

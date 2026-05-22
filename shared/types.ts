@@ -702,6 +702,9 @@ export interface StartInspectionRequest {
 }
 
 // ── GitHub issue types ──
+// Legacy: not on the issue-retrieval request path after WU-016. Still used by
+// internal bench-assignment flows (server/services/{issue-assignment,auto-clear}.ts)
+// pending a follow-up WU that migrates bench state to externalId.
 
 export interface GitHubIssue {
   number: number;
@@ -751,6 +754,46 @@ export interface NormalizedIssue {
   updatedAt: string;
   raw: unknown;
 }
+
+/**
+ * A normalized comment on a NormalizedIssue, returned by the active
+ * integration plugin's `getComments` JSON-RPC method (WU-016).
+ */
+export interface NormalizedComment {
+  externalId: string;
+  author: { externalId: string; displayName: string };
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Parameters for the plugin's paginated `listIssues` JSON-RPC call (FR-022). */
+export interface ListIssuesParams {
+  cursor: string | null;
+  pageSize: number;
+  filters?: { labels?: string[]; search?: string };
+}
+
+/**
+ * Server response to `GET /api/projects/:projectId/issues`.
+ * `stalled` is set by the host when the plugin paginator misbehaves
+ * (TC-071): in that case `nextCursor` is forced to `null` so the
+ * client stops fetching, and the UI surfaces a note.
+ */
+export interface PaginatedIssues {
+  items: NormalizedIssue[];
+  nextCursor: string | null;
+  stalled?: boolean;
+}
+
+/** Server response to `GET /api/projects/:projectId/issue-types` (WU-016). */
+export type ProjectIssueTypesV2Response =
+  | { configured: true; types: string[] }
+  | {
+      configured: false;
+      reason: ProjectIssueTypesUnavailableReason;
+      types: string[];
+    };
 
 export interface AssignedIssue {
   // Legacy GitHub issue number. Today only github-com produces issues, so this

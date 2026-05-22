@@ -144,7 +144,7 @@ vi.mock("./CreateBenchModal", () => ({
 }));
 vi.mock("./IssueQueuePanel", () => ({
   default: ({
-    pendingIssueNumbers,
+    pendingIssueExternalIds,
     initialFilters,
     onFiltersChange,
     initialGrouping,
@@ -152,9 +152,8 @@ vi.mock("./IssueQueuePanel", () => ({
     onCollapse,
     projectId,
   }: {
-    pendingIssueNumbers: Set<number>;
+    pendingIssueExternalIds: Set<string>;
     initialFilters?: {
-      milestone: string;
       type: string;
       labels: Set<string>;
       search: string;
@@ -162,7 +161,6 @@ vi.mock("./IssueQueuePanel", () => ({
     onFiltersChange?: (
       projectId: string,
       filters: {
-        milestone: string;
         type: string;
         labels: Set<string>;
         search: string;
@@ -175,8 +173,8 @@ vi.mock("./IssueQueuePanel", () => ({
   }) => (
     <div
       data-testid="issue-queue-panel"
-      data-pending={JSON.stringify([...pendingIssueNumbers])}
-      data-initial-milestone={initialFilters?.milestone ?? ""}
+      data-pending={JSON.stringify([...pendingIssueExternalIds])}
+      data-initial-type={initialFilters?.type ?? ""}
       data-initial-group-by={initialGrouping?.groupBy ?? "none"}
     >
       {onCollapse && (
@@ -188,8 +186,7 @@ vi.mock("./IssueQueuePanel", () => ({
         data-testid="set-filter"
         onClick={() =>
           onFiltersChange?.(projectId, {
-            milestone: "Sprint 1",
-            type: "",
+            type: "Bug",
             labels: new Set(),
             search: "",
           })
@@ -199,7 +196,7 @@ vi.mock("./IssueQueuePanel", () => ({
       </button>
       <button
         data-testid="set-grouping"
-        onClick={() => onGroupingChange?.(projectId, { groupBy: "milestone" })}
+        onClick={() => onGroupingChange?.(projectId, { groupBy: "type" })}
       >
         Set Grouping
       </button>
@@ -543,7 +540,7 @@ describe("BenchDashboard", () => {
       await userEvent.click(screen.getByTestId("pick-issue-1"));
       await userEvent.click(screen.getByTestId("issue-picker-select"));
       const panel = screen.getByTestId("issue-queue-panel");
-      expect(JSON.parse(panel.dataset.pending ?? "[]")).toContain(42);
+      expect(JSON.parse(panel.dataset.pending ?? "[]")).toContain("42");
     });
 
     it("shows branch conflict dialog when createBench returns conflict", async () => {
@@ -761,7 +758,9 @@ describe("BenchDashboard", () => {
       const dragEndEvent = {
         active: {
           data: {
-            current: { item: { issue: { number: 7, title: "Drag test" } } },
+            current: {
+              issue: { externalId: "7", title: "Drag test", integrationId: "github-com" },
+            },
           },
         },
         over: { data: { current: { position: 2 } } },
@@ -782,7 +781,9 @@ describe("BenchDashboard", () => {
         dndCallbacks.onDragEnd?.({
           active: {
             data: {
-              current: { item: { issue: { number: 8, title: "Cancel test" } } },
+              current: {
+                issue: { externalId: "8", title: "Cancel test", integrationId: "github-com" },
+              },
             },
           },
           over: { data: { current: { position: 1 } } },
@@ -805,7 +806,9 @@ describe("BenchDashboard", () => {
         dndCallbacks.onDragEnd?.({
           active: {
             data: {
-              current: { item: { issue: { number: 9, title: "Expire test" } } },
+              current: {
+                issue: { externalId: "9", title: "Expire test", integrationId: "github-com" },
+              },
             },
           },
           over: { data: { current: { position: 1 } } },
@@ -919,7 +922,7 @@ describe("BenchDashboard", () => {
       });
 
       // Filters for proj-1 should be restored
-      expect(screen.getByTestId("issue-queue-panel").dataset.initialMilestone).toBe("Sprint 1");
+      expect(screen.getByTestId("issue-queue-panel").dataset.initialType).toBe("Bug");
     });
 
     it("gives each project independent filter state", async () => {
@@ -937,7 +940,7 @@ describe("BenchDashboard", () => {
         await router.navigate("/projects/proj-2");
       });
 
-      expect(screen.getByTestId("issue-queue-panel").dataset.initialMilestone).toBe("");
+      expect(screen.getByTestId("issue-queue-panel").dataset.initialType).toBe("");
     });
 
     it("preserves grouping state when switching to a different project and back", async () => {
@@ -961,7 +964,7 @@ describe("BenchDashboard", () => {
       });
 
       // Grouping for proj-1 should be restored
-      expect(screen.getByTestId("issue-queue-panel").dataset.initialGroupBy).toBe("milestone");
+      expect(screen.getByTestId("issue-queue-panel").dataset.initialGroupBy).toBe("type");
     });
 
     it("gives each project independent grouping state", async () => {

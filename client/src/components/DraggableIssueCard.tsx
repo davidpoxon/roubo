@@ -1,32 +1,34 @@
 import { Button } from "react-aria-components";
 import { useDraggable } from "@dnd-kit/core";
-import { ExternalLink, Lock, MessageSquare, Milestone, Tag } from "lucide-react";
-import type { GitHubProjectItem } from "@roubo/shared";
-import { statusColor } from "../lib/issue-status";
-import { blockerUrl } from "../lib/github";
+import { ExternalLink, Lock, Tag } from "lucide-react";
+import type { NormalizedIssue } from "@roubo/shared";
 
 export default function DraggableIssueCard({
-  item,
+  issue,
   assignedBenchId,
   dragIdSuffix,
 }: {
-  item: GitHubProjectItem;
+  issue: NormalizedIssue;
   assignedBenchId?: number;
   /** Optional suffix to make the drag ID unique when the same card appears in multiple groups (e.g. label grouping). */
   dragIdSuffix?: string;
 }) {
   const isAssigned = assignedBenchId !== undefined;
-  const { issue } = item;
-  const blockers = issue.blockedBy ?? [];
+  const blockers = issue.blockedBy;
   const isBlocked = blockers.length > 0;
+  const dragId = dragIdSuffix
+    ? `issue-${issue.externalId}-${dragIdSuffix}`
+    : `issue-${issue.externalId}`;
+  const blockedDescriptionId = `blocked-by-${dragId}`;
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: dragIdSuffix ? `issue-${issue.number}-${dragIdSuffix}` : `issue-${issue.number}`,
-    data: { item },
+    id: dragId,
+    data: { issue },
     disabled: isAssigned || isBlocked,
   });
 
   const isInteractive = !isAssigned && !isBlocked;
+  const primaryAssignee = issue.assignees[0]?.displayName;
 
   return (
     <div
@@ -34,7 +36,7 @@ export default function DraggableIssueCard({
       {...(isInteractive ? listeners : {})}
       {...(isInteractive ? attributes : {})}
       aria-disabled={isBlocked || undefined}
-      aria-describedby={isBlocked ? `blocked-by-${issue.number}` : undefined}
+      aria-describedby={isBlocked ? blockedDescriptionId : undefined}
       className={`group relative rounded-lg transition-colors ${
         isDragging
           ? "opacity-40 bg-stone-100 dark:bg-stone-900/50"
@@ -46,20 +48,12 @@ export default function DraggableIssueCard({
       }`}
     >
       <div className="flex items-start gap-2 px-3 py-2.5">
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            {/* Status dot */}
-            {item.status && (
-              <span
-                title={item.status}
-                className={`shrink-0 w-1.5 h-1.5 rounded-full ${statusColor(item.status).dot} ${isAssigned ? "opacity-40" : ""}`}
-              />
-            )}
             <span
               className={`text-[11px] font-mono shrink-0 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
             >
-              #{issue.number}
+              {issue.externalId}
             </span>
             <span
               className={`text-xs font-medium truncate ${isAssigned ? "text-stone-400 dark:text-stone-600" : "text-stone-800 dark:text-stone-200"}`}
@@ -68,17 +62,14 @@ export default function DraggableIssueCard({
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {issue.type && (
+            {issue.issueType && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                {issue.type}
+                {issue.issueType}
               </span>
             )}
-            {issue.milestone && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
-                <Milestone size={7} />
-                {issue.milestone}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+              {issue.currentState}
+            </span>
             {issue.labels.map((label) => (
               <span
                 key={label}
@@ -88,20 +79,14 @@ export default function DraggableIssueCard({
                 {label}
               </span>
             ))}
-            {issue.commentsCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-stone-400 dark:text-stone-600">
-                <MessageSquare size={9} />
-                {issue.commentsCount}
-              </span>
-            )}
-            {issue.blockingCount !== undefined && issue.blockingCount > 0 && (
+            {issue.blocks.length > 0 && (
               <span className="text-[10px] text-amber-500/70 dark:text-amber-400/50">
-                Blocks {issue.blockingCount} {issue.blockingCount === 1 ? "issue" : "issues"}
+                Blocks {issue.blocks.length} {issue.blocks.length === 1 ? "issue" : "issues"}
               </span>
             )}
-            {issue.assignee && (
+            {primaryAssignee && (
               <span className="text-[10px] text-stone-400 dark:text-stone-600">
-                {issue.assignee}
+                {primaryAssignee}
               </span>
             )}
             {isAssigned && (
@@ -111,37 +96,21 @@ export default function DraggableIssueCard({
             )}
             {isBlocked && (
               <span
-                id={`blocked-by-${issue.number}`}
+                id={blockedDescriptionId}
                 className="inline-flex items-center gap-1 text-[10px] text-red-500 dark:text-red-400"
               >
                 <Lock size={8} />
-                Blocked by{" "}
-                {blockers.map((blocker, i) => (
-                  <span key={blocker.number}>
-                    {i > 0 && ", "}
-                    <a
-                      href={blockerUrl(issue.htmlUrl, blocker.number)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={blocker.title}
-                      className="underline underline-offset-2 hover:text-red-600 dark:hover:text-red-300"
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      #{blocker.number}
-                    </a>
-                  </span>
-                ))}
+                Blocked by {blockers.join(", ")}
               </span>
             )}
           </div>
         </div>
 
-        {/* External link — stopPropagation prevents drag initiation */}
         <div onPointerDown={(e) => e.stopPropagation()}>
           <Button
-            onPress={() => window.open(issue.htmlUrl, "_blank")}
+            onPress={() => window.open(issue.externalUrl, "_blank")}
             className="shrink-0 p-1 text-stone-300 dark:text-stone-700 hover:text-stone-500 dark:hover:text-stone-400 transition-colors outline-none opacity-0 group-hover:opacity-100"
-            aria-label={`Open issue #${issue.number} on GitHub`}
+            aria-label={`Open ${issue.externalId} in browser`}
           >
             <ExternalLink size={11} />
           </Button>

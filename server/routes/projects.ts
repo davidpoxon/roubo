@@ -7,6 +7,8 @@ import { ProjectRegistryError } from "../services/project-registry.js";
 import { parseConfig, validateConfigObject } from "../services/config-parser.js";
 import { scanRepo } from "../services/repo-scanner.js";
 import * as githubService from "../services/github.js";
+import * as pluginManager from "../services/plugin-manager.js";
+import { resolveActivePlugin } from "../services/active-plugin.js";
 import { atomicWrite } from "../services/state.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import type {
@@ -14,7 +16,8 @@ import type {
   SaveConfigRequest,
   ValidateConfigRequest,
   CheckConfigRequest,
-  ProjectIssueTypesResponse,
+  PluginError,
+  ProjectIssueTypesV2Response,
 } from "@roubo/shared";
 
 const router = Router();
@@ -166,13 +169,9 @@ router.get("/:projectId/projects", async (req, res) => {
 });
 
 router.get("/:projectId/issue-types", async (req, res) => {
-  const project = projectRegistry.getProject(req.params.projectId);
-  if (!project?.config?.project?.repo) {
-    res.status(404).json({ error: "Project not found or has no repo configured" });
-    return;
-  }
-  if (!githubService.getGithubToken()) {
-    const body: ProjectIssueTypesResponse = {
+  const active = resolveActivePlugin(req.params.projectId);
+  if (!active) {
+    const body: ProjectIssueTypesV2Response = {
       configured: false,
       reason: "not-connected",
       types: [],
@@ -180,11 +179,22 @@ router.get("/:projectId/issue-types", async (req, res) => {
     res.json(body);
     return;
   }
+
   try {
-    const data = await githubService.fetchIssueTypes(project.config.project.repo);
-    res.json(data);
+    const types = await pluginManager.invoke<string[]>(active.pluginId, "listIssueTypes", {});
+    const body: ProjectIssueTypesV2Response = { configured: true, types };
+    res.json(body);
   } catch (err) {
-    sendGitHubErrorResponse(res, err);
+    const pluginErr = err as Partial<PluginError> & { message?: string };
+    const code = typeof pluginErr.code === "string" ? pluginErr.code : "rpc-error";
+    const message = pluginErr.message ?? "Plugin call failed";
+    const status =
+      code === "plugin-not-enabled" || code === "unknown-plugin"
+        ? 503
+        : code === "timeout"
+          ? 504
+          : 502;
+    res.status(status).json({ error: code, message });
   }
 });
 

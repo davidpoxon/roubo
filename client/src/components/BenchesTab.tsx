@@ -19,7 +19,7 @@ export default function BenchesTab() {
     hasGitHub,
     benches,
     projectConfig,
-    pendingIssueNumbers,
+    pendingIssueExternalIds,
     initialFilters,
     onFiltersChange,
     initialGrouping,
@@ -41,7 +41,7 @@ export default function BenchesTab() {
             projectId={projectId}
             benches={benches}
             projectConfig={projectConfig}
-            pendingIssueNumbers={pendingIssueNumbers}
+            pendingIssueExternalIds={pendingIssueExternalIds}
             initialFilters={initialFilters}
             onFiltersChange={onFiltersChange}
             initialGrouping={initialGrouping}

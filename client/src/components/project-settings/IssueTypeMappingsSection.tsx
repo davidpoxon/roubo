@@ -6,18 +6,6 @@ import Select from "../Select";
 
 const USE_DEFAULT_VALUE = "";
 
-function IssueTypeColorDot({ color }: { color?: string }) {
-  if (!color) return null;
-  const hex = color.startsWith("#") ? color : `#${color}`;
-  return (
-    <span
-      className="inline-block w-2 h-2 rounded-full shrink-0"
-      style={{ backgroundColor: hex }}
-      aria-hidden
-    />
-  );
-}
-
 interface IssueTypeMappingsSectionProps {
   projectId: string;
   draft: Record<string, string>;
@@ -115,19 +103,18 @@ export function IssueTypeMappingsSection({
   return (
     <div>
       <div className="flex flex-col gap-2">
-        {issueTypesData.types.map((type) => (
-          <div key={type.id} className="flex items-center gap-3">
+        {issueTypesData.types.map((typeName) => (
+          <div key={typeName} className="flex items-center gap-3">
             <div className="flex items-center gap-2 min-w-0 w-32 shrink-0">
-              <IssueTypeColorDot color={type.color} />
               <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
-                {type.name}
+                {typeName}
               </span>
             </div>
             <Select
               className="flex-1"
               items={blueprintItems}
-              value={draft[type.name] ?? USE_DEFAULT_VALUE}
-              onChange={(val) => handleRowChange(type.name, val)}
+              value={draft[typeName] ?? USE_DEFAULT_VALUE}
+              onChange={(val) => handleRowChange(typeName, val)}
               placeholder="Use default"
             />
           </div>

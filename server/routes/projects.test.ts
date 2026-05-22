@@ -19,6 +19,8 @@ vi.mock("../services/config-parser.js");
 vi.mock("../services/repo-scanner.js");
 vi.mock("../services/state.js");
 vi.mock("../services/github.js");
+vi.mock("../services/plugin-manager.js", () => ({ invoke: vi.fn() }));
+vi.mock("../services/active-plugin.js", () => ({ resolveActivePlugin: vi.fn() }));
 
 import router from "./projects.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -27,6 +29,8 @@ import { parseConfig, validateConfigObject } from "../services/config-parser.js"
 import { scanRepo } from "../services/repo-scanner.js";
 import { atomicWrite } from "../services/state.js";
 import * as githubService from "../services/github.js";
+import * as pluginManager from "../services/plugin-manager.js";
+import * as activePlugin from "../services/active-plugin.js";
 
 const app = express();
 app.use(express.json());
@@ -608,87 +612,37 @@ describe("GET /:projectId/projects", () => {
 });
 
 describe("GET /:projectId/issue-types", () => {
-  it("returns 404 when project is not registered", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
-
-    const res = await request(app).get("/project/issue-types");
-    expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/not found/i);
+  beforeEach(() => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "github-com",
+      integrationId: "github-com",
+      pageSize: 50,
+    });
   });
 
-  it("returns 404 when project has no repo configured", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: {} },
-    } as any);
-
-    const res = await request(app).get("/project/issue-types");
-    expect(res.status).toBe(404);
-  });
-
-  it("returns not-connected when github token is missing", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "org/repo" } },
-    } as any);
-    vi.mocked(githubService.getGithubToken).mockReturnValue(undefined);
-
+  it("returns not-connected when no active integration plugin is configured", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      configured: false,
-      reason: "not-connected",
-      types: [],
-    });
-    expect(githubService.fetchIssueTypes).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ configured: false, reason: "not-connected", types: [] });
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("returns issue types when repo is configured", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "org/repo" } },
-    } as any);
-    vi.mocked(githubService.getGithubToken).mockReturnValue("ghp_token");
-    const response = {
-      configured: true,
-      types: [{ id: "it-1", name: "Bug", color: "#d73a4a" }],
-    };
-    vi.mocked(githubService.fetchIssueTypes).mockResolvedValue(response);
-
+  it("returns the active plugin's listIssueTypes output as a string list (TC-033)", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(["Bug", "Feature", "Epic"]);
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(response);
-    expect(githubService.fetchIssueTypes).toHaveBeenCalledWith("org/repo");
+    expect(res.body).toEqual({ configured: true, types: ["Bug", "Feature", "Epic"] });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssueTypes", {});
   });
 
-  it("returns none-defined response from fetcher transparently", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "org/repo" } },
-    } as any);
-    vi.mocked(githubService.getGithubToken).mockReturnValue("ghp_token");
-    vi.mocked(githubService.fetchIssueTypes).mockResolvedValue({
-      configured: false,
-      reason: "none-defined",
-      types: [],
-    });
-
+  it("maps plugin-not-enabled to 503", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue(
+      Object.assign(new Error("disabled"), { code: "plugin-not-enabled" }),
+    );
     const res = await request(app).get("/project/issue-types");
-    expect(res.status).toBe(200);
-    expect(res.body.configured).toBe(false);
-    expect(res.body.reason).toBe("none-defined");
-  });
-
-  it("returns 401 with NOT_CONNECTED code when fetchIssueTypes throws despite token being present", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "org/repo" } },
-    } as any);
-    vi.mocked(githubService.getGithubToken).mockReturnValue("ghp_token");
-    const notConnected = Object.assign(new Error("GitHub is not connected"), {
-      code: "NOT_CONNECTED",
-      status: 401,
-    });
-    vi.mocked(githubService.fetchIssueTypes).mockRejectedValue(notConnected);
-
-    const res = await request(app).get("/project/issue-types");
-    expect(res.status).toBe(401);
-    expect(res.body.code).toBe("NOT_CONNECTED");
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("plugin-not-enabled");
   });
 });
 

@@ -19,8 +19,6 @@ interface CutListGroupByControlProps {
 
 const DIMENSIONS: { id: GroupByDimension; label: string }[] = [
   { id: "none", label: "None" },
-  { id: "milestone", label: "Milestone" },
-  { id: "status", label: "Status" },
   { id: "type", label: "Type" },
   { id: "labels", label: "Labels" },
 ];

@@ -40,8 +40,7 @@ import {
   abortInspection,
   fetchGitHubProjects,
   fetchProjectGitHubProjects,
-  fetchProjectItems,
-  fetchIssues,
+  fetchIssuesPage,
   fetchIssueComments,
   fetchLabels,
   assignIssue,
@@ -721,43 +720,41 @@ describe("abortInspection", () => {
   });
 });
 
-describe("fetchProjectItems", () => {
-  it("sends GET with project number param", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ items: [], projectTitle: "My Project" }));
-    await fetchProjectItems("p1", 42);
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("project=42");
-  });
-});
-
-describe("fetchIssues", () => {
+describe("fetchIssuesPage", () => {
   it("fetches without params when none provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchIssues("p1");
+    mockFetch.mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    await fetchIssuesPage("p1", {});
     expect(mockFetch).toHaveBeenCalledWith("/api/projects/p1/issues", expect.objectContaining({}));
   });
 
-  it("includes labels and search params when provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchIssues("p1", "bug", "login");
+  it("includes cursor, pageSize, labels, and search params when provided", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    await fetchIssuesPage("p1", {
+      cursor: "abc",
+      pageSize: 25,
+      labels: "bug",
+      search: "login",
+    });
     const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("cursor=abc");
+    expect(url).toContain("pageSize=25");
     expect(url).toContain("labels=bug");
     expect(url).toContain("search=login");
   });
 
-  it("includes only labels when search not provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchIssues("p1", "bug");
+  it("omits the cursor param when null", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    await fetchIssuesPage("p1", { cursor: null, pageSize: 50 });
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("labels=bug");
-    expect(url).not.toContain("search=");
+    expect(url).not.toContain("cursor=");
+    expect(url).toContain("pageSize=50");
   });
 });
 
 describe("fetchIssueComments", () => {
-  it("sends GET to /api/projects/:id/issues/:number/comments", async () => {
+  it("sends GET to /api/projects/:id/issues/:externalId/comments", async () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchIssueComments("p1", 5);
+    await fetchIssueComments("p1", "5");
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/issues/5/comments",
       expect.objectContaining({}),
