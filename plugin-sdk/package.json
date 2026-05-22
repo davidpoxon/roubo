@@ -1,0 +1,39 @@
+{
+  "name": "@roubo/plugin-sdk",
+  "version": "0.1.0",
+  "description": "Plugin author SDK for Roubo integration plugins. Wraps the host JSON-RPC protocol so authors implement only contract methods.",
+  "author": "David Poxon",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/davidpoxon/roubo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidpoxon/roubo.git",
+    "directory": "plugin-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/davidpoxon/roubo/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "8.2.1"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

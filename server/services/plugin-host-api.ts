@@ -3,13 +3,22 @@ import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:c
 import { ResponseError } from "vscode-jsonrpc/node.js";
 import type { PluginManifest, PluginRecord } from "@roubo/shared";
 import * as credentialStore from "./credential-store.js";
+import {
+  createPluginFetcher,
+  PluginPermissionDeniedError,
+  PluginUnsupportedResponseError,
+  type FetchInit,
+  type FetchResult,
+} from "./plugin-http.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
 import { assertSpawnAllowed, resolveAllowedExecutables } from "./plugin-spawn.js";
 
-// JSON-RPC server-error range; we use a single app-level code and surface the
+// JSON-RPC server-error range; we use app-level codes and surface the
 // specific reason via the structured `data` payload.
 const PERMISSION_DENIED_CODE = -32001;
+const UNSUPPORTED_RESPONSE_CODE = -32002;
+const INVALID_PARAMS_CODE = -32602;
 const INTERNAL_ERROR_CODE = -32603;
 
 const MAX_SPAWN_OUTPUT_BYTES = 1024 * 1024;
@@ -48,10 +57,30 @@ export interface SpawnExitSummary {
 
 export type SpawnLike = (executable: string, args: string[], options: SpawnOptions) => ChildProcess;
 
+export type PluginFetcher = (url: string, init?: FetchInit) => Promise<FetchResult>;
+
+export interface NetworkDeniedData {
+  code: "network-denied";
+  category: "network";
+  host: string;
+  url: string;
+  reason: string;
+}
+
+export interface UnsupportedResponseData {
+  code: "unsupported-response";
+  category: "network";
+  host: string;
+  url: string;
+  contentType: string | null;
+  reason: string;
+}
+
 interface RegisterOptions {
   store?: CredentialStoreLike;
   fs?: FsLike;
   spawn?: SpawnLike;
+  fetcher?: PluginFetcher;
 }
 
 const defaultFs: FsLike = {
@@ -104,6 +133,13 @@ export async function registerHostHandlers(
   const spawn: SpawnLike = options.spawn ?? nodeSpawn;
   const fsRoots = await resolveAllowedRoots(record);
   const allowedExecutables = resolveAllowedExecutables(manifest);
+  const fetcher: PluginFetcher =
+    options.fetcher ??
+    createPluginFetcher(manifest, {
+      logger: (line) => {
+        log(line.level, `${pluginId}.host.fetch ${line.kind}: ${line.detail.reason}`);
+      },
+    });
 
   connection.onRequest<{ slot: string }, string | null>("host.credentials.get", async (params) => {
     const slot = params?.slot;
@@ -297,6 +333,64 @@ export async function registerHostHandlers(
       wrapInternal(pluginId, method, log, err);
     }
   });
+
+  connection.onRequest<{ url: unknown; init?: unknown }, FetchResult>(
+    "host.fetch",
+    async (params) => {
+      const method = "host.fetch";
+      const url = params?.url;
+      if (typeof url !== "string" || url.length === 0) {
+        throw new ResponseError(INVALID_PARAMS_CODE, "host.fetch requires a string url", {
+          code: "invalid-params",
+          category: "network",
+        });
+      }
+      const init = normalizeFetchInit(params?.init);
+      if (init.error) {
+        throw new ResponseError(INVALID_PARAMS_CODE, init.error, {
+          code: "invalid-params",
+          category: "network",
+        });
+      }
+      try {
+        return await fetcher(url, init.value);
+      } catch (err) {
+        if (err instanceof PluginPermissionDeniedError) {
+          const data: NetworkDeniedData = {
+            code: "network-denied",
+            category: "network",
+            host: err.host,
+            url: err.url,
+            reason: err.reason,
+          };
+          log("warn", `${pluginId}.${method} denied: host="${err.host}" reason="${err.reason}"`);
+          throw new ResponseError(PERMISSION_DENIED_CODE, err.message, data);
+        }
+        if (err instanceof PluginUnsupportedResponseError) {
+          const data: UnsupportedResponseData = {
+            code: "unsupported-response",
+            category: "network",
+            host: err.host,
+            url: err.url,
+            contentType: err.contentType,
+            reason: err.reason,
+          };
+          log(
+            "warn",
+            `${pluginId}.${method} unsupported-response: host="${err.host}" contentType="${err.contentType ?? ""}"`,
+          );
+          throw new ResponseError(UNSUPPORTED_RESPONSE_CODE, err.message, data);
+        }
+        wrapInternal(pluginId, method, log, err);
+      }
+    },
+  );
+
+  for (const level of ["info", "warn", "error"] as const) {
+    connection.onNotification<unknown>(`host.logger.${level}`, (params) => {
+      log(level, formatLoggerPayload(params));
+    });
+  }
 }
 
 function runSpawn(
@@ -362,4 +456,61 @@ function runSpawn(
       child.stdin?.end();
     }
   });
+}
+
+function normalizeFetchInit(input: unknown): { value: FetchInit | undefined; error?: string } {
+  if (input === undefined || input === null) return { value: undefined };
+  if (typeof input !== "object") {
+    return { value: undefined, error: "host.fetch init must be an object" };
+  }
+  const raw = input as Record<string, unknown>;
+  const init: FetchInit = {};
+  if (raw.method !== undefined) {
+    if (typeof raw.method !== "string") {
+      return { value: undefined, error: "host.fetch init.method must be a string" };
+    }
+    init.method = raw.method;
+  }
+  if (raw.headers !== undefined) {
+    if (raw.headers === null || typeof raw.headers !== "object" || Array.isArray(raw.headers)) {
+      return { value: undefined, error: "host.fetch init.headers must be an object" };
+    }
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw.headers as Record<string, unknown>)) {
+      if (typeof v !== "string") {
+        return { value: undefined, error: `host.fetch init.headers["${k}"] must be a string` };
+      }
+      headers[k] = v;
+    }
+    init.headers = headers;
+  }
+  if (raw.body !== undefined) {
+    if (typeof raw.body !== "string") {
+      return {
+        value: undefined,
+        error: "host.fetch init.body must be a string",
+      };
+    }
+    init.body = raw.body;
+  }
+  return { value: init };
+}
+
+function formatLoggerPayload(params: unknown): string {
+  if (typeof params === "string") return params;
+  if (params && typeof params === "object") {
+    const obj = params as { message?: unknown; data?: unknown };
+    const message = typeof obj.message === "string" ? obj.message : JSON.stringify(params);
+    if (obj.data !== undefined) {
+      let serialized: string;
+      try {
+        serialized = JSON.stringify(obj.data);
+      } catch {
+        serialized = String(obj.data);
+      }
+      return `${message} ${serialized}`;
+    }
+    return message;
+  }
+  return String(params);
 }

@@ -6,6 +6,7 @@ client/dist
 client/node_modules
 server/dist
 electron/dist
+plugin-sdk/dist
 electron/out
 electron/node_modules
 **/.DS_Store

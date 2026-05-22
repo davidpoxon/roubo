@@ -1,0 +1,19 @@
+id: sdk-reference
+name: SDK Reference Fixture
+version: 0.0.0
+description: Reference plugin used by TC-035 to exercise @roubo/plugin-sdk end-to-end
+kind: integration
+roubo: ^1.0.0
+entry: ./index.mjs
+permissions:
+  network:
+    hosts:
+      - 127.0.0.1
+  credentials:
+    slots:
+      - slot: reference-token
+        scope: read-write
+        description: Token used by getCurrentUser to identify the active user
+  filesystem:
+    paths: []
+  processes: false
