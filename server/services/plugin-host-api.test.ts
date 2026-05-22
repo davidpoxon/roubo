@@ -407,7 +407,7 @@ describe("plugin-host-api", () => {
           reason: 'host.fetch only supports textual content types; got "image/png"',
         }),
       );
-      registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
 
       const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
       try {
@@ -440,7 +440,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fetcher = vi.fn();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
 
       const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
       try {
