@@ -3,7 +3,7 @@
  *
  * FR-026: every poll must include `updated >= <iso>` keyed off a stored
  * per-source watermark. We always end with `ORDER BY updated ASC` so the
- * highest-`updated` seen on a page is also the last item — that's what
+ * highest-`updated` seen on a page is also the last item. That's what
  * `state-store.setLastPoll` writes back after a successful page.
  *
  * Boards are resolved to their backing filter id by the source picker

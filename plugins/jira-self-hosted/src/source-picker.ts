@@ -2,7 +2,7 @@ import { jiraFetch, type JiraRequestContext } from "./jira-client.js";
 
 /**
  * Build the `categorized-multi-list` payload Roubo's source picker
- * renders. Three categories — Boards, Epics, Filters — each one fetched
+ * renders. Three categories (Boards, Epics, Filters), each one fetched
  * independently. We surface partial results: a 4xx on one endpoint
  * leaves that category empty rather than failing the whole call.
  */

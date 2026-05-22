@@ -167,17 +167,24 @@ export function createPluginContract(): PluginContract {
 
       const items = (search.issues ?? []).map((i) => normalizeIssue(config, i, config.instance));
 
-      const highest = items.reduce<string | null>((max, item) => {
-        if (max === null || item.updatedAt > max) return item.updatedAt;
-        return max;
-      }, lastPoll);
-      if (highest !== null && highest !== lastPoll) {
-        await setLastPoll(sourceKey, highest);
-      }
-
       const total = typeof search.total === "number" ? search.total : items.length;
       const consumed = startAt + items.length;
       const nextCursor = consumed < total ? String(consumed) : null;
+
+      // Only advance the watermark once pagination is exhausted. Writing it
+      // after every page would change the JQL between pages, so a `startAt`
+      // offset into the narrower next-page result set silently skips issues
+      // whose `updated` falls between the original watermark and the
+      // current page's highest `updated`. See TC-030.
+      if (nextCursor === null) {
+        const highest = items.reduce<string | null>((max, item) => {
+          if (max === null || item.updatedAt > max) return item.updatedAt;
+          return max;
+        }, lastPoll);
+        if (highest !== null && highest !== lastPoll) {
+          await setLastPoll(sourceKey, highest);
+        }
+      }
 
       return { items, nextCursor };
     },

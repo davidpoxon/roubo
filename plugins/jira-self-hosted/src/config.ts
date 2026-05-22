@@ -2,9 +2,9 @@
  * Plugin config plumbing.
  *
  * Two call shapes:
- * - `validateConfig({ config })` — the host passes the raw Configure-dialog
+ * - `validateConfig({ config })`: the host passes the raw Configure-dialog
  *   form values: `{ instance, pat, blocksLinkTypeName, isBlockedByLinkTypeName }`.
- * - `listSourceCandidates({ config })` — the host passes the project's
+ * - `listSourceCandidates({ config })`: the host passes the project's
  *   IntegrationConfig: `{ plugin, instance, advanced: { blocksLinkTypeName, ... } }`.
  *
  * `parseFormConfig` handles the flat form shape; `parseIntegrationConfig`
@@ -12,7 +12,7 @@
  * routes everything past validateConfig through that wrapper).
  *
  * Methods like `listIssues`, `getIssue`, `applyTransition` etc. don't
- * receive config at all — they read from the in-process cache populated
+ * receive config at all; they read from the in-process cache populated
  * by an earlier call. See `index.ts`.
  */
 

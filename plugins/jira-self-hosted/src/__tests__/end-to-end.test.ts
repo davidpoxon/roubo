@@ -92,4 +92,65 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     expect(result.items.map((i) => i.externalId)).toEqual(["PROJ-1"]);
     expect(harness.credentials.get("state")).toContain("2026-04-05T00:00:00Z");
   });
+
+  it("listIssues keeps the watermark stable across paged calls and only advances on the final page", async () => {
+    harness.fetchStub.on("/rest/api/2/myself", () => ({ displayName: "Anna" }));
+    await harness.hostConnection.sendRequest("validateConfig", {
+      config: { instance: "https://jira.acme.example", pat: "test-token" },
+    });
+
+    const originalWatermark = "2026-04-01T00:00:00Z";
+    harness.credentials.set("state", JSON.stringify({ "filter:456": originalWatermark }));
+
+    const capturedJql: string[] = [];
+    const page1 = {
+      issues: [
+        {
+          key: "PROJ-1",
+          fields: { summary: "p1", status: { name: "Open" }, updated: "2026-04-05T00:00:00Z" },
+        },
+      ],
+      total: 2,
+    };
+    const page2 = {
+      issues: [
+        {
+          key: "PROJ-2",
+          fields: { summary: "p2", status: { name: "Open" }, updated: "2026-04-06T00:00:00Z" },
+        },
+      ],
+      total: 2,
+    };
+    let call = 0;
+    harness.fetchStub.on("/rest/api/2/search", (init) => {
+      const body = JSON.parse(init.body ?? "{}");
+      capturedJql.push(body.jql ?? "");
+      call += 1;
+      return call === 1 ? page1 : page2;
+    });
+
+    const r1 = await harness.hostConnection.sendRequest<{
+      items: Array<{ externalId: string }>;
+      nextCursor: string | null;
+    }>("listIssues", { cursor: null, pageSize: 1, config: { sources: { filters: ["456"] } } });
+    expect(r1.nextCursor).toBe("1");
+    // Watermark must NOT advance after page 1.
+    expect(harness.credentials.get("state")).toContain(originalWatermark);
+
+    const r2 = await harness.hostConnection.sendRequest<{
+      items: Array<{ externalId: string }>;
+      nextCursor: string | null;
+    }>("listIssues", {
+      cursor: r1.nextCursor,
+      pageSize: 1,
+      config: { sources: { filters: ["456"] } },
+    });
+    expect(r2.nextCursor).toBeNull();
+    // Both pages must have queried with the same JQL (original watermark).
+    expect(capturedJql).toHaveLength(2);
+    expect(capturedJql[0]).toBe(capturedJql[1]);
+    expect(capturedJql[0]).toContain(`updated >= "${originalWatermark}"`);
+    // Watermark advances to the highest seen across both pages.
+    expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
+  });
 });
