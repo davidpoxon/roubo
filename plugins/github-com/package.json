@@ -1,0 +1,21 @@
+{
+  "name": "@roubo/plugin-github-com",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bundled GitHub.com integration plugin for Roubo.",
+  "author": "David Poxon",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@roubo/plugin-sdk": "*",
+    "@roubo/shared": "*",
+    "octokit": "5.0.5"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

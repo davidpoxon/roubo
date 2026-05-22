@@ -7,6 +7,8 @@ client/node_modules
 server/dist
 electron/dist
 plugin-sdk/dist
+plugins/*/dist
+plugins/*/node_modules
 electron/out
 electron/node_modules
 **/.DS_Store
