@@ -881,6 +881,10 @@ export function restartPlugin(pluginId: string): Promise<void> {
   return requestVoid(`/plugins/${encodeURIComponent(pluginId)}/restart`, { method: "POST" });
 }
 
+export function uninstallPlugin(pluginId: string): Promise<void> {
+  return requestVoid(`/plugins/${encodeURIComponent(pluginId)}`, { method: "DELETE" });
+}
+
 export function fetchPluginLogs(
   pluginId: string,
   file: "current" | "previous" = "current",

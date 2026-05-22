@@ -63,6 +63,20 @@ export function useRestartPlugin() {
   });
 }
 
+export function useUninstallPlugin() {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: (pluginId: string) => api.uninstallPlugin(pluginId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+    },
+    onError: (err) => {
+      addToast(asErrorMessage(err, "Failed to uninstall plugin."));
+    },
+  });
+}
+
 export function usePluginLogs(pluginId: string, file: "current" | "previous", enabled: boolean) {
   return useQuery({
     queryKey: ["plugin-logs", pluginId, file],

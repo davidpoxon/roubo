@@ -10,6 +10,7 @@ vi.mock("../services/plugin-manager.js", () => ({
   disable: vi.fn(),
   restart: vi.fn(),
   readLogs: vi.fn(),
+  uninstall: vi.fn(),
 }));
 
 vi.mock("../services/plugin-installer.js", async () => {
@@ -144,6 +145,52 @@ describe("POST /:id/restart", () => {
     const res = await request(app).post("/github-com/restart");
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/no valid manifest/);
+  });
+});
+
+describe("DELETE /:id", () => {
+  beforeEach(() => {
+    vi.mocked(pluginManager.uninstall).mockReset();
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ source: "user" })]);
+    vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
+  });
+
+  it("calls pluginManager.uninstall and returns 204", async () => {
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(204);
+    expect(pluginManager.uninstall).toHaveBeenCalledWith("github-com");
+  });
+
+  it("returns 400 when id is not kebab-case", async () => {
+    const res = await request(app).delete("/Bad_Id");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid plugin id/i);
+    expect(pluginManager.uninstall).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when plugin is unknown", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(404);
+    expect(pluginManager.uninstall).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when the plugin is bundled (or otherwise refuses)", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(
+      new Error("Bundled plugins cannot be uninstalled: github-com"),
+    );
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/bundled plugins cannot be uninstalled/i);
+  });
+
+  it("returns 409 when the plugin is the active integration for a project", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(
+      new Error('Plugin "github-com" is the active integration for project(s): proj-a'),
+    );
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/active integration for project/i);
   });
 });
 

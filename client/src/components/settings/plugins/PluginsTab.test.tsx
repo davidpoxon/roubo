@@ -9,6 +9,7 @@ import {
   useDisablePlugin as _useDisable,
   useEnablePlugin as _useEnable,
   useRestartPlugin as _useRestart,
+  useUninstallPlugin as _useUninstall,
   usePluginLogs as _usePluginLogs,
 } from "../../../hooks/usePlugins";
 import PluginsTab from "./PluginsTab";
@@ -17,6 +18,7 @@ const mockedUsePlugins = vi.mocked(_usePlugins);
 const mockedEnable = vi.mocked(_useEnable);
 const mockedDisable = vi.mocked(_useDisable);
 const mockedRestart = vi.mocked(_useRestart);
+const mockedUninstall = vi.mocked(_useUninstall);
 const mockedLogs = vi.mocked(_usePluginLogs);
 
 function record(over: Partial<PluginRecord> = {}): PluginRecord {
@@ -61,6 +63,10 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof _useRestart>);
+  mockedUninstall.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof _useUninstall>);
   mockedLogs.mockReturnValue({
     data: { lines: [] },
     isLoading: false,
