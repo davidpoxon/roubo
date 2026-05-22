@@ -591,6 +591,123 @@ describe("removeBench", () => {
   });
 });
 
+describe("raw field persistence (TC-045, NFR-004)", () => {
+  function containsKey(value: unknown, key: string): boolean {
+    if (Array.isArray(value)) {
+      return value.some((item) => containsKey(item, key));
+    }
+    if (value !== null && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      if (Object.prototype.hasOwnProperty.call(obj, key)) return true;
+      return Object.values(obj).some((v) => containsKey(v, key));
+    }
+    return false;
+  }
+
+  it("persists assignedIssue.raw while the bench is active", () => {
+    existsSync.mockReturnValue(false);
+
+    stateModule.addBench({
+      id: 1,
+      projectId: "project1",
+      branch: "feat/x",
+      workspacePath: "/w",
+      ports: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "demo",
+        raw: { etag: "abc", upstreamId: "ext-123" },
+      },
+    });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
+    expect(written.benches).toHaveLength(1);
+    expect(written.benches[0].assignedIssue.raw).toEqual({
+      etag: "abc",
+      upstreamId: "ext-123",
+    });
+  });
+
+  it("strips raw from state.json when the bench is cleared", () => {
+    const existing = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project1",
+          branch: "feat/x",
+          workspacePath: "/w",
+          ports: {},
+          createdAt: "2026-01-01T00:00:00.000Z",
+          assignedIssue: {
+            number: 42,
+            integrationId: "github-com",
+            externalId: "42",
+            title: "demo",
+            raw: { etag: "abc", upstreamId: "ext-123" },
+          },
+        },
+      ],
+    };
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify(existing));
+
+    stateModule.removeBench("project1", 1);
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
+    expect(written.benches).toHaveLength(0);
+    expect(containsKey(written, "raw")).toBe(false);
+  });
+
+  it("leaves raw on sibling benches untouched when an unrelated bench is cleared", () => {
+    const existing = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project1",
+          branch: "to-clear",
+          workspacePath: "/a",
+          ports: {},
+          createdAt: "t1",
+          assignedIssue: {
+            number: 1,
+            integrationId: "github-com",
+            externalId: "1",
+            title: "one",
+            raw: { etag: "one" },
+          },
+        },
+        {
+          id: 2,
+          projectId: "project1",
+          branch: "stay",
+          workspacePath: "/b",
+          ports: {},
+          createdAt: "t2",
+          assignedIssue: {
+            number: 2,
+            integrationId: "github-com",
+            externalId: "2",
+            title: "two",
+            raw: { etag: "two" },
+          },
+        },
+      ],
+    };
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify(existing));
+
+    stateModule.removeBench("project1", 1);
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
+    expect(written.benches).toHaveLength(1);
+    expect(written.benches[0].id).toBe(2);
+    expect(written.benches[0].assignedIssue.raw).toEqual({ etag: "two" });
+  });
+});
+
 describe("getProjectPermissions", () => {
   it("returns empty allow/deny when file does not exist", () => {
     existsSync.mockReturnValue(false);

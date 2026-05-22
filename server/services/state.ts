@@ -151,6 +151,12 @@ export function updateBench(bench: PersistedBench) {
 /**
  * Extracts the persisted subset of a Bench, stripping runtime-only fields
  * (status, components, error, provisioningSteps, teardownSteps).
+ *
+ * NFR-004 audit: the only place a plugin-supplied `raw` may live in
+ * state.json is `bench.assignedIssue.raw`. It rides through this function
+ * with `assignedIssue` (passed by reference) and is removed when the bench
+ * is filtered out in `removeBench`. No other persisted field carries
+ * plugin-supplied unknowns.
  */
 export function toPersistedBench(bench: Bench): PersistedBench {
   return {

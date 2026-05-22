@@ -915,6 +915,14 @@ export interface AssignedIssue {
     repoFullName: string;
     number: number;
   }>;
+  /**
+   * Plugin-scoped opaque payload (NFR-004). Allowed on the active bench's
+   * assignedIssue so a plugin can re-hydrate context across Roubo restarts.
+   * Removed from state.json when the bench is cleared (removeBench filters
+   * the bench record out entirely). Plugins MUST NOT include PII here
+   * unless functionally required.
+   */
+  raw?: unknown;
 }
 
 export interface AssignIssueRequest {
