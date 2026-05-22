@@ -72,3 +72,28 @@ export function usePluginLogs(pluginId: string, file: "current" | "previous", en
     staleTime: 0,
   });
 }
+
+// WU-011: two-stage install. Errors are surfaced inline by the dialog (no
+// global toast), so we deliberately omit onError handlers on preview/cancel.
+export function useInstallPluginPreview() {
+  return useMutation({
+    mutationFn: (body: { source: "git" | "local"; value: string }) =>
+      api.previewInstallPlugin(body),
+  });
+}
+
+export function useInstallPluginConfirm() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stagingToken: string) => api.confirmInstallPlugin(stagingToken),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+    },
+  });
+}
+
+export function useInstallPluginCancel() {
+  return useMutation({
+    mutationFn: (stagingToken: string) => api.cancelInstallPlugin(stagingToken),
+  });
+}

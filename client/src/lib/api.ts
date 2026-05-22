@@ -48,6 +48,8 @@ import type {
   DirtyReason,
   PluginRecord,
   LogLine,
+  InstallPreview,
+  InstallSource,
 } from "@roubo/shared";
 
 const BASE = "/api";
@@ -847,3 +849,31 @@ export function fetchPluginLogs(
   if (lines !== undefined) params.set("lines", String(lines));
   return request(`/plugins/${encodeURIComponent(pluginId)}/logs?${params.toString()}`);
 }
+
+// Plugin install (WU-011): two-stage flow.
+//   1) previewInstallPlugin clones/copies into staging and returns the manifest preview.
+//   2) confirmInstallPlugin moves staging → ~/.roubo/plugins/<id>/ and enables it.
+//      cancelInstallPlugin removes the staging directory cleanly.
+export function previewInstallPlugin(body: {
+  source: "git" | "local";
+  value: string;
+}): Promise<InstallPreview> {
+  return request("/plugins/install", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function confirmInstallPlugin(stagingToken: string): Promise<{ plugin: PluginRecord }> {
+  return request(`/plugins/install/${encodeURIComponent(stagingToken)}/confirm`, {
+    method: "POST",
+  });
+}
+
+export function cancelInstallPlugin(stagingToken: string): Promise<void> {
+  return requestVoid(`/plugins/install/${encodeURIComponent(stagingToken)}/cancel`, {
+    method: "POST",
+  });
+}
+
+export type { InstallPreview, InstallSource };
