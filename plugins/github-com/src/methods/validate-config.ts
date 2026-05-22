@@ -22,12 +22,21 @@ export async function validateConfig(params: {
     return { ok: false, errors: shapeErrors };
   }
 
-  const errors: Array<{ field?: string; message: string }> = [];
+  const errors: NonNullable<ValidateConfigResult["errors"]> = [];
 
   try {
     await fetchCurrentUser();
   } catch (err) {
-    errors.push({ message: `Failed to authenticate with GitHub: ${(err as Error).message}` });
+    const status = (err as { status?: unknown }).status;
+    if (status === 401) {
+      errors.push({
+        field: "github-token",
+        message: "GitHub token is invalid or expired",
+        code: "unauthorized",
+      });
+    } else {
+      errors.push({ message: `Failed to authenticate with GitHub: ${(err as Error).message}` });
+    }
     return { ok: false, errors };
   }
 

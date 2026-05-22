@@ -56,7 +56,7 @@ export interface CurrentUser {
 
 export interface ValidateConfigResult {
   ok: boolean;
-  errors?: Array<{ field?: string; message: string }>;
+  errors?: Array<{ field?: string; message: string; code?: string }>;
 }
 
 export interface IssueTypeOption {
