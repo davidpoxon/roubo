@@ -44,6 +44,8 @@ import type {
   ProjectIntegrationState,
   IntegrationConfigUpdate,
   IntegrationTestResult,
+  SourceCandidatesResponse,
+  SourceSelection,
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
@@ -784,6 +786,20 @@ export function saveIntegrationConfig(
   return request(`/projects/${projectId}/integration/config`, {
     method: "PUT",
     body: JSON.stringify(update),
+  });
+}
+
+export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
+  return request(`/projects/${projectId}/integration/sources`);
+}
+
+export function saveProjectSources(
+  projectId: string,
+  sources: SourceSelection,
+): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration/sources`, {
+    method: "PUT",
+    body: JSON.stringify({ sources }),
   });
 }
 

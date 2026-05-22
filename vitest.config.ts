@@ -30,6 +30,8 @@ export default defineConfig({
         "server/dist/**",
         "**/node_modules/**",
         "electron/src/main.ts",
+        "e2e/**",
+        "client/source-picker-fixture.html",
       ],
       thresholds: {
         lines: 80,

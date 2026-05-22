@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
-import type { IntegrationOverride, PluginRecord, RegisteredProject } from "@roubo/shared";
+import type {
+  IntegrationOverride,
+  PluginRecord,
+  RegisteredProject,
+  SourceCandidatesResponse,
+} from "@roubo/shared";
 
 vi.mock("../services/project-registry.js");
 vi.mock("../services/plugin-manager.js");
@@ -267,7 +272,7 @@ describe("PUT /:projectId/integration/override", () => {
     expect(saved.integration.sources).toBeUndefined();
   });
 
-  it("returns 400 when saveOverride throws an IntegrationOverrideError", async () => {
+  it("returns 400 when saveOverride throws an IntegrationOverrideError on plugin switch", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
     vi.mocked(integrationOverrides.saveOverride).mockImplementation(() => {
       throw new integrationOverrides.IntegrationOverrideError("schema busted", "SCHEMA", [
@@ -585,6 +590,178 @@ describe("PUT /:projectId/integration/config", () => {
       .send({ instance: "https://ghe.acme.com" });
 
     expect(res.status).toBe(400);
+    expect(res.body.code).toBe("SCHEMA");
+  });
+});
+
+describe("GET /:projectId/integration/sources", () => {
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/missing/integration/sources");
+
+    expect(res.status).toBe(404);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when no active plugin is set", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no active/i);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns the multi-list shape produced by the active plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    const fixture: SourceCandidatesResponse = {
+      shape: "multi-list",
+      items: [
+        { externalId: "org/repo", label: "org/repo", icon: "repo" },
+        { externalId: "proj-42", label: "Roadmap", icon: "project" },
+      ],
+    };
+    vi.mocked(pluginManager.invoke).mockResolvedValue(fixture);
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(fixture);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listSourceCandidates", {
+      config: expect.objectContaining({ plugin: "github-com" }),
+    });
+  });
+
+  it("returns the categorized-multi-list shape produced by the active plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    const fixture: SourceCandidatesResponse = {
+      shape: "categorized-multi-list",
+      categories: [
+        { id: "boards", label: "Boards", items: [{ externalId: "b1", label: "Engineering" }] },
+        { id: "epics", label: "Epics", items: [] },
+      ],
+    };
+    vi.mocked(pluginManager.invoke).mockResolvedValue(fixture);
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(fixture);
+  });
+
+  it("returns 502 when the plugin throws", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("rate limited"));
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/rate limited/);
+  });
+
+  it("returns 502 when the plugin returns an unknown shape", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ shape: "tree-grid", items: [] });
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/unknown shape/i);
+  });
+
+  it("returns 502 when a multi-list response is missing items", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ shape: "multi-list" });
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/items array/i);
+  });
+});
+
+describe("PUT /:projectId/integration/sources", () => {
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app)
+      .put("/missing/integration/sources")
+      .send({ sources: { items: ["a"] } });
+
+    expect(res.status).toBe(404);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the body has no sources key", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).put("/demo/integration/sources").send({});
+
+    expect(res.status).toBe(400);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when a value is not a string array", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({ sources: { items: [1, 2, 3] } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/array of strings/i);
+  });
+
+  it("writes the sources block into the override and returns the new state", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("github-com", "GitHub.com"),
+    ]);
+    vi.mocked(integrationOverrides.saveOverride).mockImplementation((_id, next) => {
+      vi.mocked(integrationOverrides.loadOverride).mockReturnValue(next);
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({ sources: { items: ["org/a", "org/b"] } });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.sources).toEqual({ items: ["org/a", "org/b"] });
+    expect(res.body.effective.sources).toEqual({ items: ["org/a", "org/b"] });
+  });
+
+  it("clears the sources block when the body sends an empty object", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "github-com", sources: { items: ["stale"] } },
+    });
+
+    const res = await request(app).put("/demo/integration/sources").send({ sources: {} });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.sources).toBeUndefined();
+    expect(saved.integration.plugin).toBe("github-com");
+  });
+
+  it("returns 400 when saveOverride throws an IntegrationOverrideError", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+    vi.mocked(integrationOverrides.saveOverride).mockImplementation(() => {
+      throw new integrationOverrides.IntegrationOverrideError("schema busted", "SCHEMA");
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({ sources: { items: ["x"] } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("schema busted");
     expect(res.body.code).toBe("SCHEMA");
   });
 });

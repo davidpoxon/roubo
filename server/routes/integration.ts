@@ -10,6 +10,8 @@ import type {
   PluginManifest,
   PluginRecord,
   ProjectIntegrationState,
+  SourceCandidatesResponse,
+  SourceSelection,
 } from "@roubo/shared";
 import { CapturedUserIdSchema, IntegrationConfigSchema } from "@roubo/shared";
 import { z } from "zod";
@@ -163,6 +165,66 @@ class ProjectNotFoundError extends Error {
     super("Project not found");
     this.name = "ProjectNotFoundError";
   }
+}
+
+function validateSourceCandidatesResponse(raw: unknown): SourceCandidatesResponse {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("plugin returned a non-object response");
+  }
+  const obj = raw as Record<string, unknown>;
+  const shape = obj.shape;
+  if (shape !== "multi-list" && shape !== "categorized-multi-list") {
+    throw new Error(`plugin returned unknown shape: ${JSON.stringify(shape)}`);
+  }
+  if (shape === "multi-list") {
+    if (!Array.isArray(obj.items)) {
+      throw new Error("multi-list response must include an items array");
+    }
+    for (const item of obj.items) {
+      if (
+        item === null ||
+        typeof item !== "object" ||
+        typeof (item as Record<string, unknown>).externalId !== "string" ||
+        typeof (item as Record<string, unknown>).label !== "string"
+      ) {
+        throw new Error("multi-list item missing required externalId or label");
+      }
+    }
+  } else {
+    if (!Array.isArray(obj.categories)) {
+      throw new Error("categorized-multi-list response must include a categories array");
+    }
+    for (const cat of obj.categories) {
+      if (
+        cat === null ||
+        typeof cat !== "object" ||
+        typeof (cat as Record<string, unknown>).id !== "string" ||
+        typeof (cat as Record<string, unknown>).label !== "string" ||
+        !Array.isArray((cat as Record<string, unknown>).items)
+      ) {
+        throw new Error("category missing required id, label, or items");
+      }
+    }
+  }
+  return raw as SourceCandidatesResponse;
+}
+
+function validateSourceSelectionBody(body: unknown): SourceSelection {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Invalid body: { sources: Record<string, string[]> } required");
+  }
+  const sources = (body as Record<string, unknown>).sources;
+  if (sources === null || typeof sources !== "object" || Array.isArray(sources)) {
+    throw new Error("Invalid body: sources must be an object");
+  }
+  const out: SourceSelection = {};
+  for (const [key, value] of Object.entries(sources as Record<string, unknown>)) {
+    if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
+      throw new Error(`Invalid body: sources.${key} must be an array of strings`);
+    }
+    out[key] = value as string[];
+  }
+  return out;
 }
 
 router.get("/:projectId/integration", (req, res) => {
@@ -349,6 +411,73 @@ router.put("/:projectId/integration/config", (req, res) => {
       schemaVersion: 1,
       integration: nextIntegration,
     };
+    saveOverride(req.params.projectId, next);
+    res.json(buildState(req.params.projectId));
+  } catch (err) {
+    if (err instanceof IntegrationOverrideError) {
+      res.status(400).json({ error: err.message, code: err.code, fieldErrors: err.fieldErrors });
+      return;
+    }
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.get("/:projectId/integration/sources", async (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const committed: IntegrationConfig | null = project.config?.integration ?? null;
+  const overrideEnvelope = loadOverride(req.params.projectId);
+  const effective = getEffectiveIntegrationConfig(committed ?? undefined, overrideEnvelope);
+
+  if (!effective.plugin) {
+    res.status(409).json({ error: "No active integration plugin for this project" });
+    return;
+  }
+
+  try {
+    const raw = await pluginManager.invoke<unknown>(effective.plugin, "listSourceCandidates", {
+      config: effective,
+    });
+    const response = validateSourceCandidatesResponse(raw);
+    res.json(response);
+  } catch (err) {
+    res.status(502).json({ error: `Plugin listSourceCandidates failed: ${errorMessage(err)}` });
+  }
+});
+
+router.put("/:projectId/integration/sources", (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  let sources: SourceSelection;
+  try {
+    sources = validateSourceSelectionBody(req.body);
+  } catch (err) {
+    res.status(400).json({ error: errorMessage(err) });
+    return;
+  }
+
+  try {
+    const existing = loadOverride(req.params.projectId);
+    const next: IntegrationOverride = {
+      schemaVersion: 1,
+      integration: {
+        ...(existing?.integration ?? {}),
+      },
+    };
+    if (Object.keys(sources).length === 0) {
+      delete next.integration.sources;
+    } else {
+      next.integration.sources = sources;
+    }
+
     saveOverride(req.params.projectId, next);
     res.json(buildState(req.params.projectId));
   } catch (err) {
