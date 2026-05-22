@@ -140,7 +140,8 @@ async function linuxDelete(account: string): Promise<void> {
     ["clear", "service", SERVICE, "account", account],
     process.cwd(),
   );
-  if (result.code === 0 || result.code === 1) return;
+  if (result.code === 0) return;
+  if (result.code === 1 && result.stderr.length === 0) return;
   if (detectLinuxKeyringFailure(result.stderr)) {
     throw new CredentialStoreError(
       "keyring-unavailable",

@@ -226,6 +226,15 @@ describe("credential-store", () => {
       await expect(promise).resolves.toBeUndefined();
     });
 
+    it("throws keyring-unavailable on delete when daemon is missing", async () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+      const promise = deleteSlot("plugin", "slot");
+      proc.stderr?.emit("data", Buffer.from("Cannot autolaunch D-Bus\n"));
+      proc.emit("close", 1);
+      await expect(promise).rejects.toMatchObject({ code: "keyring-unavailable" });
+    });
+
     it("succeeds on delete with exit 0", async () => {
       const proc = createMockChild();
       vi.mocked(spawn).mockReturnValue(proc);
