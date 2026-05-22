@@ -368,12 +368,17 @@ describe("plugin-host-api", () => {
         expect(responseErr.data?.host).toBe("blocked.example.com");
       }
       expect(stubFetch).not.toHaveBeenCalled();
+      // Match the structured log line rather than substring-scanning for the
+      // hostname; the regex anchors the host token between the literal `Host "`
+      // prefix and `"` suffix our plugin-http allowlist message uses, which
+      // avoids tripping the CodeQL "incomplete URL substring sanitization" rule
+      // that fires on `.includes()` checks against URL-like strings.
       expect(
         logCalls.some(
           ([level, text]) =>
             level === "warn" &&
-            text.includes("jira-plugin.host.fetch") &&
-            text.includes("blocked.example.com"),
+            /jira-plugin\.host\.fetch/.test(text) &&
+            /Host "blocked\.example\.com"/.test(text),
         ),
       ).toBe(true);
     });
