@@ -711,11 +711,23 @@ export async function invoke<T = unknown>(
   }
 }
 
+// Plugin IDs are validated by the manifest schema, but readLogs may be reached from HTTP
+// routes that take the id from a URL parameter. Re-check structurally so path traversal is
+// impossible regardless of caller assumptions, and so CodeQL can see the sanitization.
+const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+const LOG_FILE_NAMES = new Set(["current", "previous"]);
+
 export async function readLogs(
   pluginId: string,
   file: "current" | "previous" = "current",
   lines = 500,
 ): Promise<LogLine[]> {
+  if (!PLUGIN_ID_PATTERN.test(pluginId)) {
+    throw new Error(`Invalid plugin id: ${pluginId}`);
+  }
+  if (!LOG_FILE_NAMES.has(file)) {
+    throw new Error(`Invalid log file: ${file}`);
+  }
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   const filePath = path.join(logDirFor(pluginId), `${file}.log`);
