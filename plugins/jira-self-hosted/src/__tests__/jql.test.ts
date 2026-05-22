@@ -48,4 +48,13 @@ describe("buildIssueListJql (TC-030)", () => {
   it("emits a bare ORDER BY when nothing constrains the search", () => {
     expect(buildIssueListJql({ sources: [], lastPollIso: null })).toBe("ORDER BY updated ASC");
   });
+
+  it("escapes both backslashes and double quotes in quoted identifiers", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "epic", externalId: 'PROJ\\"99' }],
+      lastPollIso: null,
+    });
+    // The backslash and the quote must both be escaped so the literal stays closed.
+    expect(jql).toContain('"Epic Link" = "PROJ\\\\\\"99"');
+  });
 });

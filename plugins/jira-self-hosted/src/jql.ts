@@ -47,5 +47,8 @@ function jqlNumericOrQuoted(value: string): string {
 }
 
 function jqlString(value: string): string {
-  return `"${value.replace(/"/g, '\\"')}"`;
+  // Escape backslashes first, then double quotes, so an input like `\"` can't
+  // smuggle in an unescaped quote. JQL string literals use C-style escapes.
+  const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}"`;
 }
