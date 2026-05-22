@@ -46,21 +46,23 @@ function makeRecord(pluginDir: string, paths: string[] = []): PluginRecord {
 
 describe("plugin-fs", () => {
   describe("resolveAllowedRoots", () => {
-    it("always includes the plugin's own directory", () => {
-      const roots = resolveAllowedRoots(makeRecord("/opt/plugins/jira"));
-      expect(roots).toEqual([path.resolve("/opt/plugins/jira")]);
+    it("always includes the plugin's own directory", async () => {
+      const roots = await resolveAllowedRoots(makeRecord("/opt/plugins/jira"));
+      expect(roots).toEqual([await resolveRealPath("/opt/plugins/jira")]);
     });
 
-    it("appends declared paths, resolving relative entries against pluginDir", () => {
-      const roots = resolveAllowedRoots(makeRecord("/opt/plugins/jira", ["data", "/var/log/jira"]));
+    it("appends declared paths, resolving relative entries against pluginDir", async () => {
+      const roots = await resolveAllowedRoots(
+        makeRecord("/opt/plugins/jira", ["data", "/var/log/jira"]),
+      );
       expect(roots).toEqual([
-        path.resolve("/opt/plugins/jira"),
-        path.resolve("/opt/plugins/jira/data"),
-        path.resolve("/var/log/jira"),
+        await resolveRealPath("/opt/plugins/jira"),
+        await resolveRealPath("/opt/plugins/jira/data"),
+        await resolveRealPath("/var/log/jira"),
       ]);
     });
 
-    it("returns only pluginDir when manifest is missing", () => {
+    it("returns only pluginDir when manifest is missing", async () => {
       const record: PluginRecord = {
         id: "broken",
         manifest: null,
@@ -72,7 +74,27 @@ describe("plugin-fs", () => {
         restartHistory: [],
         pid: null,
       };
-      expect(resolveAllowedRoots(record)).toEqual([path.resolve("/opt/plugins/broken")]);
+      expect(await resolveAllowedRoots(record)).toEqual([
+        await resolveRealPath("/opt/plugins/broken"),
+      ]);
+    });
+
+    it("realpaths roots whose ancestors contain symlinks (regression: macOS /var/folders)", async () => {
+      const realParent = await fs.realpath(
+        await fs.mkdtemp(path.join(os.tmpdir(), "plugin-fs-root-real-")),
+      );
+      const symlinkParent = path.join(realParent, "link-to-self");
+      await fs.symlink(realParent, symlinkParent);
+      try {
+        const pluginDirThroughLink = path.join(symlinkParent, "plugin");
+        await fs.mkdir(pluginDirThroughLink);
+        const roots = await resolveAllowedRoots(makeRecord(pluginDirThroughLink));
+        // Root must be the realpath, not the symlinked form, so that the
+        // prefix check in assertPathAllowed (which realpaths targets) matches.
+        expect(roots).toEqual([path.join(realParent, "plugin")]);
+      } finally {
+        await fs.rm(realParent, { recursive: true, force: true });
+      }
     });
   });
 

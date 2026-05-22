@@ -90,19 +90,19 @@ function wrapInternal(pluginId: string, methodName: string, log: HostLogger, err
   throw new ResponseError(INTERNAL_ERROR_CODE, message, { code });
 }
 
-export function registerHostHandlers(
+export async function registerHostHandlers(
   connection: JsonRpcConnection,
   record: PluginRecord,
   log: HostLogger,
   options: RegisterOptions = {},
-): void {
+): Promise<void> {
   const manifest = record.manifest;
   if (!manifest) return;
   const pluginId = record.id;
   const store: CredentialStoreLike = options.store ?? credentialStore;
   const fs: FsLike = options.fs ?? defaultFs;
   const spawn: SpawnLike = options.spawn ?? nodeSpawn;
-  const fsRoots = resolveAllowedRoots(record);
+  const fsRoots = await resolveAllowedRoots(record);
   const allowedExecutables = resolveAllowedExecutables(manifest);
 
   connection.onRequest<{ slot: string }, string | null>("host.credentials.get", async (params) => {

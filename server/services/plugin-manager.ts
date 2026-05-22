@@ -432,7 +432,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     entry.connection.onClose(() => {
       // connection closed; the 'exit' handler below drives state transitions
     });
-    registerHostHandlers(entry.connection, entry.record, (level, text) => {
+    await registerHostHandlers(entry.connection, entry.record, (level, text) => {
       writeLog(entry, "host", text, level).catch(() => {});
     });
   } catch (err) {

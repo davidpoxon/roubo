@@ -18,11 +18,19 @@ export interface FilesystemPermissionDeniedData {
   reason: FilesystemDenyReason;
 }
 
-export function resolveAllowedRoots(record: PluginRecord): string[] {
+// Roots must be realpath'd because `assertPathAllowed` realpaths every target
+// before the prefix check; if a root keeps an unresolved symlink ancestor
+// (common when the install root sits under macOS `/var/folders/...` or a
+// home directory on a symlinked mount), legitimate calls inside the plugin's
+// own directory would be denied.
+export async function resolveAllowedRoots(record: PluginRecord): Promise<string[]> {
   const pluginDir = path.resolve(record.pluginDir);
   const declared = record.manifest?.permissions.filesystem.paths ?? [];
-  const extra = declared.map((p) => path.resolve(path.isAbsolute(p) ? p : path.join(pluginDir, p)));
-  return [pluginDir, ...extra];
+  const absRoots = [
+    pluginDir,
+    ...declared.map((p) => path.resolve(path.isAbsolute(p) ? p : path.join(pluginDir, p))),
+  ];
+  return Promise.all(absRoots.map((root) => resolveRealPath(root)));
 }
 
 export function isPathAllowed(absPath: string, roots: string[]): boolean {

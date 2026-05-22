@@ -109,7 +109,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read-write" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.get"), "host.credentials.get");
       await expect(handler({ slot: "github-token" })).rejects.toBeInstanceOf(ResponseError);
@@ -148,7 +148,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       store.get.mockResolvedValue("secret-value");
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.get"), "host.credentials.get");
       const result = await handler({ slot: "jira-token" });
@@ -160,7 +160,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read-write" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.get"), "host.credentials.get");
       await expect(handler({})).rejects.toBeInstanceOf(ResponseError);
@@ -175,7 +175,7 @@ describe("plugin-host-api", () => {
       const storeErr = new Error("keyring went sideways");
       (storeErr as Error & { code: string }).code = "keyring-unavailable";
       store.get.mockRejectedValue(storeErr);
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.get"), "host.credentials.get");
       try {
@@ -195,7 +195,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read-write" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.set"), "host.credentials.set");
       try {
@@ -212,7 +212,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.set"), "host.credentials.set");
       try {
@@ -238,7 +238,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       store.set.mockResolvedValue(undefined);
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(connection.handlers.get("host.credentials.set"), "host.credentials.set");
       await expect(handler({ slot: "jira-token", value: "secret" })).resolves.toBeNull();
@@ -251,7 +251,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read-write" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(
         connection.handlers.get("host.credentials.delete"),
@@ -271,7 +271,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([{ slot: "jira-token", scope: "read" }]);
       const connection = makeConnection();
       const store = makeStoreSpy();
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(
         connection.handlers.get("host.credentials.delete"),
@@ -292,7 +292,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       store.deleteSlot.mockResolvedValue(undefined);
-      registerHostHandlers(connection, makeRecord(manifest), log, { store });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
 
       const handler = need(
         connection.handlers.get("host.credentials.delete"),
@@ -303,10 +303,10 @@ describe("plugin-host-api", () => {
     });
   });
 
-  it("does not register handlers when the record has no manifest", () => {
+  it("does not register handlers when the record has no manifest", async () => {
     const connection = makeConnection();
     const store = makeStoreSpy();
-    registerHostHandlers(
+    await registerHostHandlers(
       connection,
       {
         id: "broken",
@@ -360,7 +360,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -398,7 +398,7 @@ describe("plugin-host-api", () => {
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
       fsSpy.writeFile.mockResolvedValue(undefined);
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -419,7 +419,7 @@ describe("plugin-host-api", () => {
         const store = makeStoreSpy();
         const fsSpy = makeFsSpy();
         fsSpy.readFile.mockResolvedValue("payload");
-        registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+        await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
           store,
           fs: fsSpy,
         });
@@ -438,7 +438,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -457,7 +457,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -471,7 +471,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -485,7 +485,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const store = makeStoreSpy();
       const fsSpy = makeFsSpy();
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -505,7 +505,7 @@ describe("plugin-host-api", () => {
         isFile: () => true,
         isDirectory: () => false,
       });
-      registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, tmpDir), log, {
         store,
         fs: fsSpy,
       });
@@ -565,7 +565,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([], { processes: false });
       const connection = makeConnection();
       const spawn: SpawnLike = vi.fn();
-      registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
       const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
       try {
         await handler({ executable: "rm", args: ["-rf", "/"] });
@@ -582,7 +582,7 @@ describe("plugin-host-api", () => {
       const manifest = makeManifest([], { processes: { executables: ["git"] } });
       const connection = makeConnection();
       const spawn: SpawnLike = vi.fn();
-      registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
       const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
       await expect(handler({ executable: "curl" })).rejects.toBeInstanceOf(ResponseError);
       expect(spawn).not.toHaveBeenCalled();
@@ -593,7 +593,7 @@ describe("plugin-host-api", () => {
       const connection = makeConnection();
       const { child, finish } = makeFakeChild();
       const spawn = vi.fn(() => child) as unknown as SpawnLike;
-      registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
+      await registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
       const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
       const promise = handler({ executable: "git", args: ["status"] });
       finish({ code: 0, stdout: "clean\n" });
@@ -625,7 +625,7 @@ describe("plugin-host-api", () => {
         mkdir: vi.fn(),
       };
       const spawn: SpawnLike = vi.fn();
-      registerHostHandlers(connection, makeRecord(manifest, "/opt/plugins/jira"), log, {
+      await registerHostHandlers(connection, makeRecord(manifest, "/opt/plugins/jira"), log, {
         store,
         fs: fsSpy,
         spawn,
