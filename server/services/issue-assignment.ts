@@ -99,22 +99,6 @@ function buildAndStartClaudeSession(
   return { sessionId: session.id };
 }
 
-async function checkIssueDependencies(
-  projectId: string,
-  repoFullName: string,
-  issueNumber: number,
-): Promise<void> {
-  if (!projectRegistry.resolveEnforceIssueDependencies(projectId)) return;
-
-  const { blockedBy } = await githubService.fetchBlockingRelationships(repoFullName, [issueNumber]);
-  const blockers = blockedBy[issueNumber];
-  if (blockers?.length) {
-    throw new ServiceError(409, "Issue is blocked by unresolved dependencies", {
-      blockedBy: blockers,
-    });
-  }
-}
-
 function slugify(text: string, maxLength = 40): string {
   return text
     .toLowerCase()
@@ -140,8 +124,6 @@ export async function createBenchAndAssignIssue(
   if (issue.state !== "open") {
     throw new ServiceError(409, `Issue #${issueNumber} is not open (state: ${issue.state})`);
   }
-
-  await checkIssueDependencies(projectId, repoFullName, issueNumber);
 
   // Best-effort: REST fetchIssueDetail does not include issue type (GitHub Projects v2 concept only).
   // fetchIssueType catches all errors internally and returns null on failure.
@@ -279,8 +261,6 @@ export async function assignIssue(
 
   const repoFullName = project.config.project.repo;
   const projectName = project.config.project.displayName;
-
-  await checkIssueDependencies(projectId, repoFullName, issueNumber);
 
   // Fetch issue details, comments, linked PRs, and issue type in parallel
   const [issue, comments, linkedPullRequests, issueType] = await Promise.all([

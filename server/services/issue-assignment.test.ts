@@ -590,31 +590,12 @@ describe("assignIssue", () => {
     vi.useRealTimers();
   });
 
-  it("rejects a blocked issue when enforcement is enabled", async () => {
+  it("creates the bench even when the issue has open blockers (soft-block)", async () => {
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
       blockedBy: { 42: [{ number: 10, title: "Add auth middleware" }] },
-      blockingCount: { 42: 0 },
-    });
-
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow(
-      expect.objectContaining({
-        message: "Issue is blocked by unresolved dependencies",
-        statusCode: 409,
-        data: { blockedBy: [{ number: 10, title: "Add auth middleware" }] },
-      }),
-    );
-    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
-  });
-
-  it("allows an unblocked issue when enforcement is enabled", async () => {
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [] },
       blockingCount: { 42: 0 },
     });
     vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
@@ -651,40 +632,6 @@ describe("assignIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
     });
-  });
-
-  it("skips blocking check when enforcement is disabled", async () => {
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(false);
-    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
-    vi.mocked(runCommand).mockResolvedValue({
-      code: 0,
-      stdout: "",
-      stderr: "",
-    });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
-
-    await assignIssue("project1", 1, 42);
-
     expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
 
@@ -1249,53 +1196,25 @@ describe("createBenchAndAssignIssue", () => {
     vi.useRealTimers();
   });
 
-  it("rejects a blocked issue when enforcement is enabled", async () => {
+  it("creates the bench even when the issue has open blockers (soft-block)", async () => {
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
     vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
       blockedBy: { 42: [{ number: 10, title: "Add auth middleware" }] },
-      blockingCount: { 42: 0 },
-    });
-
-    await expect(createBenchAndAssignIssue("project1", 42)).rejects.toThrow(
-      expect.objectContaining({
-        message: "Issue is blocked by unresolved dependencies",
-        statusCode: 409,
-        data: { blockedBy: [{ number: 10, title: "Add auth middleware" }] },
-      }),
-    );
-    expect(benchManager.createBench).not.toHaveBeenCalled();
-  });
-
-  it("allows an unblocked issue when enforcement is enabled", async () => {
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [] },
       blockingCount: { 42: 0 },
     });
     setupHappyPath();
 
     const result = await createBenchAndAssignIssue("project1", 42);
+
     expect(result.status).toBe("success");
-  });
-
-  it("skips blocking check when enforcement is disabled", async () => {
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(false);
-    setupHappyPath();
-
-    await createBenchAndAssignIssue("project1", 42);
-
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.bench.assignedIssue).toEqual({
+      number: 42,
+      integrationId: "github-com",
+      externalId: "42",
+      title: "Fix login bug",
+      linkedPullRequests: [],
+    });
     expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
 
