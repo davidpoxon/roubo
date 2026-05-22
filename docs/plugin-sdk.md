@@ -98,6 +98,14 @@ The paginated list endpoint. The host passes `cursor` (null on the first page) a
 
 Returns the full issue for a single id. Used when the user opens an issue directly.
 
+### The opaque `raw` field
+
+Every `NormalizedIssue` carries a `raw: unknown` payload that is opaque to the host. Roubo never inspects it; only your plugin reads it back.
+
+- **Lifecycle.** While a bench is active, `raw` for the bench's assigned issue may be persisted to `~/.roubo/state.json` so your plugin can re-hydrate without an extra upstream fetch when Roubo restarts. When the bench is cleared, the whole record (including `raw`) is removed from `state.json`. Nothing else in `state.json` carries `raw`.
+- **PII contract (NFR-004).** Plugins MUST NOT put personally identifying information in `raw` unless functionally required. Treat it like a cache hint, not a data sink: upstream ETags, internal IDs, page tokens, transition metadata. Avoid full upstream payloads, free-text bodies, emails, and access tokens. If a field is already on `NormalizedIssue` (assignees, labels, body), it does not also need to live in `raw`.
+- The host may reduce or re-evaluate `raw`'s lifetime in a follow-on slug, so do not rely on long-lived persistence.
+
 ### `getComments({ externalId }): Promise<NormalizedComment[]>`
 
 Returns the comments on an issue. Optional; if omitted the comments panel is empty.
