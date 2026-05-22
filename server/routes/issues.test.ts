@@ -286,21 +286,6 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
 
     expect(res.status).toBe(404);
   });
-
-  it("returns 409 with blockedBy when issue is blocked", async () => {
-    const err = new ServiceError(409, "Issue is blocked by unresolved dependencies", {
-      blockedBy: [{ number: 10, title: "Add auth middleware" }],
-    });
-    vi.mocked(issueAssignment.assignIssue).mockRejectedValue(err);
-
-    const res = await request(app)
-      .post("/project1/benches/1/assign-issue")
-      .send({ issueNumber: 42 });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe("Issue is blocked by unresolved dependencies");
-    expect(res.body.blockedBy).toEqual([{ number: 10, title: "Add auth middleware" }]);
-  });
 });
 
 describe("DELETE /:projectId/benches/:id/assign-issue", () => {

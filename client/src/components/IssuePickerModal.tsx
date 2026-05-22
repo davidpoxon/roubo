@@ -17,8 +17,11 @@ function IssueRow({
   const blockers = issue.blockedBy ?? [];
   const isBlocked = blockers.length > 0;
 
-  const inner = (
-    <>
+  return (
+    <Button
+      onPress={() => onSelect(issue.number, issue.title)}
+      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none"
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-mono text-stone-400 dark:text-stone-600 shrink-0">
@@ -55,27 +58,30 @@ function IssueRow({
               {issue.commentsCount}
             </span>
           )}
-          {isBlocked && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-red-500 dark:text-red-400">
-              <Lock size={8} />
-              Blocked by{" "}
-              {blockers.map((blocker, i) => (
-                <span key={blocker.number}>
-                  {i > 0 && ", "}
-                  <a
-                    href={blockerUrl(issue.htmlUrl, blocker.number)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={blocker.title}
-                    className="underline underline-offset-2 hover:text-red-600 dark:hover:text-red-300"
-                  >
-                    #{blocker.number}
-                  </a>
-                </span>
-              ))}
-            </span>
-          )}
         </div>
+        {isBlocked && (
+          <div
+            data-testid="blocked-banner"
+            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+          >
+            <Lock size={9} />
+            Blocked by{" "}
+            {blockers.map((blocker, i) => (
+              <span key={blocker.number}>
+                {i > 0 && ", "}
+                <a
+                  href={blockerUrl(issue.htmlUrl, blocker.number)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={blocker.title}
+                  className="underline underline-offset-2 hover:text-amber-800 dark:hover:text-amber-300"
+                >
+                  #{blocker.number}
+                </a>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <a
         href={issue.htmlUrl}
@@ -85,26 +91,6 @@ function IssueRow({
       >
         <ExternalLink size={11} />
       </a>
-    </>
-  );
-
-  if (isBlocked) {
-    return (
-      <div
-        aria-disabled="true"
-        className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-lg opacity-50 cursor-not-allowed"
-      >
-        {inner}
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      onPress={() => onSelect(issue.number, issue.title)}
-      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none"
-    >
-      {inner}
     </Button>
   );
 }

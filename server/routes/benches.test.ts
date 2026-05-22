@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
-import { ServiceError } from "../services/service-error.js";
 
 vi.mock("../services/bench-manager.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../services/bench-manager.js")>();
@@ -205,18 +204,6 @@ describe("POST /:projectId/benches with issueNumber", () => {
 
     const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
     expect(res.status).toBe(500);
-  });
-
-  it("returns 409 with blockedBy when issue is blocked", async () => {
-    const err = new ServiceError(409, "Issue is blocked by unresolved dependencies", {
-      blockedBy: [{ number: 10, title: "Add auth middleware" }],
-    });
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(err);
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe("Issue is blocked by unresolved dependencies");
-    expect(res.body.blockedBy).toEqual([{ number: 10, title: "Add auth middleware" }]);
   });
 });
 

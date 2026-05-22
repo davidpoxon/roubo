@@ -228,7 +228,7 @@ describe("IssuePickerModal", () => {
     expect(screen.getByText("Feature")).toBeInTheDocument();
   });
 
-  it('shows "Blocked by" label with a link to the blocker for blocked issues', () => {
+  it("renders an amber 'Blocked by' banner with a link to the blocker for blocked issues", () => {
     const item: GitHubProjectItem = {
       ...makeItem(7, "Blocked issue"),
       issue: {
@@ -250,17 +250,20 @@ describe("IssuePickerModal", () => {
         benches={[]}
       />,
     );
-    expect(screen.getByText(/blocked by/i)).toBeInTheDocument();
+    const banner = screen.getByTestId("blocked-banner");
+    expect(banner).toBeInTheDocument();
+    expect(banner.className).toMatch(/amber/);
+    expect(banner).toHaveTextContent(/blocked by/i);
     expect(screen.getByRole("link", { name: "#3" })).toBeInTheDocument();
   });
 
-  it("does not call onSelect when a blocked issue row is clicked", async () => {
+  it("calls onSelect when a blocked issue row is clicked (soft-block, TC-034)", async () => {
     const onSelect = vi.fn();
     const item: GitHubProjectItem = {
-      ...makeItem(7, "Blocked issue"),
+      ...makeItem(200, "Add billing dashboard"),
       issue: {
-        ...makeItem(7, "Blocked issue").issue,
-        blockedBy: [{ number: 3, title: "Blocker" }],
+        ...makeItem(200, "Add billing dashboard").issue,
+        blockedBy: [{ number: 100, title: "Set up Stripe" }],
       },
     };
     mockUseProjectItems.mockReturnValue({
@@ -277,8 +280,11 @@ describe("IssuePickerModal", () => {
         benches={[]}
       />,
     );
-    await userEvent.click(screen.getByText("Blocked issue"));
-    expect(onSelect).not.toHaveBeenCalled();
+    // Banner names the open blocker.
+    expect(screen.getByTestId("blocked-banner")).toHaveTextContent("#100");
+    // Row remains interactive: clicking the title fires onSelect.
+    await userEvent.click(screen.getByRole("button", { name: /add billing dashboard/i }));
+    expect(onSelect).toHaveBeenCalledWith(200, "Add billing dashboard");
   });
 
   it("renders issues normally when blockedBy is absent (enforcement disabled)", () => {
