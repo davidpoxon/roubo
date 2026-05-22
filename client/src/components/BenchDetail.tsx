@@ -52,6 +52,7 @@ import type {
   TrackedPullRequest,
   ProvisioningStep,
   DirtyReason,
+  CapturedUserId,
 } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
@@ -75,6 +76,7 @@ import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
 import { useToast } from "../hooks/useToast";
 import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
+import IssueAssignControl from "./IssueAssignControl";
 
 function ComponentStatusText({ status, startedAt }: { status: string; startedAt?: string }) {
   const elapsed = useElapsed(status === "starting" ? startedAt : undefined);
@@ -745,19 +747,29 @@ function InfoTab({ bench }: { bench: Bench }) {
 function AssignedIssueTransition({
   projectId,
   externalId,
+  capturedUserId,
 }: {
   projectId: string;
   externalId: string;
+  capturedUserId: CapturedUserId | undefined;
 }) {
   const { data: issue } = useBenchIssue(projectId, externalId);
   if (!issue) return null;
   return (
-    <IssueTransitionDropdown
-      projectId={projectId}
-      externalId={externalId}
-      currentState={issue.currentState}
-      allowedTransitions={issue.allowedTransitions}
-    />
+    <>
+      <IssueTransitionDropdown
+        projectId={projectId}
+        externalId={externalId}
+        currentState={issue.currentState}
+        allowedTransitions={issue.allowedTransitions}
+      />
+      <IssueAssignControl
+        projectId={projectId}
+        externalId={externalId}
+        assignees={issue.assignees}
+        capturedUserId={capturedUserId}
+      />
+    </>
   );
 }
 
@@ -912,6 +924,7 @@ export default function BenchDetail() {
               <AssignedIssueTransition
                 projectId={projectId}
                 externalId={bench.assignedIssue.externalId}
+                capturedUserId={integration?.effective.capturedUserId}
               />
               {isFromPreviousIntegration && (
                 <span

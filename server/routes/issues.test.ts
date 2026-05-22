@@ -244,6 +244,103 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
   });
 });
 
+describe("POST /:projectId/issues/:externalId/assign", () => {
+  it("returns 503 when no active integration", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("no-active-integration");
+  });
+
+  it("returns 400 when assigneeExternalId is missing", async () => {
+    const res = await request(app).post("/p1/issues/ROUBO-42/assign").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when assigneeExternalId is not a string", async () => {
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: 123 });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when assigneeExternalId is an empty string", async () => {
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "" });
+    expect(res.status).toBe(400);
+  });
+
+  it("invokes plugin.assignIssue with externalId + assigneeExternalId and returns 204 (TC-040)", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(204);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "assignIssue", {
+      externalId: "ROUBO-42",
+      assigneeExternalId: "jane.doe@acme.com",
+    });
+    expect(res.text).toBe("");
+  });
+
+  it("forwards a structured plugin error verbatim with 502", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue(
+      Object.assign(new Error("Your token lacks permission to assign issues."), {
+        code: "rpc-error",
+      }),
+    );
+    const res = await request(app)
+      .post("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      error: "rpc-error",
+      message: "Your token lacks permission to assign issues.",
+    });
+  });
+});
+
+describe("DELETE /:projectId/issues/:externalId/assign", () => {
+  it("returns 503 when no active integration", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+    const res = await request(app)
+      .delete("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(503);
+  });
+
+  it("returns 400 when assigneeExternalId is missing", async () => {
+    const res = await request(app).delete("/p1/issues/ROUBO-42/assign").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("invokes plugin.unassignIssue with externalId + assigneeExternalId and returns 204", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+    const res = await request(app)
+      .delete("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(204);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "unassignIssue", {
+      externalId: "ROUBO-42",
+      assigneeExternalId: "jane.doe@acme.com",
+    });
+  });
+
+  it("forwards a structured plugin error verbatim with 502", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue(
+      Object.assign(new Error("Plugin refused unassign"), { code: "rpc-error" }),
+    );
+    const res = await request(app)
+      .delete("/p1/issues/ROUBO-42/assign")
+      .send({ assigneeExternalId: "jane.doe@acme.com" });
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({ error: "rpc-error", message: "Plugin refused unassign" });
+  });
+});
+
 describe("GET /:projectId/issues/:externalId/comments", () => {
   it("invokes getComments and returns NormalizedComment[]", async () => {
     const comments = [

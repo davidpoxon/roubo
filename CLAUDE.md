@@ -108,6 +108,8 @@ POST   /api/projects/:projectId/benches/:id/tools/:index/execute   Execute tool
 DELETE /api/projects/:projectId/benches/:id/notifications   Dismiss all notifications
 DELETE /api/projects/:projectId/benches/:id/notifications/:notificationId   Dismiss one notification
 POST   /api/projects/:projectId/benches/:id/inject-blueprint   Inject blueprint
+POST   /api/projects/:projectId/issues/:externalId/assign   Assign issue to user via active integration plugin
+DELETE /api/projects/:projectId/issues/:externalId/assign   Unassign issue from user via active integration plugin
 GET    /api/projects/:projectId/permissions   Get project Claude Code tool permissions
 PUT    /api/projects/:projectId/permissions   Replace project Claude Code tool permissions
 POST   /api/projects/:projectId/permissions/resync   Re-inject current permission set into all non-clearing bench workspaces

@@ -509,6 +509,31 @@ export function applyTransition(
   });
 }
 
+// Plugin RPC assignment (WU-019). Distinct from `assignIssue` below, which
+// attaches an issue to a local bench. These call into the active integration
+// plugin's assignIssue / unassignIssue methods to update the remote tracker.
+export function assignIssueToUser(
+  projectId: string,
+  externalId: string,
+  assigneeExternalId: string,
+): Promise<void> {
+  return requestVoid(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}/assign`, {
+    method: "POST",
+    body: JSON.stringify({ assigneeExternalId }),
+  });
+}
+
+export function unassignIssueFromUser(
+  projectId: string,
+  externalId: string,
+  assigneeExternalId: string,
+): Promise<void> {
+  return requestVoid(`/projects/${projectId}/issues/${encodeURIComponent(externalId)}/assign`, {
+    method: "DELETE",
+    body: JSON.stringify({ assigneeExternalId }),
+  });
+}
+
 export function fetchIssueComments(
   projectId: string,
   externalId: string,

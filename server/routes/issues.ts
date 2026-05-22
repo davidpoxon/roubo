@@ -141,6 +141,52 @@ router.post("/:projectId/issues/:externalId/transitions", async (req, res) => {
   }
 });
 
+router.post("/:projectId/issues/:externalId/assign", async (req, res) => {
+  const active = getActivePluginOrRespond(req.params.projectId, res);
+  if (!active) return;
+
+  const { assigneeExternalId } = (req.body ?? {}) as { assigneeExternalId?: unknown };
+  if (typeof assigneeExternalId !== "string" || assigneeExternalId.length === 0) {
+    res
+      .status(400)
+      .json({ error: "assigneeExternalId is required and must be a non-empty string" });
+    return;
+  }
+
+  try {
+    await pluginManager.invoke(active.pluginId, "assignIssue", {
+      externalId: req.params.externalId,
+      assigneeExternalId,
+    });
+    res.status(204).end();
+  } catch (err) {
+    sendPluginRpcError(res, err);
+  }
+});
+
+router.delete("/:projectId/issues/:externalId/assign", async (req, res) => {
+  const active = getActivePluginOrRespond(req.params.projectId, res);
+  if (!active) return;
+
+  const { assigneeExternalId } = (req.body ?? {}) as { assigneeExternalId?: unknown };
+  if (typeof assigneeExternalId !== "string" || assigneeExternalId.length === 0) {
+    res
+      .status(400)
+      .json({ error: "assigneeExternalId is required and must be a non-empty string" });
+    return;
+  }
+
+  try {
+    await pluginManager.invoke(active.pluginId, "unassignIssue", {
+      externalId: req.params.externalId,
+      assigneeExternalId,
+    });
+    res.status(204).end();
+  } catch (err) {
+    sendPluginRpcError(res, err);
+  }
+});
+
 router.get("/:projectId/issues/:externalId/comments", async (req, res) => {
   const active = getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
