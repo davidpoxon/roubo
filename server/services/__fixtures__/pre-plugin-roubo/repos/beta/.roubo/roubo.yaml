@@ -1,0 +1,16 @@
+project:
+  name: beta
+  displayName: Beta
+  type: api-only
+  repo: owner/beta
+layout:
+  type: single-repo
+components:
+  api:
+    type: process
+    command: npm run server
+ports:
+  api:
+    base: 5000
+benches:
+  max: 2

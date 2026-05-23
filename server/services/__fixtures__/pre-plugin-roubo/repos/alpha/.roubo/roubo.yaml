@@ -1,0 +1,18 @@
+project:
+  name: alpha
+  displayName: Alpha
+  type: web
+  repo: owner/alpha
+  github:
+    project: 42
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: npm start
+ports:
+  app:
+    base: 4000
+benches:
+  max: 3

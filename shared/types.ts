@@ -614,6 +614,22 @@ export interface PersistedBench {
 
 export interface PersistedState {
   benches: PersistedBench[];
+  /**
+   * Single commit point for the pre-plugin → plugin migration (WU-024 / issue #42).
+   * Absent on pre-migration installs; bumped to 1 only after every migration
+   * side-effect has succeeded. Used as the idempotency gate.
+   */
+  schemaVersion?: number;
+  /** Set alongside `schemaVersion` so the one-time banner can pick its variant. */
+  migration?: MigrationRecord;
+}
+
+export interface MigrationRecord {
+  status: "success" | "rolled-back";
+  /** ISO 8601. The banner uses this as the dismissal-marker key. */
+  at: string;
+  reason?: string;
+  migratedProjectIds: string[];
 }
 
 export interface PersistedProjects {
