@@ -163,6 +163,38 @@ describe("IssueAssignControl", () => {
     expect(mockedUnassign).not.toHaveBeenCalled();
   });
 
+  it("WU-027: exposes aria-pressed reflecting the toggle state", async () => {
+    const user = userEvent.setup();
+    let resolvePromise: () => void = () => {};
+    mockedAssign.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePromise = resolve;
+        }),
+    );
+
+    renderWithClient(
+      <IssueAssignControl
+        projectId="p1"
+        externalId="ROUBO-42"
+        assignees={[]}
+        capturedUserId={jane}
+      />,
+    );
+
+    const button = screen.getByTestId("assign-control");
+    // Unassigned → button is a not-pressed toggle so screen readers announce
+    // "Assign to me, not pressed" rather than just the label.
+    expect(button).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(button);
+
+    // Optimistic flip carries the aria-pressed state too.
+    expect(button).toHaveAttribute("aria-pressed", "true");
+
+    resolvePromise();
+  });
+
   it("re-syncs the label to the source when the assignees prop changes (refresh reconciliation)", () => {
     const { rerender } = renderWithClient(
       <IssueAssignControl

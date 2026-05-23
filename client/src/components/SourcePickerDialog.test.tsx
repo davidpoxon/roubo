@@ -2,10 +2,39 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Button, DialogTrigger } from "react-aria-components";
 import { renderWithProviders } from "../test/renderWithProviders";
 import SourcePickerDialog from "./SourcePickerDialog";
 import * as api from "../lib/api";
 import type { ProjectIntegrationState, SourceCandidatesResponse } from "@roubo/shared";
+
+function renderDialog(
+  props: {
+    projectId?: string;
+    pluginId?: string;
+    pluginLabel?: string;
+    initialValue?: Record<string, string[]>;
+    onClose?: () => void;
+  } = {},
+) {
+  const onClose = props.onClose ?? vi.fn();
+  return renderWithProviders(
+    <DialogTrigger
+      isOpen
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Button>Choose sources</Button>
+      <SourcePickerDialog
+        projectId={props.projectId ?? "proj-1"}
+        pluginId={props.pluginId ?? "github-com"}
+        pluginLabel={props.pluginLabel ?? "GitHub.com"}
+        initialValue={props.initialValue ?? {}}
+      />
+    </DialogTrigger>,
+  );
+}
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
@@ -46,15 +75,7 @@ function freshState(): ProjectIntegrationState {
 describe("SourcePickerDialog", () => {
   it("shows a loading state while candidates are fetching", () => {
     mockedFetch.mockReturnValue(new Promise(() => {}));
-    renderWithProviders(
-      <SourcePickerDialog
-        projectId="proj-1"
-        pluginId="github-com"
-        pluginLabel="GitHub.com"
-        initialValue={{}}
-        onClose={vi.fn()}
-      />,
-    );
+    renderDialog();
 
     expect(screen.getByText(/Loading source candidates/)).toBeInTheDocument();
   });
@@ -65,15 +86,7 @@ describe("SourcePickerDialog", () => {
     mockedSave.mockResolvedValue(freshState());
     const onClose = vi.fn();
 
-    renderWithProviders(
-      <SourcePickerDialog
-        projectId="proj-1"
-        pluginId="github-com"
-        pluginLabel="GitHub.com"
-        initialValue={{}}
-        onClose={onClose}
-      />,
-    );
+    renderDialog({ onClose });
 
     await waitFor(() => {
       expect(screen.getByRole("listbox", { name: /source candidates/i })).toBeInTheDocument();
@@ -91,15 +104,7 @@ describe("SourcePickerDialog", () => {
   it("renders an alert when the fetch fails", async () => {
     mockedFetch.mockRejectedValue(new Error("plugin offline"));
 
-    renderWithProviders(
-      <SourcePickerDialog
-        projectId="proj-1"
-        pluginId="github-com"
-        pluginLabel="GitHub.com"
-        initialValue={{}}
-        onClose={vi.fn()}
-      />,
-    );
+    renderDialog();
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/plugin offline/);
@@ -111,15 +116,7 @@ describe("SourcePickerDialog", () => {
     mockedFetch.mockResolvedValue(multiList());
     const onClose = vi.fn();
 
-    renderWithProviders(
-      <SourcePickerDialog
-        projectId="proj-1"
-        pluginId="github-com"
-        pluginLabel="GitHub.com"
-        initialValue={{ items: ["org/api"] }}
-        onClose={onClose}
-      />,
-    );
+    renderDialog({ initialValue: { items: ["org/api"] }, onClose });
 
     await waitFor(() => {
       expect(screen.getByRole("listbox", { name: /source candidates/i })).toBeInTheDocument();
@@ -136,15 +133,7 @@ describe("SourcePickerDialog", () => {
     mockedSave.mockRejectedValue(new api.ApiError("write denied", 403));
     const onClose = vi.fn();
 
-    renderWithProviders(
-      <SourcePickerDialog
-        projectId="proj-1"
-        pluginId="github-com"
-        pluginLabel="GitHub.com"
-        initialValue={{ items: ["org/api"] }}
-        onClose={onClose}
-      />,
-    );
+    renderDialog({ initialValue: { items: ["org/api"] }, onClose });
 
     await waitFor(() => {
       expect(screen.getByRole("listbox", { name: /source candidates/i })).toBeInTheDocument();

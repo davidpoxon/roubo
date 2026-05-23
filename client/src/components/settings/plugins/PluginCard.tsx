@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
+import { Button, DialogTrigger, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { PluginRecord } from "@roubo/shared";
 import { useDisablePlugin, useEnablePlugin, useUninstallPlugin } from "../../../hooks/usePlugins";
 import StatusPill from "./StatusPill";
@@ -112,13 +112,16 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         </Button>
 
         {isUser && (
-          <Button
-            isDisabled={uninstall.isPending}
-            onPress={() => setUninstallOpen(true)}
-            className={ACTION_BUTTON_CLASS}
-          >
-            {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
-          </Button>
+          <DialogTrigger isOpen={uninstallOpen} onOpenChange={setUninstallOpen}>
+            <Button isDisabled={uninstall.isPending} className={ACTION_BUTTON_CLASS}>
+              {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
+            </Button>
+            <UninstallPluginDialog
+              pluginName={displayName}
+              onConfirm={() => uninstall.mutate(plugin.id)}
+              isPending={uninstall.isPending}
+            />
+          </DialogTrigger>
         )}
       </div>
 
@@ -128,19 +131,6 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         isOpen={logsOpen}
         onClose={() => setLogsOpen(false)}
       />
-
-      {isUser && (
-        <UninstallPluginDialog
-          pluginName={displayName}
-          isOpen={uninstallOpen}
-          onClose={() => setUninstallOpen(false)}
-          onConfirm={() => {
-            uninstall.mutate(plugin.id);
-            setUninstallOpen(false);
-          }}
-          isPending={uninstall.isPending}
-        />
-      )}
     </article>
   );
 }

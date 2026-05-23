@@ -306,7 +306,7 @@ interface ChipStripProps {
 
 function ChipStrip({ title, chips }: ChipStripProps) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" aria-live="polite" aria-atomic="true">
       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
         {title}
       </span>
@@ -348,7 +348,7 @@ function GroupedChipStrip({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" aria-live="polite" aria-atomic="true">
       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
         Selected
       </span>

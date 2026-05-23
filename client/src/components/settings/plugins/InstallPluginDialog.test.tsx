@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Button, DialogTrigger } from "react-aria-components";
 import type { InstallPreview, PluginManifest, PluginRecord } from "@roubo/shared";
 import { ApiError } from "../../../lib/api";
 import ToastProvider from "../../ToastProvider";
@@ -104,7 +105,15 @@ function fixturePluginRecord(): PluginRecord {
 function renderDialog(onClose = vi.fn()) {
   return render(
     <ToastProvider>
-      <InstallPluginDialog isOpen onClose={onClose} />
+      <DialogTrigger
+        isOpen
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <Button>Install plugin</Button>
+        <InstallPluginDialog />
+      </DialogTrigger>
     </ToastProvider>,
   );
 }
@@ -280,9 +289,12 @@ describe("permissions step", () => {
     expect(screen.getByText(/git url/i)).toBeInTheDocument();
     expect(screen.getByText("https://github.com/example/echo.git")).toBeInTheDocument();
 
-    // Primary action and cancel are clearly identified.
+    // Primary action and cancel are clearly identified by accessible name (TC-075).
     expect(screen.getByRole("button", { name: /install and enable/i })).toBeInTheDocument();
-    expect(screen.getByTestId("install-plugin-permissions-cancel")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
+
+    // Dialog itself exposes role="dialog" and is named from the Heading (TC-075).
+    expect(screen.getByRole("dialog", { name: /install echo/i })).toBeInTheDocument();
   });
 
   it("calls confirm on Install and enable; closes dialog and toasts (TC-007)", async () => {
@@ -309,7 +321,15 @@ describe("permissions step", () => {
 
     render(
       <ToastProvider>
-        <InstallPluginDialog isOpen onClose={onClose} />
+        <DialogTrigger
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) onClose();
+          }}
+        >
+          <Button>Install plugin</Button>
+          <InstallPluginDialog />
+        </DialogTrigger>
       </ToastProvider>,
     );
 

@@ -21,7 +21,6 @@ interface Props {
   projectId: string;
   plugin: InstalledPlugin;
   effective: IntegrationConfig;
-  onClose: () => void;
 }
 
 const KNOWN_TLS_FIELD_KEYS = ["allowSelfSignedTls", "allow_self_signed_tls", "allowSelfSignedTLS"];
@@ -84,7 +83,29 @@ function seedInitialValues(
   return out;
 }
 
-export default function PluginConfigureDialog({ projectId, plugin, effective, onClose }: Props) {
+export default function PluginConfigureDialog({ projectId, plugin, effective }: Props) {
+  return (
+    <ModalOverlay
+      isDismissable
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
+      <Modal className="w-full max-w-lg mx-4">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+          {({ close }) => (
+            <ConfigureFlow
+              projectId={projectId}
+              plugin={plugin}
+              effective={effective}
+              close={close}
+            />
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function ConfigureFlow({ projectId, plugin, effective, close }: Props & { close: () => void }) {
   const manifest = plugin.manifest;
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
@@ -180,7 +201,7 @@ export default function PluginConfigureDialog({ projectId, plugin, effective, on
 
     try {
       await saveMutation.mutateAsync(update);
-      onClose();
+      close();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
     }
@@ -189,78 +210,63 @@ export default function PluginConfigureDialog({ projectId, plugin, effective, on
   const isBusy = testMutation.isPending || saveMutation.isPending;
 
   return (
-    <ModalOverlay
-      isOpen
-      onOpenChange={(open) => {
-        if (!open && !isBusy) onClose();
-      }}
-      isDismissable={!isBusy}
-      isKeyboardDismissDisabled={isBusy}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
-      <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
-            >
-              Configure {manifest?.name ?? plugin.id}
-            </Heading>
-          </div>
+    <>
+      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
+        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          Configure {manifest?.name ?? plugin.id}
+        </Heading>
+      </div>
 
-          <div className="px-5 py-4 space-y-4">
-            <ConfigSchemaForm
-              schema={manifest?.configSchema}
-              permissions={manifest?.permissions}
-              values={values}
-              onChange={setValues}
-            />
+      <div className="px-5 py-4 space-y-4">
+        <ConfigSchemaForm
+          schema={manifest?.configSchema}
+          permissions={manifest?.permissions}
+          values={values}
+          onChange={setValues}
+        />
 
-            <ResultStrip
-              testing={testMutation.isPending}
-              result={testResult}
-              tlsFieldKey={tlsFieldKey}
-              onEnableTls={handleEnableTls}
-            />
+        <ResultStrip
+          testing={testMutation.isPending}
+          result={testResult}
+          tlsFieldKey={tlsFieldKey}
+          onEnableTls={handleEnableTls}
+        />
 
-            {submitError && (
-              <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
-                {submitError}
-              </p>
-            )}
-          </div>
+        {submitError && (
+          <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+            {submitError}
+          </p>
+        )}
+      </div>
 
-          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
-            <Button
-              isDisabled={isBusy}
-              onPress={() => void runTest(values)}
-              data-testid="test-connection"
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-            >
-              Test connection
-            </Button>
-            <div className="flex items-center gap-2">
-              <Button
-                isDisabled={isBusy}
-                onPress={onClose}
-                className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
-              >
-                Cancel
-              </Button>
-              <Button
-                isDisabled={!hasTestedSuccessfully || isBusy}
-                onPress={() => void handleSave()}
-                data-testid="save-config"
-                className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
-              >
-                {saveMutation.isPending ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+        <Button
+          isDisabled={isBusy}
+          onPress={() => void runTest(values)}
+          data-testid="test-connection"
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          Test connection
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            isDisabled={isBusy}
+            onPress={close}
+            className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            Cancel
+          </Button>
+          <Button
+            isDisabled={!hasTestedSuccessfully || isBusy}
+            onPress={() => void handleSave()}
+            data-testid="save-config"
+            className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          >
+            {saveMutation.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -319,7 +325,7 @@ function ResultStrip({
           <Button
             onPress={onEnableTls}
             data-testid="enable-self-signed-tls"
-            className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             Enable self-signed TLS and retry
           </Button>

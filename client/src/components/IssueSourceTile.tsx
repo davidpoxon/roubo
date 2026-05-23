@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "react-aria-components";
+import { Button, DialogTrigger } from "react-aria-components";
 import { Plug, AlertTriangle, Download } from "lucide-react";
 import type {
   IntegrationCaptionKey,
@@ -22,6 +22,9 @@ const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
   none: "",
 };
 
+const TRIGGER_BUTTON_CLASS =
+  "px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+
 // `effective.sources` is plugin-defined and typed `unknown` in @roubo/shared.
 // Narrow defensively into the `Record<string, string[]>` shape the picker
 // expects; drop entries that don't conform rather than throwing.
@@ -37,23 +40,23 @@ function narrowSources(raw: unknown): SourceSelection {
 }
 
 function ConfiguredBody({
+  projectId,
   state,
-  onSwitch,
-  onConfigure,
-  onChooseSources,
 }: {
+  projectId: string;
   // The "configured" variant only renders when `plugin` is non-null and
   // installed, so this prop carries a narrowed plugin type.
   state: ProjectIntegrationState & { plugin: NonNullable<ProjectIntegrationState["plugin"]> };
-  onSwitch: () => void;
-  onConfigure: () => void;
-  onChooseSources: () => void;
 }) {
   const { plugin } = state;
   const integrationName = plugin.manifest?.name ?? plugin.id;
   const instance = state.effective.instance;
   const sources = state.effective.sources ?? {};
   const caption = CAPTION_TEXT[state.captionKey];
+
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [configureOpen, setConfigureOpen] = useState(false);
+  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -98,30 +101,36 @@ function ConfiguredBody({
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button
-          onPress={onSwitch}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-        >
-          Switch integration
-        </Button>
-        <Button
-          onPress={onConfigure}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-        >
-          Configure
-        </Button>
-        <Button
-          onPress={onChooseSources}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-        >
-          Choose sources
-        </Button>
+        <DialogTrigger isOpen={switchOpen} onOpenChange={setSwitchOpen}>
+          <Button className={TRIGGER_BUTTON_CLASS}>Switch integration</Button>
+          <SwitchIntegrationDialog projectId={projectId} currentPluginId={plugin.id} />
+        </DialogTrigger>
+        {plugin.installed && plugin.manifest && (
+          <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
+            <Button className={TRIGGER_BUTTON_CLASS}>Configure</Button>
+            <PluginConfigureDialog
+              projectId={projectId}
+              plugin={plugin}
+              effective={state.effective}
+            />
+          </DialogTrigger>
+        )}
+        <DialogTrigger isOpen={sourceDialogOpen} onOpenChange={setSourceDialogOpen}>
+          <Button className={TRIGGER_BUTTON_CLASS}>Choose sources</Button>
+          <SourcePickerDialog
+            projectId={projectId}
+            pluginId={plugin.id}
+            pluginLabel={plugin.manifest?.name ?? plugin.id}
+            initialValue={narrowSources(state.effective.sources)}
+          />
+        </DialogTrigger>
       </div>
     </div>
   );
 }
 
-function UnconfiguredBody({ onChoose }: { onChoose: () => void }) {
+function UnconfiguredBody({ projectId }: { projectId: string }) {
+  const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
       <p className="text-sm text-stone-600 dark:text-stone-400">No issue source configured yet.</p>
@@ -129,13 +138,13 @@ function UnconfiguredBody({ onChoose }: { onChoose: () => void }) {
         Choose an installed integration to start pulling issues into this project.
       </p>
       <div>
-        <Button
-          onPress={onChoose}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
-        >
-          <Plug size={12} />
-          Choose integration
-        </Button>
+        <DialogTrigger isOpen={open} onOpenChange={setOpen}>
+          <Button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950">
+            <Plug size={12} />
+            Choose integration
+          </Button>
+          <SwitchIntegrationDialog projectId={projectId} currentPluginId={null} />
+        </DialogTrigger>
       </div>
     </div>
   );
@@ -165,9 +174,6 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
 
 export default function IssueSourceTile({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, error } = useProjectIntegration(projectId);
-  const [switchOpen, setSwitchOpen] = useState(false);
-  const [configureOpen, setConfigureOpen] = useState(false);
-  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
 
   const variant = (() => {
     if (!data) return "loading";
@@ -175,9 +181,6 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
     if (!data.plugin.installed) return "missing-plugin";
     return "configured";
   })();
-
-  const currentPluginId = data?.plugin?.id ?? null;
-  const currentPluginLabel = data?.plugin?.manifest?.name ?? currentPluginId ?? "";
 
   return (
     <Tile
@@ -201,47 +204,19 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
 
       {!isLoading && !isError && variant === "configured" && data?.plugin && (
         <ConfiguredBody
+          projectId={projectId}
           state={
             data as ProjectIntegrationState & {
               plugin: NonNullable<ProjectIntegrationState["plugin"]>;
             }
           }
-          onSwitch={() => setSwitchOpen(true)}
-          onConfigure={() => setConfigureOpen(true)}
-          onChooseSources={() => setSourceDialogOpen(true)}
         />
       )}
       {!isLoading && !isError && variant === "unconfigured" && (
-        <UnconfiguredBody onChoose={() => setSwitchOpen(true)} />
+        <UnconfiguredBody projectId={projectId} />
       )}
       {!isLoading && !isError && variant === "missing-plugin" && data?.plugin && (
         <MissingPluginBody pluginId={data.plugin.id} />
-      )}
-
-      {switchOpen && (
-        <SwitchIntegrationDialog
-          projectId={projectId}
-          currentPluginId={currentPluginId}
-          onClose={() => setSwitchOpen(false)}
-        />
-      )}
-      {configureOpen && data?.plugin?.installed && data.plugin.manifest && (
-        <PluginConfigureDialog
-          projectId={projectId}
-          plugin={data.plugin as NonNullable<ProjectIntegrationState["plugin"]>}
-          effective={data.effective}
-          onClose={() => setConfigureOpen(false)}
-        />
-      )}
-
-      {sourceDialogOpen && currentPluginId && (
-        <SourcePickerDialog
-          projectId={projectId}
-          pluginId={currentPluginId}
-          pluginLabel={currentPluginLabel}
-          initialValue={narrowSources(data?.effective.sources)}
-          onClose={() => setSourceDialogOpen(false)}
-        />
       )}
     </Tile>
   );
