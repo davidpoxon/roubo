@@ -163,7 +163,7 @@ export async function run(): Promise<MigrationOutcome> {
   // committed, so we log and move on rather than rolling back.
   if (auth) {
     try {
-      deleteCredentials();
+      await deleteCredentials();
     } catch (err) {
       console.warn(
         "migrate: post-commit auth.json delete failed (state remains migrated):",

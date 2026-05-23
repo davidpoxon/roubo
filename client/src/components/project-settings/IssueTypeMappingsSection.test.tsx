@@ -96,8 +96,8 @@ describe("IssueTypeMappingsSection", () => {
     } as unknown as ReturnType<typeof useIssueTypes>);
     renderSection({});
     expect(screen.getByText(/connect your github account/i)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /settings.*integrations/i });
-    expect(link).toHaveAttribute("href", "/settings");
+    const link = screen.getByRole("link", { name: /settings.*plugins/i });
+    expect(link).toHaveAttribute("href", "/settings#plugins");
   });
 
   it("shows empty-state copy when configured with zero types", () => {

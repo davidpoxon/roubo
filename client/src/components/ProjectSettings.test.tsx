@@ -44,12 +44,6 @@ vi.mock("./blueprint-editor/DeleteBlueprintDialog", () => ({
   default: () => null,
 }));
 
-vi.mock("../hooks/useGitHubAuth", () => ({
-  useGitHubAuth: vi.fn(),
-  useConnectGitHub: vi.fn(),
-  useDisconnectGitHub: vi.fn(),
-}));
-
 vi.mock("./DirectoryPicker", () => ({
   default: ({ onChange }: { onChange: (val: string) => void }) => (
     <input data-testid="directory-picker" onChange={(e) => onChange(e.target.value)} />
@@ -63,7 +57,6 @@ import {
   useDeleteGlobalBlueprint,
   useDuplicateGlobalBlueprint,
 } from "../hooks/useBlueprints";
-import { useGitHubAuth, useConnectGitHub, useDisconnectGitHub } from "../hooks/useGitHubAuth";
 import { useToast } from "../hooks/useToast";
 import { ApiError } from "../lib/api";
 
@@ -74,9 +67,6 @@ const mockedUseGlobalBlueprints = vi.mocked(useGlobalBlueprints);
 const mockedUseDeleteGlobalBlueprint = vi.mocked(useDeleteGlobalBlueprint);
 const mockedUseDuplicateGlobalBlueprint = vi.mocked(useDuplicateGlobalBlueprint);
 const mockedUseToast = vi.mocked(useToast);
-const mockedUseGitHubAuth = vi.mocked(useGitHubAuth);
-const mockedUseConnectGitHub = vi.mocked(useConnectGitHub);
-const mockedUseDisconnectGitHub = vi.mocked(useDisconnectGitHub);
 
 const defaultSettings = {
   theme: "dark" as const,
@@ -113,17 +103,6 @@ function setupDefaultMocks() {
   mockedUseDuplicateGlobalBlueprint.mockReturnValue(
     noopMutation as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>,
   );
-  mockedUseGitHubAuth.mockReturnValue({
-    status: undefined,
-    isLoading: false,
-    error: null,
-  });
-  mockedUseConnectGitHub.mockReturnValue(
-    noopMutation as unknown as ReturnType<typeof useConnectGitHub>,
-  );
-  mockedUseDisconnectGitHub.mockReturnValue(
-    noopMutation as unknown as ReturnType<typeof useDisconnectGitHub>,
-  );
 }
 
 beforeEach(() => {
@@ -147,8 +126,13 @@ describe("ProjectSettings", () => {
       expect(screen.getByRole("tab", { name: "Bench Defaults" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Blueprints" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Integrations" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Claude Code" })).toBeInTheDocument();
+    });
+
+    it("no longer renders the legacy Integrations tab", () => {
+      render();
+      expect(screen.queryByRole("tab", { name: "Integrations" })).toBeNull();
     });
 
     it("defaults to the Bench Defaults tab", () => {
@@ -330,307 +314,6 @@ describe("ProjectSettings", () => {
           }),
         }),
       );
-    });
-  });
-
-  describe("Integrations tab — GitHub", () => {
-    async function openIntegrationsTab() {
-      const user = userEvent.setup();
-      render();
-      await user.click(screen.getByRole("tab", { name: "Integrations" }));
-      return user;
-    }
-
-    it("shows loading skeleton while auth status is loading", async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: undefined,
-        isLoading: true,
-        error: null,
-      });
-      await openIntegrationsTab();
-
-      // The skeleton pulse element should be present
-      const skeleton = document.querySelector(".animate-pulse");
-      expect(skeleton).not.toBeNull();
-    });
-
-    it('shows "Not connected" badge when not authenticated', async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText("Not connected")).toBeInTheDocument();
-    });
-
-    it('shows "Connect GitHub" button when not authenticated', async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByRole("button", { name: /connect github/i })).toBeInTheDocument();
-    });
-
-    it('shows "Connected" badge when authenticated', async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText("Connected")).toBeInTheDocument();
-    });
-
-    it("shows signed-in username when connected", async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText("octocat")).toBeInTheDocument();
-    });
-
-    it("calls connectGitHub.mutate with onSuccess callback when Connect GitHub button is pressed", async () => {
-      const mutate = vi.fn();
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      const user = await openIntegrationsTab();
-
-      await user.click(screen.getByRole("button", { name: /connect github/i }));
-      expect(mutate).toHaveBeenCalledWith(
-        undefined,
-        expect.objectContaining({ onSuccess: expect.any(Function) }),
-      );
-    });
-
-    it('shows "Authorizing…" badge and waiting message after connect succeeds', async () => {
-      let capturedOnSuccess: (() => void) | undefined;
-      const mutate = vi.fn((_arg: unknown, callbacks?: { onSuccess?: () => void }) => {
-        capturedOnSuccess = callbacks?.onSuccess;
-      });
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      const user = await openIntegrationsTab();
-
-      await user.click(screen.getByRole("button", { name: /connect github/i }));
-      act(() => {
-        capturedOnSuccess?.();
-      });
-
-      expect(screen.getByText("Authorizing…")).toBeInTheDocument();
-      expect(screen.getByText(/waiting for authorization/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
-    });
-
-    it('returns to "Not connected" state when Cancel is pressed during OAuth', async () => {
-      let capturedOnSuccess: (() => void) | undefined;
-      const mutate = vi.fn((_arg: unknown, callbacks?: { onSuccess?: () => void }) => {
-        capturedOnSuccess = callbacks?.onSuccess;
-      });
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      const user = await openIntegrationsTab();
-
-      await user.click(screen.getByRole("button", { name: /connect github/i }));
-      act(() => {
-        capturedOnSuccess?.();
-      });
-
-      expect(screen.getByText("Authorizing…")).toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: /cancel/i }));
-      expect(screen.getByText("Not connected")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /connect github/i })).toBeInTheDocument();
-    });
-
-    it("disables Connect GitHub button and shows loading state while pending", async () => {
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        isPending: true,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-
-      const button = screen.getByRole("button", { name: /opening/i });
-      expect(button).toBeDisabled();
-    });
-
-    it("shows error message when connectGitHub fails", async () => {
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        isError: true,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-
-      expect(screen.getByText(/could not open github/i)).toBeInTheDocument();
-    });
-
-    it('shows "unknown" when connected with no username', async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText("unknown")).toBeInTheDocument();
-    });
-
-    it("shows Disconnect button when connected", async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByRole("button", { name: /disconnect/i })).toBeInTheDocument();
-    });
-
-    it("calls disconnectGitHub.mutate when Disconnect button is pressed", async () => {
-      const mutate = vi.fn();
-      mockedUseDisconnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate,
-      } as unknown as ReturnType<typeof useDisconnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      const user = await openIntegrationsTab();
-      await user.click(screen.getByRole("button", { name: /disconnect/i }));
-      expect(mutate).toHaveBeenCalled();
-    });
-
-    it("disables Disconnect button while pending", async () => {
-      mockedUseDisconnectGitHub.mockReturnValue({
-        ...noopMutation,
-        isPending: true,
-      } as unknown as ReturnType<typeof useDisconnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByRole("button", { name: /disconnect/i })).toBeDisabled();
-    });
-
-    it("shows error message when disconnect fails", async () => {
-      mockedUseDisconnectGitHub.mockReturnValue({
-        ...noopMutation,
-        isError: true,
-      } as unknown as ReturnType<typeof useDisconnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat" },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText(/could not disconnect/i)).toBeInTheDocument();
-    });
-
-    it("shows reconnect prompt when scopesOutdated is true", async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat", scopesOutdated: true },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.getByText(/updated permissions required/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /reconnect/i })).toBeInTheDocument();
-    });
-
-    it("does not show reconnect prompt when scopesOutdated is false", async () => {
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat", scopesOutdated: false },
-        isLoading: false,
-        error: null,
-      });
-      await openIntegrationsTab();
-      expect(screen.queryByText(/updated permissions required/i)).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /reconnect/i })).not.toBeInTheDocument();
-    });
-
-    it("calls disconnect then connect mutations and transitions to awaiting state when Reconnect is pressed", async () => {
-      let capturedDisconnectOnSuccess: (() => void) | undefined;
-      const disconnectMutate = vi.fn((_arg: unknown, callbacks?: { onSuccess?: () => void }) => {
-        capturedDisconnectOnSuccess = callbacks?.onSuccess;
-      });
-      let capturedConnectOnSuccess: (() => void) | undefined;
-      const connectMutate = vi.fn((_arg: unknown, callbacks?: { onSuccess?: () => void }) => {
-        capturedConnectOnSuccess = callbacks?.onSuccess;
-      });
-      mockedUseDisconnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate: disconnectMutate,
-      } as unknown as ReturnType<typeof useDisconnectGitHub>);
-      mockedUseConnectGitHub.mockReturnValue({
-        ...noopMutation,
-        mutate: connectMutate,
-      } as unknown as ReturnType<typeof useConnectGitHub>);
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: true, username: "octocat", scopesOutdated: true },
-        isLoading: false,
-        error: null,
-      });
-      const user = await openIntegrationsTab();
-
-      await user.click(screen.getByRole("button", { name: /reconnect/i }));
-      expect(disconnectMutate).toHaveBeenCalled();
-
-      act(() => {
-        capturedDisconnectOnSuccess?.();
-      });
-      expect(connectMutate).toHaveBeenCalledWith(
-        undefined,
-        expect.objectContaining({ onSuccess: expect.any(Function) }),
-      );
-
-      // After disconnect succeeds the status returns connected: false; firing connect's
-      // onSuccess sets awaitingOAuth: true, which combined with !connected renders the badge.
-      mockedUseGitHubAuth.mockReturnValue({
-        status: { connected: false },
-        isLoading: false,
-        error: null,
-      });
-      act(() => {
-        capturedConnectOnSuccess?.();
-      });
-      expect(screen.getByText("Authorizing…")).toBeInTheDocument();
     });
   });
 

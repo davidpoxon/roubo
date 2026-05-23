@@ -70,10 +70,10 @@ export function IssueTypeMappingsSection({
         <p className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
           Connect your GitHub account in{" "}
           <Link
-            to="/settings"
+            to="/settings#plugins"
             className="text-amber-500 hover:text-amber-400 underline underline-offset-2 transition-colors"
           >
-            Settings → Integrations
+            Settings → Plugins
           </Link>{" "}
           to load issue types.
         </p>

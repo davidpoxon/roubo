@@ -106,7 +106,7 @@ describe("POST /exchange", () => {
       scopes: ["repo"],
     });
     vi.mocked(githubAuth.fetchGitHubUsername).mockResolvedValue("octocat");
-    vi.mocked(githubAuth.saveCredentials).mockImplementation(() => {});
+    vi.mocked(githubAuth.saveCredentials).mockResolvedValue(undefined);
 
     const res = await request(app)
       .post("/exchange")
@@ -130,7 +130,7 @@ describe("POST /exchange", () => {
 
 describe("DELETE /", () => {
   it("calls deleteCredentials and resetOctokit and returns 204", async () => {
-    vi.mocked(githubAuth.deleteCredentials).mockImplementation(() => {});
+    vi.mocked(githubAuth.deleteCredentials).mockResolvedValue(undefined);
 
     const res = await request(app).delete("/");
     expect(res.status).toBe(204);
@@ -139,9 +139,7 @@ describe("DELETE /", () => {
   });
 
   it("returns 500 when deleteCredentials throws", async () => {
-    vi.mocked(githubAuth.deleteCredentials).mockImplementation(() => {
-      throw new Error("Permission denied");
-    });
+    vi.mocked(githubAuth.deleteCredentials).mockRejectedValue(new Error("Permission denied"));
 
     const res = await request(app).delete("/");
     expect(res.status).toBe(500);

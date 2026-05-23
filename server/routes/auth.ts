@@ -49,7 +49,7 @@ router.post("/exchange", async (req, res) => {
   try {
     const { token, scopes } = await exchangeCodeForToken(code);
     const username = await fetchGitHubUsername(token);
-    saveCredentials(token, username, scopes);
+    await saveCredentials(token, username, scopes);
     resetOctokit();
     clearStatusCache();
     res.json({ ok: true, username });
@@ -58,9 +58,9 @@ router.post("/exchange", async (req, res) => {
   }
 });
 
-router.delete("/", (_req, res) => {
+router.delete("/", async (_req, res) => {
   try {
-    deleteCredentials();
+    await deleteCredentials();
     resetOctokit();
     res.status(204).end();
   } catch (err) {

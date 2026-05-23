@@ -216,6 +216,14 @@ if (!app.requestSingleInstanceLock()) {
         ? new URL("../resources/server/dist/index.js", import.meta.url).href
         : new URL("../../server/dist/index.js", import.meta.url).href;
 
+      if (app.isPackaged && !process.env.ROUBO_BUNDLED_PLUGINS_DIR) {
+        // Packaged builds stage plugins under resources/plugins/ (see
+        // electron/src/packaging/copy-resources.ts). Point the plugin manager
+        // at that location directly so it does not have to derive the path
+        // from the bundled server file's location.
+        process.env.ROUBO_BUNDLED_PLUGINS_DIR = path.join(process.resourcesPath, "plugins");
+      }
+
       const result = await resolveBootstrap({
         env: process.env,
         importServer: () => import(serverEntryUrl),
