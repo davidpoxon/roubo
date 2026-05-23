@@ -92,4 +92,33 @@ describe("host-fetch-adapter", () => {
     const res = await adapter("https://api.github.com/foo");
     expect(res.status).toBe(304);
   });
+
+  it("forwards allowSelfSignedTls from the resolver when it returns true", async () => {
+    const { host, calls } = makeMockHost(() => ({ status: 200, headers: {}, body: "" }));
+    const adapter = createHostFetchAdapter(host, () => true);
+    await adapter("https://api.github.com/foo");
+    expect(calls[0].init.allowSelfSignedTls).toBe(true);
+  });
+
+  it("omits allowSelfSignedTls when the resolver returns false or is not supplied", async () => {
+    const { host, calls } = makeMockHost(() => ({ status: 200, headers: {}, body: "" }));
+    const adapterFalse = createHostFetchAdapter(host, () => false);
+    await adapterFalse("https://api.github.com/foo");
+    expect("allowSelfSignedTls" in calls[0].init).toBe(false);
+
+    const adapterDefault = createHostFetchAdapter(host);
+    await adapterDefault("https://api.github.com/bar");
+    expect("allowSelfSignedTls" in calls[1].init).toBe(false);
+  });
+
+  it("re-evaluates the resolver on every call", async () => {
+    const { host, calls } = makeMockHost(() => ({ status: 200, headers: {}, body: "" }));
+    let allow = false;
+    const adapter = createHostFetchAdapter(host, () => allow);
+    await adapter("https://api.github.com/first");
+    allow = true;
+    await adapter("https://api.github.com/second");
+    expect("allowSelfSignedTls" in calls[0].init).toBe(false);
+    expect(calls[1].init.allowSelfSignedTls).toBe(true);
+  });
 });

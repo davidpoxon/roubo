@@ -37,9 +37,16 @@ function bodyToString(body: BodyInit | null | undefined): string | undefined {
  *
  * The host preserves raw response headers (notably `etag`, `retry-after`, and
  * `x-ratelimit-*`), which `githubRequest` reads for ETag caching and backoff.
+ *
+ * `getAllowSelfSignedTls` is a resolver (not a value), so the adapter always
+ * sees the current active config: the user can reconfigure between requests
+ * without rebuilding the Octokit instance. When the resolver returns true the
+ * flag is forwarded on the host.fetch payload so the host picks a TLS-relaxed
+ * dispatcher for that single call.
  */
 export function createHostFetchAdapter(
   host: HostClient,
+  getAllowSelfSignedTls: () => boolean = () => false,
 ): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
   return async function hostFetch(input, init) {
     const url =
@@ -58,6 +65,7 @@ export function createHostFetchAdapter(
     if (Object.keys(headers).length > 0) fetchInit.headers = headers;
     const body = bodyToString(init?.body);
     if (body !== undefined) fetchInit.body = body;
+    if (getAllowSelfSignedTls()) fetchInit.allowSelfSignedTls = true;
 
     const result = await host.fetch(url, fetchInit);
 
