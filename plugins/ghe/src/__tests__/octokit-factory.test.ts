@@ -93,6 +93,44 @@ describe("octokit-factory", () => {
     expect(second).not.toBe(first);
   });
 
+  it("forwards allowSelfSignedTls from the active config on each host.fetch call", async () => {
+    const mock = buildMockHost("ghp_test_token");
+    bindHost(mock.host);
+    setActiveConfig({
+      instance: "https://ghe.example.com",
+      allowSelfSignedTls: true,
+      sources: [],
+    });
+    mock.fetch.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: 1, login: "foo" }),
+    });
+    const client = await getOctokit();
+    await client.request("GET /user");
+    const [, init] = mock.fetch.mock.calls[0];
+    expect(init?.allowSelfSignedTls).toBe(true);
+  });
+
+  it("omits allowSelfSignedTls when the active config has it disabled", async () => {
+    const mock = buildMockHost("ghp_test_token");
+    bindHost(mock.host);
+    setActiveConfig({
+      instance: "https://ghe.example.com",
+      allowSelfSignedTls: false,
+      sources: [],
+    });
+    mock.fetch.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: 1, login: "foo" }),
+    });
+    const client = await getOctokit();
+    await client.request("GET /user");
+    const [, init] = mock.fetch.mock.calls[0];
+    expect(init?.allowSelfSignedTls).toBeUndefined();
+  });
+
   it("returns the injected test client without consulting active config", async () => {
     const fakeClient = {
       request: vi.fn(),

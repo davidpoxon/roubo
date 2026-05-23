@@ -99,6 +99,13 @@ export interface FetchInit {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  /**
+   * When true, the host's underlying TLS agent uses `rejectUnauthorized: false`
+   * for this request, allowing self-signed certificates. Scoped to a single
+   * `host.fetch` call: it does not mutate global Node TLS state and only
+   * affects the dispatcher used for this request.
+   */
+  allowSelfSignedTls?: boolean;
 }
 
 export interface FetchResult {

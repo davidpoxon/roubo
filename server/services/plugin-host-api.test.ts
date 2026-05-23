@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { EventEmitter } from "node:events";
 import { promises as fs } from "node:fs";
+import https from "node:https";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { ResponseError } from "vscode-jsonrpc/node.js";
@@ -12,6 +14,59 @@ import {
   type SpawnLike,
 } from "./plugin-host-api.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
+
+// Self-signed cert for localhost, duplicated from plugin-http.test.ts (the
+// canonical source). Embedded so the host.fetch TLS test stays hermetic.
+const SELF_SIGNED_CERT = `-----BEGIN CERTIFICATE-----
+MIIDJTCCAg2gAwIBAgIUPosJdCuLfd6fl3LABFNVrtdH/qEwDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDUyMjAxMTIxNVoXDTQ2MDUx
+NzAxMTIxNVowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEAuPA7SGGww1kmT5Sj+T3Wt8SO7TJykshg9Q2Ee+ZO1PI7
+Ydl5bzSLeEFRDv7WF3V+F+GRnHnAZGS/G9i/kzErM6iG8Z2tS+7Qlr5N7/UnqvBa
+J8duzY6lr39dbAhuWwmmLMg/Rhjpg5GhqpkvXMSPqhuptXhR1Ynue69rR9/BXrx2
+0VFpuQ4qDjRURJp1emkTyXdVnB6/b27ks9zAD3QAnbwNW0YkOSm0RDp+7j4I0Qq/
+YCzjCjp7Nr8nrrZV8CTyGSQSZXLBakaoDaWnxf6ddQXGHjAera5PyuudCUea55kB
+tdTYOFRN2mtjr/rU604eSTuv+Q1bpy7gvtkXp3L9NwIDAQABo28wbTAdBgNVHQ4E
+FgQUThsww/7O1n8SwzXr1B/6SDoECggwHwYDVR0jBBgwFoAUThsww/7O1n8SwzXr
+1B/6SDoECggwDwYDVR0TAQH/BAUwAwEB/zAaBgNVHREEEzARgglsb2NhbGhvc3SH
+BH8AAAEwDQYJKoZIhvcNAQELBQADggEBALOBwa7WlV4fkJ2hQM8vSMFBcL2LLCyF
+RmJib6qjtzgSIVcPxwo1oFLjB9vwcv20AgX+yyuds07W/nMR+okGNCMGPe3xkMKH
+j/gMwP+iimIFIf/TrwkHzjAFwAEkdiX2BcBwnrXWdH7lAFEBf7F+MQL9NdZhufLd
+s6ZgtjZpPmktkx46LahIoslfESPoaGxcu7s4HcRY7aaxCepiCBjh1jtPNXD7VD/o
+2J1Cn9Os5G4j9CXAYUyYk+x+SD7F7QCsD7Skf27RqOcDhSRKGvh0MAUUmDiuPghD
+Ptzk5Uu2BpPTQ+28UybneEjyjMe6g0INDs9pVy0MnoXkq/D9WqY9N4M=
+-----END CERTIFICATE-----
+`;
+
+const SELF_SIGNED_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC48DtIYbDDWSZP
+lKP5Pda3xI7tMnKSyGD1DYR75k7U8jth2XlvNIt4QVEO/tYXdX4X4ZGcecBkZL8b
+2L+TMSszqIbxna1L7tCWvk3v9Seq8Fonx27NjqWvf11sCG5bCaYsyD9GGOmDkaGq
+mS9cxI+qG6m1eFHVie57r2tH38FevHbRUWm5DioONFREmnV6aRPJd1WcHr9vbuSz
+3MAPdACdvA1bRiQ5KbREOn7uPgjRCr9gLOMKOns2vyeutlXwJPIZJBJlcsFqRqgN
+pafF/p11BcYeMB6trk/K650JR5rnmQG11Ng4VE3aa2Ov+tTrTh5JO6/5DVunLuC+
+2Rencv03AgMBAAECggEAU2pH0wX9LJ9xYEOzEiCKUKkfrm0qsHohAWbvctMWi4YW
+srPcygPxRHRxk0nuVvZvwWXEv8dKt/2ZFX5WKpXq3ooNE74DBFTbUKLVlH4HPlra
+z0Zs+9pzcQ0JnkjPPdDEWz6XC48BBI8TVFdzvWwLQLbpfSigAKkOIEunH+wU1B15
+PU5T+6TqxNGsvsQj/L69dEEPCGtbL5pBBP0Bt1ISEfO+kzGLVKr7eeWcDQ6jBBrB
+vlLDGvWE2xCpoHkk7wwV+cLaKzGyetsBi997dTPtBYEiqjt7+d76FfFG4anc/SLV
+pxw6KUONbluk3EZd1ZS2V2CA8UEcsFpBUZVo45ygAQKBgQDfy2PM8RG1HjmJyQzF
+/R3uVpXdhyN7HaxldIzqWnwdmNSfN06MVANOx0h4hp51MG23/9bczhDGdY+COpOc
+fBbn7Xshyu2RfaXNotdTURvrYw4LIFbnyDigYI0d77tIgTwLY8vF99anG1spQcYw
+9V2i8Cev3F9vw9ONY7ej9zu/NwKBgQDTjWE7+dyrcq2G7ZXWR7bcrQWbMg9CJV8j
+3q3unHqKyYwuIeM8qkYyLTEFV6o+3ur9mRviOklwb8zgrj1rt2OPfUSVlTimW8ed
+Ctcido28T8ivmZy+/Z0kZD48+oDDaKanqui0iLQMts82jSWoONgy6Xk4SQCptdja
+Ai67mFWyAQKBgQCJyHIocl9BkFtCboqztvPfkmVwX0xD92/1gr1jZ9Q0cKyvXeC5
+Wtwye1UuB0u1wNw8RYJmrWP8m9KADkplNKzxm++MTaDYS3ByW4iQnkY/NNwnk4CN
+8WKTsv4O6VL3/8EVDhseRklc1uXYT8uSxu4gbBUzG82SRRGRYkxk4cliHwKBgEgZ
+p0oJnmvQadPSpX6icnBDh+Wc6hZhJkvTWPQ54InspxoR8qB6Z/Ix9MMdXaiP0Qcd
+Z6NyuhTYBbuNpuFPX19IElfow6XvIdkkGK5mOWg0yPEQKZvuU+BTSeL+fWQcBrCe
+TzE4ZiTvKTAuaucqeIThja7hMpikoYOrusG06YABAoGALimUYUxOCmpU/4iTIK7a
+lqjpW2C/97KzUYMrd4HSCYP2iktXFeM7pvTVdNVnnB2BjO/6NESp1Qqgaa7sVYZx
++skTS06/6uSTIHZ6SHmMDIMwQt8O83GqEsgusTR7jG1yhhw6d2oaM/HFNgyR/PEG
+vcGapDyrafTKZgHDtXrKbLU=
+-----END PRIVATE KEY-----
+`;
 
 function need<T>(value: T | undefined | null, label: string): T {
   if (value === null || value === undefined) {
@@ -460,6 +515,72 @@ describe("plugin-host-api", () => {
         expect(responseErr.data?.code).toBe("invalid-params");
       }
       expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it("rejects non-boolean allowSelfSignedTls with invalid-params", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      const fetcher = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({
+          url: "https://api.example.com/",
+          init: { allowSelfSignedTls: "yes" },
+        });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.data?.code).toBe("invalid-params");
+      }
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    describe("self-signed TLS opt-in (issue #70)", () => {
+      let server: https.Server;
+      let port: number;
+      beforeAll(async () => {
+        server = https.createServer(
+          { cert: SELF_SIGNED_CERT, key: SELF_SIGNED_KEY },
+          (req, res) => {
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ ok: true, path: req.url }));
+          },
+        );
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        port = (server.address() as AddressInfo).port;
+      });
+      afterAll(async () => {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      });
+
+      it("rejects self-signed TLS by default and accepts when init.allowSelfSignedTls is true", async () => {
+        const manifest = makeManifest([], ["localhost"]);
+        const connection = makeConnection();
+        const store = makeStoreSpy();
+        // No fetcher injected: registerHostHandlers builds the real strict +
+        // lax pair so we exercise per-call dispatcher selection end-to-end.
+        await registerHostHandlers(connection, makeRecord(manifest), log, { store });
+
+        const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+        const url = `https://localhost:${port}/x`;
+
+        await expect(handler({ url, init: {} })).rejects.toBeDefined();
+
+        const ok = (await handler({ url, init: { allowSelfSignedTls: true } })) as {
+          status: number;
+          body: string;
+        };
+        expect(ok.status).toBe(200);
+        expect(JSON.parse(ok.body)).toEqual({ ok: true, path: "/x" });
+
+        // Going back to default (no flag) still rejects: the strict fetcher is
+        // not contaminated by the lax call.
+        await expect(handler({ url, init: {} })).rejects.toBeDefined();
+      });
     });
 
     it("wraps unexpected fetcher errors as internal errors", async () => {

@@ -9,6 +9,7 @@ import {
   PluginUnsupportedResponseError,
   type FetchInit,
   type FetchResult,
+  type PluginHttpLogLine,
 } from "./plugin-http.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
@@ -133,13 +134,27 @@ export async function registerHostHandlers(
   const spawn: SpawnLike = options.spawn ?? nodeSpawn;
   const fsRoots = await resolveAllowedRoots(record);
   const allowedExecutables = resolveAllowedExecutables(manifest);
-  const fetcher: PluginFetcher =
-    options.fetcher ??
-    createPluginFetcher(manifest, {
-      logger: (line) => {
-        log(line.level, `${pluginId}.host.fetch ${line.kind}: ${line.detail.reason}`);
-      },
-    });
+  // Two fetchers per plugin process keep undici's connection pools warm without
+  // forcing every host.fetch call to allocate a new Agent. The lax variant is
+  // built lazily so plugins that never opt in to relaxed TLS pay no cost.
+  // When tests inject options.fetcher we honour it for both modes; tests that
+  // need to exercise per-call selection register without an override.
+  const fetcherLogger = (line: PluginHttpLogLine): void => {
+    log(line.level, `${pluginId}.host.fetch ${line.kind}: ${line.detail.reason}`);
+  };
+  const strictFetcher: PluginFetcher =
+    options.fetcher ?? createPluginFetcher(manifest, { logger: fetcherLogger });
+  let laxFetcher: PluginFetcher | null = null;
+  const getLaxFetcher = (): PluginFetcher => {
+    if (options.fetcher) return options.fetcher;
+    if (!laxFetcher) {
+      laxFetcher = createPluginFetcher(manifest, {
+        allowSelfSignedTls: true,
+        logger: fetcherLogger,
+      });
+    }
+    return laxFetcher;
+  };
 
   connection.onRequest<{ slot: string }, string | null>("host.credentials.get", async (params) => {
     const slot = params?.slot;
@@ -352,8 +367,10 @@ export async function registerHostHandlers(
           category: "network",
         });
       }
+      const useLaxTls = init.value?.allowSelfSignedTls === true;
+      const chosenFetcher = useLaxTls ? getLaxFetcher() : strictFetcher;
       try {
-        return await fetcher(url, init.value);
+        return await chosenFetcher(url, init.value);
       } catch (err) {
         if (err instanceof PluginPermissionDeniedError) {
           const data: NetworkDeniedData = {
@@ -492,6 +509,15 @@ function normalizeFetchInit(input: unknown): { value: FetchInit | undefined; err
       };
     }
     init.body = raw.body;
+  }
+  if (raw.allowSelfSignedTls !== undefined) {
+    if (typeof raw.allowSelfSignedTls !== "boolean") {
+      return {
+        value: undefined,
+        error: "host.fetch init.allowSelfSignedTls must be a boolean",
+      };
+    }
+    init.allowSelfSignedTls = raw.allowSelfSignedTls;
   }
   return { value: init };
 }

@@ -69,7 +69,9 @@ export async function getOctokit(): Promise<OctokitLike> {
   octokit = new Octokit({
     auth: cachedToken,
     baseUrl,
-    request: { fetch: createHostFetchAdapter(host) },
+    request: {
+      fetch: createHostFetchAdapter(host, () => tryGetActiveConfig()?.allowSelfSignedTls ?? false),
+    },
   }) as unknown as OctokitLike;
   cachedBaseUrl = baseUrl;
   return octokit;
