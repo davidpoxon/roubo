@@ -1,0 +1,64 @@
+name: sdk-release
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    tags:
+      - 'sdk-v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'SDK tag to publish (must already exist, format sdk-vX.Y.Z)'
+        required: true
+
+jobs:
+  publish:
+    name: publish @roubo/plugin-sdk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag_name || github.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${RELEASE_TAG}" != sdk-v* ]]; then
+            echo "::error::Tag '${RELEASE_TAG}' must start with 'sdk-v' (e.g. sdk-v0.1.0)"
+            exit 1
+          fi
+          expected="${RELEASE_TAG#sdk-v}"
+          actual="$(jq -r '.version' plugin-sdk/package.json)"
+          if [[ "${expected}" != "${actual}" ]]; then
+            echo "::error::Tag version '${expected}' does not match plugin-sdk/package.json version '${actual}'"
+            exit 1
+          fi
+          echo "Tag and package.json version match: ${actual}"
+
+      - run: npm ci
+
+      - name: Ensure npm CLI supports trusted publishing
+        run: npm install -g npm@latest
+
+      - run: npm run build -w plugin-sdk
+
+      - run: npx vitest run plugin-sdk/
+
+      - name: Publish to npm (trusted publisher / OIDC)
+        working-directory: plugin-sdk
+        run: npm publish --provenance

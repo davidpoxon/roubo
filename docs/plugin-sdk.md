@@ -4,6 +4,16 @@
 
 This document covers the manifest format, every contract method, pagination, host helpers, the error shape, and the trust model. The SDK source itself lives at [`plugin-sdk/`](../plugin-sdk/).
 
+## Install
+
+The SDK is published to npm. Add it to your plugin project:
+
+```bash
+npm install @roubo/plugin-sdk
+```
+
+The package ships ESM (`type: "module"`) with bundled `.d.ts` declarations. SDK versions follow the plugin contract, not the Roubo app version; a newer host keeps working against an older SDK because the JSON-RPC protocol is additive.
+
 ## Quick start
 
 A plugin is a directory with two files: a `roubo-plugin.yaml` manifest and a Node entry script. Drop the directory into `~/.roubo/plugins/<id>/` and Roubo discovers it on next start.
@@ -169,7 +179,7 @@ All helpers are accessible via the top-level `host` export. Calling them before 
 
 Performs an HTTP request through the host. Allowlist enforcement happens on the host before the request is dispatched. Out-of-allowlist URLs reject with a `network-denied` error (see [Error shape](#error-shape)).
 
-`init` accepts `{ method?, headers?, body? }`. `body` is a string (JSON, form-encoded, or plain text). Binary request bodies are not supported.
+`init` accepts `{ method?, headers?, body?, allowSelfSignedTls? }`. `body` is a string (JSON, form-encoded, or plain text). Binary request bodies are not supported. `allowSelfSignedTls` (default `false`) opts this single request into a TLS agent with `rejectUnauthorized: false`; the flag is scoped to the call and does not mutate global Node TLS state. Reserve it for self-hosted integrations against test endpoints.
 
 `FetchResult` is `{ status, headers, body }`. Response headers are passed through verbatim (including `set-cookie` as an array, and `etag`, `retry-after`, `x-ratelimit-*` exposed for your own caching and backoff). `body` is the response text. `host.fetch` currently supports textual content types only (`text/*`, `application/json`, XML, form-encoded); non-textual responses reject with an `unsupported-response` error.
 
