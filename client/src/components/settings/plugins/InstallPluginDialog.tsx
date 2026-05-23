@@ -24,24 +24,46 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export default function InstallPluginDialog() {
+  // Hoist preview + confirm mutations so the ModalOverlay can gate dismissal
+  // on isSubmitting; otherwise Escape / overlay-click mid-confirm would
+  // dismiss the dialog while the install completes silently in the background
+  // (the toast then fires with no dialog visible, and any error setState
+  // targets an unmounted component).
+  const previewMutation = useInstallPluginPreview();
+  const confirmMutation = useInstallPluginConfirm();
+  const isSubmitting = previewMutation.isPending || confirmMutation.isPending;
+
   return (
     <ModalOverlay
-      isDismissable
+      isDismissable={!isSubmitting}
+      isKeyboardDismissDisabled={isSubmitting}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-lg mx-4">
         <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
-          {({ close }) => <InstallFlow close={close} />}
+          {({ close }) => (
+            <InstallFlow
+              close={close}
+              previewMutation={previewMutation}
+              confirmMutation={confirmMutation}
+            />
+          )}
         </Dialog>
       </Modal>
     </ModalOverlay>
   );
 }
 
-function InstallFlow({ close }: { close: () => void }) {
+function InstallFlow({
+  close,
+  previewMutation,
+  confirmMutation,
+}: {
+  close: () => void;
+  previewMutation: ReturnType<typeof useInstallPluginPreview>;
+  confirmMutation: ReturnType<typeof useInstallPluginConfirm>;
+}) {
   const [state, setState] = useState<State>(() => initialSourceStep());
-  const previewMutation = useInstallPluginPreview();
-  const confirmMutation = useInstallPluginConfirm();
   const cancelMutation = useInstallPluginCancel();
   const { addToast } = useToast();
 
@@ -52,13 +74,19 @@ function InstallFlow({ close }: { close: () => void }) {
   // (handled by the unmount effect below). Both go through the same
   // idempotent helper, guarded by cleanedUpRef.
   const stateRef = useRef(state);
-  stateRef.current = state;
   const cancelRef = useRef(cancelMutation);
-  cancelRef.current = cancelMutation;
   const confirmedRef = useRef(false);
   const confirmPendingRef = useRef(confirmMutation.isPending);
-  confirmPendingRef.current = confirmMutation.isPending;
   const cleanedUpRef = useRef(false);
+
+  // Keep mutable mirrors in sync post-render so the unmount cleanup below
+  // (which runs once, from a mount-only effect) always reads the latest
+  // state / mutation handles without violating react-hooks/refs.
+  useEffect(() => {
+    stateRef.current = state;
+    cancelRef.current = cancelMutation;
+    confirmPendingRef.current = confirmMutation.isPending;
+  });
 
   const maybeCleanupRef = useRef(() => {
     if (cleanedUpRef.current) return;

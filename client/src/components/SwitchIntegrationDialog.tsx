@@ -24,15 +24,27 @@ function isUsable(p: InstalledPluginSummary): boolean {
 }
 
 export default function SwitchIntegrationDialog({ projectId, currentPluginId }: Props) {
+  // Hoist switchMutation so the ModalOverlay can gate dismissal: Escape /
+  // overlay-click mid-switch would otherwise unmount the dialog while the
+  // PUT to /integration/override continues silently, swapping the active
+  // integration after the user thought they cancelled.
+  const switchMutation = useSwitchProjectIntegration(projectId);
+  const isSwitching = switchMutation.isPending;
+
   return (
     <ModalOverlay
-      isDismissable
+      isDismissable={!isSwitching}
+      isKeyboardDismissDisabled={isSwitching}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-md mx-4">
         <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
           {({ close }) => (
-            <SwitchFlow projectId={projectId} currentPluginId={currentPluginId} close={close} />
+            <SwitchFlow
+              currentPluginId={currentPluginId}
+              close={close}
+              switchMutation={switchMutation}
+            />
           )}
         </Dialog>
       </Modal>
@@ -40,9 +52,16 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
   );
 }
 
-function SwitchFlow({ projectId, currentPluginId, close }: Props & { close: () => void }) {
+function SwitchFlow({
+  currentPluginId,
+  close,
+  switchMutation,
+}: {
+  currentPluginId: string | null;
+  close: () => void;
+  switchMutation: ReturnType<typeof useSwitchProjectIntegration>;
+}) {
   const { data: plugins, isLoading } = useInstalledPlugins(true);
-  const switchMutation = useSwitchProjectIntegration(projectId);
 
   const [selected, setSelected] = useState<string | null>(currentPluginId);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

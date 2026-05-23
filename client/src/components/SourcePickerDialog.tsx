@@ -20,9 +20,17 @@ export default function SourcePickerDialog({
   pluginLabel,
   initialValue,
 }: Props) {
+  // Hoist saveMutation so the ModalOverlay can gate dismissal on isSaving;
+  // otherwise Escape / overlay-click mid-save unmounts the dialog while the
+  // PUT to /integration/sources is still in flight and any setErrorMessage
+  // surface is lost.
+  const saveMutation = useSaveProjectSources(projectId);
+  const isSaving = saveMutation.isPending;
+
   return (
     <ModalOverlay
-      isDismissable
+      isDismissable={!isSaving}
+      isKeyboardDismissDisabled={isSaving}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-2xl mx-4">
@@ -34,6 +42,7 @@ export default function SourcePickerDialog({
               pluginLabel={pluginLabel}
               initialValue={initialValue}
               close={close}
+              saveMutation={saveMutation}
             />
           )}
         </Dialog>
@@ -48,9 +57,12 @@ function SourcePickerFlow({
   pluginLabel,
   initialValue,
   close,
-}: Props & { close: () => void }) {
+  saveMutation,
+}: Props & {
+  close: () => void;
+  saveMutation: ReturnType<typeof useSaveProjectSources>;
+}) {
   const { data, isLoading, isError, error } = useSourceCandidates(projectId, pluginId);
-  const saveMutation = useSaveProjectSources(projectId);
   const [draft, setDraft] = useState<SourceSelection>(initialValue);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 

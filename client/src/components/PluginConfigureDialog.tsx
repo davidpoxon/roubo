@@ -84,19 +84,29 @@ function seedInitialValues(
 }
 
 export default function PluginConfigureDialog({ projectId, plugin, effective }: Props) {
+  // Hoist the mutations so the ModalOverlay can gate dismissal on the busy
+  // state: Escape / overlay-click must not unmount the dialog mid-save or
+  // mid-test, otherwise the in-flight request completes invisibly and any
+  // setSubmitError surface is dropped.
+  const testMutation = useTestIntegrationConnection(projectId);
+  const saveMutation = useSaveIntegrationConfig(projectId);
+  const isBusy = testMutation.isPending || saveMutation.isPending;
+
   return (
     <ModalOverlay
-      isDismissable
+      isDismissable={!isBusy}
+      isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-lg mx-4">
         <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
           {({ close }) => (
             <ConfigureFlow
-              projectId={projectId}
               plugin={plugin}
               effective={effective}
               close={close}
+              testMutation={testMutation}
+              saveMutation={saveMutation}
             />
           )}
         </Dialog>
@@ -105,7 +115,19 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
   );
 }
 
-function ConfigureFlow({ projectId, plugin, effective, close }: Props & { close: () => void }) {
+function ConfigureFlow({
+  plugin,
+  effective,
+  close,
+  testMutation,
+  saveMutation,
+}: {
+  plugin: InstalledPlugin;
+  effective: IntegrationConfig;
+  close: () => void;
+  testMutation: ReturnType<typeof useTestIntegrationConnection>;
+  saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
+}) {
   const manifest = plugin.manifest;
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
@@ -118,9 +140,6 @@ function ConfigureFlow({ projectId, plugin, effective, close }: Props & { close:
     null,
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const testMutation = useTestIntegrationConnection(projectId);
-  const saveMutation = useSaveIntegrationConfig(projectId);
 
   const passwordKeys = useMemo(
     () => new Set(passwordFieldKeys(manifest?.configSchema)),

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SourceCandidatesResponse, SourceSelection } from "@roubo/shared";
 import SourcePicker from "./SourcePicker";
@@ -164,14 +164,19 @@ describe("SourcePicker — accessibility & keyboard nav (TC-076)", () => {
 
     const search = screen.getByRole("searchbox", { name: /search source candidates/i });
 
-    // Focus the search via keyboard.
-    search.focus();
+    // React Aria's focus hooks update state when focus moves into a managed
+    // node, so direct .focus() calls must run inside act() to keep the renders
+    // tracked (CLAUDE.md: tests must produce zero stderr).
+    act(() => {
+      search.focus();
+    });
     expect(search).toHaveFocus();
 
-    // Move focus to the first option and select with Space.
     const list = screen.getByRole("listbox", { name: /source candidates/i });
     const firstOption = within(list).getByRole("option", { name: /org\/api/ });
-    firstOption.focus();
+    act(() => {
+      firstOption.focus();
+    });
     await user.keyboard(" ");
 
     expect(onChange).toHaveBeenLastCalledWith({ items: ["org/api"] });
