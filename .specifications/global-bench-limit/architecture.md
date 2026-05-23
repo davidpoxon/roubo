@@ -167,17 +167,17 @@ export interface BenchSettings {
 
 Validation rules (enforced at `PUT /api/settings`):
 
-| Input                     | Accepted? | Result                          |
-| ------------------------- | --------- | ------------------------------- |
-| field absent              | yes       | unlimited                       |
-| `null`                    | yes       | field stripped before save; unlimited |
-| positive integer >= 1     | yes       | persisted                       |
-| `0`                       | no        | HTTP 400                        |
-| negative integer          | no        | HTTP 400                        |
-| non-integer (e.g. `1.5`)  | no        | HTTP 400                        |
-| `NaN`                     | no        | HTTP 400                        |
-| `Infinity`                | no        | HTTP 400                        |
-| non-number type           | no        | HTTP 400                        |
+| Input                    | Accepted? | Result                                |
+| ------------------------ | --------- | ------------------------------------- |
+| field absent             | yes       | unlimited                             |
+| `null`                   | yes       | field stripped before save; unlimited |
+| positive integer >= 1    | yes       | persisted                             |
+| `0`                      | no        | HTTP 400                              |
+| negative integer         | no        | HTTP 400                              |
+| non-integer (e.g. `1.5`) | no        | HTTP 400                              |
+| `NaN`                    | no        | HTTP 400                              |
+| `Infinity`               | no        | HTTP 400                              |
+| non-number type          | no        | HTTP 400                              |
 
 No upper bound is enforced. The per-Project `benches.max` cap of 99 is a `roubo.yaml` schema concern; the global cap is a user setting and a user who deliberately enters a large number is not protected against themselves (and may legitimately want a large headroom).
 

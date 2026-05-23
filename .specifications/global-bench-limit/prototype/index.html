@@ -31,7 +31,9 @@
         --green-500: #22c55e;
         --green-600: #16a34a;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         font-family: "Inter", system-ui, sans-serif;
@@ -41,7 +43,9 @@
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
       }
-      .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+      .mono {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+      }
       .uppercase-label {
         font-size: 11px;
         font-weight: 600;
@@ -85,7 +89,9 @@
         padding: 12px 16px;
         margin-bottom: 8px;
       }
-      .scenario-bar .uppercase-label { margin-right: 8px; }
+      .scenario-bar .uppercase-label {
+        margin-right: 8px;
+      }
       .scenario-btn {
         font-family: inherit;
         font-size: 12px;
@@ -97,7 +103,10 @@
         cursor: pointer;
         transition: all 150ms ease;
       }
-      .scenario-btn:hover { border-color: var(--stone-500); color: var(--stone-100); }
+      .scenario-btn:hover {
+        border-color: var(--stone-500);
+        color: var(--stone-100);
+      }
       .scenario-btn.active {
         background: var(--amber-500);
         color: var(--stone-950);
@@ -137,15 +146,23 @@
         border-bottom: 2px solid transparent;
         margin-bottom: -1px;
         cursor: pointer;
-        transition: color 150ms ease, border-color 150ms ease;
+        transition:
+          color 150ms ease,
+          border-color 150ms ease;
       }
-      .settings-tab:hover { color: var(--stone-300); }
+      .settings-tab:hover {
+        color: var(--stone-300);
+      }
       .settings-tab.active {
         color: var(--stone-100);
         border-bottom-color: var(--amber-500);
       }
-      .field-group { margin-bottom: 24px; }
-      .field-group:last-child { margin-bottom: 0; }
+      .field-group {
+        margin-bottom: 24px;
+      }
+      .field-group:last-child {
+        margin-bottom: 0;
+      }
       .field-label {
         font-size: 13px;
         font-weight: 500;
@@ -206,7 +223,12 @@
         opacity: 0.4;
         cursor: not-allowed;
       }
-      .save-row { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+      .save-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 16px;
+      }
       .btn-primary {
         font-family: inherit;
         font-size: 13px;
@@ -219,21 +241,27 @@
         cursor: pointer;
         transition: background 150ms ease;
       }
-      .btn-primary:hover { background: var(--amber-400); }
+      .btn-primary:hover {
+        background: var(--amber-400);
+      }
       .save-status {
         font-size: 12px;
         color: var(--green-500);
         opacity: 0;
         transition: opacity 200ms ease;
       }
-      .save-status.visible { opacity: 1; }
+      .save-status.visible {
+        opacity: 1;
+      }
       .validation-error {
         font-size: 12px;
         color: var(--red-500);
         margin-top: 6px;
         display: none;
       }
-      .validation-error.visible { display: block; }
+      .validation-error.visible {
+        display: block;
+      }
 
       /* Dashboard panel */
       .dashboard-toolbar {
@@ -269,9 +297,13 @@
         height: 100%;
         background: var(--amber-500);
         border-radius: 3px;
-        transition: width 250ms ease, background-color 200ms ease;
+        transition:
+          width 250ms ease,
+          background-color 200ms ease;
       }
-      .meter-fill.at-cap { background: var(--red-500); }
+      .meter-fill.at-cap {
+        background: var(--red-500);
+      }
       .meter-count {
         font-family: "JetBrains Mono", monospace;
         font-size: 13px;
@@ -284,7 +316,10 @@
         margin: 0 2px;
       }
 
-      .new-bench-wrapper { position: relative; display: inline-block; }
+      .new-bench-wrapper {
+        position: relative;
+        display: inline-block;
+      }
       .btn-new-bench {
         font-family: inherit;
         font-size: 13px;
@@ -300,13 +335,17 @@
         align-items: center;
         gap: 6px;
       }
-      .btn-new-bench:hover { background: var(--amber-400); }
+      .btn-new-bench:hover {
+        background: var(--amber-400);
+      }
       .btn-new-bench[aria-disabled="true"] {
         background: var(--stone-800);
         color: var(--stone-500);
         cursor: not-allowed;
       }
-      .btn-new-bench[aria-disabled="true"]:hover { background: var(--stone-800); }
+      .btn-new-bench[aria-disabled="true"]:hover {
+        background: var(--stone-800);
+      }
       .tooltip {
         position: absolute;
         top: calc(100% + 8px);
@@ -324,7 +363,9 @@
         z-index: 10;
       }
       .new-bench-wrapper:hover .tooltip,
-      .new-bench-wrapper:focus-within .tooltip { opacity: 1; }
+      .new-bench-wrapper:focus-within .tooltip {
+        opacity: 1;
+      }
 
       /* Project list */
       .project-list {
@@ -385,8 +426,13 @@
         text-transform: uppercase;
         letter-spacing: 0.1em;
       }
-      .notes-panel ul { margin: 0; padding-left: 20px; }
-      .notes-panel li { margin-bottom: 4px; }
+      .notes-panel ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .notes-panel li {
+        margin-bottom: 4px;
+      }
       .notes-panel li code {
         font-family: "JetBrains Mono", monospace;
         font-size: 12px;
@@ -431,8 +477,12 @@
           <label class="field-label" for="cap-input">Global bench limit</label>
           <div class="field-row">
             <div class="toggle" role="radiogroup" aria-label="Limit mode">
-              <button type="button" id="mode-unlimited" role="radio" aria-checked="false">Unlimited</button>
-              <button type="button" id="mode-limit" role="radio" aria-checked="true" class="active">Limit</button>
+              <button type="button" id="mode-unlimited" role="radio" aria-checked="false">
+                Unlimited
+              </button>
+              <button type="button" id="mode-limit" role="radio" aria-checked="true" class="active">
+                Limit
+              </button>
             </div>
             <input
               id="cap-input"
@@ -445,8 +495,18 @@
             />
           </div>
           <p class="field-hint">
-            Caps the total number of initialised benches across every registered project. Per-project
-            limits in <code class="mono" style="font-size: 11px; padding: 1px 4px; background: var(--stone-800); border-radius: 3px;">roubo.yaml</code>
+            Caps the total number of initialised benches across every registered project.
+            Per-project limits in
+            <code
+              class="mono"
+              style="
+                font-size: 11px;
+                padding: 1px 4px;
+                background: var(--stone-800);
+                border-radius: 3px;
+              "
+              >roubo.yaml</code
+            >
             continue to apply.
           </p>
           <p class="validation-error" id="cap-error">Must be a positive integer (1 or greater).</p>
@@ -463,13 +523,19 @@
         <p class="panel-sub">Where the global meter and the New bench button live.</p>
 
         <div class="dashboard-toolbar">
-          <div class="global-meter" id="global-meter" role="group" aria-label="Global benches: 3 of 5">
+          <div
+            class="global-meter"
+            id="global-meter"
+            role="group"
+            aria-label="Global benches: 3 of 5"
+          >
             <span class="label">Global benches</span>
             <div class="meter-bar">
-              <div class="meter-fill" id="meter-fill" style="width: 60%;"></div>
+              <div class="meter-fill" id="meter-fill" style="width: 60%"></div>
             </div>
             <span class="meter-count mono">
-              <span id="meter-current">3</span><span class="of">of</span><span id="meter-max">5</span>
+              <span id="meter-current">3</span><span class="of">of</span
+              ><span id="meter-max">5</span>
             </span>
           </div>
 
@@ -479,35 +545,49 @@
               id="new-bench-btn"
               aria-disabled="false"
               aria-describedby="new-bench-tooltip"
-            >+ New bench</button>
+            >
+              + New bench
+            </button>
             <div class="tooltip" id="new-bench-tooltip" role="tooltip">
               <span id="tooltip-text">Create a new bench</span>
             </div>
           </div>
         </div>
 
-        <div class="uppercase-label" style="margin-bottom: 10px;">Projects</div>
+        <div class="uppercase-label" style="margin-bottom: 10px">Projects</div>
         <div class="project-list" id="project-list">
           <div class="project-tile">
             <div class="project-tile-header">
               <div class="project-name">roubo</div>
-              <div class="project-count mono"><span data-project-used="roubo">2</span> / 4 benches</div>
+              <div class="project-count mono">
+                <span data-project-used="roubo">2</span> / 4 benches
+              </div>
             </div>
-            <div class="project-meter"><div class="fill" data-project-fill="roubo" style="width: 50%;"></div></div>
+            <div class="project-meter">
+              <div class="fill" data-project-fill="roubo" style="width: 50%"></div>
+            </div>
           </div>
           <div class="project-tile">
             <div class="project-tile-header">
               <div class="project-name">marketplace</div>
-              <div class="project-count mono"><span data-project-used="marketplace">1</span> / 3 benches</div>
+              <div class="project-count mono">
+                <span data-project-used="marketplace">1</span> / 3 benches
+              </div>
             </div>
-            <div class="project-meter"><div class="fill" data-project-fill="marketplace" style="width: 33%;"></div></div>
+            <div class="project-meter">
+              <div class="fill" data-project-fill="marketplace" style="width: 33%"></div>
+            </div>
           </div>
           <div class="project-tile">
             <div class="project-tile-header">
               <div class="project-name">ledger</div>
-              <div class="project-count mono"><span data-project-used="ledger">0</span> / 2 benches</div>
+              <div class="project-count mono">
+                <span data-project-used="ledger">0</span> / 2 benches
+              </div>
             </div>
-            <div class="project-meter"><div class="fill" data-project-fill="ledger" style="width: 0%;"></div></div>
+            <div class="project-meter">
+              <div class="fill" data-project-fill="ledger" style="width: 0%"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -515,11 +595,28 @@
       <div class="notes-panel">
         <h3>Walkthrough notes</h3>
         <ul>
-          <li><strong>US-001</strong> Set a cap in Settings · Benches. Toggle between <em>Unlimited</em> and <em>Limit</em>; numeric input is disabled in Unlimited mode.</li>
-          <li><strong>US-002</strong> Switch the scenario to <em>at cap</em>. The "+ New bench" button gains <code>aria-disabled="true"</code>, its visual state, and the tooltip swaps to "Global bench limit reached. 5 of 5 benches in use."</li>
-          <li><strong>US-003</strong> The "Global benches" meter mirrors the per-project meter style. Visible only when a cap is set; the fill bar turns red at the cap.</li>
-          <li><strong>US-004</strong> Switch to <em>lowered</em>. Existing benches stay; meter overflows visually (capped at 100% fill, count shows 5 of 3); New bench is blocked until the count drops below 3.</li>
-          <li><strong>US-005</strong> Switch to <em>No cap</em>. The global meter disappears, the New bench button is always enabled, per-project tiles are unchanged.</li>
+          <li>
+            <strong>US-001</strong> Set a cap in Settings · Benches. Toggle between
+            <em>Unlimited</em> and <em>Limit</em>; numeric input is disabled in Unlimited mode.
+          </li>
+          <li>
+            <strong>US-002</strong> Switch the scenario to <em>at cap</em>. The "+ New bench" button
+            gains <code>aria-disabled="true"</code>, its visual state, and the tooltip swaps to
+            "Global bench limit reached. 5 of 5 benches in use."
+          </li>
+          <li>
+            <strong>US-003</strong> The "Global benches" meter mirrors the per-project meter style.
+            Visible only when a cap is set; the fill bar turns red at the cap.
+          </li>
+          <li>
+            <strong>US-004</strong> Switch to <em>lowered</em>. Existing benches stay; meter
+            overflows visually (capped at 100% fill, count shows 5 of 3); New bench is blocked until
+            the count drops below 3.
+          </li>
+          <li>
+            <strong>US-005</strong> Switch to <em>No cap</em>. The global meter disappears, the New
+            bench button is always enabled, per-project tiles are unchanged.
+          </li>
         </ul>
       </div>
     </div>
@@ -528,10 +625,10 @@
       // Minimal client-only state model. Switches the rendered surfaces in response to scenario buttons.
       const scenarios = {
         unlimited: { cap: null, used: { roubo: 2, marketplace: 1, ledger: 0 } },
-        below:     { cap: 5,    used: { roubo: 2, marketplace: 1, ledger: 0 } },
-        near:      { cap: 5,    used: { roubo: 2, marketplace: 1, ledger: 1 } },
-        at:        { cap: 5,    used: { roubo: 2, marketplace: 2, ledger: 1 } },
-        lowered:   { cap: 3,    used: { roubo: 2, marketplace: 2, ledger: 1 } },
+        below: { cap: 5, used: { roubo: 2, marketplace: 1, ledger: 0 } },
+        near: { cap: 5, used: { roubo: 2, marketplace: 1, ledger: 1 } },
+        at: { cap: 5, used: { roubo: 2, marketplace: 2, ledger: 1 } },
+        lowered: { cap: 3, used: { roubo: 2, marketplace: 2, ledger: 1 } },
       };
       const projectMax = { roubo: 4, marketplace: 3, ledger: 2 };
 
@@ -607,9 +704,7 @@
         els.capError.classList.remove("visible");
 
         // Scenario button highlighting
-        els.scenarioBtns.forEach((b) =>
-          b.classList.toggle("active", b.dataset.scenario === name),
-        );
+        els.scenarioBtns.forEach((b) => b.classList.toggle("active", b.dataset.scenario === name));
       }
 
       els.scenarioBtns.forEach((b) =>
@@ -636,8 +731,7 @@
       els.capInput.addEventListener("input", () => {
         const val = Number(els.capInput.value);
         const invalid =
-          els.capInput.value !== "" &&
-          (!Number.isFinite(val) || !Number.isInteger(val) || val < 1);
+          els.capInput.value !== "" && (!Number.isFinite(val) || !Number.isInteger(val) || val < 1);
         els.capError.classList.toggle("visible", invalid);
       });
 
