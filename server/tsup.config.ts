@@ -22,6 +22,7 @@ export default defineConfig({
     "cors",
     "dockerode",
     "express",
+    "express-rate-limit",
     "yaml",
     "octokit",
     "semver",
