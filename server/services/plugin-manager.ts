@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, statSync, type WriteStream } from "node:fs";
-import { mkdir, readdir, readFile, rename } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,8 @@ import {
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
+import * as projectRegistry from "./project-registry.js";
+import { resolveActivePlugin } from "./active-plugin.js";
 
 export const HOST_API_VERSION = "1.0.0";
 export const RESTART_BUDGET = 3;
@@ -651,6 +653,48 @@ export async function restart(pluginId: string): Promise<void> {
   entry.record.restartHistory = [];
   entry.record.lastError = null;
   await spawnPlugin(entry);
+}
+
+/**
+ * Uninstall a third-party plugin: stop its host process, remove its directory
+ * from disk, and drop it from the in-memory registry so it no longer appears
+ * in `listInstalled()`.
+ *
+ * Throws when:
+ *  - the plugin is unknown,
+ *  - the plugin is bundled (FR-016: bundled plugins are not uninstallable),
+ *  - any project's effective integration config still references the plugin.
+ *    The user must clear or reassign each project's integration plugin
+ *    before retrying, mirroring the blueprint-delete-when-referenced rule.
+ */
+export async function uninstall(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  if (entry.record.source === "bundled") {
+    throw new Error(`Bundled plugins cannot be uninstalled: ${pluginId}`);
+  }
+
+  const referencingProjects: string[] = [];
+  for (const project of projectRegistry.getProjects()) {
+    const active = resolveActivePlugin(project.id);
+    if (active?.pluginId === pluginId) referencingProjects.push(project.id);
+  }
+  if (referencingProjects.length > 0) {
+    throw new Error(
+      `Plugin "${pluginId}" is the active integration for project(s): ${referencingProjects.join(", ")}. Clear or reassign each project's integration plugin first.`,
+    );
+  }
+
+  await stopPluginProcess(entry);
+
+  if (entry.logStream) {
+    const stream = entry.logStream;
+    entry.logStream = null;
+    await new Promise<void>((resolve) => stream.end(resolve));
+  }
+
+  await rm(entry.record.pluginDir, { recursive: true, force: true });
+  plugins.delete(pluginId);
 }
 
 /**

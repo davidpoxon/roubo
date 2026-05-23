@@ -157,6 +157,24 @@ router.post("/:id/restart", async (req, res) => {
   }
 });
 
+router.delete("/:id", async (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  if (!known(id)) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  try {
+    await pluginManager.uninstall(id);
+    res.status(204).end();
+  } catch (err) {
+    res.status(409).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/:id/logs", async (req, res) => {
   const id = req.params.id;
   if (badId(id)) {

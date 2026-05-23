@@ -9,6 +9,7 @@ import {
   useDisablePlugin as _useDisable,
   useEnablePlugin as _useEnable,
   useRestartPlugin as _useRestart,
+  useUninstallPlugin as _useUninstall,
   usePluginLogs as _usePluginLogs,
 } from "../../../hooks/usePlugins";
 import PluginCard from "./PluginCard";
@@ -16,6 +17,7 @@ import PluginCard from "./PluginCard";
 const mockedEnable = vi.mocked(_useEnable);
 const mockedDisable = vi.mocked(_useDisable);
 const mockedRestart = vi.mocked(_useRestart);
+const mockedUninstall = vi.mocked(_useUninstall);
 const mockedLogs = vi.mocked(_usePluginLogs);
 
 function manifest(over: Partial<PluginManifest> = {}): PluginManifest {
@@ -67,6 +69,10 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof _useRestart>);
+  mockedUninstall.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof _useUninstall>);
   mockedLogs.mockReturnValue({
     data: { lines: [] },
     isLoading: false,
@@ -121,6 +127,43 @@ describe("PluginCard (TC-001, TC-013, TC-018)", () => {
     expect(screen.queryByRole("button", { name: "Uninstall" })).toBeNull();
     rerender(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
     expect(screen.getByRole("button", { name: "Uninstall" })).toBeTruthy();
+  });
+
+  it("opens a confirmation dialog when Uninstall is pressed on a third-party plugin", async () => {
+    const user = userEvent.setup();
+    render(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Uninstall" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+    expect(within(dialog).getByText(/Uninstall GitHub.com\?/i)).toBeTruthy();
+  });
+
+  it("calls the uninstall mutation when the dialog is confirmed", async () => {
+    const user = userEvent.setup();
+    const uninstallMutate = vi.fn();
+    mockedUninstall.mockReturnValue({
+      mutate: uninstallMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof _useUninstall>);
+    render(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Uninstall" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Uninstall" }));
+    expect(uninstallMutate).toHaveBeenCalledWith("github-com");
+  });
+
+  it("does not call the uninstall mutation when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const uninstallMutate = vi.fn();
+    mockedUninstall.mockReturnValue({
+      mutate: uninstallMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof _useUninstall>);
+    render(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Uninstall" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(uninstallMutate).not.toHaveBeenCalled();
   });
 
   it("renders Configure as disabled (deferred to later WU)", () => {

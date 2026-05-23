@@ -12,6 +12,7 @@ vi.mock("../lib/api", async () => {
     enablePlugin: vi.fn(),
     disablePlugin: vi.fn(),
     restartPlugin: vi.fn(),
+    uninstallPlugin: vi.fn(),
     fetchPluginLogs: vi.fn(),
   };
 });
@@ -24,6 +25,7 @@ import {
   useEnablePlugin,
   useDisablePlugin,
   useRestartPlugin,
+  useUninstallPlugin,
   usePluginLogs,
 } from "./usePlugins";
 
@@ -101,6 +103,38 @@ describe("useRestartPlugin", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.restartPlugin).toHaveBeenCalledWith("github-com");
+  });
+});
+
+describe("useUninstallPlugin", () => {
+  it("calls uninstallPlugin and resolves on success", async () => {
+    mockedApi.uninstallPlugin.mockResolvedValue(undefined);
+    const { result } = renderHookWithProviders(() => useUninstallPlugin());
+    await act(async () => {
+      result.current.mutate("acme-issues");
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.uninstallPlugin).toHaveBeenCalledWith("acme-issues");
+  });
+
+  it("surfaces ApiError.message via toast", async () => {
+    mockedApi.uninstallPlugin.mockRejectedValue(new ApiError("plugin in use", 409));
+    const { result } = renderHookWithProviders(() => useUninstallPlugin());
+    await act(async () => {
+      result.current.mutate("acme-issues");
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(addToast).toHaveBeenCalledWith("plugin in use");
+  });
+
+  it("falls back to a generic message for non-ApiError errors", async () => {
+    mockedApi.uninstallPlugin.mockRejectedValue("string-error");
+    const { result } = renderHookWithProviders(() => useUninstallPlugin());
+    await act(async () => {
+      result.current.mutate("acme-issues");
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(addToast).toHaveBeenCalledWith("Failed to uninstall plugin.");
   });
 });
 

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { PluginRecord } from "@roubo/shared";
-import { useDisablePlugin, useEnablePlugin } from "../../../hooks/usePlugins";
+import { useDisablePlugin, useEnablePlugin, useUninstallPlugin } from "../../../hooks/usePlugins";
 import StatusPill from "./StatusPill";
 import SourceLabel from "./SourceLabel";
 import ErroredBanner from "./ErroredBanner";
 import IncompatibleBanner from "./IncompatibleBanner";
 import InvalidBanner from "./InvalidBanner";
 import ViewLogsDialog from "./ViewLogsDialog";
+import UninstallPluginDialog from "./UninstallPluginDialog";
 
 const TOOLTIP_COMING_SOON = "Ships in a later work unit";
 
@@ -24,8 +25,10 @@ interface Props {
 
 export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const [logsOpen, setLogsOpen] = useState(false);
+  const [uninstallOpen, setUninstallOpen] = useState(false);
   const enable = useEnablePlugin();
   const disable = useDisablePlugin();
+  const uninstall = useUninstallPlugin();
 
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
@@ -109,12 +112,13 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         </Button>
 
         {isUser && (
-          <TooltipTrigger delay={400}>
-            <Button isDisabled className={ACTION_BUTTON_CLASS}>
-              Uninstall
-            </Button>
-            <Tooltip className={TOOLTIP_CLASS}>{TOOLTIP_COMING_SOON}</Tooltip>
-          </TooltipTrigger>
+          <Button
+            isDisabled={uninstall.isPending}
+            onPress={() => setUninstallOpen(true)}
+            className={ACTION_BUTTON_CLASS}
+          >
+            {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
+          </Button>
         )}
       </div>
 
@@ -124,6 +128,19 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         isOpen={logsOpen}
         onClose={() => setLogsOpen(false)}
       />
+
+      {isUser && (
+        <UninstallPluginDialog
+          pluginName={displayName}
+          isOpen={uninstallOpen}
+          onClose={() => setUninstallOpen(false)}
+          onConfirm={() => {
+            uninstall.mutate(plugin.id);
+            setUninstallOpen(false);
+          }}
+          isPending={uninstall.isPending}
+        />
+      )}
     </article>
   );
 }

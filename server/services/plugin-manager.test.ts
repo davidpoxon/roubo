@@ -1,10 +1,20 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtemp, rm, symlink, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginRecord } from "@roubo/shared";
+
+vi.mock("./project-registry.js", () => ({
+  getProjects: vi.fn(() => []),
+}));
+vi.mock("./active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(() => null),
+}));
+
 import * as pluginManager from "./plugin-manager.js";
+import * as projectRegistry from "./project-registry.js";
+import * as activePlugin from "./active-plugin.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = path.join(here, "__fixtures__", "plugins");
@@ -554,6 +564,124 @@ permissions:
     const rec = findRecord(mgr.listInstalled(), "escape");
     expect(rec.status).toBe("invalid");
     expect(rec.lastError?.code).toBe("invalid-entry");
+  });
+});
+
+describe("uninstall", () => {
+  async function makeRealUserPluginDir(parent: string, id: string): Promise<string> {
+    const dir = path.join(parent, id);
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: ${id}
+name: ${id}
+version: 0.0.0
+description: x
+kind: integration
+roubo: ^1.0.0
+entry: ./index.js
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    // The entry path doesn't need to be runnable — we won't initialize a
+    // process, we'll register via registerInstalled which spawns it briefly,
+    // OR we'll add the entry manually for cases where we don't want to spawn.
+    await writeFile(
+      path.join(dir, "index.js"),
+      "// no-op for uninstall test\nsetInterval(()=>{}, 60000);\n",
+    );
+    return dir;
+  }
+
+  afterEach(() => {
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([]);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+  });
+
+  it("removes the plugin directory and drops the entry from listInstalled", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const dir = await makeRealUserPluginDir(sandbox.userDir, "to-remove");
+    await mgr.registerInstalled(dir);
+    expect(findRecord(mgr.listInstalled(), "to-remove").source).toBe("user");
+
+    await mgr.uninstall("to-remove");
+
+    expect(mgr.listInstalled().find((p) => p.id === "to-remove")).toBeUndefined();
+    const dirGone = await stat(dir)
+      .then(() => false)
+      .catch(() => true);
+    expect(dirGone).toBe(true);
+  });
+
+  it("refuses to uninstall a bundled plugin", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    await expect(mgr.uninstall("echo")).rejects.toThrow(/bundled plugins cannot be uninstalled/i);
+    // Still present on disk and in the registry.
+    expect(findRecord(mgr.listInstalled(), "echo").source).toBe("bundled");
+  });
+
+  it("throws for an unknown plugin id", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    await expect(mgr.uninstall("does-not-exist")).rejects.toThrow(/unknown plugin/i);
+  });
+
+  it("refuses when the plugin is the active integration for one or more projects", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const dir = await makeRealUserPluginDir(sandbox.userDir, "still-active");
+    await mgr.registerInstalled(dir);
+
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([
+      { id: "proj-a" },
+      { id: "proj-b" },
+      { id: "proj-c" },
+    ] as never);
+    vi.mocked(activePlugin.resolveActivePlugin).mockImplementation((projectId: string) =>
+      projectId === "proj-a" || projectId === "proj-c"
+        ? { pluginId: "still-active", integrationId: "still-active", pageSize: 50 }
+        : null,
+    );
+
+    await expect(mgr.uninstall("still-active")).rejects.toThrow(/proj-a.*proj-c|proj-c.*proj-a/);
+
+    // Plugin still installed and on disk.
+    expect(findRecord(mgr.listInstalled(), "still-active").id).toBe("still-active");
+    const exists = await stat(dir)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(true);
+  });
+
+  it("succeeds even when the plugin process is already stopped", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const dir = await makeRealUserPluginDir(sandbox.userDir, "already-stopped");
+    await mgr.registerInstalled(dir);
+    await mgr.disable("already-stopped");
+    expect(findRecord(mgr.listInstalled(), "already-stopped").pid).toBeNull();
+
+    await mgr.uninstall("already-stopped");
+    expect(mgr.listInstalled().find((p) => p.id === "already-stopped")).toBeUndefined();
   });
 });
 
