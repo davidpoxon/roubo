@@ -24,11 +24,19 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "tsc",
-    "prepare": "tsc"
+    "prepare": "tsc",
+    "prepublishOnly": "tsc"
   },
   "dependencies": {
     "vscode-jsonrpc": "8.2.1"
