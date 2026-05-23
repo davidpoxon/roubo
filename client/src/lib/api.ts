@@ -32,8 +32,6 @@ import type {
   BlueprintPreviewResponse,
   UserPreferences,
   SettingsResponse,
-  GitHubAuthStatus,
-  GitHubAuthUrl,
   BenchNotification,
   ProjectPermissions,
   ProjectSettings,
@@ -88,10 +86,6 @@ export function getApiErrorParams(err: ApiError): Record<string, string> {
     return out;
   }
   return {};
-}
-
-export function buildNotConnectedError(): ApiError {
-  return new ApiError("GitHub not connected", 401, "NOT_CONNECTED");
 }
 
 export function isDirtyBenchError(err: unknown): err is ApiError & {
@@ -880,17 +874,9 @@ export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]>
   });
 }
 
-// GitHub Auth
-export function fetchGitHubAuthStatus(): Promise<GitHubAuthStatus> {
-  return request("/auth/github/status");
-}
-
-export function fetchGitHubAuthUrl(): Promise<GitHubAuthUrl> {
-  return request("/auth/github/authorize");
-}
-
-export function disconnectGitHub(): Promise<void> {
-  return requestVoid("/auth/github", { method: "DELETE" });
+// github-com plugin OAuth — returns the URL to open in a browser.
+export function startGithubPluginOauth(): Promise<{ url: string }> {
+  return request("/plugins/github-com/oauth/authorize", { method: "POST" });
 }
 
 // Plugins

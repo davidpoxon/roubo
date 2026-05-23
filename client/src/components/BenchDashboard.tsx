@@ -22,9 +22,6 @@ import type { GroupingState } from "../lib/cut-list-groups";
 import IssuePickerModal from "./IssuePickerModal";
 import BranchConflictDialog from "./BranchConflictDialog";
 import Spinner from "./Spinner";
-import GitHubErrorState from "./GitHubErrorState";
-import { useGitHubAuth } from "../hooks/useGitHubAuth";
-import { buildNotConnectedError } from "../lib/api";
 import ProjectTile from "./ProjectTile";
 import RegisterProjectTile from "./RegisterProjectTile";
 import { useRegisterProjectModal } from "./RegisterProjectModalProvider";
@@ -65,7 +62,6 @@ export default function BenchDashboard() {
   const { data: projects, isLoading: projectsLoading } = useProjects();
   const { data: benches, isLoading: benchesLoading } = useProjectBenches(projectId);
   const { data: integration } = useProjectIntegration(projectId);
-  const { status: githubStatus } = useGitHubAuth();
   const createBench = useCreateBench();
   const { addToast } = useToast();
 
@@ -394,12 +390,6 @@ export default function BenchDashboard() {
           </Button>
         </div>
 
-        {githubStatus !== undefined &&
-          !githubStatus.connected &&
-          projects?.some((p) => p.config?.project?.repo) && (
-            <GitHubErrorState error={buildNotConnectedError()} variant="banner" className="mb-6" />
-          )}
-
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-600 py-12">
             <Spinner />
@@ -434,16 +424,6 @@ export default function BenchDashboard() {
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
         <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-6">
-          {hasConfig &&
-            githubStatus !== undefined &&
-            !githubStatus.connected &&
-            !!currentProject.config?.project?.repo && (
-              <GitHubErrorState
-                error={buildNotConnectedError()}
-                variant="banner"
-                className="mb-4"
-              />
-            )}
           <nav aria-label="Project tabs" className="flex items-center gap-1">
             {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button

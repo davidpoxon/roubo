@@ -590,25 +590,24 @@ describe("resetOctokit", () => {
     expect(mockGraphql).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back to auth.json token when GITHUB_TOKEN is not set", async () => {
+  it("reads token from the github-com plugin keychain slot when GITHUB_TOKEN is unset", async () => {
     vi.unstubAllEnvs();
     vi.doMock("./state.js", () => ({
-      getRouboDir: () => "/mock/.roubo",
       loadSettings: () => ({ theme: "dark" }),
     }));
-    vi.doMock("node:fs", () => ({
-      default: {
-        readFileSync: vi
-          .fn()
-          .mockReturnValue(JSON.stringify({ githubToken: "oauth-token", username: "user" })),
-      },
+    vi.doMock("./credential-store.js", () => ({
+      get: vi.fn(async () => "oauth-token"),
+      set: vi.fn(),
+      deleteSlot: vi.fn(),
     }));
 
     mockRequest.mockResolvedValue({ data: [], headers: {}, status: 200 });
 
-    const { fetchIssues } = await loadModule();
-    await fetchIssues("org/repo");
+    const mod = await loadModule();
+    await mod.refreshAuth();
+    expect(mod.getGithubToken()).toBe("oauth-token");
 
+    await mod.fetchIssues("org/repo");
     expect(mockRequest).toHaveBeenCalled();
   });
 });

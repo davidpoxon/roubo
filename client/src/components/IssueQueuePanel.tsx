@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Button } from "react-aria-components";
+import { Button, DialogTrigger } from "react-aria-components";
 import { RefreshCw, X, ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
 import type { Bench, RouboConfig } from "@roubo/shared";
 import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -12,6 +13,7 @@ import CutListGroupByControl from "./CutListGroupByControl";
 import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 import type { GroupingState } from "../lib/cut-list-groups";
 import GitHubErrorState from "./GitHubErrorState";
+import PluginConfigureDialog from "./PluginConfigureDialog";
 
 export default function IssueQueuePanel({
   projectId,
@@ -44,6 +46,15 @@ export default function IssueQueuePanel({
     stalled,
   } = useIssues(projectId);
   const refreshItems = useRefreshIssues();
+  const integrationQuery = useProjectIntegration(projectId);
+  const [reconnectOpen, setReconnectOpen] = useState(false);
+  // Only the github-com plugin has an in-dialog OAuth flow; reconnect for other
+  // plugins falls back to the schema form's existing token entry.
+  const reconnectPlugin =
+    integrationQuery.data?.plugin?.id === "github-com" && integrationQuery.data.plugin.installed
+      ? integrationQuery.data.plugin
+      : null;
+  const reconnectEffective = integrationQuery.data?.effective;
 
   const [filters, setFilters] = useState<FilterState>(() => initialFilters ?? createEmptyFilters());
 
@@ -215,8 +226,25 @@ export default function IssueQueuePanel({
             error={itemsError}
             variant="banner"
             onRetry={refreshItems}
+            onReconnect={reconnectPlugin ? () => setReconnectOpen(true) : undefined}
             className="mx-2 mb-2"
           />
+        )}
+
+        {reconnectPlugin && reconnectEffective && (
+          <DialogTrigger isOpen={reconnectOpen} onOpenChange={setReconnectOpen}>
+            {/* DialogTrigger requires a trigger child; render a hidden button
+                since the open state is controlled by GitHubErrorState. */}
+            <Button className="sr-only" aria-hidden excludeFromTabOrder>
+              Open reconnect dialog
+            </Button>
+            <PluginConfigureDialog
+              scope="project"
+              projectId={projectId}
+              plugin={reconnectPlugin}
+              effective={reconnectEffective}
+            />
+          </DialogTrigger>
         )}
 
         {/* Loading */}

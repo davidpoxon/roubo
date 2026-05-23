@@ -122,11 +122,11 @@ describe("handleDeepLink", () => {
     await expect(handleDeepLink("not a url")).resolves.toBeUndefined();
   });
 
-  it("POSTs code and state to /api/auth/github/exchange for OAuth callback", async () => {
+  it("POSTs code and state to /api/plugins/github-com/oauth/exchange for OAuth callback", async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
     await handleDeepLink("roubo://oauth/github/callback?code=abc123&state=xyz789");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/auth/github/exchange"),
+      expect.stringContaining("/api/plugins/github-com/oauth/exchange"),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ code: "abc123", state: "xyz789" }),
@@ -138,7 +138,7 @@ describe("handleDeepLink", () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
     await handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:3335/api/auth/github/exchange",
+      "http://localhost:3335/api/plugins/github-com/oauth/exchange",
       expect.anything(),
     );
   });

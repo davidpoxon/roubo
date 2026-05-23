@@ -4,7 +4,6 @@ import type { IntegrationOverride, MigrationRecord } from "@roubo/shared";
 import { getRouboDir, loadProjects, loadState, saveState } from "./state.js";
 import { parseConfig } from "./config-parser.js";
 import { saveOverride } from "./integration-overrides.js";
-import { deleteCredentials } from "./github-auth.js";
 import * as credentialStore from "./credential-store.js";
 
 // WU-024 / issue #42 — pre-plugin → plugin migration. See:
@@ -159,16 +158,20 @@ export async function run(): Promise<MigrationOutcome> {
   };
   saveState({ ...state, schemaVersion: TARGET_SCHEMA_VERSION, migration: record });
 
-  // Post-commit cleanup. Best-effort: if this fails the migration has already
-  // committed, so we log and move on rather than rolling back.
+  // Post-commit cleanup: remove the legacy auth.json now that the token lives
+  // in the github-com plugin's keychain slot. Best-effort — if this fails the
+  // migration has already committed, so we log and move on rather than
+  // rolling back.
   if (auth) {
     try {
-      await deleteCredentials();
+      fs.unlinkSync(authFilePath());
     } catch (err) {
-      console.warn(
-        "migrate: post-commit auth.json delete failed (state remains migrated):",
-        (err as Error).message,
-      );
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        console.warn(
+          "migrate: post-commit auth.json delete failed (state remains migrated):",
+          (err as Error).message,
+        );
+      }
     }
   }
 
