@@ -181,6 +181,19 @@ export interface ProjectIntegrationState {
 }
 
 /**
+ * Result of GET /api/plugins/:pluginId/integration: the global-defaults
+ * read used by the Plugins settings page's Configure dialog. Mirrors the
+ * `plugin` and `effective` shape of `ProjectIntegrationState` so the
+ * existing dialog can seed itself the same way, but omits the
+ * committed/override/captionKey fields that only make sense in a project
+ * scope.
+ */
+export interface GlobalPluginIntegrationState {
+  effective: IntegrationConfig;
+  plugin: NonNullable<ProjectIntegrationState["plugin"]>;
+}
+
+/**
  * Classifier for plugin-reported test-connection failures. The host
  * translates raw plugin error strings into one of these kinds so the
  * Configure dialog can render the right result-strip variant and the

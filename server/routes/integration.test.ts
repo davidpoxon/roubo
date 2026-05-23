@@ -19,6 +19,15 @@ vi.mock("../services/integration-overrides.js", async () => {
     ...actual,
     loadOverride: vi.fn(),
     saveOverride: vi.fn(),
+    loadGlobalOverride: vi.fn(),
+    saveGlobalOverride: vi.fn(),
+    // The route uses getEffectiveWithGlobal, which internally calls
+    // loadGlobalOverride. Mock the wrapper so route tests stay deterministic
+    // without standing up filesystem fixtures for each test.
+    getEffectiveWithGlobal: vi.fn((committed, projectOverride) => ({
+      ...(committed ?? {}),
+      ...(projectOverride?.integration ?? {}),
+    })),
   };
 });
 
@@ -87,6 +96,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
   vi.mocked(integrationOverrides.loadOverride).mockReturnValue(null);
+  vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue(null);
+  vi.mocked(integrationOverrides.getEffectiveWithGlobal).mockImplementation(
+    (committed, projectOverride) => ({
+      ...(committed ?? {}),
+      ...(projectOverride?.integration ?? {}),
+    }),
+  );
   vi.mocked(credentialStore.set).mockResolvedValue(undefined);
 });
 

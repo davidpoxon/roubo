@@ -1,29 +1,29 @@
 import { Router } from "express";
 import type {
-  CapturedUserId,
   IntegrationCaptionKey,
   IntegrationConfig,
   IntegrationConfigUpdate,
   IntegrationOverride,
-  IntegrationTestErrorKind,
-  IntegrationTestResult,
-  PluginManifest,
   PluginRecord,
   ProjectIntegrationState,
   SourceCandidatesResponse,
   SourceSelection,
 } from "@roubo/shared";
-import { CapturedUserIdSchema, IntegrationConfigSchema } from "@roubo/shared";
+import { IntegrationConfigSchema } from "@roubo/shared";
 import { z } from "zod";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
-import * as credentialStore from "../services/credential-store.js";
 import {
   IntegrationOverrideError,
-  getEffectiveIntegrationConfig,
+  getEffectiveWithGlobal,
   loadOverride,
   saveOverride,
 } from "../services/integration-overrides.js";
+import {
+  errorMessage,
+  persistSecretFields,
+  runIntegrationTest,
+} from "../services/integration-test.js";
 
 const router = Router();
 
@@ -51,7 +51,7 @@ function buildState(projectId: string): ProjectIntegrationState {
   const committed: IntegrationConfig | null = project.config?.integration ?? null;
   const overrideEnvelope = loadOverride(projectId);
   const override: IntegrationConfig | null = overrideEnvelope?.integration ?? null;
-  const effective = getEffectiveIntegrationConfig(committed ?? undefined, overrideEnvelope);
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
 
   let plugin: ProjectIntegrationState["plugin"] = null;
   if (effective.plugin) {
@@ -82,66 +82,6 @@ function buildState(projectId: string): ProjectIntegrationState {
 
 function findPlugin(pluginId: string): PluginRecord | null {
   return pluginManager.listInstalled().find((r) => r.id === pluginId) ?? null;
-}
-
-function passwordFieldKeys(manifest: PluginManifest | null | undefined): string[] {
-  if (!manifest?.configSchema) return [];
-  const props = (manifest.configSchema as { properties?: Record<string, unknown> }).properties;
-  if (!props) return [];
-  const keys: string[] = [];
-  for (const [key, raw] of Object.entries(props)) {
-    if (
-      raw !== null &&
-      typeof raw === "object" &&
-      (raw as { type?: unknown }).type === "string" &&
-      (raw as { format?: unknown }).format === "password"
-    ) {
-      keys.push(key);
-    }
-  }
-  return keys;
-}
-
-// Persist secret form values to the OS keyring before validateConfig runs so
-// the plugin's `host.credentials.get` returns the freshly-typed value. Slot
-// name follows the convention `key === manifest.permissions.credentials.slots[*].slot`;
-// if the manifest doesn't declare a matching slot the field name itself is used
-// (so a plugin that adds a password field without declaring a slot still works,
-// at the cost of skipping the manifest's slot-description on the dialog hint).
-async function persistSecretFields(
-  pluginId: string,
-  manifest: PluginManifest | null | undefined,
-  config: Record<string, unknown>,
-): Promise<void> {
-  const keys = passwordFieldKeys(manifest);
-  for (const key of keys) {
-    const value = config[key];
-    if (typeof value !== "string" || value.length === 0) continue;
-    await credentialStore.set(pluginId, key, value);
-  }
-}
-
-const TLS_PATTERNS = [
-  /self.signed certificate/i,
-  /DEPTH_ZERO_SELF_SIGNED_CERT/,
-  /UNABLE_TO_VERIFY_LEAF_SIGNATURE/,
-  /unable to verify the first certificate/i,
-  /CERT_[A-Z_]+/,
-];
-const NETWORK_PATTERNS = [/ENOTFOUND/, /ECONNREFUSED/, /ETIMEDOUT/, /EAI_AGAIN/];
-const AUTH_PATTERNS = [/\b401\b/, /\b403\b/, /unauthor/i, /authenticat/i, /forbidden/i];
-
-function classifyError(message: string): IntegrationTestErrorKind {
-  if (TLS_PATTERNS.some((p) => p.test(message))) return "tls";
-  if (NETWORK_PATTERNS.some((p) => p.test(message))) return "network";
-  if (AUTH_PATTERNS.some((p) => p.test(message))) return "auth";
-  return "other";
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "Unknown error";
 }
 
 const TestConnectionBodySchema = z
@@ -310,7 +250,7 @@ router.post("/:projectId/integration/test", async (req, res) => {
   } catch (err) {
     if (!(err instanceof IntegrationOverrideError)) throw err;
   }
-  const effective = getEffectiveIntegrationConfig(committed, overrideEnvelope);
+  const effective = getEffectiveWithGlobal(committed, overrideEnvelope);
   const pluginId = effective.plugin;
   if (!pluginId) {
     res.status(503).json({ error: "no-active-integration" });
@@ -337,34 +277,7 @@ router.post("/:projectId/integration/test", async (req, res) => {
     return;
   }
 
-  let result: IntegrationTestResult;
-  try {
-    await pluginManager.invoke(pluginId, "validateConfig", parsed.data.config, {
-      timeoutMs: 15_000,
-    });
-    const identity = await pluginManager.invoke<CapturedUserId>(
-      pluginId,
-      "getCurrentUser",
-      parsed.data.config,
-      { timeoutMs: 15_000 },
-    );
-    const parsedIdentity = CapturedUserIdSchema.safeParse(identity);
-    if (!parsedIdentity.success) {
-      result = {
-        ok: false,
-        error: {
-          kind: "other",
-          message: "Plugin returned an invalid getCurrentUser response.",
-        },
-      };
-    } else {
-      result = { ok: true, identity: parsedIdentity.data };
-    }
-  } catch (err) {
-    const message = errorMessage(err);
-    result = { ok: false, error: { kind: classifyError(message), message } };
-  }
-
+  const result = await runIntegrationTest(record, parsed.data.config);
   res.json(result);
 });
 
@@ -431,7 +344,7 @@ router.get("/:projectId/integration/sources", async (req, res) => {
 
   const committed: IntegrationConfig | null = project.config?.integration ?? null;
   const overrideEnvelope = loadOverride(req.params.projectId);
-  const effective = getEffectiveIntegrationConfig(committed ?? undefined, overrideEnvelope);
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
 
   if (!effective.plugin) {
     res.status(409).json({ error: "No active integration plugin for this project" });

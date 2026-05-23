@@ -1,7 +1,18 @@
 import { useState } from "react";
-import { Button, DialogTrigger, Tooltip, TooltipTrigger } from "react-aria-components";
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  Modal,
+  ModalOverlay,
+  Tooltip,
+  TooltipTrigger,
+} from "react-aria-components";
 import type { PluginRecord } from "@roubo/shared";
 import { useDisablePlugin, useEnablePlugin, useUninstallPlugin } from "../../../hooks/usePlugins";
+import { useGlobalPluginIntegration } from "../../../hooks/useGlobalPluginIntegration";
+import PluginConfigureDialog from "../../PluginConfigureDialog";
+import Spinner from "../../Spinner";
 import StatusPill from "./StatusPill";
 import SourceLabel from "./SourceLabel";
 import ErroredBanner from "./ErroredBanner";
@@ -10,7 +21,7 @@ import InvalidBanner from "./InvalidBanner";
 import ViewLogsDialog from "./ViewLogsDialog";
 import UninstallPluginDialog from "./UninstallPluginDialog";
 
-const TOOLTIP_COMING_SOON = "Ships in a later work unit";
+const TOOLTIP_CONFIGURE_DISABLED = "Enable this plugin to configure it";
 
 const TOOLTIP_CLASS =
   "bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg";
@@ -26,9 +37,14 @@ interface Props {
 export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const [logsOpen, setLogsOpen] = useState(false);
   const [uninstallOpen, setUninstallOpen] = useState(false);
+  const [configureOpen, setConfigureOpen] = useState(false);
   const enable = useEnablePlugin();
   const disable = useDisablePlugin();
   const uninstall = useUninstallPlugin();
+  // Lazy: only fetch the effective global config when the dialog opens.
+  // Avoids fanning out N background requests on the settings page just to
+  // populate a "Configure" button that may never be clicked.
+  const globalIntegrationQuery = useGlobalPluginIntegration(plugin.id, configureOpen);
 
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
@@ -89,12 +105,34 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
       )}
 
       <div className="mt-3 flex items-center gap-1 pt-3 border-t border-stone-100 dark:border-stone-800/60">
-        <TooltipTrigger delay={400}>
-          <Button isDisabled className={ACTION_BUTTON_CLASS}>
-            Configure
-          </Button>
-          <Tooltip className={TOOLTIP_CLASS}>{TOOLTIP_COMING_SOON}</Tooltip>
-        </TooltipTrigger>
+        {isEnabled && plugin.manifest ? (
+          <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
+            <Button className={ACTION_BUTTON_CLASS}>Configure</Button>
+            {globalIntegrationQuery.isError ? (
+              <ConfigureErrorDialog
+                error={globalIntegrationQuery.error}
+                onRetry={() => {
+                  void globalIntegrationQuery.refetch();
+                }}
+              />
+            ) : globalIntegrationQuery.data ? (
+              <PluginConfigureDialog
+                scope="global"
+                plugin={globalIntegrationQuery.data.plugin}
+                effective={globalIntegrationQuery.data.effective}
+              />
+            ) : (
+              <ConfigureLoadingDialog />
+            )}
+          </DialogTrigger>
+        ) : (
+          <TooltipTrigger delay={400}>
+            <Button isDisabled className={ACTION_BUTTON_CLASS}>
+              Configure
+            </Button>
+            <Tooltip className={TOOLTIP_CLASS}>{TOOLTIP_CONFIGURE_DISABLED}</Tooltip>
+          </TooltipTrigger>
+        )}
 
         <Button onPress={() => setLogsOpen(true)} className={ACTION_BUTTON_CLASS}>
           View logs
@@ -132,5 +170,58 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         onClose={() => setLogsOpen(false)}
       />
     </article>
+  );
+}
+
+function ConfigureLoadingDialog() {
+  return (
+    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <Modal className="w-full max-w-sm mx-4">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6">
+          <div
+            role="status"
+            className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400"
+          >
+            <Spinner />
+            Loading plugin configuration…
+          </div>
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const message = error instanceof Error ? error.message : "Failed to load plugin configuration";
+  return (
+    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <Modal className="w-full max-w-sm mx-4">
+        <Dialog
+          role="alertdialog"
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
+        >
+          {({ close }) => (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h2 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                  Couldn't load plugin configuration
+                </h2>
+                <p className="mt-2 text-xs text-stone-600 dark:text-stone-400 break-words">
+                  {message}
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button onPress={close} className={ACTION_BUTTON_CLASS}>
+                  Close
+                </Button>
+                <Button onPress={onRetry} className={ACTION_BUTTON_CLASS}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
   );
 }

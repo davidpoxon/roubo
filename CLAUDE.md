@@ -125,6 +125,9 @@ GET    /api/projects/:projectId/benches/overrides   Get bench overrides { autoCl
 PUT    /api/projects/:projectId/benches/overrides   Set bench overrides (partial body, null removes key)
 GET    /api/blueprints   List global blueprints
 GET    /api/containers   List database containers
+GET    /api/plugins/:pluginId/integration   Get per-plugin global default + manifest snippet
+POST   /api/plugins/:pluginId/integration/test   Test a config snapshot against the plugin (uses ~/.roubo/integrations/_global/{pluginId}.yaml)
+PUT    /api/plugins/:pluginId/integration/config   Persist global defaults for the plugin (rejects `sources`)
 GET    /api/auth/github/status   Get GitHub connection status
 GET    /api/auth/github/authorize   Generate GitHub OAuth authorization URL
 POST   /api/auth/github/exchange   Exchange OAuth code for token (called by Electron deep-link handler)

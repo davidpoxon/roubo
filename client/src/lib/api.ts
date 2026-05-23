@@ -42,6 +42,7 @@ import type {
   ProjectIssueTypesV2Response,
   ProjectIssueTypeMappingsResponse,
   ProjectIntegrationState,
+  GlobalPluginIntegrationState,
   IntegrationConfigUpdate,
   IntegrationTestResult,
   SourceCandidatesResponse,
@@ -831,6 +832,33 @@ export function saveProjectSources(
   return request(`/projects/${projectId}/integration/sources`, {
     method: "PUT",
     body: JSON.stringify({ sources }),
+  });
+}
+
+// Global plugin integration (Plugins settings page)
+export function fetchGlobalPluginIntegration(
+  pluginId: string,
+): Promise<GlobalPluginIntegrationState> {
+  return request(`/plugins/${pluginId}/integration`);
+}
+
+export function testGlobalPluginIntegration(
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<IntegrationTestResult> {
+  return request(`/plugins/${pluginId}/integration/test`, {
+    method: "POST",
+    body: JSON.stringify({ config }),
+  });
+}
+
+export function saveGlobalPluginIntegration(
+  pluginId: string,
+  update: Omit<IntegrationConfigUpdate, "sources">,
+): Promise<GlobalPluginIntegrationState> {
+  return request(`/plugins/${pluginId}/integration/config`, {
+    method: "PUT",
+    body: JSON.stringify(update),
   });
 }
 
