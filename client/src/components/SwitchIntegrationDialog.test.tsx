@@ -2,10 +2,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Button, DialogTrigger } from "react-aria-components";
 import { renderWithProviders } from "../test/renderWithProviders";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
 import { useSwitchProjectIntegration } from "../hooks/useProjectIntegration";
+
+function renderDialog(props: { currentPluginId: string | null; onClose?: () => void }) {
+  const onClose = props.onClose ?? vi.fn();
+  return renderWithProviders(
+    <DialogTrigger
+      isOpen
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Button>Switch integration</Button>
+      <SwitchIntegrationDialog projectId="demo" currentPluginId={props.currentPluginId} />
+    </DialogTrigger>,
+  );
+}
 
 vi.mock("../hooks/useInstalledPlugins", () => ({
   useInstalledPlugins: vi.fn(),
@@ -38,9 +54,7 @@ beforeEach(() => {
 
 describe("SwitchIntegrationDialog", () => {
   it("shows the bench-survival explanation when a current plugin is set", () => {
-    renderWithProviders(
-      <SwitchIntegrationDialog projectId="demo" currentPluginId="github-com" onClose={vi.fn()} />,
-    );
+    renderDialog({ currentPluginId: "github-com" });
 
     expect(screen.getByRole("heading", { name: /Switch integration/i })).toBeInTheDocument();
     expect(
@@ -54,9 +68,7 @@ describe("SwitchIntegrationDialog", () => {
   });
 
   it("renders 'Choose integration' title and hides bench-survival copy when no current plugin", () => {
-    renderWithProviders(
-      <SwitchIntegrationDialog projectId="demo" currentPluginId={null} onClose={vi.fn()} />,
-    );
+    renderDialog({ currentPluginId: null });
 
     expect(screen.getByRole("heading", { name: /Choose integration/i })).toBeInTheDocument();
     expect(screen.queryByText(/Active benches will keep working/i)).not.toBeInTheDocument();
@@ -64,11 +76,13 @@ describe("SwitchIntegrationDialog", () => {
 
   it("primary button is disabled until a different plugin is selected", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <SwitchIntegrationDialog projectId="demo" currentPluginId="github-com" onClose={vi.fn()} />,
-    );
+    renderDialog({ currentPluginId: "github-com" });
 
-    const primary = screen.getByRole("button", { name: /Switch integration/i });
+    // Two buttons match /Switch integration/: the DialogTrigger button and the
+    // confirm button. Use accessible name + role + position via getAllByRole.
+    const buttons = screen.getAllByRole("button", { name: /Switch integration/i });
+    // Last one is the dialog confirm button (the trigger button comes first in DOM).
+    const primary = buttons[buttons.length - 1];
     expect(primary).toBeDisabled();
 
     await user.click(screen.getByRole("radio", { name: /Jira/i }));
@@ -78,12 +92,11 @@ describe("SwitchIntegrationDialog", () => {
   it("calls mutateAsync with the chosen plugin id on confirm and closes", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    renderWithProviders(
-      <SwitchIntegrationDialog projectId="demo" currentPluginId="github-com" onClose={onClose} />,
-    );
+    renderDialog({ currentPluginId: "github-com", onClose });
 
     await user.click(screen.getByRole("radio", { name: /Jira/i }));
-    await user.click(screen.getByRole("button", { name: /Switch integration/i }));
+    const buttons = screen.getAllByRole("button", { name: /Switch integration/i });
+    await user.click(buttons[buttons.length - 1]);
 
     expect(mutateAsync).toHaveBeenCalledWith("jira-self-hosted");
     expect(onClose).toHaveBeenCalled();
@@ -99,9 +112,7 @@ describe("SwitchIntegrationDialog", () => {
       isLoading: false,
     } as unknown as ReturnType<typeof useInstalledPlugins>);
 
-    renderWithProviders(
-      <SwitchIntegrationDialog projectId="demo" currentPluginId="github-com" onClose={vi.fn()} />,
-    );
+    renderDialog({ currentPluginId: "github-com" });
 
     expect(screen.getByRole("radio", { name: /Broken/i })).toBeDisabled();
     expect(screen.getByRole("radio", { name: /Old/i })).toBeDisabled();

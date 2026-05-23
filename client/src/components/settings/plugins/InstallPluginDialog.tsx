@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, Modal, ModalOverlay } from "react-aria-components";
 import { ApiError } from "../../../lib/api";
 import {
@@ -23,35 +23,88 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function InstallPluginDialog({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  // Mount inner content only while open so state resets between sessions
-  // without an effect-driven reset.
-  if (!isOpen) return null;
-  return <InstallPluginDialogContent onClose={onClose} />;
-}
-
-function InstallPluginDialogContent({ onClose }: { onClose: () => void }) {
-  const [state, setState] = useState<State>(() => initialSourceStep());
+export default function InstallPluginDialog() {
+  // Hoist preview + confirm mutations so the ModalOverlay can gate dismissal
+  // on isSubmitting; otherwise Escape / overlay-click mid-confirm would
+  // dismiss the dialog while the install completes silently in the background
+  // (the toast then fires with no dialog visible, and any error setState
+  // targets an unmounted component).
   const previewMutation = useInstallPluginPreview();
   const confirmMutation = useInstallPluginConfirm();
+  const isSubmitting = previewMutation.isPending || confirmMutation.isPending;
+
+  return (
+    <ModalOverlay
+      isDismissable={!isSubmitting}
+      isKeyboardDismissDisabled={isSubmitting}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
+      <Modal className="w-full max-w-lg mx-4">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+          {({ close }) => (
+            <InstallFlow
+              close={close}
+              previewMutation={previewMutation}
+              confirmMutation={confirmMutation}
+            />
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function InstallFlow({
+  close,
+  previewMutation,
+  confirmMutation,
+}: {
+  close: () => void;
+  previewMutation: ReturnType<typeof useInstallPluginPreview>;
+  confirmMutation: ReturnType<typeof useInstallPluginConfirm>;
+}) {
+  const [state, setState] = useState<State>(() => initialSourceStep());
   const cancelMutation = useInstallPluginCancel();
   const { addToast } = useToast();
 
-  const isSubmitting = previewMutation.isPending || confirmMutation.isPending;
+  // Cleanup contract: if the user leaves the permissions screen without
+  // confirming, fire a best-effort cancel so we never orphan the staging
+  // directory on the server. Three close paths: Cancel button (handled
+  // synchronously in handleCancel below), and Escape / overlay-dismiss
+  // (handled by the unmount effect below). Both go through the same
+  // idempotent helper, guarded by cleanedUpRef.
+  const stateRef = useRef(state);
+  const cancelRef = useRef(cancelMutation);
+  const confirmedRef = useRef(false);
+  const confirmPendingRef = useRef(confirmMutation.isPending);
+  const cleanedUpRef = useRef(false);
 
-  function handleClose() {
-    // If we were on the permissions screen with a live staging token, fire a
-    // best-effort cancel so we never orphan a staging directory.
-    if (state.step === "permissions" && !confirmMutation.isPending) {
-      cancelMutation.mutate(state.preview.stagingToken);
+  // Keep mutable mirrors in sync post-render so the unmount cleanup below
+  // (which runs once, from a mount-only effect) always reads the latest
+  // state / mutation handles without violating react-hooks/refs.
+  useEffect(() => {
+    stateRef.current = state;
+    cancelRef.current = cancelMutation;
+    confirmPendingRef.current = confirmMutation.isPending;
+  });
+
+  const maybeCleanupRef = useRef(() => {
+    if (cleanedUpRef.current) return;
+    cleanedUpRef.current = true;
+    const s = stateRef.current;
+    if (s.step === "permissions" && !confirmedRef.current && !confirmPendingRef.current) {
+      cancelRef.current.mutate(s.preview.stagingToken);
     }
-    onClose();
+  });
+
+  useEffect(() => {
+    const cleanup = maybeCleanupRef.current;
+    return () => cleanup();
+  }, []);
+
+  function handleCancel() {
+    maybeCleanupRef.current();
+    close();
   }
 
   function handleSubmitSource() {
@@ -87,7 +140,8 @@ function InstallPluginDialogContent({ onClose }: { onClose: () => void }) {
       onSuccess: (result) => {
         const name = result.plugin.manifest?.name ?? result.plugin.id;
         addToast(`Installed ${name}.`);
-        onClose();
+        confirmedRef.current = true;
+        close();
       },
       onError: (err) => {
         setState({ ...state, error: errorMessage(err, "Install failed.") });
@@ -95,36 +149,20 @@ function InstallPluginDialogContent({ onClose }: { onClose: () => void }) {
     });
   }
 
-  return (
-    <ModalOverlay
-      isOpen
-      onOpenChange={(open) => {
-        if (!open) handleClose();
-      }}
-      isDismissable={!isSubmitting}
-      isKeyboardDismissDisabled={isSubmitting}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
-      <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
-          {state.step === "source" ? (
-            <SourceScreen
-              state={state}
-              onChange={setState}
-              onCancel={handleClose}
-              onSubmit={handleSubmitSource}
-              submitting={previewMutation.isPending}
-            />
-          ) : (
-            <PermissionsScreen
-              state={state}
-              onCancel={handleClose}
-              onConfirm={handleConfirm}
-              confirming={confirmMutation.isPending}
-            />
-          )}
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+  return state.step === "source" ? (
+    <SourceScreen
+      state={state}
+      onChange={setState}
+      onCancel={handleCancel}
+      onSubmit={handleSubmitSource}
+      submitting={previewMutation.isPending}
+    />
+  ) : (
+    <PermissionsScreen
+      state={state}
+      onCancel={handleCancel}
+      onConfirm={handleConfirm}
+      confirming={confirmMutation.isPending}
+    />
   );
 }

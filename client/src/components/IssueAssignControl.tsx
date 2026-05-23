@@ -61,6 +61,7 @@ export default function IssueAssignControl({
     <div className="flex flex-col gap-1">
       <Button
         data-testid="assign-control"
+        aria-pressed={optimisticAssigned}
         onPress={() => {
           setError(null);
           const nextAssigned = !optimisticAssigned;

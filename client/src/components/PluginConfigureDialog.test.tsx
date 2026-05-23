@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Button, DialogTrigger } from "react-aria-components";
 import type { IntegrationConfig, ProjectIntegrationState } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
 import PluginConfigureDialog from "./PluginConfigureDialog";
@@ -65,12 +66,15 @@ function renderDialog({
   onClose?: () => void;
 } = {}) {
   return renderWithProviders(
-    <PluginConfigureDialog
-      projectId="demo"
-      plugin={plugin}
-      effective={effective}
-      onClose={onClose}
-    />,
+    <DialogTrigger
+      isOpen
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Button>Configure</Button>
+      <PluginConfigureDialog projectId="demo" plugin={plugin} effective={effective} />
+    </DialogTrigger>,
   );
 }
 

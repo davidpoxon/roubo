@@ -17,16 +17,51 @@ import { ApiError } from "../lib/api";
 interface Props {
   projectId: string;
   currentPluginId: string | null;
-  onClose: () => void;
 }
 
 function isUsable(p: InstalledPluginSummary): boolean {
   return p.status !== "errored" && p.status !== "incompatible" && p.status !== "invalid";
 }
 
-export default function SwitchIntegrationDialog({ projectId, currentPluginId, onClose }: Props) {
-  const { data: plugins, isLoading } = useInstalledPlugins(true);
+export default function SwitchIntegrationDialog({ projectId, currentPluginId }: Props) {
+  // Hoist switchMutation so the ModalOverlay can gate dismissal: Escape /
+  // overlay-click mid-switch would otherwise unmount the dialog while the
+  // PUT to /integration/override continues silently, swapping the active
+  // integration after the user thought they cancelled.
   const switchMutation = useSwitchProjectIntegration(projectId);
+  const isSwitching = switchMutation.isPending;
+
+  return (
+    <ModalOverlay
+      isDismissable={!isSwitching}
+      isKeyboardDismissDisabled={isSwitching}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
+      <Modal className="w-full max-w-md mx-4">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+          {({ close }) => (
+            <SwitchFlow
+              currentPluginId={currentPluginId}
+              close={close}
+              switchMutation={switchMutation}
+            />
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function SwitchFlow({
+  currentPluginId,
+  close,
+  switchMutation,
+}: {
+  currentPluginId: string | null;
+  close: () => void;
+  switchMutation: ReturnType<typeof useSwitchProjectIntegration>;
+}) {
+  const { data: plugins, isLoading } = useInstalledPlugins(true);
 
   const [selected, setSelected] = useState<string | null>(currentPluginId);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,7 +74,7 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId, on
     if (!canConfirm || !selected) return;
     try {
       await switchMutation.mutateAsync(selected);
-      onClose();
+      close();
     } catch (err) {
       setErrorMessage(
         err instanceof ApiError
@@ -52,138 +87,123 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId, on
   };
 
   return (
-    <ModalOverlay
-      isOpen
-      onOpenChange={(open) => {
-        if (!open && !switchMutation.isPending) onClose();
-      }}
-      isDismissable={!switchMutation.isPending}
-      isKeyboardDismissDisabled={switchMutation.isPending}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
-      <Modal className="w-full max-w-md mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
-            >
-              {isChoosing ? "Choose integration" : "Switch integration"}
-            </Heading>
-          </div>
+    <>
+      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
+        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          {isChoosing ? "Choose integration" : "Switch integration"}
+        </Heading>
+      </div>
 
-          <div className="px-5 py-4 space-y-4">
-            {isLoading ? (
-              <p className="text-sm text-stone-500 dark:text-stone-400">Loading plugins…</p>
-            ) : (plugins ?? []).length === 0 ? (
-              <p className="text-sm text-stone-500 dark:text-stone-400">
-                No integration plugins are installed. Install a plugin from the Plugins page first.
-              </p>
-            ) : (
-              <RadioGroup
-                aria-label="Installed integrations"
-                value={selected ?? ""}
-                onChange={(v) => setSelected(v)}
-                className="flex flex-col gap-2"
-              >
-                {(plugins ?? []).map((p) => {
-                  const disabled = !isUsable(p);
-                  return (
-                    <Radio
-                      key={p.id}
-                      value={p.id}
-                      isDisabled={disabled}
-                      className="outline-none data-[disabled]:opacity-50"
+      <div className="px-5 py-4 space-y-4">
+        {isLoading ? (
+          <p className="text-sm text-stone-500 dark:text-stone-400">Loading plugins…</p>
+        ) : (plugins ?? []).length === 0 ? (
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            No integration plugins are installed. Install a plugin from the Plugins page first.
+          </p>
+        ) : (
+          <RadioGroup
+            aria-label="Installed integrations"
+            value={selected ?? ""}
+            onChange={(v) => setSelected(v)}
+            className="flex flex-col gap-2"
+          >
+            {(plugins ?? []).map((p) => {
+              const disabled = !isUsable(p);
+              return (
+                <Radio
+                  key={p.id}
+                  value={p.id}
+                  isDisabled={disabled}
+                  className="outline-none data-[disabled]:opacity-50"
+                >
+                  {({ isSelected, isFocusVisible }) => (
+                    <div
+                      className={[
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-150 cursor-pointer select-none",
+                        isSelected
+                          ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
+                          : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700",
+                        isFocusVisible
+                          ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
+                          : "",
+                        disabled ? "cursor-not-allowed" : "",
+                      ].join(" ")}
                     >
-                      {({ isSelected, isFocusVisible }) => (
-                        <div
+                      <div
+                        className={[
+                          "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-all duration-150",
+                          isSelected
+                            ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
+                            : "border-stone-300 dark:border-stone-600",
+                        ].join(" ")}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                          {p.name}
+                        </div>
+                        <div className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
+                          {p.id}
+                        </div>
+                      </div>
+                      {p.status !== "enabled" && (
+                        <span
                           className={[
-                            "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-150 cursor-pointer select-none",
-                            isSelected
-                              ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
-                              : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700",
-                            isFocusVisible
-                              ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                              : "",
-                            disabled ? "cursor-not-allowed" : "",
+                            "text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded",
+                            p.status === "errored" || p.status === "incompatible"
+                              ? "bg-red-500/15 text-red-400"
+                              : "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
                           ].join(" ")}
                         >
-                          <div
-                            className={[
-                              "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-all duration-150",
-                              isSelected
-                                ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
-                                : "border-stone-300 dark:border-stone-600",
-                            ].join(" ")}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                              {p.name}
-                            </div>
-                            <div className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
-                              {p.id}
-                            </div>
-                          </div>
-                          {p.status !== "enabled" && (
-                            <span
-                              className={[
-                                "text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded",
-                                p.status === "errored" || p.status === "incompatible"
-                                  ? "bg-red-500/15 text-red-400"
-                                  : "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
-                              ].join(" ")}
-                            >
-                              {p.status}
-                            </span>
-                          )}
-                        </div>
+                          {p.status}
+                        </span>
                       )}
-                    </Radio>
-                  );
-                })}
-              </RadioGroup>
-            )}
+                    </div>
+                  )}
+                </Radio>
+              );
+            })}
+          </RadioGroup>
+        )}
 
-            {!isChoosing && (
-              <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
-                <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
-                  Active benches will keep working against their stored issue snapshot. They will
-                  show an "Issue from previous integration" badge and their source-sync controls
-                  will be disabled. New benches will use the new integration.
-                </p>
-              </div>
-            )}
-
-            {errorMessage && (
-              <p role="alert" className="text-[12px] text-red-400">
-                {errorMessage}
-              </p>
-            )}
+        {!isChoosing && (
+          <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
+            <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+              Active benches will keep working against their stored issue snapshot. They will show
+              an "Issue from previous integration" badge and their source-sync controls will be
+              disabled. New benches will use the new integration.
+            </p>
           </div>
+        )}
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
-            <Button
-              isDisabled={switchMutation.isPending}
-              onPress={onClose}
-              className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
-            >
-              Cancel
-            </Button>
-            <Button
-              isDisabled={!canConfirm || usable.length === 0}
-              onPress={handleConfirm}
-              className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
-            >
-              {switchMutation.isPending
-                ? "Switching…"
-                : isChoosing
-                  ? "Choose integration"
-                  : "Switch integration"}
-            </Button>
-          </div>
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+        {errorMessage && (
+          <p role="alert" className="text-[12px] text-red-400">
+            {errorMessage}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+        <Button
+          isDisabled={switchMutation.isPending}
+          onPress={close}
+          className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          Cancel
+        </Button>
+        <Button
+          isDisabled={!canConfirm || usable.length === 0}
+          onPress={handleConfirm}
+          className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+        >
+          {switchMutation.isPending
+            ? "Switching…"
+            : isChoosing
+              ? "Choose integration"
+              : "Switch integration"}
+        </Button>
+      </div>
+    </>
   );
 }

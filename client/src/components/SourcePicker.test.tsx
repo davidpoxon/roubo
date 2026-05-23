@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SourceCandidatesResponse, SourceSelection } from "@roubo/shared";
 import SourcePicker from "./SourcePicker";
@@ -164,16 +164,54 @@ describe("SourcePicker — accessibility & keyboard nav (TC-076)", () => {
 
     const search = screen.getByRole("searchbox", { name: /search source candidates/i });
 
-    // Focus the search via keyboard.
-    search.focus();
+    // React Aria's focus hooks update state when focus moves into a managed
+    // node, so direct .focus() calls must run inside act() to keep the renders
+    // tracked (CLAUDE.md: tests must produce zero stderr).
+    act(() => {
+      search.focus();
+    });
     expect(search).toHaveFocus();
 
-    // Move focus to the first option and select with Space.
     const list = screen.getByRole("listbox", { name: /source candidates/i });
     const firstOption = within(list).getByRole("option", { name: /org\/api/ });
-    firstOption.focus();
+    act(() => {
+      firstOption.focus();
+    });
     await user.keyboard(" ");
 
     expect(onChange).toHaveBeenLastCalledWith({ items: ["org/api"] });
+  });
+
+  it("announces selection changes via an aria-live region (TC-076)", async () => {
+    const user = userEvent.setup();
+    render(<ControlledPicker response={multiListFixture} />);
+
+    // The chip strip carries the selected count and chip list and is wrapped
+    // in aria-live="polite" so screen readers announce each selection change
+    // (TC-076 expects "Selection state updates and is announced").
+    const list = screen.getByRole("listbox", { name: /source candidates/i });
+    await user.click(within(list).getByText("org/api"));
+
+    const count = screen.getByText(/Selected \(1\)/);
+    const region = count.parentElement;
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveAttribute("aria-atomic", "true");
+  });
+
+  it("categorized tabs expose tablist role and per-tab selection counts (TC-076)", async () => {
+    const user = userEvent.setup();
+    render(<ControlledPicker response={categorizedFixture} />);
+
+    // TabList is named so screen readers announce the category list when focus enters.
+    const tabList = screen.getByRole("tablist", { name: /source categories/i });
+    expect(tabList).toBeInTheDocument();
+
+    // Selecting an item populates the tab's count badge with an aria-label so
+    // screen readers announce "N selected" alongside the tab label.
+    const boardsList = screen.getByRole("listbox", { name: /boards candidates/i });
+    await user.click(within(boardsList).getByText("Engineering"));
+
+    const boardsTab = within(tabList).getByRole("tab", { name: /Boards/ });
+    expect(within(boardsTab).getByLabelText(/1 selected/i)).toBeInTheDocument();
   });
 });

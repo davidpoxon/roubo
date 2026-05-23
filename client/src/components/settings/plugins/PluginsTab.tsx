@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "react-aria-components";
+import { Button, DialogTrigger } from "react-aria-components";
 import { Plus, Loader2 } from "lucide-react";
 import type { PluginRecord } from "@roubo/shared";
 import { usePlugins } from "../../../hooks/usePlugins";
@@ -26,17 +26,17 @@ export default function PluginsTab() {
             third-party plugins live under <span className="font-mono">~/.roubo/plugins/</span>.
           </p>
         </div>
-        <Button
-          onPress={() => setInstallOpen(true)}
-          data-testid="install-plugin"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-        >
-          <Plus size={13} />
-          Install plugin
-        </Button>
+        <DialogTrigger isOpen={installOpen} onOpenChange={setInstallOpen}>
+          <Button
+            data-testid="install-plugin"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <Plus size={13} />
+            Install plugin
+          </Button>
+          <InstallPluginDialog />
+        </DialogTrigger>
       </header>
-
-      <InstallPluginDialog isOpen={installOpen} onClose={() => setInstallOpen(false)} />
 
       {isLoading && (
         <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
