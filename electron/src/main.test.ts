@@ -3,10 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 let mockNotificationClickHandler: (() => void) | null = null;
 const mockNotificationShow = vi.fn();
 
+// Importing main.js triggers its top-level app.whenReady().then() chain. The
+// chain calls createWindow(), which constructs `new BrowserWindow(...)`. With
+// BrowserWindow mocked via vi.fn().mockImplementation(arrow), the `new` call
+// throws and main.ts logs "[roubo] bootstrap failed". These tests cover the
+// exported helpers, not the bootstrap chain, so make whenReady never resolve
+// and the chain never runs.
 vi.mock("electron", () => ({
   app: {
     isPackaged: false,
-    whenReady: vi.fn().mockResolvedValue(undefined),
+    whenReady: vi.fn().mockReturnValue(new Promise(() => {})),
     on: vi.fn(),
     quit: vi.fn(),
     requestSingleInstanceLock: vi.fn().mockReturnValue(true),

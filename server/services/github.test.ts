@@ -1726,10 +1726,17 @@ describe("fetchIssueType", () => {
 
   it("returns null (does not throw) on network errors", async () => {
     mockGraphql.mockRejectedValueOnce(new Error("Network failure"));
+    // Logging the failed fetch IS the observable behavior. Mock to keep
+    // test output clean and assert the warn fired.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const { fetchIssueType } = await loadModule();
     const result = await fetchIssueType("org/repo", 42);
 
     expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[github] Failed to fetch issue type for #42:"),
+      expect.any(Error),
+    );
   });
 });

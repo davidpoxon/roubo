@@ -73,8 +73,12 @@ describe("MigrationBanner — success variant", () => {
 
     render(<MigrationBanner />, { wrapper: makeWrapper() });
     // Even after the query resolves, the banner must not appear because the
-    // dismissal marker is set in localStorage.
-    await new Promise((r) => setTimeout(r, 10));
+    // dismissal marker is set in localStorage. waitFor flushes all React
+    // updates inside act(); a bare setTimeout would let the query resolve
+    // after the test ends and trip the act() warning.
+    await waitFor(() => {
+      expect(mockedApi.fetchMigrationStatus).toHaveBeenCalled();
+    });
     expect(screen.queryByText(/Roubo now manages GitHub integration/)).toBeNull();
   });
 });
@@ -111,8 +115,10 @@ describe("MigrationBanner — no-op", () => {
 
     const { container } = render(<MigrationBanner />, { wrapper: makeWrapper() });
 
-    // Wait for the query to settle, then assert the DOM is empty.
-    await new Promise((r) => setTimeout(r, 10));
+    // Wait for the query to settle (under act()), then assert the DOM is empty.
+    await waitFor(() => {
+      expect(mockedApi.fetchMigrationStatus).toHaveBeenCalled();
+    });
     expect(container.textContent).toBe("");
   });
 });

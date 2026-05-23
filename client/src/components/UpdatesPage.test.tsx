@@ -17,9 +17,12 @@ describe("UpdatesPage", () => {
     });
   });
 
-  it("renders the heading", () => {
+  it("renders the heading", async () => {
     render(<UpdatesPage />);
     expect(screen.getByRole("heading", { name: /updates/i })).toBeInTheDocument();
+    // The async getAppVersion() resolution would otherwise fire setState after
+    // the test ends and trip React's act() warning. Wait for it to settle.
+    await screen.findByText(/Version 1\.2\.3/);
   });
 
   it("renders the app version after resolving", async () => {
@@ -27,9 +30,10 @@ describe("UpdatesPage", () => {
     await waitFor(() => expect(screen.getByText(/Version 1\.2\.3/)).toBeInTheDocument());
   });
 
-  it("renders the auto-update info message", () => {
+  it("renders the auto-update info message", async () => {
     render(<UpdatesPage />);
     expect(screen.getByText(/checks for updates automatically every hour/i)).toBeInTheDocument();
+    await screen.findByText(/Version 1\.2\.3/);
   });
 
   it('shows "unknown" version when getAppVersion rejects', async () => {

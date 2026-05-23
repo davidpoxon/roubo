@@ -99,6 +99,12 @@ function makeMetaProject(): RegisteredProject {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // auto-clear's classification and clearing paths emit informational
+  // console.log/debug lines (e.g. "Clearing bench N: reason=…"). The
+  // behavior we verify is the side effects (clearBench/teardown), not the
+  // log text. Suppress to keep test output clean.
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.spyOn(console, "debug").mockImplementation(() => {});
   vi.mocked(state.loadSettings).mockReturnValue({
     theme: "dark",
     benches: { autoClear: true, enforceIssueDependencies: false },

@@ -178,6 +178,7 @@ export function PermissionsRulesTable({
                   >
                     <div>
                       <Select
+                        aria-label="Rule type"
                         items={RULE_TYPE_ITEMS}
                         value={editType}
                         onChange={(v) => {
@@ -189,6 +190,7 @@ export function PermissionsRulesTable({
                     </div>
                     <div className="px-2">
                       <TextField
+                        aria-label="Rule pattern"
                         value={editPattern}
                         onChange={(v) => {
                           setEditPattern(v);
@@ -232,6 +234,7 @@ export function PermissionsRulesTable({
               return (
                 <Checkbox
                   key={`${rule.type}:${rule.pattern}:${originalIndex}`}
+                  aria-label={`Select rule ${rule.pattern}`}
                   isSelected={isSelected}
                   onChange={() => selection.onToggleKey(selKey)}
                   className={`w-full grid px-5 py-2.5 items-center cursor-pointer outline-none transition-colors data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-amber-400 ${

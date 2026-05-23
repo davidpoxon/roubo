@@ -169,7 +169,7 @@ See [docs/brand.md](docs/brand.md) for the full design system including color to
 - Test files live next to the code they test: `foo.ts` → `foo.test.ts`
 - CI runs `npm run coverage` (enforces 80% lines/functions/branches/statements), lint, and type-check via the `pr-check` workflow
 - **Critical**: Any code change not already covered by unit tests must include new unit tests for the change
-- **Critical**: Tests must produce zero stderr output. Suppress or eliminate all `console.warn`/`console.error` noise, React `act()` warnings, and library warnings (e.g. React Aria PressResponder). When source code intentionally calls `console.warn`/`console.error` as part of expected behavior (e.g. a fallback path), mock it with `vi.spyOn(console, 'warn').mockImplementation(() => {})` and assert it was called with the expected message. This both silences the output and verifies the behavior. For all other cases, fix the root cause rather than suppressing.
+- **Critical**: Tests must produce zero stdout and zero stderr output (beyond the vitest reporter's own summary). Suppress or eliminate all `console.log`/`console.info`/`console.warn`/`console.error` noise, React `act()` warnings, and library warnings (e.g. React Aria PressResponder). Vitest hides captured console output during passing runs by default; verify cleanliness with `npx vitest run --disableConsoleIntercept`. When source code intentionally calls `console.*` as part of expected behavior (e.g. a fallback path), mock it with `vi.spyOn(console, '<level>').mockImplementation(() => {})` and assert it was called with the expected message. This both silences the output and verifies the behavior. For all other cases, fix the root cause rather than suppressing.
 
 ## Configuration Conventions
 

@@ -180,6 +180,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <div className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-2">
                 <Select
+                  aria-label="Rule type"
                   items={RULE_TYPE_ITEMS}
                   value={addType}
                   onChange={(v) => {
@@ -190,6 +191,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
               </div>
               <div className="col-span-9">
                 <TextField
+                  aria-label="Rule pattern"
                   value={addPattern}
                   onChange={handlePatternChange}
                   isInvalid={isDuplicate}

@@ -1,10 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./services/env.js", () => ({
   loadEnvFile: vi.fn(),
   resolveShellPath: vi.fn(),
   resolveClaudeBinary: vi.fn(),
   cleanEnv: vi.fn(() => ({})),
+  getClaudeBinary: vi.fn(() => "claude"),
+  getEnvFileKeys: vi.fn(() => []),
+  getContextWindow: vi.fn(() => 200000),
 }));
 vi.mock("./services/project-registry.js", () => ({
   initialize: vi.fn(),
@@ -45,10 +48,28 @@ vi.mock("./services/version-check.js", () => ({
 vi.mock("./services/claude-version.js", () => ({
   detectClaudeAutoMode: vi.fn(() => Promise.resolve()),
 }));
+vi.mock("./services/plugin-manager.js", () => ({
+  initialize: vi.fn(() => Promise.resolve()),
+  shutdown: vi.fn(() => Promise.resolve()),
+  listInstalled: vi.fn(() => []),
+}));
+vi.mock("./services/migrate.js", () => ({
+  run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
+}));
+vi.mock("./services/github.js", () => ({
+  refreshAuth: vi.fn(() => Promise.resolve()),
+}));
 
 import { startServer } from "./index.js";
 
 describe.sequential("startServer", () => {
+  beforeEach(() => {
+    // startServer's bootstrap log/warn/error lines are noise during tests.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
   it("port 0: OS assigns a free port and handle.port reflects it", async () => {
     const handle = await startServer({ port: 0 });
     expect(handle.port).toBeGreaterThan(0);
@@ -125,6 +146,9 @@ describe.sequential("startServer", () => {
         resolveShellPath: vi.fn(),
         resolveClaudeBinary: vi.fn(),
         cleanEnv: vi.fn(() => ({})),
+        getClaudeBinary: vi.fn(() => "claude"),
+        getEnvFileKeys: vi.fn(() => []),
+        getContextWindow: vi.fn(() => 200000),
       }));
       vi.doMock("./services/project-registry.js", () => ({
         initialize: vi.fn(),
@@ -165,6 +189,17 @@ describe.sequential("startServer", () => {
       vi.doMock("./services/claude-version.js", () => ({
         detectClaudeAutoMode: vi.fn(() => Promise.resolve()),
       }));
+      vi.doMock("./services/plugin-manager.js", () => ({
+        initialize: vi.fn(() => Promise.resolve()),
+        shutdown: vi.fn(() => Promise.resolve()),
+        listInstalled: vi.fn(() => []),
+      }));
+      vi.doMock("./services/migrate.js", () => ({
+        run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
+      }));
+      vi.doMock("./services/github.js", () => ({
+        refreshAuth: vi.fn(() => Promise.resolve()),
+      }));
 
       delete process.env.ROUBO_PORT;
       const fresh = (await import("./index.js")) as typeof import("./index.js");
@@ -183,6 +218,9 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/auto-clear.js");
       vi.doUnmock("./services/version-check.js");
       vi.doUnmock("./services/claude-version.js");
+      vi.doUnmock("./services/plugin-manager.js");
+      vi.doUnmock("./services/migrate.js");
+      vi.doUnmock("./services/github.js");
       vi.resetModules();
       if (originalPort !== undefined) {
         process.env.ROUBO_PORT = originalPort;
