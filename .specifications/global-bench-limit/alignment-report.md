@@ -3,6 +3,7 @@
 > Generated: 2026-05-22T04:18:00Z · Findings: 7 · Resolved: 0 · Deferred: 0 · Dismissed: 7 · Unresolved: 0 · Suppressed (from deferral queue): 0
 
 ## Counts before
+
 - critical: 0
 - high: 0
 - medium: 7

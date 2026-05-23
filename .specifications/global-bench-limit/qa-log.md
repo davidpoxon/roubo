@@ -4,7 +4,7 @@ Interview conducted 2026-05-22 in the `/product-flow` orchestrator thread, using
 
 ## Cluster 1 — problem, what counts, scope
 
-**Q1.** What's the core problem the bench cap solves? *(multi-select)*
+**Q1.** What's the core problem the bench cap solves? _(multi-select)_
 
 **A1.** Resource exhaustion (CPU/RAM/disk).
 
@@ -28,7 +28,7 @@ Interview conducted 2026-05-22 in the `/product-flow` orchestrator thread, using
 
 **Q6.** Where does the cap value persist?
 
-**A6.** *(verbatim, asked back as a clarifier)* Where do other settings live, i.e., settings for 'bench defaults', 'appearance' and 'claude code'?
+**A6.** _(verbatim, asked back as a clarifier)_ Where do other settings live, i.e., settings for 'bench defaults', 'appearance' and 'claude code'?
 
 **A6-resolved.** Orchestrator answered: settings already live in `~/.roubo/settings.json` as `UserPreferences` (`shared/types.ts`), served by `GET/PUT /api/settings` and persisted by `services/state.ts:loadSettings/saveSettings`. The user accepted this by proceeding to Cluster 2b without changing the decision.
 
@@ -40,7 +40,7 @@ Interview conducted 2026-05-22 in the `/product-flow` orchestrator thread, using
 
 **Q8.** How does the global cap interact with per-project state?
 
-**A8.** *(verbatim)* projects already have a bench limit. those should remain enforced. this enw setting is a global limit that provides a cap across all projects.
+**A8.** _(verbatim)_ projects already have a bench limit. those should remain enforced. this enw setting is a global limit that provides a cap across all projects.
 
 ## Cluster 3 — block UX, auto-clear, concurrency
 
@@ -50,7 +50,7 @@ Interview conducted 2026-05-22 in the `/product-flow` orchestrator thread, using
 
 **Q10.** How does the global cap interact with auto-clear?
 
-**A10.** *(verbatim)* We don't currently automate bench creation. The global cap should not impede the auto-clearing of benches.
+**A10.** _(verbatim)_ We don't currently automate bench creation. The global cap should not impede the auto-clearing of benches.
 
 **Q11.** What happens on concurrent create requests at the boundary?
 
@@ -62,7 +62,7 @@ Interview conducted 2026-05-22 in the `/product-flow` orchestrator thread, using
 
 **A12.** Qualitative — zero user reports of 'machine froze from too many benches'.
 
-**Q13.** What's explicitly OUT of scope for v1? *(multi-select)*
+**Q13.** What's explicitly OUT of scope for v1? _(multi-select)_
 
 **A13.** Per-user / multi-tenant quotas; Automatic cap adjustment based on system resources; A 'force create over cap' escape hatch; Surfacing cap state in CLI / non-UI consumers.
 

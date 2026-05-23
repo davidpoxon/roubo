@@ -21,13 +21,13 @@ cd .specifications/global-bench-limit/prototype && python3 -m http.server 8765
 
 The page renders two panels side-by-side, plus a scenario switcher at the top.
 
-| User story | Surface | How to see it |
-|---|---|---|
-| US-001 | "Global bench limit" control in Settings · Benches tab | Left panel. Toggle between **Unlimited** and **Limit**; numeric input disables in Unlimited mode. Try invalid values (0, -3) to see validation. |
-| US-002 | Disabled "+ New bench" button with accessible tooltip | Right panel. Click the **Cap 5 · 5 in use (at cap)** scenario. Hover or focus the button to read the tooltip. |
-| US-003 | Global meter on the dashboard | Right panel toolbar. Visible only when a cap is set. Fill bar mirrors the per-project tile meter pattern; turns red at the cap. |
-| US-004 | Lower the cap below current count | Click **Cap 3 · 5 in use (lowered)**. Existing benches preserved; meter shows 5 of 3; new bench is blocked. |
-| US-005 | Unlimited (default) behaviour | Click **No cap (default)**. Meter hides; button is always enabled; per-project tiles unchanged. |
+| User story | Surface                                                | How to see it                                                                                                                                   |
+| ---------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| US-001     | "Global bench limit" control in Settings · Benches tab | Left panel. Toggle between **Unlimited** and **Limit**; numeric input disables in Unlimited mode. Try invalid values (0, -3) to see validation. |
+| US-002     | Disabled "+ New bench" button with accessible tooltip  | Right panel. Click the **Cap 5 · 5 in use (at cap)** scenario. Hover or focus the button to read the tooltip.                                   |
+| US-003     | Global meter on the dashboard                          | Right panel toolbar. Visible only when a cap is set. Fill bar mirrors the per-project tile meter pattern; turns red at the cap.                 |
+| US-004     | Lower the cap below current count                      | Click **Cap 3 · 5 in use (lowered)**. Existing benches preserved; meter shows 5 of 3; new bench is blocked.                                     |
+| US-005     | Unlimited (default) behaviour                          | Click **No cap (default)**. Meter hides; button is always enabled; per-project tiles unchanged.                                                 |
 
 ## What is mocked
 
