@@ -6,13 +6,19 @@ import type {
   IntegrationConfigUpdate,
   IntegrationTestResult,
   ProjectIntegrationState,
+  SourceCandidatesResponse,
+  SourceSelection,
 } from "@roubo/shared";
 import { ApiError } from "../lib/api";
 import {
   useSaveIntegrationConfig,
   useTestIntegrationConnection,
 } from "../hooks/useProjectIntegration";
+import { useSourceCandidates } from "../hooks/useSourceCandidates";
+import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import ConfigSchemaForm from "./ConfigSchemaForm";
+import SourcePicker from "./SourcePicker";
+import Spinner from "./Spinner";
 import { passwordFieldKeys } from "./config-schema-utils";
 
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
@@ -90,7 +96,8 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
   // setSubmitError surface is dropped.
   const testMutation = useTestIntegrationConnection(projectId);
   const saveMutation = useSaveIntegrationConfig(projectId);
-  const isBusy = testMutation.isPending || saveMutation.isPending;
+  const saveSourcesMutation = useSaveProjectSources(projectId);
+  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesMutation.isPending;
 
   return (
     <ModalOverlay
@@ -102,11 +109,13 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
         <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
           {({ close }) => (
             <ConfigureFlow
+              projectId={projectId}
               plugin={plugin}
               effective={effective}
               close={close}
               testMutation={testMutation}
               saveMutation={saveMutation}
+              saveSourcesMutation={saveSourcesMutation}
             />
           )}
         </Dialog>
@@ -115,24 +124,47 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
   );
 }
 
+function initialSourceSelection(effective: IntegrationConfig): SourceSelection {
+  const out: SourceSelection = {};
+  const raw = effective.sources;
+  if (!raw) return out;
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value)) {
+      out[key] = value.map(String);
+    }
+  }
+  return out;
+}
+
+function hasAnyCandidates(data: SourceCandidatesResponse | undefined): boolean {
+  if (!data) return false;
+  if (data.shape === "multi-list") return (data.items?.length ?? 0) > 0;
+  return (data.categories ?? []).some((cat) => cat.items.length > 0);
+}
+
 function ConfigureFlow({
+  projectId,
   plugin,
   effective,
   close,
   testMutation,
   saveMutation,
+  saveSourcesMutation,
 }: {
+  projectId: string;
   plugin: InstalledPlugin;
   effective: IntegrationConfig;
   close: () => void;
   testMutation: ReturnType<typeof useTestIntegrationConnection>;
   saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
+  saveSourcesMutation: ReturnType<typeof useSaveProjectSources>;
 }) {
   const manifest = plugin.manifest;
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
     [manifest?.configSchema, effective],
   );
+  const initialSources = useMemo(() => initialSourceSelection(effective), [effective]);
 
   const [values, setValuesState] = useState<Record<string, unknown>>(initialValues);
   const [testResult, setTestResult] = useState<IntegrationTestResult | null>(null);
@@ -140,6 +172,7 @@ function ConfigureFlow({
     null,
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [sources, setSources] = useState<SourceSelection>(initialSources);
 
   const passwordKeys = useMemo(
     () => new Set(passwordFieldKeys(manifest?.configSchema)),
@@ -155,11 +188,44 @@ function ConfigureFlow({
     lastTestedSnapshot !== null &&
     snapshotEquals(values, lastTestedSnapshot);
 
+  const sourceCandidatesQuery = useSourceCandidates(
+    projectId,
+    hasTestedSuccessfully ? plugin.id : null,
+  );
+
+  function buildUpdate(
+    snapshot: Record<string, unknown>,
+    identity: IntegrationTestResult & { ok: true },
+  ): IntegrationConfigUpdate {
+    // Split form values: password keys live in the credential store, `instance`
+    // is a top-level override key, everything else goes under `advanced`
+    // (opaque-to-roubo per FR-023).
+    const advanced: Record<string, unknown> = {};
+    let instance: string | undefined;
+    for (const [key, value] of Object.entries(snapshot)) {
+      if (passwordKeys.has(key)) continue;
+      if (key === "instance") {
+        instance = typeof value === "string" ? value : undefined;
+        continue;
+      }
+      advanced[key] = value;
+    }
+    const update: IntegrationConfigUpdate = {
+      capturedUserId: identity.identity,
+    };
+    if (instance !== undefined) update.instance = instance;
+    if (Object.keys(advanced).length > 0) update.advanced = advanced;
+    return update;
+  }
+
   function setValues(next: Record<string, unknown>) {
     setValuesState(next);
     // Any field change invalidates the previous test success — FR-034 / TC-037.
+    // Reset the source selection back to whatever the override held, since the
+    // candidate list is keyed to the previously-tested connection.
     setTestResult(null);
     setLastTestedSnapshot(null);
+    setSources(initialSources);
   }
 
   async function runTest(snapshot: Record<string, unknown>) {
@@ -168,7 +234,18 @@ function ConfigureFlow({
       const result = await testMutation.mutateAsync(snapshot);
       setTestResult(result);
       if (result.ok) {
-        setLastTestedSnapshot(snapshot);
+        // Commit instance + advanced + capturedUserId so the subsequent
+        // listSourceCandidates fetch sees the right effective config. The test
+        // endpoint already persists credentials; this brings instance/advanced
+        // into line so the source picker can populate without forcing a manual
+        // intermediate Save.
+        try {
+          await saveMutation.mutateAsync(buildUpdate(snapshot, result));
+          setLastTestedSnapshot(snapshot);
+        } catch (err) {
+          setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
+          setLastTestedSnapshot(null);
+        }
       } else {
         setLastTestedSnapshot(null);
       }
@@ -197,36 +274,21 @@ function ConfigureFlow({
     if (!hasTestedSuccessfully || testResult?.ok !== true) return;
     setSubmitError(null);
 
-    // Split form values: keys that are configSchema password fields stay in
-    // the credential store (already persisted on the last successful test).
-    // `instance` is a top-level override key; everything else goes under
-    // `advanced` (opaque-to-roubo per FR-023).
-    const advanced: Record<string, unknown> = {};
-    let instance: string | undefined;
-    for (const [key, value] of Object.entries(values)) {
-      if (passwordKeys.has(key)) continue;
-      if (key === "instance") {
-        instance = typeof value === "string" ? value : undefined;
-        continue;
-      }
-      advanced[key] = value;
-    }
-
-    const update: IntegrationConfigUpdate = {
-      capturedUserId: testResult.identity,
-    };
-    if (instance !== undefined) update.instance = instance;
-    if (Object.keys(advanced).length > 0) update.advanced = advanced;
-
+    // Instance/advanced + capturedUserId were already committed in `runTest`
+    // when the test passed, so Save is dedicated to persisting the source
+    // selection (or a no-op if the plugin doesn't expose sources).
     try {
-      await saveMutation.mutateAsync(update);
+      await saveSourcesMutation.mutateAsync(sources);
       close();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
     }
   }
 
-  const isBusy = testMutation.isPending || saveMutation.isPending;
+  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesMutation.isPending;
+  const showSourcesSection =
+    hasTestedSuccessfully &&
+    (sourceCandidatesQuery.isLoading || hasAnyCandidates(sourceCandidatesQuery.data));
 
   return (
     <>
@@ -250,6 +312,26 @@ function ConfigureFlow({
           tlsFieldKey={tlsFieldKey}
           onEnableTls={handleEnableTls}
         />
+
+        {showSourcesSection && (
+          <div className="flex flex-col gap-2" data-testid="sources-section">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+              Sources
+            </span>
+            {sourceCandidatesQuery.isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
+                <Spinner />
+                Loading sources…
+              </div>
+            ) : sourceCandidatesQuery.data ? (
+              <SourcePicker
+                response={sourceCandidatesQuery.data}
+                value={sources}
+                onChange={setSources}
+              />
+            ) : null}
+          </div>
+        )}
 
         {submitError && (
           <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
@@ -281,7 +363,7 @@ function ConfigureFlow({
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending ? "Saving…" : "Save"}
+            {saveMutation.isPending || saveSourcesMutation.isPending ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>
