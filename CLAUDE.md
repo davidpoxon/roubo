@@ -128,9 +128,8 @@ GET    /api/containers   List database containers
 GET    /api/plugins/:pluginId/integration   Get per-plugin global default + manifest snippet
 POST   /api/plugins/:pluginId/integration/test   Test a config snapshot against the plugin (uses ~/.roubo/integrations/_global/{pluginId}.yaml)
 PUT    /api/plugins/:pluginId/integration/config   Persist global defaults for the plugin (rejects `sources`)
-GET    /api/auth/github/status   Get GitHub connection status
-GET    /api/auth/github/authorize   Generate GitHub OAuth authorization URL
-POST   /api/auth/github/exchange   Exchange OAuth code for token (called by Electron deep-link handler)
+POST   /api/plugins/github-com/oauth/authorize   Generate GitHub OAuth authorization URL
+POST   /api/plugins/github-com/oauth/exchange   Exchange OAuth code for token (called by Electron deep-link handler)
 GET    /api/notifications/stream   SSE stream: real-time notification events
 WS     /ws/terminal/:sessionId   Terminal session WebSocket
 ```
