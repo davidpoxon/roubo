@@ -4,11 +4,20 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../test/renderWithProviders";
 import IssueQueuePanel from "./IssueQueuePanel";
+import { ApiError } from "../lib/api";
 import type { Bench, NormalizedIssue, RouboConfig } from "@roubo/shared";
 
 vi.mock("../hooks/useIssues", () => ({
   useIssues: vi.fn(),
   useRefreshIssues: vi.fn(() => vi.fn()),
+}));
+vi.mock("../hooks/useProjectIntegration", () => ({
+  useProjectIntegration: vi.fn(() => ({ data: undefined })),
+}));
+vi.mock("./PluginConfigureDialog", () => ({
+  default: ({ pluginId, plugin }: { pluginId?: string; plugin?: { id: string } }) => (
+    <div data-testid="plugin-configure-dialog" data-plugin-id={pluginId ?? plugin?.id} />
+  ),
 }));
 vi.mock("./DraggableIssueCard", () => ({
   default: ({ issue }: { issue: NormalizedIssue }) => (
@@ -39,7 +48,9 @@ vi.mock("./CutListGroupByControl", () => ({
 }));
 
 import { useIssues } from "../hooks/useIssues";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 const mockedUseIssues = vi.mocked(useIssues);
+const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 
 function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
@@ -92,6 +103,9 @@ const noBenches: Bench[] = [];
 beforeEach(() => {
   vi.resetAllMocks();
   mockedUseIssues.mockReturnValue(defaultResult());
+  mockedUseProjectIntegration.mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof useProjectIntegration>);
 });
 
 describe("IssueQueuePanel", () => {
@@ -267,5 +281,73 @@ describe("IssueQueuePanel", () => {
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
     );
     expect(container.querySelector(".overflow-x-hidden")).toBeInTheDocument();
+  });
+
+  describe("GitHub reconnect", () => {
+    function setupErrorWithGithubPlugin() {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          error: new ApiError("GitHub not connected", 401, "NOT_CONNECTED"),
+        }),
+      );
+      mockedUseProjectIntegration.mockReturnValue({
+        data: {
+          plugin: {
+            id: "github-com",
+            installed: true,
+            status: null,
+            manifest: { name: "GitHub.com", configSchema: { properties: {} } },
+          },
+          effective: { plugin: "github-com" },
+          committed: { plugin: "github-com" },
+          override: null,
+          captionKey: "yaml-only",
+        },
+      } as unknown as ReturnType<typeof useProjectIntegration>);
+    }
+
+    it("renders a Connect button when GitHub is disconnected and the github-com plugin is installed", () => {
+      setupErrorWithGithubPlugin();
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByRole("button", { name: /connect github/i })).toBeInTheDocument();
+    });
+
+    it("clicking Connect opens the project-scoped github-com Configure dialog", async () => {
+      setupErrorWithGithubPlugin();
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: /connect github/i }));
+      const dialog = await screen.findByTestId("plugin-configure-dialog");
+      expect(dialog.getAttribute("data-plugin-id")).toBe("github-com");
+    });
+
+    it("hides the Connect button when the active integration plugin is not github-com", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          error: new ApiError("GitHub not connected", 401, "NOT_CONNECTED"),
+        }),
+      );
+      mockedUseProjectIntegration.mockReturnValue({
+        data: {
+          plugin: {
+            id: "jira-self-hosted",
+            installed: true,
+            status: null,
+            manifest: { name: "Jira", configSchema: { properties: {} } },
+          },
+          effective: { plugin: "jira-self-hosted" },
+          committed: { plugin: "jira-self-hosted" },
+          override: null,
+          captionKey: "yaml-only",
+        },
+      } as unknown as ReturnType<typeof useProjectIntegration>);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByRole("button", { name: /connect github/i })).toBeNull();
+    });
   });
 });

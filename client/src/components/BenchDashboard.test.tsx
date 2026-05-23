@@ -251,11 +251,6 @@ vi.mock("./BranchConflictDialog", () => ({
     ) : null,
 }));
 
-vi.mock("../hooks/useGitHubAuth");
-vi.mock("./GitHubErrorState", () => ({
-  default: ({ error }: { error: unknown }) =>
-    error ? <div data-testid="github-error-state" /> : null,
-}));
 vi.mock("./settings/DangerZoneTile", () => ({
   default: () => <div data-testid="danger-zone-tile" />,
 }));
@@ -297,7 +292,6 @@ vi.mock("./MissingPluginDialog", () => ({
 import { useProjects } from "../hooks/useProjects";
 import { useProjectBenches, useCreateBench } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
-import { useGitHubAuth } from "../hooks/useGitHubAuth";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import BenchDashboard from "./BenchDashboard";
 import BenchesTab from "./BenchesTab";
@@ -307,7 +301,6 @@ const mockedUseProjects = vi.mocked(useProjects);
 const mockedUseProjectBenches = vi.mocked(useProjectBenches);
 const mockedUseCreateBench = vi.mocked(useCreateBench);
 const mockedUseToast = vi.mocked(useToast);
-const mockedUseGitHubAuth = vi.mocked(useGitHubAuth);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 
 type MutateOptions = {
@@ -359,14 +352,12 @@ function stubDefaults({
   benches,
   projectsLoading = false,
   benchesLoading = false,
-  githubConnected = true,
   integration,
 }: {
   projects?: RegisteredProject[];
   benches?: Bench[];
   projectsLoading?: boolean;
   benchesLoading?: boolean;
-  githubConnected?: boolean;
   integration?: ProjectIntegrationState;
 } = {}) {
   let capturedOptions: MutateOptions = {};
@@ -393,11 +384,6 @@ function stubDefaults({
     isPending: false,
   } as unknown as ReturnType<typeof useCreateBench>);
   mockedUseToast.mockReturnValue({ addToast } as unknown as ReturnType<typeof useToast>);
-  mockedUseGitHubAuth.mockReturnValue({
-    status: { connected: githubConnected },
-    isLoading: false,
-    error: null,
-  });
   mockedUseProjectIntegration.mockReturnValue({
     data: integration,
     isLoading: false,
@@ -1122,85 +1108,6 @@ describe("BenchDashboard", () => {
       // tile grid must not be present and the bench grid must be rendered instead.
       expect(screen.queryByText("Setup")).not.toBeInTheDocument();
       expect(screen.getAllByTestId("empty-bench-card")).toHaveLength(3);
-    });
-  });
-
-  describe("not-connected GitHub banner", () => {
-    const projectWithRepo = makeProject({
-      config: {
-        project: {
-          displayName: "My Project",
-          name: "my-project",
-          type: "web",
-          repo: "org/repo",
-        },
-        layout: { type: "single-repo" },
-        components: {},
-        ports: {},
-        benches: { max: 3 },
-      } as RegisteredProject["config"],
-    });
-
-    it("shows banner in All Projects view when GitHub is disconnected and a project has a repo", () => {
-      stubDefaults({
-        projects: [projectWithRepo],
-        benches: [],
-        githubConnected: false,
-      });
-      renderDashboard("/");
-      expect(screen.getByTestId("github-error-state")).toBeTruthy();
-    });
-
-    it("hides banner in All Projects view when GitHub is connected", () => {
-      stubDefaults({
-        projects: [projectWithRepo],
-        benches: [],
-        githubConnected: true,
-      });
-      renderDashboard("/");
-      expect(screen.queryByTestId("github-error-state")).toBeNull();
-    });
-
-    it("hides banner in All Projects view when no projects have a repo", () => {
-      const projectNoRepo = makeProject();
-      stubDefaults({
-        projects: [projectNoRepo],
-        benches: [],
-        githubConnected: false,
-      });
-      renderDashboard("/");
-      expect(screen.queryByTestId("github-error-state")).toBeNull();
-    });
-
-    it("shows banner in per-project view when project has a repo and GitHub is disconnected", () => {
-      stubDefaults({
-        projects: [projectWithRepo],
-        benches: [],
-        githubConnected: false,
-      });
-      renderDashboard("/projects/proj-1");
-      expect(screen.getByTestId("github-error-state")).toBeTruthy();
-    });
-
-    it("hides banner in per-project view when GitHub is connected", () => {
-      stubDefaults({
-        projects: [projectWithRepo],
-        benches: [],
-        githubConnected: true,
-      });
-      renderDashboard("/projects/proj-1");
-      expect(screen.queryByTestId("github-error-state")).toBeNull();
-    });
-
-    it("hides banner in per-project view when the project has no repo configured", () => {
-      const projectNoRepo = makeProject();
-      stubDefaults({
-        projects: [projectNoRepo],
-        benches: [],
-        githubConnected: false,
-      });
-      renderDashboard("/projects/proj-1");
-      expect(screen.queryByTestId("github-error-state")).toBeNull();
     });
   });
 

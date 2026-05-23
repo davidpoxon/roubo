@@ -1173,20 +1173,6 @@ export type CreateBenchWithIssueResponse =
   | { status: "success"; bench: Bench; terminalSessionId: string | undefined }
   | { status: "conflict"; branchConflict: BranchConflictInfo };
 
-// ── GitHub OAuth types ──
-
-export interface GitHubAuthStatus {
-  connected: boolean;
-  username?: string;
-  scopes?: string[];
-  scopesOutdated?: boolean;
-  authorizedAt?: string;
-}
-
-export interface GitHubAuthUrl {
-  url: string;
-}
-
 export type GitHubErrorCode =
   | "NOT_CONNECTED"
   | "SCOPES_OUTDATED"

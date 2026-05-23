@@ -1,31 +1,33 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import {
   buildAuthorizationUrl,
-  clearStatusCache,
-  deleteCredentials,
   exchangeCodeForToken,
   fetchGitHubUsername,
-  getConnectionStatus,
-  saveCredentials,
+  saveToken,
   validateState,
-} from "../services/github-auth.js";
-import { resetOctokit } from "../services/github.js";
+} from "../services/github-oauth.js";
+import { refreshAuth } from "../services/github.js";
 
 const router = Router();
 
-router.get("/authorize", (_req, res) => {
+// Defence-in-depth rate limit on the OAuth surface. Roubo runs as a
+// localhost-only service, but these routes touch the credential store and
+// the GitHub OAuth exchange endpoint, so we cap requests per minute per IP
+// to prevent runaway loops or a misbehaving caller from hammering GitHub.
+const oauthRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.use(oauthRateLimiter);
+
+router.post("/authorize", (_req, res) => {
   try {
     const result = buildAuthorizationUrl();
     res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-router.get("/status", async (_req, res) => {
-  try {
-    const status = await getConnectionStatus();
-    res.json(status);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -47,22 +49,11 @@ router.post("/exchange", async (req, res) => {
   }
 
   try {
-    const { token, scopes } = await exchangeCodeForToken(code);
+    const { token } = await exchangeCodeForToken(code);
     const username = await fetchGitHubUsername(token);
-    await saveCredentials(token, username, scopes);
-    resetOctokit();
-    clearStatusCache();
+    await saveToken(token);
+    await refreshAuth();
     res.json({ ok: true, username });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-router.delete("/", async (_req, res) => {
-  try {
-    await deleteCredentials();
-    resetOctokit();
-    res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

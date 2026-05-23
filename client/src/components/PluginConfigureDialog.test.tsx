@@ -40,6 +40,14 @@ vi.mock("../hooks/useGlobalPluginIntegration", () => ({
   useGlobalPluginIntegration: vi.fn(),
 }));
 
+const { mockStartGithubPluginOauth } = vi.hoisted(() => ({
+  mockStartGithubPluginOauth: vi.fn(),
+}));
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
+  return { ...actual, startGithubPluginOauth: mockStartGithubPluginOauth };
+});
+
 const mockedUseTest = vi.mocked(useTestIntegrationConnection);
 const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
 const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
@@ -599,5 +607,78 @@ describe("PluginConfigureDialog (global scope)", () => {
     installGlobalMocks({ test: vi.fn(), save: vi.fn() });
     renderGlobalDialog();
     expect(screen.getByText(/global defaults/i)).toBeInTheDocument();
+  });
+
+  describe("GitHub OAuth section", () => {
+    function githubPlugin(): Plugin {
+      return {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: {
+          name: "GitHub.com",
+          configSchema: { type: "object", properties: {} },
+          permissions: {
+            network: { hosts: [] },
+            credentials: {
+              slots: [{ slot: "github-token", scope: "read", description: "OAuth token" }],
+            },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
+      };
+    }
+
+    it("renders the GitHub OAuth section only for the github-com plugin", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+
+      const { unmount } = renderDialog();
+      expect(screen.queryByTestId("github-oauth-section")).toBeNull();
+      unmount();
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      expect(screen.getByTestId("github-oauth-section")).toBeInTheDocument();
+    });
+
+    it("opens the OAuth URL in a new window when Connect is clicked", async () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+      mockStartGithubPluginOauth.mockResolvedValue({ url: "https://github.com/login/oauth/auth" });
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      await userEvent.click(screen.getByTestId("github-connect"));
+
+      await waitFor(() => expect(mockStartGithubPluginOauth).toHaveBeenCalled());
+      expect(openSpy).toHaveBeenCalledWith(
+        "https://github.com/login/oauth/auth",
+        "_blank",
+        "noopener,noreferrer",
+      );
+      openSpy.mockRestore();
+    });
+
+    it("shows the connected username once the test succeeds", async () => {
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "octocat" },
+      });
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({ test, save });
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      await userEvent.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByText("octocat")).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: /reconnect/i })).toBeInTheDocument();
+    });
+
+    it("surfaces an error message if the authorize call fails", async () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockStartGithubPluginOauth.mockRejectedValue(new Error("server down"));
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await waitFor(() => expect(screen.getByText("server down")).toBeInTheDocument());
+    });
   });
 });

@@ -22,9 +22,6 @@ vi.mock("./config-parser.js", () => configParserMocks);
 const overrideMocks = { saveOverride: vi.fn() };
 vi.mock("./integration-overrides.js", () => overrideMocks);
 
-const githubAuthMocks = { deleteCredentials: vi.fn() };
-vi.mock("./github-auth.js", () => githubAuthMocks);
-
 const credentialMocks = {
   set: vi.fn<(p: string, s: string, v: string) => Promise<void>>(),
   deleteSlot: vi.fn<(p: string, s: string) => Promise<void>>(),
@@ -39,7 +36,6 @@ beforeEach(async () => {
   stateMocks.getRouboDir.mockReturnValue("/mock-home/.roubo");
   configParserMocks.parseConfig.mockReset();
   overrideMocks.saveOverride.mockReset();
-  githubAuthMocks.deleteCredentials.mockReset();
   credentialMocks.set.mockReset();
   credentialMocks.deleteSlot.mockReset();
 
@@ -84,7 +80,6 @@ describe("migrate.run — idempotency (TC-068)", () => {
     expect(stateMocks.saveState).not.toHaveBeenCalled();
     expect(credentialMocks.set).not.toHaveBeenCalled();
     expect(overrideMocks.saveOverride).not.toHaveBeenCalled();
-    expect(githubAuthMocks.deleteCredentials).not.toHaveBeenCalled();
     expect(fsMocks.unlinkSync).not.toHaveBeenCalled();
   });
 });
@@ -152,12 +147,12 @@ describe("migrate.run — success path (TC-031)", () => {
     expect(committed.migration?.status).toBe("success");
     expect(committed.migration?.migratedProjectIds).toEqual(["alpha"]);
 
-    // Post-commit auth.json delete (via github-auth.deleteCredentials).
-    expect(githubAuthMocks.deleteCredentials).toHaveBeenCalledTimes(1);
+    // Post-commit auth.json delete (idempotent fs.unlink).
+    expect(fsMocks.unlinkSync).toHaveBeenCalledWith("/mock-home/.roubo/auth.json");
 
-    // No rollback ran.
+    // No rollback ran; keychain slot must NOT be deleted (the migration just
+    // populated it, deleting it would lock the user out).
     expect(credentialMocks.deleteSlot).not.toHaveBeenCalled();
-    expect(fsMocks.unlinkSync).not.toHaveBeenCalled();
   });
 
   it("writes a plugin-only override when the project has no github.project field", async () => {
@@ -211,8 +206,10 @@ describe("migrate.run — success path (TC-031)", () => {
     mockProjects({ projects: [] });
     mockAuth("ghp_secret_token");
     credentialMocks.set.mockResolvedValue();
-    githubAuthMocks.deleteCredentials.mockImplementation(() => {
-      throw new Error("EACCES");
+    fsMocks.unlinkSync.mockImplementation(() => {
+      const err = new Error("EACCES") as NodeJS.ErrnoException;
+      err.code = "EACCES";
+      throw err;
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -265,8 +262,8 @@ describe("migrate.run — rollback path (TC-069)", () => {
     expect(written.schemaVersion).toBeUndefined();
     expect(written.migration?.status).toBe("rolled-back");
 
-    // auth.json NOT deleted.
-    expect(githubAuthMocks.deleteCredentials).not.toHaveBeenCalled();
+    // auth.json NOT deleted (only override-file rollbacks were unlinked).
+    expect(fsMocks.unlinkSync).not.toHaveBeenCalledWith("/mock-home/.roubo/auth.json");
   });
 
   it("does not bump schemaVersion and records rolled-back when credential-store fails", async () => {
@@ -283,7 +280,6 @@ describe("migrate.run — rollback path (TC-069)", () => {
 
     expect(outcome.status).toBe("rolled-back");
     expect(overrideMocks.saveOverride).not.toHaveBeenCalled();
-    expect(githubAuthMocks.deleteCredentials).not.toHaveBeenCalled();
     expect(stateMocks.saveState).toHaveBeenCalledTimes(1);
     const written = stateMocks.saveState.mock.calls[0][0] as PersistedState;
     expect(written.schemaVersion).toBeUndefined();

@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { Octokit } from "octokit";
 import type {
   GitHubIssue,
@@ -11,7 +9,9 @@ import type {
 import { DEFAULT_GITHUB_SETTINGS } from "@roubo/shared";
 import { ServiceError } from "./service-error.js";
 import { classifyGitHubError, classifyGitHubErrors } from "./github-error.js";
-import { getRouboDir, loadSettings } from "./state.js";
+import { loadSettings } from "./state.js";
+import * as credentialStore from "./credential-store.js";
+import { GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT } from "./github-oauth.js";
 
 // ── Module-level state ──
 
@@ -83,25 +83,40 @@ function pruneEtagStore(): void {
 
 // ── Auth ──
 
-function readTokenFromAuthFile(): string | undefined {
-  try {
-    const authFile = path.join(getRouboDir(), "auth.json");
-    const data = JSON.parse(fs.readFileSync(authFile, "utf-8")) as Record<string, unknown>;
-    return typeof data.githubToken === "string" ? data.githubToken : undefined;
-  } catch {
-    return undefined;
+let cachedToken: string | undefined;
+
+// Reads the GitHub token from the github-com plugin's keychain slot and caches
+// it in memory so the synchronous getOctokit() path stays sync. Call after
+// server startup and after any plugin-OAuth exchange.
+export async function refreshAuth(): Promise<void> {
+  const envToken = process.env.GITHUB_TOKEN;
+  if (envToken) {
+    cachedToken = envToken;
+    resetOctokit();
+    return;
   }
+  try {
+    const stored = await credentialStore.get(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
+    cachedToken = stored ?? undefined;
+  } catch {
+    // Keychain unavailable (headless Linux without secret-tool, etc.) —
+    // surface as "no token" so callers get a clean 401 rather than crashing.
+    cachedToken = undefined;
+  }
+  resetOctokit();
 }
 
 /** Returns the configured GitHub token, or undefined if not connected. */
 export function getGithubToken(): string | undefined {
-  return process.env.GITHUB_TOKEN ?? readTokenFromAuthFile();
+  // process.env.GITHUB_TOKEN always wins so tests and explicit overrides do not
+  // depend on refreshAuth() having been called.
+  return process.env.GITHUB_TOKEN || cachedToken;
 }
 
 function getOctokit(): Octokit {
   if (octokit) return octokit;
 
-  const token = process.env.GITHUB_TOKEN ?? readTokenFromAuthFile();
+  const token = getGithubToken();
   if (!token) {
     throw new ServiceError(
       401,
@@ -121,6 +136,12 @@ export function resetOctokit(): void {
   blockingCache.clear();
   issueTypesCache.clear();
   etagStore.clear();
+}
+
+// Test-only seed for the in-memory token cache.
+export function __setTokenForTests(token: string | undefined): void {
+  cachedToken = token;
+  resetOctokit();
 }
 
 function parseRepo(repoFullName: string): { owner: string; repo: string } {

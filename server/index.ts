@@ -28,7 +28,7 @@ import appBlueprintsRouter from "./routes/app-blueprints.js";
 import permissionsRouter from "./routes/permissions.js";
 import projectSettingsRouter from "./routes/project-settings.js";
 import benchesSettingsRouter from "./routes/benches-settings.js";
-import authRouter from "./routes/auth.js";
+import pluginsGithubOauthRouter from "./routes/plugins-github-oauth.js";
 import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
@@ -37,6 +37,7 @@ import migrationRouter from "./routes/migration.js";
 import * as blueprintManager from "./services/blueprint-manager.js";
 import * as autoClear from "./services/auto-clear.js";
 import * as pluginManager from "./services/plugin-manager.js";
+import * as githubService from "./services/github.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
 
@@ -96,7 +97,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/containers", containersRouter);
   app.use("/api/filesystem/browse", filesystemRouter);
   app.use("/api/settings", settingsRouter);
-  app.use("/api/auth/github", authRouter);
+  app.use("/api/plugins/github-com/oauth", pluginsGithubOauthRouter);
   app.use("/api/hooks", hooksRouter);
   app.use("/api/notifications", notificationsRouter);
 
@@ -148,6 +149,15 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     await pluginManager.initialize();
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
+  }
+
+  // Prime the legacy github service's in-memory token cache from the github-com
+  // plugin's keychain slot. The cache backs the synchronous getOctokit() path
+  // used by pr-sync, projects, benches, etc., which are not yet plugin-driven.
+  try {
+    await githubService.refreshAuth();
+  } catch (err) {
+    console.warn("Failed to load GitHub credentials from keychain:", (err as Error).message);
   }
 
   let server: http.Server;

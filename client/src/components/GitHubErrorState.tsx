@@ -1,9 +1,6 @@
-import { useState } from "react";
 import { Button, Link } from "react-aria-components";
-import { Loader2 } from "lucide-react";
 import type { GitHubErrorCode } from "@roubo/shared";
 import { ApiError, getApiErrorParams } from "../lib/api";
-import { useConnectGitHub, useDisconnectGitHub } from "../hooks/useGitHubAuth";
 
 interface ErrorCopy {
   code: GitHubErrorCode | "GENERIC";
@@ -107,6 +104,9 @@ function resolveErrorCopy(error: unknown): ErrorCopy {
 interface GitHubErrorStateProps {
   error: unknown;
   onRetry?: () => void;
+  // Invoked when the user clicks Connect/Reconnect. Callers wire this to the
+  // github-com plugin Configure dialog so the OAuth flow happens in-plugin.
+  onReconnect?: () => void;
   variant?: "banner" | "inline";
   className?: string;
 }
@@ -114,46 +114,19 @@ interface GitHubErrorStateProps {
 export default function GitHubErrorState({
   error,
   onRetry,
+  onReconnect,
   variant = "inline",
   className,
 }: GitHubErrorStateProps) {
-  const connectGitHub = useConnectGitHub();
-  const disconnectGitHub = useDisconnectGitHub();
-  const [reconnectError, setReconnectError] = useState<string | null>(null);
-
   // falsy guard: callers pass null/undefined when no error is present
   if (!error) return null;
 
   const copy = resolveErrorCopy(error);
 
-  const isPending = connectGitHub.isPending || disconnectGitHub.isPending;
-  const reconnectFailed = !!reconnectError;
-
-  function handleConnect() {
-    connectGitHub.mutate(undefined);
-  }
-
-  function handleReconnect() {
-    setReconnectError(null);
-    disconnectGitHub.mutate(undefined, {
-      onSuccess: () =>
-        connectGitHub.mutate(undefined, {
-          onError: () => setReconnectError("Could not connect. Please try again."),
-        }),
-      onError: () => setReconnectError("Could not disconnect. Please try again."),
-    });
-  }
-
   const primaryAction =
-    copy.primaryKind === "connect" ? (
-      <Button onPress={handleConnect} isDisabled={isPending} className={primaryActionClass}>
-        {isPending && <Loader2 size={12} className="animate-spin" />}
+    (copy.primaryKind === "connect" || copy.primaryKind === "reconnect") && onReconnect ? (
+      <Button onPress={onReconnect} className={primaryActionClass}>
         {copy.primaryLabel}
-      </Button>
-    ) : copy.primaryKind === "reconnect" ? (
-      <Button onPress={handleReconnect} isDisabled={isPending} className={primaryActionClass}>
-        {isPending && <Loader2 size={12} className="animate-spin" />}
-        {reconnectFailed ? "Failed — retry" : copy.primaryLabel}
       </Button>
     ) : copy.primaryKind === "link" && copy.primaryHref ? (
       <Link
@@ -191,12 +164,9 @@ export default function GitHubErrorState({
             {copy.description}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {reconnectError && <p className="text-[10px] text-red-400">{reconnectError}</p>}
-          <div className="flex items-center gap-2">
-            {retryAction}
-            {primaryAction}
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {retryAction}
+          {primaryAction}
         </div>
       </div>
     );
@@ -212,7 +182,6 @@ export default function GitHubErrorState({
         {retryAction}
         {primaryAction}
       </div>
-      {reconnectError && <p className="text-xs text-red-400 mt-1">{reconnectError}</p>}
     </div>
   );
 }

@@ -56,8 +56,7 @@ import {
   fetchSettings,
   updateSettings,
   fetchEnvKeys,
-  fetchGitHubAuthStatus,
-  fetchGitHubAuthUrl,
+  startGithubPluginOauth,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -505,32 +504,16 @@ describe("fetchProjectGitHubProjects", () => {
   });
 });
 
-describe("fetchGitHubAuthStatus", () => {
-  it("sends GET to /api/auth/github/status", async () => {
-    const status = { connected: true, username: "octocat", scopes: ["repo"] };
-    mockFetch.mockResolvedValue(jsonResponse(status));
-    const result = await fetchGitHubAuthStatus();
-    expect(mockFetch).toHaveBeenCalledWith("/api/auth/github/status", expect.objectContaining({}));
-    expect(result).toEqual(status);
-  });
-
-  it("returns not-connected status", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ connected: false }));
-    const result = await fetchGitHubAuthStatus();
-    expect(result).toEqual({ connected: false });
-  });
-});
-
-describe("fetchGitHubAuthUrl", () => {
-  it("sends GET to /api/auth/github/authorize", async () => {
+describe("startGithubPluginOauth", () => {
+  it("POSTs to /api/plugins/github-com/oauth/authorize and returns the URL", async () => {
     const authUrl = {
       url: "https://github.com/login/oauth/authorize?client_id=abc&state=xyz",
     };
     mockFetch.mockResolvedValue(jsonResponse(authUrl));
-    const result = await fetchGitHubAuthUrl();
+    const result = await startGithubPluginOauth();
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/auth/github/authorize",
-      expect.objectContaining({}),
+      "/api/plugins/github-com/oauth/authorize",
+      expect.objectContaining({ method: "POST" }),
     );
     expect(result).toEqual(authUrl);
   });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import type {
   IntegrationConfig,
   IntegrationConfigUpdate,
@@ -9,7 +9,7 @@ import type {
   SourceCandidatesResponse,
   SourceSelection,
 } from "@roubo/shared";
-import { ApiError } from "../lib/api";
+import { ApiError, startGithubPluginOauth } from "../lib/api";
 import {
   useSaveIntegrationConfig,
   useTestIntegrationConnection,
@@ -388,6 +388,8 @@ function ConfigureFlow(props: ConfigureFlowProps) {
       </div>
 
       <div className="px-5 py-4 space-y-4">
+        {plugin.id === "github-com" && <GithubOauthSection testResult={testResult} />}
+
         <ConfigSchemaForm
           schema={manifest?.configSchema}
           permissions={manifest?.permissions}
@@ -521,6 +523,75 @@ function ResultStrip({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult | null }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const connected = testResult?.ok === true;
+  const username = connected ? testResult.identity.displayName : null;
+
+  async function handleConnect() {
+    setPending(true);
+    setError(null);
+    try {
+      const { url } = await startGithubPluginOauth();
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div
+      className="flex flex-col gap-2 px-3 py-2.5 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
+      data-testid="github-oauth-section"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-500">
+            GitHub account
+          </p>
+          {connected ? (
+            <p className="text-[12px] text-stone-700 dark:text-stone-300 mt-1">
+              Connected as{" "}
+              <span className="font-mono text-stone-900 dark:text-stone-100">{username}</span>
+            </p>
+          ) : (
+            <p className="text-[12px] text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
+              Connect your GitHub account to authorize Roubo to read issues and projects.
+            </p>
+          )}
+        </div>
+        <Button
+          isDisabled={pending}
+          onPress={() => void handleConnect()}
+          data-testid="github-connect"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+        >
+          {pending ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <ExternalLink size={12} aria-hidden />
+          )}
+          {connected ? "Reconnect" : "Connect GitHub"}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+          {error}
+        </p>
+      )}
+      {!connected && (
+        <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+          After authorizing in the browser, click{" "}
+          <span className="font-medium">Test connection</span> to verify the credential.
+        </p>
+      )}
     </div>
   );
 }

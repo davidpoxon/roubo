@@ -1,21 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import GitHubErrorState from "./GitHubErrorState";
 import { ApiError } from "../lib/api";
-
-const mockConnectMutate = vi.fn();
-const mockDisconnectMutate = vi.fn();
-
-vi.mock("../hooks/useGitHubAuth", () => ({
-  useConnectGitHub: () => ({ mutate: mockConnectMutate, isPending: false }),
-  useDisconnectGitHub: () => ({ mutate: mockDisconnectMutate, isPending: false }),
-}));
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 function makeApiError(
   code: string,
@@ -36,28 +24,41 @@ describe("GitHubErrorState", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("NOT_CONNECTED: shows title and Connect GitHub button", () => {
-    render(<GitHubErrorState error={makeApiError("NOT_CONNECTED", "GitHub not connected")} />);
+  it("NOT_CONNECTED: shows title and Connect GitHub button when onReconnect provided", () => {
+    render(
+      <GitHubErrorState
+        error={makeApiError("NOT_CONNECTED", "GitHub not connected")}
+        onReconnect={() => {}}
+      />,
+    );
     expect(screen.getByText("GitHub not connected")).toBeTruthy();
     expect(screen.getByRole("button", { name: /connect github/i })).toBeTruthy();
   });
 
-  it("NOT_CONNECTED: Connect GitHub calls connectGitHub.mutate", async () => {
-    render(<GitHubErrorState error={makeApiError("NOT_CONNECTED")} />);
+  it("NOT_CONNECTED: Connect GitHub invokes onReconnect", async () => {
+    const onReconnect = vi.fn();
+    render(<GitHubErrorState error={makeApiError("NOT_CONNECTED")} onReconnect={onReconnect} />);
     await userEvent.click(screen.getByRole("button", { name: /connect github/i }));
-    expect(mockConnectMutate).toHaveBeenCalledTimes(1);
+    expect(onReconnect).toHaveBeenCalledTimes(1);
   });
 
-  it("SCOPES_OUTDATED: shows Reconnect GitHub button", () => {
-    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} />);
+  it("NOT_CONNECTED without onReconnect: omits the action button", () => {
+    render(<GitHubErrorState error={makeApiError("NOT_CONNECTED")} />);
+    expect(screen.getByText("GitHub not connected")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /connect github/i })).toBeNull();
+  });
+
+  it("SCOPES_OUTDATED: shows Reconnect GitHub button when onReconnect provided", () => {
+    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} onReconnect={() => {}} />);
     expect(screen.getByText("Permissions out of date")).toBeTruthy();
     expect(screen.getByRole("button", { name: /reconnect github/i })).toBeTruthy();
   });
 
-  it("SCOPES_OUTDATED: Reconnect calls disconnect then connect", async () => {
-    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} />);
+  it("SCOPES_OUTDATED: Reconnect invokes onReconnect", async () => {
+    const onReconnect = vi.fn();
+    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} onReconnect={onReconnect} />);
     await userEvent.click(screen.getByRole("button", { name: /reconnect github/i }));
-    expect(mockDisconnectMutate).toHaveBeenCalledTimes(1);
+    expect(onReconnect).toHaveBeenCalledTimes(1);
   });
 
   it("ORG_APPROVAL_REQUIRED: shows owner in description and approval link", () => {
@@ -126,7 +127,11 @@ describe("GitHubErrorState", () => {
 
   it("banner variant: renders with amber background class", () => {
     const { container } = render(
-      <GitHubErrorState error={makeApiError("NOT_CONNECTED")} variant="banner" />,
+      <GitHubErrorState
+        error={makeApiError("NOT_CONNECTED")}
+        onReconnect={() => {}}
+        variant="banner"
+      />,
     );
     expect(container.querySelector('.bg-amber-50, [class*="amber-50"]')).toBeTruthy();
   });
@@ -146,26 +151,5 @@ describe("GitHubErrorState", () => {
     render(<GitHubErrorState error={makeApiError("SAML_SSO_REQUIRED")} />);
     expect(screen.getByText("SAML SSO authorization required")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /authorize sso/i })).toBeNull();
-  });
-
-  it("SCOPES_OUTDATED: shows error message when disconnect fails", async () => {
-    mockDisconnectMutate.mockImplementation((_: unknown, opts?: { onError?: () => void }) => {
-      opts?.onError?.();
-    });
-    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} />);
-    await userEvent.click(screen.getByRole("button", { name: /reconnect github/i }));
-    expect(screen.getByText(/could not disconnect/i)).toBeTruthy();
-  });
-
-  it("SCOPES_OUTDATED: shows error message when connect step fails after successful disconnect", async () => {
-    mockDisconnectMutate.mockImplementation((_: unknown, opts?: { onSuccess?: () => void }) => {
-      opts?.onSuccess?.();
-    });
-    mockConnectMutate.mockImplementation((_: unknown, opts?: { onError?: () => void }) => {
-      opts?.onError?.();
-    });
-    render(<GitHubErrorState error={makeApiError("SCOPES_OUTDATED")} />);
-    await userEvent.click(screen.getByRole("button", { name: /reconnect github/i }));
-    expect(screen.getByText(/could not connect/i)).toBeTruthy();
   });
 });

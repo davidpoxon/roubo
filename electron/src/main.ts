@@ -106,7 +106,7 @@ export async function handleDeepLink(url: string): Promise<void> {
         ? `http://127.0.0.1:${serverHandle.port}`
         : "http://localhost:3335";
 
-      const res = await fetch(`${baseUrl}/api/auth/github/exchange`, {
+      const res = await fetch(`${baseUrl}/api/plugins/github-com/oauth/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, state }),
