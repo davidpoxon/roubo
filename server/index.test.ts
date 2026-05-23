@@ -4,6 +4,7 @@ vi.mock("./services/env.js", () => ({
   loadEnvFile: vi.fn(),
   resolveShellPath: vi.fn(),
   resolveClaudeBinary: vi.fn(),
+  cleanEnv: vi.fn(() => ({})),
 }));
 vi.mock("./services/project-registry.js", () => ({
   initialize: vi.fn(),
@@ -123,6 +124,7 @@ describe.sequential("startServer", () => {
         }),
         resolveShellPath: vi.fn(),
         resolveClaudeBinary: vi.fn(),
+        cleanEnv: vi.fn(() => ({})),
       }));
       vi.doMock("./services/project-registry.js", () => ({
         initialize: vi.fn(),
