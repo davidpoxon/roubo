@@ -80,7 +80,7 @@ describe("MigrationBanner — success variant", () => {
 });
 
 describe("MigrationBanner — rolled-back variant", () => {
-  it("renders the red-tinted copy with a link to /settings/plugins", async () => {
+  it("renders the red-tinted copy with a link to /settings#plugins", async () => {
     mockedApi.fetchMigrationStatus.mockResolvedValue({
       schemaVersion: null,
       migration: {
@@ -98,7 +98,7 @@ describe("MigrationBanner — rolled-back variant", () => {
     );
 
     const link = screen.getByRole("link", { name: /open plugins page/i });
-    expect(link.getAttribute("href")).toBe("/settings/plugins");
+    expect(link.getAttribute("href")).toBe("/settings#plugins");
   });
 });
 

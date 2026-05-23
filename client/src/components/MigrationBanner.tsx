@@ -86,7 +86,7 @@ export default function MigrationBanner() {
         Roubo could not migrate your GitHub configuration automatically. Your existing setup is
         unchanged.{" "}
         <Link
-          to="/settings/plugins"
+          to="/settings#plugins"
           className="underline decoration-red-400 hover:decoration-red-700 transition-colors"
         >
           Open Plugins page

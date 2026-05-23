@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import {
   Button,
   Tabs,
@@ -714,7 +714,22 @@ const TAB_LABELS: Record<string, string> = {
   benches: "Bench Defaults",
 };
 
+const HASH_TAB_IDS = new Set([
+  "benches",
+  "appearance",
+  "blueprints",
+  "integrations",
+  "plugins",
+  "claude-code",
+]);
+
 export default function ProjectSettings() {
+  const { hash } = useLocation();
+  // Allow deep links like /settings#plugins to pre-select a tab on mount
+  // (e.g. the rolled-back migration banner sends users here).
+  const initialTab =
+    hash.startsWith("#") && HASH_TAB_IDS.has(hash.slice(1)) ? hash.slice(1) : undefined;
+
   return (
     <div className="p-8 max-w-3xl">
       <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 mb-6">Settings</h2>
@@ -723,7 +738,7 @@ export default function ProjectSettings() {
         Application-wide defaults. Per-project settings live on each project&apos;s page.
       </FirstNSessionsBanner>
 
-      <Tabs>
+      <Tabs defaultSelectedKey={initialTab}>
         <TabList
           aria-label="Settings sections"
           className="flex gap-0 border-b border-stone-200 dark:border-stone-800 mb-8"
