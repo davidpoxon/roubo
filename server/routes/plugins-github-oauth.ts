@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import {
   buildAuthorizationUrl,
   exchangeCodeForToken,
@@ -9,6 +10,19 @@ import {
 import { refreshAuth } from "../services/github.js";
 
 const router = Router();
+
+// Defence-in-depth rate limit on the OAuth surface. Roubo runs as a
+// localhost-only service, but these routes touch the credential store and
+// the GitHub OAuth exchange endpoint, so we cap requests per minute per IP
+// to prevent runaway loops or a misbehaving caller from hammering GitHub.
+const oauthRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.use(oauthRateLimiter);
 
 router.post("/authorize", (_req, res) => {
   try {

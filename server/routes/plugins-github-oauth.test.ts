@@ -96,3 +96,17 @@ describe("POST /exchange", () => {
     expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
   });
 });
+
+describe("rate limiting", () => {
+  it("attaches RateLimit response headers (middleware is mounted)", async () => {
+    githubOauthMocks.buildAuthorizationUrl.mockReturnValue({
+      url: "https://github.com/login/oauth/authorize?state=abc",
+    });
+
+    const res = await request(app).post("/authorize");
+    expect(res.status).toBe(200);
+    // express-rate-limit (draft-7) sets these headers when the limiter runs.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
+});
