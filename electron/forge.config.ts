@@ -35,6 +35,11 @@ const config: ForgeConfig = {
     executableName: "roubo",
     icon: "./build/icon",
     asar: { unpack: "**/node_modules/node-pty/**" },
+    // Plugins must live outside the asar so the plugin manager can spawn their
+    // dist/index.js as a child process (Node's child-process resolver does not
+    // understand asar archives). main.ts expects them at
+    // `path.join(process.resourcesPath, "plugins")`.
+    extraResource: ["./resources/plugins"],
     prune: false, // npm-workspaces hoisting breaks flora-colossus's Walker; see electron/package.json `prepackage:deps`
     protocols: [{ name: "Roubo", schemes: ["roubo"] }],
     ...(shouldSign

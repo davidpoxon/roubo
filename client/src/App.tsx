@@ -69,8 +69,8 @@ export default function App() {
   return (
     <RegisterProjectModalProvider>
       <div className="flex flex-col h-screen">
-        <MigrationBanner />
         <TitleBar projectName={projectName} />
+        <MigrationBanner />
         <div className="flex flex-1 min-h-0">
           <ProjectSidebar />
           <main className="flex-1 overflow-auto flex flex-col">
