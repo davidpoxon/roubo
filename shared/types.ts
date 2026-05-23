@@ -5,7 +5,7 @@ import type {
   ComponentConfig,
   LoginConfig,
   ToolConfig,
-  BlueprintSettings,
+  JigSettings,
 } from "./config-schema.js";
 
 export type {
@@ -23,14 +23,14 @@ export type {
   ToolConfig,
   InspectionConfig,
   BenchesConfig,
-  BlueprintsConfig,
+  JigsConfig,
   UserConfig,
   IntegrationConfig,
   IntegrationAdvanced,
   IntegrationOverride,
   CapturedUserId,
   ConfigFieldError,
-  BlueprintSettings,
+  JigSettings,
 } from "./config-schema.js";
 
 export {
@@ -245,7 +245,7 @@ export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]
 
 /**
  * Per-project settings. Keep this shape extensible: new per-project features
- * (e.g. per-project blueprint defaults, per-project Claude Code overrides)
+ * (e.g. per-project jig defaults, per-project Claude Code overrides)
  * should be added as new top-level keys alongside `worktreeSource`, not
  * nested inside it. A missing `settings` key in persisted state is
  * interpreted as all defaults — see `project-registry.ts` for the
@@ -362,16 +362,16 @@ export interface Bench {
    */
   baseCommit?: string;
   /**
-   * The ID of the blueprint that was auto-injected when this bench was created
+   * The ID of the jig that was auto-injected when this bench was created
    * via an issue assignment. Absent on benches created without issue assignment
    * or when auto-injection was disabled.
    */
-  injectedBlueprintId?: string;
+  injectedJigId?: string;
   /**
-   * Where the injected blueprint came from in the resolution hierarchy.
-   * Always `undefined` when `injectedBlueprintId` is `undefined`.
+   * Where the injected jig came from in the resolution hierarchy.
+   * Always `undefined` when `injectedJigId` is `undefined`.
    */
-  injectedBlueprintSource?: BlueprintDefaultSource;
+  injectedJigSource?: JigDefaultSource;
 }
 
 /**
@@ -610,10 +610,10 @@ export interface PersistedBench {
   baseBranch?: string;
   /** Persisted mirror of Bench.baseCommit. */
   baseCommit?: string;
-  /** Persisted mirror of Bench.injectedBlueprintId. */
-  injectedBlueprintId?: string;
-  /** Persisted mirror of Bench.injectedBlueprintSource. */
-  injectedBlueprintSource?: BlueprintDefaultSource;
+  /** Persisted mirror of Bench.injectedJigId. */
+  injectedJigId?: string;
+  /** Persisted mirror of Bench.injectedJigSource. */
+  injectedJigSource?: JigDefaultSource;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag
@@ -795,17 +795,17 @@ export interface PersistedTerminalSession {
 
 export interface TerminalCreateRequest {
   command?: string;
-  blueprintId?: string;
+  jigId?: string;
 }
 
 export interface TerminalCreateResponse {
   sessionId: string;
   label: string;
   wsUrl: string;
-  blueprintInjected?: boolean;
-  /** Set when autoExecute=false: blueprint is scheduled to be written to PTY, not yet sent */
-  blueprintScheduled?: boolean;
-  /** Set when the resolved blueprint content exceeds MAX_CLI_PROMPT_LENGTH and was truncated */
+  jigInjected?: boolean;
+  /** Set when autoExecute=false: jig is scheduled to be written to PTY, not yet sent */
+  jigScheduled?: boolean;
+  /** Set when the resolved jig content exceeds MAX_CLI_PROMPT_LENGTH and was truncated */
   sizeWarning?: boolean;
 }
 
@@ -996,31 +996,31 @@ export type ProjectIssueTypesResponse =
       types: GitHubIssueType[];
     };
 
-// ── Blueprint management types ──
+// ── Jig management types ──
 
-export type BlueprintSource = "app" | "project";
+export type JigSource = "app" | "project";
 
-export interface BlueprintMeta {
+export interface JigMeta {
   id: string;
   name: string;
   description: string;
   icon: string;
-  source: BlueprintSource;
+  source: JigSource;
   createdAt?: string; // ISO-8601; absent for the embedded global default
   updatedAt?: string; // ISO-8601
   approxTokens?: number; // chars/4 estimate — lets UIs render a context-usage signal
 }
 
-export interface BlueprintDetail extends BlueprintMeta {
+export interface JigDetail extends JigMeta {
   content: string;
   sizeBytes: number;
   sizeWarning?: boolean;
   approxTokens: number; // always present on detail responses
 }
 
-export const GLOBAL_DEFAULT_BLUEPRINT_ID = "__global_default__";
+export const GLOBAL_DEFAULT_JIG_ID = "__global_default__";
 
-/** Default Claude context window size in tokens. Used for blueprint context-usage estimates. */
+/** Default Claude context window size in tokens. Used for jig context-usage estimates. */
 export const DEFAULT_CONTEXT_WINDOW = 200_000;
 
 /** Prefix for component provisioning step IDs — must stay in sync between server and client. */
@@ -1029,42 +1029,42 @@ export const COMPONENT_STEP_PREFIX = "component:";
 /**
  * Delay (ms) between creating a Claude terminal session and writing to it.
  * Claude Code needs time to start and begin accepting stdin; writing too early
- * causes the blueprint to be silently dropped. If Claude starts slowly (e.g. slow
+ * causes the jig to be silently dropped. If Claude starts slowly (e.g. slow
  * machine, heavy load), this delay may still not be enough — the injection will
  * fail without any error signal.
  */
 export const CLAUDE_STARTUP_DELAY_MS = 1500;
 
-export const DEFAULT_BLUEPRINT_SETTINGS: BlueprintSettings = {
+export const DEFAULT_JIG_SETTINGS: JigSettings = {
   autoInject: true,
   autoExecute: true,
 };
 
-export interface InjectBlueprintRequest {
-  blueprintId: string;
+export interface InjectJigRequest {
+  jigId: string;
   sessionId?: string;
 }
 
-export interface InjectBlueprintResponse {
+export interface InjectJigResponse {
   success: boolean;
   resolvedLength: number;
 }
 
-export interface BlueprintCreateRequest {
+export interface JigCreateRequest {
   name: string; // 1–100 chars after trim
   description: string; // 1–300 chars after trim
   icon?: string; // optional; defaults to 'file-text'
   content: string; // non-empty; max 200 KB utf-8
 }
 
-export interface BlueprintUpdateRequest {
+export interface JigUpdateRequest {
   name?: string;
   description?: string;
   icon?: string;
   content?: string;
 }
 
-export type BlueprintReference =
+export type JigReference =
   | { type: "app-default" }
   | { type: "project-default"; projectId: string; projectName: string }
   | {
@@ -1074,30 +1074,30 @@ export type BlueprintReference =
       issueType: string;
     };
 
-export interface BlueprintDeleteConflictResponse {
+export interface JigDeleteConflictResponse {
   error: string;
-  code: "BLUEPRINT_REFERENCED";
-  references: BlueprintReference[];
+  code: "JIG_REFERENCED";
+  references: JigReference[];
 }
 
-export type BlueprintDefaultSource = "issue-type-mapping" | "project" | "app" | "global";
+export type JigDefaultSource = "issue-type-mapping" | "project" | "app" | "global";
 
-export interface ProjectDefaultBlueprintResponse {
-  blueprintId: string;
-  source: BlueprintDefaultSource;
+export interface ProjectDefaultJigResponse {
+  jigId: string;
+  source: JigDefaultSource;
 }
 
-export interface UpdateProjectDefaultBlueprintRequest {
-  blueprintId: string | null;
+export interface UpdateProjectDefaultJigRequest {
+  jigId: string | null;
 }
 
-export interface BlueprintPreviewRequest {
+export interface JigPreviewRequest {
   content: string;
   projectId?: string;
   benchId?: number;
 }
 
-export interface BlueprintPreviewResponse {
+export interface JigPreviewResponse {
   resolved: string;
   unresolvedVariables: string[];
 }
@@ -1149,7 +1149,7 @@ export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = {
 
 export interface UserPreferences {
   theme: ThemeMode;
-  blueprints?: BlueprintSettings;
+  jigs?: JigSettings;
   benches?: BenchSettings;
   claudeCode?: ClaudeCodeSettings;
   github?: GitHubSettings;

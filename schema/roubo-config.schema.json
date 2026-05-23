@@ -170,11 +170,11 @@
         "autoClear": { "type": "boolean", "description": "Automatically clear benches when their assigned issue moves to Done or is closed. Defaults to true." }
       }
     },
-    "blueprints": {
+    "jigs": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "defaultBlueprint": { "type": "string" },
+        "defaultJig": { "type": "string" },
         "issueTypeMappings": {
           "type": "object",
           "additionalProperties": { "type": "string" }

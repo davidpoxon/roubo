@@ -4,7 +4,7 @@ import type {
   CreateBenchWithIssueResponse,
   Bench,
   RouboConfig,
-  BlueprintDefaultSource,
+  JigDefaultSource,
 } from "@roubo/shared";
 import { CLAUDE_STARTUP_DELAY_MS } from "@roubo/shared";
 import * as benchManager from "./bench-manager.js";
@@ -12,7 +12,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
 import * as githubService from "./github.js";
 import * as terminalService from "./terminal.js";
-import * as blueprintManager from "./blueprint-manager.js";
+import * as jigManager from "./jig-manager.js";
 import { buildTemplateContext } from "./config-parser.js";
 import { runCommand } from "./exec.js";
 import { formatIssueBody, formatComments } from "./issue-formatting.js";
@@ -34,28 +34,24 @@ function buildAndStartClaudeSession(
   comments: Array<{ user: string; body: string }>,
   issueType?: string | null,
 ): { sessionId?: string } & (
-  | { blueprintId: string; blueprintSource: BlueprintDefaultSource }
-  | { blueprintId?: undefined; blueprintSource?: undefined }
+  | { jigId: string; jigSource: JigDefaultSource }
+  | { jigId?: undefined; jigSource?: undefined }
 ) {
   const settings = loadSettings();
-  const autoInject = settings.blueprints?.autoInject ?? true;
-  const autoExecute = settings.blueprints?.autoExecute ?? true;
+  const autoInject = settings.jigs?.autoInject ?? true;
+  const autoExecute = settings.jigs?.autoExecute ?? true;
 
-  let blueprint: string | undefined;
-  let blueprintId: string | undefined;
-  let blueprintSource: BlueprintDefaultSource | undefined;
+  let jig: string | undefined;
+  let jigId: string | undefined;
+  let jigSource: JigDefaultSource | undefined;
 
   if (autoInject) {
-    const resolved = blueprintManager.resolveBlueprintForIssue(
-      projectId,
-      issueType ?? undefined,
-      settings,
-    );
-    blueprintId = resolved.blueprintId;
-    blueprintSource = resolved.source;
-    const blueprintDef = blueprintManager.getBlueprint(projectId, blueprintId);
+    const resolved = jigManager.resolveJigForIssue(projectId, issueType ?? undefined, settings);
+    jigId = resolved.jigId;
+    jigSource = resolved.source;
+    const jigDef = jigManager.getJig(projectId, jigId);
     const templateCtx = buildTemplateContext(config, benchId, bench.workspacePath);
-    blueprint = blueprintManager.resolveBlueprintContent(blueprintDef?.content ?? "", {
+    jig = jigManager.resolveJigContent(jigDef?.content ?? "", {
       ...templateCtx,
       benchBranch: bench.branch,
       benchId,
@@ -76,7 +72,7 @@ function buildAndStartClaudeSession(
       bench.workspacePath,
       projectName,
       "claude",
-      autoInject && autoExecute ? blueprint : undefined,
+      autoInject && autoExecute ? jig : undefined,
       settings.claudeCode,
     );
   } catch (err) {
@@ -87,14 +83,14 @@ function buildAndStartClaudeSession(
     return {};
   }
 
-  if (autoInject && !autoExecute && blueprint) {
+  if (autoInject && !autoExecute && jig) {
     setTimeout(() => {
-      terminalService.writeToSession(session.id, blueprint);
+      terminalService.writeToSession(session.id, jig);
     }, CLAUDE_STARTUP_DELAY_MS);
   }
 
-  if (blueprintId && blueprintSource) {
-    return { sessionId: session.id, blueprintId, blueprintSource };
+  if (jigId && jigSource) {
+    return { sessionId: session.id, jigId, jigSource };
   }
   return { sessionId: session.id };
 }
@@ -206,8 +202,8 @@ export async function createBenchAndAssignIssue(
   const comments = await githubService.fetchIssueComments(repoFullName, issueNumber);
   const {
     sessionId: terminalSessionId,
-    blueprintId,
-    blueprintSource,
+    jigId,
+    jigSource,
   } = buildAndStartClaudeSession(
     projectId,
     bench.id,
@@ -219,9 +215,9 @@ export async function createBenchAndAssignIssue(
     issueType,
   );
 
-  if (blueprintId) {
-    bench.injectedBlueprintId = blueprintId;
-    bench.injectedBlueprintSource = blueprintSource;
+  if (jigId) {
+    bench.injectedJigId = jigId;
+    bench.injectedJigSource = jigSource;
     stateService.updateBench({
       id: bench.id,
       projectId: bench.projectId,
@@ -235,8 +231,8 @@ export async function createBenchAndAssignIssue(
       workUnits: bench.workUnits,
       baseBranch: bench.baseBranch,
       baseCommit: bench.baseCommit,
-      injectedBlueprintId: bench.injectedBlueprintId,
-      injectedBlueprintSource: bench.injectedBlueprintSource,
+      injectedJigId: bench.injectedJigId,
+      injectedJigSource: bench.injectedJigSource,
     });
   }
 
@@ -313,8 +309,8 @@ export async function assignIssue(
 
   const {
     sessionId: terminalSessionId,
-    blueprintId,
-    blueprintSource,
+    jigId,
+    jigSource,
   } = buildAndStartClaudeSession(
     projectId,
     benchId,
@@ -326,9 +322,9 @@ export async function assignIssue(
     issueType,
   );
 
-  if (blueprintId) {
-    bench.injectedBlueprintId = blueprintId;
-    bench.injectedBlueprintSource = blueprintSource;
+  if (jigId) {
+    bench.injectedJigId = jigId;
+    bench.injectedJigSource = jigSource;
     stateService.updateBench({
       id: bench.id,
       projectId: bench.projectId,
@@ -342,8 +338,8 @@ export async function assignIssue(
       workUnits: bench.workUnits,
       baseBranch: bench.baseBranch,
       baseCommit: bench.baseCommit,
-      injectedBlueprintId: bench.injectedBlueprintId,
-      injectedBlueprintSource: bench.injectedBlueprintSource,
+      injectedJigId: bench.injectedJigId,
+      injectedJigSource: bench.injectedJigSource,
     });
   }
 
@@ -374,8 +370,8 @@ export async function unassignIssue(projectId: string, benchId: number): Promise
     workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
-    injectedBlueprintId: bench.injectedBlueprintId,
-    injectedBlueprintSource: bench.injectedBlueprintSource,
+    injectedJigId: bench.injectedJigId,
+    injectedJigSource: bench.injectedJigSource,
   });
 
   return bench;

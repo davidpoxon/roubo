@@ -52,7 +52,7 @@ too.
 ## Brand and vocabulary
 
 Roubo uses a specific vocabulary: bench, project, component, tool,
-inspection, blueprint, workspace. UI text, error messages, and
+inspection, jig, workspace. UI text, error messages, and
 user-facing documentation must use these terms. See
 [docs/brand.md](docs/brand.md) for the full guide. Contributions that
 introduce competing vocabulary will be asked to align before merging.

@@ -7,17 +7,17 @@ import type { RegisteredProject } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 
 vi.mock("../../hooks/useProjectSettings");
-vi.mock("../../hooks/useProjectDefaultBlueprint");
+vi.mock("../../hooks/useProjectDefaultJig");
 vi.mock("../../hooks/useProjectBenchOverrides");
 vi.mock("../../hooks/useIssueTypes");
 
 import { useProjectSettings } from "../../hooks/useProjectSettings";
-import { useUpdateProjectDefaultBlueprint } from "../../hooks/useProjectDefaultBlueprint";
+import { useUpdateProjectDefaultJig } from "../../hooks/useProjectDefaultJig";
 import { useUpdateProjectBenchOverrides } from "../../hooks/useProjectBenchOverrides";
 import { useIssueTypeMappings, useUpdateIssueTypeMappings } from "../../hooks/useIssueTypes";
 
 const mockedUseProjectSettings = vi.mocked(useProjectSettings);
-const mockedUseUpdateProjectDefaultBlueprint = vi.mocked(useUpdateProjectDefaultBlueprint);
+const mockedUseUpdateProjectDefaultJig = vi.mocked(useUpdateProjectDefaultJig);
 const mockedUseUpdateProjectBenchOverrides = vi.mocked(useUpdateProjectBenchOverrides);
 const mockedUseIssueTypeMappings = vi.mocked(useIssueTypeMappings);
 const mockedUseUpdateIssueTypeMappings = vi.mocked(useUpdateIssueTypeMappings);
@@ -69,12 +69,12 @@ beforeEach(() => {
   mockedUseProjectSettings.mockReturnValue(
     makeProjectSettings() as unknown as ReturnType<typeof useProjectSettings>,
   );
-  mockedUseUpdateProjectDefaultBlueprint.mockReturnValue({
+  mockedUseUpdateProjectDefaultJig.mockReturnValue({
     mutateAsync: vi.fn().mockResolvedValue(undefined),
     mutate: vi.fn(),
     isPending: false,
     isError: false,
-  } as unknown as ReturnType<typeof useUpdateProjectDefaultBlueprint>);
+  } as unknown as ReturnType<typeof useUpdateProjectDefaultJig>);
   mockedUseUpdateProjectBenchOverrides.mockReturnValue({
     mutateAsync: vi.fn().mockResolvedValue(undefined),
     mutate: vi.fn(),
@@ -116,14 +116,14 @@ describe("useSettingsOverviewDraft", () => {
     expect(result.current.hasAnyDirty).toBe(true);
   });
 
-  it("marks blueprint dirty when changed", () => {
+  it("marks jig dirty when changed", () => {
     const { result } = renderHookWithProviders(() =>
       useSettingsOverviewDraft("my-app", baseProject),
     );
     act(() => {
-      result.current.setDraftBlueprint("some-blueprint");
+      result.current.setDraftJig("some-jig");
     });
-    expect(result.current.isBlueprintDirty).toBe(true);
+    expect(result.current.isJigDirty).toBe(true);
     expect(result.current.hasAnyDirty).toBe(true);
   });
 
@@ -165,7 +165,7 @@ describe("useSettingsOverviewDraft", () => {
       useSettingsOverviewDraft("my-app", baseProject),
     );
     act(() => {
-      result.current.setDraftBlueprint("some-blueprint");
+      result.current.setDraftJig("some-jig");
       result.current.setDraftAutoClear(true);
       result.current.setDraftEnforceIssueDependencies(true);
       result.current.setDraftWorkUnitAutoClear(false);
@@ -174,7 +174,7 @@ describe("useSettingsOverviewDraft", () => {
       result.current.discard();
     });
     expect(result.current.hasAnyDirty).toBe(false);
-    expect(result.current.draftBlueprint).toBe(null);
+    expect(result.current.draftJig).toBe(null);
     expect(result.current.draftAutoClear).toBe(null);
     expect(result.current.draftEnforceIssueDependencies).toBe(null);
     expect(result.current.draftWorkUnitAutoClear).toBe(null);
@@ -182,25 +182,25 @@ describe("useSettingsOverviewDraft", () => {
 
   it("save calls only mutations for dirty fields", async () => {
     const updateSettingsAsync = vi.fn().mockResolvedValue(undefined);
-    const updateBlueprintAsync = vi.fn().mockResolvedValue(undefined);
+    const updateJigAsync = vi.fn().mockResolvedValue(undefined);
     mockedUseProjectSettings.mockReturnValue(
       makeProjectSettings({ updateSettingsAsync }) as unknown as ReturnType<
         typeof useProjectSettings
       >,
     );
-    mockedUseUpdateProjectDefaultBlueprint.mockReturnValue({
-      mutateAsync: updateBlueprintAsync,
+    mockedUseUpdateProjectDefaultJig.mockReturnValue({
+      mutateAsync: updateJigAsync,
       mutate: vi.fn(),
       isPending: false,
       isError: false,
-    } as unknown as ReturnType<typeof useUpdateProjectDefaultBlueprint>);
+    } as unknown as ReturnType<typeof useUpdateProjectDefaultJig>);
 
     const { result } = renderHookWithProviders(() =>
       useSettingsOverviewDraft("my-app", baseProject),
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
     });
 
     let saveResult: { ok: boolean; failed: string[] } | undefined;
@@ -208,7 +208,7 @@ describe("useSettingsOverviewDraft", () => {
       saveResult = await result.current.save();
     });
 
-    expect(updateBlueprintAsync).toHaveBeenCalledWith("my-bp");
+    expect(updateJigAsync).toHaveBeenCalledWith("my-bp");
     expect(updateSettingsAsync).not.toHaveBeenCalled();
     expect(saveResult?.ok).toBe(true);
   });
@@ -246,20 +246,20 @@ describe("useSettingsOverviewDraft", () => {
   });
 
   it("save returns ok=false and failed list when a mutation rejects", async () => {
-    const updateBlueprintAsync = vi.fn().mockRejectedValue(new Error("Server error"));
-    mockedUseUpdateProjectDefaultBlueprint.mockReturnValue({
-      mutateAsync: updateBlueprintAsync,
+    const updateJigAsync = vi.fn().mockRejectedValue(new Error("Server error"));
+    mockedUseUpdateProjectDefaultJig.mockReturnValue({
+      mutateAsync: updateJigAsync,
       mutate: vi.fn(),
       isPending: false,
       isError: false,
-    } as unknown as ReturnType<typeof useUpdateProjectDefaultBlueprint>);
+    } as unknown as ReturnType<typeof useUpdateProjectDefaultJig>);
 
     const { result } = renderHookWithProviders(() =>
       useSettingsOverviewDraft("my-app", baseProject),
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
     });
 
     let saveResult: { ok: boolean; failed: string[] } | undefined;
@@ -268,21 +268,21 @@ describe("useSettingsOverviewDraft", () => {
     });
 
     expect(saveResult?.ok).toBe(false);
-    expect(saveResult?.failed).toContain("Blueprint override");
-    expect(result.current.saveErrors).toContain("Blueprint override");
-    // blueprint is still dirty because save failed
-    expect(result.current.isBlueprintDirty).toBe(true);
+    expect(saveResult?.failed).toContain("Jig override");
+    expect(result.current.saveErrors).toContain("Jig override");
+    // jig is still dirty because save failed
+    expect(result.current.isJigDirty).toBe(true);
   });
 
   it("partial failure: bench overrides failure reported as 'Bench overrides'", async () => {
-    const updateBlueprintAsync = vi.fn().mockResolvedValue(undefined);
+    const updateJigAsync = vi.fn().mockResolvedValue(undefined);
     const updateBenchOverridesAsync = vi.fn().mockRejectedValue(new Error("Server error"));
-    mockedUseUpdateProjectDefaultBlueprint.mockReturnValue({
-      mutateAsync: updateBlueprintAsync,
+    mockedUseUpdateProjectDefaultJig.mockReturnValue({
+      mutateAsync: updateJigAsync,
       mutate: vi.fn(),
       isPending: false,
       isError: false,
-    } as unknown as ReturnType<typeof useUpdateProjectDefaultBlueprint>);
+    } as unknown as ReturnType<typeof useUpdateProjectDefaultJig>);
     mockedUseUpdateProjectBenchOverrides.mockReturnValue({
       mutateAsync: updateBenchOverridesAsync,
       mutate: vi.fn(),
@@ -295,7 +295,7 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
       result.current.setDraftAutoClear(true);
     });
 
@@ -304,7 +304,7 @@ describe("useSettingsOverviewDraft", () => {
     });
 
     expect(result.current.saveErrors).toContain("Bench overrides");
-    expect(result.current.saveErrors).not.toContain("Blueprint override");
+    expect(result.current.saveErrors).not.toContain("Jig override");
   });
 
   it("hasAnyDirty is false immediately after a successful save", async () => {
@@ -313,7 +313,7 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
     });
     expect(result.current.hasAnyDirty).toBe(true);
 
@@ -331,7 +331,7 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
     });
 
     await act(async () => {
@@ -347,7 +347,7 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     act(() => {
-      result.current.setDraftBlueprint("my-bp");
+      result.current.setDraftJig("my-bp");
     });
     await act(async () => {
       await result.current.save();
@@ -366,7 +366,7 @@ describe("useSettingsOverviewDraft", () => {
       id: "project-a",
       config: {
         ...baseConfig,
-        blueprints: { defaultBlueprint: "bp-a" },
+        jigs: { defaultJig: "bp-a" },
         benches: {
           max: 3,
           autoClear: true,
@@ -380,7 +380,7 @@ describe("useSettingsOverviewDraft", () => {
       id: "project-b",
       config: {
         ...baseConfig,
-        blueprints: { defaultBlueprint: "bp-b" },
+        jigs: { defaultJig: "bp-b" },
         benches: {
           max: 3,
           autoClear: false,
@@ -396,14 +396,14 @@ describe("useSettingsOverviewDraft", () => {
       { initialProps: { projectId: "project-a", project: projectA } },
     );
 
-    expect(result.current.draftBlueprint).toBe("bp-a");
+    expect(result.current.draftJig).toBe("bp-a");
     expect(result.current.draftAutoClear).toBe(true);
     expect(result.current.draftEnforceIssueDependencies).toBe(false);
     expect(result.current.draftWorkUnitAutoClear).toBe(true);
 
     rerender({ projectId: "project-b", project: projectB });
 
-    expect(result.current.draftBlueprint).toBe("bp-b");
+    expect(result.current.draftJig).toBe("bp-b");
     expect(result.current.draftAutoClear).toBe(false);
     expect(result.current.draftEnforceIssueDependencies).toBe(true);
     expect(result.current.draftWorkUnitAutoClear).toBe(false);

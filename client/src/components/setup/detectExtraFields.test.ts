@@ -22,7 +22,7 @@ describe("detectExtraFields", () => {
       tools: [],
       inspection: null,
       benches: { max: 5 },
-      blueprints: [],
+      jigs: [],
       users: [],
     };
     expect(detectExtraFields(config)).toEqual([]);
@@ -54,7 +54,7 @@ describe("detectExtraFields", () => {
       "tools",
       "inspection",
       "benches",
-      "blueprints",
+      "jigs",
       "users",
     ];
     for (const key of expected) {

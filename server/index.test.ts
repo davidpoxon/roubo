@@ -28,11 +28,11 @@ vi.mock("./services/terminal.js", () => ({
   hasSession: vi.fn(() => false),
   handleWebSocket: vi.fn(),
 }));
-vi.mock("./services/blueprint-manager.js", () => ({
-  startAppBlueprintsWatcher: vi.fn(),
+vi.mock("./services/jig-manager.js", () => ({
+  startAppJigsWatcher: vi.fn(),
   startWatchers: vi.fn(),
   stopAllWatchers: vi.fn(),
-  listGlobalBlueprints: vi.fn(() => []),
+  listGlobalJigs: vi.fn(() => []),
 }));
 vi.mock("./services/auto-clear.js", () => ({
   start: vi.fn(),
@@ -147,11 +147,11 @@ describe.sequential("startServer", () => {
         hasSession: vi.fn(() => false),
         handleWebSocket: vi.fn(),
       }));
-      vi.doMock("./services/blueprint-manager.js", () => ({
-        startAppBlueprintsWatcher: vi.fn(),
+      vi.doMock("./services/jig-manager.js", () => ({
+        startAppJigsWatcher: vi.fn(),
         startWatchers: vi.fn(),
         stopAllWatchers: vi.fn(),
-        listGlobalBlueprints: vi.fn(() => []),
+        listGlobalJigs: vi.fn(() => []),
       }));
       vi.doMock("./services/auto-clear.js", () => ({
         start: vi.fn(),
@@ -177,7 +177,7 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/process-manager.js");
       vi.doUnmock("./services/database.js");
       vi.doUnmock("./services/terminal.js");
-      vi.doUnmock("./services/blueprint-manager.js");
+      vi.doUnmock("./services/jig-manager.js");
       vi.doUnmock("./services/auto-clear.js");
       vi.doUnmock("./services/version-check.js");
       vi.doUnmock("./services/claude-version.js");

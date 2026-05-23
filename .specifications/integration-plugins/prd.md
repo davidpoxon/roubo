@@ -4,7 +4,7 @@
 
 ## Problem
 
-Roubo today only knows how to pull issues from GitHub.com via the Roubo OAuth app. That cuts the tool off from the largest cohort of enterprise developers who would otherwise adopt it: people whose company runs GitHub Enterprise on-prem, or whose product team tracks work in self-hosted Jira. We lose those users at evaluation; the ones who push through end up mirroring tickets into a personal GitHub repo or creating benches without an attached issue, which breaks the workflows Roubo is good at (blocks/blocked-by enforcement, blueprint-by-issue-type, PR sync). The fix is not to bolt on a second hardcoded integration. We need an extensible plugin system so users can install official or community integrations without waiting for Roubo to ship them. The first shipment of that system delivers a runtime, three bundled integration plugins (GitHub.com, GitHub Enterprise, self-hosted Jira), and a documented SDK so power users can write their own. The runtime is designed intentionally so the planned AI-agent and project-component plugin slugs can be hosted later without a host-API major-version bump.
+Roubo today only knows how to pull issues from GitHub.com via the Roubo OAuth app. That cuts the tool off from the largest cohort of enterprise developers who would otherwise adopt it: people whose company runs GitHub Enterprise on-prem, or whose product team tracks work in self-hosted Jira. We lose those users at evaluation; the ones who push through end up mirroring tickets into a personal GitHub repo or creating benches without an attached issue, which breaks the workflows Roubo is good at (blocks/blocked-by enforcement, jig-by-issue-type, PR sync). The fix is not to bolt on a second hardcoded integration. We need an extensible plugin system so users can install official or community integrations without waiting for Roubo to ship them. The first shipment of that system delivers a runtime, three bundled integration plugins (GitHub.com, GitHub Enterprise, self-hosted Jira), and a documented SDK so power users can write their own. The runtime is designed intentionally so the planned AI-agent and project-component plugin slugs can be hosted later without a host-API major-version bump.
 
 ## In scope
 
@@ -211,7 +211,7 @@ The bench-issue snapshot persisted to state MUST carry `integrationId` and `exte
 
 ### FR-029 — Issue type mappings continue to function
 
-The existing `/issue-type-mappings` endpoints MUST continue to operate. The source of `issueType` strings MUST be the active integration plugin's `listIssueTypes` (or whatever value flows through `getIssue`), not a hardcoded GitHub call. The mappings persistence shape MUST remain `Record<string, string>` (issueType → blueprintId).
+The existing `/issue-type-mappings` endpoints MUST continue to operate. The source of `issueType` strings MUST be the active integration plugin's `listIssueTypes` (or whatever value flows through `getIssue`), not a hardcoded GitHub call. The mappings persistence shape MUST remain `Record<string, string>` (issueType → jigId).
 
 ### FR-030 — Soft blocks/blocked-by enforcement
 

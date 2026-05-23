@@ -5,8 +5,8 @@ import { screen, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../test/renderWithProviders";
 import ProjectSettings from "./ProjectSettings";
-import type { BlueprintMeta } from "@roubo/shared";
-import { DEFAULT_BLUEPRINT_SETTINGS, DEFAULT_CLAUDE_CODE_SETTINGS } from "@roubo/shared";
+import type { JigMeta } from "@roubo/shared";
+import { DEFAULT_JIG_SETTINGS, DEFAULT_CLAUDE_CODE_SETTINGS } from "@roubo/shared";
 
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(),
@@ -23,24 +23,24 @@ vi.mock("../hooks/useSettings", () => ({
   useRecheckClaudeCode: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
-vi.mock("../hooks/useBlueprints", () => ({
-  useGlobalBlueprints: vi.fn(),
-  useDeleteGlobalBlueprint: vi.fn(),
-  useDuplicateGlobalBlueprint: vi.fn(),
+vi.mock("../hooks/useJigs", () => ({
+  useGlobalJigs: vi.fn(),
+  useDeleteGlobalJig: vi.fn(),
+  useDuplicateGlobalJig: vi.fn(),
 }));
 
 vi.mock("../hooks/useToast", () => ({
   useToast: vi.fn(() => ({ addToast: vi.fn(), removeToast: vi.fn() })),
 }));
 
-vi.mock("./blueprint-editor/blueprintIcons", () => ({
-  getBlueprintIcon: () => () => null,
-  BLUEPRINT_ICONS: [],
-  BLUEPRINT_ICON_MAP: {},
-  DEFAULT_BLUEPRINT_ICON: "file-text",
+vi.mock("./jig-editor/jigIcons", () => ({
+  getJigIcon: () => () => null,
+  JIG_ICONS: [],
+  JIG_ICON_MAP: {},
+  DEFAULT_JIG_ICON: "file-text",
 }));
 
-vi.mock("./blueprint-editor/DeleteBlueprintDialog", () => ({
+vi.mock("./jig-editor/DeleteJigDialog", () => ({
   default: () => null,
 }));
 
@@ -52,25 +52,21 @@ vi.mock("./DirectoryPicker", () => ({
 
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
-import {
-  useGlobalBlueprints,
-  useDeleteGlobalBlueprint,
-  useDuplicateGlobalBlueprint,
-} from "../hooks/useBlueprints";
+import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
 import { useToast } from "../hooks/useToast";
 import { ApiError } from "../lib/api";
 
 const mockedUseNavigate = vi.mocked(useNavigate);
 const mockedUseLocation = vi.mocked(useLocation);
 const mockedUseSettings = vi.mocked(useSettings);
-const mockedUseGlobalBlueprints = vi.mocked(useGlobalBlueprints);
-const mockedUseDeleteGlobalBlueprint = vi.mocked(useDeleteGlobalBlueprint);
-const mockedUseDuplicateGlobalBlueprint = vi.mocked(useDuplicateGlobalBlueprint);
+const mockedUseGlobalJigs = vi.mocked(useGlobalJigs);
+const mockedUseDeleteGlobalJig = vi.mocked(useDeleteGlobalJig);
+const mockedUseDuplicateGlobalJig = vi.mocked(useDuplicateGlobalJig);
 const mockedUseToast = vi.mocked(useToast);
 
 const defaultSettings = {
   theme: "dark" as const,
-  blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+  jigs: DEFAULT_JIG_SETTINGS,
   claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
   claudeCodeAutoModeAvailable: true,
   contextWindow: 200_000,
@@ -94,14 +90,14 @@ function setupDefaultMocks() {
     isLoading: false,
     updateSettings: vi.fn(),
   });
-  mockedUseGlobalBlueprints.mockReturnValue({
+  mockedUseGlobalJigs.mockReturnValue({
     data: [],
-  } as unknown as ReturnType<typeof useGlobalBlueprints>);
-  mockedUseDeleteGlobalBlueprint.mockReturnValue(
-    noopMutation as unknown as ReturnType<typeof useDeleteGlobalBlueprint>,
+  } as unknown as ReturnType<typeof useGlobalJigs>);
+  mockedUseDeleteGlobalJig.mockReturnValue(
+    noopMutation as unknown as ReturnType<typeof useDeleteGlobalJig>,
   );
-  mockedUseDuplicateGlobalBlueprint.mockReturnValue(
-    noopMutation as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>,
+  mockedUseDuplicateGlobalJig.mockReturnValue(
+    noopMutation as unknown as ReturnType<typeof useDuplicateGlobalJig>,
   );
 }
 
@@ -125,7 +121,7 @@ describe("ProjectSettings", () => {
       render();
       expect(screen.getByRole("tab", { name: "Bench Defaults" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Blueprints" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Jigs" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Claude Code" })).toBeInTheDocument();
     });
@@ -174,7 +170,7 @@ describe("ProjectSettings", () => {
       mockedUseSettings.mockReturnValue({
         settings: {
           theme: "light",
-          blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+          jigs: DEFAULT_JIG_SETTINGS,
           claudeCodeAutoModeAvailable: true,
           contextWindow: 200_000,
         },
@@ -207,18 +203,18 @@ describe("ProjectSettings", () => {
     });
   });
 
-  describe("Blueprints tab", () => {
+  describe("Jigs tab", () => {
     it("renders auto-inject toggle", async () => {
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
-      expect(screen.getByText("Auto-inject blueprint")).toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
+      expect(screen.getByText("Auto-inject jig")).toBeInTheDocument();
     });
 
     it("renders auto-execute toggle", async () => {
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
       expect(screen.getByText("Auto-execute")).toBeInTheDocument();
     });
 
@@ -226,10 +222,10 @@ describe("ProjectSettings", () => {
       mockedUseSettings.mockReturnValue({
         settings: {
           theme: "dark",
-          blueprints: {
+          jigs: {
             autoInject: false,
             autoExecute: false,
-            defaultBlueprintId: "feature-dev",
+            defaultJigId: "feature-dev",
           },
           claudeCodeAutoModeAvailable: true,
           contextWindow: 200_000,
@@ -239,7 +235,7 @@ describe("ProjectSettings", () => {
       });
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
 
       // The auto-execute switch should be disabled
       const switches = screen.getAllByRole("switch");
@@ -250,8 +246,8 @@ describe("ProjectSettings", () => {
       expect(autoExecuteSwitch).toBeDefined();
     });
 
-    it("renders blueprint options", async () => {
-      const blueprints: BlueprintMeta[] = [
+    it("renders jig options", async () => {
+      const jigs: JigMeta[] = [
         {
           id: "feature-dev",
           name: "Feature Dev",
@@ -267,12 +263,12 @@ describe("ProjectSettings", () => {
           source: "app",
         },
       ];
-      mockedUseGlobalBlueprints.mockReturnValue({
-        data: blueprints,
-      } as ReturnType<typeof useGlobalBlueprints>);
+      mockedUseGlobalJigs.mockReturnValue({
+        data: jigs,
+      } as ReturnType<typeof useGlobalJigs>);
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
 
       expect(screen.getAllByText("Feature Dev").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Code Review").length).toBeGreaterThanOrEqual(1);
@@ -281,19 +277,19 @@ describe("ProjectSettings", () => {
     it('renders "Inherit from global default" option in app default picker', async () => {
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
       expect(screen.getByText("Inherit from global default")).toBeInTheDocument();
     });
 
-    it('calls updateSettings with undefined defaultBlueprintId when "Inherit from global default" is selected in app picker', async () => {
+    it('calls updateSettings with undefined defaultJigId when "Inherit from global default" is selected in app picker', async () => {
       const updateSettingsMock = vi.fn();
       mockedUseSettings.mockReturnValue({
         settings: {
           theme: "dark",
-          blueprints: {
+          jigs: {
             autoInject: true,
             autoExecute: true,
-            defaultBlueprintId: "some-bp",
+            defaultJigId: "some-bp",
           },
           claudeCodeAutoModeAvailable: true,
           contextWindow: 200_000,
@@ -304,20 +300,20 @@ describe("ProjectSettings", () => {
 
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
       await user.click(screen.getByText("Inherit from global default"));
 
       expect(updateSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          blueprints: expect.not.objectContaining({
-            defaultBlueprintId: expect.anything(),
+          jigs: expect.not.objectContaining({
+            defaultJigId: expect.anything(),
           }),
         }),
       );
     });
   });
 
-  describe("Blueprints tab — interactions", () => {
+  describe("Jigs tab — interactions", () => {
     it("calls updateSettings when auto-inject toggle is clicked", async () => {
       const updateSettings = vi.fn();
       mockedUseSettings.mockReturnValue({
@@ -327,7 +323,7 @@ describe("ProjectSettings", () => {
       });
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
 
       const switches = screen.getAllByRole("switch");
       const autoInjectSwitch = switches[0];
@@ -335,9 +331,9 @@ describe("ProjectSettings", () => {
       expect(updateSettings).toHaveBeenCalled();
     });
 
-    it("calls updateSettings when a blueprint option is selected", async () => {
+    it("calls updateSettings when a jig option is selected", async () => {
       const updateSettings = vi.fn();
-      const blueprints: BlueprintMeta[] = [
+      const jigs: JigMeta[] = [
         {
           id: "feature-dev",
           name: "Feature Dev",
@@ -353,9 +349,9 @@ describe("ProjectSettings", () => {
           source: "app",
         },
       ];
-      mockedUseGlobalBlueprints.mockReturnValue({
-        data: blueprints,
-      } as ReturnType<typeof useGlobalBlueprints>);
+      mockedUseGlobalJigs.mockReturnValue({
+        data: jigs,
+      } as ReturnType<typeof useGlobalJigs>);
       mockedUseSettings.mockReturnValue({
         settings: defaultSettings,
         isLoading: false,
@@ -363,7 +359,7 @@ describe("ProjectSettings", () => {
       });
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
 
       const defaultSection = screen.getByText("App Default").closest("section") as HTMLElement;
       await user.click(within(defaultSection).getByText("Feature Dev"));
@@ -379,7 +375,7 @@ describe("ProjectSettings", () => {
       });
       render();
       const user = userEvent.setup();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
 
       const switches = screen.getAllByRole("switch");
       await user.click(switches[0]);
@@ -904,8 +900,8 @@ describe("ProjectSettings", () => {
       ).toBeInTheDocument();
     });
   });
-  describe("Blueprints tab — Duplicate action", () => {
-    const blueprints: BlueprintMeta[] = [
+  describe("Jigs tab — Duplicate action", () => {
+    const jigs: JigMeta[] = [
       {
         id: "feature-dev",
         name: "Feature Dev",
@@ -922,28 +918,28 @@ describe("ProjectSettings", () => {
       },
     ];
 
-    async function openBlueprintsTab() {
+    async function openJigsTab() {
       const user = userEvent.setup();
       render();
-      await user.click(screen.getByRole("tab", { name: "Blueprints" }));
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
       return user;
     }
 
     beforeEach(() => {
-      mockedUseGlobalBlueprints.mockReturnValue({
-        data: blueprints,
-      } as ReturnType<typeof useGlobalBlueprints>);
+      mockedUseGlobalJigs.mockReturnValue({
+        data: jigs,
+      } as ReturnType<typeof useGlobalJigs>);
     });
 
-    it("renders a Duplicate button for each non-built-in blueprint", async () => {
-      await openBlueprintsTab();
+    it("renders a Duplicate button for each non-built-in jig", async () => {
+      await openJigsTab();
       const duplicateButtons = screen.getAllByRole("button", {
         name: /^Duplicate /i,
       });
-      expect(duplicateButtons).toHaveLength(blueprints.length);
+      expect(duplicateButtons).toHaveLength(jigs.length);
     });
 
-    it("calls mutateAsync with the blueprint id when Duplicate is clicked", async () => {
+    it("calls mutateAsync with the jig id when Duplicate is clicked", async () => {
       const mutateAsync = vi.fn().mockResolvedValue({
         id: "feature-dev-copy",
         name: "Feature Dev (copy)",
@@ -954,12 +950,12 @@ describe("ProjectSettings", () => {
         sizeBytes: 14,
         approxTokens: 4,
       });
-      mockedUseDuplicateGlobalBlueprint.mockReturnValue({
+      mockedUseDuplicateGlobalJig.mockReturnValue({
         ...noopMutation,
         mutateAsync,
-      } as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>);
+      } as unknown as ReturnType<typeof useDuplicateGlobalJig>);
 
-      const user = await openBlueprintsTab();
+      const user = await openJigsTab();
       // Wrap click + macrotask flush in a single act so that microtasks from
       // mutateAsync resolution fire within the React update boundary.
       await act(async () => {
@@ -983,18 +979,18 @@ describe("ProjectSettings", () => {
         sizeBytes: 14,
         approxTokens: 4,
       });
-      mockedUseDuplicateGlobalBlueprint.mockReturnValue({
+      mockedUseDuplicateGlobalJig.mockReturnValue({
         ...noopMutation,
         mutateAsync,
-      } as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>);
+      } as unknown as ReturnType<typeof useDuplicateGlobalJig>);
 
-      const user = await openBlueprintsTab();
+      const user = await openJigsTab();
       await act(async () => {
         await user.click(screen.getByRole("button", { name: "Duplicate Feature Dev" }));
         await new Promise((r) => setTimeout(r, 0));
       });
 
-      expect(navigate).toHaveBeenCalledWith("/blueprints/edit/feature-dev-copy");
+      expect(navigate).toHaveBeenCalledWith("/jigs/edit/feature-dev-copy");
     });
 
     it("shows a toast and does not navigate when duplication fails with ApiError", async () => {
@@ -1005,12 +1001,12 @@ describe("ProjectSettings", () => {
       const mutateAsync = vi
         .fn()
         .mockRejectedValue(new ApiError("Name already exists", 409, "DUPLICATE_NAME"));
-      mockedUseDuplicateGlobalBlueprint.mockReturnValue({
+      mockedUseDuplicateGlobalJig.mockReturnValue({
         ...noopMutation,
         mutateAsync,
-      } as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>);
+      } as unknown as ReturnType<typeof useDuplicateGlobalJig>);
 
-      const user = await openBlueprintsTab();
+      const user = await openJigsTab();
       await act(async () => {
         await user.click(screen.getByRole("button", { name: "Duplicate Feature Dev" }));
         await new Promise((r) => setTimeout(r, 0));
@@ -1024,28 +1020,28 @@ describe("ProjectSettings", () => {
       const addToast = vi.fn();
       mockedUseToast.mockReturnValue({ addToast, removeToast: vi.fn() });
       const mutateAsync = vi.fn().mockRejectedValue(new Error("Network failure"));
-      mockedUseDuplicateGlobalBlueprint.mockReturnValue({
+      mockedUseDuplicateGlobalJig.mockReturnValue({
         ...noopMutation,
         mutateAsync,
-      } as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>);
+      } as unknown as ReturnType<typeof useDuplicateGlobalJig>);
 
-      const user = await openBlueprintsTab();
+      const user = await openJigsTab();
       await act(async () => {
         await user.click(screen.getByRole("button", { name: "Duplicate Feature Dev" }));
         await new Promise((r) => setTimeout(r, 0));
       });
 
-      expect(addToast).toHaveBeenCalledWith("Failed to duplicate blueprint.");
+      expect(addToast).toHaveBeenCalledWith("Failed to duplicate jig.");
     });
 
     it("disables Duplicate buttons while a duplication is in progress", async () => {
       // isDuplicating is driven by duplicate.isPending from the mutation hook
-      mockedUseDuplicateGlobalBlueprint.mockReturnValue({
+      mockedUseDuplicateGlobalJig.mockReturnValue({
         ...noopMutation,
         isPending: true,
-      } as unknown as ReturnType<typeof useDuplicateGlobalBlueprint>);
+      } as unknown as ReturnType<typeof useDuplicateGlobalJig>);
 
-      await openBlueprintsTab();
+      await openJigsTab();
 
       const buttons = screen.getAllByRole("button", { name: /^Duplicate /i });
       for (const btn of buttons) {

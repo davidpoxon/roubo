@@ -3,7 +3,7 @@ import { BrushCleaning } from "lucide-react";
 import { DEFAULT_BENCH_SETTINGS } from "@roubo/shared";
 import { useSettings } from "../../hooks/useSettings";
 import Tile from "../settings/Tile";
-import { BlueprintPickerOption } from "../ProjectDefaultBlueprintTile";
+import { JigPickerOption } from "../ProjectDefaultJigTile";
 import { OverrideBadge } from "../settings/OverrideBadge";
 
 type AutoClearValue = "inherit" | "on" | "off";
@@ -58,13 +58,13 @@ export function AutoClearOverrideTile({
         aria-label="Auto-clear override"
         className="flex flex-col gap-2"
       >
-        <BlueprintPickerOption
+        <JigPickerOption
           value="inherit"
           label="Use app default"
           sublabel={`App default: ${appDefault ? "on" : "off"}`}
         />
-        <BlueprintPickerOption value="on" label="Force on" />
-        <BlueprintPickerOption value="off" label="Force off" />
+        <JigPickerOption value="on" label="Force on" />
+        <JigPickerOption value="off" label="Force off" />
       </RadioGroup>
 
       <p className="text-[11px] text-stone-400 dark:text-stone-600 mt-3 leading-relaxed">

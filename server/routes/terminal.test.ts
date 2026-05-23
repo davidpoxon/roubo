@@ -14,10 +14,10 @@ vi.mock("../services/bench-manager.js", () => ({
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
 }));
-vi.mock("../services/blueprint-manager.js", () => ({
-  getBlueprint: vi.fn(),
-  getDefaultBlueprintId: vi.fn(),
-  resolveBlueprintContent: vi.fn(),
+vi.mock("../services/jig-manager.js", () => ({
+  getJig: vi.fn(),
+  getDefaultJigId: vi.fn(),
+  resolveJigContent: vi.fn(),
 }));
 vi.mock("../services/config-parser.js", () => ({
   buildTemplateContext: vi.fn().mockReturnValue({
@@ -30,10 +30,10 @@ vi.mock("../services/config-parser.js", () => ({
 }));
 vi.mock("../services/state.js", () => ({
   loadSettings: vi.fn().mockReturnValue({
-    blueprints: {
+    jigs: {
       autoInject: true,
       autoExecute: true,
-      defaultBlueprintId: "feature-dev",
+      defaultJigId: "feature-dev",
     },
   }),
   getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [] }),
@@ -50,7 +50,7 @@ import * as terminalService from "../services/terminal.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
-import * as blueprintManager from "../services/blueprint-manager.js";
+import * as jigManager from "../services/jig-manager.js";
 import * as state from "../services/state.js";
 import * as issueFormatting from "../services/issue-formatting.js";
 
@@ -79,7 +79,7 @@ const MOCK_PROJECT = {
   repoPath: "/repo",
 };
 
-const MOCK_BLUEPRINT = {
+const MOCK_JIG = {
   id: "push",
   name: "Push & Merge",
   description: "Push and merge",
@@ -121,10 +121,10 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     });
     vi.mocked(terminalService.writeToSession).mockReturnValue(true);
     vi.mocked(state.loadSettings).mockReturnValue({
-      blueprints: {
+      jigs: {
         autoInject: true,
         autoExecute: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
   });
@@ -160,72 +160,68 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
   });
 
-  it("returns 400 for invalid blueprintId", async () => {
+  it("returns 400 for invalid jigId", async () => {
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "../evil" });
+      .send({ command: "claude", jigId: "../evil" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint id/i);
+    expect(res.body.error).toMatch(/invalid jig id/i);
   });
 
-  it("resolves GLOBAL_DEFAULT_BLUEPRINT_ID sentinel to configured default blueprint", async () => {
-    vi.mocked(blueprintManager.getDefaultBlueprintId).mockReturnValue("push");
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+  it("resolves GLOBAL_DEFAULT_JIG_ID sentinel to configured default jig", async () => {
+    vi.mocked(jigManager.getDefaultJigId).mockReturnValue("push");
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue("Push blueprint content");
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push jig content");
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "__global_default__" });
+      .send({ command: "claude", jigId: "__global_default__" });
 
     expect(res.status).toBe(201);
-    expect(blueprintManager.getDefaultBlueprintId).toHaveBeenCalledWith("project1");
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith("project1", "push");
+    expect(jigManager.getDefaultJigId).toHaveBeenCalledWith("project1");
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "push");
   });
 
-  it("injects embedded global default when GLOBAL_DEFAULT_BLUEPRINT_ID sentinel has no override configured", async () => {
-    vi.mocked(blueprintManager.getDefaultBlueprintId).mockReturnValue("__global_default__");
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+  it("injects embedded global default when GLOBAL_DEFAULT_JIG_ID sentinel has no override configured", async () => {
+    vi.mocked(jigManager.getDefaultJigId).mockReturnValue("__global_default__");
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue(
-      "Default blueprint content",
-    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Default jig content");
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "__global_default__" });
+      .send({ command: "claude", jigId: "__global_default__" });
 
     expect(res.status).toBe(201);
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith("project1", "__global_default__");
-    expect(res.body.blueprintInjected).toBe(true);
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "__global_default__");
+    expect(res.body.jigInjected).toBe(true);
   });
 
-  it("returns 404 when blueprintId is provided but blueprint not found", async () => {
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(null);
+  it("returns 404 when jigId is provided but jig not found", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(null);
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/blueprint not found/i);
+    expect(res.body.error).toMatch(/jig not found/i);
   });
 
-  it("passes resolved blueprint as initialInput when autoExecute is true", async () => {
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+  it("passes resolved jig as initialInput when autoExecute is true", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue(
-      "Push feature/test to GitHub",
-    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(res.body.blueprintInjected).toBe(true);
+    expect(res.body.jigInjected).toBe(true);
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
       1,
@@ -242,26 +238,24 @@ describe("POST /:projectId/benches/:id/terminals", () => {
   it("does not pass initialInput when autoExecute is false, schedules PTY write instead", async () => {
     vi.useFakeTimers();
     vi.mocked(state.loadSettings).mockReturnValue({
-      blueprints: {
+      jigs: {
         autoInject: true,
         autoExecute: false,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue(
-      "Push feature/test to GitHub",
-    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(res.body.blueprintScheduled).toBe(true);
-    expect(res.body.blueprintInjected).toBeUndefined();
+    expect(res.body.jigScheduled).toBe(true);
+    expect(res.body.jigInjected).toBeUndefined();
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
       1,
@@ -283,17 +277,15 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     vi.useRealTimers();
   });
 
-  it("ignores blueprintId for non-claude commands", async () => {
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+  it("ignores jigId for non-claude commands", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ blueprintId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(blueprintManager.getBlueprint).not.toHaveBeenCalled();
+    expect(jigManager.getJig).not.toHaveBeenCalled();
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
       1,
@@ -309,10 +301,10 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
   it("forwards claudeCode settings from loadSettings to createSession", async () => {
     vi.mocked(state.loadSettings).mockReturnValue({
-      blueprints: {
+      jigs: {
         autoInject: true,
         autoExecute: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
       claudeCode: { enableAutoMode: true, startInPlanMode: false },
     });
@@ -382,10 +374,10 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue("Resolved");
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
     vi.mocked(issueFormatting.fetchIssueContext).mockResolvedValue({
       issueNumber: 42,
       issueTitle: "Fix the widget",
@@ -396,12 +388,12 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(issueFormatting.fetchIssueContext).toHaveBeenCalledWith("owner/repo", 42);
-    expect(blueprintManager.resolveBlueprintContent).toHaveBeenCalledWith(
-      MOCK_BLUEPRINT.content,
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG.content,
       expect.objectContaining({
         issueNumber: 42,
         issueTitle: "Fix the widget",
@@ -409,36 +401,34 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
   });
 
-  it("skips blueprint injection silently when project has no config", async () => {
+  it("skips jig injection silently when project has no config", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue({
       config: undefined,
     } as unknown as ReturnType<typeof projectRegistry.getProject>);
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(res.body.blueprintInjected).toBeUndefined();
-    expect(res.body.blueprintScheduled).toBeUndefined();
-    expect(blueprintManager.getBlueprint).not.toHaveBeenCalled();
+    expect(res.body.jigInjected).toBeUndefined();
+    expect(res.body.jigScheduled).toBeUndefined();
+    expect(jigManager.getJig).not.toHaveBeenCalled();
   });
 
-  it("includes sizeWarning in response when blueprint sizeWarning is true", async () => {
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue({
-      ...MOCK_BLUEPRINT,
+  it("includes sizeWarning in response when jig sizeWarning is true", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue({
+      ...MOCK_JIG,
       sizeWarning: true,
-    } as unknown as ReturnType<typeof blueprintManager.getBlueprint>);
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue(
-      "Very large blueprint content",
-    );
+    } as unknown as ReturnType<typeof jigManager.getJig>);
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Very large jig content");
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(res.body.blueprintInjected).toBe(true);
+    expect(res.body.jigInjected).toBe(true);
     expect(res.body.sizeWarning).toBe(true);
   });
 
@@ -446,21 +436,21 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
-    vi.mocked(blueprintManager.getBlueprint).mockReturnValue(
-      MOCK_BLUEPRINT as unknown as ReturnType<typeof blueprintManager.getBlueprint>,
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    vi.mocked(blueprintManager.resolveBlueprintContent).mockReturnValue("Resolved");
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
     vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", blueprintId: "push" });
+      .send({ command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch issue #42"));
-    expect(blueprintManager.resolveBlueprintContent).toHaveBeenCalledWith(
-      MOCK_BLUEPRINT.content,
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG.content,
       expect.objectContaining({
         issueNumber: 42,
         issueTitle: "Fix the widget",

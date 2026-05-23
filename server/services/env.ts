@@ -158,7 +158,7 @@ export function getEnvFileKeys(): string[] {
 }
 
 /**
- * Returns the Claude context window size (tokens) to use for blueprint usage estimates.
+ * Returns the Claude context window size (tokens) to use for jig usage estimates.
  * Reads ROUBO_CONTEXT_WINDOW from process.env (set either in the OS environment or via
  * $ROUBO_DIR/.env). Falls back to DEFAULT_CONTEXT_WINDOW when unset or invalid.
  */

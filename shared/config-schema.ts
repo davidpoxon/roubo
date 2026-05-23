@@ -2,13 +2,13 @@ import { z } from "zod";
 
 // ── Sub-schemas ──
 
-export const BlueprintSettingsSchema = z.object({
+export const JigSettingsSchema = z.object({
   autoInject: z.boolean(),
   autoExecute: z.boolean(),
-  defaultBlueprintId: z.string().optional(),
+  defaultJigId: z.string().optional(),
   issueTypeMappings: z.record(z.string(), z.string()).optional(),
 });
-export type BlueprintSettings = z.infer<typeof BlueprintSettingsSchema>;
+export type JigSettings = z.infer<typeof JigSettingsSchema>;
 
 export const ProjectConfigSchema = z
   .object({
@@ -19,7 +19,7 @@ export const ProjectConfigSchema = z
     type: z.enum(["web", "native", "api-only"]),
     repo: z.string().min(1, "Required"),
     github: z.object({ project: z.int() }).strict().optional(),
-    blueprintSettings: BlueprintSettingsSchema.optional(),
+    jigSettings: JigSettingsSchema.optional(),
   })
   .strict();
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -179,13 +179,13 @@ export const BenchesConfigSchema = z
   .strict();
 export type BenchesConfig = z.infer<typeof BenchesConfigSchema>;
 
-export const BlueprintsConfigSchema = z
+export const JigsConfigSchema = z
   .object({
-    defaultBlueprint: z.string().optional(),
+    defaultJig: z.string().optional(),
     issueTypeMappings: z.record(z.string(), z.string()).optional(),
   })
   .strict();
-export type BlueprintsConfig = z.infer<typeof BlueprintsConfigSchema>;
+export type JigsConfig = z.infer<typeof JigsConfigSchema>;
 
 export const UserConfigSchema = z
   .object({
@@ -197,7 +197,7 @@ export type UserConfig = z.infer<typeof UserConfigSchema>;
 
 // Plugin-defined, opaque-to-roubo sub-block (e.g. `allowSelfSignedTls`, Jira
 // link-type names). Validated against the plugin's manifest configSchema once
-// the active plugin is loaded, mirroring how Roubo treats blueprint
+// the active plugin is loaded, mirroring how Roubo treats jig
 // frontmatter.
 export const IntegrationAdvancedSchema = z.record(z.string(), z.unknown());
 export type IntegrationAdvanced = z.infer<typeof IntegrationAdvancedSchema>;
@@ -284,7 +284,7 @@ export const RouboConfigSchema = z
     tools: z.array(ToolConfigSchema).optional(),
     inspection: InspectionConfigSchema.optional(),
     benches: BenchesConfigSchema,
-    blueprints: BlueprintsConfigSchema.optional(),
+    jigs: JigsConfigSchema.optional(),
     integration: IntegrationConfigSchema.optional(),
     users: UsersArraySchema.optional(),
   })

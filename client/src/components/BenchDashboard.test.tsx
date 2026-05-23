@@ -32,16 +32,16 @@ vi.mock("./project-settings/useSettingsOverviewDraft", () => ({
   useSettingsOverviewDraft: vi.fn(() => ({
     draftWorktreeSource: { branchFromDefault: true, pullLatest: true },
     setDraftWorktreeSource: vi.fn(),
-    draftBlueprint: null,
-    setDraftBlueprint: vi.fn(),
+    draftJig: null,
+    setDraftJig: vi.fn(),
     draftAutoClear: null,
     setDraftAutoClear: vi.fn(),
     originalWorktreeSource: { branchFromDefault: true, pullLatest: true },
-    originalBlueprint: null,
+    originalJig: null,
     originalAutoClear: null,
     hasAnyDirty: false,
     isWorktreeSourceDirty: false,
-    isBlueprintDirty: false,
+    isJigDirty: false,
     isAutoClearDirty: false,
     isSaving: false,
     saveErrors: [],
@@ -74,32 +74,32 @@ vi.mock("@dnd-kit/core", () => ({
 vi.mock("../hooks/useProjects");
 vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useToast");
-vi.mock("../hooks/useBlueprints", () => ({
-  useBlueprints: vi.fn(() => ({ data: [], isLoading: false })),
-  useGlobalBlueprints: vi.fn(() => ({ data: [] })),
-  useDeleteGlobalBlueprint: vi.fn(() => ({
+vi.mock("../hooks/useJigs", () => ({
+  useJigs: vi.fn(() => ({ data: [], isLoading: false })),
+  useGlobalJigs: vi.fn(() => ({ data: [] })),
+  useDeleteGlobalJig: vi.fn(() => ({
     mutate: vi.fn(),
     isPending: false,
   })),
-  useDeleteProjectBlueprint: vi.fn(() => ({
+  useDeleteProjectJig: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
-  useDuplicateProjectBlueprint: vi.fn(() => ({
+  useDuplicateProjectJig: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
-  useDuplicateGlobalBlueprint: vi.fn(() => ({
+  useDuplicateGlobalJig: vi.fn(() => ({
     mutate: vi.fn(),
     isPending: false,
   })),
 }));
-vi.mock("../hooks/useProjectDefaultBlueprint", () => ({
-  useProjectDefaultBlueprint: vi.fn(() => ({
+vi.mock("../hooks/useProjectDefaultJig", () => ({
+  useProjectDefaultJig: vi.fn(() => ({
     data: undefined,
     isLoading: false,
   })),
-  useUpdateProjectDefaultBlueprint: vi.fn(() => ({
+  useUpdateProjectDefaultJig: vi.fn(() => ({
     mutate: vi.fn(),
     isPending: false,
     isError: false,

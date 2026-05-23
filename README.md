@@ -59,9 +59,9 @@ Every bench operation Roubo exposes through its UI is also a JSON REST endpoint 
 
 One tool has end-to-end integration today:
 
-- **[Claude Code](https://www.anthropic.com/claude-code)**: Anthropic's command-line coding agent. First-class. Blueprints inject Claude Code agent instructions directly into the bench workspace, and Roubo's `permissions` API is wired to Claude Code's tool permission model.
+- **[Claude Code](https://www.anthropic.com/claude-code)**: Anthropic's command-line coding agent. First-class. Jigs inject Claude Code agent instructions directly into the bench workspace, and Roubo's `permissions` API is wired to Claude Code's tool permission model.
 
-Other tools (Cursor, Windsurf, Aider, OpenAI Codex CLI, and friends) can already drive Roubo via the [API](./docs/api.md). They do not yet have the first-class blueprint and permission integrations described above. If you've built a deeper integration worth upstreaming, [open an issue](https://github.com/davidpoxon/roubo/issues).
+Other tools (Cursor, Windsurf, Aider, OpenAI Codex CLI, and friends) can already drive Roubo via the [API](./docs/api.md). They do not yet have the first-class jig and permission integrations described above. If you've built a deeper integration worth upstreaming, [open an issue](https://github.com/davidpoxon/roubo/issues).
 
 ## Documentation
 

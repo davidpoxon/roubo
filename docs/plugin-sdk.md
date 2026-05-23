@@ -142,7 +142,7 @@ Optional. Useful when allowed transitions depend on the issue's current state or
 
 ### `listIssueTypes(): Promise<{ id, name }[]>`
 
-Optional. Returns the issue types defined on the external system. Powers the issue-type-to-blueprint mapping UI.
+Optional. Returns the issue types defined on the external system. Powers the issue-type-to-jig mapping UI.
 
 ### `listLabels(): Promise<string[]>`
 

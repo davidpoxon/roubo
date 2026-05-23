@@ -134,7 +134,7 @@ describe("atomicWrite", () => {
   });
 });
 
-const DEFAULT_BLUEPRINT_SETTINGS = { autoInject: true, autoExecute: true };
+const DEFAULT_JIG_SETTINGS = { autoInject: true, autoExecute: true };
 const DEFAULT_BENCH_SETTINGS = {
   autoClear: true,
   enforceIssueDependencies: false,
@@ -148,56 +148,93 @@ const DEFAULT_CLAUDE_CODE_SETTINGS = {
 const DEFAULT_GITHUB_SETTINGS = { issueTypesCacheTtlSeconds: 300 };
 
 describe("loadSettings", () => {
-  it("returns default settings with blueprint defaults when file does not exist", () => {
+  it("returns default settings with jig defaults when file does not exist", () => {
     existsSync.mockReturnValue(false);
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
 
-  it("returns parsed JSON merged with blueprint defaults when file exists", () => {
+  it("returns parsed JSON merged with jig defaults when file exists", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue(JSON.stringify({ theme: "light" }));
     expect(stateModule.loadSettings()).toEqual({
       theme: "light",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
 
-  it("returns default settings with blueprint defaults when file contains malformed JSON", () => {
+  it("returns default settings with jig defaults when file contains malformed JSON", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue("not valid json{{{");
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
 
-  it("preserves custom blueprint settings from file", () => {
+  it("preserves custom jig settings from file", () => {
     existsSync.mockReturnValue(true);
-    const customBlueprints = {
+    const customJigs = {
       autoInject: false,
       autoExecute: false,
-      defaultBlueprintId: "cleanup",
+      defaultJigId: "cleanup",
     };
-    readFileSync.mockReturnValue(JSON.stringify({ theme: "light", blueprints: customBlueprints }));
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light", jigs: customJigs }));
     expect(stateModule.loadSettings()).toEqual({
       theme: "light",
-      blueprints: customBlueprints,
+      jigs: customJigs,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
+  });
+
+  it("migrates legacy `blueprints` settings object into `jigs`", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        theme: "dark",
+        blueprints: {
+          autoInject: false,
+          autoExecute: false,
+          defaultBlueprintId: "cleanup",
+        },
+      }),
+    );
+    expect(stateModule.loadSettings()).toEqual({
+      theme: "dark",
+      jigs: {
+        autoInject: false,
+        autoExecute: false,
+        defaultJigId: "cleanup",
+      },
+      benches: DEFAULT_BENCH_SETTINGS,
+      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
+      github: DEFAULT_GITHUB_SETTINGS,
+    });
+  });
+
+  it("prefers new `jigs` over legacy `blueprints` when both are present", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        theme: "dark",
+        blueprints: { defaultBlueprintId: "old" },
+        jigs: { defaultJigId: "new" },
+      }),
+    );
+    expect(stateModule.loadSettings().jigs?.defaultJigId).toBe("new");
   });
 
   it("preserves custom bench settings from file", () => {
@@ -205,7 +242,7 @@ describe("loadSettings", () => {
     readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", benches: { autoClear: false } }));
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: {
         autoClear: false,
         enforceIssueDependencies: false,
@@ -227,7 +264,7 @@ describe("loadSettings", () => {
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: { enableAutoMode: true, startInPlanMode: true },
       github: DEFAULT_GITHUB_SETTINGS,
@@ -241,7 +278,7 @@ describe("loadSettings", () => {
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: { enableAutoMode: true, startInPlanMode: false },
       github: DEFAULT_GITHUB_SETTINGS,
@@ -258,7 +295,7 @@ describe("loadSettings", () => {
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: {
         autoClear: true,
         enforceIssueDependencies: false,
@@ -280,7 +317,7 @@ describe("loadSettings", () => {
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: {
         autoClear: false,
         enforceIssueDependencies: true,
@@ -302,7 +339,7 @@ describe("loadSettings", () => {
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: { issueTypesCacheTtlSeconds: 60 },
@@ -314,7 +351,7 @@ describe("loadSettings", () => {
     readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", github: {} }));
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
@@ -449,6 +486,55 @@ describe("loadState", () => {
     );
     const { benches } = stateModule.loadState();
     expect(benches[0].assignedIssue).toBeUndefined();
+  });
+
+  it("renames legacy injectedBlueprintId/Source fields to injectedJigId/Source", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+            injectedBlueprintId: "default",
+            injectedBlueprintSource: "project",
+          },
+        ],
+      }),
+    );
+    const { benches } = stateModule.loadState();
+    expect(benches[0].injectedJigId).toBe("default");
+    expect(benches[0].injectedJigSource).toBe("project");
+    // Legacy keys should be removed so they don't get re-persisted.
+    const raw = benches[0] as unknown as Record<string, unknown>;
+    expect(raw.injectedBlueprintId).toBeUndefined();
+    expect(raw.injectedBlueprintSource).toBeUndefined();
+  });
+
+  it("does not overwrite injectedJigId when both old and new are present", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        benches: [
+          {
+            id: 1,
+            projectId: "p",
+            branch: "b",
+            workspacePath: "/w",
+            ports: {},
+            createdAt: "2026-01-01",
+            injectedBlueprintId: "old",
+            injectedJigId: "new",
+          },
+        ],
+      }),
+    );
+    const { benches } = stateModule.loadState();
+    expect(benches[0].injectedJigId).toBe("new");
   });
 
   it("round-trips a migrated assignedIssue through save → load", () => {

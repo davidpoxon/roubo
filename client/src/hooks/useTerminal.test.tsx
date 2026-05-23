@@ -48,10 +48,10 @@ describe("useCreateTerminal", () => {
     expect(mockedApi.createTerminal).toHaveBeenCalledWith("p2", 3, "npm run dev", undefined);
   });
 
-  it("passes blueprintId to createTerminal", async () => {
+  it("passes jigId to createTerminal", async () => {
     mockedApi.createTerminal.mockResolvedValue({ id: "sess-3" } as never);
     const { result } = renderHookWithProviders(() => useCreateTerminal());
-    result.current.mutate({ projectId: "p3", benchId: 2, command: "claude", blueprintId: "push" });
+    result.current.mutate({ projectId: "p3", benchId: 2, command: "claude", jigId: "push" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.createTerminal).toHaveBeenCalledWith("p3", 2, "claude", "push");
   });

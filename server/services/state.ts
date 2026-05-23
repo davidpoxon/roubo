@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import {
-  DEFAULT_BLUEPRINT_SETTINGS,
+  DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
   DEFAULT_CLAUDE_CODE_SETTINGS,
   DEFAULT_GITHUB_SETTINGS,
@@ -11,6 +11,7 @@ import {
 import type {
   AssignedIssue,
   Bench,
+  JigDefaultSource,
   PersistedProjects,
   PersistedProjectEntry,
   PersistedState,
@@ -105,6 +106,23 @@ export function migrateAssignedIssue(issue: AssignedIssue | undefined): Assigned
   };
 }
 
+/**
+ * One-shot rename of legacy `injectedBlueprintId` / `injectedBlueprintSource`
+ * keys on a persisted bench to the new `injectedJigId` / `injectedJigSource`
+ * names. Idempotent: re-running on already-migrated data is a no-op.
+ */
+function migrateInjectedJigFields(bench: PersistedBench): void {
+  const raw = bench as unknown as Record<string, unknown>;
+  if (raw.injectedJigId === undefined && typeof raw.injectedBlueprintId === "string") {
+    bench.injectedJigId = raw.injectedBlueprintId as string;
+  }
+  if (raw.injectedJigSource === undefined && typeof raw.injectedBlueprintSource === "string") {
+    bench.injectedJigSource = raw.injectedBlueprintSource as JigDefaultSource;
+  }
+  delete raw.injectedBlueprintId;
+  delete raw.injectedBlueprintSource;
+}
+
 export function loadState(): PersistedState {
   ensureDirs();
   if (!fs.existsSync(STATE_FILE)) {
@@ -113,6 +131,7 @@ export function loadState(): PersistedState {
   const data: PersistedState = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
   for (const bench of data.benches) {
     bench.assignedIssue = migrateAssignedIssue(bench.assignedIssue);
+    migrateInjectedJigFields(bench);
   }
   return data;
 }
@@ -172,8 +191,8 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
-    injectedBlueprintId: bench.injectedBlueprintId,
-    injectedBlueprintSource: bench.injectedBlueprintSource,
+    injectedJigId: bench.injectedJigId,
+    injectedJigSource: bench.injectedJigSource,
     componentSetupState: Object.fromEntries(
       Object.entries(bench.components).map(([name, c]) => [name, c.setupComplete]),
     ),
@@ -191,7 +210,7 @@ export function loadSettings(): UserPreferences {
   if (!fs.existsSync(SETTINGS_FILE)) {
     return {
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
@@ -199,9 +218,27 @@ export function loadSettings(): UserPreferences {
   }
   try {
     const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    // Legacy migration: the `blueprints` object plus its `defaultBlueprintId`
+    // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
+    // the new ones are absent, so a user-authored settings file keeps working.
+    const legacyJigSettings = raw.blueprints as
+      | (Record<string, unknown> & { defaultBlueprintId?: string })
+      | undefined;
+    const mergedJigSettings = {
+      ...DEFAULT_JIG_SETTINGS,
+      ...(legacyJigSettings ?? {}),
+      ...raw.jigs,
+    } as Record<string, unknown>;
+    if (
+      mergedJigSettings.defaultJigId === undefined &&
+      typeof legacyJigSettings?.defaultBlueprintId === "string"
+    ) {
+      mergedJigSettings.defaultJigId = legacyJigSettings.defaultBlueprintId;
+    }
+    delete mergedJigSettings.defaultBlueprintId;
     return {
       theme: raw.theme ?? "dark",
-      blueprints: { ...DEFAULT_BLUEPRINT_SETTINGS, ...raw.blueprints },
+      jigs: mergedJigSettings as UserPreferences["jigs"],
       benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
       claudeCode: { ...DEFAULT_CLAUDE_CODE_SETTINGS, ...raw.claudeCode },
       github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
@@ -209,7 +246,7 @@ export function loadSettings(): UserPreferences {
   } catch {
     return {
       theme: "dark",
-      blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+      jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,

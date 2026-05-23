@@ -39,11 +39,11 @@ describe("SettingsSaveBar", () => {
   it("shows error message when saveErrors is non-empty", () => {
     renderBar({
       hasAnyDirty: true,
-      saveErrors: ["Workspace source", "Blueprint override"],
+      saveErrors: ["Workspace source", "Jig override"],
     });
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText(/Workspace source/)).toBeInTheDocument();
-    expect(screen.getByText(/Blueprint override/)).toBeInTheDocument();
+    expect(screen.getByText(/Jig override/)).toBeInTheDocument();
   });
 
   it("renders Save changes button", () => {

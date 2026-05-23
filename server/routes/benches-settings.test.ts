@@ -157,7 +157,7 @@ describe("PUT /:projectId/benches/overrides", () => {
   });
 
   it("no-ops gracefully when null is sent and no benches section exists", async () => {
-    vi.mocked(YAML.parse).mockReturnValue({ blueprints: {} });
+    vi.mocked(YAML.parse).mockReturnValue({ jigs: {} });
     const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: null });
     expect(res.status).toBe(200);
     expect(state.atomicWrite).not.toHaveBeenCalled();

@@ -8,7 +8,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 - In marketing copy, marketplace listings, README, `/docs`, in-app strings, and any other user-facing prose, use generic terms like "AI coding agent" or "AI coding tool" rather than naming a specific agent.
 - Reserve specific tool names (Claude Code, Codex, Gemini CLI) for technical docs, integration lists, and feature pages where naming the integration is the point.
-- When touching code or vocabulary that hardcodes "Claude Code" (e.g. the Blueprint definition below, the `/api/projects/:projectId/permissions` endpoint comments), flag it as a candidate for generalization as multi-agent support expands.
+- When touching code or vocabulary that hardcodes "Claude Code" (e.g. the Jig definition below, the `/api/projects/:projectId/permissions` endpoint comments), flag it as a candidate for generalization as multi-agent support expands.
 
 ## Writing Style
 
@@ -68,8 +68,8 @@ npm run format:check    # CI parity check
 
 ## Key Directories
 
-- `server/services/`: business logic (bench-manager, blueprint-manager, config-parser, database, docker, env, exec, github, inspection-runner, issue-assignment, launcher, port-allocator, process-manager, project-registry, repo-scanner, state, terminal, tool-launcher)
-- `server/routes/`: Express route handlers (projects, benches, blueprints, containers, database, filesystem, inspection, issues, settings, terminal)
+- `server/services/`: business logic (bench-manager, jig-manager, config-parser, database, docker, env, exec, github, inspection-runner, issue-assignment, launcher, port-allocator, process-manager, project-registry, repo-scanner, state, terminal, tool-launcher)
+- `server/routes/`: Express route handlers (projects, benches, jigs, containers, database, filesystem, inspection, issues, settings, terminal)
 - `client/src/components/`: React UI components
 - `client/src/hooks/`: React Query hooks for data fetching
 - `client/src/lib/api.ts`: typed API client
@@ -107,23 +107,23 @@ GET    /api/projects/:projectId/benches/:id/tools   List tools
 POST   /api/projects/:projectId/benches/:id/tools/:index/execute   Execute tool
 DELETE /api/projects/:projectId/benches/:id/notifications   Dismiss all notifications
 DELETE /api/projects/:projectId/benches/:id/notifications/:notificationId   Dismiss one notification
-POST   /api/projects/:projectId/benches/:id/inject-blueprint   Inject blueprint
+POST   /api/projects/:projectId/benches/:id/inject-jig   Inject jig
 POST   /api/projects/:projectId/issues/:externalId/assign   Assign issue to user via active integration plugin
 DELETE /api/projects/:projectId/issues/:externalId/assign   Unassign issue from user via active integration plugin
 GET    /api/projects/:projectId/permissions   Get project Claude Code tool permissions
 PUT    /api/projects/:projectId/permissions   Replace project Claude Code tool permissions
 POST   /api/projects/:projectId/permissions/resync   Re-inject current permission set into all non-clearing bench workspaces
 GET    /api/projects/:projectId/issue-types   Fetch issue types for project's linked GitHub Project
-GET    /api/projects/:projectId/blueprints/issue-type-mappings   Get issue-type → blueprint mappings
-PUT    /api/projects/:projectId/blueprints/issue-type-mappings   Replace issue-type → blueprint mappings { mappings }
-GET    /api/projects/:projectId/blueprints   List blueprints
-POST   /api/projects/:projectId/blueprints   Create project-level blueprint (201)
-GET    /api/projects/:projectId/blueprints/:id   Get project blueprint detail
-PUT    /api/projects/:projectId/blueprints/:id   Update project-level blueprint
-DELETE /api/projects/:projectId/blueprints/:id   Delete project-level blueprint (204, 409 if referenced)
+GET    /api/projects/:projectId/jigs/issue-type-mappings   Get issue-type → jig mappings
+PUT    /api/projects/:projectId/jigs/issue-type-mappings   Replace issue-type → jig mappings { mappings }
+GET    /api/projects/:projectId/jigs   List jigs
+POST   /api/projects/:projectId/jigs   Create project-level jig (201)
+GET    /api/projects/:projectId/jigs/:id   Get project jig detail
+PUT    /api/projects/:projectId/jigs/:id   Update project-level jig
+DELETE /api/projects/:projectId/jigs/:id   Delete project-level jig (204, 409 if referenced)
 GET    /api/projects/:projectId/benches/overrides   Get bench overrides { autoClear, enforceIssueDependencies, workUnitAutoClear }
 PUT    /api/projects/:projectId/benches/overrides   Set bench overrides (partial body, null removes key)
-GET    /api/blueprints   List global blueprints
+GET    /api/jigs   List global jigs
 GET    /api/containers   List database containers
 GET    /api/plugins/:pluginId/integration   Get per-plugin global default + manifest snippet
 POST   /api/plugins/:pluginId/integration/test   Test a config snapshot against the plugin (uses ~/.roubo/integrations/_global/{pluginId}.yaml)
@@ -145,7 +145,7 @@ Always use the Roubo vocabulary in all new code, UI text, and documentation:
 | **Component**  | Service     | A running part of a bench (database, backend, frontend)          |
 | **Tool**       | Launcher    | Quick-open action (browser, IDE, shell)                          |
 | **Inspection** | Testing     | Quality checks run against a bench                               |
-| **Blueprint**  | Prompt      | AI coding agent instructions injected into the bench workspace   |
+| **Jig**        | Prompt      | AI coding agent instructions injected into the bench workspace   |
 | **Workspace**  | Worktree    | The git worktree directory for a bench                           |
 
 ## Design Philosophy

@@ -665,7 +665,7 @@ export async function restart(pluginId: string): Promise<void> {
  *  - the plugin is bundled (FR-016: bundled plugins are not uninstallable),
  *  - any project's effective integration config still references the plugin.
  *    The user must clear or reassign each project's integration plugin
- *    before retrying, mirroring the blueprint-delete-when-referenced rule.
+ *    before retrying, mirroring the jig-delete-when-referenced rule.
  */
 export async function uninstall(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);

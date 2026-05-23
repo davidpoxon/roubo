@@ -1,16 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  deriveClaudeCodeMode,
-  GLOBAL_DEFAULT_BLUEPRINT_ID,
-  DEFAULT_BLUEPRINT_SETTINGS,
-} from "./types.js";
-import type {
-  BlueprintSource,
-  BlueprintSettings,
-  BlueprintMeta,
-  ProjectConfig,
-  NormalizedIssue,
-} from "./types.js";
+import { deriveClaudeCodeMode, GLOBAL_DEFAULT_JIG_ID, DEFAULT_JIG_SETTINGS } from "./types.js";
+import type { JigSource, JigSettings, JigMeta, ProjectConfig, NormalizedIssue } from "./types.js";
 
 describe("deriveClaudeCodeMode", () => {
   it('returns "auto" when enableAutoMode is true and startInPlanMode is false', () => {
@@ -34,38 +24,38 @@ describe("deriveClaudeCodeMode", () => {
   });
 });
 
-describe("blueprint type exports", () => {
-  it("GLOBAL_DEFAULT_BLUEPRINT_ID is the sentinel string", () => {
-    expect(GLOBAL_DEFAULT_BLUEPRINT_ID).toBe("__global_default__");
+describe("jig type exports", () => {
+  it("GLOBAL_DEFAULT_JIG_ID is the sentinel string", () => {
+    expect(GLOBAL_DEFAULT_JIG_ID).toBe("__global_default__");
   });
 
-  it("DEFAULT_BLUEPRINT_SETTINGS has autoInject and autoExecute true with no defaultBlueprintId", () => {
-    expect(DEFAULT_BLUEPRINT_SETTINGS.autoInject).toBe(true);
-    expect(DEFAULT_BLUEPRINT_SETTINGS.autoExecute).toBe(true);
-    expect(DEFAULT_BLUEPRINT_SETTINGS).not.toHaveProperty("defaultBlueprintId");
+  it("DEFAULT_JIG_SETTINGS has autoInject and autoExecute true with no defaultJigId", () => {
+    expect(DEFAULT_JIG_SETTINGS.autoInject).toBe(true);
+    expect(DEFAULT_JIG_SETTINGS.autoExecute).toBe(true);
+    expect(DEFAULT_JIG_SETTINGS).not.toHaveProperty("defaultJigId");
   });
 
-  it("BlueprintSource accepts app and project", () => {
-    const app: BlueprintSource = "app";
-    const project: BlueprintSource = "project";
+  it("JigSource accepts app and project", () => {
+    const app: JigSource = "app";
+    const project: JigSource = "project";
     expect(app).toBe("app");
     expect(project).toBe("project");
   });
 
-  it("BlueprintSettings allows optional defaultBlueprintId and issueTypeMappings", () => {
-    const minimal: BlueprintSettings = { autoInject: true, autoExecute: false };
-    const full: BlueprintSettings = {
+  it("JigSettings allows optional defaultJigId and issueTypeMappings", () => {
+    const minimal: JigSettings = { autoInject: true, autoExecute: false };
+    const full: JigSettings = {
       autoInject: true,
       autoExecute: true,
-      defaultBlueprintId: "my-blueprint",
+      defaultJigId: "my-jig",
       issueTypeMappings: { Feature: "feature-dev", Bug: "bug-fix" },
     };
-    expect(minimal).not.toHaveProperty("defaultBlueprintId");
+    expect(minimal).not.toHaveProperty("defaultJigId");
     expect(full.issueTypeMappings?.["Feature"]).toBe("feature-dev");
   });
 
-  it("BlueprintMeta does not include overrides field", () => {
-    const meta: BlueprintMeta = {
+  it("JigMeta does not include overrides field", () => {
+    const meta: JigMeta = {
       id: "test",
       name: "Test",
       description: "desc",
@@ -75,19 +65,19 @@ describe("blueprint type exports", () => {
     expect(meta).not.toHaveProperty("overrides");
   });
 
-  it("ProjectConfig accepts blueprintSettings", () => {
+  it("ProjectConfig accepts jigSettings", () => {
     const config: ProjectConfig = {
       name: "my-project",
       displayName: "My Project",
       type: "web",
       repo: "https://github.com/org/repo",
-      blueprintSettings: {
+      jigSettings: {
         autoInject: true,
         autoExecute: false,
         issueTypeMappings: { Feature: "feature-dev" },
       },
     };
-    expect(config.blueprintSettings?.issueTypeMappings?.["Feature"]).toBe("feature-dev");
+    expect(config.jigSettings?.issueTypeMappings?.["Feature"]).toBe("feature-dev");
   });
 });
 

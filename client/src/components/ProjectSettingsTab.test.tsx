@@ -53,19 +53,19 @@ vi.mock("./project-settings/AutoClearOverrideTile", () => ({
   ),
 }));
 
-vi.mock("./ProjectDefaultBlueprintTile", () => ({
-  ProjectDefaultBlueprintTile: ({
+vi.mock("./ProjectDefaultJigTile", () => ({
+  ProjectDefaultJigTile: ({
     project,
   }: {
     project: RegisteredProject;
     draft: string | null;
     onChange: (v: string | null) => void;
     showProjectName?: boolean;
-  }) => <div data-testid="blueprint-tile">{project.id}</div>,
-  BlueprintPickerOption: () => null,
-  BlueprintOverrideBadge: () => null,
-  BlueprintDefaultSourceLabel: () => null,
-  INHERIT_BLUEPRINT_ID: "__inherit__",
+  }) => <div data-testid="jig-tile">{project.id}</div>,
+  JigPickerOption: () => null,
+  JigOverrideBadge: () => null,
+  JigDefaultSourceLabel: () => null,
+  INHERIT_JIG_ID: "__inherit__",
 }));
 
 vi.mock("./settings/DangerZoneTile", () => ({
@@ -80,7 +80,7 @@ vi.mock("./project-settings/ProjectPermissionsInlineSection", () => ({
   ),
 }));
 
-const mockBlueprintsResult: {
+const mockJigsResult: {
   data: Array<{
     id: string;
     name: string;
@@ -93,21 +93,21 @@ const mockBlueprintsResult: {
 const mockDeleteMutateAsync = vi.fn();
 const mockDuplicateMutateAsync = vi.fn();
 
-vi.mock("../hooks/useBlueprints", () => ({
-  useBlueprints: () => mockBlueprintsResult,
-  useDeleteProjectBlueprint: () => ({
+vi.mock("../hooks/useJigs", () => ({
+  useJigs: () => mockJigsResult,
+  useDeleteProjectJig: () => ({
     mutateAsync: mockDeleteMutateAsync,
     isPending: false,
   }),
-  useDuplicateProjectBlueprint: () => ({
+  useDuplicateProjectJig: () => ({
     mutateAsync: mockDuplicateMutateAsync,
     isPending: false,
   }),
 }));
 
-vi.mock("./blueprint-editor/DeleteBlueprintDialog", () => ({
-  default: ({ isOpen, blueprint }: { isOpen: boolean; blueprint: { name: string } }) =>
-    isOpen ? <div data-testid="delete-blueprint-dialog">{blueprint.name}</div> : null,
+vi.mock("./jig-editor/DeleteJigDialog", () => ({
+  default: ({ isOpen, jig }: { isOpen: boolean; jig: { name: string } }) =>
+    isOpen ? <div data-testid="delete-jig-dialog">{jig.name}</div> : null,
 }));
 
 // Mock useBlocker so nav guard doesn't interfere with rendering
@@ -152,16 +152,16 @@ const baseProject: RegisteredProject = {
 const defaultDraft = {
   draftWorktreeSource: DEFAULT_PROJECT_SETTINGS.worktreeSource,
   setDraftWorktreeSource: vi.fn(),
-  draftBlueprint: null as string | null,
-  setDraftBlueprint: vi.fn(),
+  draftJig: null as string | null,
+  setDraftJig: vi.fn(),
   draftAutoClear: null as boolean | null,
   setDraftAutoClear: vi.fn(),
   originalWorktreeSource: DEFAULT_PROJECT_SETTINGS.worktreeSource,
-  originalBlueprint: null as string | null,
+  originalJig: null as string | null,
   originalAutoClear: null as boolean | null,
   hasAnyDirty: false,
   isWorktreeSourceDirty: false,
-  isBlueprintDirty: false,
+  isJigDirty: false,
   isAutoClearDirty: false,
   isSaving: false,
   saveErrors: [] as string[],
@@ -201,8 +201,8 @@ function renderTab(projectId = "my-app") {
 beforeEach(() => {
   vi.clearAllMocks();
   mockBlocker = { state: "unblocked", proceed: vi.fn(), reset: vi.fn() };
-  mockBlueprintsResult.data = [];
-  mockBlueprintsResult.isLoading = false;
+  mockJigsResult.data = [];
+  mockJigsResult.isLoading = false;
 
   mockedUseProjects.mockReturnValue({
     data: [baseProject],
@@ -233,7 +233,7 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByTestId("port-assignment-tile")).toBeInTheDocument();
     expect(screen.getByTestId("auto-clear-override-tile")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-source-tile")).toBeInTheDocument();
-    expect(screen.getByTestId("blueprint-tile")).toBeInTheDocument();
+    expect(screen.getByTestId("jig-tile")).toBeInTheDocument();
     expect(screen.getByTestId("danger-zone-tile")).toBeInTheDocument();
     expect(screen.getByTestId("permissions-inline-section")).toBeInTheDocument();
   });
@@ -244,7 +244,7 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByTestId("default-branch-tile")).toHaveTextContent("my-app");
     expect(screen.getByTestId("port-assignment-tile")).toHaveTextContent("my-app");
     expect(screen.getByTestId("workspace-source-tile")).toHaveTextContent("my-app");
-    expect(screen.getByTestId("blueprint-tile")).toHaveTextContent("my-app");
+    expect(screen.getByTestId("jig-tile")).toHaveTextContent("my-app");
     expect(screen.getByTestId("danger-zone-tile")).toHaveTextContent("my-app");
     expect(screen.getByTestId("permissions-inline-section")).toHaveTextContent("my-app");
   });
@@ -340,7 +340,7 @@ describe("ProjectSettingsTab", () => {
 
   it("clicking Save does not call addToast when save fails", async () => {
     const addToast = vi.fn();
-    const save = vi.fn().mockResolvedValue({ ok: false, failed: ["Blueprint override"] });
+    const save = vi.fn().mockResolvedValue({ ok: false, failed: ["Jig override"] });
     mockedUseToast.mockReturnValue({
       addToast,
       toasts: [],
@@ -349,7 +349,7 @@ describe("ProjectSettingsTab", () => {
     mockedUseSettingsOverviewDraft.mockReturnValue({
       ...defaultDraft,
       hasAnyDirty: true,
-      saveErrors: ["Blueprint override"],
+      saveErrors: ["Jig override"],
       save,
     } as unknown as ReturnType<typeof useSettingsOverviewDraft>);
 
@@ -405,113 +405,113 @@ describe("ProjectSettingsTab", () => {
     expect(getCapturedPath()).toBe("/projects/my-app/settings/permissions");
   });
 
-  it("nests Issue type mappings inside the Blueprint tile", () => {
+  it("nests Issue type mappings inside the Jig tile", () => {
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
+    const jigTile = screen.getByRole("region", { name: "Jig" });
     expect(
-      within(blueprintTile).getByRole("heading", {
+      within(jigTile).getByRole("heading", {
         name: "Issue type mappings",
       }),
     ).toBeInTheDocument();
-    expect(within(blueprintTile).getByText(/Changes write to/)).toBeInTheDocument();
+    expect(within(jigTile).getByText(/Changes write to/)).toBeInTheDocument();
   });
 
-  it("shows the Blueprint tile in editing state when only issue type mappings are dirty", () => {
+  it("shows the Jig tile in editing state when only issue type mappings are dirty", () => {
     mockedUseSettingsOverviewDraft.mockReturnValue({
       ...defaultDraft,
       hasAnyDirty: true,
-      isBlueprintDirty: false,
+      isJigDirty: false,
       isIssueTypeMappingsDirty: true,
       draftIssueTypeMappings: { Bug: "bp-bug" },
     } as unknown as ReturnType<typeof useSettingsOverviewDraft>);
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
-    expect(within(blueprintTile).getByText("Editing")).toBeInTheDocument();
+    const jigTile = screen.getByRole("region", { name: "Jig" });
+    expect(within(jigTile).getByText("Editing")).toBeInTheDocument();
   });
 
-  it("shows the Blueprint tile in editing state when only the default blueprint is dirty", () => {
+  it("shows the Jig tile in editing state when only the default jig is dirty", () => {
     mockedUseSettingsOverviewDraft.mockReturnValue({
       ...defaultDraft,
       hasAnyDirty: true,
-      isBlueprintDirty: true,
+      isJigDirty: true,
       isIssueTypeMappingsDirty: false,
-      draftBlueprint: "bp-default",
+      draftJig: "bp-default",
     } as unknown as ReturnType<typeof useSettingsOverviewDraft>);
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
-    expect(within(blueprintTile).getByText("Editing")).toBeInTheDocument();
+    const jigTile = screen.getByRole("region", { name: "Jig" });
+    expect(within(jigTile).getByText("Editing")).toBeInTheDocument();
   });
 
-  it("shows the Override badge on the Blueprint tile when only the default blueprint is overridden", () => {
+  it("shows the Override badge on the Jig tile when only the default jig is overridden", () => {
     mockedUseSettingsOverviewDraft.mockReturnValue({
       ...defaultDraft,
-      draftBlueprint: "bp-default",
+      draftJig: "bp-default",
     } as unknown as ReturnType<typeof useSettingsOverviewDraft>);
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
-    expect(within(blueprintTile).getByText("Override")).toBeInTheDocument();
+    const jigTile = screen.getByRole("region", { name: "Jig" });
+    expect(within(jigTile).getByText("Override")).toBeInTheDocument();
   });
 
-  it("shows the Override badge on the Blueprint tile when only an issue type mapping is overridden", () => {
+  it("shows the Override badge on the Jig tile when only an issue type mapping is overridden", () => {
     mockedUseSettingsOverviewDraft.mockReturnValue({
       ...defaultDraft,
       draftIssueTypeMappings: { Bug: "bp-bug" },
     } as unknown as ReturnType<typeof useSettingsOverviewDraft>);
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
-    expect(within(blueprintTile).getByText("Override")).toBeInTheDocument();
+    const jigTile = screen.getByRole("region", { name: "Jig" });
+    expect(within(jigTile).getByText("Override")).toBeInTheDocument();
   });
 
-  it("does not show the Override badge on the Blueprint tile when neither side is overridden", () => {
+  it("does not show the Override badge on the Jig tile when neither side is overridden", () => {
     renderTab();
-    const blueprintTile = screen.getByRole("region", { name: "Blueprint" });
-    expect(within(blueprintTile).queryByText("Override")).not.toBeInTheDocument();
+    const jigTile = screen.getByRole("region", { name: "Jig" });
+    expect(within(jigTile).queryByText("Override")).not.toBeInTheDocument();
   });
 
-  describe("project custom blueprints list", () => {
-    it("renders the Custom blueprints heading and an empty-state hint", () => {
+  describe("project custom jigs list", () => {
+    it("renders the Custom jigs heading and an empty-state hint", () => {
       renderTab();
-      expect(screen.getByRole("heading", { name: "Custom blueprints" })).toBeInTheDocument();
-      expect(screen.getByText(/No project blueprints yet/i)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Custom jigs" })).toBeInTheDocument();
+      expect(screen.getByText(/No project jigs yet/i)).toBeInTheDocument();
     });
 
-    it("links the New blueprint button to the project-scoped editor route", () => {
+    it("links the New jig button to the project-scoped editor route", () => {
       renderTab("my-app");
-      const link = screen.getByRole("link", { name: /new blueprint/i });
-      expect(link).toHaveAttribute("href", "/projects/my-app/blueprints/new");
+      const link = screen.getByRole("link", { name: /new jig/i });
+      expect(link).toHaveAttribute("href", "/projects/my-app/jigs/new");
     });
 
-    it("renders only project-source blueprints and uses project-scoped edit links", () => {
-      mockBlueprintsResult.data = [
+    it("renders only project-source jigs and uses project-scoped edit links", () => {
+      mockJigsResult.data = [
         {
           id: "bp-app",
-          name: "App blueprint",
+          name: "App jig",
           description: "from app",
           icon: "file-text",
           source: "app",
         },
         {
           id: "bp-proj",
-          name: "Project blueprint",
+          name: "Project jig",
           description: "from repo",
           icon: "file-text",
           source: "project",
         },
       ];
       renderTab("my-app");
-      expect(screen.getByText("Project blueprint")).toBeInTheDocument();
-      expect(screen.queryByText("App blueprint")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Edit Project blueprint/i })).toHaveAttribute(
+      expect(screen.getByText("Project jig")).toBeInTheDocument();
+      expect(screen.queryByText("App jig")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Edit Project jig/i })).toHaveAttribute(
         "href",
-        "/projects/my-app/blueprints/edit/bp-proj",
+        "/projects/my-app/jigs/edit/bp-proj",
       );
     });
 
     it("opens the delete dialog when Delete is clicked", async () => {
-      mockBlueprintsResult.data = [
+      mockJigsResult.data = [
         {
           id: "bp-proj",
-          name: "Project blueprint",
+          name: "Project jig",
           description: "from repo",
           icon: "file-text",
           source: "project",
@@ -519,8 +519,8 @@ describe("ProjectSettingsTab", () => {
       ];
       const user = userEvent.setup();
       renderTab();
-      await user.click(screen.getByRole("button", { name: /Delete Project blueprint/i }));
-      expect(screen.getByTestId("delete-blueprint-dialog")).toHaveTextContent("Project blueprint");
+      await user.click(screen.getByRole("button", { name: /Delete Project jig/i }));
+      expect(screen.getByTestId("delete-jig-dialog")).toHaveTextContent("Project jig");
     });
   });
 });

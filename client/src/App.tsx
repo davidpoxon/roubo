@@ -9,7 +9,7 @@ import ProjectSettingsTab from "./components/ProjectSettingsTab";
 import ProjectSettings from "./components/ProjectSettings";
 import UpdatesPage from "./components/UpdatesPage";
 import BenchDetail from "./components/BenchDetail";
-import BlueprintEditor from "./components/blueprint-editor/BlueprintEditor";
+import JigEditor from "./components/jig-editor/JigEditor";
 import { useThemeSync } from "./hooks/useSettings";
 import { useNotificationStream } from "./hooks/useNotificationStream";
 import { useAppBadge } from "./hooks/useAppBadge";
@@ -84,21 +84,15 @@ export default function App() {
               <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
               <Route path="/settings" element={<ProjectSettings />} />
               <Route path="/updates" element={<UpdatesPage />} />
+              <Route path="/jigs/new" element={<JigEditor mode="create" scope="global" />} />
+              <Route path="/jigs/edit/:jigId" element={<JigEditor mode="edit" scope="global" />} />
               <Route
-                path="/blueprints/new"
-                element={<BlueprintEditor mode="create" scope="global" />}
+                path="/projects/:projectId/jigs/new"
+                element={<JigEditor mode="create" scope="project" />}
               />
               <Route
-                path="/blueprints/edit/:blueprintId"
-                element={<BlueprintEditor mode="edit" scope="global" />}
-              />
-              <Route
-                path="/projects/:projectId/blueprints/new"
-                element={<BlueprintEditor mode="create" scope="project" />}
-              />
-              <Route
-                path="/projects/:projectId/blueprints/edit/:blueprintId"
-                element={<BlueprintEditor mode="edit" scope="project" />}
+                path="/projects/:projectId/jigs/edit/:jigId"
+                element={<JigEditor mode="edit" scope="project" />}
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

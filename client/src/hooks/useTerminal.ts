@@ -16,13 +16,13 @@ export function useCreateTerminal() {
       projectId,
       benchId,
       command,
-      blueprintId,
+      jigId,
     }: {
       projectId: string;
       benchId: number;
       command?: string;
-      blueprintId?: string;
-    }) => api.createTerminal(projectId, benchId, command, blueprintId),
+      jigId?: string;
+    }) => api.createTerminal(projectId, benchId, command, jigId),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["terminals", vars.projectId, vars.benchId] });
     },

@@ -22,21 +22,21 @@ import type {
   AssignIssueResponse,
   GitHubProject,
   CreateBenchWithIssueResponse,
-  BlueprintMeta,
-  BlueprintDetail,
-  InjectBlueprintResponse,
-  BlueprintCreateRequest,
-  BlueprintUpdateRequest,
-  BlueprintDeleteConflictResponse,
-  BlueprintPreviewRequest,
-  BlueprintPreviewResponse,
+  JigMeta,
+  JigDetail,
+  InjectJigResponse,
+  JigCreateRequest,
+  JigUpdateRequest,
+  JigDeleteConflictResponse,
+  JigPreviewRequest,
+  JigPreviewResponse,
   UserPreferences,
   SettingsResponse,
   BenchNotification,
   ProjectPermissions,
   ProjectSettings,
   ProjectSettingsResponse,
-  ProjectDefaultBlueprintResponse,
+  ProjectDefaultJigResponse,
   ProjectIssueTypesV2Response,
   ProjectIssueTypeMappingsResponse,
   ProjectIntegrationState,
@@ -423,11 +423,11 @@ export function createTerminal(
   projectId: string,
   benchId: number,
   command?: string,
-  blueprintId?: string,
+  jigId?: string,
 ): Promise<TerminalCreateResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/terminals`, {
     method: "POST",
-    body: JSON.stringify({ command, ...(blueprintId ? { blueprintId } : {}) }),
+    body: JSON.stringify({ command, ...(jigId ? { jigId } : {}) }),
   });
 }
 
@@ -563,118 +563,108 @@ export function unassignIssue(projectId: string, benchId: number): Promise<Bench
   });
 }
 
-// Blueprints
-export function fetchGlobalBlueprints(): Promise<BlueprintMeta[]> {
-  return request("/blueprints");
+// Jigs
+export function fetchGlobalJigs(): Promise<JigMeta[]> {
+  return request("/jigs");
 }
 
-export function fetchBlueprints(projectId: string): Promise<BlueprintMeta[]> {
-  return request(`/projects/${projectId}/blueprints`);
+export function fetchJigs(projectId: string): Promise<JigMeta[]> {
+  return request(`/projects/${projectId}/jigs`);
 }
 
-export function fetchBlueprint(projectId: string, blueprintId: string): Promise<BlueprintDetail> {
-  return request(`/projects/${projectId}/blueprints/${blueprintId}`);
+export function fetchJig(projectId: string, jigId: string): Promise<JigDetail> {
+  return request(`/projects/${projectId}/jigs/${jigId}`);
 }
 
-export function injectBlueprint(
+export function injectJig(
   projectId: string,
   benchId: number,
-  blueprintId: string,
+  jigId: string,
   sessionId?: string,
-): Promise<InjectBlueprintResponse> {
-  return request(`/projects/${projectId}/benches/${benchId}/inject-blueprint`, {
+): Promise<InjectJigResponse> {
+  return request(`/projects/${projectId}/benches/${benchId}/inject-jig`, {
     method: "POST",
-    body: JSON.stringify({ blueprintId, ...(sessionId ? { sessionId } : {}) }),
+    body: JSON.stringify({ jigId, ...(sessionId ? { sessionId } : {}) }),
   });
 }
 
-export function fetchGlobalBlueprint(blueprintId: string): Promise<BlueprintDetail> {
-  return request(`/blueprints/${blueprintId}`);
+export function fetchGlobalJig(jigId: string): Promise<JigDetail> {
+  return request(`/jigs/${jigId}`);
 }
 
-export function createGlobalBlueprint(body: BlueprintCreateRequest): Promise<BlueprintDetail> {
-  return request("/blueprints", {
+export function createGlobalJig(body: JigCreateRequest): Promise<JigDetail> {
+  return request("/jigs", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateGlobalBlueprint(
-  blueprintId: string,
-  body: BlueprintUpdateRequest,
-): Promise<BlueprintDetail> {
-  return request(`/blueprints/${blueprintId}`, {
+export function updateGlobalJig(jigId: string, body: JigUpdateRequest): Promise<JigDetail> {
+  return request(`/jigs/${jigId}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
 }
 
-export function deleteGlobalBlueprint(blueprintId: string): Promise<void> {
-  return requestVoid(`/blueprints/${blueprintId}`, { method: "DELETE" });
+export function deleteGlobalJig(jigId: string): Promise<void> {
+  return requestVoid(`/jigs/${jigId}`, { method: "DELETE" });
 }
 
-export function createProjectBlueprint(
-  projectId: string,
-  body: BlueprintCreateRequest,
-): Promise<BlueprintDetail> {
-  return request(`/projects/${projectId}/blueprints`, {
+export function createProjectJig(projectId: string, body: JigCreateRequest): Promise<JigDetail> {
+  return request(`/projects/${projectId}/jigs`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateProjectBlueprint(
+export function updateProjectJig(
   projectId: string,
-  blueprintId: string,
-  body: BlueprintUpdateRequest,
-): Promise<BlueprintDetail> {
-  return request(`/projects/${projectId}/blueprints/${blueprintId}`, {
+  jigId: string,
+  body: JigUpdateRequest,
+): Promise<JigDetail> {
+  return request(`/projects/${projectId}/jigs/${jigId}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
 }
 
-export function deleteProjectBlueprint(projectId: string, blueprintId: string): Promise<void> {
-  return requestVoid(`/projects/${projectId}/blueprints/${blueprintId}`, {
+export function deleteProjectJig(projectId: string, jigId: string): Promise<void> {
+  return requestVoid(`/projects/${projectId}/jigs/${jigId}`, {
     method: "DELETE",
   });
 }
 
-export function isBlueprintReferencedError(err: unknown): err is ApiError & {
-  code: "BLUEPRINT_REFERENCED";
-  details: BlueprintDeleteConflictResponse;
+export function isJigReferencedError(err: unknown): err is ApiError & {
+  code: "JIG_REFERENCED";
+  details: JigDeleteConflictResponse;
 } {
   return (
     err instanceof ApiError &&
-    err.code === "BLUEPRINT_REFERENCED" &&
+    err.code === "JIG_REFERENCED" &&
     typeof err.details === "object" &&
     err.details !== null &&
-    Array.isArray((err.details as BlueprintDeleteConflictResponse).references)
+    Array.isArray((err.details as JigDeleteConflictResponse).references)
   );
 }
 
-export function previewBlueprint(
-  params: BlueprintPreviewRequest,
-): Promise<BlueprintPreviewResponse> {
-  return request("/blueprints/preview", {
+export function previewJig(params: JigPreviewRequest): Promise<JigPreviewResponse> {
+  return request("/jigs/preview", {
     method: "POST",
     body: JSON.stringify(params),
   });
 }
 
-export function fetchProjectDefaultBlueprint(
-  projectId: string,
-): Promise<ProjectDefaultBlueprintResponse> {
-  return request(`/projects/${projectId}/blueprints/default`);
+export function fetchProjectDefaultJig(projectId: string): Promise<ProjectDefaultJigResponse> {
+  return request(`/projects/${projectId}/jigs/default`);
 }
 
-export function updateProjectDefaultBlueprint(
+export function updateProjectDefaultJig(
   projectId: string,
-  blueprintId: string | null,
-): Promise<{ blueprintId: string | null }> {
-  return request(`/projects/${projectId}/blueprints/default`, {
+  jigId: string | null,
+): Promise<{ jigId: string | null }> {
+  return request(`/projects/${projectId}/jigs/default`, {
     method: "PUT",
-    body: JSON.stringify({ blueprintId }),
+    body: JSON.stringify({ jigId }),
   });
 }
 
@@ -685,14 +675,14 @@ export function fetchIssueTypes(projectId: string): Promise<ProjectIssueTypesV2R
 export function fetchProjectIssueTypeMappings(
   projectId: string,
 ): Promise<ProjectIssueTypeMappingsResponse> {
-  return request(`/projects/${projectId}/blueprints/issue-type-mappings`);
+  return request(`/projects/${projectId}/jigs/issue-type-mappings`);
 }
 
 export function updateProjectIssueTypeMappings(
   projectId: string,
   mappings: Record<string, string>,
 ): Promise<ProjectIssueTypeMappingsResponse> {
-  return request(`/projects/${projectId}/blueprints/issue-type-mappings`, {
+  return request(`/projects/${projectId}/jigs/issue-type-mappings`, {
     method: "PUT",
     body: JSON.stringify({ mappings }),
   });

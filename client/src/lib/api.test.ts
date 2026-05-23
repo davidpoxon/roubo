@@ -46,13 +46,13 @@ import {
   fetchLabels,
   assignIssue,
   unassignIssue,
-  fetchGlobalBlueprints,
-  fetchBlueprints,
-  fetchBlueprint,
-  createProjectBlueprint,
-  updateProjectBlueprint,
-  deleteProjectBlueprint,
-  injectBlueprint,
+  fetchGlobalJigs,
+  fetchJigs,
+  fetchJig,
+  createProjectJig,
+  updateProjectJig,
+  deleteProjectJig,
+  injectJig,
   fetchSettings,
   updateSettings,
   fetchEnvKeys,
@@ -802,46 +802,43 @@ describe("unassignIssue", () => {
   });
 });
 
-describe("fetchGlobalBlueprints", () => {
-  it("sends GET to /api/blueprints", async () => {
+describe("fetchGlobalJigs", () => {
+  it("sends GET to /api/jigs", async () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchGlobalBlueprints();
-    expect(mockFetch).toHaveBeenCalledWith("/api/blueprints", expect.objectContaining({}));
+    await fetchGlobalJigs();
+    expect(mockFetch).toHaveBeenCalledWith("/api/jigs", expect.objectContaining({}));
   });
 });
 
-describe("fetchBlueprints", () => {
-  it("sends GET to /api/projects/:id/blueprints", async () => {
+describe("fetchJigs", () => {
+  it("sends GET to /api/projects/:id/jigs", async () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchBlueprints("p1");
+    await fetchJigs("p1");
+    expect(mockFetch).toHaveBeenCalledWith("/api/projects/p1/jigs", expect.objectContaining({}));
+  });
+});
+
+describe("fetchJig", () => {
+  it("sends GET to /api/projects/:id/jigs/:jigId", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({}));
+    await fetchJig("p1", "bp-1");
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/blueprints",
+      "/api/projects/p1/jigs/bp-1",
       expect.objectContaining({}),
     );
   });
 });
 
-describe("fetchBlueprint", () => {
-  it("sends GET to /api/projects/:id/blueprints/:blueprintId", async () => {
+describe("createProjectJig", () => {
+  it("sends POST to /api/projects/:id/jigs with the body", async () => {
     mockFetch.mockResolvedValue(jsonResponse({}));
-    await fetchBlueprint("p1", "bp-1");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/blueprints/bp-1",
-      expect.objectContaining({}),
-    );
-  });
-});
-
-describe("createProjectBlueprint", () => {
-  it("sends POST to /api/projects/:id/blueprints with the body", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({}));
-    await createProjectBlueprint("p1", {
+    await createProjectJig("p1", {
       name: "n",
       description: "d",
       content: "c",
     });
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/blueprints",
+      "/api/projects/p1/jigs",
       expect.objectContaining({ method: "POST" }),
     );
     const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
@@ -849,12 +846,12 @@ describe("createProjectBlueprint", () => {
   });
 });
 
-describe("updateProjectBlueprint", () => {
-  it("sends PUT to /api/projects/:id/blueprints/:blueprintId with the body", async () => {
+describe("updateProjectJig", () => {
+  it("sends PUT to /api/projects/:id/jigs/:jigId with the body", async () => {
     mockFetch.mockResolvedValue(jsonResponse({}));
-    await updateProjectBlueprint("p1", "bp-1", { name: "renamed" });
+    await updateProjectJig("p1", "bp-1", { name: "renamed" });
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/blueprints/bp-1",
+      "/api/projects/p1/jigs/bp-1",
       expect.objectContaining({ method: "PUT" }),
     );
     const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
@@ -862,33 +859,33 @@ describe("updateProjectBlueprint", () => {
   });
 });
 
-describe("deleteProjectBlueprint", () => {
-  it("sends DELETE to /api/projects/:id/blueprints/:blueprintId", async () => {
+describe("deleteProjectJig", () => {
+  it("sends DELETE to /api/projects/:id/jigs/:jigId", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
       statusText: "No Content",
       json: () => Promise.resolve(null),
     });
-    await deleteProjectBlueprint("p1", "bp-1");
+    await deleteProjectJig("p1", "bp-1");
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/blueprints/bp-1",
+      "/api/projects/p1/jigs/bp-1",
       expect.objectContaining({ method: "DELETE" }),
     );
   });
 });
 
-describe("injectBlueprint", () => {
+describe("injectJig", () => {
   it("includes sessionId in body when provided", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ success: true }));
-    await injectBlueprint("p1", 1, "bp-1", "sess-1");
+    await injectJig("p1", 1, "bp-1", "sess-1");
     const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
     expect(body.sessionId).toBe("sess-1");
   });
 
   it("omits sessionId from body when not provided", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ success: true }));
-    await injectBlueprint("p1", 1, "bp-1");
+    await injectJig("p1", 1, "bp-1");
     const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
     expect(body.sessionId).toBeUndefined();
   });

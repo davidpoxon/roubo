@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GLOBAL_DEFAULT_BLUEPRINT_ID } from "@roubo/shared";
+import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 
 vi.mock("./bench-manager.js", () => ({
   getBench: vi.fn(),
@@ -28,10 +28,10 @@ vi.mock("./state.js", () => ({
   getWorkspacePath: vi.fn().mockReturnValue("/workspaces/project/bench-0-issue-42-fix-login-bug"),
   getPersistedBenches: vi.fn().mockReturnValue([]),
   loadSettings: vi.fn().mockReturnValue({
-    blueprints: {
+    jigs: {
       autoExecute: true,
       autoInject: true,
-      defaultBlueprintId: "feature-dev",
+      defaultJigId: "feature-dev",
     },
   }),
 }));
@@ -62,10 +62,10 @@ vi.mock("./config-parser.js", () => ({
   }),
 }));
 
-vi.mock("./blueprint-manager.js", () => ({
-  getDefaultBlueprintId: vi.fn().mockReturnValue("feature-dev"),
-  resolveBlueprintForIssue: vi.fn().mockReturnValue({ blueprintId: "feature-dev", source: "app" }),
-  getBlueprint: vi.fn().mockReturnValue({
+vi.mock("./jig-manager.js", () => ({
+  getDefaultJigId: vi.fn().mockReturnValue("feature-dev"),
+  resolveJigForIssue: vi.fn().mockReturnValue({ jigId: "feature-dev", source: "app" }),
+  getJig: vi.fn().mockReturnValue({
     id: "feature-dev",
     name: "Feature Development",
     description: "Action a GitHub issue",
@@ -75,7 +75,7 @@ vi.mock("./blueprint-manager.js", () => ({
       "You are working on issue #{{issueNumber}}: {{issueTitle}}\n{{issueUrl}}\n{{issueBody}}\n{{comments}}",
     sizeBytes: 100,
   }),
-  resolveBlueprintContent: vi.fn(
+  resolveJigContent: vi.fn(
     (_content: string, ctx: Record<string, unknown>) =>
       `Issue #${ctx.issueNumber}: ${ctx.issueTitle}\n${ctx.issueUrl}\n${ctx.issueBody}\n${ctx.comments}`,
   ),
@@ -93,7 +93,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
 import * as githubService from "./github.js";
 import * as terminalService from "./terminal.js";
-import * as blueprintManager from "./blueprint-manager.js";
+import * as jigManager from "./jig-manager.js";
 import { runCommand } from "./exec.js";
 import fs from "node:fs";
 import { assignIssue, unassignIssue, createBenchAndAssignIssue } from "./issue-assignment.js";
@@ -338,7 +338,7 @@ describe("assignIssue", () => {
     await expect(assignIssue("project1", 1, 42)).rejects.toThrow("no repo");
   });
 
-  it("uses blueprint manager to load and resolve the blueprint", async () => {
+  it("uses jig manager to load and resolve the jig", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
@@ -369,13 +369,13 @@ describe("assignIssue", () => {
 
     await assignIssue("project1", 1, 42);
 
-    expect(blueprintManager.resolveBlueprintForIssue).toHaveBeenCalledWith(
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
       undefined,
       expect.anything(),
     );
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith("project1", "feature-dev");
-    expect(blueprintManager.resolveBlueprintContent).toHaveBeenCalled();
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "feature-dev");
+    expect(jigManager.resolveJigContent).toHaveBeenCalled();
   });
 
   it("includes comments in Claude Code prompt", async () => {
@@ -422,13 +422,13 @@ describe("assignIssue", () => {
     );
   });
 
-  it("passes blueprint as CLI arg when autoExecute is true", async () => {
+  it("passes jig as CLI arg when autoExecute is true", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: true,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
@@ -476,10 +476,10 @@ describe("assignIssue", () => {
   it("forwards claudeCode settings to createSession", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: true,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
       claudeCode: { enableAutoMode: true, startInPlanMode: false },
     });
@@ -524,14 +524,14 @@ describe("assignIssue", () => {
     );
   });
 
-  it("writes blueprint without executing when autoExecute is false", async () => {
+  it("writes jig without executing when autoExecute is false", async () => {
     vi.useFakeTimers();
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: false,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
@@ -574,12 +574,12 @@ describe("assignIssue", () => {
       undefined,
       undefined,
     );
-    // Blueprint not written yet (before timeout)
+    // Jig not written yet (before timeout)
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1500);
 
-    // Blueprint written without \r (no auto-execute)
+    // Jig written without \r (no auto-execute)
     expect(terminalService.writeToSession).toHaveBeenCalledWith(
       "term-1",
       expect.stringContaining("https://github.com/org/repo/issues/42"),
@@ -844,10 +844,10 @@ describe("createBenchAndAssignIssue", () => {
   it("leaves bench idle (no component start) when autoStartComponents is off — default", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: true,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
       benches: { autoStartComponents: false },
     });
@@ -878,10 +878,10 @@ describe("createBenchAndAssignIssue", () => {
   it("delegates to createBench when autoStartComponents is on — assignment is unchanged", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: true,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
       benches: { autoStartComponents: true },
     });
@@ -1131,13 +1131,13 @@ describe("createBenchAndAssignIssue", () => {
     );
   });
 
-  it("passes blueprint as CLI arg when autoExecute is true", async () => {
+  it("passes jig as CLI arg when autoExecute is true", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: true,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
     setupHappyPath();
@@ -1156,14 +1156,14 @@ describe("createBenchAndAssignIssue", () => {
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
   });
 
-  it("writes blueprint without executing when autoExecute is false", async () => {
+  it("writes jig without executing when autoExecute is false", async () => {
     vi.useFakeTimers();
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
-      blueprints: {
+      jigs: {
         autoExecute: false,
         autoInject: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
     setupHappyPath();
@@ -1180,12 +1180,12 @@ describe("createBenchAndAssignIssue", () => {
       undefined,
       undefined,
     );
-    // Blueprint not written yet (before timeout)
+    // Jig not written yet (before timeout)
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1500);
 
-    // Blueprint written without \r (no auto-execute)
+    // Jig written without \r (no auto-execute)
     expect(terminalService.writeToSession).toHaveBeenCalledWith(
       "term-1",
       expect.stringContaining("https://github.com/org/repo/issues/42"),
@@ -1350,7 +1350,7 @@ describe("unassignIssue", () => {
     expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
 
-  it("preserves injectedBlueprintId and injectedBlueprintSource when unassigning an issue", async () => {
+  it("preserves injectedJigId and injectedJigSource when unassigning an issue", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({
       id: 1,
       projectId: "project1",
@@ -1368,22 +1368,22 @@ describe("unassignIssue", () => {
         externalId: "42",
         title: "Fix it",
       },
-      injectedBlueprintId: "my-blueprint",
-      injectedBlueprintSource: "issue-type-mapping" as const,
+      injectedJigId: "my-jig",
+      injectedJigSource: "issue-type-mapping" as const,
     });
 
     await unassignIssue("project1", 1);
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
-        injectedBlueprintId: "my-blueprint",
-        injectedBlueprintSource: "issue-type-mapping",
+        injectedJigId: "my-jig",
+        injectedJigSource: "issue-type-mapping",
       }),
     );
   });
 });
 
-describe("default blueprint hierarchy injection", () => {
+describe("default jig hierarchy injection", () => {
   const project = {
     repoPath: "/repos/project",
     config: {
@@ -1443,10 +1443,10 @@ describe("default blueprint hierarchy injection", () => {
     });
   }
 
-  it("records the project-level default blueprint ID on the bench", async () => {
+  it("records the project-level default jig ID on the bench", async () => {
     setupHappyPath();
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
 
@@ -1454,14 +1454,14 @@ describe("default blueprint hierarchy injection", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBe("proj-blueprint");
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith("project1", "proj-blueprint");
+    expect(result.bench.injectedJigId).toBe("proj-jig");
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "proj-jig");
   });
 
-  it("records the app-level default blueprint ID on the bench", async () => {
+  it("records the app-level default jig ID on the bench", async () => {
     setupHappyPath();
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "app-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "app-jig",
       source: "app",
     });
 
@@ -1469,14 +1469,14 @@ describe("default blueprint hierarchy injection", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBe("app-blueprint");
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith("project1", "app-blueprint");
+    expect(result.bench.injectedJigId).toBe("app-jig");
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "app-jig");
   });
 
-  it("records the global default blueprint ID when no project or app default is set", async () => {
+  it("records the global default jig ID when no project or app default is set", async () => {
     setupHappyPath();
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: GLOBAL_DEFAULT_BLUEPRINT_ID,
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: GLOBAL_DEFAULT_JIG_ID,
       source: "global",
     });
 
@@ -1484,46 +1484,43 @@ describe("default blueprint hierarchy injection", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBe(GLOBAL_DEFAULT_BLUEPRINT_ID);
-    expect(blueprintManager.getBlueprint).toHaveBeenCalledWith(
-      "project1",
-      GLOBAL_DEFAULT_BLUEPRINT_ID,
-    );
+    expect(result.bench.injectedJigId).toBe(GLOBAL_DEFAULT_JIG_ID);
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", GLOBAL_DEFAULT_JIG_ID);
   });
 
-  it("persists the injected blueprint ID via updateBench", async () => {
+  it("persists the injected jig ID via updateBench", async () => {
     setupHappyPath();
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
 
     await createBenchAndAssignIssue("project1", 42);
 
     const calls = vi.mocked(stateService.updateBench).mock.calls;
-    const callWithBlueprint = calls.find(([arg]) => arg.injectedBlueprintId === "proj-blueprint");
-    expect(callWithBlueprint).toBeDefined();
+    const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
+    expect(callWithJig).toBeDefined();
   });
 
-  it("skips blueprint resolution and injection when autoInject is false", async () => {
+  it("skips jig resolution and injection when autoInject is false", async () => {
     setupHappyPath();
     vi.mocked(stateService.loadSettings).mockReturnValue({
-      blueprints: { autoInject: false, autoExecute: true },
+      jigs: { autoInject: false, autoExecute: true },
     });
 
     const result = await createBenchAndAssignIssue("project1", 42);
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBeUndefined();
-    expect(blueprintManager.resolveBlueprintForIssue).not.toHaveBeenCalled();
-    expect(blueprintManager.getBlueprint).not.toHaveBeenCalled();
+    expect(result.bench.injectedJigId).toBeUndefined();
+    expect(jigManager.resolveJigForIssue).not.toHaveBeenCalled();
+    expect(jigManager.getJig).not.toHaveBeenCalled();
   });
 
-  it("does not persist injectedBlueprintId when terminal session fails to spawn", async () => {
+  it("does not persist injectedJigId when terminal session fails to spawn", async () => {
     setupHappyPath();
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
     vi.mocked(terminalService.createSession).mockImplementation(() => {
@@ -1535,19 +1532,19 @@ describe("default blueprint hierarchy injection", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBeUndefined();
+    expect(result.bench.injectedJigId).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Failed to start Claude terminal"),
       expect.any(Error),
     );
   });
 
-  it("records injected blueprint ID on bench when assignIssue resolves via hierarchy", async () => {
+  it("records injected jig ID on bench when assignIssue resolves via hierarchy", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
-      blueprints: {
+      jigs: {
         autoInject: true,
         autoExecute: true,
-        defaultBlueprintId: "feature-dev",
+        defaultJigId: "feature-dev",
       },
     });
     const bench = {
@@ -1590,21 +1587,21 @@ describe("default blueprint hierarchy injection", () => {
       command: "claude",
       status: "live",
     });
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
 
     const result = await assignIssue("project1", 1, 42);
 
-    expect(result.bench.injectedBlueprintId).toBe("proj-blueprint");
+    expect(result.bench.injectedJigId).toBe("proj-jig");
     const calls = vi.mocked(stateService.updateBench).mock.calls;
-    const callWithBlueprint = calls.find(([arg]) => arg.injectedBlueprintId === "proj-blueprint");
-    expect(callWithBlueprint).toBeDefined();
+    const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
+    expect(callWithJig).toBeDefined();
   });
 });
 
-describe("issue-type-to-blueprint mapping resolution", () => {
+describe("issue-type-to-jig mapping resolution", () => {
   const project = {
     repoPath: "/repos/project",
     config: {
@@ -1664,29 +1661,29 @@ describe("issue-type-to-blueprint mapping resolution", () => {
     });
   }
 
-  it("passes the fetched issue type to resolveBlueprintForIssue and records source when type has a mapping", async () => {
+  it("passes the fetched issue type to resolveJigForIssue and records source when type has a mapping", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "bug-fix",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "bug-fix",
       source: "issue-type-mapping",
     });
 
     const result = await createBenchAndAssignIssue("project1", 42);
 
     expect(result.status).toBe("success");
-    expect(blueprintManager.resolveBlueprintForIssue).toHaveBeenCalledWith(
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
       "Bug",
       expect.anything(),
     );
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintId).toBe("bug-fix");
-    expect(result.bench.injectedBlueprintSource).toBe("issue-type-mapping");
+    expect(result.bench.injectedJigId).toBe("bug-fix");
+    expect(result.bench.injectedJigSource).toBe("issue-type-mapping");
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
-        injectedBlueprintId: "bug-fix",
-        injectedBlueprintSource: "issue-type-mapping",
+        injectedJigId: "bug-fix",
+        injectedJigSource: "issue-type-mapping",
       }),
     );
   });
@@ -1694,8 +1691,8 @@ describe("issue-type-to-blueprint mapping resolution", () => {
   it("records source from default hierarchy when issue type has no mapping", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Enhancement");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "feature-dev",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "feature-dev",
       source: "app",
     });
 
@@ -1703,39 +1700,39 @@ describe("issue-type-to-blueprint mapping resolution", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintSource).toBe("app");
+    expect(result.bench.injectedJigSource).toBe("app");
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "app" }),
+      expect.objectContaining({ injectedJigSource: "app" }),
     );
   });
 
   it("records source from default hierarchy when issue has no type", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue(null);
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "feature-dev",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "feature-dev",
       source: "app",
     });
 
     const result = await createBenchAndAssignIssue("project1", 42);
 
     expect(result.status).toBe("success");
-    expect(blueprintManager.resolveBlueprintForIssue).toHaveBeenCalledWith(
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
       undefined,
       expect.anything(),
     );
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintSource).toBe("app");
+    expect(result.bench.injectedJigSource).toBe("app");
   });
 
-  it("records source from default hierarchy when mapping points to a deleted blueprint (fallback)", async () => {
-    // Simulates resolveBlueprintForIssue logging a warning and falling through to the
-    // project-level default because the mapped blueprint ID no longer exists.
+  it("records source from default hierarchy when mapping points to a deleted jig (fallback)", async () => {
+    // Simulates resolveJigForIssue logging a warning and falling through to the
+    // project-level default because the mapped jig ID no longer exists.
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
 
@@ -1743,14 +1740,14 @@ describe("issue-type-to-blueprint mapping resolution", () => {
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.injectedBlueprintSource).toBe("project");
+    expect(result.bench.injectedJigSource).toBe("project");
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "project" }),
+      expect.objectContaining({ injectedJigSource: "project" }),
     );
   });
 });
 
-describe("issue-type-to-blueprint mapping resolution (assignIssue)", () => {
+describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
   const bench = {
     id: 1,
     projectId: "project1",
@@ -1810,27 +1807,27 @@ describe("issue-type-to-blueprint mapping resolution (assignIssue)", () => {
     });
   }
 
-  it("passes the fetched issue type to resolveBlueprintForIssue and records source when type has a mapping", async () => {
+  it("passes the fetched issue type to resolveJigForIssue and records source when type has a mapping", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "bug-fix",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "bug-fix",
       source: "issue-type-mapping",
     });
 
     const result = await assignIssue("project1", 1, 42);
 
-    expect(blueprintManager.resolveBlueprintForIssue).toHaveBeenCalledWith(
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
       "Bug",
       expect.anything(),
     );
-    expect(result.bench.injectedBlueprintId).toBe("bug-fix");
-    expect(result.bench.injectedBlueprintSource).toBe("issue-type-mapping");
+    expect(result.bench.injectedJigId).toBe("bug-fix");
+    expect(result.bench.injectedJigSource).toBe("issue-type-mapping");
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
-        injectedBlueprintId: "bug-fix",
-        injectedBlueprintSource: "issue-type-mapping",
+        injectedJigId: "bug-fix",
+        injectedJigSource: "issue-type-mapping",
       }),
     );
   });
@@ -1838,50 +1835,50 @@ describe("issue-type-to-blueprint mapping resolution (assignIssue)", () => {
   it("records source from default hierarchy when issue type has no mapping", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Enhancement");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "feature-dev",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "feature-dev",
       source: "app",
     });
 
     const result = await assignIssue("project1", 1, 42);
 
-    expect(result.bench.injectedBlueprintSource).toBe("app");
+    expect(result.bench.injectedJigSource).toBe("app");
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "app" }),
+      expect.objectContaining({ injectedJigSource: "app" }),
     );
   });
 
   it("records source from default hierarchy when issue has no type", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue(null);
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "feature-dev",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "feature-dev",
       source: "app",
     });
 
     const result = await assignIssue("project1", 1, 42);
 
-    expect(blueprintManager.resolveBlueprintForIssue).toHaveBeenCalledWith(
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
       undefined,
       expect.anything(),
     );
-    expect(result.bench.injectedBlueprintSource).toBe("app");
+    expect(result.bench.injectedJigSource).toBe("app");
   });
 
-  it("records source from default hierarchy when mapping points to a deleted blueprint (fallback)", async () => {
+  it("records source from default hierarchy when mapping points to a deleted jig (fallback)", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
-    vi.mocked(blueprintManager.resolveBlueprintForIssue).mockReturnValue({
-      blueprintId: "proj-blueprint",
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
       source: "project",
     });
 
     const result = await assignIssue("project1", 1, 42);
 
-    expect(result.bench.injectedBlueprintSource).toBe("project");
+    expect(result.bench.injectedJigSource).toBe("project");
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "project" }),
+      expect.objectContaining({ injectedJigSource: "project" }),
     );
   });
 });

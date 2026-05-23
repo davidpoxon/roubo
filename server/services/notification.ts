@@ -46,8 +46,8 @@ function persistBench(bench: Bench): void {
     workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
-    injectedBlueprintId: bench.injectedBlueprintId,
-    injectedBlueprintSource: bench.injectedBlueprintSource,
+    injectedJigId: bench.injectedJigId,
+    injectedJigSource: bench.injectedJigSource,
   });
 }
 

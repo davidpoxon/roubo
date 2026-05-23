@@ -149,12 +149,12 @@ describe("PUT /", () => {
     expect(res.body.error).toBe("Disk full");
   });
 
-  it("saves valid blueprints settings alongside theme", async () => {
-    const blueprints = { autoInject: true, autoExecute: false, defaultBlueprintId: "cleanup" };
-    const res = await request(app).put("/").send({ theme: "dark", blueprints });
+  it("saves valid jigs settings alongside theme", async () => {
+    const jigs = { autoInject: true, autoExecute: false, defaultJigId: "cleanup" };
+    const res = await request(app).put("/").send({ theme: "dark", jigs });
     expect(res.status).toBe(200);
-    expect(res.body.blueprints).toEqual(blueprints);
-    expect(state.saveSettings).toHaveBeenCalledWith({ theme: "dark", blueprints });
+    expect(res.body.jigs).toEqual(jigs);
+    expect(state.saveSettings).toHaveBeenCalledWith({ theme: "dark", jigs });
   });
 
   it("returns 400 when autoInject is not a boolean", async () => {
@@ -162,10 +162,10 @@ describe("PUT /", () => {
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: "yes", autoExecute: true, defaultBlueprintId: "feature-dev" },
+        jigs: { autoInject: "yes", autoExecute: true, defaultJigId: "feature-dev" },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint/i);
+    expect(res.body.error).toMatch(/invalid jig/i);
   });
 
   it("returns 400 when autoExecute is not a boolean", async () => {
@@ -173,83 +173,83 @@ describe("PUT /", () => {
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: 1, defaultBlueprintId: "feature-dev" },
+        jigs: { autoInject: true, autoExecute: 1, defaultJigId: "feature-dev" },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint/i);
+    expect(res.body.error).toMatch(/invalid jig/i);
   });
 
-  it("returns 400 when defaultBlueprintId is not a string", async () => {
+  it("returns 400 when defaultJigId is not a string", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: true, defaultBlueprintId: 42 },
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: 42 },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint/i);
+    expect(res.body.error).toMatch(/invalid jig/i);
   });
 
-  it("returns 400 when defaultBlueprintId contains invalid characters", async () => {
+  it("returns 400 when defaultJigId contains invalid characters", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: true, defaultBlueprintId: "My Blueprint!" },
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: "My Jig!" },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint/i);
+    expect(res.body.error).toMatch(/invalid jig/i);
   });
 
-  it("returns 400 when defaultBlueprintId is empty", async () => {
+  it("returns 400 when defaultJigId is empty", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: true, defaultBlueprintId: "" },
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: "" },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid blueprint/i);
+    expect(res.body.error).toMatch(/invalid jig/i);
   });
 
-  it("preserves existing blueprints settings when not provided in request", async () => {
-    const existingBlueprints = {
+  it("preserves existing jigs settings when not provided in request", async () => {
+    const existingJigs = {
       autoInject: false,
       autoExecute: false,
-      defaultBlueprintId: "push",
+      defaultJigId: "push",
     };
     vi.mocked(state.loadSettings).mockReturnValue({
       theme: "dark",
-      blueprints: existingBlueprints,
+      jigs: existingJigs,
     });
 
     const res = await request(app).put("/").send({ theme: "light" });
     expect(res.status).toBe(200);
-    expect(res.body.blueprints).toEqual(existingBlueprints);
+    expect(res.body.jigs).toEqual(existingJigs);
   });
 
-  it("accepts blueprints without defaultBlueprintId to clear the app default", async () => {
+  it("accepts jigs without defaultJigId to clear the app default", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: true },
+        jigs: { autoInject: true, autoExecute: true },
       });
     expect(res.status).toBe(200);
-    expect(res.body.blueprints.autoInject).toBe(true);
-    expect(res.body.blueprints.autoExecute).toBe(true);
-    expect(res.body.blueprints.defaultBlueprintId).toBeUndefined();
+    expect(res.body.jigs.autoInject).toBe(true);
+    expect(res.body.jigs.autoExecute).toBe(true);
+    expect(res.body.jigs.defaultJigId).toBeUndefined();
   });
 
-  it("accepts blueprints with null defaultBlueprintId to clear the app default", async () => {
+  it("accepts jigs with null defaultJigId to clear the app default", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: true, defaultBlueprintId: null },
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: null },
       });
     expect(res.status).toBe(200);
-    expect(res.body.blueprints.defaultBlueprintId).toBeUndefined();
+    expect(res.body.jigs.defaultJigId).toBeUndefined();
   });
 
   it("saves valid bench settings alongside theme", async () => {

@@ -7,13 +7,13 @@ import { renderWithProviders } from "../../test/renderWithProviders";
 import { IssueTypeMappingsSection } from "./IssueTypeMappingsSection";
 
 vi.mock("../../hooks/useIssueTypes");
-vi.mock("../../hooks/useBlueprints");
+vi.mock("../../hooks/useJigs");
 
 import { useIssueTypes } from "../../hooks/useIssueTypes";
-import { useBlueprints } from "../../hooks/useBlueprints";
+import { useJigs } from "../../hooks/useJigs";
 
 const mockedUseIssueTypes = vi.mocked(useIssueTypes);
-const mockedUseBlueprints = vi.mocked(useBlueprints);
+const mockedUseJigs = vi.mocked(useJigs);
 
 function renderSection(draft: Record<string, string>, onChange = vi.fn()) {
   return {
@@ -28,18 +28,18 @@ function renderSection(draft: Record<string, string>, onChange = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedUseBlueprints.mockReturnValue({
+  mockedUseJigs.mockReturnValue({
     data: [
       { id: "bp-bug", name: "Bug fix", description: "", icon: "bug" },
       { id: "bp-feat", name: "Feature dev", description: "", icon: "zap" },
     ],
     isLoading: false,
     isError: false,
-  } as unknown as ReturnType<typeof useBlueprints>);
+  } as unknown as ReturnType<typeof useJigs>);
 });
 
 describe("IssueTypeMappingsSection", () => {
-  it("shows type rows when types loaded but blueprints still loading", () => {
+  it("shows type rows when types loaded but jigs still loading", () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
         configured: true,
@@ -48,11 +48,11 @@ describe("IssueTypeMappingsSection", () => {
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useIssueTypes>);
-    mockedUseBlueprints.mockReturnValue({
+    mockedUseJigs.mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
-    } as unknown as ReturnType<typeof useBlueprints>);
+    } as unknown as ReturnType<typeof useJigs>);
     renderSection({});
     expect(screen.getByText("Bug")).toBeInTheDocument();
     expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
@@ -122,7 +122,7 @@ describe("IssueTypeMappingsSection", () => {
     renderSection({ Bug: "bp-bug" });
     expect(screen.getByText("Bug")).toBeInTheDocument();
     expect(screen.getByText("Feature")).toBeInTheDocument();
-    // Bug row's trigger button should show the mapped blueprint label
+    // Bug row's trigger button should show the mapped jig label
     expect(screen.getByRole("button", { name: /bug fix/i })).toBeInTheDocument();
   });
 
