@@ -6,6 +6,14 @@ import type { PluginRecord } from "@roubo/shared";
 import ToastProvider from "../../ToastProvider";
 
 vi.mock("../../../hooks/usePlugins");
+vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
+  useGlobalPluginIntegration: vi.fn().mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
+}));
 import {
   usePlugins as _usePlugins,
   useDisablePlugin as _useDisable,

@@ -1,7 +1,25 @@
 import { Router } from "express";
-import type { InstallErrorCode } from "@roubo/shared";
+import type {
+  GlobalPluginIntegrationState,
+  IntegrationConfig,
+  IntegrationConfigUpdate,
+  IntegrationOverride,
+  InstallErrorCode,
+} from "@roubo/shared";
+import { IntegrationConfigSchema } from "@roubo/shared";
+import { z } from "zod";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import {
+  IntegrationOverrideError,
+  loadGlobalOverride,
+  saveGlobalOverride,
+} from "../services/integration-overrides.js";
+import {
+  errorMessage,
+  persistSecretFields,
+  runIntegrationTest,
+} from "../services/integration-test.js";
 
 const router = Router();
 
@@ -207,6 +225,204 @@ router.get("/:id/logs", async (req, res) => {
     res.json({ lines: result });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// --- Global integration config (Plugins settings page) -----------------
+//
+// These endpoints back the Configure dialog when it is opened from the
+// global Plugins settings page rather than from a project's Issue source
+// tile. They write the per-plugin global default to
+// `~/.roubo/integrations/_global/{pluginId}.yaml`, which layers between
+// `roubo.yaml` and any per-project override in `getEffectiveWithGlobal`.
+// Sources are intentionally per-project and rejected here.
+
+const TestConnectionBodySchema = z
+  .object({
+    config: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+const GlobalConfigUpdateSchema = IntegrationConfigSchema.pick({
+  instance: true,
+  advanced: true,
+  capturedUserId: true,
+}).strict();
+
+function buildGlobalState(pluginId: string): GlobalPluginIntegrationState | null {
+  const record = pluginManager.listInstalled().find((r) => r.id === pluginId);
+  if (!record) return null;
+
+  let globalEnvelope: IntegrationOverride | null = null;
+  try {
+    globalEnvelope = loadGlobalOverride(pluginId);
+  } catch (err) {
+    if (!(err instanceof IntegrationOverrideError)) throw err;
+  }
+  const effective: IntegrationConfig = {
+    plugin: pluginId,
+    ...(globalEnvelope?.integration ?? {}),
+  };
+
+  return {
+    effective,
+    plugin: {
+      id: pluginId,
+      installed: true,
+      status: record.status,
+      manifest: record.manifest
+        ? {
+            name: record.manifest.name,
+            configSchema: record.manifest.configSchema,
+            permissions: record.manifest.permissions,
+          }
+        : null,
+    },
+  };
+}
+
+router.get("/:id/integration", (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  if (!known(id)) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+
+  try {
+    const state = buildGlobalState(id);
+    if (!state) {
+      res.status(404).json({ error: `Unknown plugin: ${id}` });
+      return;
+    }
+    res.json(state);
+  } catch (err) {
+    if (err instanceof IntegrationOverrideError) {
+      res.status(500).json({ error: err.message, code: err.code, fieldErrors: err.fieldErrors });
+      return;
+    }
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/:id/integration/test", async (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  const record = pluginManager.listInstalled().find((r) => r.id === id);
+  if (!record) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  if (record.status !== "enabled") {
+    res.status(503).json({
+      error: "plugin-not-enabled",
+      pluginId: id,
+      status: record.status,
+    });
+    return;
+  }
+
+  const parsed = TestConnectionBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body: { config: object } required" });
+    return;
+  }
+
+  try {
+    await persistSecretFields(id, record.manifest, parsed.data.config);
+  } catch (err) {
+    res.status(500).json({
+      error: "credential-store-failed",
+      message: errorMessage(err),
+    });
+    return;
+  }
+
+  const result = await runIntegrationTest(record, parsed.data.config);
+  res.json(result);
+});
+
+router.put("/:id/integration/config", (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  if (!known(id)) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+
+  // Reject `sources` explicitly — they are inherently per-project and the
+  // dialog never sends them in global mode, but a buggy client should get
+  // a clear 400 rather than silently writing an incoherent global file.
+  if (
+    req.body &&
+    typeof req.body === "object" &&
+    !Array.isArray(req.body) &&
+    "sources" in (req.body as Record<string, unknown>)
+  ) {
+    res.status(400).json({
+      error: "Invalid body: 'sources' may not be set on global configs (they are per-project)",
+    });
+    return;
+  }
+
+  const parsed = GlobalConfigUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "Invalid body",
+      fieldErrors: parsed.error.issues.map((i) => ({
+        path: i.path.join("."),
+        message: i.message,
+      })),
+    });
+    return;
+  }
+  const update = parsed.data as Omit<IntegrationConfigUpdate, "sources">;
+
+  try {
+    let existing: IntegrationOverride | null = null;
+    try {
+      existing = loadGlobalOverride(id);
+    } catch (err) {
+      if (!(err instanceof IntegrationOverrideError)) throw err;
+      // Treat a malformed existing file as "no existing override" so the
+      // user can recover by saving a fresh value.
+    }
+
+    const nextIntegration: IntegrationConfig = { ...(existing?.integration ?? {}) };
+    // Persist `plugin: id` so the file is self-describing even if it is
+    // ever read in isolation; the filename-encoded id remains the source
+    // of truth for the merge layer.
+    nextIntegration.plugin = id;
+    if (update.instance !== undefined) nextIntegration.instance = update.instance;
+    if (update.advanced !== undefined) nextIntegration.advanced = update.advanced;
+    if (update.capturedUserId !== undefined) {
+      nextIntegration.capturedUserId = update.capturedUserId;
+    }
+
+    const next: IntegrationOverride = { schemaVersion: 1, integration: nextIntegration };
+    saveGlobalOverride(id, next);
+
+    const state = buildGlobalState(id);
+    if (!state) {
+      res.status(500).json({ error: "Failed to load saved global state" });
+      return;
+    }
+    res.json(state);
+  } catch (err) {
+    if (err instanceof IntegrationOverrideError) {
+      res.status(400).json({ error: err.message, code: err.code, fieldErrors: err.fieldErrors });
+      return;
+    }
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 

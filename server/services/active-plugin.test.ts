@@ -6,7 +6,10 @@ vi.mock("./integration-overrides.js", async (importOriginal) => {
   return {
     ...original,
     loadOverride: vi.fn(),
-    getEffectiveIntegrationConfig: vi.fn((c, o) => ({ ...(c ?? {}), ...(o?.integration ?? {}) })),
+    getEffectiveWithGlobal: vi.fn((c, p) => ({
+      ...(c ?? {}),
+      ...(p?.integration ?? {}),
+    })),
   };
 });
 

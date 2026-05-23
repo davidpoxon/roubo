@@ -14,6 +14,10 @@ import {
   useSaveIntegrationConfig,
   useTestIntegrationConnection,
 } from "../hooks/useProjectIntegration";
+import {
+  useSaveGlobalPluginIntegration,
+  useTestGlobalPluginIntegration,
+} from "../hooks/useGlobalPluginIntegration";
 import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import ConfigSchemaForm from "./ConfigSchemaForm";
@@ -23,11 +27,18 @@ import { passwordFieldKeys } from "./config-schema-utils";
 
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
 
-interface Props {
-  projectId: string;
-  plugin: InstalledPlugin;
-  effective: IntegrationConfig;
-}
+type Props =
+  | {
+      scope: "project";
+      projectId: string;
+      plugin: InstalledPlugin;
+      effective: IntegrationConfig;
+    }
+  | {
+      scope: "global";
+      plugin: InstalledPlugin;
+      effective: IntegrationConfig;
+    };
 
 const KNOWN_TLS_FIELD_KEYS = ["allowSelfSignedTls", "allow_self_signed_tls", "allowSelfSignedTLS"];
 
@@ -89,7 +100,28 @@ function seedInitialValues(
   return out;
 }
 
-export default function PluginConfigureDialog({ projectId, plugin, effective }: Props) {
+export default function PluginConfigureDialog(props: Props) {
+  if (props.scope === "global") {
+    return <GlobalScopeDialog plugin={props.plugin} effective={props.effective} />;
+  }
+  return (
+    <ProjectScopeDialog
+      projectId={props.projectId}
+      plugin={props.plugin}
+      effective={props.effective}
+    />
+  );
+}
+
+function ProjectScopeDialog({
+  projectId,
+  plugin,
+  effective,
+}: {
+  projectId: string;
+  plugin: InstalledPlugin;
+  effective: IntegrationConfig;
+}) {
   // Hoist the mutations so the ModalOverlay can gate dismissal on the busy
   // state: Escape / overlay-click must not unmount the dialog mid-save or
   // mid-test, otherwise the in-flight request completes invisibly and any
@@ -109,6 +141,7 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
         <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
           {({ close }) => (
             <ConfigureFlow
+              mode="project"
               projectId={projectId}
               plugin={plugin}
               effective={effective}
@@ -116,6 +149,41 @@ export default function PluginConfigureDialog({ projectId, plugin, effective }: 
               testMutation={testMutation}
               saveMutation={saveMutation}
               saveSourcesMutation={saveSourcesMutation}
+            />
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function GlobalScopeDialog({
+  plugin,
+  effective,
+}: {
+  plugin: InstalledPlugin;
+  effective: IntegrationConfig;
+}) {
+  const testMutation = useTestGlobalPluginIntegration(plugin.id);
+  const saveMutation = useSaveGlobalPluginIntegration(plugin.id);
+  const isBusy = testMutation.isPending || saveMutation.isPending;
+
+  return (
+    <ModalOverlay
+      isDismissable={!isBusy}
+      isKeyboardDismissDisabled={isBusy}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
+      <Modal className="w-full max-w-lg mx-4">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+          {({ close }) => (
+            <ConfigureFlow
+              mode="global"
+              plugin={plugin}
+              effective={effective}
+              close={close}
+              testMutation={testMutation}
+              saveMutation={saveMutation}
             />
           )}
         </Dialog>
@@ -142,23 +210,28 @@ function hasAnyCandidates(data: SourceCandidatesResponse | undefined): boolean {
   return (data.categories ?? []).some((cat) => cat.items.length > 0);
 }
 
-function ConfigureFlow({
-  projectId,
-  plugin,
-  effective,
-  close,
-  testMutation,
-  saveMutation,
-  saveSourcesMutation,
-}: {
-  projectId: string;
-  plugin: InstalledPlugin;
-  effective: IntegrationConfig;
-  close: () => void;
-  testMutation: ReturnType<typeof useTestIntegrationConnection>;
-  saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
-  saveSourcesMutation: ReturnType<typeof useSaveProjectSources>;
-}) {
+type ConfigureFlowProps =
+  | {
+      mode: "project";
+      projectId: string;
+      plugin: InstalledPlugin;
+      effective: IntegrationConfig;
+      close: () => void;
+      testMutation: ReturnType<typeof useTestIntegrationConnection>;
+      saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
+      saveSourcesMutation: ReturnType<typeof useSaveProjectSources>;
+    }
+  | {
+      mode: "global";
+      plugin: InstalledPlugin;
+      effective: IntegrationConfig;
+      close: () => void;
+      testMutation: ReturnType<typeof useTestGlobalPluginIntegration>;
+      saveMutation: ReturnType<typeof useSaveGlobalPluginIntegration>;
+    };
+
+function ConfigureFlow(props: ConfigureFlowProps) {
+  const { mode, plugin, effective, close, testMutation, saveMutation } = props;
   const manifest = plugin.manifest;
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
@@ -188,9 +261,13 @@ function ConfigureFlow({
     lastTestedSnapshot !== null &&
     snapshotEquals(values, lastTestedSnapshot);
 
+  // Sources are inherently per-project, so the global Plugins-page Configure
+  // dialog never queries or renders them. Hooks must still be called
+  // unconditionally; passing `null` as the pluginId disables the underlying
+  // fetch and is supported by useSourceCandidates.
   const sourceCandidatesQuery = useSourceCandidates(
-    projectId,
-    hasTestedSuccessfully ? plugin.id : null,
+    mode === "project" ? props.projectId : "",
+    mode === "project" && hasTestedSuccessfully ? plugin.id : null,
   );
 
   function buildUpdate(
@@ -275,18 +352,25 @@ function ConfigureFlow({
     setSubmitError(null);
 
     // Instance/advanced + capturedUserId were already committed in `runTest`
-    // when the test passed, so Save is dedicated to persisting the source
-    // selection (or a no-op if the plugin doesn't expose sources).
+    // when the test passed. In project mode Save is dedicated to persisting
+    // the source selection; in global mode there's nothing left to persist
+    // (sources are per-project) so we just close.
+    if (mode === "global") {
+      close();
+      return;
+    }
     try {
-      await saveSourcesMutation.mutateAsync(sources);
+      await props.saveSourcesMutation.mutateAsync(sources);
       close();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
     }
   }
 
-  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesMutation.isPending;
+  const saveSourcesPending = mode === "project" ? props.saveSourcesMutation.isPending : false;
+  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesPending;
   const showSourcesSection =
+    mode === "project" &&
     hasTestedSuccessfully &&
     (sourceCandidatesQuery.isLoading || hasAnyCandidates(sourceCandidatesQuery.data));
 
@@ -295,6 +379,11 @@ function ConfigureFlow({
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
         <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
           Configure {manifest?.name ?? plugin.id}
+          {mode === "global" && (
+            <span className="ml-2 text-[11px] font-normal text-stone-400 dark:text-stone-500">
+              (global defaults)
+            </span>
+          )}
         </Heading>
       </div>
 
@@ -363,7 +452,7 @@ function ConfigureFlow({
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending || saveSourcesMutation.isPending ? "Saving…" : "Save"}
+            {saveMutation.isPending || saveSourcesPending ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>

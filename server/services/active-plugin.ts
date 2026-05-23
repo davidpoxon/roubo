@@ -1,6 +1,6 @@
 import * as projectRegistry from "./project-registry.js";
 import {
-  getEffectiveIntegrationConfig,
+  getEffectiveWithGlobal,
   loadOverride,
   IntegrationOverrideError,
 } from "./integration-overrides.js";
@@ -37,7 +37,7 @@ export function resolveActivePlugin(projectId: string): ActivePlugin | null {
     // settings UI is responsible for repairing the file).
   }
 
-  const effective = getEffectiveIntegrationConfig(project.config.integration, override);
+  const effective = getEffectiveWithGlobal(project.config.integration, override);
   if (!effective.plugin) return null;
 
   return {

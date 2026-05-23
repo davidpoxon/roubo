@@ -122,6 +122,7 @@ describe("getEffectiveIntegrationConfig", () => {
   it("TC-026: merges committed plugin/instance with override sources", () => {
     const effective = mod.getEffectiveIntegrationConfig(
       { plugin: "jira-self-hosted", instance: "https://jira.acme.com" },
+      null,
       { schemaVersion: 1, integration: { sources: { boards: [12] } } },
     );
     expect(effective).toEqual({
@@ -132,36 +133,191 @@ describe("getEffectiveIntegrationConfig", () => {
   });
 
   it("TC-027: arrays REPLACE rather than concat", () => {
-    const effective = mod.getEffectiveIntegrationConfig(
-      { sources: { boards: [12, 34] } },
-      { schemaVersion: 1, integration: { sources: { boards: [99] } } },
-    );
+    const effective = mod.getEffectiveIntegrationConfig({ sources: { boards: [12, 34] } }, null, {
+      schemaVersion: 1,
+      integration: { sources: { boards: [99] } },
+    });
     expect(effective.sources?.boards).toEqual([99]);
   });
 
   it("TC-065: empty array in override REPLACES non-empty committed array", () => {
-    const effective = mod.getEffectiveIntegrationConfig(
-      { sources: { boards: [12] } },
-      { schemaVersion: 1, integration: { sources: { boards: [] } } },
-    );
+    const effective = mod.getEffectiveIntegrationConfig({ sources: { boards: [12] } }, null, {
+      schemaVersion: 1,
+      integration: { sources: { boards: [] } },
+    });
     expect(effective.sources?.boards).toEqual([]);
   });
 
   it("returns the committed config when no override exists", () => {
     const committed = { plugin: "github-com", sources: { repos: ["a/b"] } };
-    expect(mod.getEffectiveIntegrationConfig(committed, null)).toEqual(committed);
+    expect(mod.getEffectiveIntegrationConfig(committed, null, null)).toEqual(committed);
   });
 
   it("returns the override integration when no committed config exists", () => {
     expect(
-      mod.getEffectiveIntegrationConfig(undefined, {
+      mod.getEffectiveIntegrationConfig(undefined, null, {
         schemaVersion: 1,
         integration: { plugin: "github-com" },
       }),
     ).toEqual({ plugin: "github-com" });
   });
 
-  it("returns an empty object when both sides are absent", () => {
-    expect(mod.getEffectiveIntegrationConfig(undefined, null)).toEqual({});
+  it("returns an empty object when all sides are absent", () => {
+    expect(mod.getEffectiveIntegrationConfig(undefined, null, null)).toEqual({});
+  });
+
+  it("layers committed ⊕ global ⊕ project — project beats global beats committed", () => {
+    const effective = mod.getEffectiveIntegrationConfig(
+      { plugin: "github-com", instance: "from-committed", pageSize: 10 },
+      {
+        schemaVersion: 1,
+        integration: { instance: "from-global", advanced: { token: "global" } },
+      },
+      { schemaVersion: 1, integration: { instance: "from-project" } },
+    );
+    expect(effective).toEqual({
+      plugin: "github-com",
+      instance: "from-project",
+      pageSize: 10,
+      advanced: { token: "global" },
+    });
+  });
+
+  it("applies a global override when no per-project override exists", () => {
+    const effective = mod.getEffectiveIntegrationConfig(
+      undefined,
+      {
+        schemaVersion: 1,
+        integration: { plugin: "github-com", instance: "from-global" },
+      },
+      null,
+    );
+    expect(effective).toEqual({ plugin: "github-com", instance: "from-global" });
+  });
+});
+
+const GLOBAL_DIR = `${OVERRIDES_DIR}/_global`;
+
+describe("loadGlobalOverride", () => {
+  it("returns null when no per-plugin global file exists", () => {
+    fsMocks.existsSync.mockReturnValue(false);
+    expect(mod.loadGlobalOverride("github-com")).toBeNull();
+  });
+
+  it("returns the parsed envelope when the file is valid", () => {
+    fsMocks.existsSync.mockReturnValue(true);
+    fsMocks.readFileSync.mockReturnValue(
+      "schemaVersion: 1\nintegration:\n  plugin: github-com\n  instance: from-global\n",
+    );
+    expect(mod.loadGlobalOverride("github-com")).toEqual({
+      schemaVersion: 1,
+      integration: { plugin: "github-com", instance: "from-global" },
+    });
+    expect(fsMocks.readFileSync).toHaveBeenCalledWith(`${GLOBAL_DIR}/github-com.yaml`, "utf-8");
+  });
+
+  it("throws IntegrationOverrideError with code SCHEMA on schema mismatch", () => {
+    fsMocks.existsSync.mockReturnValue(true);
+    fsMocks.readFileSync.mockReturnValue("schemaVersion: 1\nintegration: {}\nextra: true\n");
+    try {
+      mod.loadGlobalOverride("github-com");
+      throw new Error("expected throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(mod.IntegrationOverrideError);
+      expect((e as InstanceType<typeof mod.IntegrationOverrideError>).code).toBe("SCHEMA");
+    }
+  });
+
+  it("rejects path-traversal in pluginId", () => {
+    fsMocks.existsSync.mockReturnValue(false);
+    expect(() => mod.loadGlobalOverride("../evil")).toThrowError(/Invalid pluginId/);
+  });
+});
+
+describe("saveGlobalOverride", () => {
+  it("writes per-plugin YAML to ~/.roubo/integrations/_global/{pluginId}.yaml atomically", () => {
+    mod.saveGlobalOverride("github-com", {
+      schemaVersion: 1,
+      integration: { plugin: "github-com", instance: "from-global" },
+    });
+    expect(fsMocks.mkdirSync).toHaveBeenCalledWith(GLOBAL_DIR, { recursive: true });
+    expect(fsMocks.writeFileSync).toHaveBeenCalled();
+    const [tmpPath, contents] = fsMocks.writeFileSync.mock.calls[0];
+    expect(tmpPath).toBe(`${GLOBAL_DIR}/github-com.yaml.tmp`);
+    expect(contents).toContain("schemaVersion: 1");
+    expect(contents).toContain("plugin: github-com");
+    expect(fsMocks.renameSync).toHaveBeenCalledWith(
+      `${GLOBAL_DIR}/github-com.yaml.tmp`,
+      `${GLOBAL_DIR}/github-com.yaml`,
+    );
+  });
+
+  it("refuses to save an invalid envelope", () => {
+    expect(() =>
+      mod.saveGlobalOverride("github-com", {
+        // @ts-expect-error testing runtime rejection of wrong literal
+        schemaVersion: 2,
+        integration: {},
+      }),
+    ).toThrowError(/Refusing to save/);
+    expect(fsMocks.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("rejects path-traversal in pluginId", () => {
+    expect(() =>
+      mod.saveGlobalOverride("../evil", { schemaVersion: 1, integration: {} }),
+    ).toThrowError(/Invalid pluginId/);
+  });
+});
+
+describe("getEffectiveWithGlobal", () => {
+  it("layers per-plugin global when project override resolves a plugin id", () => {
+    fsMocks.existsSync.mockImplementation((p: string) => p === `${GLOBAL_DIR}/github-com.yaml`);
+    fsMocks.readFileSync.mockReturnValue(
+      "schemaVersion: 1\nintegration:\n  instance: from-global\n",
+    );
+
+    const effective = mod.getEffectiveWithGlobal(undefined, {
+      schemaVersion: 1,
+      integration: { plugin: "github-com" },
+    });
+    expect(effective).toEqual({ plugin: "github-com", instance: "from-global" });
+  });
+
+  it("project override wins over global override on conflicting fields", () => {
+    fsMocks.existsSync.mockImplementation((p: string) => p === `${GLOBAL_DIR}/github-com.yaml`);
+    fsMocks.readFileSync.mockReturnValue(
+      "schemaVersion: 1\nintegration:\n  instance: from-global\n",
+    );
+
+    const effective = mod.getEffectiveWithGlobal(undefined, {
+      schemaVersion: 1,
+      integration: { plugin: "github-com", instance: "from-project" },
+    });
+    expect(effective.instance).toBe("from-project");
+  });
+
+  it("swallows a malformed global file rather than crashing the project read", () => {
+    fsMocks.existsSync.mockImplementation((p: string) => p === `${GLOBAL_DIR}/github-com.yaml`);
+    fsMocks.readFileSync.mockReturnValue("schemaVersion: 1\nintegration: {}\nextra: true\n");
+
+    const effective = mod.getEffectiveWithGlobal(
+      { plugin: "github-com", instance: "from-committed" },
+      null,
+    );
+    expect(effective).toEqual({ plugin: "github-com", instance: "from-committed" });
+  });
+
+  it("returns committed ⊕ project when no plugin id resolves", () => {
+    fsMocks.existsSync.mockReturnValue(false);
+    expect(
+      mod.getEffectiveWithGlobal(
+        { instance: "from-committed" },
+        {
+          schemaVersion: 1,
+          integration: { advanced: { token: "p" } },
+        },
+      ),
+    ).toEqual({ instance: "from-committed", advanced: { token: "p" } });
   });
 });

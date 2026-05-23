@@ -109,6 +109,7 @@ function ConfiguredBody({
           <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
             <Button className={TRIGGER_BUTTON_CLASS}>Configure</Button>
             <PluginConfigureDialog
+              scope="project"
               projectId={projectId}
               plugin={plugin}
               effective={state.effective}

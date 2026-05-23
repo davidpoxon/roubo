@@ -16,6 +16,10 @@ import {
 } from "../hooks/useProjectIntegration";
 import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
+import {
+  useTestGlobalPluginIntegration,
+  useSaveGlobalPluginIntegration,
+} from "../hooks/useGlobalPluginIntegration";
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useTestIntegrationConnection: vi.fn(),
@@ -28,6 +32,12 @@ vi.mock("../hooks/useSourceCandidates", () => ({
 
 vi.mock("../hooks/useSaveProjectSources", () => ({
   useSaveProjectSources: vi.fn(),
+}));
+
+vi.mock("../hooks/useGlobalPluginIntegration", () => ({
+  useTestGlobalPluginIntegration: vi.fn(),
+  useSaveGlobalPluginIntegration: vi.fn(),
+  useGlobalPluginIntegration: vi.fn(),
 }));
 
 const mockedUseTest = vi.mocked(useTestIntegrationConnection);
@@ -89,7 +99,12 @@ function renderDialog({
       }}
     >
       <Button>Configure</Button>
-      <PluginConfigureDialog projectId="demo" plugin={plugin} effective={effective} />
+      <PluginConfigureDialog
+        scope="project"
+        projectId="demo"
+        plugin={plugin}
+        effective={effective}
+      />
     </DialogTrigger>,
   );
 }
@@ -454,5 +469,135 @@ describe("PluginConfigureDialog", () => {
       await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
       expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1"] });
     });
+  });
+});
+
+describe("PluginConfigureDialog (global scope)", () => {
+  const mockedUseGlobalTest = vi.mocked(useTestGlobalPluginIntegration);
+  const mockedUseGlobalSave = vi.mocked(useSaveGlobalPluginIntegration);
+
+  function installGlobalMocks(opts: {
+    test: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    testPending?: boolean;
+    savePending?: boolean;
+  }) {
+    mockedUseGlobalTest.mockReturnValue({
+      mutateAsync: opts.test,
+      isPending: opts.testPending ?? false,
+    } as unknown as ReturnType<typeof useTestGlobalPluginIntegration>);
+    mockedUseGlobalSave.mockReturnValue({
+      mutateAsync: opts.save,
+      isPending: opts.savePending ?? false,
+    } as unknown as ReturnType<typeof useSaveGlobalPluginIntegration>);
+    // Project-mode hooks must still be mocked since they're imported
+    // unconditionally by the dialog; they should never be called.
+    mockedUseTest.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useTestIntegrationConnection>);
+    mockedUseSave.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useSaveIntegrationConfig>);
+    mockedUseSaveSources.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useSaveProjectSources>);
+    mockedUseSourceCandidates.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useSourceCandidates>);
+  }
+
+  function renderGlobalDialog({
+    plugin = makePlugin(),
+    effective = { plugin: "ghe" } as IntegrationConfig,
+    onClose = vi.fn(),
+  }: {
+    plugin?: Plugin;
+    effective?: IntegrationConfig;
+    onClose?: () => void;
+  } = {}) {
+    return renderWithProviders(
+      <DialogTrigger
+        isOpen
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <Button>Configure</Button>
+        <PluginConfigureDialog scope="global" plugin={plugin} effective={effective} />
+      </DialogTrigger>,
+    );
+  }
+
+  it("never renders the Sources picker, even after a successful test", async () => {
+    const user = userEvent.setup();
+    const test = vi.fn().mockResolvedValue({
+      ok: true,
+      identity: { externalId: "u-1", displayName: "Jane Doe" },
+    });
+    const save = vi.fn().mockResolvedValue({});
+    installGlobalMocks({ test, save });
+
+    renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" } });
+
+    await user.click(screen.getByTestId("test-connection"));
+    await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
+    // Source candidates should never have been queried.
+    expect(mockedUseSourceCandidates).toHaveBeenCalledWith("", null);
+  });
+
+  it("invokes the global save mutation (not the project one) on a successful test", async () => {
+    const user = userEvent.setup();
+    const test = vi.fn().mockResolvedValue({
+      ok: true,
+      identity: { externalId: "u-7", displayName: "Globally Yours" },
+    });
+    const save = vi.fn().mockResolvedValue({});
+    installGlobalMocks({ test, save });
+
+    renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" } });
+
+    await user.click(screen.getByTestId("test-connection"));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].capturedUserId).toEqual({
+      externalId: "u-7",
+      displayName: "Globally Yours",
+    });
+    // The project-mode save mutation must NOT be touched.
+    expect(mockedUseSave("demo").mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("closes the dialog on Save without calling any sources mutation", async () => {
+    const user = userEvent.setup();
+    const test = vi.fn().mockResolvedValue({
+      ok: true,
+      identity: { externalId: "u-1", displayName: "Jane Doe" },
+    });
+    const save = vi.fn().mockResolvedValue({});
+    const onClose = vi.fn();
+    installGlobalMocks({ test, save });
+
+    renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" }, onClose });
+
+    await user.click(screen.getByTestId("test-connection"));
+    await waitFor(() => expect(screen.getByTestId("save-config")).not.toBeDisabled());
+
+    await user.click(screen.getByTestId("save-config"));
+    expect(onClose).toHaveBeenCalled();
+    // saveSourcesMutation belongs to the project scope and must remain untouched.
+    expect(mockedUseSaveSources("demo").mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("appends '(global defaults)' to the dialog title", () => {
+    installGlobalMocks({ test: vi.fn(), save: vi.fn() });
+    renderGlobalDialog();
+    expect(screen.getByText(/global defaults/i)).toBeInTheDocument();
   });
 });

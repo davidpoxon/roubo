@@ -11,6 +11,24 @@ vi.mock("../services/plugin-manager.js", () => ({
   restart: vi.fn(),
   readLogs: vi.fn(),
   uninstall: vi.fn(),
+  invoke: vi.fn(),
+}));
+
+vi.mock("../services/integration-overrides.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/integration-overrides.js")>(
+    "../services/integration-overrides.js",
+  );
+  return {
+    ...actual,
+    loadGlobalOverride: vi.fn(),
+    saveGlobalOverride: vi.fn(),
+  };
+});
+
+vi.mock("../services/integration-test.js", () => ({
+  errorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  persistSecretFields: vi.fn(),
+  runIntegrationTest: vi.fn(),
 }));
 
 vi.mock("../services/plugin-installer.js", async () => {
@@ -35,6 +53,8 @@ vi.mock("../services/plugin-installer.js", async () => {
 import router from "./plugins.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import * as integrationOverrides from "../services/integration-overrides.js";
+import * as integrationTest from "../services/integration-test.js";
 
 const app = express();
 app.use(express.json());
@@ -431,3 +451,171 @@ function stubRecord(overrides: Partial<PluginRecord>): PluginRecord {
     ...overrides,
   };
 }
+
+describe("GET /:id/integration", () => {
+  beforeEach(() => {
+    vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue(null);
+  });
+
+  it("returns 400 for an invalid plugin id", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).get("/INVALID/integration");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the plugin is not installed", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).get("/missing/integration");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns the effective config plus the plugin manifest snippet", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ manifest: stubManifest(), id: "github-com" }),
+    ]);
+    vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "github-com", instance: "from-global" },
+    });
+
+    const res = await request(app).get("/github-com/integration");
+    expect(res.status).toBe(200);
+    expect(res.body.effective).toEqual({ plugin: "github-com", instance: "from-global" });
+    expect(res.body.plugin.id).toBe("github-com");
+    expect(res.body.plugin.installed).toBe(true);
+    expect(res.body.plugin.manifest?.name).toBe("Echo");
+  });
+
+  it("returns the bare plugin field when no global override exists yet", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ manifest: stubManifest(), id: "github-com" }),
+    ]);
+
+    const res = await request(app).get("/github-com/integration");
+    expect(res.status).toBe(200);
+    expect(res.body.effective).toEqual({ plugin: "github-com" });
+  });
+});
+
+describe("POST /:id/integration/test", () => {
+  beforeEach(() => {
+    vi.mocked(integrationTest.persistSecretFields).mockReset();
+    vi.mocked(integrationTest.runIntegrationTest).mockReset();
+  });
+
+  it("rejects bad pluginId shape with 400", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).post("/Bad_Id/integration/test").send({ config: {} });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the plugin is not installed", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).post("/missing/integration/test").send({ config: {} });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 503 plugin-not-enabled when the plugin is disabled", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "github-com", manifest: stubManifest(), status: "disabled" }),
+    ]);
+    const res = await request(app).post("/github-com/integration/test").send({ config: {} });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("plugin-not-enabled");
+  });
+
+  it("rejects an invalid body", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "github-com", manifest: stubManifest() }),
+    ]);
+    const res = await request(app).post("/github-com/integration/test").send({ wrong: "field" });
+    expect(res.status).toBe(400);
+  });
+
+  it("persists secret fields, runs the integration test, and returns the result", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "github-com", manifest: stubManifest() }),
+    ]);
+    vi.mocked(integrationTest.persistSecretFields).mockResolvedValue();
+    vi.mocked(integrationTest.runIntegrationTest).mockResolvedValue({
+      ok: true,
+      identity: { displayName: "alice", externalId: "1" },
+    });
+
+    const res = await request(app)
+      .post("/github-com/integration/test")
+      .send({ config: { token: "secret" } });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(integrationTest.persistSecretFields).toHaveBeenCalledWith(
+      "github-com",
+      expect.objectContaining({ id: "echo" }),
+      { token: "secret" },
+    );
+  });
+
+  it("returns 500 if persisting secret fields fails", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "github-com", manifest: stubManifest() }),
+    ]);
+    vi.mocked(integrationTest.persistSecretFields).mockRejectedValue(new Error("keyring down"));
+
+    const res = await request(app).post("/github-com/integration/test").send({ config: {} });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("credential-store-failed");
+  });
+});
+
+describe("PUT /:id/integration/config", () => {
+  beforeEach(() => {
+    vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue(null);
+    vi.mocked(integrationOverrides.saveGlobalOverride).mockReset();
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "github-com", manifest: stubManifest() }),
+    ]);
+  });
+
+  it("rejects a body that includes `sources` (per-project only)", async () => {
+    const res = await request(app)
+      .put("/github-com/integration/config")
+      .send({ instance: "x", sources: { repos: ["a/b"] } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sources/);
+    expect(integrationOverrides.saveGlobalOverride).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty/unknown body with 400", async () => {
+    const res = await request(app).put("/github-com/integration/config").send({ bogus: 1 });
+    expect(res.status).toBe(400);
+    expect(integrationOverrides.saveGlobalOverride).not.toHaveBeenCalled();
+  });
+
+  it("saves instance + advanced + capturedUserId and stamps `plugin: id`", async () => {
+    const res = await request(app)
+      .put("/github-com/integration/config")
+      .send({
+        instance: "https://example",
+        advanced: { token: "t" },
+        capturedUserId: { displayName: "alice", externalId: "1" },
+      });
+    expect(res.status).toBe(200);
+    expect(integrationOverrides.saveGlobalOverride).toHaveBeenCalledWith(
+      "github-com",
+      expect.objectContaining({
+        schemaVersion: 1,
+        integration: expect.objectContaining({
+          plugin: "github-com",
+          instance: "https://example",
+          advanced: { token: "t" },
+          capturedUserId: { displayName: "alice", externalId: "1" },
+        }),
+      }),
+    );
+  });
+
+  it("returns 404 for an unknown plugin", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).put("/missing/integration/config").send({ instance: "x" });
+    expect(res.status).toBe(404);
+  });
+});

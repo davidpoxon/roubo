@@ -5,6 +5,9 @@ import userEvent from "@testing-library/user-event";
 import type { PluginRecord, PluginManifest, PluginStatus } from "@roubo/shared";
 
 vi.mock("../../../hooks/usePlugins");
+vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
+  useGlobalPluginIntegration: vi.fn(),
+}));
 import {
   useDisablePlugin as _useDisable,
   useEnablePlugin as _useEnable,
@@ -12,6 +15,7 @@ import {
   useUninstallPlugin as _useUninstall,
   usePluginLogs as _usePluginLogs,
 } from "../../../hooks/usePlugins";
+import { useGlobalPluginIntegration as _useGlobalIntegration } from "../../../hooks/useGlobalPluginIntegration";
 import PluginCard from "./PluginCard";
 
 const mockedEnable = vi.mocked(_useEnable);
@@ -19,6 +23,7 @@ const mockedDisable = vi.mocked(_useDisable);
 const mockedRestart = vi.mocked(_useRestart);
 const mockedUninstall = vi.mocked(_useUninstall);
 const mockedLogs = vi.mocked(_usePluginLogs);
+const mockedGlobalIntegration = vi.mocked(_useGlobalIntegration);
 
 function manifest(over: Partial<PluginManifest> = {}): PluginManifest {
   return {
@@ -79,6 +84,16 @@ beforeEach(() => {
     isFetching: false,
     refetch: vi.fn(),
   } as unknown as ReturnType<typeof _usePluginLogs>);
+  // The Configure button on the global Plugins page lazily fetches the
+  // effective config when the dialog opens. Default to "no data yet" so the
+  // PluginCard tests that never open Configure don't accidentally instantiate
+  // the dialog.
+  mockedGlobalIntegration.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof _useGlobalIntegration>);
 });
 
 describe("PluginCard (TC-001, TC-013, TC-018)", () => {
@@ -166,9 +181,40 @@ describe("PluginCard (TC-001, TC-013, TC-018)", () => {
     expect(uninstallMutate).not.toHaveBeenCalled();
   });
 
-  it("renders Configure as disabled (deferred to later WU)", () => {
+  it("renders Configure as enabled for an enabled plugin with a manifest", () => {
     render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Configure" })).not.toBeDisabled();
+  });
+
+  it("renders Configure as disabled for a disabled plugin", () => {
+    render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
     expect(screen.getByRole("button", { name: "Configure" })).toBeDisabled();
+  });
+
+  it("renders Configure as disabled when the plugin has no manifest (e.g. invalid)", () => {
+    render(
+      <PluginCard plugin={record({ manifest: null, status: "invalid" })} hostApiVersion="1.0.0" />,
+    );
+    expect(screen.getByRole("button", { name: "Configure" })).toBeDisabled();
+  });
+
+  it("lazily fetches the effective global config only after the Configure dialog opens", async () => {
+    const user = userEvent.setup();
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    // Before opening, the hook is called with enabled=false.
+    expect(mockedGlobalIntegration).toHaveBeenCalledWith("github-com", false);
+
+    await user.click(screen.getByRole("button", { name: "Configure" }));
+    // Latest call after opening should be enabled=true.
+    const lastCall = mockedGlobalIntegration.mock.calls.at(-1);
+    expect(lastCall).toEqual(["github-com", true]);
+  });
+
+  it("shows a loading dialog while the effective config is in flight, then renders the dialog", async () => {
+    const user = userEvent.setup();
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Configure" }));
+    expect(screen.getByRole("status").textContent).toMatch(/Loading plugin configuration/);
   });
 
   it("shows errored banner when status is errored (TC-016)", () => {
