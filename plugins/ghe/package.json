@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc --noEmit && tsup"
   },
   "dependencies": {
     "@roubo/plugin-sdk": "*",
@@ -21,6 +21,7 @@
     "octokit": "5.0.5"
   },
   "devDependencies": {
+    "tsup": "8.5.1",
     "typescript": "6.0.3"
   }
 }

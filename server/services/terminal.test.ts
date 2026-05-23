@@ -54,6 +54,7 @@ vi.mock("./bench-manager.js", () => ({
 
 vi.mock("./env.js", () => ({
   getClaudeBinary: () => "claude",
+  cleanEnv: vi.fn(() => ({})),
 }));
 
 const mockSpawn = vi.fn();
