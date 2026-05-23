@@ -1173,7 +1173,14 @@ describe("BenchDetail", () => {
       });
 
       it("shows Eye icon button for ignored unit and EyeOff for non-ignored unit", async () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr, ignoredUnit] } as never);
+        // ignoredUnit spreads workUnitWithPr, so both share submodule "api".
+        // Give the second a distinct submodule so React's list-key reconciliation
+        // sees two unique entries instead of two with the same key.
+        const ignoredUnitDistinct = { ...ignoredUnit, submodule: "api-ignored" };
+        renderBench({
+          ...baseBench,
+          workUnits: [workUnitWithPr, ignoredUnitDistinct],
+        } as never);
         await user.click(screen.getByRole("button", { name: /work units/i }));
         // Both rows have a toggle button; the ignored one should say "Resume" in tooltip
         const buttons = screen.getAllByRole("button", {

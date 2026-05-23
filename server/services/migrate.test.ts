@@ -188,6 +188,9 @@ describe("migrate.run — success path (TC-031)", () => {
       return { valid: true, config: { project: { github: { project: 7 } } } };
     });
     credentialMocks.set.mockResolvedValue();
+    // Warning the user about the skipped project IS the observable behavior
+    // here. Mock console.warn to keep test output clean and assert it fired.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const outcome = await mod.run();
 
@@ -199,6 +202,9 @@ describe("migrate.run — success path (TC-031)", () => {
       schemaVersion: 1,
       integration: { plugin: "github-com", sources: { project: ["7"] } },
     });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('migrate: skipping project "broken"'),
+    );
   });
 
   it("commits successfully even when post-commit auth.json delete fails", async () => {

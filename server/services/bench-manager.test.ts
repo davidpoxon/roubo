@@ -151,6 +151,13 @@ let fs: typeof import("node:fs");
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
+  // bench-manager logs intentional warn/error for failed git ops, worktree
+  // removes, permission injection, etc. All paths these tests deliberately
+  // exercise via mocks. Tests assert on the resulting bench state / retry
+  // behavior; the log text itself is not the contract.
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "debug").mockImplementation(() => {});
 
   benchManager = await import("./bench-manager.js");
   projectRegistry = await import("./project-registry.js");
