@@ -33,9 +33,11 @@ import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
+import migrationRouter from "./routes/migration.js";
 import * as blueprintManager from "./services/blueprint-manager.js";
 import * as autoClear from "./services/auto-clear.js";
 import * as pluginManager from "./services/plugin-manager.js";
+import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -89,6 +91,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", benchesSettingsRouter);
   app.use("/api/projects", integrationRouter);
   app.use("/api/plugins", pluginsRouter);
+  app.use("/api/migration", migrationRouter);
   app.use("/api/blueprints", appBlueprintsRouter);
   app.use("/api/containers", containersRouter);
   app.use("/api/filesystem/browse", filesystemRouter);
@@ -158,6 +161,20 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   console.log("Initializing project registry...");
   projectRegistry.initialize();
+
+  console.log("Running migration check...");
+  try {
+    const outcome = await migrate.run();
+    if (outcome.status === "success") {
+      console.log(
+        `Migration: bumped schemaVersion (${outcome.migratedProjectIds.length} projects)`,
+      );
+    } else if (outcome.status === "rolled-back") {
+      console.warn(`Migration rolled back: ${outcome.reason ?? "unknown error"}`);
+    }
+  } catch (err) {
+    console.error("Migration check failed:", (err as Error).message);
+  }
 
   console.log("Initializing plugin manager...");
   try {

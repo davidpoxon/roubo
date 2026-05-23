@@ -52,7 +52,13 @@ import type {
   LogLine,
   InstallPreview,
   InstallSource,
+  MigrationRecord,
 } from "@roubo/shared";
+
+export interface MigrationStatusResponse {
+  schemaVersion: number | null;
+  migration: MigrationRecord | null;
+}
 
 const BASE = "/api";
 
@@ -922,3 +928,8 @@ export function cancelInstallPlugin(stagingToken: string): Promise<void> {
 }
 
 export type { InstallPreview, InstallSource };
+
+// Migration (WU-024 / issue #42)
+export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
+  return request("/migration/status");
+}

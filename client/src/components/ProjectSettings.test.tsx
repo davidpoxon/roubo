@@ -10,6 +10,7 @@ import { DEFAULT_BLUEPRINT_SETTINGS, DEFAULT_CLAUDE_CODE_SETTINGS } from "@roubo
 
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(),
+  useLocation: vi.fn(() => ({ hash: "" })),
   Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => (
     <a href={to} className={className}>
       {children}
@@ -55,7 +56,7 @@ vi.mock("./DirectoryPicker", () => ({
   ),
 }));
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import {
   useGlobalBlueprints,
@@ -67,6 +68,7 @@ import { useToast } from "../hooks/useToast";
 import { ApiError } from "../lib/api";
 
 const mockedUseNavigate = vi.mocked(useNavigate);
+const mockedUseLocation = vi.mocked(useLocation);
 const mockedUseSettings = vi.mocked(useSettings);
 const mockedUseGlobalBlueprints = vi.mocked(useGlobalBlueprints);
 const mockedUseDeleteGlobalBlueprint = vi.mocked(useDeleteGlobalBlueprint);
@@ -96,6 +98,7 @@ const noopMutation = {
 
 function setupDefaultMocks() {
   mockedUseNavigate.mockReturnValue(vi.fn());
+  mockedUseLocation.mockReturnValue({ hash: "" } as ReturnType<typeof useLocation>);
   mockedUseSettings.mockReturnValue({
     settings: defaultSettings,
     isLoading: false,
@@ -149,6 +152,21 @@ describe("ProjectSettings", () => {
     });
 
     it("defaults to the Bench Defaults tab", () => {
+      render();
+      expect(screen.getByRole("tab", { name: "Bench Defaults" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("pre-selects the Plugins tab when the URL hash is #plugins", () => {
+      mockedUseLocation.mockReturnValue({ hash: "#plugins" } as ReturnType<typeof useLocation>);
+      render();
+      expect(screen.getByRole("tab", { name: "Plugins" })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("ignores an unknown hash and falls back to the default tab", () => {
+      mockedUseLocation.mockReturnValue({ hash: "#bogus" } as ReturnType<typeof useLocation>);
       render();
       expect(screen.getByRole("tab", { name: "Bench Defaults" })).toHaveAttribute(
         "aria-selected",

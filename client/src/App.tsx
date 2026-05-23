@@ -14,6 +14,7 @@ import { useThemeSync } from "./hooks/useSettings";
 import { useNotificationStream } from "./hooks/useNotificationStream";
 import { useAppBadge } from "./hooks/useAppBadge";
 import { RegisterProjectModalProvider } from "./components/RegisterProjectModalProvider";
+import MigrationBanner from "./components/MigrationBanner";
 
 const MENU_NAV_ALLOWLIST = new Set(["/settings", "/updates"]);
 
@@ -68,6 +69,7 @@ export default function App() {
   return (
     <RegisterProjectModalProvider>
       <div className="flex flex-col h-screen">
+        <MigrationBanner />
         <TitleBar projectName={projectName} />
         <div className="flex flex-1 min-h-0">
           <ProjectSidebar />
