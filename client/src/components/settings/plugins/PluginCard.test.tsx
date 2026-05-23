@@ -217,6 +217,27 @@ describe("PluginCard (TC-001, TC-013, TC-018)", () => {
     expect(screen.getByRole("status").textContent).toMatch(/Loading plugin configuration/);
   });
 
+  it("shows an error dialog with Retry and Close affordances when the effective config fetch fails", async () => {
+    const user = userEvent.setup();
+    const refetch = vi.fn();
+    mockedGlobalIntegration.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("Boom: integration manifest missing"),
+      refetch,
+    } as unknown as ReturnType<typeof _useGlobalIntegration>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Configure" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText(/Couldn't load plugin configuration/)).toBeTruthy();
+    expect(within(dialog).getByText(/Boom: integration manifest missing/)).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("shows errored banner when status is errored (TC-016)", () => {
     render(<PluginCard plugin={record({ status: "errored" })} hostApiVersion="1.0.0" />);
     expect(screen.getByTestId("plugin-errored-banner")).toBeTruthy();

@@ -359,7 +359,7 @@ router.put("/:id/integration/config", (req, res) => {
     return;
   }
 
-  // Reject `sources` explicitly — they are inherently per-project and the
+  // Reject `sources` explicitly. They are inherently per-project and the
   // dialog never sends them in global mode, but a buggy client should get
   // a clear 400 rather than silently writing an incoherent global file.
   if (

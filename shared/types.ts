@@ -181,7 +181,7 @@ export interface ProjectIntegrationState {
 }
 
 /**
- * Result of GET /api/plugins/:pluginId/integration — the global-defaults
+ * Result of GET /api/plugins/:pluginId/integration: the global-defaults
  * read used by the Plugins settings page's Configure dialog. Mirrors the
  * `plugin` and `effective` shape of `ProjectIntegrationState` so the
  * existing dialog can seed itself the same way, but omits the

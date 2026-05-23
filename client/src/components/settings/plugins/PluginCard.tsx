@@ -108,7 +108,14 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         {isEnabled && plugin.manifest ? (
           <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
             <Button className={ACTION_BUTTON_CLASS}>Configure</Button>
-            {globalIntegrationQuery.data ? (
+            {globalIntegrationQuery.isError ? (
+              <ConfigureErrorDialog
+                error={globalIntegrationQuery.error}
+                onRetry={() => {
+                  void globalIntegrationQuery.refetch();
+                }}
+              />
+            ) : globalIntegrationQuery.data ? (
               <PluginConfigureDialog
                 scope="global"
                 plugin={globalIntegrationQuery.data.plugin}
@@ -178,6 +185,41 @@ function ConfigureLoadingDialog() {
             <Spinner />
             Loading plugin configuration…
           </div>
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const message = error instanceof Error ? error.message : "Failed to load plugin configuration";
+  return (
+    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <Modal className="w-full max-w-sm mx-4">
+        <Dialog
+          role="alertdialog"
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
+        >
+          {({ close }) => (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h2 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                  Couldn't load plugin configuration
+                </h2>
+                <p className="mt-2 text-xs text-stone-600 dark:text-stone-400 break-words">
+                  {message}
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button onPress={close} className={ACTION_BUTTON_CLASS}>
+                  Close
+                </Button>
+                <Button onPress={onRetry} className={ACTION_BUTTON_CLASS}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
         </Dialog>
       </Modal>
     </ModalOverlay>

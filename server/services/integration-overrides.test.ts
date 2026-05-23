@@ -166,7 +166,7 @@ describe("getEffectiveIntegrationConfig", () => {
     expect(mod.getEffectiveIntegrationConfig(undefined, null, null)).toEqual({});
   });
 
-  it("layers committed ⊕ global ⊕ project — project beats global beats committed", () => {
+  it("layers committed ⊕ global ⊕ project: project beats global beats committed", () => {
     const effective = mod.getEffectiveIntegrationConfig(
       { plugin: "github-com", instance: "from-committed", pageSize: 10 },
       {
