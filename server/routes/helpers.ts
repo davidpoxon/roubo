@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import * as blueprintManager from "../services/blueprint-manager.js";
+import * as jigManager from "../services/jig-manager.js";
 
 export class RouteError extends Error {
   constructor(
@@ -16,14 +16,12 @@ export function parseIntParam(value: string, name: string): number {
   return n;
 }
 
-export const VALID_BLUEPRINT_ID = /^[a-z0-9_-]+$/;
+export const VALID_JIG_ID = /^[a-z0-9_-]+$/;
 
-export function handleBlueprintError(res: Response, err: unknown): void {
-  if (err instanceof blueprintManager.BlueprintError) {
+export function handleJigError(res: Response, err: unknown): void {
+  if (err instanceof jigManager.JigError) {
     if (err.code === "REFERENCED") {
-      res
-        .status(409)
-        .json({ error: err.message, code: "BLUEPRINT_REFERENCED", references: err.data });
+      res.status(409).json({ error: err.message, code: "JIG_REFERENCED", references: err.data });
       return;
     }
     const statusMap: Record<string, number> = {

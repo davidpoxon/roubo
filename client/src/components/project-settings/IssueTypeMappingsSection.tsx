@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useIssueTypes } from "../../hooks/useIssueTypes";
-import { useBlueprints } from "../../hooks/useBlueprints";
+import { useJigs } from "../../hooks/useJigs";
 import Spinner from "../Spinner";
 import Select from "../Select";
 
@@ -29,21 +29,21 @@ export function IssueTypeMappingsSection({
     isLoading: isLoadingTypes,
     isError: isTypesError,
   } = useIssueTypes(projectId);
-  const { data: blueprints } = useBlueprints(projectId);
+  const { data: jigs } = useJigs(projectId);
 
   const isLoading = isLoadingTypes;
 
-  const blueprintItems = [
+  const jigItems = [
     { value: USE_DEFAULT_VALUE, label: "Use default" },
-    ...(blueprints ?? []).map((bp) => ({ value: bp.id, label: bp.name })),
+    ...(jigs ?? []).map((bp) => ({ value: bp.id, label: bp.name })),
   ];
 
-  const handleRowChange = (typeName: string, blueprintId: string) => {
-    if (blueprintId === USE_DEFAULT_VALUE) {
+  const handleRowChange = (typeName: string, jigId: string) => {
+    if (jigId === USE_DEFAULT_VALUE) {
       const next = Object.fromEntries(Object.entries(draft).filter(([k]) => k !== typeName));
       onChange(next);
     } else {
-      onChange({ ...draft, [typeName]: blueprintId });
+      onChange({ ...draft, [typeName]: jigId });
     }
   };
 
@@ -112,7 +112,7 @@ export function IssueTypeMappingsSection({
             </div>
             <Select
               className="flex-1"
-              items={blueprintItems}
+              items={jigItems}
               value={draft[typeName] ?? USE_DEFAULT_VALUE}
               onChange={(val) => handleRowChange(typeName, val)}
               placeholder="Use default"

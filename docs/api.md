@@ -67,7 +67,7 @@ The full TypeScript definitions live in [`shared/types.ts`](../shared/types.ts) 
   error?: string;
   provisioningSteps: ProvisioningStep[];
   teardownSteps: ProvisioningStep[];
-  // ... optional fields for meta-repo work units, blueprint tracking, etc.
+  // ... optional fields for meta-repo work units, jig tracking, etc.
 }
 ```
 
@@ -359,29 +359,29 @@ DELETE /api/projects/:projectId/benches/:id/inspection
 
 ---
 
-## Blueprints
+## Jigs
 
-Blueprints are sets of agent instructions Roubo can write into the bench workspace. Today the consumer is Claude Code; the format is generic Markdown so other tools can read it too.
+Jigs are sets of agent instructions Roubo can write into the bench workspace. Today the consumer is Claude Code; the format is generic Markdown so other tools can read it too.
 
-### List blueprints available to a project
-
-```
-GET /api/projects/:projectId/blueprints
-```
-
-### Inject a blueprint into a bench's workspace
+### List jigs available to a project
 
 ```
-POST /api/projects/:projectId/benches/:benchId/inject-blueprint
+GET /api/projects/:projectId/jigs
+```
+
+### Inject a jig into a bench's workspace
+
+```
+POST /api/projects/:projectId/benches/:benchId/inject-jig
 Content-Type: application/json
 
-{ "blueprintId": "standard", "sessionId": "optional-claude-session" }
+{ "jigId": "standard", "sessionId": "optional-claude-session" }
 ```
 
 Resolves template variables (`{{ports.*}}`, `{{workspace}}`, etc.) against the bench, optionally hydrates an `IssueContext` if the bench is assigned to a GitHub issue, and writes the resolved Markdown into the workspace so the AI coding tool picks it up on its next read.
 
-- `400` if `blueprintId` is missing or invalid
-- `404` if project, bench, or blueprint is not found
+- `400` if `jigId` is missing or invalid
+- `404` if project, bench, or jig is not found
 
 ---
 

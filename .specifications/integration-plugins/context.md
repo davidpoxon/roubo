@@ -6,7 +6,7 @@
 
 ## Problem
 
-Roubo today only knows how to pull issues from GitHub.com via the Roubo OAuth app. That cuts off the largest cohort of enterprise developers who would otherwise use the tool: people whose company runs GitHub Enterprise on-prem, or whose product team tracks work in self-hosted Jira. We lose those users at evaluation. The ones who push through end up mirroring tickets into a personal GitHub repo or creating benches without an attached issue, which breaks the workflows Roubo is good at (blocks/blocked-by enforcement, blueprint-by-issue-type, PR sync). Bolting on a second hardcoded integration is not the fix. We need an extensible plugin system so users can install official or community integrations without waiting for Roubo to ship them. The first shipment of that system delivers a runtime, three bundled integration plugins (GitHub.com, GitHub Enterprise, self-hosted Jira), and a documented SDK so power users can write their own.
+Roubo today only knows how to pull issues from GitHub.com via the Roubo OAuth app. That cuts off the largest cohort of enterprise developers who would otherwise use the tool: people whose company runs GitHub Enterprise on-prem, or whose product team tracks work in self-hosted Jira. We lose those users at evaluation. The ones who push through end up mirroring tickets into a personal GitHub repo or creating benches without an attached issue, which breaks the workflows Roubo is good at (blocks/blocked-by enforcement, jig-by-issue-type, PR sync). Bolting on a second hardcoded integration is not the fix. We need an extensible plugin system so users can install official or community integrations without waiting for Roubo to ship them. The first shipment of that system delivers a runtime, three bundled integration plugins (GitHub.com, GitHub Enterprise, self-hosted Jira), and a documented SDK so power users can write their own.
 
 ## Users
 
@@ -140,7 +140,7 @@ A developer at a company using GHE or self-hosted Jira installs Roubo, opens set
 ## Adjacent work
 
 - The existing `server/services/github.ts`, `github-auth.ts`, and `issue-assignment.ts` are superseded by the new bundled GitHub.com plugin. The `githubRequest` helper currently at `server/services/github.ts:255` should be preserved verbatim inside the plugin to retain ETag caching, primary and secondary rate-limit backoff, 30-second TTL caches, GraphQL batching for blocking relationships, and GitHub Projects v2 pagination behaviours. Re-deriving these in a fresh implementation is a known risk.
-- The existing `/api/projects/:projectId/blueprints/issue-type-mappings` endpoints continue to operate; issue type strings are now sourced from the active integration plugin rather than hardcoded to GitHub.
+- The existing `/api/projects/:projectId/jigs/issue-type-mappings` endpoints continue to operate; issue type strings are now sourced from the active integration plugin rather than hardcoded to GitHub.
 - The `/api/projects/:projectId/permissions` endpoint comments hardcoded to "Claude Code" are flagged for generalization in the next slug (AI-agent plugins).
 - The `roubo.yaml` schema changes shape (a new optional `integration` block). The schema bump must be additive and backwards compatible; existing roubo.yaml files without an `integration` block must keep working.
 - Planned follow-on slugs: AI-agent plugins, then project-component plugins. The runtime, manifest schema, and permission vocabulary designed here must accommodate both without a host-API major-version bump.

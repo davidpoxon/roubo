@@ -335,11 +335,11 @@ describe("initialize", () => {
     expect(bench.notifications).toEqual([notification]);
   });
 
-  it("restores injectedBlueprintId from persisted state", () => {
+  it("restores injectedJigId from persisted state", () => {
     const config = makeConfig();
     const project = makeProject({ config });
     const persisted = makePersistedBench({
-      injectedBlueprintId: "my-blueprint",
+      injectedJigId: "my-jig",
     });
 
     vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
@@ -349,15 +349,15 @@ describe("initialize", () => {
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    expect(bench.injectedBlueprintId).toBe("my-blueprint");
+    expect(bench.injectedJigId).toBe("my-jig");
   });
 
-  it("restores injectedBlueprintSource from persisted state", () => {
+  it("restores injectedJigSource from persisted state", () => {
     const config = makeConfig();
     const project = makeProject({ config });
     const persisted = makePersistedBench({
-      injectedBlueprintId: "my-blueprint",
-      injectedBlueprintSource: "issue-type-mapping",
+      injectedJigId: "my-jig",
+      injectedJigSource: "issue-type-mapping",
     });
 
     vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
@@ -367,7 +367,7 @@ describe("initialize", () => {
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    expect(bench.injectedBlueprintSource).toBe("issue-type-mapping");
+    expect(bench.injectedJigSource).toBe("issue-type-mapping");
   });
 
   it("coerces missing componentSetupState to true (legacy migration)", () => {
@@ -4803,7 +4803,7 @@ describe("assignContainer", () => {
     expect(stateService.updateBench).toHaveBeenCalled();
   });
 
-  it("preserves injectedBlueprintSource in updateBench call", async () => {
+  it("preserves injectedJigSource in updateBench call", async () => {
     setupExistingBench({
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
@@ -4819,14 +4819,14 @@ describe("assignContainer", () => {
     ]);
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    bench.injectedBlueprintId = "my-blueprint";
-    bench.injectedBlueprintSource = "issue-type-mapping";
+    bench.injectedJigId = "my-jig";
+    bench.injectedJigSource = "issue-type-mapping";
 
     await benchManager.assignContainer("test-project", 1, "db", "abc123");
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
-        injectedBlueprintSource: "issue-type-mapping",
+        injectedJigSource: "issue-type-mapping",
       }),
     );
   });
@@ -4934,7 +4934,7 @@ describe("unassignContainer", () => {
     expect(stateService.updateBench).toHaveBeenCalled();
   });
 
-  it("preserves injectedBlueprintSource in updateBench call", async () => {
+  it("preserves injectedJigSource in updateBench call", async () => {
     setupExistingBench({
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
@@ -4948,13 +4948,13 @@ describe("unassignContainer", () => {
     bench.assignedContainers = {
       db: { containerId: "abc123", containerName: "my-postgres", port: 5433 },
     };
-    bench.injectedBlueprintId = "my-blueprint";
-    bench.injectedBlueprintSource = "project";
+    bench.injectedJigId = "my-jig";
+    bench.injectedJigSource = "project";
 
     await benchManager.unassignContainer("test-project", 1, "db");
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "project" }),
+      expect.objectContaining({ injectedJigSource: "project" }),
     );
   });
 });
@@ -5174,29 +5174,29 @@ describe("refreshWorkUnitBranch", () => {
     );
   });
 
-  it("preserves injectedBlueprintId in updateBench call", async () => {
+  it("preserves injectedJigId in updateBench call", async () => {
     const bench = makeBenchWithWorkUnits();
-    bench.injectedBlueprintId = "my-blueprint";
+    bench.injectedJigId = "my-jig";
     vi.mocked(gitHelpers.resolveHeadBranch).mockResolvedValue("new-branch");
 
     await benchManager.refreshWorkUnitBranch(bench, "api");
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintId: "my-blueprint" }),
+      expect.objectContaining({ injectedJigId: "my-jig" }),
     );
   });
 
-  it("preserves injectedBlueprintSource in updateBench call", async () => {
+  it("preserves injectedJigSource in updateBench call", async () => {
     const bench = makeBenchWithWorkUnits();
-    bench.injectedBlueprintId = "my-blueprint";
-    bench.injectedBlueprintSource = "issue-type-mapping";
+    bench.injectedJigId = "my-jig";
+    bench.injectedJigSource = "issue-type-mapping";
     vi.mocked(gitHelpers.resolveHeadBranch).mockResolvedValue("new-branch");
 
     await benchManager.refreshWorkUnitBranch(bench, "api");
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
-        injectedBlueprintSource: "issue-type-mapping",
+        injectedJigSource: "issue-type-mapping",
       }),
     );
   });
@@ -5276,15 +5276,15 @@ describe("setWorkUnitIgnoredForAutoClear", () => {
     expect(stateService.updateBench).not.toHaveBeenCalled();
   });
 
-  it("preserves injectedBlueprintSource in updateBench call", () => {
+  it("preserves injectedJigSource in updateBench call", () => {
     const bench = makeBenchWithWorkUnits();
-    bench.injectedBlueprintId = "my-blueprint";
-    bench.injectedBlueprintSource = "app";
+    bench.injectedJigId = "my-jig";
+    bench.injectedJigSource = "app";
 
     benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", true);
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "app" }),
+      expect.objectContaining({ injectedJigSource: "app" }),
     );
   });
 

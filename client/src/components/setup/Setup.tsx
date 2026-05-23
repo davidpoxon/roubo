@@ -26,7 +26,7 @@ import type { SetupYamlEditorRef } from "./SetupYamlEditor";
 import type { ValidationStatus, ValidationError } from "./SetupValidationPanel";
 import { computeImpact } from "./computeImpact";
 import SetupGuided from "./SetupGuided";
-import UnsavedChangesDialog from "../blueprint-editor/UnsavedChangesDialog";
+import UnsavedChangesDialog from "../jig-editor/UnsavedChangesDialog";
 
 export default function Setup() {
   const { projectId } = useParams<{ projectId: string }>();

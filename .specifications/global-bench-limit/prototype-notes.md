@@ -23,7 +23,7 @@ A scenario switcher at the top lets a reviewer flip between five rendered states
 
 The page renders one viewport, two side-by-side panels:
 
-- **Left panel — Settings · Benches tab.** Tabs row matching the production layout (Benches, Appearance, Blueprints, Integrations, Plugins, Claude Code). Under the active **Benches** tab: a `Global bench limit` field with a two-button **Unlimited / Limit** toggle and a numeric input. Validation message renders red below the input if the user types `0`, a negative number, or a non-integer. A Save button surfaces a transient "Saved" affordance.
+- **Left panel — Settings · Benches tab.** Tabs row matching the production layout (Benches, Appearance, Jigs, Integrations, Plugins, Claude Code). Under the active **Benches** tab: a `Global bench limit` field with a two-button **Unlimited / Limit** toggle and a numeric input. Validation message renders red below the input if the user types `0`, a negative number, or a non-integer. A Save button surfaces a transient "Saved" affordance.
 - **Right panel — Dashboard.** Toolbar with the **Global benches** meter on the left and the **+ New bench** button on the right. Under the toolbar, the per-project tile list with each project's per-project meter. Switching scenario in the top bar updates both panels in sync.
 
 (Add screenshots after running the prototype locally; the team's screenshot tool of choice is fine.)

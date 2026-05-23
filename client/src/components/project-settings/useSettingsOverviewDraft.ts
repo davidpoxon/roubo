@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { RegisteredProject, ProjectSettings } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 import { useProjectSettings } from "../../hooks/useProjectSettings";
-import { useUpdateProjectDefaultBlueprint } from "../../hooks/useProjectDefaultBlueprint";
+import { useUpdateProjectDefaultJig } from "../../hooks/useProjectDefaultJig";
 import { useUpdateProjectBenchOverrides } from "../../hooks/useProjectBenchOverrides";
 import { useIssueTypeMappings, useUpdateIssueTypeMappings } from "../../hooks/useIssueTypes";
 
@@ -20,7 +20,7 @@ function mappingsEqual(a: Record<string, string>, b: Record<string, string>): bo
 
 export function useSettingsOverviewDraft(projectId: string, project: RegisteredProject) {
   const { settings, updateSettingsAsync } = useProjectSettings(projectId);
-  const { mutateAsync: updateBlueprintAsync } = useUpdateProjectDefaultBlueprint(projectId);
+  const { mutateAsync: updateJigAsync } = useUpdateProjectDefaultJig(projectId);
   const { mutateAsync: updateBenchOverridesAsync } = useUpdateProjectBenchOverrides(projectId);
   const { data: issueTypeMappingsData } = useIssueTypeMappings(projectId);
   const { mutateAsync: updateIssueTypeMappingsAsync } = useUpdateIssueTypeMappings(projectId);
@@ -35,7 +35,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
 
   // Originals from server state
   const serverWorktreeSource = settings?.worktreeSource ?? DEFAULT_PROJECT_SETTINGS.worktreeSource;
-  const serverBlueprint: string | null = project.config?.blueprints?.defaultBlueprint ?? null;
+  const serverJig: string | null = project.config?.jigs?.defaultJig ?? null;
   const serverAutoClear: boolean | null = project.config?.benches?.autoClear ?? null;
   const serverEnforceIssueDependencies: boolean | null =
     project.config?.benches?.enforceIssueDependencies ?? null;
@@ -49,7 +49,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   const [draftWorktreeSourceRaw, setDraftWorktreeSourceRaw] = useState<
     ProjectSettings["worktreeSource"]
   >(DEFAULT_PROJECT_SETTINGS.worktreeSource);
-  const [draftBlueprintRaw, setDraftBlueprintRaw] = useState<string | null>(serverBlueprint);
+  const [draftJigRaw, setDraftJigRaw] = useState<string | null>(serverJig);
   const [draftAutoClearRaw, setDraftAutoClearRaw] = useState<boolean | null>(serverAutoClear);
   const [draftEnforceIssueDependenciesRaw, setDraftEnforceIssueDependenciesRaw] = useState<
     boolean | null
@@ -65,7 +65,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
 
   // Initialize worktreeSource draft once settings first loads.
   // Reset all drafts when projectId changes so the new project's values re-seed.
-  // serverBlueprint/serverAutoClear etc. are in deps so the effect reads current values;
+  // serverJig/serverAutoClear etc. are in deps so the effect reads current values;
   // the prevProjectIdRef guard ensures re-seeding only runs on projectId changes.
   const settingsLoadedRef = useRef(false);
   const issueTypeMappingsLoadedRef = useRef(false);
@@ -76,7 +76,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
       settingsLoadedRef.current = false;
       issueTypeMappingsLoadedRef.current = false;
       setIssueTypeMappingsLoaded(false);
-      setDraftBlueprintRaw(serverBlueprint);
+      setDraftJigRaw(serverJig);
       setDraftAutoClearRaw(serverAutoClear);
       setDraftEnforceIssueDependenciesRaw(serverEnforceIssueDependencies);
       setDraftWorkUnitAutoClearRaw(serverWorkUnitAutoClear);
@@ -84,7 +84,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     }
   }, [
     projectId,
-    serverBlueprint,
+    serverJig,
     serverAutoClear,
     serverEnforceIssueDependencies,
     serverWorkUnitAutoClear,
@@ -109,10 +109,10 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     setJustSaved(false);
     setDraftWorktreeSourceRaw(v);
   };
-  const setDraftBlueprint = (v: string | null) => {
+  const setDraftJig = (v: string | null) => {
     justSavedRef.current = false;
     setJustSaved(false);
-    setDraftBlueprintRaw(v);
+    setDraftJigRaw(v);
   };
   const setDraftAutoClear = (v: boolean | null) => {
     justSavedRef.current = false;
@@ -139,7 +139,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   const isWorktreeSourceDirty =
     draftWorktreeSourceRaw.branchFromDefault !== serverWorktreeSource.branchFromDefault ||
     draftWorktreeSourceRaw.pullLatest !== serverWorktreeSource.pullLatest;
-  const isBlueprintDirty = draftBlueprintRaw !== serverBlueprint;
+  const isJigDirty = draftJigRaw !== serverJig;
   const isAutoClearDirty = draftAutoClearRaw !== serverAutoClear;
   const isEnforceIssueDependenciesDirty =
     draftEnforceIssueDependenciesRaw !== serverEnforceIssueDependencies;
@@ -154,7 +154,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   // Uses justSaved state (not the ref) because refs cannot be read during render.
   const hasAnyDirty =
     (isWorktreeSourceDirty ||
-      isBlueprintDirty ||
+      isJigDirty ||
       isAutoClearDirty ||
       isEnforceIssueDependenciesDirty ||
       isWorkUnitAutoClearDirty ||
@@ -163,7 +163,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
 
   const discard = () => {
     setDraftWorktreeSourceRaw(serverWorktreeSource);
-    setDraftBlueprintRaw(serverBlueprint);
+    setDraftJigRaw(serverJig);
     setDraftAutoClearRaw(serverAutoClear);
     setDraftEnforceIssueDependenciesRaw(serverEnforceIssueDependencies);
     setDraftWorkUnitAutoClearRaw(serverWorkUnitAutoClear);
@@ -190,10 +190,10 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
         }),
       );
     }
-    if (isBlueprintDirty) {
+    if (isJigDirty) {
       tasks.push(
-        updateBlueprintAsync(draftBlueprintRaw).catch(() => {
-          failed.push("Blueprint override");
+        updateJigAsync(draftJigRaw).catch(() => {
+          failed.push("Jig override");
         }),
       );
     }
@@ -238,8 +238,8 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   return {
     draftWorktreeSource: draftWorktreeSourceRaw,
     setDraftWorktreeSource,
-    draftBlueprint: draftBlueprintRaw,
-    setDraftBlueprint,
+    draftJig: draftJigRaw,
+    setDraftJig,
     draftAutoClear: draftAutoClearRaw,
     setDraftAutoClear,
     draftEnforceIssueDependencies: draftEnforceIssueDependenciesRaw,
@@ -249,14 +249,14 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     draftIssueTypeMappings: draftIssueTypeMappingsRaw,
     setDraftIssueTypeMappings,
     originalWorktreeSource: serverWorktreeSource,
-    originalBlueprint: serverBlueprint,
+    originalJig: serverJig,
     originalAutoClear: serverAutoClear,
     originalEnforceIssueDependencies: serverEnforceIssueDependencies,
     originalWorkUnitAutoClear: serverWorkUnitAutoClear,
     originalIssueTypeMappings: serverIssueTypeMappings,
     hasAnyDirty,
     isWorktreeSourceDirty,
-    isBlueprintDirty,
+    isJigDirty,
     isAutoClearDirty,
     isEnforceIssueDependenciesDirty,
     isWorkUnitAutoClearDirty,

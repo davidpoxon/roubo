@@ -197,8 +197,8 @@ describe("createSession", () => {
     mockSpawn.mockReturnValue(pty);
     const { createSession } = await loadModule();
 
-    const longBlueprint = "x".repeat(150_000);
-    createSession("project1", 1, "/workspace", "My Project", "claude", longBlueprint);
+    const longJig = "x".repeat(150_000);
+    createSession("project1", 1, "/workspace", "My Project", "claude", longJig);
 
     const passedArgs = mockSpawn.mock.calls[0][1] as string[];
     // args: ['--session-id', uuid, truncatedInput]

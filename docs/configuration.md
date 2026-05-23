@@ -14,7 +14,7 @@ ports: # Port allocation bases per component
 tools: # Quick-open actions in the UI (browser, shell)
 inspection: # Test/QA command
 benches: # Bench cap, root setup command, auto-clear policy
-blueprints: # Optional: default AI coding agent blueprint and issue-type mappings
+jigs: # Optional: default AI coding agent jig and issue-type mappings
 users: # Optional: non-sensitive seed users
 ```
 
@@ -269,24 +269,24 @@ benches:
 
 ---
 
-## `blueprints`
+## `jigs`
 
-Optional AI coding agent configuration. Today this drives [Claude Code](../README.md#supported-ai-coding-tools) integration. Any tool that can read Markdown files from a workspace can consume the resolved blueprint content; the [API Reference](./api.md#blueprints) covers the inject endpoint.
+Optional AI coding agent configuration. Today this drives [Claude Code](../README.md#supported-ai-coding-tools) integration. Any tool that can read Markdown files from a workspace can consume the resolved jig content; the [API Reference](./api.md#jigs) covers the inject endpoint.
 
 ```yaml
-blueprints:
-  defaultBlueprint: standard
+jigs:
+  defaultJig: standard
   issueTypeMappings:
     Bug: bug-fix
     Feature: feature
 ```
 
-| Field               | Notes                                                         |
-| ------------------- | ------------------------------------------------------------- |
-| `defaultBlueprint`  | The blueprint name to use when no issue-type mapping matches. |
-| `issueTypeMappings` | Map of GitHub issue type name → blueprint name.               |
+| Field               | Notes                                                   |
+| ------------------- | ------------------------------------------------------- |
+| `defaultJig`        | The jig name to use when no issue-type mapping matches. |
+| `issueTypeMappings` | Map of GitHub issue type name → jig name.               |
 
-Blueprints themselves are managed through the Roubo UI under **Blueprints**. The `roubo.yaml` only declares which blueprint to inject for a given bench.
+Jigs themselves are managed through the Roubo UI under **Jigs**. The `roubo.yaml` only declares which jig to inject for a given bench.
 
 ---
 

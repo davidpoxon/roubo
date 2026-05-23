@@ -9,7 +9,7 @@ import {
 } from "../services/claude-version.js";
 import { THEME_MODES } from "@roubo/shared";
 import type { UserPreferences } from "@roubo/shared";
-import { VALID_BLUEPRINT_ID } from "./helpers.js";
+import { VALID_JIG_ID } from "./helpers.js";
 
 const router = Router();
 
@@ -36,19 +36,18 @@ router.put("/", (req, res) => {
       .json({ error: `Invalid theme value. Must be one of: ${THEME_MODES.join(", ")}` });
     return;
   }
-  if (body.blueprints !== undefined) {
-    const p = body.blueprints;
+  if (body.jigs !== undefined) {
+    const p = body.jigs;
     if (
       p === null ||
       typeof p.autoInject !== "boolean" ||
       typeof p.autoExecute !== "boolean" ||
-      (p.defaultBlueprintId != null &&
-        (typeof p.defaultBlueprintId !== "string" ||
-          !VALID_BLUEPRINT_ID.test(p.defaultBlueprintId)))
+      (p.defaultJigId != null &&
+        (typeof p.defaultJigId !== "string" || !VALID_JIG_ID.test(p.defaultJigId)))
     ) {
       res.status(400).json({
         error:
-          "Invalid blueprint settings: autoInject and autoExecute must be booleans, defaultBlueprintId must be a string or absent",
+          "Invalid jig settings: autoInject and autoExecute must be booleans, defaultJigId must be a string or absent",
       });
       return;
     }
@@ -103,14 +102,14 @@ router.put("/", (req, res) => {
   }
   try {
     const current = loadSettings();
-    let blueprints = body.blueprints ?? current.blueprints;
-    if (blueprints) {
-      const { defaultBlueprintId, ...rest } = blueprints;
-      blueprints = defaultBlueprintId != null ? { ...rest, defaultBlueprintId } : rest;
+    let jigs = body.jigs ?? current.jigs;
+    if (jigs) {
+      const { defaultJigId, ...rest } = jigs;
+      jigs = defaultJigId != null ? { ...rest, defaultJigId } : rest;
     }
     const updated: UserPreferences = {
       theme: body.theme,
-      blueprints,
+      jigs,
       benches: body.benches ?? current.benches,
       claudeCode: body.claudeCode ?? current.claudeCode,
       github: body.github ?? current.github,

@@ -486,6 +486,28 @@ describe("parseConfig", () => {
   });
 });
 
+describe("legacy blueprint key detection", () => {
+  it("rejects a config that still uses the top-level `blueprints:` key with a rename hint", () => {
+    const config = { ...makeConfig(), blueprints: { defaultBlueprint: "x" } };
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(false);
+    expect(result.errors?.[0]).toMatch(/blueprints:/);
+    expect(result.errors?.[0]).toMatch(/jigs:/);
+  });
+
+  it("rejects a config that still uses `project.blueprintSettings` with a rename hint", () => {
+    const base = makeConfig();
+    const config = {
+      ...base,
+      project: { ...base.project, blueprintSettings: { defaultBlueprintId: "x" } },
+    };
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(false);
+    expect(result.errors?.[0]).toMatch(/blueprintSettings/);
+    expect(result.errors?.[0]).toMatch(/jigs:/);
+  });
+});
+
 describe("users schema validation", () => {
   it("accepts a config with a valid users array", () => {
     const config = makeConfig({

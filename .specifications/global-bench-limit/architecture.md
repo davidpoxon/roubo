@@ -26,7 +26,7 @@ Server (read-only context for the implementer):
 - `server/services/issue-assignment.ts:177` — second call site of `benchManager.createBench`; propagates `BenchError` to the route layer unchanged.
 - `server/services/state.ts:183-217` — `loadSettings` and `saveSettings`. `loadSettings` already has the try/catch fail-open behaviour we need.
 - `server/services/auto-clear.ts` — only calls `teardownBench`; never calls `createBench`. Confirms the cap need not gate auto-clear.
-- `server/routes/settings.ts:31-123` — `PUT /api/settings`. Validates each sub-shape (theme, blueprints, benches, claudeCode, github). Mirrors the `github.issueTypesCacheTtlSeconds` integer pattern at lines 90-103.
+- `server/routes/settings.ts:31-123` — `PUT /api/settings`. Validates each sub-shape (theme, jigs, benches, claudeCode, github). Mirrors the `github.issueTypesCacheTtlSeconds` integer pattern at lines 90-103.
 - `server/routes/benches.ts:65-71` and `87-97` — `BenchError`-to-HTTP mapper for both the combined `create-and-assign` flow and the plain `POST /benches` flow.
 
 Shared:
@@ -76,7 +76,7 @@ Client:
 
 - **Path**: `server/routes/settings.ts` (extend the `body.benches` validation block at lines 56-70).
 - **Responsibility**: Reject malformed `maxGlobal` values with HTTP 400 before they reach `saveSettings`.
-- **Reuse vs new**: extension of the existing block. The validation rule mirrors the `github.issueTypesCacheTtlSeconds` pattern at lines 90-103: `Number.isInteger(v) && v >= 1`. `0`, negatives, non-integers, `NaN`, `Infinity` are rejected. `null` or `undefined` are accepted and mean unlimited; on `null` the field is stripped before persistence (consistent with how `blueprints.defaultBlueprintId` is conditionally included at lines 107-110).
+- **Reuse vs new**: extension of the existing block. The validation rule mirrors the `github.issueTypesCacheTtlSeconds` pattern at lines 90-103: `Number.isInteger(v) && v >= 1`. `0`, negatives, non-integers, `NaN`, `Infinity` are rejected. `null` or `undefined` are accepted and mean unlimited; on `null` the field is stripped before persistence (consistent with how `jigs.defaultJigId` is conditionally included at lines 107-110).
 - **Public interface**: HTTP contract unchanged. New 400 error message: `Invalid bench settings: maxGlobal must be a positive integer (>= 1) or null.`
 - **Dependencies**: `loadSettings`, `saveSettings`.
 

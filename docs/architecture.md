@@ -13,7 +13,7 @@ Roubo's vocabulary is deliberate; every term carries meaning. See [brand.md](./b
 | **Component**  | A running part of a bench, typically a database, backend, and frontend.                     |
 | **Tool**       | A quick-open action defined in `roubo.yaml`: open the browser, launch the IDE, run a shell. |
 | **Inspection** | Running quality checks (tests, lints) against the work on a bench.                          |
-| **Blueprint**  | AI coding agent instructions injected into a bench's workspace.                             |
+| **Jig**        | AI coding agent instructions injected into a bench's workspace.                             |
 | **Workspace**  | The git worktree directory on disk for a specific bench.                                    |
 
 A project can have multiple benches. Each bench is fully isolated from the others: its own worktree, its own port range, its own database container, its own running processes. This is the whole point of Roubo: you can run several agents (or several streams of your own work) against the same project, in parallel, with no collisions.

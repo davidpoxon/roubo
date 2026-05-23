@@ -23,8 +23,8 @@ import terminalRouter from "./routes/terminal.js";
 import inspectionRouter from "./routes/inspection.js";
 import issuesRouter from "./routes/issues.js";
 import settingsRouter from "./routes/settings.js";
-import blueprintsRouter from "./routes/blueprints.js";
-import appBlueprintsRouter from "./routes/app-blueprints.js";
+import jigsRouter from "./routes/jigs.js";
+import appJigsRouter from "./routes/app-jigs.js";
 import permissionsRouter from "./routes/permissions.js";
 import projectSettingsRouter from "./routes/project-settings.js";
 import benchesSettingsRouter from "./routes/benches-settings.js";
@@ -34,7 +34,7 @@ import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
 import migrationRouter from "./routes/migration.js";
-import * as blueprintManager from "./services/blueprint-manager.js";
+import * as jigManager from "./services/jig-manager.js";
 import * as autoClear from "./services/auto-clear.js";
 import * as pluginManager from "./services/plugin-manager.js";
 import * as githubService from "./services/github.js";
@@ -86,14 +86,14 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", terminalRouter);
   app.use("/api/projects", inspectionRouter);
   app.use("/api/projects", issuesRouter);
-  app.use("/api/projects", blueprintsRouter);
+  app.use("/api/projects", jigsRouter);
   app.use("/api/projects", permissionsRouter);
   app.use("/api/projects", projectSettingsRouter);
   app.use("/api/projects", benchesSettingsRouter);
   app.use("/api/projects", integrationRouter);
   app.use("/api/plugins", pluginsRouter);
   app.use("/api/migration", migrationRouter);
-  app.use("/api/blueprints", appBlueprintsRouter);
+  app.use("/api/jigs", appJigsRouter);
   app.use("/api/containers", containersRouter);
   app.use("/api/filesystem/browse", filesystemRouter);
   app.use("/api/settings", settingsRouter);
@@ -209,10 +209,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Loading persisted terminal sessions...");
   terminalService.loadPersistedSessions();
 
-  console.log("Starting blueprint watchers...");
-  blueprintManager.startAppBlueprintsWatcher();
+  console.log("Starting jig watchers...");
+  jigManager.startAppJigsWatcher();
   for (const project of projectRegistry.getProjects()) {
-    blueprintManager.startWatchers(project.id, project.repoPath);
+    jigManager.startWatchers(project.id, project.repoPath);
   }
 
   const statusInterval = setInterval(() => {
@@ -239,7 +239,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     clearInterval(statusInterval);
     clearInterval(idleDbInterval);
     autoClear.stop();
-    blueprintManager.stopAllWatchers();
+    jigManager.stopAllWatchers();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
     await databaseService.closeAllConnections();

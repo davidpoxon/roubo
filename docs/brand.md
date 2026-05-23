@@ -45,7 +45,7 @@ All user-facing text uses the Roubo vocabulary. Internal code should also use th
 | **Component**  | A running part of a bench: database, backend, frontend. Components are what you assemble.                                                |
 | **Tool**       | A quick-open action: open the browser, launch the IDE, start a shell. Tools are what you reach for.                                      |
 | **Inspection** | Running quality checks against the work on a bench.                                                                                      |
-| **Blueprint**  | A set of instructions for an AI coding agent working on a bench. A blueprint is a detailed drawing that guides the build.                |
+| **Jig**        | A set of instructions for an AI coding agent working on a bench. A jig is a detailed drawing that guides the build.                      |
 | **Workspace**  | The git worktree directory on disk for a specific bench.                                                                                 |
 
 ### Status Labels
@@ -236,7 +236,7 @@ Roubo speaks like a skilled colleague: competent, direct, and economical with wo
 
 - **Do** use "Roubo" as a proper noun, capitalised. "Open Roubo", "in Roubo".
 - **Don't** say "the Roubo" or "Roubo app"; just "Roubo".
-- **Do** use the full vocabulary consistently: bench, project, component, tool, inspection, blueprint.
+- **Do** use the full vocabulary consistently: bench, project, component, tool, inspection, jig.
 - **Don't** mix old and new terms. Never "slot" in the UI. Never "service" where "component" is meant.
 - **Don't** over-extend the metaphor. If a woodworking term doesn't immediately make sense, use a plain word instead.
 

@@ -128,8 +128,8 @@ export function initialize() {
       workUnits: ps.workUnits,
       baseBranch: ps.baseBranch,
       baseCommit: ps.baseCommit,
-      injectedBlueprintId: ps.injectedBlueprintId,
-      injectedBlueprintSource: ps.injectedBlueprintSource,
+      injectedJigId: ps.injectedJigId,
+      injectedJigSource: ps.injectedJigSource,
     };
 
     benches.set(benchKey(ps.projectId, ps.id), bench);
@@ -843,8 +843,8 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       workUnits: bench.workUnits,
       baseBranch: bench.baseBranch,
       baseCommit: bench.baseCommit,
-      injectedBlueprintId: bench.injectedBlueprintId,
-      injectedBlueprintSource: bench.injectedBlueprintSource,
+      injectedJigId: bench.injectedJigId,
+      injectedJigSource: bench.injectedJigSource,
     });
 
     // Inject project-level permissions into the workspace before any sessions start.

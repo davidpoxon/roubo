@@ -761,7 +761,7 @@
   {
     "id": "TC-033",
     "title": "Issue type mappings endpoint sources strings from the active plugin",
-    "area": "blueprint-mappings",
+    "area": "jig-mappings",
     "level": 1,
     "type": "integration",
     "preconditions": [

@@ -3,13 +3,13 @@ import * as terminalService from "../services/terminal.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
-import * as blueprintManager from "../services/blueprint-manager.js";
+import * as jigManager from "../services/jig-manager.js";
 import { buildTemplateContext, applyContainerOverrides } from "../services/config-parser.js";
 import { fetchIssueContext, type IssueContext } from "../services/issue-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
-import { parseIntParam, VALID_BLUEPRINT_ID } from "./helpers.js";
+import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
-import { CLAUDE_STARTUP_DELAY_MS, GLOBAL_DEFAULT_BLUEPRINT_ID } from "@roubo/shared";
+import { CLAUDE_STARTUP_DELAY_MS, GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 
 const router = Router();
 
@@ -23,16 +23,16 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     return;
   }
   const { command } = req.body as TerminalCreateRequest;
-  let { blueprintId } = req.body as TerminalCreateRequest;
+  let { jigId } = req.body as TerminalCreateRequest;
 
-  if (blueprintId !== undefined && !VALID_BLUEPRINT_ID.test(blueprintId)) {
-    res.status(400).json({ error: "Invalid blueprint id" });
+  if (jigId !== undefined && !VALID_JIG_ID.test(jigId)) {
+    res.status(400).json({ error: "Invalid jig id" });
     return;
   }
 
-  // Resolve the global-default sentinel to the project's actual default blueprint.
-  if (blueprintId === GLOBAL_DEFAULT_BLUEPRINT_ID) {
-    blueprintId = blueprintManager.getDefaultBlueprintId(projectId);
+  // Resolve the global-default sentinel to the project's actual default jig.
+  if (jigId === GLOBAL_DEFAULT_JIG_ID) {
+    jigId = jigManager.getDefaultJigId(projectId);
   }
 
   const bench = benchManager.getBench(projectId, benchId);
@@ -46,19 +46,19 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   const settings = loadSettings();
   let initialInput: string | undefined;
-  let blueprintInjected = false;
-  let blueprintScheduled = false;
+  let jigInjected = false;
+  let jigScheduled = false;
   let sizeWarning = false;
   let scheduleWrite: ((sessionId: string) => void) | undefined;
 
-  if (blueprintId && command === "claude" && project?.config) {
-    const blueprint = blueprintManager.getBlueprint(projectId, blueprintId);
-    if (!blueprint) {
-      res.status(404).json({ error: "Blueprint not found" });
+  if (jigId && command === "claude" && project?.config) {
+    const jig = jigManager.getJig(projectId, jigId);
+    if (!jig) {
+      res.status(404).json({ error: "Jig not found" });
       return;
     }
 
-    sizeWarning = blueprint.sizeWarning ?? false;
+    sizeWarning = jig.sizeWarning ?? false;
 
     const templateCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
     applyContainerOverrides(templateCtx, bench.assignedContainers);
@@ -69,7 +69,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);
       } catch (err) {
         console.warn(
-          `[terminal] Failed to fetch issue #${bench.assignedIssue.number} for blueprint injection: ${(err as Error).message}`,
+          `[terminal] Failed to fetch issue #${bench.assignedIssue.number} for jig injection: ${(err as Error).message}`,
         );
         issueCtx = {
           issueNumber: bench.assignedIssue.number,
@@ -78,7 +78,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       }
     }
 
-    const resolved = blueprintManager.resolveBlueprintContent(blueprint.content, {
+    const resolved = jigManager.resolveJigContent(jig.content, {
       ...templateCtx,
       benchBranch: bench.branch,
       benchId,
@@ -86,18 +86,18 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       ...issueCtx,
     });
 
-    const autoExecute = settings.blueprints?.autoExecute ?? true;
+    const autoExecute = settings.jigs?.autoExecute ?? true;
 
     if (autoExecute) {
       initialInput = resolved;
-      blueprintInjected = true;
+      jigInjected = true;
     } else {
       scheduleWrite = (sessionId: string) => {
         setTimeout(() => {
           terminalService.writeToSession(sessionId, resolved);
         }, CLAUDE_STARTUP_DELAY_MS);
       };
-      blueprintScheduled = true;
+      jigScheduled = true;
     }
   }
 
@@ -139,8 +139,8 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     sessionId: session.id,
     label: session.label,
     wsUrl: `/ws/terminal/${session.id}`,
-    ...(blueprintInjected && { blueprintInjected: true }),
-    ...(blueprintScheduled && { blueprintScheduled: true }),
+    ...(jigInjected && { jigInjected: true }),
+    ...(jigScheduled && { jigScheduled: true }),
     ...(sizeWarning && { sizeWarning: true }),
   });
 });

@@ -5,14 +5,14 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import TerminalTabs from "./TerminalTabs";
 
 vi.mock("../hooks/useTerminal");
-vi.mock("../hooks/useBlueprints");
+vi.mock("../hooks/useJigs");
 vi.mock("../hooks/useSettings");
 vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useToast");
 vi.mock("./Terminal", () => ({ default: () => null }));
 
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
-import { useBlueprints, useInjectBlueprint } from "../hooks/useBlueprints";
+import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
 import { useDismissNotification } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
@@ -20,7 +20,7 @@ import { useToast } from "../hooks/useToast";
 const mockInjectMutate = vi.fn();
 const mockCreateMutate = vi.fn();
 
-const BLUEPRINTS = [
+const JIGS = [
   {
     id: "feature-dev",
     name: "Feature Dev",
@@ -45,21 +45,21 @@ function setupMocks({
   vi.mocked(useCreateTerminal).mockReturnValue({
     mutate: mockCreateMutate,
   } as unknown as ReturnType<typeof useCreateTerminal>);
-  vi.mocked(useBlueprints).mockReturnValue({
-    data: BLUEPRINTS,
-  } as unknown as ReturnType<typeof useBlueprints>);
-  vi.mocked(useInjectBlueprint).mockReturnValue({
+  vi.mocked(useJigs).mockReturnValue({
+    data: JIGS,
+  } as unknown as ReturnType<typeof useJigs>);
+  vi.mocked(useInjectJig).mockReturnValue({
     mutate: mockInjectMutate,
-  } as unknown as ReturnType<typeof useInjectBlueprint>);
+  } as unknown as ReturnType<typeof useInjectJig>);
   vi.mocked(useSettings).mockReturnValue({
     settings: isLoading
       ? undefined
       : {
           theme: "dark",
-          blueprints: {
+          jigs: {
             autoInject,
             autoExecute: false,
-            defaultBlueprintId: "feature-dev",
+            defaultJigId: "feature-dev",
           },
         },
     isLoading,
@@ -91,7 +91,7 @@ describe("TerminalTabs — autoInject behaviour", () => {
     vi.useRealTimers();
   });
 
-  it("does not pass blueprintId when autoInject is false and no explicit blueprintId", () => {
+  it("does not pass jigId when autoInject is false and no explicit jigId", () => {
     setupMocks({ autoInject: false });
     renderWithProviders(
       <TerminalTabs
@@ -102,20 +102,20 @@ describe("TerminalTabs — autoInject behaviour", () => {
       />,
     );
 
-    // Empty-state "Claude Code" button calls handleCreate('claude') with no blueprintId
+    // Empty-state "Claude Code" button calls handleCreate('claude') with no jigId
     const claudeButton = screen.getByRole("button", { name: "Claude Code" });
     act(() => {
       fireEvent.click(claudeButton);
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ blueprintId: undefined }),
+      expect.objectContaining({ jigId: undefined }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("passes blueprintId to createTerminal when autoInject is true and bench has an assigned issue", () => {
+  it("passes jigId to createTerminal when autoInject is true and bench has an assigned issue", () => {
     setupMocks({ autoInject: true });
     renderWithProviders(
       <TerminalTabs
@@ -134,18 +134,18 @@ describe("TerminalTabs — autoInject behaviour", () => {
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "claude",
-        blueprintId: "feature-dev",
+        jigId: "feature-dev",
       }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("passes GLOBAL_DEFAULT_BLUEPRINT_ID sentinel when autoInject is true but no defaultBlueprintId is configured", () => {
+  it("passes GLOBAL_DEFAULT_JIG_ID sentinel when autoInject is true but no defaultJigId is configured", () => {
     vi.mocked(useSettings).mockReturnValue({
       settings: {
         theme: "dark",
-        blueprints: { autoInject: true, autoExecute: false },
+        jigs: { autoInject: true, autoExecute: false },
       },
       isLoading: false,
       updateSettings: vi.fn(),
@@ -167,13 +167,13 @@ describe("TerminalTabs — autoInject behaviour", () => {
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "claude",
-        blueprintId: "__global_default__",
+        jigId: "__global_default__",
       }),
       expect.anything(),
     );
   });
 
-  it("does not pass blueprintId when autoInject is true but bench has no assigned issue", () => {
+  it("does not pass jigId when autoInject is true but bench has no assigned issue", () => {
     setupMocks({ autoInject: true });
     renderWithProviders(
       <TerminalTabs
@@ -190,13 +190,13 @@ describe("TerminalTabs — autoInject behaviour", () => {
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ blueprintId: undefined }),
+      expect.objectContaining({ jigId: undefined }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("passes explicit blueprintId to createTerminal when autoInject is false", () => {
+  it("passes explicit jigId to createTerminal when autoInject is false", () => {
     setupMocks({ autoInject: false });
     // Override sessions so the tab bar renders (and with it the split-button dropdown)
     vi.mocked(useTerminalSessions).mockReturnValue({
@@ -234,14 +234,14 @@ describe("TerminalTabs — autoInject behaviour", () => {
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "claude",
-        blueprintId: "feature-dev",
+        jigId: "feature-dev",
       }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it('passes blueprintId: undefined when "Launch without blueprint" is selected with autoInject on and assigned issue', () => {
+  it('passes jigId: undefined when "Launch without jig" is selected with autoInject on and assigned issue', () => {
     setupMocks({ autoInject: true });
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
@@ -271,24 +271,24 @@ describe("TerminalTabs — autoInject behaviour", () => {
     });
 
     const freshItem = screen.getByRole("menuitem", {
-      name: /Launch without blueprint/,
+      name: /Launch without jig/,
     });
     act(() => {
       fireEvent.click(freshItem);
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ command: "claude", blueprintId: undefined }),
+      expect.objectContaining({ command: "claude", jigId: undefined }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("shows the fresh-launch option in dropdown even when no blueprints are configured if autoInject would fire", () => {
+  it("shows the fresh-launch option in dropdown even when no jigs are configured if autoInject would fire", () => {
     setupMocks({ autoInject: true });
-    vi.mocked(useBlueprints).mockReturnValue({
+    vi.mocked(useJigs).mockReturnValue({
       data: [],
-    } as unknown as ReturnType<typeof useBlueprints>);
+    } as unknown as ReturnType<typeof useJigs>);
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
         {
@@ -316,19 +316,19 @@ describe("TerminalTabs — autoInject behaviour", () => {
     });
 
     const freshItem = screen.getByRole("menuitem", {
-      name: /Launch without blueprint/,
+      name: /Launch without jig/,
     });
     act(() => {
       fireEvent.click(freshItem);
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ command: "claude", blueprintId: undefined }),
+      expect.objectContaining({ command: "claude", jigId: undefined }),
       expect.anything(),
     );
   });
 
-  it('does not show "Launch without blueprint" in dropdown when autoInject is false', () => {
+  it('does not show "Launch without jig" in dropdown when autoInject is false', () => {
     setupMocks({ autoInject: false });
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
@@ -356,11 +356,11 @@ describe("TerminalTabs — autoInject behaviour", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
     });
 
-    expect(screen.queryByRole("menuitem", { name: /Launch without blueprint/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
   });
 
-  it('does not show "Launch without blueprint" in dropdown when bench has no assigned issue', () => {
+  it('does not show "Launch without jig" in dropdown when bench has no assigned issue', () => {
     setupMocks({ autoInject: true });
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
@@ -388,11 +388,11 @@ describe("TerminalTabs — autoInject behaviour", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
     });
 
-    expect(screen.queryByRole("menuitem", { name: /Launch without blueprint/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
   });
 
-  it('does not show "Launch without blueprint" while settings are loading', () => {
+  it('does not show "Launch without jig" while settings are loading', () => {
     setupMocks({ autoInject: true, isLoading: true });
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
@@ -416,15 +416,15 @@ describe("TerminalTabs — autoInject behaviour", () => {
       />,
     );
 
-    // When blueprints are available the dropdown still shows, but fresh item should be absent
+    // When jigs are available the dropdown still shows, but fresh item should be absent
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
     });
 
-    expect(screen.queryByRole("menuitem", { name: /Launch without blueprint/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
   });
 
-  it('shows both "Launch without blueprint" and blueprint items when autoInject is true and blueprints are available', () => {
+  it('shows both "Launch without jig" and jig items when autoInject is true and jigs are available', () => {
     setupMocks({ autoInject: true });
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [
@@ -452,7 +452,7 @@ describe("TerminalTabs — autoInject behaviour", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
     });
 
-    expect(screen.getByRole("menuitem", { name: /Launch without blueprint/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Launch without jig/ })).toBeInTheDocument();
     expect(screen.getByRole("separator")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
   });
@@ -527,7 +527,7 @@ describe("TerminalTabs — autoInject behaviour", () => {
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "claude",
-        blueprintId: "feature-dev",
+        jigId: "feature-dev",
       }),
       expect.anything(),
     );
@@ -544,19 +544,19 @@ describe("TerminalTabs — notification indicators", () => {
     vi.mocked(useCreateTerminal).mockReturnValue({
       mutate: vi.fn(),
     } as unknown as ReturnType<typeof useCreateTerminal>);
-    vi.mocked(useBlueprints).mockReturnValue({
+    vi.mocked(useJigs).mockReturnValue({
       data: [],
-    } as unknown as ReturnType<typeof useBlueprints>);
-    vi.mocked(useInjectBlueprint).mockReturnValue({
+    } as unknown as ReturnType<typeof useJigs>);
+    vi.mocked(useInjectJig).mockReturnValue({
       mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useInjectBlueprint>);
+    } as unknown as ReturnType<typeof useInjectJig>);
     vi.mocked(useSettings).mockReturnValue({
       settings: {
         theme: "dark",
-        blueprints: {
+        jigs: {
           autoInject: false,
           autoExecute: false,
-          defaultBlueprintId: "feature-dev",
+          defaultJigId: "feature-dev",
         },
       },
       isLoading: false,
@@ -712,19 +712,19 @@ describe("TerminalTabs — mode badge", () => {
     vi.mocked(useCreateTerminal).mockReturnValue({
       mutate: vi.fn(),
     } as unknown as ReturnType<typeof useCreateTerminal>);
-    vi.mocked(useBlueprints).mockReturnValue({
+    vi.mocked(useJigs).mockReturnValue({
       data: [],
-    } as unknown as ReturnType<typeof useBlueprints>);
-    vi.mocked(useInjectBlueprint).mockReturnValue({
+    } as unknown as ReturnType<typeof useJigs>);
+    vi.mocked(useInjectJig).mockReturnValue({
       mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useInjectBlueprint>);
+    } as unknown as ReturnType<typeof useInjectJig>);
     vi.mocked(useSettings).mockReturnValue({
       settings: {
         theme: "dark",
-        blueprints: {
+        jigs: {
           autoInject: false,
           autoExecute: false,
-          defaultBlueprintId: "feature-dev",
+          defaultJigId: "feature-dev",
         },
       },
       isLoading: false,
@@ -866,19 +866,19 @@ describe("TerminalTabs — tab-switch dismiss behaviour", () => {
     vi.mocked(useCreateTerminal).mockReturnValue({
       mutate: vi.fn(),
     } as unknown as ReturnType<typeof useCreateTerminal>);
-    vi.mocked(useBlueprints).mockReturnValue({
+    vi.mocked(useJigs).mockReturnValue({
       data: [],
-    } as unknown as ReturnType<typeof useBlueprints>);
-    vi.mocked(useInjectBlueprint).mockReturnValue({
+    } as unknown as ReturnType<typeof useJigs>);
+    vi.mocked(useInjectJig).mockReturnValue({
       mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useInjectBlueprint>);
+    } as unknown as ReturnType<typeof useInjectJig>);
     vi.mocked(useSettings).mockReturnValue({
       settings: {
         theme: "dark",
-        blueprints: {
+        jigs: {
           autoInject: false,
           autoExecute: false,
-          defaultBlueprintId: "feature-dev",
+          defaultJigId: "feature-dev",
         },
       },
       isLoading: false,
@@ -1091,19 +1091,19 @@ describe("TerminalTabs — terminal session persistence", () => {
     vi.mocked(useCreateTerminal).mockReturnValue({
       mutate: vi.fn(),
     } as unknown as ReturnType<typeof useCreateTerminal>);
-    vi.mocked(useBlueprints).mockReturnValue({
+    vi.mocked(useJigs).mockReturnValue({
       data: [],
-    } as unknown as ReturnType<typeof useBlueprints>);
-    vi.mocked(useInjectBlueprint).mockReturnValue({
+    } as unknown as ReturnType<typeof useJigs>);
+    vi.mocked(useInjectJig).mockReturnValue({
       mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useInjectBlueprint>);
+    } as unknown as ReturnType<typeof useInjectJig>);
     vi.mocked(useSettings).mockReturnValue({
       settings: {
         theme: "dark",
-        blueprints: {
+        jigs: {
           autoInject: false,
           autoExecute: false,
-          defaultBlueprintId: "feature-dev",
+          defaultJigId: "feature-dev",
         },
       },
       isLoading: false,

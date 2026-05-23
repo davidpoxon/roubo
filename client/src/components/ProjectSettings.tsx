@@ -12,31 +12,27 @@ import {
 } from "react-aria-components";
 import { RefreshCw, Sun, Moon, Monitor, Plus } from "lucide-react";
 import { useSettings, useRecheckClaudeCode } from "../hooks/useSettings";
-import {
-  useGlobalBlueprints,
-  useDeleteGlobalBlueprint,
-  useDuplicateGlobalBlueprint,
-} from "../hooks/useBlueprints";
-import { BlueprintPickerOption, INHERIT_BLUEPRINT_ID } from "./ProjectDefaultBlueprintTile";
+import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
+import { JigPickerOption, INHERIT_JIG_ID } from "./ProjectDefaultJigTile";
 import FirstNSessionsBanner from "./FirstNSessionsBanner";
 import {
-  DEFAULT_BLUEPRINT_SETTINGS,
+  DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
   DEFAULT_CLAUDE_CODE_SETTINGS,
-  GLOBAL_DEFAULT_BLUEPRINT_ID,
+  GLOBAL_DEFAULT_JIG_ID,
 } from "@roubo/shared";
 import type {
   ThemeMode,
-  BlueprintSettings,
+  JigSettings,
   BenchSettings,
   ClaudeCodeSettings,
-  BlueprintMeta,
-  BlueprintReference,
+  JigMeta,
+  JigReference,
 } from "@roubo/shared";
-import { ApiError, isBlueprintReferencedError } from "../lib/api";
+import { ApiError, isJigReferencedError } from "../lib/api";
 import { useToast } from "../hooks/useToast";
-import DeleteBlueprintDialog from "./blueprint-editor/DeleteBlueprintDialog";
-import BlueprintRow from "./blueprint-editor/BlueprintRow";
+import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
+import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
 
 const THEME_OPTIONS: {
@@ -177,55 +173,55 @@ function BenchesTab() {
   );
 }
 
-function BlueprintsTab() {
+function JigsTab() {
   const { settings, updateSettings } = useSettings();
-  const { data: blueprintOptions } = useGlobalBlueprints();
-  const blueprintSettings = settings?.blueprints ?? DEFAULT_BLUEPRINT_SETTINGS;
+  const { data: jigOptions } = useGlobalJigs();
+  const jigSettings = settings?.jigs ?? DEFAULT_JIG_SETTINGS;
   const { addToast } = useToast();
   const navigate = useNavigate();
-  const remove = useDeleteGlobalBlueprint();
-  const duplicate = useDuplicateGlobalBlueprint();
+  const remove = useDeleteGlobalJig();
+  const duplicate = useDuplicateGlobalJig();
 
-  const [deletingBlueprint, setDeletingBlueprint] = useState<BlueprintMeta | null>(null);
-  const [deleteReferences, setDeleteReferences] = useState<BlueprintReference[] | undefined>();
+  const [deletingJig, setDeletingJig] = useState<JigMeta | null>(null);
+  const [deleteReferences, setDeleteReferences] = useState<JigReference[] | undefined>();
 
-  const update = (patch: Partial<BlueprintSettings>) => {
+  const update = (patch: Partial<JigSettings>) => {
     if (!settings) return;
     updateSettings({
       ...settings,
-      blueprints: { ...blueprintSettings, ...patch },
+      jigs: { ...jigSettings, ...patch },
     });
   };
 
-  const selectedAppId = blueprintSettings.defaultBlueprintId ?? INHERIT_BLUEPRINT_ID;
+  const selectedAppId = jigSettings.defaultJigId ?? INHERIT_JIG_ID;
 
   const handleDeleteConfirm = async () => {
-    if (!deletingBlueprint) return;
+    if (!deletingJig) return;
     try {
-      await remove.mutateAsync(deletingBlueprint.id);
-      setDeletingBlueprint(null);
+      await remove.mutateAsync(deletingJig.id);
+      setDeletingJig(null);
       setDeleteReferences(undefined);
-      addToast("Blueprint deleted.");
+      addToast("Jig deleted.");
     } catch (err) {
-      if (isBlueprintReferencedError(err)) {
+      if (isJigReferencedError(err)) {
         setDeleteReferences(err.details.references);
       } else if (err instanceof ApiError) {
         addToast(err.message);
-        setDeletingBlueprint(null);
+        setDeletingJig(null);
       } else {
-        addToast("Failed to delete blueprint.");
-        setDeletingBlueprint(null);
+        addToast("Failed to delete jig.");
+        setDeletingJig(null);
       }
     }
   };
 
-  const handleDuplicate = (bp: BlueprintMeta) => {
+  const handleDuplicate = (bp: JigMeta) => {
     void duplicate
       .mutateAsync({ id: bp.id })
-      .then((created) => navigate(`/blueprints/edit/${created.id}`))
+      .then((created) => navigate(`/jigs/edit/${created.id}`))
       .catch((err: unknown) => {
         if (err instanceof ApiError) addToast(err.message);
-        else addToast("Failed to duplicate blueprint.");
+        else addToast("Failed to duplicate jig.");
       });
   };
 
@@ -238,19 +234,19 @@ function BlueprintsTab() {
 
         <div className="space-y-6">
           <SettingToggle
-            isSelected={blueprintSettings.autoInject}
+            isSelected={jigSettings.autoInject}
             onChange={(val) => update({ autoInject: val })}
-            label="Auto-inject blueprint"
-            description="When a Claude Code session starts, automatically inject the default blueprint into the terminal."
+            label="Auto-inject jig"
+            description="When a Claude Code session starts, automatically inject the default jig into the terminal."
           />
 
           <div className="pl-5 border-l border-stone-200 dark:border-stone-800">
             <SettingToggle
-              isSelected={blueprintSettings.autoExecute}
+              isSelected={jigSettings.autoExecute}
               onChange={(val) => update({ autoExecute: val })}
-              isDisabled={!blueprintSettings.autoInject}
+              isDisabled={!jigSettings.autoInject}
               label="Auto-execute"
-              description="Automatically run the blueprint after injection. Turn off to review the blueprint before pressing Enter."
+              description="Automatically run the jig after injection. Turn off to review the jig before pressing Enter."
             />
           </div>
         </div>
@@ -261,31 +257,30 @@ function BlueprintsTab() {
           App Default
         </h3>
         <p className="text-xs text-stone-400 dark:text-stone-600 mb-4 leading-relaxed">
-          The default blueprint used across all projects. Individual projects can override this
-          below.
+          The default jig used across all projects. Individual projects can override this below.
         </p>
 
         <RadioGroup
           value={selectedAppId}
           onChange={(val) =>
             update({
-              defaultBlueprintId: val === INHERIT_BLUEPRINT_ID ? undefined : val,
+              defaultJigId: val === INHERIT_JIG_ID ? undefined : val,
             })
           }
-          aria-label="App default blueprint"
+          aria-label="App default jig"
           className="flex flex-col gap-2"
         >
-          <BlueprintPickerOption
-            value={INHERIT_BLUEPRINT_ID}
+          <JigPickerOption
+            value={INHERIT_JIG_ID}
             label="Inherit from global default"
             sublabel="No override"
           />
-          {(blueprintOptions ?? []).map((option) => (
-            <BlueprintPickerOption
+          {(jigOptions ?? []).map((option) => (
+            <JigPickerOption
               key={option.id}
               value={option.id}
               label={option.name}
-              sublabel={option.id === GLOBAL_DEFAULT_BLUEPRINT_ID ? undefined : option.id}
+              sublabel={option.id === GLOBAL_DEFAULT_JIG_ID ? undefined : option.id}
             />
           ))}
         </RadioGroup>
@@ -294,28 +289,28 @@ function BlueprintsTab() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Custom Blueprints
+            Custom Jigs
           </h3>
           <Link
-            to="/blueprints/new"
+            to="/jigs/new"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
             <Plus size={12} />
-            New blueprint
+            New jig
           </Link>
         </div>
 
         <div className="flex flex-col gap-2">
-          {(blueprintOptions ?? [])
-            .filter((bp) => bp.id !== GLOBAL_DEFAULT_BLUEPRINT_ID)
-            .map((blueprint) => (
-              <BlueprintRow
-                key={blueprint.id}
-                blueprint={blueprint}
-                editHref={`/blueprints/edit/${blueprint.id}`}
+          {(jigOptions ?? [])
+            .filter((bp) => bp.id !== GLOBAL_DEFAULT_JIG_ID)
+            .map((jig) => (
+              <JigRow
+                key={jig.id}
+                jig={jig}
+                editHref={`/jigs/edit/${jig.id}`}
                 onDelete={(bp) => {
                   setDeleteReferences(undefined);
-                  setDeletingBlueprint(bp);
+                  setDeletingJig(bp);
                 }}
                 onDuplicate={handleDuplicate}
                 isDuplicating={duplicate.isPending}
@@ -324,24 +319,22 @@ function BlueprintsTab() {
         </div>
 
         <p className="mt-4 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
-          App-level blueprints live in{" "}
+          App-level jigs live in{" "}
+          <span className="font-mono text-stone-500 dark:text-stone-500">~/.roubo/jigs/*.md</span>.
+          Repo-level jigs can also be placed in{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">
-            ~/.roubo/blueprints/*.md
-          </span>
-          . Repo-level blueprints can also be placed in{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">
-            &lt;repo&gt;/.roubo/blueprints/*.md
+            &lt;repo&gt;/.roubo/jigs/*.md
           </span>
           .
         </p>
       </section>
 
-      {deletingBlueprint && (
-        <DeleteBlueprintDialog
-          isOpen={!!deletingBlueprint}
-          blueprint={deletingBlueprint}
+      {deletingJig && (
+        <DeleteJigDialog
+          isOpen={!!deletingJig}
+          jig={deletingJig}
           onCancel={() => {
-            setDeletingBlueprint(null);
+            setDeletingJig(null);
             setDeleteReferences(undefined);
           }}
           onConfirm={handleDeleteConfirm}
@@ -446,7 +439,7 @@ function AppearanceTab() {
           updateSettings({
             ...(settings ?? {
               theme: "dark" as const,
-              blueprints: DEFAULT_BLUEPRINT_SETTINGS,
+              jigs: DEFAULT_JIG_SETTINGS,
             }),
             theme: value as ThemeMode,
           })
@@ -505,7 +498,7 @@ const TAB_LABELS: Record<string, string> = {
   benches: "Bench Defaults",
 };
 
-const HASH_TAB_IDS = new Set(["benches", "appearance", "blueprints", "plugins", "claude-code"]);
+const HASH_TAB_IDS = new Set(["benches", "appearance", "jigs", "plugins", "claude-code"]);
 
 export default function ProjectSettings() {
   const { hash } = useLocation();
@@ -527,27 +520,25 @@ export default function ProjectSettings() {
           aria-label="Settings sections"
           className="flex gap-0 border-b border-stone-200 dark:border-stone-800 mb-8"
         >
-          {(["benches", "appearance", "blueprints", "plugins", "claude-code"] as const).map(
-            (id) => (
-              <Tab
-                key={id}
-                id={id}
-                className={({ isSelected, isFocusVisible }) =>
-                  [
-                    "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
-                    isSelected
-                      ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                      : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
-                    isFocusVisible
-                      ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
-                      : "",
-                  ].join(" ")
-                }
-              >
-                {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
-              </Tab>
-            ),
-          )}
+          {(["benches", "appearance", "jigs", "plugins", "claude-code"] as const).map((id) => (
+            <Tab
+              key={id}
+              id={id}
+              className={({ isSelected, isFocusVisible }) =>
+                [
+                  "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
+                  isSelected
+                    ? "text-stone-900 dark:text-stone-100 border-amber-500"
+                    : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                  isFocusVisible
+                    ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
+                    : "",
+                ].join(" ")
+              }
+            >
+              {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
+            </Tab>
+          ))}
         </TabList>
 
         <TabPanel id="benches" className="outline-none">
@@ -558,8 +549,8 @@ export default function ProjectSettings() {
           <AppearanceTab />
         </TabPanel>
 
-        <TabPanel id="blueprints" className="outline-none">
-          <BlueprintsTab />
+        <TabPanel id="jigs" className="outline-none">
+          <JigsTab />
         </TabPanel>
 
         <TabPanel id="plugins" className="outline-none">

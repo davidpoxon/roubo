@@ -241,26 +241,26 @@ describe("createNotification", () => {
     expect(mockUpdateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
 
-  it("preserves injectedBlueprintId when persisting", () => {
-    const bench = makeBench({ injectedBlueprintId: "my-blueprint" });
+  it("preserves injectedJigId when persisting", () => {
+    const bench = makeBench({ injectedJigId: "my-jig" });
 
     createNotification(bench, "bench-ready");
 
     expect(mockUpdateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintId: "my-blueprint" }),
+      expect.objectContaining({ injectedJigId: "my-jig" }),
     );
   });
 
-  it("preserves injectedBlueprintSource when persisting", () => {
+  it("preserves injectedJigSource when persisting", () => {
     const bench = makeBench({
-      injectedBlueprintId: "my-blueprint",
-      injectedBlueprintSource: "issue-type-mapping",
+      injectedJigId: "my-jig",
+      injectedJigSource: "issue-type-mapping",
     });
 
     createNotification(bench, "bench-ready");
 
     expect(mockUpdateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedBlueprintSource: "issue-type-mapping" }),
+      expect.objectContaining({ injectedJigSource: "issue-type-mapping" }),
     );
   });
 });

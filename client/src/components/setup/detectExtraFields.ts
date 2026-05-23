@@ -7,7 +7,7 @@ export const KNOWN_TOP_LEVEL_KEYS = new Set([
   "tools",
   "inspection",
   "benches",
-  "blueprints",
+  "jigs",
   "users",
 ]);
 

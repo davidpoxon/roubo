@@ -44,7 +44,7 @@ describe("RouboConfigSchema — valid configs", () => {
         directory: "tests",
         command: "npm test",
       },
-      blueprints: { defaultBlueprint: "my-blueprint" },
+      jigs: { defaultJig: "my-jig" },
       users: [{ name: "Admin", properties: { email: "admin@example.com" } }],
     });
     expect(RouboConfigSchema.safeParse(config).success).toBe(true);

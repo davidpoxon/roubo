@@ -44,11 +44,38 @@ export function parseConfig(repoPath: string): ParseResult {
   }
 
   coerceEnvValues(raw);
+  const legacyError = detectLegacyJigKeys(raw);
+  if (legacyError) {
+    return { valid: false, errors: [legacyError] };
+  }
   return toParseResult(RouboConfigSchema.safeParse(raw));
 }
 
 export function validateConfigObject(config: unknown): ParseResult {
+  const legacyError = detectLegacyJigKeys(config);
+  if (legacyError) {
+    return { valid: false, errors: [legacyError] };
+  }
   return toParseResult(RouboConfigSchema.safeParse(config));
+}
+
+/**
+ * Reports a specific actionable error when a roubo.yaml still uses the legacy
+ * `blueprints:` top-level key or the older `project.blueprintSettings` nested
+ * block. Without this hook the strict schema would surface a generic
+ * "Unrecognized key" message that doesn't point users at the rename.
+ */
+function detectLegacyJigKeys(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if ("blueprints" in obj) {
+    return "Found legacy top-level `blueprints:` key. Rename it to `jigs:` and rename `defaultBlueprint` -> `defaultJig`.";
+  }
+  const project = obj.project;
+  if (project && typeof project === "object" && "blueprintSettings" in project) {
+    return "Found legacy `project.blueprintSettings` block. Move its contents under a top-level `jigs:` key and rename `defaultBlueprintId` -> `defaultJig`.";
+  }
+  return null;
 }
 
 export interface ResolvedTemplateContext {

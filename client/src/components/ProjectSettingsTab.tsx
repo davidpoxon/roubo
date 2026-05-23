@@ -2,17 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "react-aria-components";
 import { useParams, Routes, Route, useBlocker, useNavigate, Link } from "react-router-dom";
 import { Plus, Zap } from "lucide-react";
-import type { BlueprintMeta, BlueprintReference } from "@roubo/shared";
+import type { JigMeta, JigReference } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
 import { useToast } from "../hooks/useToast";
-import {
-  useBlueprints,
-  useDeleteProjectBlueprint,
-  useDuplicateProjectBlueprint,
-} from "../hooks/useBlueprints";
-import { ApiError, isBlueprintReferencedError } from "../lib/api";
+import { useJigs, useDeleteProjectJig, useDuplicateProjectJig } from "../hooks/useJigs";
+import { ApiError, isJigReferencedError } from "../lib/api";
 import Spinner from "./Spinner";
-import { ProjectDefaultBlueprintTile } from "./ProjectDefaultBlueprintTile";
+import { ProjectDefaultJigTile } from "./ProjectDefaultJigTile";
 import SetupTile from "./settings/SetupTile";
 import DefaultBranchTile from "./settings/DefaultBranchTile";
 import PortAssignmentTile from "./settings/PortAssignmentTile";
@@ -25,9 +21,9 @@ import { WorkUnitAutoClearOverrideTile } from "./project-settings/WorkUnitAutoCl
 import { SettingsSaveBar } from "./project-settings/SettingsSaveBar";
 import { IssueTypeMappingsSection } from "./project-settings/IssueTypeMappingsSection";
 import { useSettingsOverviewDraft } from "./project-settings/useSettingsOverviewDraft";
-import UnsavedChangesDialog from "./blueprint-editor/UnsavedChangesDialog";
-import BlueprintRow from "./blueprint-editor/BlueprintRow";
-import DeleteBlueprintDialog from "./blueprint-editor/DeleteBlueprintDialog";
+import UnsavedChangesDialog from "./jig-editor/UnsavedChangesDialog";
+import JigRow from "./jig-editor/JigRow";
+import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import Setup from "./setup/Setup";
 import type { RegisteredProject } from "@roubo/shared";
 import DangerZoneTile from "./settings/DangerZoneTile";
@@ -35,45 +31,45 @@ import { ProjectPermissionsInlineSection } from "./project-settings/ProjectPermi
 import { ProjectPermissionsEditorPage } from "./project-settings/ProjectPermissionsEditorPage";
 import IssueSourceTile from "./IssueSourceTile";
 
-function ProjectCustomBlueprintsList({ projectId }: { projectId: string }) {
+function ProjectCustomJigsList({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { data: blueprints, isLoading } = useBlueprints(projectId);
-  const remove = useDeleteProjectBlueprint(projectId);
-  const duplicate = useDuplicateProjectBlueprint(projectId);
+  const { data: jigs, isLoading } = useJigs(projectId);
+  const remove = useDeleteProjectJig(projectId);
+  const duplicate = useDuplicateProjectJig(projectId);
 
-  const [deletingBlueprint, setDeletingBlueprint] = useState<BlueprintMeta | null>(null);
-  const [deleteReferences, setDeleteReferences] = useState<BlueprintReference[] | undefined>();
+  const [deletingJig, setDeletingJig] = useState<JigMeta | null>(null);
+  const [deleteReferences, setDeleteReferences] = useState<JigReference[] | undefined>();
 
-  const projectBlueprints = (blueprints ?? []).filter((bp) => bp.source === "project");
+  const projectJigs = (jigs ?? []).filter((bp) => bp.source === "project");
 
   const handleDeleteConfirm = async () => {
-    if (!deletingBlueprint) return;
+    if (!deletingJig) return;
     try {
-      await remove.mutateAsync(deletingBlueprint.id);
-      setDeletingBlueprint(null);
+      await remove.mutateAsync(deletingJig.id);
+      setDeletingJig(null);
       setDeleteReferences(undefined);
-      addToast("Blueprint deleted.");
+      addToast("Jig deleted.");
     } catch (err) {
-      if (isBlueprintReferencedError(err)) {
+      if (isJigReferencedError(err)) {
         setDeleteReferences(err.details.references);
       } else if (err instanceof ApiError) {
         addToast(err.message);
-        setDeletingBlueprint(null);
+        setDeletingJig(null);
       } else {
-        addToast("Failed to delete blueprint.");
-        setDeletingBlueprint(null);
+        addToast("Failed to delete jig.");
+        setDeletingJig(null);
       }
     }
   };
 
-  const handleDuplicate = (bp: BlueprintMeta) => {
+  const handleDuplicate = (bp: JigMeta) => {
     void duplicate
       .mutateAsync({ id: bp.id })
-      .then((created) => navigate(`/projects/${projectId}/blueprints/edit/${created.id}`))
+      .then((created) => navigate(`/projects/${projectId}/jigs/edit/${created.id}`))
       .catch((err: unknown) => {
         if (err instanceof ApiError) addToast(err.message);
-        else addToast("Failed to duplicate blueprint.");
+        else addToast("Failed to duplicate jig.");
       });
   };
 
@@ -81,34 +77,33 @@ function ProjectCustomBlueprintsList({ projectId }: { projectId: string }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-          Custom blueprints
+          Custom jigs
         </h3>
         <Link
-          to={`/projects/${projectId}/blueprints/new`}
+          to={`/projects/${projectId}/jigs/new`}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           <Plus size={12} />
-          New blueprint
+          New jig
         </Link>
       </div>
 
       {isLoading ? (
         <p className="text-xs text-stone-400 dark:text-stone-600">Loading…</p>
-      ) : projectBlueprints.length === 0 ? (
+      ) : projectJigs.length === 0 ? (
         <p className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
-          No project blueprints yet. Create one to override or supplement app-level blueprints for
-          this project.
+          No project jigs yet. Create one to override or supplement app-level jigs for this project.
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {projectBlueprints.map((blueprint) => (
-            <BlueprintRow
-              key={blueprint.id}
-              blueprint={blueprint}
-              editHref={`/projects/${projectId}/blueprints/edit/${blueprint.id}`}
+          {projectJigs.map((jig) => (
+            <JigRow
+              key={jig.id}
+              jig={jig}
+              editHref={`/projects/${projectId}/jigs/edit/${jig.id}`}
               onDelete={(bp) => {
                 setDeleteReferences(undefined);
-                setDeletingBlueprint(bp);
+                setDeletingJig(bp);
               }}
               onDuplicate={handleDuplicate}
               isDuplicating={duplicate.isPending}
@@ -118,19 +113,19 @@ function ProjectCustomBlueprintsList({ projectId }: { projectId: string }) {
       )}
 
       <p className="mt-4 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
-        Project blueprints live in{" "}
+        Project jigs live in{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">
-          &lt;repo&gt;/.roubo/blueprints/*.md
+          &lt;repo&gt;/.roubo/jigs/*.md
         </span>
         .
       </p>
 
-      {deletingBlueprint && (
-        <DeleteBlueprintDialog
-          isOpen={!!deletingBlueprint}
-          blueprint={deletingBlueprint}
+      {deletingJig && (
+        <DeleteJigDialog
+          isOpen={!!deletingJig}
+          jig={deletingJig}
           onCancel={() => {
-            setDeletingBlueprint(null);
+            setDeletingJig(null);
             setDeleteReferences(undefined);
           }}
           onConfirm={handleDeleteConfirm}
@@ -148,8 +143,8 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
   const {
     draftWorktreeSource,
     setDraftWorktreeSource,
-    draftBlueprint,
-    setDraftBlueprint,
+    draftJig,
+    setDraftJig,
     draftAutoClear,
     setDraftAutoClear,
     draftEnforceIssueDependencies,
@@ -160,7 +155,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
     setDraftIssueTypeMappings,
     originalWorktreeSource,
     hasAnyDirty,
-    isBlueprintDirty,
+    isJigDirty,
     isIssueTypeMappingsDirty,
     isSaving,
     saveErrors,
@@ -169,10 +164,10 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
     justSavedRef,
   } = useSettingsOverviewDraft(project.id, project);
 
-  const isBlueprintOverridden = draftBlueprint != null;
+  const isJigOverridden = draftJig != null;
   const hasIssueTypeOverrides = Object.keys(draftIssueTypeMappings ?? {}).length > 0;
-  const blueprintsTileOverridden = isBlueprintOverridden || hasIssueTypeOverrides;
-  const blueprintsTileDirty = Boolean(isBlueprintDirty || isIssueTypeMappingsDirty);
+  const jigsTileOverridden = isJigOverridden || hasIssueTypeOverrides;
+  const jigsTileDirty = Boolean(isJigDirty || isIssueTypeMappingsDirty);
 
   const isMetaRepo = project.config?.layout?.type === "meta-repo";
 
@@ -260,22 +255,22 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Blueprints
+              Jigs
             </h2>
           </div>
           <Tile
             icon={<Zap size={13} aria-hidden />}
-            title="Blueprint"
-            isOverridden={blueprintsTileOverridden}
-            isDirty={blueprintsTileDirty}
-            headerAction={blueprintsTileOverridden ? <OverrideBadge /> : undefined}
+            title="Jig"
+            isOverridden={jigsTileOverridden}
+            isDirty={jigsTileDirty}
+            headerAction={jigsTileOverridden ? <OverrideBadge /> : undefined}
           >
-            <ProjectDefaultBlueprintTile
+            <ProjectDefaultJigTile
               project={project}
               showProjectName={false}
               embedded
-              draft={draftBlueprint}
-              onChange={setDraftBlueprint}
+              draft={draftJig}
+              onChange={setDraftJig}
             />
             <div className="mt-8">
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600 mb-3">
@@ -297,7 +292,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
             </p>
           </Tile>
           <div className="mt-6">
-            <ProjectCustomBlueprintsList projectId={project.id} />
+            <ProjectCustomJigsList projectId={project.id} />
           </div>
         </section>
         <section>

@@ -11,13 +11,13 @@ import {
 } from "react-aria-components";
 import { Plus, Bot, X, ChevronDown } from "lucide-react";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
-import { useBlueprints, useInjectBlueprint } from "../hooks/useBlueprints";
+import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
 import { useDismissNotification } from "../hooks/useBenches";
 import Terminal from "./Terminal";
 import NotificationIndicator from "./NotificationIndicator";
-import { GLOBAL_DEFAULT_BLUEPRINT_ID } from "@roubo/shared";
-import type { BlueprintMeta, BenchNotification, ClaudeCodeMode } from "@roubo/shared";
+import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
+import type { JigMeta, BenchNotification, ClaudeCodeMode } from "@roubo/shared";
 import { useBenchViewState } from "../hooks/useBenchViewState";
 import { useToast } from "../hooks/useToast";
 
@@ -36,7 +36,7 @@ function ModeBadge({ mode }: { mode?: ClaudeCodeMode }) {
   );
 }
 
-function SourceBadge({ source }: { source: BlueprintMeta["source"] }) {
+function SourceBadge({ source }: { source: JigMeta["source"] }) {
   if (source === "app") return null;
   return (
     <span className="ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-violet-500/15 text-violet-400">
@@ -47,12 +47,12 @@ function SourceBadge({ source }: { source: BlueprintMeta["source"] }) {
 
 const LAUNCH_FRESH_ID = "__launch_fresh";
 
-function BlueprintMenu({
-  blueprints,
+function JigMenu({
+  jigs,
   onSelect,
   onLaunchFresh,
 }: {
-  blueprints: BlueprintMeta[];
+  jigs: JigMeta[];
   onSelect: (id: string) => void;
   onLaunchFresh?: () => void;
 }) {
@@ -81,17 +81,17 @@ function BlueprintMenu({
           >
             <Bot size={11} className="text-stone-400 dark:text-stone-600" />
             <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-              Launch without blueprint
+              Launch without jig
             </span>
           </MenuItem>
         )}
-        {onLaunchFresh && blueprints.length > 0 && (
+        {onLaunchFresh && jigs.length > 0 && (
           <Separator className="my-1 border-t border-stone-200 dark:border-stone-800" />
         )}
-        {blueprints.map((blueprint) => (
+        {jigs.map((jig) => (
           <MenuItem
-            key={blueprint.id}
-            id={blueprint.id}
+            key={jig.id}
+            id={jig.id}
             className={({ isFocused }) =>
               `flex flex-col gap-0.5 px-3 py-2 rounded-lg cursor-default outline-none transition-colors ${
                 isFocused ? "bg-stone-100 dark:bg-stone-800" : ""
@@ -100,13 +100,13 @@ function BlueprintMenu({
           >
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
-                {blueprint.name}
+                {jig.name}
               </span>
-              <SourceBadge source={blueprint.source} />
+              <SourceBadge source={jig.source} />
             </div>
-            {blueprint.description && (
+            {jig.description && (
               <span className="text-[11px] text-stone-400 dark:text-stone-600 truncate leading-relaxed">
-                {blueprint.description}
+                {jig.description}
               </span>
             )}
           </MenuItem>
@@ -133,8 +133,8 @@ export default function TerminalTabs({
   const createTerminal = useCreateTerminal();
   const destroyTerminal = useDestroyTerminal();
   const { mutate: dismissNotification } = useDismissNotification();
-  const injectBlueprint = useInjectBlueprint();
-  const { data: blueprints } = useBlueprints(projectId);
+  const injectJig = useInjectJig();
+  const { data: jigs } = useJigs(projectId);
   const { settings, isLoading: settingsLoading } = useSettings();
   const { addToast } = useToast();
 
@@ -191,22 +191,21 @@ export default function TerminalTabs({
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
   const handleCreate = useCallback(
-    (command?: string, blueprintId?: string, skipAutoInject = false) => {
-      // For Claude sessions, determine which blueprint to inject (if any) at creation time.
+    (command?: string, jigId?: string, skipAutoInject = false) => {
+      // For Claude sessions, determine which jig to inject (if any) at creation time.
       // The server handles injection via CLI arg for reliable auto-execute.
-      let targetBlueprintId: string | undefined;
+      let targetJigId: string | undefined;
       if (command === "claude") {
-        const autoInject = settings?.blueprints?.autoInject ?? true;
-        if (blueprintId) {
-          targetBlueprintId = blueprintId;
+        const autoInject = settings?.jigs?.autoInject ?? true;
+        if (jigId) {
+          targetJigId = jigId;
         } else if (autoInject && hasAssignedIssue && !skipAutoInject) {
-          targetBlueprintId =
-            settings?.blueprints?.defaultBlueprintId ?? GLOBAL_DEFAULT_BLUEPRINT_ID;
+          targetJigId = settings?.jigs?.defaultJigId ?? GLOBAL_DEFAULT_JIG_ID;
         }
       }
 
       createTerminal.mutate(
-        { projectId, benchId, command, blueprintId: targetBlueprintId },
+        { projectId, benchId, command, jigId: targetJigId },
         {
           onSuccess: (response) => {
             setJustCreated(response.sessionId);
@@ -233,16 +232,16 @@ export default function TerminalTabs({
     [projectId, benchId, destroyTerminal, userSelectedTab, currentSessions],
   );
 
-  const handleInjectBlueprint = useCallback(
-    (blueprintId: string) => {
-      injectBlueprint.mutate({
+  const handleInjectJig = useCallback(
+    (jigId: string) => {
+      injectJig.mutate({
         projectId,
         benchId,
-        blueprintId: blueprintId,
+        jigId: jigId,
         sessionId: activeTab ?? undefined,
       });
     },
-    [projectId, benchId, injectBlueprint, activeTab],
+    [projectId, benchId, injectJig, activeTab],
   );
 
   // Extract short label (e.g., "Terminal 1" or "Claude 1")
@@ -253,10 +252,10 @@ export default function TerminalTabs({
 
   void projectName; // Used by server to generate labels
 
-  const availableBlueprints = blueprints ?? [];
-  const autoInjectEnabled = settings?.blueprints?.autoInject ?? true;
+  const availableJigs = jigs ?? [];
+  const autoInjectEnabled = settings?.jigs?.autoInject ?? true;
   const wouldAutoInject = !settingsLoading && autoInjectEnabled && hasAssignedIssue;
-  const showClaudeDropdown = availableBlueprints.length > 0 || wouldAutoInject;
+  const showClaudeDropdown = availableJigs.length > 0 || wouldAutoInject;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -300,8 +299,8 @@ export default function TerminalTabs({
         </div>
 
         <div className="flex items-center gap-0.5 ml-auto px-2 shrink-0">
-          {/* Blueprint picker — only shown when there are active sessions */}
-          {currentSessions.length > 0 && availableBlueprints.length > 0 && (
+          {/* Jig picker — only shown when there are active sessions */}
+          {currentSessions.length > 0 && availableJigs.length > 0 && (
             <MenuTrigger>
               <TooltipTrigger delay={500}>
                 <Button className="flex items-center gap-1 px-2 py-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none">
@@ -309,10 +308,10 @@ export default function TerminalTabs({
                   <ChevronDown size={10} className="text-stone-400" />
                 </Button>
                 <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
-                  Inject blueprint
+                  Inject jig
                 </Tooltip>
               </TooltipTrigger>
-              <BlueprintMenu blueprints={availableBlueprints} onSelect={handleInjectBlueprint} />
+              <JigMenu jigs={availableJigs} onSelect={handleInjectJig} />
             </MenuTrigger>
           )}
 
@@ -328,7 +327,7 @@ export default function TerminalTabs({
             </Tooltip>
           </TooltipTrigger>
 
-          {/* Claude Code button — show as split button when blueprints exist or auto-inject would fire */}
+          {/* Claude Code button — show as split button when jigs exist or auto-inject would fire */}
           {showClaudeDropdown ? (
             <div className="flex items-center">
               <TooltipTrigger delay={500}>
@@ -349,8 +348,8 @@ export default function TerminalTabs({
                 >
                   <ChevronDown size={10} />
                 </Button>
-                <BlueprintMenu
-                  blueprints={availableBlueprints}
+                <JigMenu
+                  jigs={availableJigs}
                   onSelect={(id) => handleCreate("claude", id)}
                   onLaunchFresh={
                     wouldAutoInject ? () => handleCreate("claude", undefined, true) : undefined
@@ -403,8 +402,8 @@ export default function TerminalTabs({
                     >
                       <ChevronDown size={10} />
                     </Button>
-                    <BlueprintMenu
-                      blueprints={availableBlueprints}
+                    <JigMenu
+                      jigs={availableJigs}
                       onSelect={(id) => handleCreate("claude", id)}
                       onLaunchFresh={
                         wouldAutoInject ? () => handleCreate("claude", undefined, true) : undefined
