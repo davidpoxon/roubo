@@ -3,21 +3,37 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Button, DialogTrigger } from "react-aria-components";
-import type { IntegrationConfig, ProjectIntegrationState } from "@roubo/shared";
+import type {
+  IntegrationConfig,
+  ProjectIntegrationState,
+  SourceCandidatesResponse,
+} from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
 import PluginConfigureDialog from "./PluginConfigureDialog";
 import {
   useTestIntegrationConnection,
   useSaveIntegrationConfig,
 } from "../hooks/useProjectIntegration";
+import { useSourceCandidates } from "../hooks/useSourceCandidates";
+import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useTestIntegrationConnection: vi.fn(),
   useSaveIntegrationConfig: vi.fn(),
 }));
 
+vi.mock("../hooks/useSourceCandidates", () => ({
+  useSourceCandidates: vi.fn(),
+}));
+
+vi.mock("../hooks/useSaveProjectSources", () => ({
+  useSaveProjectSources: vi.fn(),
+}));
+
 const mockedUseTest = vi.mocked(useTestIntegrationConnection);
 const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
+const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
+const mockedUseSaveSources = vi.mocked(useSaveProjectSources);
 
 function inputIn(testId: string): HTMLInputElement {
   const wrapper = screen.getByTestId(testId);
@@ -81,8 +97,16 @@ function renderDialog({
 function installMocks(opts: {
   test: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
+  saveSources?: ReturnType<typeof vi.fn>;
+  candidates?: {
+    data?: SourceCandidatesResponse;
+    isLoading?: boolean;
+    isError?: boolean;
+    error?: unknown;
+  };
   testPending?: boolean;
   savePending?: boolean;
+  saveSourcesPending?: boolean;
 }) {
   mockedUseTest.mockReturnValue({
     mutateAsync: opts.test,
@@ -92,6 +116,16 @@ function installMocks(opts: {
     mutateAsync: opts.save,
     isPending: opts.savePending ?? false,
   } as unknown as ReturnType<typeof useSaveIntegrationConfig>);
+  mockedUseSaveSources.mockReturnValue({
+    mutateAsync: opts.saveSources ?? vi.fn().mockResolvedValue({}),
+    isPending: opts.saveSourcesPending ?? false,
+  } as unknown as ReturnType<typeof useSaveProjectSources>);
+  mockedUseSourceCandidates.mockReturnValue({
+    data: opts.candidates?.data,
+    isLoading: opts.candidates?.isLoading ?? false,
+    isError: opts.candidates?.isError ?? false,
+    error: opts.candidates?.error ?? null,
+  } as unknown as ReturnType<typeof useSourceCandidates>);
 }
 
 beforeEach(() => {
@@ -250,5 +284,175 @@ describe("PluginConfigureDialog", () => {
       },
     });
     expect(inputIn("config-field-instance")).toHaveValue("https://ghe.example");
+  });
+
+  describe("sources section (#71)", () => {
+    const candidates: SourceCandidatesResponse = {
+      shape: "multi-list",
+      items: [
+        { externalId: "repo-1", label: "acme/api" },
+        { externalId: "repo-2", label: "acme/web" },
+      ],
+    };
+
+    it("hides the section before a successful test", () => {
+      installMocks({
+        test: vi.fn(),
+        save: vi.fn(),
+        candidates: { data: candidates },
+      });
+      renderDialog();
+      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
+    });
+
+    it("auto-saves instance + advanced when the test passes, then renders the picker", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({
+        test,
+        save,
+        candidates: { data: candidates },
+      });
+      renderDialog({ effective: { plugin: "ghe", instance: "https://ghe.example" } });
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+      const payload = save.mock.calls[0][0];
+      expect(payload.capturedUserId).toEqual({ externalId: "u-1", displayName: "Jane Doe" });
+      expect(payload.instance).toBe("https://ghe.example");
+      expect(payload.token).toBeUndefined();
+
+      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
+      expect(screen.getByText("acme/api")).toBeInTheDocument();
+      expect(screen.getByText("acme/web")).toBeInTheDocument();
+    });
+
+    it("persists the selected sources via useSaveProjectSources on Save", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      const save = vi.fn().mockResolvedValue({});
+      const saveSources = vi.fn().mockResolvedValue({});
+      installMocks({
+        test,
+        save,
+        saveSources,
+        candidates: { data: candidates },
+      });
+      const onClose = vi.fn();
+      renderDialog({
+        effective: { plugin: "ghe", instance: "https://ghe.example" },
+        onClose,
+      });
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
+
+      await user.click(screen.getByText("acme/api"));
+      await user.click(screen.getByText("acme/web"));
+
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
+
+      expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1", "repo-2"] });
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("hides the section entirely when the plugin returns no candidates", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      installMocks({
+        test,
+        save: vi.fn().mockResolvedValue({}),
+        candidates: { data: { shape: "multi-list", items: [] } },
+      });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
+    });
+
+    it("hides the section when listSourceCandidates errors (e.g. plugin returns 502)", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      installMocks({
+        test,
+        save: vi.fn().mockResolvedValue({}),
+        candidates: { isError: true, error: new Error("Plugin listSourceCandidates failed") },
+      });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
+    });
+
+    it("hides the section again when the user changes any field after a successful test", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      installMocks({
+        test,
+        save: vi.fn().mockResolvedValue({}),
+        candidates: { data: candidates },
+      });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
+
+      await user.type(inputIn("config-field-instance"), "x");
+
+      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("test-result-success")).not.toBeInTheDocument();
+    });
+
+    it("seeds the source-selection state from the effective override", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      const saveSources = vi.fn().mockResolvedValue({});
+      installMocks({
+        test,
+        save: vi.fn().mockResolvedValue({}),
+        saveSources,
+        candidates: { data: candidates },
+      });
+      renderDialog({
+        effective: {
+          plugin: "ghe",
+          instance: "https://ghe.example",
+          sources: { items: ["repo-1"] },
+        },
+      });
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
+
+      // Saving without touching the picker should re-emit the seeded selection.
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
+      expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1"] });
+    });
   });
 });
