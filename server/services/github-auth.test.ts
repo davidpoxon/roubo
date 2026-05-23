@@ -10,6 +10,14 @@ vi.mock("./state.js", () => ({
   ensureDirs: mockEnsureDirs,
 }));
 
+const mockCredentialSet = vi.fn().mockResolvedValue(undefined);
+const mockCredentialDeleteSlot = vi.fn().mockResolvedValue(undefined);
+vi.mock("./credential-store.js", () => ({
+  set: mockCredentialSet,
+  deleteSlot: mockCredentialDeleteSlot,
+  get: vi.fn().mockResolvedValue(null),
+}));
+
 afterEach(() => {
   vi.resetAllMocks();
   vi.useRealTimers();
@@ -177,7 +185,7 @@ describe("saveCredentials", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-06T12:00:00.000Z"));
     const { saveCredentials } = await loadModule();
-    saveCredentials("gho_test", "octocat", ["repo"]);
+    await saveCredentials("gho_test", "octocat", ["repo"]);
     expect(mockEnsureDirs).toHaveBeenCalled();
     expect(mockAtomicWrite).toHaveBeenCalledWith(
       "/mock/.roubo/auth.json",
@@ -197,10 +205,28 @@ describe("saveCredentials", () => {
 
   it("includes an ISO 8601 authorizedAt timestamp", async () => {
     const { saveCredentials } = await loadModule();
-    saveCredentials("gho_test", "octocat", ["repo"]);
+    await saveCredentials("gho_test", "octocat", ["repo"]);
     const written = mockAtomicWrite.mock.calls[0][1] as string;
     const parsed = JSON.parse(written) as { authorizedAt: string };
     expect(new Date(parsed.authorizedAt).toISOString()).toBe(parsed.authorizedAt);
+  });
+
+  it("mirrors the token into the github-com plugin's keychain slot", async () => {
+    const { saveCredentials } = await loadModule();
+    await saveCredentials("gho_test", "octocat", ["repo"]);
+    expect(mockCredentialSet).toHaveBeenCalledWith("github-com", "github-token", "gho_test");
+  });
+
+  it("still writes auth.json when the keychain mirror fails", async () => {
+    mockCredentialSet.mockRejectedValueOnce(new Error("keyring-unavailable"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { saveCredentials } = await loadModule();
+    await saveCredentials("gho_test", "octocat", ["repo"]);
+    expect(mockAtomicWrite).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("failed to mirror token to keychain"),
+      expect.stringContaining("keyring-unavailable"),
+    );
   });
 });
 
@@ -359,8 +385,15 @@ describe("deleteCredentials", () => {
   it("removes auth.json via fs.unlinkSync", async () => {
     vi.mocked(fs.unlinkSync).mockImplementation(() => {});
     const { deleteCredentials } = await loadModule();
-    deleteCredentials();
+    await deleteCredentials();
     expect(fs.unlinkSync).toHaveBeenCalledWith("/mock/.roubo/auth.json");
+  });
+
+  it("clears the keychain slot for github-com", async () => {
+    vi.mocked(fs.unlinkSync).mockImplementation(() => {});
+    const { deleteCredentials } = await loadModule();
+    await deleteCredentials();
+    expect(mockCredentialDeleteSlot).toHaveBeenCalledWith("github-com", "github-token");
   });
 
   it("clears the status cache", async () => {
@@ -379,7 +412,7 @@ describe("deleteCredentials", () => {
     );
     const { getConnectionStatus, deleteCredentials } = await loadModule();
     await getConnectionStatus();
-    deleteCredentials();
+    await deleteCredentials();
     vi.mocked(fs.existsSync).mockReturnValue(false);
     const status = await getConnectionStatus();
     expect(status).toEqual({ connected: false });
@@ -392,7 +425,7 @@ describe("deleteCredentials", () => {
       throw err;
     });
     const { deleteCredentials } = await loadModule();
-    expect(() => deleteCredentials()).not.toThrow();
+    await expect(deleteCredentials()).resolves.toBeUndefined();
   });
 
   it("rethrows non-ENOENT errors", async () => {
@@ -402,6 +435,19 @@ describe("deleteCredentials", () => {
       throw err;
     });
     const { deleteCredentials } = await loadModule();
-    expect(() => deleteCredentials()).toThrow("EPERM");
+    await expect(deleteCredentials()).rejects.toThrow("EPERM");
+  });
+
+  it("swallows keychain failures while still removing auth.json", async () => {
+    vi.mocked(fs.unlinkSync).mockImplementation(() => {});
+    mockCredentialDeleteSlot.mockRejectedValueOnce(new Error("keyring-unavailable"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { deleteCredentials } = await loadModule();
+    await deleteCredentials();
+    expect(fs.unlinkSync).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("failed to clear keychain slot during disconnect"),
+      expect.stringContaining("keyring-unavailable"),
+    );
   });
 });

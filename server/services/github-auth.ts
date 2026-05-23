@@ -2,7 +2,15 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { getRouboDir, atomicWrite, ensureDirs } from "./state.js";
+import * as credentialStore from "./credential-store.js";
 import type { GitHubAuthStatus, GitHubAuthUrl } from "@roubo/shared";
+
+// Mirror the legacy auth.json token into the bundled github-com plugin's
+// keychain slot. The plugin only reads from the keychain, so without this
+// mirror a user who completes OAuth in a fresh install (no migration to run)
+// would have a token in auth.json but the plugin would see nothing.
+const GITHUB_PLUGIN_ID = "github-com";
+const GITHUB_TOKEN_SLOT = "github-token";
 
 interface PersistedAuth {
   githubToken: string;
@@ -129,7 +137,11 @@ export function clearStatusCache(): void {
   statusCache = null;
 }
 
-export function saveCredentials(githubToken: string, username: string, scopes: string[]): void {
+export async function saveCredentials(
+  githubToken: string,
+  username: string,
+  scopes: string[],
+): Promise<void> {
   // Tokens are stored in plaintext — acceptable for a local dev tool where the
   // file is owner-readable only (same pattern as git credential helpers).
   ensureDirs();
@@ -140,13 +152,35 @@ export function saveCredentials(githubToken: string, username: string, scopes: s
     authorizedAt: new Date().toISOString(),
   };
   atomicWrite(AUTH_FILE, JSON.stringify(data, null, 2), 0o600);
+
+  // Mirror the token into the bundled github-com plugin's keychain slot so the
+  // plugin process (which reads only from credentials.get(...)) sees the same
+  // token as the legacy auth flow. Best-effort: if the keychain is unavailable
+  // (e.g. headless Linux without secret-tool), surface a warning but leave the
+  // auth.json write intact so the legacy code path keeps working.
+  try {
+    await credentialStore.set(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT, githubToken);
+  } catch (err) {
+    console.warn(
+      "github-auth: failed to mirror token to keychain (legacy auth.json still written):",
+      (err as Error).message,
+    );
+  }
 }
 
-export function deleteCredentials(): void {
+export async function deleteCredentials(): Promise<void> {
   try {
     fs.unlinkSync(AUTH_FILE);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  try {
+    await credentialStore.deleteSlot(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
+  } catch (err) {
+    console.warn(
+      "github-auth: failed to clear keychain slot during disconnect:",
+      (err as Error).message,
+    );
   }
   clearStatusCache();
 }

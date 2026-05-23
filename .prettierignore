@@ -6,6 +6,7 @@ client/.vite
 client/tsconfig.tsbuildinfo
 electron/out
 electron/build
+electron/resources
 package-lock.json
 **/*.min.js
 client/src/assets

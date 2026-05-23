@@ -120,6 +120,36 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   const wss = new WebSocketServer({ noServer: true });
 
+  // Initialize the project registry, run pending migrations, and bring up the
+  // plugin manager BEFORE we bind the HTTP listener. This avoids a startup
+  // race where the client could fetch /api/projects/:id/integration during
+  // the window between `app.listen()` and `pluginManager.initialize()`
+  // resolving — that returned `installed: false` for a bundled plugin like
+  // github-com and surfaced the WU-015 missing-plugin dialog spuriously.
+  console.log("Initializing project registry...");
+  projectRegistry.initialize();
+
+  console.log("Running migration check...");
+  try {
+    const outcome = await migrate.run();
+    if (outcome.status === "success") {
+      console.log(
+        `Migration: bumped schemaVersion (${outcome.migratedProjectIds.length} projects)`,
+      );
+    } else if (outcome.status === "rolled-back") {
+      console.warn(`Migration rolled back: ${outcome.reason ?? "unknown error"}`);
+    }
+  } catch (err) {
+    console.error("Migration check failed:", (err as Error).message);
+  }
+
+  console.log("Initializing plugin manager...");
+  try {
+    await pluginManager.initialize();
+  } catch (err) {
+    console.error("Plugin manager initialization failed:", (err as Error).message);
+  }
+
   let server: http.Server;
   try {
     server = await new Promise<http.Server>((resolve, reject) => {
@@ -128,6 +158,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     });
   } catch (err) {
     wss.close();
+    await pluginManager.shutdown().catch(() => undefined);
     throw err;
   }
 
@@ -158,30 +189,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
       socket.destroy();
     }
   });
-
-  console.log("Initializing project registry...");
-  projectRegistry.initialize();
-
-  console.log("Running migration check...");
-  try {
-    const outcome = await migrate.run();
-    if (outcome.status === "success") {
-      console.log(
-        `Migration: bumped schemaVersion (${outcome.migratedProjectIds.length} projects)`,
-      );
-    } else if (outcome.status === "rolled-back") {
-      console.warn(`Migration rolled back: ${outcome.reason ?? "unknown error"}`);
-    }
-  } catch (err) {
-    console.error("Migration check failed:", (err as Error).message);
-  }
-
-  console.log("Initializing plugin manager...");
-  try {
-    await pluginManager.initialize();
-  } catch (err) {
-    console.error("Plugin manager initialization failed:", (err as Error).message);
-  }
 
   console.log("Initializing bench manager...");
   benchManager.initialize();

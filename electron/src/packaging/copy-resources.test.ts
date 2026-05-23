@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, symlink, readFile, lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { copyResources } from "./copy-resources.js";
+import { BUNDLED_PLUGIN_IDS, copyResources } from "./copy-resources.js";
 
 let tmpDir: string;
 
@@ -21,6 +21,20 @@ async function makeRepoArtifacts(repoRoot: string) {
   await writeFile(path.join(repoRoot, "server", "dist", "index.js"), "server code");
   await writeFile(path.join(repoRoot, "client", "dist", "index.html"), "<html>client</html>");
   await writeFile(path.join(repoRoot, "schema", "roubo-config.schema.json"), "{}");
+
+  for (const id of BUNDLED_PLUGIN_IDS) {
+    const pluginRoot = path.join(repoRoot, "plugins", id);
+    await mkdir(path.join(pluginRoot, "dist"), { recursive: true });
+    await mkdir(path.join(pluginRoot, "src"), { recursive: true });
+    await mkdir(path.join(pluginRoot, "node_modules", "junk"), { recursive: true });
+    await writeFile(path.join(pluginRoot, "dist", "index.js"), `${id} dist`);
+    await writeFile(path.join(pluginRoot, "src", "index.ts"), `${id} src`);
+    await writeFile(path.join(pluginRoot, "roubo-plugin.yaml"), `id: ${id}\n`);
+    await writeFile(path.join(pluginRoot, "package.json"), `{"name":"${id}"}`);
+    await writeFile(path.join(pluginRoot, "README.md"), `# ${id}`);
+    await writeFile(path.join(pluginRoot, "tsconfig.json"), "{}");
+    await writeFile(path.join(pluginRoot, "node_modules", "junk", "x.js"), "should not ship");
+  }
 }
 
 describe("copyResources", () => {
@@ -108,18 +122,77 @@ describe("copyResources", () => {
     );
   });
 
+  it("throws when a bundled plugin dist/ is missing", async () => {
+    const repoRoot = path.join(tmpDir, "repo");
+    const electronRoot = path.join(tmpDir, "electron");
+    await makeRepoArtifacts(repoRoot);
+    await rm(path.join(repoRoot, "plugins", "github-com", "dist"), {
+      recursive: true,
+      force: true,
+    });
+    await mkdir(electronRoot);
+
+    await expect(copyResources({ repoRoot, electronRoot })).rejects.toThrow(
+      "plugins/github-com/dist not found — run `npm run build` from repo root first",
+    );
+  });
+
+  it("stages each bundled plugin (manifest + package.json + dist) and skips build-time files", async () => {
+    const repoRoot = path.join(tmpDir, "repo");
+    const electronRoot = path.join(tmpDir, "electron");
+    await makeRepoArtifacts(repoRoot);
+    await mkdir(electronRoot);
+
+    await copyResources({ repoRoot, electronRoot });
+
+    for (const id of BUNDLED_PLUGIN_IDS) {
+      const dest = path.join(electronRoot, "resources", "plugins", id);
+
+      const manifest = await readFile(path.join(dest, "roubo-plugin.yaml"), "utf8");
+      expect(manifest).toBe(`id: ${id}\n`);
+
+      const pkg = await readFile(path.join(dest, "package.json"), "utf8");
+      expect(pkg).toBe(`{"name":"${id}"}`);
+
+      const dist = await readFile(path.join(dest, "dist", "index.js"), "utf8");
+      expect(dist).toBe(`${id} dist`);
+
+      // Build-time and workspace junk must not ship.
+      await expect(lstat(path.join(dest, "tsconfig.json"))).rejects.toThrow();
+      await expect(lstat(path.join(dest, "src"))).rejects.toThrow();
+      await expect(lstat(path.join(dest, "node_modules"))).rejects.toThrow();
+    }
+  });
+
+  it("idempotently refreshes staged plugins on rerun", async () => {
+    const repoRoot = path.join(tmpDir, "repo");
+    const electronRoot = path.join(tmpDir, "electron");
+    await makeRepoArtifacts(repoRoot);
+    await mkdir(electronRoot);
+
+    await copyResources({ repoRoot, electronRoot });
+    await writeFile(
+      path.join(repoRoot, "plugins", "github-com", "dist", "index.js"),
+      "updated github-com dist",
+    );
+    await copyResources({ repoRoot, electronRoot });
+
+    const updated = await readFile(
+      path.join(electronRoot, "resources", "plugins", "github-com", "dist", "index.js"),
+      "utf8",
+    );
+    expect(updated).toBe("updated github-com dist");
+  });
+
   it("dereferences symlinks into real files", async () => {
     const repoRoot = path.join(tmpDir, "repo");
     const electronRoot = path.join(tmpDir, "electron");
-    await mkdir(path.join(repoRoot, "server", "dist"), { recursive: true });
-    await mkdir(path.join(repoRoot, "client", "dist"), { recursive: true });
-    await mkdir(path.join(repoRoot, "schema"), { recursive: true });
-    await writeFile(path.join(repoRoot, "schema", "roubo-config.schema.json"), "{}");
+    await makeRepoArtifacts(repoRoot);
+    await rm(path.join(repoRoot, "server", "dist", "index.js"));
 
     const realFile = path.join(tmpDir, "real.js");
     await writeFile(realFile, "real content");
     await symlink(realFile, path.join(repoRoot, "server", "dist", "index.js"));
-    await writeFile(path.join(repoRoot, "client", "dist", "index.html"), "<html>");
 
     await mkdir(electronRoot);
     await copyResources({ repoRoot, electronRoot });
