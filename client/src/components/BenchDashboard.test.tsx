@@ -256,6 +256,8 @@ vi.mock("./settings/DangerZoneTile", () => ({
 }));
 vi.mock("./RegisterProjectModalProvider", () => ({
   RegisterProjectModalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("../hooks/useRegisterProjectModal", () => ({
   useRegisterProjectModal: () => ({ open: vi.fn() }),
 }));
 vi.mock("./ProjectTile", () => ({

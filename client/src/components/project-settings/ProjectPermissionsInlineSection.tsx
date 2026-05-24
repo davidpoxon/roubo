@@ -1,6 +1,7 @@
 import Spinner from "../Spinner";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";
-import { PermissionsRulesTable, flattenPermissions } from "./PermissionsRulesTable";
+import { PermissionsRulesTable } from "./PermissionsRulesTable";
+import { flattenPermissions } from "./permissionsTable";
 
 interface ProjectPermissionsInlineSectionProps {
   projectId: string;

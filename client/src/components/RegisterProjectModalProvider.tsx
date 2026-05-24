@@ -1,11 +1,6 @@
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
 import RegisterProjectModal from "./RegisterProjectModal";
-
-interface RegisterProjectModalContextValue {
-  open: () => void;
-}
-
-const RegisterProjectModalContext = createContext<RegisterProjectModalContextValue | null>(null);
+import { RegisterProjectModalContext } from "../hooks/useRegisterProjectModal";
 
 export function RegisterProjectModalProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,11 +15,4 @@ export function RegisterProjectModalProvider({ children }: { children: React.Rea
       <RegisterProjectModal key={openCount} isOpen={isOpen} onClose={() => setIsOpen(false)} />
     </RegisterProjectModalContext.Provider>
   );
-}
-
-export function useRegisterProjectModal() {
-  const ctx = useContext(RegisterProjectModalContext);
-  if (!ctx)
-    throw new Error("useRegisterProjectModal must be used within RegisterProjectModalProvider");
-  return ctx;
 }

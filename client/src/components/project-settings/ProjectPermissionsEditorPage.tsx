@@ -7,13 +7,13 @@ import Select from "../Select";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";
 import { useProjects } from "../../hooks/useProjects";
 import { useToast } from "../../hooks/useToast";
+import { PermissionsRulesTable } from "./PermissionsRulesTable";
 import {
-  PermissionsRulesTable,
   RULE_TYPE_ITEMS,
   flattenPermissions,
   type PermissionRule,
   type RuleType,
-} from "./PermissionsRulesTable";
+} from "./permissionsTable";
 import { ImportPermissionsModal } from "./ImportPermissionsModal";
 import type { ProjectPermissions } from "@roubo/shared";
 

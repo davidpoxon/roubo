@@ -1,6 +1,6 @@
 import { Button } from "react-aria-components";
 import { Plus } from "lucide-react";
-import { useRegisterProjectModal } from "./RegisterProjectModalProvider";
+import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 
 export default function RegisterProjectTile() {
   const { open } = useRegisterProjectModal();

@@ -11,33 +11,8 @@ import {
   TextField,
 } from "react-aria-components";
 import { Loader2, Plus } from "lucide-react";
-import type { InstallPreview, PluginManifest } from "@roubo/shared";
-
-export type SourceTab = "git" | "local";
-
-export interface SourceStep {
-  step: "source";
-  tab: SourceTab;
-  gitInput: string;
-  localInput: string;
-  error: string | null;
-}
-
-export interface PermissionsStep {
-  step: "permissions";
-  preview: InstallPreview;
-  error: string | null;
-}
-
-export function initialSourceStep(tab: SourceTab = "git"): SourceStep {
-  return {
-    step: "source",
-    tab,
-    gitInput: "",
-    localInput: "",
-    error: null,
-  };
-}
+import type { PluginManifest } from "@roubo/shared";
+import type { PermissionsStep, SourceStep, SourceTab } from "./install-screens-state";
 
 export function SourceScreen({
   state,
