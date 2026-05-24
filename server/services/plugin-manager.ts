@@ -863,14 +863,20 @@ export async function invoke<T = unknown>(
           }
           resolve(value);
         })
-        .catch((err: Error) => {
+        .catch((err: Error & { code?: unknown }) => {
           if (timer) {
             clearTimeout(timer);
             timer = null;
           }
           // If the cause is cancellation due to our own timeout we already rejected.
           if (tokenSource.token.isCancellationRequested) return;
-          reject(makeRpcError("rpc-error", err.message ?? String(err), method));
+          // vscode-jsonrpc surfaces JSON-RPC error -32601 as a numeric `code` on
+          // a ResponseError. Translate it to the string "MethodNotFound" so
+          // callers (e.g. plugin-activation's setActiveConfig guard) can detect
+          // plugins that don't implement an optional method.
+          const code =
+            typeof err.code === "number" && err.code === -32601 ? "MethodNotFound" : "rpc-error";
+          reject(makeRpcError(code, err.message ?? String(err), method));
         });
     });
     return result;
