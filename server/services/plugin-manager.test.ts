@@ -50,6 +50,9 @@ async function makeSandbox(opts: { bundled?: string[]; user?: string[] }): Promi
     bundledDir,
     userDir,
     cleanup: async () => {
+      // Drain any in-flight writeLog calls before clearing ROUBO_USER_PLUGINS_DIR so logs from
+      // the just-finished test don't race the env-var clear and leak into ~/.roubo.
+      await pluginManager.__test.flushLogs();
       delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
       delete process.env.ROUBO_USER_PLUGINS_DIR;
       await rm(root, { recursive: true, force: true });
@@ -502,6 +505,80 @@ describe("logs", () => {
       .then(() => true)
       .catch(() => false);
     expect(exists).toBe(true);
+  });
+
+  it("round-trips multi-line text as a single log entry", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const multi = "spawn failed: [vitest] No 'cleanEnv' export\nIf you need to mock partially";
+    await mgr.__test.appendLog("echo", "host", multi);
+    await mgr.__test.flushLogs();
+    const logs = await mgr.readLogs("echo", "current", 100);
+    const match = logs.find((l) => l.text.startsWith("spawn failed:"));
+    expect(match).toBeDefined();
+    // The embedded newline survives the round-trip and the entry isn't fragmented.
+    expect(match?.text).toBe(multi);
+    expect(logs.filter((l) => l.text.startsWith("If you need to mock"))).toEqual([]);
+  });
+
+  it("returns ts: '' for malformed log lines (no synthesised 'now' timestamp)", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    // Simulate a pre-fix legacy log entry that doesn't match the strict format. To exercise
+    // parseLogLine directly we write straight to current.log here (bypassing writeLog/openLogStream
+    // so the legacy-rotation guard doesn't kick in on the same call).
+    const logFile = path.join(sandbox.userDir, "echo", "logs", "current.log");
+    await mkdir(path.dirname(logFile), { recursive: true });
+    await writeFile(logFile, "this line has no timestamp prefix at all\n");
+    // openLogStream will detect the legacy entry and rotate it to previous.log; read from there.
+    await mgr.__test.appendLog("echo", "host", "after rotation");
+    await mgr.__test.flushLogs();
+    const previous = await mgr.readLogs("echo", "previous", 100);
+    const malformed = previous.find((l) => l.text.includes("no timestamp prefix"));
+    expect(malformed).toBeDefined();
+    expect(malformed?.ts).toBe("");
+  });
+
+  it("auto-rotates a legacy log on first open and starts current.log clean", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const logDir = path.join(sandbox.userDir, "echo", "logs");
+    await mkdir(logDir, { recursive: true });
+    const current = path.join(logDir, "current.log");
+    // Mix of one well-formed entry and one legacy multi-line record (no newline escape).
+    await writeFile(
+      current,
+      "2026-05-01T00:00:00.000Z host [error] line A\n2026-05-01T00:00:00.001Z host [error] line B\nleaked continuation with no prefix\n",
+    );
+    // First writeLog after process start triggers the one-time rotation.
+    await mgr.__test.appendLog("echo", "host", "fresh entry after rotation");
+    await mgr.__test.flushLogs();
+    const fresh = await mgr.readLogs("echo", "current", 100);
+    expect(fresh.map((l) => l.text)).toEqual(["fresh entry after rotation"]);
+    const archived = await mgr.readLogs("echo", "previous", 100);
+    expect(archived.some((l) => l.text === "line A")).toBe(true);
+    expect(archived.some((l) => l.text.includes("leaked continuation"))).toBe(true);
+  });
+
+  it("refuses to write to the real user plugins dir under NODE_ENV=test without an override", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    // Strip the isolation env var to simulate the leaky race: a writeLog scheduled before the
+    // test's afterEach runs, resolving after cleanup has cleared ROUBO_USER_PLUGINS_DIR.
+    const saved = process.env.ROUBO_USER_PLUGINS_DIR;
+    delete process.env.ROUBO_USER_PLUGINS_DIR;
+    try {
+      await expect(mgr.__test.appendLog("echo", "host", "y")).rejects.toThrow(
+        /refusing to write logs to the real user plugins dir/,
+      );
+    } finally {
+      // Restore for the rest of the test lifecycle (sandbox.cleanup expects it set).
+      if (saved !== undefined) process.env.ROUBO_USER_PLUGINS_DIR = saved;
+    }
   });
 });
 

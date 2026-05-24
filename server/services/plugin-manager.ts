@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, statSync, type WriteStream } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,7 @@ interface PluginEntry {
   logStream: WriteStream | null;
   logBytes: number;
   logOpenPromise: Promise<void> | null;
+  legacyRotateChecked: boolean;
   intentionalStop: boolean;
   restartTimer: NodeJS.Timeout | null;
 }
@@ -72,6 +73,17 @@ export function getUserPluginsRoot(): string {
 function logDirFor(pluginId: string): string {
   // Logs always live under the user plugins root (typically `~/.roubo/plugins/<id>/logs`),
   // even for bundled plugins. Tests override the root via ROUBO_USER_PLUGINS_DIR.
+  //
+  // Defence in depth: under vitest, refuse to fall back to the real ~/.roubo directory when
+  // ROUBO_USER_PLUGINS_DIR isn't set. A previous race (env var cleared before in-flight writes
+  // resolved) leaked test errors into the user's production log file. Throwing here turns that
+  // class of bug into a loud test failure instead of silent pollution.
+  if (process.env.NODE_ENV === "test" && !process.env.ROUBO_USER_PLUGINS_DIR) {
+    throw new Error(
+      "plugin-manager: refusing to write logs to the real user plugins dir under NODE_ENV=test " +
+        "(set ROUBO_USER_PLUGINS_DIR to an isolated tmp dir from your test setup)",
+    );
+  }
   return path.join(userPluginsRoot(), pluginId, "logs");
 }
 
@@ -130,6 +142,7 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
     logStream: null,
     logBytes: 0,
     logOpenPromise: null,
+    legacyRotateChecked: false,
     intentionalStop: false,
     restartTimer: null,
   };
@@ -279,11 +292,49 @@ async function ensureLogDir(pluginId: string): Promise<string> {
   return dir;
 }
 
+// Matches the on-disk format produced by formatLogLine: `<ISO ts> <source>[ [level]] <text>`.
+// Exported via __test for unit-test parity.
+const LOG_RECORD_RE = /^(\S+) (stdout|stderr|host)(?: \[(info|warn|error)\])? (.*)$/;
+
+// One-time legacy migration: pre-fix log files stored embedded newlines verbatim, so a single
+// record spanned multiple physical lines. Reading them back fragmented the record and the
+// fallback timestamp made continuation lines look like they were written "now". Detect any line
+// that doesn't match the strict format and rotate the whole file aside so the user starts clean.
+async function rotateLegacyLogIfNeeded(dir: string): Promise<void> {
+  const current = path.join(dir, "current.log");
+  let text: string;
+  try {
+    text = await readFile(current, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    return;
+  }
+  const lines = text.split("\n").filter((l) => l.length > 0);
+  if (lines.length === 0) return;
+  const hasLegacy = lines.some((l) => !LOG_RECORD_RE.test(l));
+  if (!hasLegacy) return;
+  const previous = path.join(dir, "previous.log");
+  try {
+    await unlink(previous);
+  } catch {
+    // best-effort; rename will overwrite on POSIX
+  }
+  try {
+    await rename(current, previous);
+  } catch {
+    // best-effort
+  }
+}
+
 async function openLogStream(entry: PluginEntry): Promise<void> {
   if (entry.logStream) return;
   if (entry.logOpenPromise) return entry.logOpenPromise;
   entry.logOpenPromise = (async () => {
     const dir = await ensureLogDir(entry.record.id);
+    if (!entry.legacyRotateChecked) {
+      entry.legacyRotateChecked = true;
+      await rotateLegacyLogIfNeeded(dir);
+    }
     const current = path.join(dir, "current.log");
     let bytes = 0;
     if (existsSync(current)) {
@@ -321,6 +372,17 @@ async function rotateLogIfNeeded(entry: PluginEntry, addedBytes: number): Promis
   }
 }
 
+// Escape backslashes and newlines so a single log record always occupies one physical line.
+// Reversed by unescapeLogText in parseLogLine; order matters (backslash first on the way in,
+// backslash last on the way out) so encoded sequences don't get double-decoded.
+function escapeLogText(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+}
+
+function unescapeLogText(text: string): string {
+  return text.replace(/\\([\\nr])/g, (_, ch) => (ch === "n" ? "\n" : ch === "r" ? "\r" : "\\"));
+}
+
 function formatLogLine(
   source: "stdout" | "stderr" | "host",
   text: string,
@@ -328,8 +390,14 @@ function formatLogLine(
 ): string {
   const ts = nowIso();
   const lvl = level ? ` [${level}]` : "";
-  return `${ts} ${source}${lvl} ${text}\n`;
+  return `${ts} ${source}${lvl} ${escapeLogText(text)}\n`;
 }
+
+// Tracks every in-flight writeLog promise so `__test.flushLogs()` can await them all and
+// guarantee the test's `afterEach` doesn't unset ROUBO_USER_PLUGINS_DIR while a write is still
+// in the queue. (Without tracking, the env-var clear could race with logDirFor() and leak into
+// the real ~/.roubo dir.)
+const pendingWrites = new Set<Promise<void>>();
 
 async function writeLog(
   entry: PluginEntry,
@@ -337,12 +405,28 @@ async function writeLog(
   text: string,
   level?: "info" | "warn" | "error",
 ): Promise<void> {
-  if (!entry.logStream) {
-    await openLogStream(entry);
+  const work = (async () => {
+    if (!entry.logStream) {
+      await openLogStream(entry);
+    }
+    const line = formatLogLine(source, text, level);
+    const stream = entry.logStream;
+    if (stream) {
+      // Await the write callback so subsequent readFile()s observe the new bytes. Without this
+      // the call returns immediately while the kernel buffer is still draining, and tests (or
+      // a polling readLogs) can miss the entry that was just written.
+      await new Promise<void>((resolve, reject) => {
+        stream.write(line, (err) => (err ? reject(err) : resolve()));
+      });
+    }
+    await rotateLogIfNeeded(entry, Buffer.byteLength(line, "utf8"));
+  })();
+  pendingWrites.add(work);
+  try {
+    await work;
+  } finally {
+    pendingWrites.delete(work);
   }
-  const line = formatLogLine(source, text, level);
-  entry.logStream?.write(line);
-  await rotateLogIfNeeded(entry, Buffer.byteLength(line, "utf8"));
 }
 
 function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
@@ -381,6 +465,10 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       cwd: entry.record.pluginDir,
       env: {
         ...cleanEnv(),
+        // Under Electron, process.execPath is the Electron binary. Without this flag it would
+        // launch as a new GUI app and exit code 0 within seconds. With the flag, Electron runs
+        // the entry as Node. Plain Node ignores the variable, so this is safe in dev too.
+        ELECTRON_RUN_AS_NODE: "1",
         ROUBO_PLUGIN_ID: manifest.id,
         ROUBO_HOST_API_VERSION: HOST_API_VERSION,
       },
@@ -820,16 +908,19 @@ export async function readLogs(
 
 function parseLogLine(raw: string): LogLine {
   // Format: <ISO ts> <source>[ [level]] <text>
+  // Lines that don't match are pre-fix legacy data (or a continuation line from an entry whose
+  // text contained an unescaped newline). Return ts: "" so the UI doesn't synthesise a misleading
+  // "now" timestamp at read time.
   const match = raw.match(/^(\S+) (stdout|stderr|host)(?: \[(info|warn|error)\])? (.*)$/);
   if (!match) {
-    return { ts: nowIso(), source: "host", text: raw };
+    return { ts: "", source: "host", text: raw };
   }
   const [, ts, source, level, text] = match;
   return {
     ts,
     source: source as LogLine["source"],
     level: (level as LogLine["level"]) ?? undefined,
-    text,
+    text: unescapeLogText(text),
   };
 }
 
@@ -863,6 +954,16 @@ export const __test = {
     if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
     await writeLog(entry, source, text);
   },
+  // Resolves after every currently-pending writeLog has settled. Tests call this in afterEach
+  // before clearing ROUBO_USER_PLUGINS_DIR to keep async writes from racing the cleanup.
+  async flushLogs(): Promise<void> {
+    while (pendingWrites.size > 0) {
+      await Promise.allSettled(Array.from(pendingWrites));
+    }
+  },
+  logRecordRegex: LOG_RECORD_RE,
+  escapeLogText,
+  unescapeLogText,
   bundledRoot: bundledPluginsRoot,
   userRoot: userPluginsRoot,
 };
