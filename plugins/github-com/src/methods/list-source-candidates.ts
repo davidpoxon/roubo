@@ -3,9 +3,10 @@ import { fetchCurrentUser, fetchProjects, fetchUserRepos } from "../github-fetch
 
 /**
  * Returns the repos the current user can see plus all GitHub Projects v2
- * for the user's own login (projects scoped to organizations the user
- * belongs to are deferred to a follow-up: the legacy module only ever
- * looked up projects for the explicit owner of the configured repo).
+ * owned by the authenticated user OR by any org/user that owns a repo the
+ * user has access to. Project enumeration is best-effort per owner: a single
+ * failing owner (e.g. one without projects enabled, or one the token can't
+ * read) does not poison the wider candidate list.
  *
  * Category ids ("Repository", "Project") are load-bearing: the host's
  * `plugin-source-translation` module keys off them to round-trip the
@@ -27,20 +28,45 @@ export async function listSourceCandidates(): Promise<SourceCandidatesResponse> 
 
   try {
     const user = await fetchCurrentUser();
-    const projects = await fetchProjects(user.login);
-    for (const project of projects) {
-      projectItems.push({
-        externalId: `${user.login}/#${project.number}`,
-        label: `${project.title} (#${project.number})`,
-        sublabel: `GitHub Project v2 owned by ${user.login}`,
-        icon: "project",
-      });
+
+    const owners = new Set<string>();
+    owners.add(user.login);
+    for (const repo of repos) {
+      const ownerLogin = repo.full_name.split("/")[0];
+      if (ownerLogin) owners.add(ownerLogin);
     }
+
+    const ownerList = Array.from(owners);
+    const results = await Promise.all(
+      ownerList.map((owner) =>
+        fetchProjects(owner).catch((err: unknown) => {
+          // Per-owner isolation: a missing read:project scope, an org that
+          // hasn't enabled projects, or a transient failure should not drop
+          // the other owners' projects from the list.
+          console.warn(
+            `[github-com] listSourceCandidates: failed to enumerate projects for "${owner}":`,
+            (err as Error).message,
+          );
+          return [];
+        }),
+      ),
+    );
+
+    ownerList.forEach((owner, i) => {
+      for (const project of results[i] ?? []) {
+        projectItems.push({
+          externalId: `${owner}/#${project.number}`,
+          label: `${project.title} (#${project.number})`,
+          sublabel: `GitHub Project v2 owned by ${owner}`,
+          icon: "project",
+        });
+      }
+    });
   } catch (err) {
-    // Listing projects is best-effort: a missing read:project scope or no
-    // projects at all should not break the broader candidate list.
+    // fetchCurrentUser failed: without an authenticated user we can't even
+    // start project enumeration. Keep the repo list rather than failing.
     console.warn(
-      "[github-com] listSourceCandidates: failed to enumerate user projects:",
+      "[github-com] listSourceCandidates: failed to resolve current user for project enumeration:",
       (err as Error).message,
     );
   }

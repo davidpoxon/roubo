@@ -141,6 +141,35 @@ describe("normalize", () => {
       expect(result.externalUrl).toBe("https://github.com/foo/bar/issues/17");
       expect(result.currentState).toBe("open");
       expect(result.issueType).toBe("Task");
+      expect(result.blockedBy).toEqual([]);
+      expect(result.blocks).toEqual([]);
+    });
+
+    it("passes through blockedBy / blocks supplied by the caller", () => {
+      const node: ProjectV2Data["items"]["nodes"][number] = {
+        content: {
+          __typename: "Issue",
+          number: 17,
+          title: "T",
+          body: null,
+          state: "OPEN",
+          labels: { nodes: [] },
+          assignees: { nodes: [] },
+          milestone: null,
+          issueType: null,
+          createdAt: "x",
+          updatedAt: "x",
+          comments: { totalCount: 0 },
+        },
+        fieldValueByName: null,
+      };
+      const result = projectNodeToNormalizedIssue(node, "foo/bar", {
+        blockedBy: ["foo/bar#1"],
+        blocks: ["foo/bar#9"],
+      });
+      if (!result) throw new Error("projectNodeToNormalizedIssue returned null");
+      expect(result.blockedBy).toEqual(["foo/bar#1"]);
+      expect(result.blocks).toEqual(["foo/bar#9"]);
     });
   });
 });
