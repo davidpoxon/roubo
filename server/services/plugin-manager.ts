@@ -84,7 +84,16 @@ function logDirFor(pluginId: string): string {
         "(set ROUBO_USER_PLUGINS_DIR to an isolated tmp dir from your test setup)",
     );
   }
-  return path.join(userPluginsRoot(), pluginId, "logs");
+  const root = userPluginsRoot();
+  const resolved = path.resolve(root, pluginId, "logs");
+  // Prevent path traversal: a pluginId containing ".." or absolute segments (from a malformed
+  // manifest) must not escape the expected root directory.
+  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+    throw new Error(
+      `plugin-manager: plugin id "${pluginId}" resolves outside the plugins root; rejecting`,
+    );
+  }
+  return resolved;
 }
 
 function nowIso(): string {
