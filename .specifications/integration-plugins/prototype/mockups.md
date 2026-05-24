@@ -417,3 +417,131 @@ Per CLAUDE.md, the following copy strings must use periods, commas, parentheses,
 - Transition popover label (uses colon: `Move to:`).
 
 This is enforced at write time, not visually. Any future text additions to these screens must keep the rule.
+
+---
+
+# Addendum - 2026-05-24: Security & quality issues option
+
+> Scope: the Configure-dialog and Issues-list surfaces added by the 2026-05-24 PRD addendum. Layered on top of the screens above. New mockups extend screens 4, 6, and 10; new screens are 18, 19, and 20. Read after the original screens for full context.
+
+## 4 (extended). Per-plugin configure dialog - github.com + GHE _(supports US-011, US-012, FR-040, FR-045, FR-046)_
+
+Both the github.com and GHE plugin configure dialogs gain a new section that appears **per source** in the source list, immediately below the existing per-source row (the row that today shows the repo / Project name and a remove icon).
+
+**Section title:** `Security & quality alerts` (subtle h4-weight label with the amber-500 section-anchor dot used elsewhere on the page).
+
+**Section body:** three React Aria `Checkbox` rows.
+
+1. `Code Scanning alerts` - help text below in muted weight: `CodeQL or third-party SAST findings on this repo.`
+2. `Secret Scanning alerts` - help text: `Leaked tokens committed to the repo. Private repos require GitHub Advanced Security.`
+3. `Dependabot alerts` - help text: `Known vulnerabilities in this repo's dependencies. Requires repo admin.`
+
+All three default unchecked. Each checkbox tooltip names the GitHub REST endpoint and required scope on hover. No "select all" affordance (decision: three booleans is the model).
+
+**State variants per checkbox row:**
+
+- `Off (default)`: just label + help text + checkbox.
+- `On, no warning`: checked checkbox; help text replaced with a one-line green-check status: `Active. Last pull returned <N> open alerts.` where `<N>` is the count from the last successful pull.
+- `On, warning chip` (the meat of US-012): the row grows a warning chip immediately under the help text. Chip is a React Aria `<Button>` rendered as an amber-bordered pill with a small triangle warning glyph. Chip text is the human-readable cause string. Examples:
+  - `Code Scanning unavailable: GHAS not enabled on this repo.` (cause: HTTP 404/410)
+  - `Secret Scanning unavailable: requires GitHub Advanced Security on private repos.` (cause: HTTP 451)
+  - `Dependabot unavailable: token lacks security_events permission. Click to upgrade.` (cause: missing scope; this variant is also the re-consent affordance, see screen 19)
+  - `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` (cause: `X-OAuth-Scopes` header absent on fine-grained GHE PAT; NFR-015 graceful path)
+- `Off but previously on with frozen benches` (FR-050 honesty surface): help text reads `Off. <K> existing benches still show alerts from this category.` in muted weight. No warning chip. Helps the user understand the toggle has no destructive side effect.
+
+**Position in the dialog:** for each repo source in the source list, the `Security & quality alerts` section is collapsed by default behind a disclosure triangle to keep the dialog compact when none of the three are enabled. The disclosure label shows a chip count when one or more categories are on: `Security & quality alerts (Code Scanning, Dependabot)`.
+
+**Save behavior unchanged:** per-source booleans persist to the existing per-user override file. Toggling a checkbox on for a source where the token lacks `security_events` opens the inline re-consent flow described in screen 19 before Save is allowed to commit.
+
+---
+
+## 18. Issues list: category chip _(supports US-011, FR-041, FR-043)_
+
+The existing project Issues list (rendered by `IssueQueuePanel.tsx` and `IssuePickerModal.tsx`) gains a category chip rendered to the LEFT of each issue's title for issues whose normalized `issueType` is one of `security-code-scanning`, `security-secret-scanning`, or `security-dependabot`. Regular Issues remain unchanged (no chip).
+
+**Chip variants:**
+
+- `CodeQL` - charcoal text on a muted slate background.
+- `Secret` - charcoal text on a muted amber background (more attention-grabbing because of the redaction sensitivity).
+- `Dependabot` - charcoal text on a muted blue-gray background.
+
+All three use the JetBrains Mono font at the small-uppercase weight already used for technical chips elsewhere. Chip height matches the existing `Pull request` chip. Tooltip on hover shows the alert's external id (`wday-planning/roubo#code-scanning-17`) so users can correlate with GitHub's UI.
+
+**Row metadata:** no severity surfaced in the row (decision: lives in `raw`, not normalized). The user must click into the bench detail view to see severity if the bench is created. Sort order, filtering, and grouping behave identically to regular Issues.
+
+---
+
+## 10 (extended). Bench view: Transition / Assign for alert-backed benches _(supports FR-048)_
+
+When a bench's `assignedIssue.issueType` is one of the three security categories:
+
+- The `Transition to:` dropdown described in screen 10 is HIDDEN entirely (not rendered, not disabled-and-greyed). In its place a single muted line reads: `Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.`
+- The `Assign to me` / `Unassign` control described in screen 11 is rendered but DISABLED with a tooltip on hover: `Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work.`
+- All other bench affordances (start, stop, clear, blueprint selection, logs, terminal) work identically to a regular-Issue bench.
+
+**Rationale shown to the user:** the bench detail header surfaces the category chip from screen 18 alongside the title, so the differentiated controls are visually justified.
+
+---
+
+## 19. OAuth re-consent inline action _(supports US-011, FR-045)_
+
+Triggered when the user toggles any of the three category checkboxes on (in screen 4-extended) AND the stored token lacks `security_events`. Rendered inline within the source row's warning chip from screen 4-extended; not a top-level banner.
+
+**Visual:** the warning chip text changes to `Dependabot unavailable: token lacks security_events permission. Click to upgrade.` and the chip becomes a clearly-actionable button (cursor changes to pointer; amber border thickens on hover).
+
+**On click:**
+
+1. Chip enters a `Connecting...` state with a small spinner replacing the glyph.
+2. A React Aria `<Dialog>` opens with copy: `Upgrade GitHub connection. Roubo needs additional permission to read security & quality alerts (security_events). You'll be redirected to GitHub to authorize this scope. Your existing connection stays valid.` Buttons: `Cancel` (tertiary), `Continue to GitHub` (primary).
+3. On `Continue to GitHub`, Roubo opens the OAuth authorize URL in the external browser (same `roubo://oauth/github/callback` deep link the existing GitHub.com OAuth uses). The dialog closes; the chip stays in `Waiting for browser...` state.
+4. On successful callback, the chip clears (because the next probe succeeds) OR re-renders with the next applicable cause (e.g. `Dependabot unavailable: not a repo admin.` if the user is missing admin rights on this specific repo).
+5. On cancel or callback failure, the chip reverts to the unauthenticated cause string with a small `Retry` text link inside.
+
+**State announcement (NFR-014):** chip state transitions (idle, connecting, waiting, success, error) are announced via a React Aria live region so a screen-reader user hears `Upgrading GitHub connection.` → `Waiting for browser authorization.` → `Connection upgraded. Dependabot alerts will appear on the next pull.`
+
+**GHE plugin variant:** for the GHE plugin, the same chip text appears but the action is `Open token settings on <instance URL>` (a plain link to the GHE instance's PAT page); there is no OAuth flow. After regenerating the PAT manually the user pastes it back into the existing `Personal access token` field on the dialog.
+
+---
+
+## 20. Test connection: per-category status _(supports US-013, FR-047)_
+
+Extends the test connection result strip described in screen 4. When at least one category is enabled on the source whose `Test connection` button was clicked, the result strip stacks per-category rows beneath the existing connection result.
+
+**Layout:**
+
+```
+[ok] Connected as @david.poxon.
+[ok] Issues: ok (read 1 item).
+[ok] Code Scanning: ok (read 1 item).
+[warn] Secret Scanning: GHAS not enabled on private repo.
+[ok] Dependabot: ok (read 1 item).
+```
+
+Each category row uses the same icon vocabulary as the broader status strip: green check for ok, amber triangle for unavailable (with cause), red dot for hard failure (e.g. 5xx). Disabled categories do not get a row. Timeouts surface as `[warn] <Category>: timed out` and do not fail the overall connection test (FR-047).
+
+**Probe details:** each enabled category endpoint is called with `per_page=1` in parallel after the existing `validateConfig` call returns. Total wall-clock budget for the strip stays inside the existing connection-test budget; if the per-category probes outrun it, individual category rows render `Timed out` while the overall result stays whatever `validateConfig` returned.
+
+---
+
+## State transitions overview (addendum)
+
+New transitions layered on the state machine above:
+
+7. User toggles a category checkbox ON for a source. If token has `security_events`: row renders `Active.` and next pull merges alerts (US-011, FR-041). If not: row's warning chip becomes the re-consent action (screen 19).
+8. User toggles a category checkbox OFF for a source with K existing alert-backed benches. The K benches keep showing alerts (FR-050); the row renders the `<K> existing benches still show alerts from this category.` muted help text.
+9. User clicks Test connection on a source with categories enabled. Per-category rows render (screen 20) with ok / unavailable + cause / timed out per category, independent of the overall connection result.
+10. User completes OAuth re-consent. Stored token replaced in place in the keyring (existing slot). On the next pull, the chip clears OR re-renders with a different cause if the new scope still cannot reach a specific category endpoint (e.g. repo-admin requirement for Dependabot).
+
+---
+
+## Copy that must NOT contain em dashes (addendum copy)
+
+The new copy strings introduced by the addendum:
+
+- All warning chip cause strings (use colons, periods).
+- The Transition-hidden line on alert-backed benches (`Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.`) - period-separated.
+- The OAuth re-consent dialog body (period-separated, no dashes).
+- The per-category Test connection rows (`Code Scanning: ok (read 1 item).`) - colon + period.
+- The `<K> existing benches still show alerts from this category.` muted help text - period.
+
+Same enforcement rule as the broader feature.
