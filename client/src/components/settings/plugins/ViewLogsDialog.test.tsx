@@ -41,8 +41,19 @@ describe("ViewLogsDialog (TC-017)", () => {
     );
     expect(screen.getByText("hello world")).toBeTruthy();
     expect(screen.getByText("boom")).toBeTruthy();
-    expect(screen.getByText("2026-05-22T00:00:00.000Z")).toBeTruthy();
+    // Timestamps render in the viewer's local timezone with the raw ISO kept on `title` for hover.
+    expect(screen.getByTitle("2026-05-22T00:00:00.000Z")).toBeTruthy();
+    expect(screen.getByTitle("2026-05-22T00:00:01.000Z")).toBeTruthy();
     expect(screen.getByText("error")).toBeTruthy();
+  });
+
+  it("renders an em-dash for entries with an empty timestamp (legacy malformed line)", () => {
+    setLogsReturn([{ ts: "", source: "host", text: "legacy line without prefix" }]);
+    render(
+      <ViewLogsDialog pluginId="github-com" pluginName="GitHub.com" isOpen onClose={() => {}} />,
+    );
+    expect(screen.getByText("legacy line without prefix")).toBeTruthy();
+    expect(screen.getByText("—")).toBeTruthy();
   });
 
   it("switches to previous.log when the previous tab is pressed", async () => {

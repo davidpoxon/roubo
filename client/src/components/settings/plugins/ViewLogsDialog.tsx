@@ -40,6 +40,19 @@ function lineClass(line: LogLine): string {
   return "text-stone-700 dark:text-stone-300";
 }
 
+const TIMESTAMP_FORMAT = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "short",
+  timeStyle: "medium",
+  hour12: false,
+});
+
+function formatTimestamp(ts: string): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return TIMESTAMP_FORMAT.format(d);
+}
+
 export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }: Props) {
   const [file, setFile] = useState<LogFile>("current");
   const [search, setSearch] = useState("");
@@ -138,7 +151,12 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             )}
             {filtered.map((line, idx) => (
               <div key={idx} className={`flex gap-2 px-2 py-0.5 rounded ${lineClass(line)}`}>
-                <span className="shrink-0 text-stone-400 dark:text-stone-500">{line.ts}</span>
+                <span
+                  className="shrink-0 text-stone-400 dark:text-stone-500"
+                  title={line.ts || undefined}
+                >
+                  {formatTimestamp(line.ts)}
+                </span>
                 {line.level && (
                   <span className={`shrink-0 uppercase ${levelClass(line.level)}`}>
                     {line.level}
