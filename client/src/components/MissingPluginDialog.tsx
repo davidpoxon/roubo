@@ -10,14 +10,13 @@ import {
   useInstallPluginPreview,
 } from "../hooks/usePlugins";
 import { useToast } from "../hooks/useToast";
+import { PermissionsScreen, SourceScreen } from "./settings/plugins/install-screens";
 import {
-  PermissionsScreen,
-  SourceScreen,
   initialSourceStep,
   type PermissionsStep,
   type SourceStep,
   type SourceTab,
-} from "./settings/plugins/install-screens";
+} from "./settings/plugins/install-screens-state";
 
 interface PromptStep {
   step: "prompt";

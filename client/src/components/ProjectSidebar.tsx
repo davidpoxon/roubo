@@ -5,7 +5,7 @@ import { Layers, Settings, Plus } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
 import NotificationIndicator from "./NotificationIndicator";
-import { useRegisterProjectModal } from "./RegisterProjectModalProvider";
+import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import { collectActionNeeded } from "../lib/notifications";
 import type { BenchStatus } from "@roubo/shared";
 

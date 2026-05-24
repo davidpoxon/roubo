@@ -3,11 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import {
-  PermissionsRulesTable,
-  type PermissionRule,
-  type SelectionState,
-} from "./PermissionsRulesTable";
+import { PermissionsRulesTable } from "./PermissionsRulesTable";
+import type { PermissionRule, SelectionState } from "./permissionsTable";
 
 function renderTable(
   rules: PermissionRule[] = [],

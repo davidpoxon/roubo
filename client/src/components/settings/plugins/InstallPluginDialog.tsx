@@ -7,13 +7,8 @@ import {
   useInstallPluginPreview,
 } from "../../../hooks/usePlugins";
 import { useToast } from "../../../hooks/useToast";
-import {
-  PermissionsScreen,
-  SourceScreen,
-  initialSourceStep,
-  type PermissionsStep,
-  type SourceStep,
-} from "./install-screens";
+import { PermissionsScreen, SourceScreen } from "./install-screens";
+import { initialSourceStep, type PermissionsStep, type SourceStep } from "./install-screens-state";
 
 type State = SourceStep | PermissionsStep;
 

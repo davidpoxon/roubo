@@ -24,7 +24,7 @@ import BranchConflictDialog from "./BranchConflictDialog";
 import Spinner from "./Spinner";
 import ProjectTile from "./ProjectTile";
 import RegisterProjectTile from "./RegisterProjectTile";
-import { useRegisterProjectModal } from "./RegisterProjectModalProvider";
+import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import MissingPluginDialog from "./MissingPluginDialog";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
