@@ -2,16 +2,13 @@ import type { SetActiveConfigResult } from "@roubo/plugin-sdk";
 import { parseConfig, setActiveConfig } from "../active-config.js";
 
 /**
- * Lightweight activation: shape-check the host-supplied config and cache it
- * as the plugin's active configuration for subsequent source-bound methods
- * (listIssues, listIssueTypes, listLabels). No network calls; this runs on
- * every source-bound RPC so the cost has to stay flat.
+ * Receive the plugin-wide config (instance URL, allowSelfSignedTls) from the
+ * host. This conveys plugin-process-global state only; it is identical
+ * across every project using the GHE plugin, so there is no cross-project
+ * bleed risk.
  *
- * Separate from validateConfig (which probes /user and every source) because
- * activation is a hot path: the host calls it immediately before each
- * source-bound invocation to push the per-project sources onto a plugin
- * process that may have just started or last seen a different project's
- * config.
+ * Source selection is supplied per-call via each source-bound method's
+ * `sources` param and is never stored in the active config.
  */
 export function setActiveConfigMethod(params: {
   config: Record<string, unknown>;

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setActiveConfig } from "../active-config.js";
+import type { ConfiguredSource } from "@roubo/plugin-sdk";
 import { listIssues } from "../methods/list-issues.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
+
+const REPO_SOURCES: ConfiguredSource[] = [{ kind: "repo", externalId: "foo/bar" }];
 
 describe("listIssues", () => {
   let mocks: ReturnType<typeof installMocks>;
@@ -14,19 +16,13 @@ describe("listIssues", () => {
     teardownMocks();
   });
 
-  it("throws a clear error if validateConfig has not been called", async () => {
-    await expect(listIssues({ cursor: null, pageSize: 50 })).rejects.toThrow(
-      /No active configuration/,
+  it("throws a clear error if sources is missing or empty", async () => {
+    await expect(listIssues({ sources: [], cursor: null, pageSize: 50 })).rejects.toThrow(
+      /sources is required/,
     );
   });
 
   it("queries the configured repo source and enriches with blocking relationships", async () => {
-    setActiveConfig({
-      instance: "https://ghe.example.com",
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
     const rawIssues = [
       {
         number: 10,
@@ -68,7 +64,7 @@ describe("listIssues", () => {
       },
     });
 
-    const result = await listIssues({ cursor: null, pageSize: 50 });
+    const result = await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 50 });
     expect(result.items).toHaveLength(2);
     expect(result.items[0].externalId).toBe("foo/bar#10");
     expect(result.items[0].blockedBy).toEqual(["foo/bar#11"]);
@@ -78,12 +74,6 @@ describe("listIssues", () => {
   });
 
   it("returns a next cursor when the page is full", async () => {
-    setActiveConfig({
-      instance: "https://ghe.example.com",
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
     const fullPage = Array.from({ length: 2 }, (_, i) => ({
       number: i + 1,
       title: `t${i}`,
@@ -109,22 +99,21 @@ describe("listIssues", () => {
       },
     });
 
-    const result = await listIssues({ cursor: null, pageSize: 2 });
+    const result = await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 2 });
     expect(result.items).toHaveLength(2);
     expect(result.nextCursor).toBe("2");
   });
 
   it("passes labels filter through to the GitHub request", async () => {
-    setActiveConfig({
-      instance: "https://ghe.example.com",
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([]));
     mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
 
-    await listIssues({ cursor: null, pageSize: 5, filters: { labels: ["bug", "p1"] } });
+    await listIssues({
+      sources: REPO_SOURCES,
+      cursor: null,
+      pageSize: 5,
+      filters: { labels: ["bug", "p1"] },
+    });
 
     const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
     expect(params.labels).toBe("bug,p1");
@@ -134,12 +123,6 @@ describe("listIssues", () => {
     // Regression: `/repos/{owner}/{repo}/issues` returns issues and PRs
     // interleaved. Computing hasNextPage from the post-filter item count
     // would short-circuit pagination as soon as a page contained any PR.
-    setActiveConfig({
-      instance: "https://ghe.example.com",
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
     const mixedFullPage = [
       {
         number: 1,
@@ -175,23 +158,22 @@ describe("listIssues", () => {
       },
     });
 
-    const result = await listIssues({ cursor: null, pageSize: 2 });
+    const result = await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 2 });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].title).toBe("issue");
     expect(result.nextCursor).toBe("2");
   });
 
   it("uses search API when filters.search is set", async () => {
-    setActiveConfig({
-      instance: "https://ghe.example.com",
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ items: [] }));
     mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
 
-    await listIssues({ cursor: null, pageSize: 5, filters: { search: "label:bug" } });
+    await listIssues({
+      sources: REPO_SOURCES,
+      cursor: null,
+      pageSize: 5,
+      filters: { search: "label:bug" },
+    });
 
     const route = mocks.mockOctokit.request.mock.calls[0][0] as string;
     expect(route).toBe("GET /search/issues");

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { tryGetActiveConfig } from "../active-config.js";
+import { setActiveConfig, tryGetActiveConfig } from "../active-config.js";
 import { validateConfig } from "../methods/validate-config.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
@@ -10,13 +10,17 @@ describe("validateConfig", () => {
 
   beforeEach(() => {
     mocks = installMocks();
+    // validateConfig tests assert active-config state explicitly; start each
+    // test from a known-empty state rather than the helper's pre-seeded
+    // instance config.
+    setActiveConfig(null);
   });
 
   afterEach(() => {
     teardownMocks();
   });
 
-  it("returns ok and caches the config when the token + sources resolve", async () => {
+  it("returns ok and caches the plugin-wide config when token + sources resolve", async () => {
     // GET /user
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     // GET /repos/{owner}/{repo}
@@ -34,7 +38,6 @@ describe("validateConfig", () => {
     expect(tryGetActiveConfig()).toEqual({
       instance: VALID_INSTANCE,
       allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
     });
   });
 
@@ -143,18 +146,14 @@ describe("validateConfig", () => {
 
     const result = await validateConfig({ config: { instance: VALID_INSTANCE } });
     expect(result).toEqual({ ok: true });
-    // No previously-set active config, so the token-only validation leaves
-    // the new instance + empty sources active. Callers that need to invoke
-    // source-bound methods must push sources via setActiveConfig.
     expect(tryGetActiveConfig()).toEqual({
       instance: VALID_INSTANCE,
       allowSelfSignedTls: false,
-      sources: [],
     });
     expect(mocks.mockOctokit.request).toHaveBeenCalledTimes(1);
   });
 
-  it("token-only re-test preserves previously-active sources but updates instance", async () => {
+  it("token-only re-test updates the active instance even when no sources are present", async () => {
     // First call: full config with real sources.
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     mocks.mockOctokit.request.mockResolvedValueOnce(
@@ -168,7 +167,7 @@ describe("validateConfig", () => {
     });
 
     // Second call: token-only with a different instance URL. The probe
-    // should run with the new instance; sources should be preserved.
+    // should run with and persist the new instance.
     const NEW_INSTANCE = "https://ghe.example.org";
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     const result = await validateConfig({ config: { instance: NEW_INSTANCE } });
@@ -176,11 +175,10 @@ describe("validateConfig", () => {
     expect(tryGetActiveConfig()).toEqual({
       instance: NEW_INSTANCE,
       allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
     });
   });
 
-  it("collects per-source errors", async () => {
+  it("collects per-source errors and rolls active config back to the previous value", async () => {
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     mocks.mockOctokit.request.mockRejectedValueOnce({
       status: 404,

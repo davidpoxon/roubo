@@ -1,10 +1,15 @@
-import type { ConfiguredSource, PluginConfig } from "./types.js";
+import type { PluginConfig } from "./types.js";
 
-// The plugin caches the most recently validated config so contract methods
-// without explicit source parameters (listIssues, listIssueTypes, listLabels)
-// know which configured source to read from. The host is expected to call
-// validateConfig once at startup or when the user changes the integration
-// block in roubo.yaml; until then, source-bound methods throw a clear error.
+// The plugin caches the host-supplied plugin-wide config (instance URL and
+// TLS toggle) so the Octokit factory can build the correct baseUrl on every
+// source-bound RPC. The host pushes this via setActiveConfig whenever the
+// global GHE integration config changes; it is naturally plugin-wide and
+// identical across projects, so there is no cross-project bleed here.
+//
+// Source selection is no longer stored in active config: each source-bound
+// method receives its sources via per-call params, so the host can hand the
+// correct per-project list directly without racing against another project's
+// snapshot.
 
 let activeConfig: PluginConfig | null = null;
 
@@ -15,7 +20,7 @@ export function setActiveConfig(config: PluginConfig | null): void {
 export function getActiveConfig(): PluginConfig {
   if (!activeConfig) {
     throw new Error(
-      "[ghe] No active configuration. The host must call validateConfig before invoking source-scoped methods.",
+      "[ghe] No active configuration. The host must call setActiveConfig (with at least { instance }) before invoking source-scoped methods.",
     );
   }
   return activeConfig;
@@ -26,23 +31,10 @@ export function tryGetActiveConfig(): PluginConfig | null {
 }
 
 /**
- * Returns the first configured source. Methods that need a single source
- * (listIssues, listIssueTypes, listLabels) consume this; multi-source support
- * is deferred to a later work unit when the host wiring lands.
- */
-export function getPrimarySource(): ConfiguredSource {
-  const config = getActiveConfig();
-  if (!config.sources || config.sources.length === 0) {
-    throw new Error("[ghe] Active configuration has no sources.");
-  }
-  return config.sources[0];
-}
-
-/**
- * Parses the host-provided config record into the typed PluginConfig shape
- * used internally. Returns the typed config plus a list of field-scoped
- * errors. The caller decides whether to surface the errors via validateConfig
- * or throw.
+ * Parses the host-provided plugin-wide config into the typed PluginConfig
+ * shape used internally. Validates the `instance` URL and the optional
+ * `allowSelfSignedTls` toggle. Source selection is supplied per-call via
+ * each source-bound method's `sources` param, not via this config.
  */
 export function parseConfig(raw: Record<string, unknown>): {
   config: PluginConfig | null;
@@ -77,42 +69,6 @@ export function parseConfig(raw: Record<string, unknown>): {
     }
   }
 
-  const rawSources = (raw as { sources?: unknown }).sources;
-  // Token-only validation (e.g. the global "Test connection" flow before any
-  // sources have been picked) sends a config without a `sources` key. We
-  // accept that as an empty selection so the credential probe can still run;
-  // it is the caller's responsibility not to overwrite a non-empty active
-  // config with an empty one.
-  if (rawSources === undefined) {
-    if (errors.length > 0) return { config: null, errors };
-    return { config: { instance, allowSelfSignedTls, sources: [] }, errors: [] };
-  }
-  if (!Array.isArray(rawSources)) {
-    errors.push({ field: "sources", message: "sources must be an array" });
-    return { config: null, errors };
-  }
-
-  const sources: ConfiguredSource[] = [];
-  rawSources.forEach((entry, idx) => {
-    if (!entry || typeof entry !== "object") {
-      errors.push({ field: `sources[${idx}]`, message: "must be an object" });
-      return;
-    }
-    const e = entry as { kind?: unknown; externalId?: unknown };
-    if (e.kind !== "repo" && e.kind !== "project") {
-      errors.push({ field: `sources[${idx}].kind`, message: 'must be "repo" or "project"' });
-      return;
-    }
-    if (typeof e.externalId !== "string" || e.externalId.length === 0) {
-      errors.push({
-        field: `sources[${idx}].externalId`,
-        message: "must be a non-empty string",
-      });
-      return;
-    }
-    sources.push({ kind: e.kind, externalId: e.externalId });
-  });
-
   if (errors.length > 0) return { config: null, errors };
-  return { config: { instance, allowSelfSignedTls, sources }, errors: [] };
+  return { config: { instance, allowSelfSignedTls }, errors: [] };
 }

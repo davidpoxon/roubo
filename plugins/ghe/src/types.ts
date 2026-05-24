@@ -133,13 +133,13 @@ export interface ProjectItemsResponse {
 }
 
 // ── Plugin config shape ──
-
-export type ConfiguredSource =
-  | { kind: "repo"; externalId: string }
-  | { kind: "project"; externalId: string };
+//
+// Plugin-wide config: the GHE instance URL and an optional self-signed-TLS
+// toggle. Source selection is supplied per-call via the `sources` field on
+// each source-bound method's params (listIssues, listIssueTypes, listLabels),
+// so the plugin process holds no per-project state.
 
 export interface PluginConfig {
   instance: string;
   allowSelfSignedTls: boolean;
-  sources: ConfiguredSource[];
 }

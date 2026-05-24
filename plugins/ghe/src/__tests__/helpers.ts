@@ -69,10 +69,11 @@ export function buildMockOctokit(): MockOctokit {
 }
 
 /**
- * Install a fresh mock host + mock Octokit, clear caches, clear active config.
- * Mock Octokit short-circuits the host-fetch adapter so tests verify githubRequest
- * behaviour directly without Octokit's built-in retry / throttling plugins
- * pre-empting the manual backoff layer.
+ * Install a fresh mock host + mock Octokit and pre-seed a plugin-wide active
+ * config (instance, TLS) so the Octokit factory can resolve a baseUrl when
+ * source-bound methods run. Mock Octokit short-circuits the host-fetch
+ * adapter so tests verify githubRequest behaviour directly without Octokit's
+ * built-in retry / throttling plugins pre-empting the manual backoff layer.
  */
 export function installMocks(): { mockHost: MockHost; mockOctokit: MockOctokit } {
   const mockHost = buildMockHost();
@@ -80,7 +81,7 @@ export function installMocks(): { mockHost: MockHost; mockOctokit: MockOctokit }
   resetCaches();
   resetOctokit();
   resetHostBinding();
-  setActiveConfig(null);
+  setActiveConfig({ instance: "https://ghe.example.com", allowSelfSignedTls: false });
   bindHost(mockHost.host);
   __setOctokitForTests(mockOctokit.client);
   return { mockHost, mockOctokit };

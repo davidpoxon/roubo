@@ -133,11 +133,10 @@ export interface ProjectItemsResponse {
 }
 
 // ── Plugin config shape ──
-
-export type ConfiguredSource =
-  | { kind: "repo"; externalId: string }
-  | { kind: "project"; externalId: string };
-
-export interface PluginConfig {
-  sources: ConfiguredSource[];
-}
+//
+// Source selection no longer lives in any plugin-local config object: it is
+// supplied per-call via the `sources` field on each source-bound method's
+// params (listIssues, listIssueTypes, listLabels). The github-com plugin has
+// no plugin-wide config (no instance URL, no TLS toggle), so there is no
+// PluginConfig type for it. The parseConfig helper accepts the host-supplied
+// `{ sources }` payload only for validation purposes inside validateConfig.

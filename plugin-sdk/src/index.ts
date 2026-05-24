@@ -1,6 +1,7 @@
 export { definePlugin } from "./define-plugin.js";
 export { host } from "./host-client.js";
 export type {
+  ConfiguredSource,
   ContractMethodName,
   CurrentUser,
   DefinePluginOptions,
@@ -8,8 +9,10 @@ export type {
   FetchResult,
   HostClient,
   IssueTypeOption,
+  ListIssueTypesParams,
   ListIssuesParams,
   ListIssuesResult,
+  ListLabelsParams,
   LogPayload,
   NormalizedComment,
   NormalizedIssue,

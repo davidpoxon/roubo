@@ -8,7 +8,15 @@
     {
       "date": "2026-05-24",
       "scope": "Add per-source security & quality alerts option to bundled github.com (and GHE) integration plugins",
-      "downstream_stages_pending_rerun": ["feasibility", "prd", "prototype", "architecture", "tests", "work-breakdown", "align"]
+      "downstream_stages_pending_rerun": [
+        "feasibility",
+        "prd",
+        "prototype",
+        "architecture",
+        "tests",
+        "work-breakdown",
+        "align"
+      ]
     }
   ],
   "stages_completed": [

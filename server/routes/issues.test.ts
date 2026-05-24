@@ -16,6 +16,7 @@ vi.mock("../services/plugin-activation.js", () => ({
   ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
   forgetProjectActivation: vi.fn(),
   forgetPluginActivation: vi.fn(),
+  resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
 }));
 
 vi.mock("../services/issue-assignment.js", () => ({
@@ -60,6 +61,10 @@ beforeEach(() => {
     integrationId: "github-com",
     pageSize: 50,
   });
+  vi.mocked(pluginActivation.ensurePluginActivated).mockResolvedValue(undefined);
+  vi.mocked(pluginActivation.resolveSources).mockReturnValue([
+    { kind: "repo", externalId: "foo/bar" },
+  ]);
 });
 
 describe("GET /:projectId/issues", () => {
@@ -83,10 +88,11 @@ describe("GET /:projectId/issues", () => {
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("calls the plugin's listIssues with the resolved pageSize and forwarded filters", async () => {
+  it("calls the plugin's listIssues with sources, the resolved pageSize, and forwarded filters", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
     await request(app).get("/p1/issues?cursor=c1&labels=bug,feature&search=login");
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssues", {
+      sources: [{ kind: "repo", externalId: "foo/bar" }],
       cursor: "c1",
       pageSize: 50,
       filters: { labels: ["bug", "feature"], search: "login" },
@@ -394,7 +400,9 @@ describe("GET /:projectId/labels", () => {
     const res = await request(app).get("/p1/labels");
     expect(res.status).toBe(200);
     expect(res.body).toEqual(["bug", "feature"]);
-    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listLabels", {});
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listLabels", {
+      sources: [{ kind: "repo", externalId: "foo/bar" }],
+    });
   });
 
   it("returns 503 when no active integration", async () => {

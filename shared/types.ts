@@ -895,8 +895,18 @@ export interface NormalizedComment {
   updatedAt: string;
 }
 
+/**
+ * One entry of the source list the host passes into source-bound contract
+ * methods. Mirrors `ConfiguredSource` in `@roubo/plugin-sdk`.
+ */
+export interface ConfiguredSource {
+  kind: string;
+  externalId: string;
+}
+
 /** Parameters for the plugin's paginated `listIssues` JSON-RPC call (FR-022). */
 export interface ListIssuesParams {
+  sources: ConfiguredSource[];
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };

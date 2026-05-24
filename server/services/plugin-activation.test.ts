@@ -15,18 +15,38 @@ import {
   ensurePluginActivated,
   forgetPluginActivation,
   forgetProjectActivation,
+  resolveSources,
 } from "./plugin-activation.js";
 import * as projectRegistry from "./project-registry.js";
 import { loadOverride } from "./integration-overrides.js";
 import * as pluginManager from "./plugin-manager.js";
 
 const PROJECT_ID = "proj-1";
-const PLUGIN_ID = "github-com";
+const GITHUB_PLUGIN = "github-com";
+const GHE_PLUGIN = "ghe";
 
-function mockProjectWithSources(sources: Record<string, string[]> | undefined): void {
+function mockGithubProject(sources: Record<string, string[]> | undefined): void {
   vi.mocked(projectRegistry.getProject).mockReturnValue({
     config: {
-      integration: sources ? { plugin: PLUGIN_ID, sources } : { plugin: PLUGIN_ID },
+      integration: sources ? { plugin: GITHUB_PLUGIN, sources } : { plugin: GITHUB_PLUGIN },
+    },
+  } as never);
+  vi.mocked(loadOverride).mockReturnValue(null);
+}
+
+function mockGheProject(opts: {
+  instance?: string;
+  sources?: Record<string, string[]>;
+  advanced?: Record<string, unknown>;
+}): void {
+  vi.mocked(projectRegistry.getProject).mockReturnValue({
+    config: {
+      integration: {
+        plugin: GHE_PLUGIN,
+        ...(opts.instance ? { instance: opts.instance } : {}),
+        ...(opts.sources ? { sources: opts.sources } : {}),
+        ...(opts.advanced ? { advanced: opts.advanced } : {}),
+      },
     },
   } as never);
   vi.mocked(loadOverride).mockReturnValue(null);
@@ -38,65 +58,96 @@ describe("ensurePluginActivated", () => {
     clearActivationCache();
   });
 
-  it("pushes translated sources to the plugin via setActiveConfig", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+  it("is a no-op for a plugin with no plugin-wide config (e.g. github-com)", async () => {
+    mockGithubProject({ Repository: ["foo/bar"] });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN);
+
+    // No instance / advanced fields => nothing plugin-wide to push.
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("pushes plugin-wide config (instance, advanced) via setActiveConfig and omits per-project sources", async () => {
+    mockGheProject({
+      instance: "https://ghe.example.com",
+      sources: { Repository: ["foo/bar"] },
+      advanced: { allowSelfSignedTls: true },
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
+
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
 
     expect(pluginManager.invoke).toHaveBeenCalledWith(
-      PLUGIN_ID,
+      GHE_PLUGIN,
       "setActiveConfig",
-      { config: { sources: [{ kind: "repo", externalId: "foo/bar" }] } },
+      {
+        config: {
+          instance: "https://ghe.example.com",
+          allowSelfSignedTls: true,
+        },
+      },
       { timeoutMs: 5_000 },
     );
   });
 
-  it("skips the round-trip when called twice with the same config", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+  it("skips the round-trip when called twice with the same plugin-wide config", async () => {
+    mockGheProject({ instance: "https://ghe.example.com" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not re-push when a different project shares the same plugin-wide config (no cross-project bleed)", async () => {
+    // Both projects use the same GHE instance; the plugin-wide config is
+    // identical, so the host should push exactly once across both projects.
+    mockGheProject({ instance: "https://ghe.example.com" });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
+
+    await ensurePluginActivated("proj-a", GHE_PLUGIN);
+    await ensurePluginActivated("proj-b", GHE_PLUGIN);
 
     expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
   });
 
   it("re-pushes after forgetProjectActivation invalidates the cache", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+    mockGheProject({ instance: "https://ghe.example.com" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
-    forgetProjectActivation(PROJECT_ID);
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    forgetProjectActivation(PROJECT_ID, GHE_PLUGIN);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
 
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 
-  it("re-pushes when the project's sources change between calls", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+  it("re-pushes when the plugin-wide config changes between calls", async () => {
+    mockGheProject({ instance: "https://ghe-a.example.com" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
 
-    mockProjectWithSources({ Repository: ["foo/bar", "foo/baz"] });
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    mockGheProject({ instance: "https://ghe-b.example.com" });
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
 
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 
   it("throws when the plugin reports activation failure and does not cache", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+    mockGheProject({ instance: "https://ghe.example.com" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({
       ok: false,
-      errors: [{ field: "sources", message: "sources must be an array" }],
+      errors: [{ field: "instance", message: "must be an http(s) URL" }],
     });
 
-    await expect(ensurePluginActivated(PROJECT_ID, PLUGIN_ID)).rejects.toThrow(
-      /sources: sources must be an array/,
+    await expect(ensurePluginActivated(PROJECT_ID, GHE_PLUGIN)).rejects.toThrow(
+      /instance: must be an http\(s\) URL/,
     );
 
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
     // Second call must have actually invoked, proving the failure was not cached.
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
@@ -104,74 +155,74 @@ describe("ensurePluginActivated", () => {
   it("is a no-op when the project is unknown (route handler will 503)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
 
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
 
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("forgetPluginActivation clears every cached project for that plugin", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
+  it("forgetPluginActivation clears the cache so the next call re-pushes", async () => {
+    mockGheProject({ instance: "https://ghe.example.com" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
-    await ensurePluginActivated("proj-a", PLUGIN_ID);
-    await ensurePluginActivated("proj-b", PLUGIN_ID);
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    forgetPluginActivation(GHE_PLUGIN);
+
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
-
-    // Cached: re-calling without invalidation must not re-push.
-    await ensurePluginActivated("proj-a", PLUGIN_ID);
-    await ensurePluginActivated("proj-b", PLUGIN_ID);
-    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
-
-    forgetPluginActivation(PLUGIN_ID);
-
-    await ensurePluginActivated("proj-a", PLUGIN_ID);
-    await ensurePluginActivated("proj-b", PLUGIN_ID);
-    expect(pluginManager.invoke).toHaveBeenCalledTimes(4);
   });
 
   it("forgetPluginActivation leaves other plugins' cache entries untouched", async () => {
-    mockProjectWithSources({ Repository: ["foo/bar"] });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
-    await ensurePluginActivated(PROJECT_ID, "github-com");
-    await ensurePluginActivated(PROJECT_ID, "ghe");
+    mockGheProject({ instance: "https://ghe.example.com" });
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+
+    // Switch project context to a fictional second plugin with its own
+    // plugin-wide config so the activation cache holds an entry for each.
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { integration: { plugin: "other", instance: "https://other.example.com" } },
+    } as never);
+    await ensurePluginActivated(PROJECT_ID, "other");
+
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
 
-    forgetPluginActivation("github-com");
+    forgetPluginActivation(GHE_PLUGIN);
 
-    // github-com should re-push; ghe should stay cached.
-    await ensurePluginActivated(PROJECT_ID, "github-com");
-    await ensurePluginActivated(PROJECT_ID, "ghe");
+    // GHE should re-push; `other` should stay cached.
+    mockGheProject({ instance: "https://ghe.example.com" });
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { integration: { plugin: "other", instance: "https://other.example.com" } },
+    } as never);
+    await ensurePluginActivated(PROJECT_ID, "other");
+
     expect(pluginManager.invoke).toHaveBeenCalledTimes(3);
   });
+});
 
-  it("includes instance and advanced fields when present", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: {
-        integration: {
-          plugin: PLUGIN_ID,
-          instance: "https://ghe.example.com",
-          sources: { Repository: ["foo/bar"] },
-          advanced: { allowSelfSignedTls: true },
-        },
-      },
-    } as never);
-    vi.mocked(loadOverride).mockReturnValue(null);
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
+describe("resolveSources", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    await ensurePluginActivated(PROJECT_ID, PLUGIN_ID);
+  it("translates SourceSelection categories to {kind, externalId}[]", () => {
+    mockGithubProject({ Repository: ["foo/bar", "foo/baz"], Project: ["foo/#1"] });
+    expect(resolveSources(PROJECT_ID)).toEqual([
+      { kind: "repo", externalId: "foo/bar" },
+      { kind: "repo", externalId: "foo/baz" },
+      { kind: "project", externalId: "foo/#1" },
+    ]);
+  });
 
-    expect(pluginManager.invoke).toHaveBeenCalledWith(
-      PLUGIN_ID,
-      "setActiveConfig",
-      {
-        config: {
-          sources: [{ kind: "repo", externalId: "foo/bar" }],
-          instance: "https://ghe.example.com",
-          allowSelfSignedTls: true,
-        },
-      },
-      { timeoutMs: 5_000 },
-    );
+  it("returns [] when the project has no sources configured", () => {
+    mockGithubProject(undefined);
+    expect(resolveSources(PROJECT_ID)).toEqual([]);
+  });
+
+  it("returns [] when the project is unknown", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    expect(resolveSources(PROJECT_ID)).toEqual([]);
   });
 });

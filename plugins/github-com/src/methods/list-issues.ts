@@ -1,5 +1,5 @@
 import type { ListIssuesParams, ListIssuesResult, NormalizedIssue } from "@roubo/plugin-sdk";
-import { getPrimarySource } from "../active-config.js";
+import { requirePrimarySource } from "../sources.js";
 import { formatExternalId } from "../external-id.js";
 import {
   fetchBlockingRelationships,
@@ -110,7 +110,7 @@ async function listFromProject(
 }
 
 export async function listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {
-  const source = getPrimarySource();
+  const source = requirePrimarySource(params.sources);
   if (source.kind === "repo") {
     return listFromRepo(source.externalId, params);
   }

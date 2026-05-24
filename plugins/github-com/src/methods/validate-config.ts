@@ -1,23 +1,22 @@
 import type { ValidateConfigResult } from "@roubo/plugin-sdk";
-import { parseConfig, setActiveConfig } from "../active-config.js";
+import { parseSourcesConfig } from "../parse-sources.js";
 import { fetchCurrentUser, fetchProjects, fetchRepoSummary } from "../github-fetchers.js";
 
 /**
- * Validates the host-provided config and, on success, caches it as the
- * plugin's active configuration for subsequent source-scoped methods.
- *
- * Validation steps:
- *   1. Shape-check the config record into PluginConfig.
+ * Validates the host-provided config:
+ *   1. Shape-check the `sources` array.
  *   2. Probe `/user` so an invalid / missing token surfaces a single clear error.
  *   3. For each configured source, probe the corresponding GitHub resource.
  *
  * Errors are accumulated per source so the host can surface a complete picture
- * (rather than failing on the first bad entry).
+ * (rather than failing on the first bad entry). validateConfig is read-only:
+ * it never persists state inside the plugin process. Source-bound RPCs receive
+ * their sources per-call via params.
  */
 export async function validateConfig(params: {
   config: Record<string, unknown>;
 }): Promise<ValidateConfigResult> {
-  const { config, errors: shapeErrors } = parseConfig(params.config);
+  const { config, errors: shapeErrors } = parseSourcesConfig(params.config);
   if (!config) {
     return { ok: false, errors: shapeErrors };
   }
@@ -91,6 +90,5 @@ export async function validateConfig(params: {
     return { ok: false, errors };
   }
 
-  setActiveConfig(config);
   return { ok: true };
 }

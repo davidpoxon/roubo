@@ -25,6 +25,7 @@ vi.mock("../services/plugin-activation.js", () => ({
   ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
   forgetProjectActivation: vi.fn(),
   forgetPluginActivation: vi.fn(),
+  resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
 }));
 
 import router from "./projects.js";
@@ -634,12 +635,21 @@ describe("GET /:projectId/issue-types", () => {
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("returns the active plugin's listIssueTypes output as a string list (TC-033)", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue(["Bug", "Feature", "Epic"]);
+  it("returns the active plugin's listIssueTypes output mapped to a string list of names (TC-033)", async () => {
+    // The plugin returns IssueTypeOption[] ({id, name}); the host flattens to
+    // names before responding so the client sees `types: string[]` per the
+    // declared ProjectIssueTypesV2Response contract.
+    vi.mocked(pluginManager.invoke).mockResolvedValue([
+      { id: "T_1", name: "Bug" },
+      { id: "T_2", name: "Feature" },
+      { id: "T_3", name: "Epic" },
+    ]);
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ configured: true, types: ["Bug", "Feature", "Epic"] });
-    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssueTypes", {});
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssueTypes", {
+      sources: [{ kind: "repo", externalId: "foo/bar" }],
+    });
   });
 
   it("maps plugin-not-enabled to 503", async () => {
