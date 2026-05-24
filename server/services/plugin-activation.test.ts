@@ -152,6 +152,38 @@ describe("ensurePluginActivated", () => {
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 
+  it("swallows MethodNotFound when the plugin has no setActiveConfig handler and caches the snapshot", async () => {
+    // Reproduces the production state where ~/.roubo/integrations/_global/
+    // github-com.yaml carries a stale `advanced` field from before
+    // commit 23ea55b. github-com no longer registers `setActiveConfig`, so
+    // vscode-jsonrpc replies with -32601 (mapped to "MethodNotFound" by
+    // plugin-manager.invoke). The host must treat this as a no-op so the
+    // cut list keeps loading.
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: {
+        integration: {
+          plugin: GITHUB_PLUGIN,
+          advanced: { sources: "" },
+        },
+      },
+    } as never);
+    vi.mocked(loadOverride).mockReturnValue(null);
+
+    const notFound = Object.assign(new Error("Unhandled method setActiveConfig"), {
+      code: "MethodNotFound",
+    });
+    vi.mocked(pluginManager.invoke).mockRejectedValueOnce(notFound);
+
+    await expect(ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN)).resolves.toBeUndefined();
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    // Subsequent calls must not retry: the snapshot was cached on the
+    // swallowed MethodNotFound so we don't pay the JSON-RPC round-trip
+    // (and noisy plugin log line) on every source-bound RPC.
+    await ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+  });
+
   it("is a no-op when the project is unknown (route handler will 503)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
 
@@ -224,5 +256,21 @@ describe("resolveSources", () => {
   it("returns [] when the project is unknown", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
     expect(resolveSources(PROJECT_ID)).toEqual([]);
+  });
+
+  it("warns and skips entries whose category the plugin does not recognise", () => {
+    mockGithubProject({ Repository: ["foo/bar"], Milestone: ["foo/m1"] } as Record<
+      string,
+      string[]
+    >);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(resolveSources(PROJECT_ID)).toEqual([{ kind: "repo", externalId: "foo/bar" }]);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`ignoring unknown source category "Milestone"`),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(GITHUB_PLUGIN));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(PROJECT_ID));
   });
 });

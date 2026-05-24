@@ -100,9 +100,9 @@ All contract methods are optional. If the host calls a method you did not regist
 
 Returns the list of sources the user can pick (repos, projects, queues) when they configure the integration. Each candidate is `{ category, externalId, displayName, description? }`. Called by the source picker UI.
 
-### `listIssues({ cursor, pageSize, filters? }): Promise<{ items, nextCursor }>`
+### `listIssues({ sources, cursor, pageSize, filters? }): Promise<{ items, nextCursor }>`
 
-The paginated list endpoint. The host passes `cursor` (null on the first page) and `pageSize` (defaults to 50, plugin-overridable via `configSchema.pageSize`), plus optional `filters: { labels?, search? }`. Return a page of `NormalizedIssue` plus the cursor the host should pass next, or `null` when there are no more pages.
+The paginated list endpoint. The host passes `sources` (the per-project source selections, see [ConfiguredSource](#configuredsource)), `cursor` (null on the first page), `pageSize` (defaults to 50, plugin-overridable via `configSchema.pageSize`), plus optional `filters: { labels?, search? }`. Return a page of `NormalizedIssue` plus the cursor the host should pass next, or `null` when there are no more pages.
 
 ### `getIssue({ externalId }): Promise<NormalizedIssue>`
 
@@ -140,13 +140,30 @@ Assign or unassign a user. The assignee id matches the `externalId` shape on `No
 
 Optional. Useful when allowed transitions depend on the issue's current state or workflow.
 
-### `listIssueTypes(): Promise<{ id, name }[]>`
+### `listIssueTypes({ sources }): Promise<{ id, name }[]>`
 
-Optional. Returns the issue types defined on the external system. Powers the issue-type-to-jig mapping UI.
+Optional. Returns the issue types defined on the external system for the given `sources` (see [ConfiguredSource](#configuredsource)). Powers the issue-type-to-jig mapping UI.
 
-### `listLabels(): Promise<string[]>`
+### `listLabels({ sources }): Promise<string[]>`
 
-Optional. Returns the labels available on the external system.
+Optional. Returns the labels available on the external system for the given `sources` (see [ConfiguredSource](#configuredsource)).
+
+## Source-bound calls
+
+`listIssues`, `listIssueTypes`, and `listLabels` are source-bound: the host passes the per-project source selections on every call, so the plugin process never holds per-project state.
+
+### `ConfiguredSource`
+
+```ts
+type ConfiguredSource = {
+  // Plugin-defined source kind, e.g. `"repo"` or `"project"` for the GitHub plugins.
+  kind: string;
+  // Plugin-native id for that source, e.g. `"owner/repo"` or `"owner/#42"`.
+  externalId: string;
+};
+```
+
+The host derives `sources` per request from the project's `roubo.yaml` integration block.
 
 ## Pagination
 
@@ -154,6 +171,7 @@ Optional. Returns the labels available on the external system.
 
 ```ts
 type ListIssuesParams = {
+  sources: ConfiguredSource[];
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
