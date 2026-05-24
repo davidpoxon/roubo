@@ -30,7 +30,6 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe.example.com",
       allowSelfSignedTls: false,
-      sources: [],
     });
     await expect(getOctokit()).rejects.toThrow(/GHE token missing/);
   });
@@ -41,7 +40,6 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe.example.com",
       allowSelfSignedTls: false,
-      sources: [],
     });
     // Spy on credentials.get
     const getSpy = vi.spyOn(mock.host.credentials, "get");
@@ -60,7 +58,6 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe.example.com/",
       allowSelfSignedTls: false,
-      sources: [],
     });
     mock.fetch.mockResolvedValueOnce({
       status: 200,
@@ -80,14 +77,12 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe-a.example.com",
       allowSelfSignedTls: false,
-      sources: [],
     });
     const first = await getOctokit();
 
     setActiveConfig({
       instance: "https://ghe-b.example.com",
       allowSelfSignedTls: false,
-      sources: [],
     });
     const second = await getOctokit();
     expect(second).not.toBe(first);
@@ -99,7 +94,6 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe.example.com",
       allowSelfSignedTls: true,
-      sources: [],
     });
     mock.fetch.mockResolvedValueOnce({
       status: 200,
@@ -118,7 +112,6 @@ describe("octokit-factory", () => {
     setActiveConfig({
       instance: "https://ghe.example.com",
       allowSelfSignedTls: false,
-      sources: [],
     });
     mock.fetch.mockResolvedValueOnce({
       status: 200,

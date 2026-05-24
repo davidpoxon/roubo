@@ -2352,7 +2352,9 @@
       "ETag store is warm from a prior pull (so 304 short-circuit is in play)"
     ],
     "steps": [
-      { "action": "Trigger 30 sequential warm listIssues pulls and record wall-clock latency per pull" },
+      {
+        "action": "Trigger 30 sequential warm listIssues pulls and record wall-clock latency per pull"
+      },
       {
         "action": "Compute p95",
         "expected": [

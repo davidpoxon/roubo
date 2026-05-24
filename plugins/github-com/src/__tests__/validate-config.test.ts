@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { tryGetActiveConfig } from "../active-config.js";
 import { validateConfig } from "../methods/validate-config.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
@@ -14,7 +13,7 @@ describe("validateConfig", () => {
     teardownMocks();
   });
 
-  it("returns ok and caches the config when the token + sources resolve", async () => {
+  it("returns ok when the token + sources resolve", async () => {
     // GET /user
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     // GET /repos/{owner}/{repo}
@@ -26,9 +25,6 @@ describe("validateConfig", () => {
       config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
     });
     expect(result).toEqual({ ok: true });
-    expect(tryGetActiveConfig()).toEqual({
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
   });
 
   it("rejects a malformed config without contacting GitHub", async () => {
@@ -39,7 +35,6 @@ describe("validateConfig", () => {
       message: "sources must be an array",
     });
     expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
-    expect(tryGetActiveConfig()).toBeNull();
   });
 
   it("returns a structured 'unauthorized' error when /user returns 401", async () => {
@@ -58,7 +53,6 @@ describe("validateConfig", () => {
       message: "GitHub token is invalid or expired",
       code: "unauthorized",
     });
-    expect(tryGetActiveConfig()).toBeNull();
   });
 
   it("returns a generic auth-failure error when /user fails with a non-401 status", async () => {
@@ -74,41 +68,14 @@ describe("validateConfig", () => {
     expect(result.ok).toBe(false);
     expect(result.errors?.[0].message).toMatch(/authenticate/i);
     expect(result.errors?.[0].code).toBeUndefined();
-    expect(tryGetActiveConfig()).toBeNull();
   });
 
   it("accepts a token-only payload (no sources) and probes /user only", async () => {
-    // Token-only mode: only /user is probed; no source resolution happens.
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
 
     const result = await validateConfig({ config: {} });
     expect(result).toEqual({ ok: true });
-    // Token-only must not activate, otherwise an empty sources list would
-    // erase a previously-set active config and re-break listIssues.
-    expect(tryGetActiveConfig()).toBeNull();
     expect(mocks.mockOctokit.request).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not clobber an existing active config when re-tested token-only", async () => {
-    // First call activates real sources.
-    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
-    mocks.mockOctokit.request.mockResolvedValueOnce(
-      okResponse({ name: "bar", full_name: "foo/bar" }),
-    );
-    await validateConfig({
-      config: { sources: [{ kind: "repo", externalId: "foo/bar" }] },
-    });
-    expect(tryGetActiveConfig()).toEqual({
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
-
-    // Token-only re-test must leave the active config intact.
-    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
-    const result = await validateConfig({ config: {} });
-    expect(result).toEqual({ ok: true });
-    expect(tryGetActiveConfig()).toEqual({
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-    });
   });
 
   it("collects per-source errors", async () => {
@@ -124,6 +91,5 @@ describe("validateConfig", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.errors?.[0].field).toBe("sources[0].externalId");
-    expect(tryGetActiveConfig()).toBeNull();
   });
 });

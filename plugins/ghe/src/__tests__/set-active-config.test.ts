@@ -9,51 +9,37 @@ describe("setActiveConfig RPC", () => {
     setActiveConfig(null);
   });
 
-  it("sets the active config when sources + instance are well-formed", () => {
-    const result = setActiveConfigMethod({
-      config: {
-        instance: VALID_INSTANCE,
-        sources: [{ kind: "repo", externalId: "foo/bar" }],
-      },
-    });
+  it("sets the plugin-wide active config when instance is well-formed", () => {
+    const result = setActiveConfigMethod({ config: { instance: VALID_INSTANCE } });
     expect(result).toEqual({ ok: true });
     expect(tryGetActiveConfig()).toEqual({
       instance: VALID_INSTANCE,
       allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
     });
   });
 
   it("returns shape errors and leaves active config untouched", () => {
-    setActiveConfig({
-      instance: VALID_INSTANCE,
-      allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "previous/one" }],
-    });
-    const result = setActiveConfigMethod({
-      config: { instance: VALID_INSTANCE, sources: "no" },
-    });
+    setActiveConfig({ instance: VALID_INSTANCE, allowSelfSignedTls: false });
+    const result = setActiveConfigMethod({ config: { instance: "" } });
     expect(result.ok).toBe(false);
     expect(result.errors?.[0]).toEqual({
-      field: "sources",
-      message: "sources must be an array",
+      field: "instance",
+      message: "instance must be a non-empty string",
     });
     expect(tryGetActiveConfig()).toEqual({
       instance: VALID_INSTANCE,
       allowSelfSignedTls: false,
-      sources: [{ kind: "repo", externalId: "previous/one" }],
     });
   });
 
-  it("accepts an empty sources list", () => {
+  it("accepts allowSelfSignedTls=true", () => {
     const result = setActiveConfigMethod({
-      config: { instance: VALID_INSTANCE, sources: [] },
+      config: { instance: VALID_INSTANCE, allowSelfSignedTls: true },
     });
     expect(result).toEqual({ ok: true });
     expect(tryGetActiveConfig()).toEqual({
       instance: VALID_INSTANCE,
-      allowSelfSignedTls: false,
-      sources: [],
+      allowSelfSignedTls: true,
     });
   });
 });

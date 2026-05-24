@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   getActiveConfig,
-  getPrimarySource,
   parseConfig,
   setActiveConfig,
   tryGetActiveConfig,
 } from "../active-config.js";
+import { requirePrimarySource } from "../sources.js";
 
 const VALID_INSTANCE = "https://ghe.example.com";
 
@@ -15,41 +15,23 @@ describe("active-config", () => {
   });
 
   describe("parseConfig", () => {
-    it("returns a typed config on the happy path", () => {
-      const { config, errors } = parseConfig({
-        instance: VALID_INSTANCE,
-        sources: [
-          { kind: "repo", externalId: "foo/bar" },
-          { kind: "project", externalId: "foo/#3" },
-        ],
-      });
+    it("returns a typed plugin-wide config on the happy path", () => {
+      const { config, errors } = parseConfig({ instance: VALID_INSTANCE });
       expect(errors).toEqual([]);
-      expect(config).toEqual({
-        instance: VALID_INSTANCE,
-        allowSelfSignedTls: false,
-        sources: [
-          { kind: "repo", externalId: "foo/bar" },
-          { kind: "project", externalId: "foo/#3" },
-        ],
-      });
+      expect(config).toEqual({ instance: VALID_INSTANCE, allowSelfSignedTls: false });
     });
 
     it("accepts allowSelfSignedTls=true and strips a trailing slash from instance", () => {
       const { config, errors } = parseConfig({
         instance: `${VALID_INSTANCE}/`,
         allowSelfSignedTls: true,
-        sources: [{ kind: "repo", externalId: "foo/bar" }],
       });
       expect(errors).toEqual([]);
-      expect(config).toEqual({
-        instance: VALID_INSTANCE,
-        allowSelfSignedTls: true,
-        sources: [{ kind: "repo", externalId: "foo/bar" }],
-      });
+      expect(config).toEqual({ instance: VALID_INSTANCE, allowSelfSignedTls: true });
     });
 
     it("rejects missing instance", () => {
-      const { config, errors } = parseConfig({ sources: [] });
+      const { config, errors } = parseConfig({});
       expect(config).toBeNull();
       expect(errors).toContainEqual({
         field: "instance",
@@ -58,7 +40,7 @@ describe("active-config", () => {
     });
 
     it("rejects non-http(s) instance", () => {
-      const { config, errors } = parseConfig({ instance: "ftp://ghe.example.com", sources: [] });
+      const { config, errors } = parseConfig({ instance: "ftp://ghe.example.com" });
       expect(config).toBeNull();
       expect(errors).toContainEqual({
         field: "instance",
@@ -67,7 +49,7 @@ describe("active-config", () => {
     });
 
     it("rejects a malformed instance URL", () => {
-      const { config, errors } = parseConfig({ instance: "not a url", sources: [] });
+      const { config, errors } = parseConfig({ instance: "not a url" });
       expect(config).toBeNull();
       expect(errors).toContainEqual({
         field: "instance",
@@ -79,7 +61,6 @@ describe("active-config", () => {
       const { config, errors } = parseConfig({
         instance: VALID_INSTANCE,
         allowSelfSignedTls: "yes",
-        sources: [],
       });
       expect(config).toBeNull();
       expect(errors).toContainEqual({
@@ -88,30 +69,13 @@ describe("active-config", () => {
       });
     });
 
-    it("treats a missing sources key as an empty selection (token-only flow)", () => {
-      const { config, errors } = parseConfig({ instance: VALID_INSTANCE });
-      expect(errors).toEqual([]);
-      expect(config).toEqual({
-        instance: VALID_INSTANCE,
-        allowSelfSignedTls: false,
-        sources: [],
-      });
-    });
-
-    it("still rejects sources that are present but not an array", () => {
-      const { config, errors } = parseConfig({ instance: VALID_INSTANCE, sources: "nope" });
-      expect(config).toBeNull();
-      expect(errors[0]).toEqual({ field: "sources", message: "sources must be an array" });
-    });
-
-    it("collects per-entry errors and rejects the config", () => {
+    it("ignores any host-supplied sources field (sources flow per-call now)", () => {
       const { config, errors } = parseConfig({
         instance: VALID_INSTANCE,
-        sources: [{ kind: "wrong", externalId: "foo/bar" }, { externalId: "" }],
+        sources: [{ kind: "repo", externalId: "foo/bar" }],
       });
-      expect(config).toBeNull();
-      expect(errors.map((e) => e.field)).toContain("sources[0].kind");
-      expect(errors.map((e) => e.field)).toContain("sources[1].kind");
+      expect(errors).toEqual([]);
+      expect(config).toEqual({ instance: VALID_INSTANCE, allowSelfSignedTls: false });
     });
   });
 
@@ -120,20 +84,18 @@ describe("active-config", () => {
     expect(tryGetActiveConfig()).toBeNull();
   });
 
-  it("getPrimarySource returns the first configured source", () => {
-    setActiveConfig({
-      instance: VALID_INSTANCE,
-      allowSelfSignedTls: false,
-      sources: [
-        { kind: "repo", externalId: "foo/bar" },
-        { kind: "project", externalId: "foo/#1" },
-      ],
+  describe("requirePrimarySource", () => {
+    it("returns the first source", () => {
+      expect(
+        requirePrimarySource([
+          { kind: "repo", externalId: "foo/bar" },
+          { kind: "project", externalId: "foo/#1" },
+        ]),
+      ).toEqual({ kind: "repo", externalId: "foo/bar" });
     });
-    expect(getPrimarySource()).toEqual({ kind: "repo", externalId: "foo/bar" });
-  });
 
-  it("getPrimarySource throws when sources is empty", () => {
-    setActiveConfig({ instance: VALID_INSTANCE, allowSelfSignedTls: false, sources: [] });
-    expect(() => getPrimarySource()).toThrow(/no sources/);
+    it("throws when sources is empty", () => {
+      expect(() => requirePrimarySource([])).toThrow(/sources is required/);
+    });
   });
 });

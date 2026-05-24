@@ -31,10 +31,32 @@ export interface NormalizedComment {
   updatedAt: string;
 }
 
+/**
+ * One entry of the source list a host passes into source-bound contract
+ * methods. `kind` is plugin-defined (e.g. `"repo"`, `"project"` for the
+ * GitHub plugins); `externalId` is the plugin-native id for that source
+ * (e.g. `"owner/repo"`, `"owner/#42"`). The host derives this list per
+ * request from the project's `roubo.yaml` integration block, so plugins
+ * never share source state across projects.
+ */
+export interface ConfiguredSource {
+  kind: string;
+  externalId: string;
+}
+
 export interface ListIssuesParams {
+  sources: ConfiguredSource[];
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
+}
+
+export interface ListIssueTypesParams {
+  sources: ConfiguredSource[];
+}
+
+export interface ListLabelsParams {
+  sources: ConfiguredSource[];
 }
 
 export interface ListIssuesResult {
@@ -85,12 +107,15 @@ export interface ValidateConfigResult {
 }
 
 /**
- * Result of a lightweight activation call (`setActiveConfig`). Plugins must
- * shape-check the supplied config and either set it as the active source
- * configuration for subsequent source-bound methods, or return validation
- * errors. Unlike `validateConfig` this method must not make network calls;
- * it is invoked per-request from the host immediately before each
- * source-bound RPC.
+ * Result of a lightweight activation call (`setActiveConfig`). Plugins that
+ * hold plugin-wide configuration (e.g. an API instance URL, TLS toggles)
+ * implement this to receive that configuration before source-bound RPCs run.
+ *
+ * `setActiveConfig` is no longer used to convey per-project state: source
+ * selections flow through `sources` on each source-bound call so the plugin
+ * process holds no per-project state. Plugins with no plugin-wide config
+ * (e.g. github.com, which has a fixed API host) can skip implementing this
+ * method entirely.
  */
 export interface SetActiveConfigResult {
   ok: boolean;
@@ -130,8 +155,8 @@ export interface PluginContract {
     assigneeExternalId: string;
   }) => Promise<void> | void;
   getAvailableTransitions?: (params: { externalId: string }) => Promise<string[]> | string[];
-  listIssueTypes?: () => Promise<IssueTypeOption[]> | IssueTypeOption[];
-  listLabels?: () => Promise<string[]> | string[];
+  listIssueTypes?: (params: ListIssueTypesParams) => Promise<IssueTypeOption[]> | IssueTypeOption[];
+  listLabels?: (params: ListLabelsParams) => Promise<string[]> | string[];
 }
 
 export type ContractMethodName = keyof PluginContract;

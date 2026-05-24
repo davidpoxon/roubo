@@ -1,3 +1,4 @@
+import type { ConfiguredSource } from "@roubo/plugin-sdk";
 import * as projectRegistry from "./project-registry.js";
 import {
   getEffectiveWithGlobal,
@@ -13,35 +14,27 @@ interface ActivationResult {
 }
 
 /**
- * Memoise the most recently-pushed activation per (pluginId, projectId) so
- * a cold project doesn't pay the JSON-RPC round-trip on every consecutive
- * call. Keyed by a JSON snapshot of the pushed config so a sources/instance
- * change naturally invalidates without having to call `forget*` from every
- * write path.
+ * Memoise the most recently-pushed plugin-wide config (instance URL, TLS
+ * toggle, advanced settings) per plugin so a cold project doesn't pay the
+ * JSON-RPC round-trip on every consecutive call. Keyed by a JSON snapshot of
+ * the pushed config so any change naturally invalidates.
  *
- * Known gap: if the plugin process crashes and auto-restarts, the host's
- * cache will still think the plugin is activated even though the new
- * process started with an empty `activeConfig`. The next source-bound call
- * will fail with "No active configuration"; the user will see the error
- * once and any subsequent call (after `forgetPluginActivation` is invoked
- * from the next config write, or after the cache entry is replaced by a
- * different snapshot) recovers. Tracked in #119, which removes the
- * singleton (and therefore this cache) entirely by passing sources as an
- * explicit per-call parameter.
+ * This cache is keyed per plugin (not per project) because the data we push
+ * here is plugin-wide: it is identical for every project that uses the
+ * plugin. Per-project source selection used to ride along in the same RPC
+ * (which is what caused #119's cross-project bleed when two projects used
+ * the same plugin) and now flows inline on every source-bound RPC instead;
+ * see `resolveSources`.
  */
-const cache = new Map<string, string>(); // key: `${pluginId}::${projectId}` → JSON config hash
-
-function cacheKey(pluginId: string, projectId: string): string {
-  return `${pluginId}::${projectId}`;
-}
+const cache = new Map<string, string>(); // key: pluginId → JSON config hash
 
 /**
- * Build the PluginConfig payload for the project's effective integration
- * config. Currently produces `{ sources, instance?, allowSelfSignedTls? }`
- * depending on what plugins expect; the plugin's parseConfig is responsible
- * for accepting/rejecting fields it doesn't recognise.
+ * Build the plugin-wide config payload (instance, allowSelfSignedTls, any
+ * advanced fields). Source selection is supplied per-call via `resolveSources`
+ * and is intentionally never included here, so the cached snapshot is safe
+ * to share across every project using the plugin.
  */
-function buildPluginConfig(projectId: string, pluginId: string): Record<string, unknown> | null {
+function buildPluginConfig(projectId: string): Record<string, unknown> | null {
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) return null;
 
@@ -56,15 +49,7 @@ function buildPluginConfig(projectId: string, pluginId: string): Record<string, 
   }
 
   const effective = getEffectiveWithGlobal(project.config.integration, override);
-  const config: Record<string, unknown> = {
-    sources: translateSources(effective.sources, {
-      onUnknownCategory: (category) => {
-        console.warn(
-          `[plugin-activation] ${pluginId}: ignoring unknown source category "${category}" for project ${projectId}`,
-        );
-      },
-    }),
-  };
+  const config: Record<string, unknown> = {};
 
   if (typeof effective.instance === "string" && effective.instance.length > 0) {
     config.instance = effective.instance;
@@ -83,71 +68,118 @@ function buildPluginConfig(projectId: string, pluginId: string): Record<string, 
 }
 
 /**
- * Ensure the plugin process has been told about the project's current
- * source selection before a source-bound RPC is invoked.
- *
- * Called from route handlers immediately before `pluginManager.invoke(...,
- * "listIssues" | "listIssueTypes" | "listLabels" | ...)`. Cheap on
- * subsequent calls thanks to the per-(plugin,project) snapshot cache;
- * always pays one JSON-RPC round-trip on the first call after a config
- * change (the cache hashes the pushed config so any change invalidates).
- *
- * Errors are surfaced by throwing — callers should let the existing
- * `sendPluginRpcError` paths translate them into 502/504s.
+ * Resolve the per-project source selection into the `{ kind, externalId }[]`
+ * shape plugins expect under params.sources on source-bound RPCs. Returns
+ * an empty list when the project has no sources configured.
  */
-export async function ensurePluginActivated(projectId: string, pluginId: string): Promise<void> {
-  const config = buildPluginConfig(projectId, pluginId);
-  if (!config) return; // no config to push; downstream invoke will 503
+export function resolveSources(projectId: string): ConfiguredSource[] {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) return [];
+
+  let override = null;
+  try {
+    override = loadOverride(projectId);
+  } catch (err) {
+    if (!(err instanceof IntegrationOverrideError)) throw err;
+  }
+
+  const effective = getEffectiveWithGlobal(project.config.integration, override);
+  const pluginId = effective.plugin ?? "<unknown>";
+  return translateSources(effective.sources, {
+    onUnknownCategory: (category) => {
+      console.warn(
+        `[plugin-activation] ${pluginId}: ignoring unknown source category "${category}" for project ${projectId}`,
+      );
+    },
+  });
+}
+
+/**
+ * Ensure the plugin process has been told about the plugin-wide config
+ * (instance URL, TLS toggle, advanced settings) before a source-bound RPC
+ * is invoked. If the plugin has no plugin-wide config (e.g. github.com,
+ * which has a fixed API host and no TLS knob), this is a no-op.
+ *
+ * Called from route handlers immediately before each source-bound
+ * `pluginManager.invoke(..., "listIssues" | "listIssueTypes" | "listLabels"
+ * | ..., { sources, ... })`. Cheap on subsequent calls thanks to the
+ * per-plugin snapshot cache; always pays one JSON-RPC round-trip on the
+ * first call after a config change.
+ *
+ * Per-project source selection is supplied inline via the `sources` param
+ * on each source-bound RPC (see `resolveSources`), so the plugin process
+ * holds no per-project state and there is no race window between projects
+ * sharing the same plugin.
+ */
+export async function ensurePluginActivated(_projectId: string, pluginId: string): Promise<void> {
+  const config = buildPluginConfig(_projectId);
+  if (!config || Object.keys(config).length === 0) {
+    // Nothing plugin-wide to push (e.g. github.com): the plugin will read
+    // its sources directly off the per-call params.
+    return;
+  }
 
   const snapshot = JSON.stringify(config);
-  const key = cacheKey(pluginId, projectId);
-  if (cache.get(key) === snapshot) return;
+  if (cache.get(pluginId) === snapshot) return;
 
-  const result = await pluginManager.invoke<ActivationResult>(
-    pluginId,
-    "setActiveConfig",
-    { config },
-    { timeoutMs: 5_000 },
-  );
+  let result: ActivationResult | null;
+  try {
+    result = await pluginManager.invoke<ActivationResult>(
+      pluginId,
+      "setActiveConfig",
+      { config },
+      { timeoutMs: 5_000 },
+    );
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code === "MethodNotFound") {
+      // Plugin doesn't implement setActiveConfig; it has no plugin-wide
+      // config to receive. Treat as success and cache to avoid re-trying.
+      cache.set(pluginId, snapshot);
+      return;
+    }
+    throw err;
+  }
+
   if (!result?.ok) {
-    // Don't cache a failed activation; surface the first error so the
-    // route handler can show something useful.
     const first = result?.errors?.[0];
     const message = first
       ? `[${pluginId}] setActiveConfig rejected: ${first.field ? `${first.field}: ` : ""}${first.message}`
       : `[${pluginId}] setActiveConfig rejected`;
     throw new Error(message);
   }
-  cache.set(key, snapshot);
+  cache.set(pluginId, snapshot);
 }
 
 /**
- * Drop the cached activation for a project so the next source-bound call
- * re-pushes. Wire this into config-write routes (override save, sources
- * save, global integration save) so users see new config take effect
- * immediately instead of waiting for the next plugin restart.
+ * Drop the cached activation for a plugin so the next source-bound call
+ * re-pushes its plugin-wide config. Wire this into global plugin config
+ * writes (e.g. instance URL change) so the new instance takes effect
+ * immediately.
+ *
+ * The `_projectId` argument is preserved for API compatibility with the
+ * pre-#119 per-project cache; activations are now plugin-wide so any
+ * project's config change forces a re-push for every project using that
+ * plugin (which is what we want for global config changes).
  */
-export function forgetProjectActivation(projectId: string, pluginId?: string): void {
+export function forgetProjectActivation(_projectId: string, pluginId?: string): void {
   if (pluginId) {
-    cache.delete(cacheKey(pluginId, projectId));
+    cache.delete(pluginId);
     return;
   }
-  for (const key of cache.keys()) {
-    if (key.endsWith(`::${projectId}`)) cache.delete(key);
-  }
+  // Without a pluginId we don't know which plugin to invalidate; drop
+  // everything to be safe. Cheap: re-pushing one snapshot per plugin on
+  // the next call is bounded by the number of installed plugins.
+  cache.clear();
 }
 
 /**
- * Drop the cached activation for every project that was activated against a
- * given plugin. Wire into global-scope plugin config writes (e.g. captured
- * user id changes, instance change on the global GHE config) since those
- * affect every project that inherits from the global defaults.
+ * Drop the cached activation for a plugin. Used by global-scope plugin
+ * config writes (e.g. captured user id changes, instance change on the
+ * global GHE config).
  */
 export function forgetPluginActivation(pluginId: string): void {
-  const prefix = `${pluginId}::`;
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
-  }
+  cache.delete(pluginId);
 }
 
 /** Drop all cached activations. Used by tests; also fine for plugin reloads. */

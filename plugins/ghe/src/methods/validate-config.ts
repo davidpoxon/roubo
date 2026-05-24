@@ -1,15 +1,19 @@
 import type { ValidateConfigResult } from "@roubo/plugin-sdk";
 import { parseConfig, setActiveConfig, tryGetActiveConfig } from "../active-config.js";
+import { parseSourcesConfig } from "../parse-sources.js";
 import { fetchCurrentUser, fetchProjects, fetchRepoSummary } from "../github-fetchers.js";
 
 /**
- * Validates the host-provided config and, on success, caches it as the
- * plugin's active configuration for subsequent source-scoped methods.
+ * Validates the host-provided config and, on credential success, caches the
+ * plugin-wide bits (instance URL, TLS toggle) so the Octokit factory can
+ * build the correct baseUrl on subsequent calls.
  *
  * Validation steps:
- *   1. Shape-check the config record into PluginConfig.
- *   2. Probe `/user` so an invalid / missing token surfaces a single clear error.
- *   3. For each configured source, probe the corresponding GitHub resource.
+ *   1. Shape-check `instance` and `allowSelfSignedTls` (plugin-wide).
+ *   2. Shape-check the `sources` array (used here for probing only; source
+ *      selection now flows per-call via params on source-bound RPCs).
+ *   3. Probe `/user` so an invalid / missing token surfaces a single clear error.
+ *   4. For each configured source, probe the corresponding GitHub resource.
  *
  * Errors are accumulated per source so the host can surface a complete picture
  * (rather than failing on the first bad entry).
@@ -22,10 +26,15 @@ export async function validateConfig(params: {
     return { ok: false, errors: shapeErrors };
   }
 
-  // Set the active config before any network probe so the Octokit factory
-  // can build the correct baseUrl from the configured instance URL. If a
-  // probe fails downstream the caller should treat the previously-active
-  // config (if any) as cleared; we re-set here only on full success.
+  const { config: sourcesConfig, errors: sourcesErrors } = parseSourcesConfig(params.config);
+  if (!sourcesConfig) {
+    return { ok: false, errors: sourcesErrors };
+  }
+
+  // Set the plugin-wide active config (instance, TLS) before any network probe
+  // so the Octokit factory can build the correct baseUrl. If a probe fails
+  // downstream we roll back to the previous active config so existing
+  // source-bound calls keep working.
   const prevConfig = tryGetActiveConfig();
   setActiveConfig(config);
 
@@ -38,25 +47,21 @@ export async function validateConfig(params: {
     // server/routes/integration.ts can detect TLS errors (TC-062) and
     // surface the inline self-signed-TLS opt-in affordance.
     const rawMessage = (err as Error).message;
-    setActiveConfig(null);
+    setActiveConfig(prevConfig);
     errors.push({ message: rawMessage });
     return { ok: false, errors };
   }
 
   // Token-only validation: empty sources means the caller is just verifying
   // the credential + instance URL (e.g. the global "Test connection" before
-  // any sources have been picked). Preserve the previously-active sources so
-  // source-bound calls (listIssues etc.) don't break, but keep the new
-  // instance / allowSelfSignedTls values active.
-  if (config.sources.length === 0) {
-    if (prevConfig && prevConfig.sources.length > 0) {
-      setActiveConfig({ ...config, sources: prevConfig.sources });
-    }
+  // any sources have been picked). The plugin-wide active config remains set
+  // to the just-tested values so source-bound calls use the right instance.
+  if (sourcesConfig.sources.length === 0) {
     return { ok: true };
   }
 
-  for (let i = 0; i < config.sources.length; i++) {
-    const source = config.sources[i];
+  for (let i = 0; i < sourcesConfig.sources.length; i++) {
+    const source = sourcesConfig.sources[i];
     try {
       if (source.kind === "repo") {
         await fetchRepoSummary(source.externalId);
@@ -95,7 +100,7 @@ export async function validateConfig(params: {
   }
 
   if (errors.length > 0) {
-    setActiveConfig(null);
+    setActiveConfig(prevConfig);
     return { ok: false, errors };
   }
 

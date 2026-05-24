@@ -456,11 +456,11 @@ Token-scope detection MUST gracefully handle the case where the user's token doe
 
 ### Addendum traceability
 
-| User story | Functional requirements | Non-functional requirements | Test-case bucket (forward ref) |
-|---|---|---|---|
-| US-011 | FR-040, FR-041, FR-042, FR-043, FR-044, FR-045, FR-048, FR-049 | NFR-013, NFR-014 | TC-addendum-enable |
-| US-012 | FR-046, FR-050 | NFR-015, NFR-014 | TC-addendum-degradation |
-| US-013 | FR-047 | NFR-013, NFR-014 | TC-addendum-test-connection |
+| User story | Functional requirements                                        | Non-functional requirements | Test-case bucket (forward ref) |
+| ---------- | -------------------------------------------------------------- | --------------------------- | ------------------------------ |
+| US-011     | FR-040, FR-041, FR-042, FR-043, FR-044, FR-045, FR-048, FR-049 | NFR-013, NFR-014            | TC-addendum-enable             |
+| US-012     | FR-046, FR-050                                                 | NFR-015, NFR-014            | TC-addendum-degradation        |
+| US-013     | FR-047                                                         | NFR-013, NFR-014            | TC-addendum-test-connection    |
 
 Cross-cutting NFR-012 (raw redaction) applies to FR-041, FR-043, FR-046 regardless of story.
 

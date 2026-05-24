@@ -9,7 +9,7 @@ import type {
 } from "@roubo/shared";
 import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
-import { ensurePluginActivated } from "../services/plugin-activation.js";
+import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { parseIntParam } from "./helpers.js";
 import { ServiceError } from "../services/service-error.js";
@@ -29,9 +29,9 @@ async function getActivePluginOrRespond(
     });
     return null;
   }
-  // Push the project's current source selection to the plugin before the
-  // caller invokes any source-bound RPC. Cached per (plugin, project,
-  // config-hash) so steady-state cost is one Map lookup.
+  // Push the plugin's plugin-wide config (instance URL, TLS toggle) if it
+  // has any. Per-project source selection is supplied inline on each
+  // source-bound RPC via the `sources` param.
   try {
     await ensurePluginActivated(projectId, active.pluginId);
   } catch (err) {
@@ -82,6 +82,7 @@ router.get("/:projectId/issues", async (req, res) => {
   }
 
   const params: ListIssuesParams = {
+    sources: resolveSources(req.params.projectId),
     cursor: requestCursor,
     pageSize,
     filters: Object.keys(filters).length > 0 ? filters : undefined,
@@ -224,7 +225,9 @@ router.get("/:projectId/labels", async (req, res) => {
   if (!active) return;
 
   try {
-    const labels = await pluginManager.invoke<string[]>(active.pluginId, "listLabels", {});
+    const labels = await pluginManager.invoke<string[]>(active.pluginId, "listLabels", {
+      sources: resolveSources(req.params.projectId),
+    });
     res.json(labels);
   } catch (err) {
     sendPluginRpcError(res, err);

@@ -10,7 +10,6 @@ import { listIssueTypes } from "./methods/list-issue-types.js";
 import { listIssues } from "./methods/list-issues.js";
 import { listLabels } from "./methods/list-labels.js";
 import { listSourceCandidates } from "./methods/list-source-candidates.js";
-import { setActiveConfigMethod } from "./methods/set-active-config.js";
 import { unassignIssue } from "./methods/unassign-issue.js";
 import { validateConfig } from "./methods/validate-config.js";
 
@@ -23,7 +22,6 @@ definePlugin({
   getComments,
   getCurrentUser,
   validateConfig,
-  setActiveConfig: setActiveConfigMethod,
   applyTransition,
   assignIssue,
   unassignIssue,

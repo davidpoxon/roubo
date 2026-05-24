@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setActiveConfig } from "../active-config.js";
+import type { ConfiguredSource } from "@roubo/plugin-sdk";
 import { getAvailableTransitions } from "../methods/get-available-transitions.js";
 import { getComments } from "../methods/get-comments.js";
 import { getCurrentUser } from "../methods/get-current-user.js";
@@ -166,24 +166,24 @@ describe("getCurrentUser", () => {
   });
 });
 
+const REPO_SOURCES: ConfiguredSource[] = [{ kind: "repo", externalId: "foo/bar" }];
+const PROJECT_SOURCES: ConfiguredSource[] = [{ kind: "project", externalId: "foo/#1" }];
+
 describe("listLabels", () => {
   it("returns label names for a repo source", async () => {
-    setActiveConfig({ sources: [{ kind: "repo", externalId: "foo/bar" }] });
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([{ name: "bug" }, { name: "p1" }]));
 
-    expect(await listLabels()).toEqual(["bug", "p1"]);
+    expect(await listLabels({ sources: REPO_SOURCES })).toEqual(["bug", "p1"]);
   });
 
   it("returns [] for a project source without contacting GitHub", async () => {
-    setActiveConfig({ sources: [{ kind: "project", externalId: "foo/#1" }] });
-    expect(await listLabels()).toEqual([]);
+    expect(await listLabels({ sources: PROJECT_SOURCES })).toEqual([]);
     expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
   });
 });
 
 describe("listIssueTypes", () => {
   it("returns enabled issue types mapped to {id, name} for a repo source", async () => {
-    setActiveConfig({ sources: [{ kind: "repo", externalId: "foo/bar" }] });
     mocks.mockOctokit.graphql.mockResolvedValueOnce({
       repository: {
         issueTypes: {
@@ -197,26 +197,24 @@ describe("listIssueTypes", () => {
       },
     });
 
-    expect(await listIssueTypes()).toEqual([
+    expect(await listIssueTypes({ sources: REPO_SOURCES })).toEqual([
       { id: "T_1", name: "Bug" },
       { id: "T_2", name: "Feature" },
     ]);
   });
 
   it("returns [] when the repo has no configured issue types", async () => {
-    setActiveConfig({ sources: [{ kind: "repo", externalId: "foo/bar" }] });
     mocks.mockOctokit.graphql.mockResolvedValueOnce({
       repository: {
         issueTypes: { nodes: [], pageInfo: { hasNextPage: false } },
       },
     });
 
-    expect(await listIssueTypes()).toEqual([]);
+    expect(await listIssueTypes({ sources: REPO_SOURCES })).toEqual([]);
   });
 
   it("returns [] for a project source without contacting GitHub", async () => {
-    setActiveConfig({ sources: [{ kind: "project", externalId: "foo/#1" }] });
-    expect(await listIssueTypes()).toEqual([]);
+    expect(await listIssueTypes({ sources: PROJECT_SOURCES })).toEqual([]);
     expect(mocks.mockOctokit.graphql).not.toHaveBeenCalled();
   });
 });

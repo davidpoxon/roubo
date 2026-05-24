@@ -654,6 +654,7 @@ See [`forward-compat-sketch.md`](./forward-compat-sketch.md) for the full sketch
 - **Responsibility**: thread per-source per-category warnings from the plugin to the host on every `listIssues` pull, without introducing a new RPC method.
 - **Reuse vs new**: in-place extension of `ListIssuesResult`. Adds one optional field; existing plugins that do not populate it remain wire-compatible.
 - **Public interface (SDK type change, additive only)**:
+
   ```ts
   export interface SourceWarning {
     sourceExternalId: string; // matches ConfiguredSource.externalId
@@ -677,6 +678,7 @@ See [`forward-compat-sketch.md`](./forward-compat-sketch.md) for the full sketch
     warnings?: SourceWarning[]; // NEW: addendum field
   }
   ```
+
 - **Wire path**: the bundled github.com `listIssues` accumulates warnings from each enabled category's fetcher into a per-pull array and returns them with the result. The host route at `server/routes/issues.ts:27` forwards them verbatim through the response envelope. The Configure dialog reads them out of the React Query cache for `["issues", projectId, integrationId]` rather than via a new endpoint. Rationale: warnings are naturally per-pull-fresh; coupling them to the pull means they auto-clear on the next successful pull per FR-046.
 - **Why a separate `getSourceWarnings` RPC was rejected**: a separate RPC creates a freshness-coupling problem (warnings could be stale relative to the last pull), adds a new method to the contract (which we explicitly do not want to do at host-API 1.0.0), and doubles the work on noisy refresh. Inline is strictly smaller.
 
@@ -979,25 +981,26 @@ The addendum is strictly additive and requires NO host-API change. Verified by w
 - **Per-source per-category cache invalidation on OAuth re-consent.** Scope cache invalidation is described above. **Risk**: the ETag cache inside `githubRequest` for the alert endpoints contains entries keyed by the prior token's auth context. On a successful re-consent, those cached entries are technically still valid (ETag is per-resource, not per-token), but a defensive plugin author might wonder. **Decision**: the ETag cache is NOT wiped on re-consent. ETags are resource-scoped on GitHub's side; the prior cache stays valid and the next conditional GET correctly returns 304 or fresh data. This is intentional behaviour and is documented in `plugins/_shared-github/src/scope-cache.ts` next to the `invalidateScopeCache` function.
 - **GHAS HTTP code → cause string mapping table.** Per category:
 
-  | Endpoint | HTTP status | `code` | `cause` |
-  |---|---|---|---|
-  | `code-scanning` | 401 | `missing-scope` | `Code Scanning unavailable: token lacks security_events permission. Click to upgrade.` |
-  | `code-scanning` | 403 (Forbidden) | `insufficient-permission` | `Code Scanning unavailable: token lacks security_events or read access to alerts.` |
-  | `code-scanning` | 404 | `feature-disabled` | `Code Scanning unavailable: not enabled on this repo.` |
-  | `code-scanning` | 451 | `ghas-not-enabled` | `Code Scanning unavailable: requires GitHub Advanced Security on this repo.` |
-  | `code-scanning` | 429 / 403+rate-limit-header | `rate-limited` | `Code Scanning rate-limited: retry after <timestamp>.` |
-  | `secret-scanning` | 401 | `missing-scope` | `Secret Scanning unavailable: token lacks security_events permission. Click to upgrade.` |
-  | `secret-scanning` | 403 | `insufficient-permission` | `Secret Scanning unavailable: token lacks repo admin access.` |
-  | `secret-scanning` | 404 | `not-found` | `Secret Scanning unavailable: not enabled on this repo.` |
-  | `secret-scanning` | 451 | `ghas-not-enabled` | `Secret Scanning unavailable: requires GitHub Advanced Security on private repos.` |
-  | `dependabot` | 401 | `missing-scope` | `Dependabot unavailable: token lacks security_events permission. Click to upgrade.` |
-  | `dependabot` | 403 | `insufficient-permission` | `Dependabot unavailable: not a repo admin.` |
-  | `dependabot` | 404 | `feature-disabled` | `Dependabot unavailable: not enabled on this repo.` |
-  | any | 5xx | `unknown` | `<Category> unavailable: GitHub returned a server error. Roubo will retry on the next pull.` |
-  | any | client timeout | `timed-out` | `<Category> probe timed out.` |
-  | any | `X-OAuth-Scopes` absent and probe failed | `scope-unverifiable` | `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` |
+  | Endpoint          | HTTP status                              | `code`                    | `cause`                                                                                                                 |
+  | ----------------- | ---------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+  | `code-scanning`   | 401                                      | `missing-scope`           | `Code Scanning unavailable: token lacks security_events permission. Click to upgrade.`                                  |
+  | `code-scanning`   | 403 (Forbidden)                          | `insufficient-permission` | `Code Scanning unavailable: token lacks security_events or read access to alerts.`                                      |
+  | `code-scanning`   | 404                                      | `feature-disabled`        | `Code Scanning unavailable: not enabled on this repo.`                                                                  |
+  | `code-scanning`   | 451                                      | `ghas-not-enabled`        | `Code Scanning unavailable: requires GitHub Advanced Security on this repo.`                                            |
+  | `code-scanning`   | 429 / 403+rate-limit-header              | `rate-limited`            | `Code Scanning rate-limited: retry after <timestamp>.`                                                                  |
+  | `secret-scanning` | 401                                      | `missing-scope`           | `Secret Scanning unavailable: token lacks security_events permission. Click to upgrade.`                                |
+  | `secret-scanning` | 403                                      | `insufficient-permission` | `Secret Scanning unavailable: token lacks repo admin access.`                                                           |
+  | `secret-scanning` | 404                                      | `not-found`               | `Secret Scanning unavailable: not enabled on this repo.`                                                                |
+  | `secret-scanning` | 451                                      | `ghas-not-enabled`        | `Secret Scanning unavailable: requires GitHub Advanced Security on private repos.`                                      |
+  | `dependabot`      | 401                                      | `missing-scope`           | `Dependabot unavailable: token lacks security_events permission. Click to upgrade.`                                     |
+  | `dependabot`      | 403                                      | `insufficient-permission` | `Dependabot unavailable: not a repo admin.`                                                                             |
+  | `dependabot`      | 404                                      | `feature-disabled`        | `Dependabot unavailable: not enabled on this repo.`                                                                     |
+  | any               | 5xx                                      | `unknown`                 | `<Category> unavailable: GitHub returned a server error. Roubo will retry on the next pull.`                            |
+  | any               | client timeout                           | `timed-out`               | `<Category> probe timed out.`                                                                                           |
+  | any               | `X-OAuth-Scopes` absent and probe failed | `scope-unverifiable`      | `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` |
 
   The table lives in code at `plugins/_shared-github/src/warnings.ts` as the `httpStatusToCauseString` function. **Risk**: GitHub may add new status codes for new GHAS gating modes; the table will require maintenance. **Mitigation**: the `unknown` row is the safe fallback; new status codes degrade gracefully to a generic message until a follow-up updates the table.
+
 - **Shared package NOT exposed via the public SDK.** The 2026-05-24 decision keeps `plugins/_shared-github/` an internal workspace dependency of `plugins/github-com/` and `plugins/ghe/`. Third-party plugins cannot depend on it. **Rationale**: avoids committing to its API surface as part of the host-API contract; the package can evolve freely as a 0.x internal dep. **Re-evaluation trigger**: if a third-party plugin asks to reuse the redactor or the scope detector, lift the relevant function into `@roubo/plugin-sdk` as a 1.x minor.
 
 ### Addendum closing notes
@@ -1007,4 +1010,3 @@ The addendum is strictly additive and requires NO host-API change. Verified by w
 - **No host-API change**, no new RPC method, no new permission category, no new credential slot. `hostApiVersion` stays at 1.0.0.
 - **Open architectural questions still gated on user input**: none that block the tests stage. Every prototype-note open question has a concrete decision above. The GHE fine-grained PAT case (NFR-015) and the polling cost amplification (NFR-013 ceiling) are documented risks rather than open architectural decisions.
 - **`unknown - flag for refinement` markers added by this addendum**: none. The OAuth re-consent placement, frozen-snapshot semantics, test-connection coverage, code-sharing boundary, external-id format, and HTTP code mapping are all decided above. The two true unknowns (GHE fine-grained PAT prevalence and polling-cost amplification thresholds) are surfaced as risks with defined mitigations, not as architectural markers.
-

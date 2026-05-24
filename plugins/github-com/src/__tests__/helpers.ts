@@ -3,7 +3,6 @@ import type { FetchInit, FetchResult, HostClient } from "@roubo/plugin-sdk";
 import { bindHost, resetHostBinding } from "../host-binding.js";
 import { __setOctokitForTests, resetOctokit, type OctokitLike } from "../octokit-factory.js";
 import { __setSleepForTests, resetCaches } from "../github-request.js";
-import { setActiveConfig } from "../active-config.js";
 
 export interface MockHost {
   host: HostClient;
@@ -69,8 +68,8 @@ export function buildMockOctokit(): MockOctokit {
 }
 
 /**
- * Install a fresh mock host + mock Octokit, clear caches, clear active config.
- * Mock Octokit short-circuits the host-fetch adapter so tests verify githubRequest
+ * Install a fresh mock host + mock Octokit and clear caches. Mock Octokit
+ * short-circuits the host-fetch adapter so tests verify githubRequest
  * behaviour directly without Octokit's built-in retry / throttling plugins
  * pre-empting the manual backoff layer.
  */
@@ -80,7 +79,6 @@ export function installMocks(): { mockHost: MockHost; mockOctokit: MockOctokit }
   resetCaches();
   resetOctokit();
   resetHostBinding();
-  setActiveConfig(null);
   bindHost(mockHost.host);
   __setOctokitForTests(mockOctokit.client);
   return { mockHost, mockOctokit };
@@ -90,7 +88,6 @@ export function teardownMocks(): void {
   resetCaches();
   resetOctokit();
   resetHostBinding();
-  setActiveConfig(null);
   __setOctokitForTests(null);
   __setSleepForTests((ms) => new Promise((r) => setTimeout(r, ms)));
 }
