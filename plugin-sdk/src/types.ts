@@ -42,11 +42,36 @@ export interface ListIssuesResult {
   nextCursor: string | null;
 }
 
-export interface SourceCandidate {
-  category: string;
+export type SourceCandidateIcon = "repo" | "project" | "board" | "epic" | "filter";
+
+export interface SourceCandidateItem {
   externalId: string;
-  displayName: string;
-  description?: string;
+  label: string;
+  sublabel?: string;
+  icon?: SourceCandidateIcon;
+}
+
+export interface SourceCandidateCategory {
+  id: string;
+  label: string;
+  items: SourceCandidateItem[];
+}
+
+export type SourceCandidatesShape = "multi-list" | "categorized-multi-list";
+
+/**
+ * Declarative source-picker payload returned by `listSourceCandidates`. Roubo's
+ * host renders the UI from this envelope; plugins ship no React. See
+ * `.specifications/integration-plugins/architecture.md`.
+ */
+export interface SourceCandidatesResponse {
+  shape: SourceCandidatesShape;
+  // Present iff shape === "multi-list".
+  items?: SourceCandidateItem[];
+  // Present iff shape === "categorized-multi-list".
+  categories?: SourceCandidateCategory[];
+  // Reserved for future pagination; v1 plugins return undefined.
+  nextCursor?: string | null;
 }
 
 export interface CurrentUser {
@@ -82,7 +107,7 @@ export interface IssueTypeOption {
  * a host call to an unimplemented method receives JSON-RPC MethodNotFound.
  */
 export interface PluginContract {
-  listSourceCandidates?: () => Promise<SourceCandidate[]> | SourceCandidate[];
+  listSourceCandidates?: () => Promise<SourceCandidatesResponse> | SourceCandidatesResponse;
   listIssues?: (params: ListIssuesParams) => Promise<ListIssuesResult> | ListIssuesResult;
   getIssue?: (params: { externalId: string }) => Promise<NormalizedIssue> | NormalizedIssue;
   getComments?: (params: {
