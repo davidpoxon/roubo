@@ -277,6 +277,28 @@ describe("createPluginFetcher: response surfacing", () => {
         res.end(JSON.stringify({ ok: true }));
         return;
       }
+      if (req.url === "/not-modified") {
+        // Mirrors GitHub's response to a conditional GET that matches the
+        // sender's If-None-Match: 304, no body, no Content-Type.
+        res.statusCode = 304;
+        res.setHeader("ETag", '"abc123"');
+        res.end();
+        return;
+      }
+      if (req.url === "/not-modified-with-ct") {
+        // Some upstreams set Content-Type even on 304s; we still pass it
+        // through unchanged.
+        res.statusCode = 304;
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("ETag", '"abc123"');
+        res.end();
+        return;
+      }
+      if (req.url === "/no-content") {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
       res.statusCode = 404;
       res.end();
     });
@@ -348,6 +370,36 @@ describe("createPluginFetcher: response surfacing", () => {
     const logger = vi.fn<(line: PluginHttpLogLine) => void>();
     const fetcher = createPluginFetcher(manifest(["127.0.0.1"]), { logger });
     await fetcher(serverInfo.url("/empty-text"));
+    expect(logger).not.toHaveBeenCalled();
+  });
+
+  it("returns 304 Not Modified with an empty body even when Content-Type is absent", async () => {
+    // Regression: GitHub conditional GETs return 304s with no body and no
+    // Content-Type; the previous implementation rejected them as unsupported
+    // and broke every fetch after the first ETag-cached response.
+    const logger = vi.fn<(line: PluginHttpLogLine) => void>();
+    const fetcher = createPluginFetcher(manifest(["127.0.0.1"]), { logger });
+    const result = await fetcher(serverInfo.url("/not-modified"));
+    expect(result.status).toBe(304);
+    expect(result.body).toBe("");
+    expect(result.headers["etag"]).toBe('"abc123"');
+    expect(logger).not.toHaveBeenCalled();
+  });
+
+  it("returns 304 with a present Content-Type unchanged", async () => {
+    const fetcher = createPluginFetcher(manifest(["127.0.0.1"]));
+    const result = await fetcher(serverInfo.url("/not-modified-with-ct"));
+    expect(result.status).toBe(304);
+    expect(result.body).toBe("");
+    expect(result.headers["etag"]).toBe('"abc123"');
+  });
+
+  it("returns 204 No Content with an empty body even when Content-Type is absent", async () => {
+    const logger = vi.fn<(line: PluginHttpLogLine) => void>();
+    const fetcher = createPluginFetcher(manifest(["127.0.0.1"]), { logger });
+    const result = await fetcher(serverInfo.url("/no-content"));
+    expect(result.status).toBe(204);
+    expect(result.body).toBe("");
     expect(logger).not.toHaveBeenCalled();
   });
 });

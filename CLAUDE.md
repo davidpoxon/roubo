@@ -24,6 +24,10 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 A PR is only 'complete' when: (1) all CI checks pass, (2) no merge conflicts with main, (3) all review comments addressed. Re-check main for new commits before declaring done, and never declare complete with a TypeScript error in the latest commit.
 
+## Follow-up References
+
+When a code comment, commit message, PR description, or plan file mentions deferred work, always open a GitHub issue first and reference it by number (e.g. `#119`) inline. Never gesture at "a follow-up issue" or name the issue by title alone, and never inline a description as a substitute for filing the issue. The flow is: open the ticket, capture the number, then write the reference.
+
 ## Architecture
 
 - **Monorepo** with npm workspaces: `shared/`, `server/`, `client/`

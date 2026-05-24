@@ -59,6 +59,19 @@ export interface ValidateConfigResult {
   errors?: Array<{ field?: string; message: string; code?: string }>;
 }
 
+/**
+ * Result of a lightweight activation call (`setActiveConfig`). Plugins must
+ * shape-check the supplied config and either set it as the active source
+ * configuration for subsequent source-bound methods, or return validation
+ * errors. Unlike `validateConfig` this method must not make network calls;
+ * it is invoked per-request from the host immediately before each
+ * source-bound RPC.
+ */
+export interface SetActiveConfigResult {
+  ok: boolean;
+  errors?: Array<{ field?: string; message: string; code?: string }>;
+}
+
 export interface IssueTypeOption {
   id: string;
   name: string;
@@ -79,6 +92,9 @@ export interface PluginContract {
   validateConfig?: (params: {
     config: Record<string, unknown>;
   }) => Promise<ValidateConfigResult> | ValidateConfigResult;
+  setActiveConfig?: (params: {
+    config: Record<string, unknown>;
+  }) => Promise<SetActiveConfigResult> | SetActiveConfigResult;
   applyTransition?: (params: { externalId: string; transition: string }) => Promise<void> | void;
   assignIssue?: (params: {
     externalId: string;

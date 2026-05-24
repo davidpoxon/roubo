@@ -21,6 +21,11 @@ vi.mock("../services/state.js");
 vi.mock("../services/github.js");
 vi.mock("../services/plugin-manager.js", () => ({ invoke: vi.fn() }));
 vi.mock("../services/active-plugin.js", () => ({ resolveActivePlugin: vi.fn() }));
+vi.mock("../services/plugin-activation.js", () => ({
+  ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
+  forgetProjectActivation: vi.fn(),
+  forgetPluginActivation: vi.fn(),
+}));
 
 import router from "./projects.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -31,6 +36,7 @@ import { atomicWrite } from "../services/state.js";
 import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
+import * as pluginActivation from "../services/plugin-activation.js";
 
 const app = express();
 app.use(express.json());
@@ -643,6 +649,17 @@ describe("GET /:projectId/issue-types", () => {
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(503);
     expect(res.body.error).toBe("plugin-not-enabled");
+  });
+
+  it("returns 502 rpc-error when ensurePluginActivated rejects", async () => {
+    vi.mocked(pluginActivation.ensurePluginActivated).mockRejectedValueOnce(
+      new Error("bad config"),
+    );
+    vi.mocked(pluginManager.invoke).mockClear();
+    const res = await request(app).get("/project/issue-types");
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({ error: "rpc-error", message: "bad config" });
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });
 

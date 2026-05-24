@@ -138,6 +138,48 @@ describe("validateConfig", () => {
     expect(tryGetActiveConfig()).toBeNull();
   });
 
+  it("accepts a token-only payload (no sources) and probes /user only", async () => {
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
+
+    const result = await validateConfig({ config: { instance: VALID_INSTANCE } });
+    expect(result).toEqual({ ok: true });
+    // No previously-set active config, so the token-only validation leaves
+    // the new instance + empty sources active. Callers that need to invoke
+    // source-bound methods must push sources via setActiveConfig.
+    expect(tryGetActiveConfig()).toEqual({
+      instance: VALID_INSTANCE,
+      allowSelfSignedTls: false,
+      sources: [],
+    });
+    expect(mocks.mockOctokit.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("token-only re-test preserves previously-active sources but updates instance", async () => {
+    // First call: full config with real sources.
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
+    mocks.mockOctokit.request.mockResolvedValueOnce(
+      okResponse({ name: "bar", full_name: "foo/bar" }),
+    );
+    await validateConfig({
+      config: {
+        instance: VALID_INSTANCE,
+        sources: [{ kind: "repo", externalId: "foo/bar" }],
+      },
+    });
+
+    // Second call: token-only with a different instance URL. The probe
+    // should run with the new instance; sources should be preserved.
+    const NEW_INSTANCE = "https://ghe.example.org";
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
+    const result = await validateConfig({ config: { instance: NEW_INSTANCE } });
+    expect(result).toEqual({ ok: true });
+    expect(tryGetActiveConfig()).toEqual({
+      instance: NEW_INSTANCE,
+      allowSelfSignedTls: false,
+      sources: [{ kind: "repo", externalId: "foo/bar" }],
+    });
+  });
+
   it("collects per-source errors", async () => {
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
     mocks.mockOctokit.request.mockRejectedValueOnce({

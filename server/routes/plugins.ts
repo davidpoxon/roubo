@@ -20,6 +20,7 @@ import {
   persistSecretFields,
   runIntegrationTest,
 } from "../services/integration-test.js";
+import { forgetPluginActivation } from "../services/plugin-activation.js";
 
 const router = Router();
 
@@ -410,6 +411,9 @@ router.put("/:id/integration/config", (req, res) => {
 
     const next: IntegrationOverride = { schemaVersion: 1, integration: nextIntegration };
     saveGlobalOverride(id, next);
+    // Global change affects every project that inherits from this plugin's
+    // defaults; invalidate them all so the next source-bound call re-pushes.
+    forgetPluginActivation(id);
 
     const state = buildGlobalState(id);
     if (!state) {

@@ -9,6 +9,7 @@ import type {
 } from "@roubo/shared";
 import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { ensurePluginActivated } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { parseIntParam } from "./helpers.js";
 import { ServiceError } from "../services/service-error.js";
@@ -16,12 +17,27 @@ import { sendGitHubErrorResponse } from "./github-error-handler.js";
 
 const router = Router();
 
-function getActivePluginOrRespond(projectId: string, res: Response): ActivePlugin | null {
+async function getActivePluginOrRespond(
+  projectId: string,
+  res: Response,
+): Promise<ActivePlugin | null> {
   const active = resolveActivePlugin(projectId);
   if (!active) {
     res.status(503).json({
       error: "no-active-integration",
       message: "No integration plugin is configured for this project.",
+    });
+    return null;
+  }
+  // Push the project's current source selection to the plugin before the
+  // caller invokes any source-bound RPC. Cached per (plugin, project,
+  // config-hash) so steady-state cost is one Map lookup.
+  try {
+    await ensurePluginActivated(projectId, active.pluginId);
+  } catch (err) {
+    res.status(502).json({
+      error: "plugin-activation-failed",
+      message: (err as Error).message,
     });
     return null;
   }
@@ -42,7 +58,7 @@ function sendPluginRpcError(res: Response, err: unknown): void {
 }
 
 router.get("/:projectId/issues", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   const requestCursor: string | null =
@@ -107,7 +123,7 @@ router.get("/:projectId/issues", async (req, res) => {
 });
 
 router.get("/:projectId/issues/:externalId", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   try {
@@ -121,7 +137,7 @@ router.get("/:projectId/issues/:externalId", async (req, res) => {
 });
 
 router.post("/:projectId/issues/:externalId/transitions", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   const { transitionName } = (req.body ?? {}) as { transitionName?: unknown };
@@ -142,7 +158,7 @@ router.post("/:projectId/issues/:externalId/transitions", async (req, res) => {
 });
 
 router.post("/:projectId/issues/:externalId/assign", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   const { assigneeExternalId } = (req.body ?? {}) as { assigneeExternalId?: unknown };
@@ -165,7 +181,7 @@ router.post("/:projectId/issues/:externalId/assign", async (req, res) => {
 });
 
 router.delete("/:projectId/issues/:externalId/assign", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   const { assigneeExternalId } = (req.body ?? {}) as { assigneeExternalId?: unknown };
@@ -188,7 +204,7 @@ router.delete("/:projectId/issues/:externalId/assign", async (req, res) => {
 });
 
 router.get("/:projectId/issues/:externalId/comments", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   try {
@@ -204,7 +220,7 @@ router.get("/:projectId/issues/:externalId/comments", async (req, res) => {
 });
 
 router.get("/:projectId/labels", async (req, res) => {
-  const active = getActivePluginOrRespond(req.params.projectId, res);
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
   try {

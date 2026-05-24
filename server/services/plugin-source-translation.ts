@@ -1,0 +1,78 @@
+import type { SourceSelection } from "@roubo/shared";
+
+/**
+ * The shape every integration plugin expects under `config.sources`: a flat
+ * list of `{ kind, externalId }` entries. Plugins translate this internally
+ * into per-source API calls.
+ */
+export interface PluginSourceEntry {
+  kind: string;
+  externalId: string;
+}
+
+/**
+ * Map from a `SourceSelection` category id (as returned by the plugin's
+ * `listSourceCandidates`, e.g. `"Repository"`, `"Project"`) to the `kind`
+ * string the plugin expects under `config.sources[*].kind` (e.g. `"repo"`,
+ * `"project"`).
+ *
+ * Currently hard-coded for GitHub-shaped plugins. When non-GitHub plugins
+ * grow per-call activation this should move into the plugin manifest so
+ * each plugin advertises its own mapping; see the follow-up issue
+ * "Adopt setActiveConfig per-call activation across all integration plugins".
+ */
+const CATEGORY_TO_KIND: Record<string, string> = {
+  Repository: "repo",
+  Project: "project",
+};
+
+export interface TranslateSourcesOptions {
+  /**
+   * Optional callback used to surface categories we did not recognise. The
+   * caller is the right place to format the warning with plugin/project
+   * context; this module only knows the category name.
+   */
+  onUnknownCategory?: (category: string, externalIds: readonly string[]) => void;
+}
+
+/**
+ * Flatten a project's `SourceSelection` (keyed by category id, values are
+ * externalId arrays) into the `{ kind, externalId }[]` shape plugins expect.
+ *
+ * Unknown categories are dropped (with an optional callback) rather than
+ * thrown — a forward-compatible config that mentions a not-yet-known
+ * category should not break source-bound calls for the categories we do
+ * understand. A `null`/`undefined` selection becomes `[]`.
+ */
+/**
+ * The schema for IntegrationConfig.sources allows numeric externalIds (e.g.
+ * `Project: [1, 2]`) for plugins that use numeric ids natively, but the
+ * declared `SourceSelection` type only mentions strings. Accept the looser
+ * shape and stringify numbers so callers can pass either through verbatim.
+ */
+type LooseSourceSelection = Record<string, ReadonlyArray<string | number>>;
+
+export function translateSources(
+  selection: SourceSelection | LooseSourceSelection | null | undefined,
+  options: TranslateSourcesOptions = {},
+): PluginSourceEntry[] {
+  if (!selection) return [];
+  const out: PluginSourceEntry[] = [];
+  for (const [category, externalIds] of Object.entries(selection)) {
+    const kind = CATEGORY_TO_KIND[category];
+    if (!kind) {
+      options.onUnknownCategory?.(
+        category,
+        externalIds.map((id) => String(id)),
+      );
+      continue;
+    }
+    for (const externalId of externalIds) {
+      const asString = typeof externalId === "string" ? externalId : String(externalId);
+      if (asString.length > 0) {
+        out.push({ kind, externalId: asString });
+      }
+    }
+  }
+  return out;
+}

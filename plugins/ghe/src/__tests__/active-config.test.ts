@@ -88,8 +88,18 @@ describe("active-config", () => {
       });
     });
 
-    it("rejects missing sources array", () => {
+    it("treats a missing sources key as an empty selection (token-only flow)", () => {
       const { config, errors } = parseConfig({ instance: VALID_INSTANCE });
+      expect(errors).toEqual([]);
+      expect(config).toEqual({
+        instance: VALID_INSTANCE,
+        allowSelfSignedTls: false,
+        sources: [],
+      });
+    });
+
+    it("still rejects sources that are present but not an array", () => {
+      const { config, errors } = parseConfig({ instance: VALID_INSTANCE, sources: "nope" });
       expect(config).toBeNull();
       expect(errors[0]).toEqual({ field: "sources", message: "sources must be an array" });
     });

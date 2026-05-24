@@ -20,6 +20,7 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "getComments",
   "getCurrentUser",
   "validateConfig",
+  "setActiveConfig",
   "applyTransition",
   "assignIssue",
   "unassignIssue",

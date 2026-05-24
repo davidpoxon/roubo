@@ -1,5 +1,5 @@
 import type { ValidateConfigResult } from "@roubo/plugin-sdk";
-import { parseConfig, setActiveConfig } from "../active-config.js";
+import { parseConfig, setActiveConfig, tryGetActiveConfig } from "../active-config.js";
 import { fetchCurrentUser, fetchProjects, fetchRepoSummary } from "../github-fetchers.js";
 
 /**
@@ -26,6 +26,7 @@ export async function validateConfig(params: {
   // can build the correct baseUrl from the configured instance URL. If a
   // probe fails downstream the caller should treat the previously-active
   // config (if any) as cleared; we re-set here only on full success.
+  const prevConfig = tryGetActiveConfig();
   setActiveConfig(config);
 
   const errors: Array<{ field?: string; message: string }> = [];
@@ -40,6 +41,18 @@ export async function validateConfig(params: {
     setActiveConfig(null);
     errors.push({ message: rawMessage });
     return { ok: false, errors };
+  }
+
+  // Token-only validation: empty sources means the caller is just verifying
+  // the credential + instance URL (e.g. the global "Test connection" before
+  // any sources have been picked). Preserve the previously-active sources so
+  // source-bound calls (listIssues etc.) don't break, but keep the new
+  // instance / allowSelfSignedTls values active.
+  if (config.sources.length === 0) {
+    if (prevConfig && prevConfig.sources.length > 0) {
+      setActiveConfig({ ...config, sources: prevConfig.sources });
+    }
+    return { ok: true };
   }
 
   for (let i = 0; i < config.sources.length; i++) {
