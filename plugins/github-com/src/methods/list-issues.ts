@@ -94,11 +94,52 @@ async function listFromProject(
   const slice = page.nodes.slice(offset * pageSize, (offset + 1) * pageSize);
   const hasMore = (offset + 1) * pageSize < page.nodes.length;
 
+  // Group issue numbers by their owning repo so we can batch one
+  // blocking-relationships query per repo (the GraphQL helper is repo-scoped).
+  const numbersByRepo = new Map<string, number[]>();
+  for (const node of slice) {
+    const content = node.content;
+    if (!content || !content.number) continue;
+    if (content.__typename && content.__typename !== "Issue") continue;
+    const repoFullName = content.repository?.nameWithOwner ?? `${owner}/unknown`;
+    const list = numbersByRepo.get(repoFullName) ?? [];
+    list.push(content.number);
+    numbersByRepo.set(repoFullName, list);
+  }
+
+  const blockingByRepo = new Map<string, Awaited<ReturnType<typeof fetchBlockingRelationships>>>();
+  if (numbersByRepo.size > 0) {
+    const entries = Array.from(numbersByRepo.entries());
+    const results = await Promise.all(
+      entries.map(([repoFullName, numbers]) => fetchBlockingRelationships(repoFullName, numbers)),
+    );
+    entries.forEach(([repoFullName], i) => {
+      const result = results[i];
+      if (result) blockingByRepo.set(repoFullName, result);
+    });
+  }
+
   const items: NormalizedIssue[] = [];
   for (const node of slice) {
-    const normalized = projectNodeToNormalizedIssue(node, `${owner}/unknown`);
-    if (!normalized) continue;
     const repoFullName = node.content?.repository?.nameWithOwner ?? `${owner}/unknown`;
+    const issueNumber = node.content?.number;
+    const blocking = blockingByRepo.get(repoFullName);
+    const blockedBy =
+      issueNumber != null && blocking
+        ? (blocking.blockedBy[issueNumber] ?? []).map((b) =>
+            formatExternalId(repoFullName, b.number),
+          )
+        : [];
+    const blocks =
+      issueNumber != null && blocking
+        ? (blocking.blocks[issueNumber] ?? []).map((b) => formatExternalId(repoFullName, b.number))
+        : [];
+
+    const normalized = projectNodeToNormalizedIssue(node, `${owner}/unknown`, {
+      blockedBy,
+      blocks,
+    });
+    if (!normalized) continue;
     normalized.externalId = formatExternalId(repoFullName, Number(normalized.externalId));
     items.push(normalized);
   }

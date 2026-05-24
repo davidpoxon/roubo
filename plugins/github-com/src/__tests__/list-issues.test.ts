@@ -164,6 +164,107 @@ describe("listIssues", () => {
     expect(result.nextCursor).toBe("2");
   });
 
+  it("enriches project-sourced issues with per-repo blocking relationships", async () => {
+    const PROJECT_SOURCES: ConfiguredSource[] = [{ kind: "project", externalId: "davidpoxon/#1" }];
+
+    // First GraphQL call: fetchProjectItems → organization(login).projectV2
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      organization: {
+        projectV2: {
+          title: "Roadmap",
+          items: {
+            nodes: [
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 106,
+                  title: "WU-030",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "davidpoxon/roubo" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "https://github.com/davidpoxon/roubo/issues/106",
+                },
+                fieldValueByName: null,
+              },
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 5,
+                  title: "Other",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "davidpoxon/other" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "https://github.com/davidpoxon/other/issues/5",
+                },
+                fieldValueByName: null,
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    });
+
+    // Two blocking-relationship GraphQL calls, one per repo. Order matches
+    // insertion order of the per-repo Map (davidpoxon/roubo, then
+    // davidpoxon/other).
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      repository: {
+        issue_106: {
+          blockedBy: {
+            nodes: [
+              { number: 104, title: "WU-028", state: "OPEN" },
+              { number: 105, title: "WU-029", state: "OPEN" },
+            ],
+          },
+          blocking: { nodes: [], pageInfo: { hasNextPage: false } },
+        },
+      },
+    });
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      repository: {
+        issue_5: {
+          blockedBy: { nodes: [] },
+          blocking: {
+            nodes: [{ number: 9, title: "Downstream", state: "OPEN" }],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+      },
+    });
+
+    const result = await listIssues({
+      sources: PROJECT_SOURCES,
+      cursor: null,
+      pageSize: 50,
+    });
+
+    expect(result.items).toHaveLength(2);
+    const item106 = result.items.find((i) => i.externalId === "davidpoxon/roubo#106");
+    const item5 = result.items.find((i) => i.externalId === "davidpoxon/other#5");
+    expect(item106?.blockedBy).toEqual(["davidpoxon/roubo#104", "davidpoxon/roubo#105"]);
+    expect(item106?.blocks).toEqual([]);
+    expect(item5?.blockedBy).toEqual([]);
+    expect(item5?.blocks).toEqual(["davidpoxon/other#9"]);
+
+    // Three GraphQL calls total: 1 project items + 1 per distinct repo.
+    expect(mocks.mockOctokit.graphql).toHaveBeenCalledTimes(3);
+  });
+
   it("uses search API when filters.search is set", async () => {
     mocks.mockOctokit.request.mockResolvedValueOnce(okResponse({ items: [] }));
     mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });

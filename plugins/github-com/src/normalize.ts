@@ -83,6 +83,7 @@ export function rawToNormalizedComment(raw: RawComment): NormalizedComment {
 export function projectNodeToNormalizedIssue(
   node: ProjectV2Data["items"]["nodes"][number],
   defaultRepoFullName: string,
+  options: NormalizeIssueOptions = {},
 ): NormalizedIssue | null {
   const content = node.content;
   if (!content || !content.number) return null;
@@ -122,8 +123,8 @@ export function projectNodeToNormalizedIssue(
     assignees,
     labels: (content.labels?.nodes ?? []).map((l) => l.name),
     issueType: content.issueType?.name ?? null,
-    blocks: [],
-    blockedBy: [],
+    blocks: options.blocks ?? [],
+    blockedBy: options.blockedBy ?? [],
     updatedAt: content.updatedAt ?? "",
     raw,
   };
