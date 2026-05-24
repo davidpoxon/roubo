@@ -116,6 +116,15 @@ export async function handleDeepLink(url: string): Promise<void> {
           error?: string;
         };
         dialog.showErrorBox("GitHub Connection Failed", body.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      // Notify the renderer so React Query can invalidate stale integration
+      // state and the Configure dialog can flip to "connected" without
+      // requiring the user to click Test connection first.
+      if (win) {
+        win.restore();
+        win.focus();
+        win.webContents.send("deep-link", url);
       }
     } else if (parsed.hostname === "project") {
       if (win) {

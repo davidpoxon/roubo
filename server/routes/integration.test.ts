@@ -421,14 +421,14 @@ describe("POST /:projectId/integration/test", () => {
       1,
       "ghe",
       "validateConfig",
-      expect.objectContaining({ instance: "https://ghe.acme.com" }),
+      { config: expect.objectContaining({ instance: "https://ghe.acme.com" }) },
       expect.any(Object),
     );
     expect(pluginManager.invoke).toHaveBeenNthCalledWith(
       2,
       "ghe",
       "getCurrentUser",
-      expect.any(Object),
+      {},
       expect.any(Object),
     );
   });
