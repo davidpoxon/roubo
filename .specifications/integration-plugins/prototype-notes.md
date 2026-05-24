@@ -58,3 +58,30 @@ The mockups cover all ten user stories. Surfaces covered:
 ## Screenshots
 
 No screenshots produced in this stage. The mockups are textual. If visual mockups are required before architecture begins, raise it as a checkpoint follow-up.
+
+---
+
+## Addendum - 2026-05-24: Security & quality issues option
+
+### Intent and scope
+
+Extends the existing prototype with the UI surfaces needed for the per-source security & quality alerts option on the bundled github.com and GHE plugins. Covers the four addendum user stories' visible surfaces: Configure-dialog "Security & quality alerts" section (US-011), per-category warning chip with inline re-consent action (US-012, FR-046, FR-045), category chip in the Issues list (US-011, FR-041, FR-043), bench view variants for alert-backed benches (FR-048), and Test connection per-category status (US-013, FR-047). New mockups extend screens 4 / 10 and add screens 18 / 19 / 20.
+
+### Addendum design decisions
+
+- **Disclosure-collapsed by default.** The new `Security & quality alerts` section is folded under a disclosure triangle per source so the existing dialog feels unchanged for the 99% of sources where none of the three are enabled. The triangle label surfaces a chip-count when any are on.
+- **Warning chip IS the re-consent action.** Rather than a separate "Upgrade authentication" panel, the per-category warning chip becomes the actionable button when the cause is a missing OAuth scope. This is the single biggest UX choice in the addendum; it pays off by collocating the cause and the fix.
+- **No severity in the row.** Alert metadata (severity, CVE, etc.) lives in `raw` per FR-043. The list row shows only the category chip; severity surfaces inside the bench. Resisting "promote severity to the list" keeps the normalized contract honest.
+- **Alert-backed benches hide Transition entirely.** Disabled-and-greyed dropdowns invite "why is this greyed out?" support traffic. Hiding the dropdown and replacing it with a short explanatory line is more honest about what alerts ARE.
+- **GHE plugin variant is a plain link, not OAuth.** GHE uses PATs; there's no OAuth flow to re-trigger. The warning chip's action becomes "Open token settings on <instance URL>" plus copy that tells the user to regenerate with `security_events` and paste back into the existing field.
+- **Test connection runs per-category probes in parallel.** Inside the existing connection-test time budget. Individual category timeouts render `Timed out` without failing the overall test (FR-047).
+
+### Open questions for the architecture stage (addendum)
+
+- **OAuth flow integration with the configure dialog.** The re-consent action opens the system browser and waits for the deep-link callback. While waiting, the configure dialog must stay open without blocking other interactions. Architecture must call out the dialog-state shape during a pending OAuth round-trip.
+- **Warning surface plumbing from plugin to host.** The plugin must emit a per-source per-category warning list. Architecture must decide whether this rides inside the `listIssues` return (e.g. a new `warnings` field on the existing result envelope) or requires a separate `getSourceWarnings()` RPC. Feasibility recommended the inline-return path; confirm.
+- **Token-scope cache.** Calling `X-OAuth-Scopes` parsing on every pull is wasteful. Architecture must specify a TTL'd scope cache keyed by token id, with cache invalidation on OAuth re-consent.
+- **Frozen-snapshot semantics for alert benches.** FR-050 says toggling a category off must not mutate existing benches. Architecture must confirm the bench-snapshot read path tolerates a `assignedIssue.issueType` value that the source no longer fetches (no "issue not found" fallback that would change the bench label).
+- **External-id format collision check.** The required format is `<owner>/<repo>#<category>-<alert_number>` (FR-044). Architecture must confirm no existing dedup logic in `BenchManager` chokes on the new format (e.g. assumes external ids are integer-parseable from after the `#`).
+- **GHE Advanced Security gating signal.** GHE returns 451 or 404 depending on the gating state and the endpoint. Architecture must specify the precise mapping from HTTP code to warning chip cause string for each category. Some signals (e.g. user is not a repo admin for Dependabot) require careful copy.
+- **Per-category category-chip color tokens.** The mockups use muted slate / amber / blue-gray. Architecture must confirm these map to existing Roubo design tokens or formally add three new tokens to the design system.

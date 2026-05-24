@@ -239,3 +239,95 @@ After the previous answer, the orchestrator initially proposed four pre-canned m
 - Options: 20% non-GitHub installs in 6 months · 1+ community plugin in 6 months · Zero P0 security incidents · <10% support load
 - **A:** Zero P0 security incidents in 6 months; <10% support load on integration config
 - (Adoption % and community-plugin count NOT picked as gates.)
+
+---
+
+## Re-interview - 2026-05-24
+
+> Triggered by the user request: "for the github.com integration plugin, I want to add an additional option / setting to also retrieve all 'security and quality' issues from the repo (these are separate to regular issues)."
+>
+> Re-interview was run inline in the orchestrator thread because the `product-interviewer` subagent reported `AskUserQuestion` was not exposed in its toolset (paper-cut logged via playbook:note-issue, `iss_20260523_004`). Every Q below is a real `AskUserQuestion` round-trip; verbatim user selections are recorded under each.
+
+### Cluster 1 - Scope of "security & quality"
+
+**RIQ1.1 (multi-select): Which GitHub alert categories should the new setting include?**
+
+- Options: Code Scanning alerts · Secret Scanning alerts · Dependabot alerts
+- **A:** Code Scanning alerts, Secret Scanning alerts, Dependabot alerts (all three)
+
+**RIQ1.2 (single-select): Toggle granularity?**
+
+- Options: Per-category booleans (Recommended) · Single "include security & quality" boolean · Single boolean now, per-category as follow-up
+- **A:** Per-category booleans (Recommended)
+
+### Cluster 2 - Surfacing in the product
+
+**RIQ2.1 (single-select): Where do alerts appear in Roubo?**
+
+- Options: Mixed into existing issue list with a visible badge (Recommended) · Separate "Security" tab/stream · Mixed in, no badging
+- **A:** Mixed into existing issue list with a visible badge
+
+**RIQ2.2 (single-select): Bench-creation parity with regular Issues?**
+
+- Options: Full parity (Recommended) · Read-only - visible but not bench-able · Bench-able but no blueprint mapping yet
+- **A:** Full parity
+
+### Cluster 3 - Setting model and config location
+
+**RIQ3.1 (single-select): Beyond the three booleans, any filtering (severity, state, age)?**
+
+- Options: Just the three booleans - always return all open alerts (Recommended) · Booleans + minimum severity per category · Booleans + state filter · Booleans + both severity and state filters
+- **A:** Just the three booleans - always return all open alerts
+
+**RIQ3.2 (single-select): Where in the config hierarchy do the settings live?**
+
+- Options: Per-source override on the github.com plugin (Recommended) · Per-plugin global default · Both: global default with per-source override
+- **A:** Per-source override on the github.com plugin
+
+### Cluster 4 - Auth and permissions
+
+**RIQ4.1 (single-select): OAuth scope handling?**
+
+- Options: Add `security_events` to the OAuth app, prompt re-consent only when a category is enabled (Recommended) · Add scope and re-consent everyone now · Require a separate user-provided PAT
+- **A:** Add `security_events` to the OAuth app, prompt re-consent only when a category is enabled
+
+**RIQ4.2 (single-select): What happens when scope/availability is missing?**
+
+- Options: Per-category graceful skip with a warning surface (Recommended) · Hard error - fail the whole listIssues call · Silent skip, no warning
+- **A:** Per-category graceful skip with a warning surface
+
+### Cluster 5 - Rate limits and polling cost
+
+**RIQ5.1 (single-select): Polling cost model?**
+
+- Options: Fetch alerts on the same trigger as issues, paginate identically (Recommended) · Fetch alerts lazily on filter open · Same trigger but cap to first N pages per category
+- **A:** Fetch alerts on the same trigger as issues, paginate identically
+
+**RIQ5.2 (single-select): Pre-emptive rate-limit headroom in the Configure UI?**
+
+- Options: No - just surface rate-limit errors if/when they happen (Recommended) · Yes - show estimated extra calls per pull
+- **A:** No - just surface rate-limit errors if/when they happen
+
+### Cluster 6 - Write-back and normalized issue contract fit
+
+**RIQ6.1 (single-select): Write-back exposure for alerts?**
+
+- Options: Read-only for alerts - no transitions, no assign (Recommended) · Add dismiss/resolve actions specifically for alerts · Treat dismiss/resolve as a status transition
+- **A:** Read-only for alerts - no transitions, no assign
+
+**RIQ6.2 (single-select): Where do alert-specific fields (severity, CVE, package) live?**
+
+- Options: Tuck them into the opaque `raw` field; type chip is the only visible distinction (Recommended) · Add `severity` and `category` to the normalized contract now · Stuff severity into the title prefix
+- **A:** Tuck them into the opaque `raw` field; type chip is the only visible distinction
+
+### Cluster 7 - Out-of-scope guardrails
+
+**RIQ7.1 (single-select): GitHub Enterprise parity in this slug?**
+
+- Options: Yes - both github.com and GHE get the option together (Recommended) · github.com only this slug, GHE as explicit follow-up · github.com only, no follow-up commitment
+- **A:** Yes - both github.com and GHE get the option together
+
+**RIQ7.2 (multi-select): Which items are explicitly OUT of scope?**
+
+- Options: Jira plugin parity · Writing back to alerts (dismiss/resolve/re-open) · Push / webhook delivery + auto-create benches on high-severity · Severity/state filter UI in Configure
+- **A:** All four items above confirmed out of scope

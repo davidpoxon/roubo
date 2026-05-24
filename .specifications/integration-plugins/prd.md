@@ -322,3 +322,163 @@ The host runtime, manifest schema, permission vocabulary, and SDK API surface MU
 - Integration-config support volume stays under 10% of total support load through the first 6 months.
 
 _(Adoption percentage of non-GitHub.com integrations and community-built plugin count were considered as lagging indicators during the interview and explicitly were not selected as gates. They remain interesting to measure post-telemetry but do not define release success.)_
+
+## Addendum - 2026-05-24: Security & quality issues option
+
+> Triggered by a 2026-05-24 re-interview. Adds a per-source option on the bundled GitHub.com and GitHub Enterprise plugins to also pull GitHub "Security & quality" alerts (Code Scanning, Secret Scanning, Dependabot) alongside regular Issues. Layered on the runtime defined above. Re-interview Q&A is in `qa-log.md` under `## Re-interview - 2026-05-24`. Feasibility addendum is in `feasibility.md` under `## Addendum - 2026-05-24`.
+
+### Addendum scope (delta to In scope)
+
+- Three independent per-source booleans on the bundled github.com plugin (and the bundled GHE plugin) for Code Scanning, Secret Scanning, and Dependabot. Default off.
+- Alerts merged into the existing `listIssues` return, distinguished by `issueType` values `security-code-scanning`, `security-secret-scanning`, `security-dependabot`. Alert-specific metadata (severity, CVE, package, advisory URL, file path) lives in the opaque `raw` field; the secret value and code snippet are redacted before populating `raw`.
+- External-id namespacing prevents collisions with regular Issues that share an alert number.
+- A new shared workspace package `plugins/_shared-github/` carrying the three alert fetchers + a scope detector reused by github.com and GHE.
+- `security_events` added to the Roubo GitHub OAuth app's scope set; existing tokens stay valid for regular Issues; re-consent triggered only when a category is first enabled on a source.
+- Per-category graceful skip with a warning chip on the source row in the Configure dialog when the category is unavailable (missing scope, GHAS disabled, Dependabot off, etc.). The chip is itself the action surface for the OAuth re-consent flow.
+- `Test connection` extended to probe each enabled alert endpoint with `per_page=1` and surface a per-category status alongside the existing connection result.
+- Bench creation parity with regular Issues for alerts: blueprint-by-issue-type matches the three new issue types; blocks/blocked-by stays empty; bench snapshot is frozen at create-time (toggling the source category off later does NOT mutate or clear existing benches).
+- Alerts are read-only with respect to write-back: `allowedTransitions: []`, `assignees: []`, Transition dropdown hidden, Assign disabled.
+
+### Addendum out-of-scope (delta to Out of scope)
+
+- Jira self-hosted plugin parity (Jira has no equivalent surface).
+- Writing back to alerts from Roubo: dismiss, resolve, re-open. Explicit follow-on slug if there is pull.
+- Webhook / push delivery of new alerts. Polling-only, same as the rest of the plugin runtime.
+- Auto-creating benches when a high-severity alert fires. Bench creation stays user-initiated.
+- Severity / state / age filter UI in the Configure dialog. Booleans only this slug.
+- Promoting alert-specific fields (severity, CVE, package) to first-class normalized issue contract fields. Stays in `raw`.
+- Pre-emptive API rate-limit headroom display in the Configure UI.
+- Sorting or grouping the merged Issues list by alert-specific fields beyond the existing list capability.
+
+### Addendum user stories
+
+#### US-011 - User enables Security & quality alerts on a github.com source
+
+As a developer using the bundled github.com plugin, I want to opt my source into pulling Code Scanning, Secret Scanning, and Dependabot alerts so I can see security work in the same Issues list as feature work, choosing per-category which ones matter for that repo.
+
+Acceptance criteria:
+
+- Configure dialog renders three independent checkboxes per source under a "Security & quality alerts" section.
+- Saving with any category enabled triggers (if the token lacks `security_events`) an OAuth re-consent flow before the next pull, surfaced as an inline banner in the source row's warning chip.
+- Once enabled and consented, the next `listIssues` pull includes the enabled categories' open alerts merged with regular Issues.
+
+#### US-012 - User on a partially-supported repo sees per-category warning and continues
+
+As a developer on a repo where Code Scanning is disabled, I want the other enabled categories to keep working and the unavailable category to surface a clear, dismissible warning so I am not blocked from seeing my Dependabot alerts.
+
+Acceptance criteria:
+
+- Categories that fail (missing scope, GHAS off, Dependabot off) do NOT prevent the listIssues pull from returning.
+- Each failing category surfaces a warning chip on the source row in the Configure dialog with a human-readable cause.
+- A successful subsequent pull for that category dismisses its warning automatically.
+
+#### US-013 - User opens Test connection and sees per-category status
+
+As a developer configuring a github.com source for the first time with security categories enabled, I want Test connection to tell me which categories will actually return data so I do not save a misconfigured source.
+
+Acceptance criteria:
+
+- Clicking Test connection probes each enabled alert endpoint with `per_page=1`.
+- The result panel shows Issues status plus one row per enabled category with ok / unavailable + cause.
+- Test connection completes within the existing connection-test time budget.
+
+### Addendum functional requirements
+
+#### FR-040 - Per-source security & quality alert booleans
+
+The bundled GitHub.com plugin and bundled GHE plugin MUST expose three independent boolean settings per configured source: `includeCodeScanningAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. Each MUST default to `false`. The settings MUST be settable in the Configure dialog and MUST be representable in the committed `roubo.yaml` integration block as well as the per-user override, following the existing field-level-optional merge semantics.
+
+#### FR-041 - Alert fetchers and merging into `listIssues`
+
+When at least one alert category is enabled for a source, the plugin's `listIssues` implementation MUST, on each pull, fetch the enabled categories' open alerts (`state=open`) from the GitHub REST endpoints (`/repos/{o}/{r}/code-scanning/alerts`, `/repos/{o}/{r}/secret-scanning/alerts`, `/repos/{o}/{r}/dependabot/alerts`) using the same pagination loop and page-size config as the existing Issues fetch. Results MUST be merged into the single normalized `listIssues` return.
+
+#### FR-042 - Shared GitHub helpers workspace
+
+The three alert fetchers and the token-scope detector MUST live in a new shared workspace package `plugins/_shared-github/` consumed by both bundled github.com and bundled GHE plugins. The package MUST NOT be exposed via the public Plugin SDK in this slug.
+
+#### FR-043 - Alert-to-normalized mapping with raw redaction
+
+Each alert MUST be mapped to a normalized issue with `issueType` set to one of `security-code-scanning`, `security-secret-scanning`, `security-dependabot`. The opaque `raw` field MAY carry severity, CVE id, package name, advisory URL, file path, line number, rule id (Code Scanning), and secret_type (Secret Scanning). Before placing the alert in `raw`, the plugin MUST strip the matched secret token (retain only the first 4 characters + redaction marker) and MUST strip embedded code snippets (retain only file path + line number). Plugin stdout / stderr MUST NOT contain alert `raw` fields.
+
+#### FR-044 - External-id namespacing for alerts
+
+The plugin MUST produce alert external ids that do not collide with regular Issue external ids from the same repo. The required format is `<owner>/<repo>#<category>-<alert_number>` where `<category>` is one of `code-scanning`, `secret-scanning`, `dependabot` (e.g. `wday-planning/roubo#code-scanning-17`). The format MUST be stable across pulls.
+
+#### FR-045 - `security_events` OAuth scope and re-consent
+
+The Roubo GitHub OAuth app MUST include `security_events` in its scope set. Existing tokens MUST continue to work for regular Issues without re-consent. When a user enables any of the three alert categories on a source AND the host's stored token lacks `security_events`, the plugin MUST detect this via the `X-OAuth-Scopes` response header on the next authenticated call and the host MUST surface an inline OAuth re-consent action inside the source row's warning chip. Successful re-consent MUST replace the keyring-stored token in place. Users who never enable any category MUST NOT see a re-consent prompt as a side effect of the scope-set change.
+
+#### FR-046 - Per-category graceful skip with warning chip
+
+If an enabled category fails to fetch for a source on a given pull (HTTP 401/403 indicating missing scope, HTTP 404/410 indicating the feature is disabled on the repo, HTTP 451 indicating GHAS not enabled for private repos, or any structured error from the endpoint), the plugin MUST silently skip that category for that source on that pull, MUST continue to fetch other enabled categories and regular Issues, and MUST surface a per-source per-category warning to the host with a human-readable cause string. The host MUST render the warning as a chip on the source row in the Configure dialog. The warning MUST be cleared automatically on the next successful pull of that category.
+
+#### FR-047 - Test connection per-category status
+
+When Test connection is invoked on a source with at least one alert category enabled, the host MUST probe each enabled category endpoint with `per_page=1` in addition to the existing connection check. The result panel MUST render the existing connection-test rows plus one row per enabled category showing ok / unavailable + cause. The Test connection action MUST complete within the existing connection-test time budget; if a probe times out, that category row MUST surface "Timed out" without failing the overall connection test.
+
+#### FR-048 - Alerts are read-only write-back
+
+The plugin MUST set `allowedTransitions: []` and `assignees: []` on every alert it returns. The host MUST hide the Transition dropdown and MUST disable the Assign control on benches whose `assignedIssue.issueType` matches one of the three security categories.
+
+#### FR-049 - Blueprint-by-issue-type for security categories
+
+The existing blueprint-by-issue-type resolver MUST treat `security-code-scanning`, `security-secret-scanning`, and `security-dependabot` as valid issue type identifiers selectable in the existing mappings UI. No new resolver behavior is required beyond extending the candidate type set.
+
+#### FR-050 - Bench snapshot frozen at create-time for alert benches
+
+When the user disables a previously-enabled alert category on a source, any existing bench whose `assignedIssue.issueType` belongs to that category MUST continue to function with its snapshot unchanged. The host MUST NOT clear, mutate, or relabel such benches as a side effect of the toggle change. New pulls simply stop returning alerts in that category.
+
+### Addendum non-functional requirements
+
+#### NFR-012 - Alert payload redaction
+
+Category: security
+
+The bundled github.com and GHE plugins MUST redact the secret value (retain only first 4 characters + redaction marker) and embedded code snippets (retain only file path + line number) before populating any alert's normalized `raw` field. Plugin stdout / stderr MUST NOT log the alert `raw` field. Verified by unit test against a recorded REST fixture per category. The documented contract is: "Roubo never sees the leaked secret itself."
+
+#### NFR-013 - Worst-case `listIssues` latency with alerts enabled
+
+Category: performance
+
+The merged `listIssues` round-trip MUST complete with p95 under 8 seconds for a configured source set of up to 5 sources, each with up to 200 open items across regular Issues + enabled alert categories, measured warm (with ETag/304 short-circuit available). Cold-pull latency is not bounded by this NFR. Regression target: the existing Issues-only p95 baseline MUST NOT regress by more than 10% when all three alert categories are disabled across all sources.
+
+#### NFR-014 - Accessibility for new surfaces
+
+Category: accessibility
+
+The per-category warning chip on the source row, the inline OAuth re-consent action inside the chip, and the per-category Test connection result rows MUST comply with WCAG 2.1 AA. Implementation MUST use React Aria Components (Button, Dialog as required), MUST be keyboard-reachable in tab order, MUST expose accessible names for category status (e.g. "Code Scanning: unavailable - GHAS not enabled"), and state changes (chip appears, chip cleared, re-consent flow opened) MUST be announced via React Aria live regions.
+
+#### NFR-015 - Token-scope detection robustness
+
+Category: reliability
+
+Token-scope detection MUST gracefully handle the case where the user's token does NOT expose granted scopes (e.g. GHE fine-grained PATs do not return `X-OAuth-Scopes`). In that case the Configure warning MUST say "Unable to verify token scopes; if category data is missing, regenerate the token with the security alert permission" rather than asserting "token lacks `security_events`." Plugin MUST still attempt the call and report the resulting HTTP error code through the per-category warning surface.
+
+### Addendum traceability
+
+| User story | Functional requirements | Non-functional requirements | Test-case bucket (forward ref) |
+|---|---|---|---|
+| US-011 | FR-040, FR-041, FR-042, FR-043, FR-044, FR-045, FR-048, FR-049 | NFR-013, NFR-014 | TC-addendum-enable |
+| US-012 | FR-046, FR-050 | NFR-015, NFR-014 | TC-addendum-degradation |
+| US-013 | FR-047 | NFR-013, NFR-014 | TC-addendum-test-connection |
+
+Cross-cutting NFR-012 (raw redaction) applies to FR-041, FR-043, FR-046 regardless of story.
+
+### Addendum size
+
+**M (medium): 2-3 sprints / 4-6 person-weeks** as a delta on top of the integration-plugins core. Rationale:
+
+- Touches both bundled plugins (github.com, GHE) but they share the new `plugins/_shared-github/` package, so the implementation cost is ~1.3x of a single plugin rather than 2x.
+- OAuth app config change is real (production OAuth app + a re-consent flow) but the re-consent flow itself reuses the existing OAuth deep-link handler.
+- Configure-dialog UI grows three new sections per source (category checkboxes, warning chips, Test connection rows) but reuses existing React Aria patterns.
+- Normalized issue contract is unchanged; only the `issueType` candidate set expands by 3.
+- Three new REST integrations + redaction + namespacing + scope detector + per-category warning surface + Test connection extension + frozen-snapshot guarantee + accessibility on new surfaces.
+- Tests: per-category fixtures + redaction unit tests + scope-detection edge cases (fine-grained PAT) + Test connection probe path.
+
+Risks that could push this to L if they materialize: OAuth app re-consent UX surprises (deep-link, callback rendering inside an existing dialog), and the GHE fine-grained PAT scope-detection gap forcing additional UI states.
+
+### Addendum leading indicator
+
+- The project owner enables all three security categories on the dogfood github.com project and runs Roubo for one continuous week without an issue-list regression on the pre-existing Issues flow (no missed items, no list-ordering regression, no Configure-dialog crash).
+
+(No lagging indicators were selected for this addendum specifically; it inherits the broader integration-plugins lagging indicator on zero P0 security incidents.)

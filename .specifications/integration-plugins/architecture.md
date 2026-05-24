@@ -591,3 +591,420 @@ FR-038 and NFR-011 require a one-page paper sketch verifying that the host API s
 The sketch's conclusion: 1.0.0 freeze is safe for both kinds. AI-agent plugins fit the current `host.fetch` / `host.credentials` / `host.logger` surface unchanged, with `host.fetchStream` available as a non-breaking 1.x minor when streaming is needed. Project-component plugins fit the runtime surface unchanged, with new `ports` and `docker` permission categories arriving as a non-breaking 1.x minor when the project-component slug ships. Both follow-up additions are anticipated by the existing `kind`-union and permission-category extensibility design.
 
 See [`forward-compat-sketch.md`](./forward-compat-sketch.md) for the full sketch, including proposed manifest deltas and method sets for each kind.
+
+## Addendum - 2026-05-24: Security & quality issues option
+
+> Scope: design for the per-source alerts option added in the 2026-05-24 PRD addendum (US-011 through US-013, FR-040 through FR-050, NFR-012 through NFR-015). All prior decisions in this file remain in force. The addendum is strictly additive: no host-API change is required, no new RPC method is introduced, no new permission category is declared, and `hostApiVersion` stays at 1.0.0.
+
+### Component design (addendum)
+
+#### Shared GitHub helpers workspace
+
+- **Path**: `plugins/_shared-github/` (new npm workspace). Source tree: `src/fetchers/code-scanning.ts`, `src/fetchers/secret-scanning.ts`, `src/fetchers/dependabot.ts`, `src/scope-detector.ts`, `src/scope-cache.ts`, `src/redact.ts`, `src/external-id.ts`, `src/warnings.ts`, `src/types.ts`, `src/index.ts`. Compiled output under `dist/`. Tests under `src/__tests__/`.
+- **Responsibility**: own the three alert fetchers, the per-pull token-scope detector, the in-process scope cache, the alert-payload redactor, the alert external-id formatter/parser, and the HTTP-code-to-cause-string mapping used by the per-category warning surface. Consumed by both `plugins/github-com/` and `plugins/ghe/`.
+- **Reuse vs new**: new workspace, but every helper is a focused extension of an existing plugin module. Fetchers call the existing `githubRequest` adapter passed in by the consuming plugin (the workspace does NOT own its own `host.fetch` binding; the consuming plugin's `githubRequest` is dependency-injected). The external-id parser is a strict extension of `plugins/github-com/src/external-id.ts:10` (`parseExternalId`); the addendum changes its parser to recognise the `<category>-<n>` suffix shape.
+- **Public interface**:
+  - `fetchCodeScanningAlerts(deps, repoFullName, opts)`, `fetchSecretScanningAlerts(...)`, `fetchDependabotAlerts(...)` — each returns `{ items: RawAlert[], hasNextPage: boolean, warnings: SourceWarning[] }`. `deps` is `{ githubRequest, redact, formatExternalId }`. `opts` is `{ page, perPage }`.
+  - `detectTokenScopes(deps, opts): Promise<TokenScopeProbe>` — returns `{ kind: "known"; scopes: string[] } | { kind: "unknown"; reason: "no-scope-header" }`. Reads from the in-process scope cache; on cache miss issues one `host.fetch` against `/user` (cheap, ETag-cached by the consuming plugin's `githubRequest`).
+  - `invalidateScopeCache(tokenFingerprint: string): void` — wiped by the github-com plugin's OAuth re-consent success handler; wiped by the GHE plugin when the user's PAT is replaced via the configure dialog Save action.
+  - `formatAlertExternalId(repoFullName, category, alertNumber): string` — produces `<owner>/<repo>#<category>-<alert_number>` (`code-scanning`, `secret-scanning`, `dependabot`).
+  - `parseAlertExternalId(externalId): ParsedAlertExternalId | null` — returns `{ repoFullName, category, alertNumber }` or `null` if the id is a regular issue (caller falls through to the existing issue parser).
+  - `redactAlertRaw(category, alertPayload): RedactedRaw` — applies NFR-012's contract (see Security considerations below).
+  - `httpStatusToCauseString(category, status, body?): SourceWarning["cause"]` — the per-category mapping table (see "GHAS HTTP code → cause string mapping" below).
+- **Dependencies**: none beyond `@roubo/plugin-sdk` types and the consuming plugin's injected `githubRequest`. The package is NOT exposed through `@roubo/plugin-sdk` per the 2026-05-24 decision; third-party plugins do not depend on it.
+
+#### Per-source category booleans in plugin manifests and active config
+
+- **Paths modified**:
+  - `plugins/github-com/roubo-plugin.yaml:14` — `configSchema.properties.sources.items.properties` gains three optional boolean fields: `includeCodeScanningAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. Each has `default: false`.
+  - `plugins/ghe/roubo-plugin.yaml:36` — same three booleans on the GHE per-source item shape.
+  - `plugins/github-com/src/active-config.ts:47` (`parseConfig`) — extend the per-source entry validator: read the three optional booleans, coerce `undefined → false`, attach to the typed `ConfiguredSource`. Surface non-boolean values as field-scoped validation errors (`sources[i].includeCodeScanningAlerts: must be a boolean`).
+  - `plugins/github-com/src/types.ts` and `plugins/ghe/src/types.ts` — `ConfiguredSource` gains `includeCodeScanningAlerts: boolean`, `includeSecretScanningAlerts: boolean`, `includeDependabotAlerts: boolean`. All three default to `false`.
+- **Reuse vs new**: in-place extension of the existing per-source config plumbing. No new module.
+- **Merge semantics**: the booleans flow through the existing `roubo.yaml` integration block + per-user override deep-merge (`shared/deep-merge.ts`). Because the override's `sources` array REPLACES the committed array per the 2026-05-21 array-replace decision, a teammate who wants to opt out of a team-committed `includeDependabotAlerts: true` must redeclare the source entry with the boolean flipped (or omit it; `undefined` resolves to `false`). This matches the broader override pattern; no new merge logic is needed.
+
+#### Alert fetcher functions (one per category, dependency-injected pagination)
+
+- **Path**: `plugins/_shared-github/src/fetchers/{code-scanning,secret-scanning,dependabot}.ts` (new).
+- **Responsibility**: per-category paginated REST calls reusing the consuming plugin's `githubRequest` for auth, ETag caching, primary/secondary rate-limit backoff, and `Retry-After` handling. The fetcher does NOT own any caching policy; it is a pure pagination + normalization loop.
+- **Reuse vs new**: shape mirrors `plugins/github-com/src/github-fetchers.ts:44` (`fetchIssuesPage`). Same `page/perPage` parameters, same `{ items, hasNextPage }` envelope (extended with `warnings`). Same `per_page` clamping to 1..100.
+- **Public interface**: `fetchCodeScanningAlerts({ githubRequest }, repoFullName, { page, perPage }): Promise<AlertFetchResult>`. `AlertFetchResult = { items: RawAlert[]; hasNextPage: boolean; warnings: SourceWarning[] }`. The `warnings` array is non-empty when the endpoint returned a structured "category unavailable" status (see HTTP-mapping table below); the `items` array is empty in that case. The fetcher NEVER throws on the "unavailable" path; it returns `warnings` and an empty `items` so the calling `listIssues` can continue with other categories per FR-046.
+- **REST endpoints**:
+  - Code Scanning: `GET /repos/{owner}/{repo}/code-scanning/alerts?state=open&per_page={n}&page={p}`.
+  - Secret Scanning: `GET /repos/{owner}/{repo}/secret-scanning/alerts?state=open&per_page={n}&page={p}`.
+  - Dependabot: `GET /repos/{owner}/{repo}/dependabot/alerts?state=open&per_page={n}&page={p}`.
+- **Dependencies**: injected `githubRequest`, `redactAlertRaw`, `formatAlertExternalId`, `httpStatusToCauseString`.
+
+#### Token-scope detector and in-process cache
+
+- **Path**: `plugins/_shared-github/src/scope-detector.ts`, `plugins/_shared-github/src/scope-cache.ts` (new).
+- **Responsibility**: determine whether the active token grants `security_events` BEFORE the first alert fetcher runs on a given pull. The cache key is a SHA-256 fingerprint of the bearer token (NEVER the token itself); the cached value is `{ kind: "known"; scopes: string[]; capturedAt: number } | { kind: "unknown"; reason: "no-scope-header"; capturedAt: number }`. TTL is 5 minutes per cache entry. The cache is process-local (the bundled plugin's child process); it does NOT persist to disk and does NOT survive a plugin restart.
+- **Reuse vs new**: new module. Closest prior art is the `etagStore` and `issueCache` modules inside `plugins/github-com/src/github-request.ts` (in-process Maps with a TTL). Same idiom; lifted into the shared workspace because both plugins need it.
+- **Cache invalidation**:
+  - On a successful OAuth re-consent in the github.com plugin: the github.com plugin's OAuth-exchange handler calls `invalidateScopeCache(tokenFingerprintBefore)` immediately after writing the new token to the keyring, then calls `detectTokenScopes(newToken)` once to warm the cache with the new scopes. The next `listIssues` pull observes the warmed cache and runs the previously-failing category fetcher.
+  - On a successful PAT replacement in the GHE plugin: same flow, triggered from the configure-dialog Save action's per-source apply path.
+  - On the 5-minute TTL expiry: a fresh probe runs against `/user`; if `X-OAuth-Scopes` is present, the cache stores `{ kind: "known", scopes }`; if absent (GHE fine-grained PAT path per NFR-015), it stores `{ kind: "unknown", reason: "no-scope-header" }`.
+  - On plugin restart: cache is empty (in-process only). First pull repopulates.
+- **Why host-side caching was rejected**: host-side caching would require a new `host.scopes` RPC method, which violates the no-host-API-change constraint. Plugin-side caching also lines up with the broader design's principle that the plugin owns its HTTP-layer state (ETag, rate-limit, scopes are all the plugin's business; the host knows only the allowlist and TLS toggle).
+- **Public interface**: `detectTokenScopes(deps): Promise<TokenScopeProbe>`, `invalidateScopeCache(tokenFingerprint): void`. `tokenFingerprint` is computed once at plugin startup from `host.credentials.get("github-token")` (or the GHE slot) and stored on the active config struct so the consuming plugin can pass it in.
+
+#### Warning surface (inline on `ListIssuesResult`)
+
+- **Path**: `plugin-sdk/src/types.ts:40` (modified).
+- **Responsibility**: thread per-source per-category warnings from the plugin to the host on every `listIssues` pull, without introducing a new RPC method.
+- **Reuse vs new**: in-place extension of `ListIssuesResult`. Adds one optional field; existing plugins that do not populate it remain wire-compatible.
+- **Public interface (SDK type change, additive only)**:
+  ```ts
+  export interface SourceWarning {
+    sourceExternalId: string; // matches ConfiguredSource.externalId
+    category: "code-scanning" | "secret-scanning" | "dependabot";
+    code:
+      | "missing-scope"
+      | "scope-unverifiable"
+      | "ghas-not-enabled"
+      | "feature-disabled"
+      | "insufficient-permission"
+      | "not-found"
+      | "rate-limited"
+      | "timed-out"
+      | "unknown";
+    cause: string; // human-readable, ready for UI rendering; NFR-014 accessible name
+  }
+
+  export interface ListIssuesResult {
+    items: NormalizedIssue[];
+    nextCursor: string | null;
+    warnings?: SourceWarning[]; // NEW: addendum field
+  }
+  ```
+- **Wire path**: the bundled github.com `listIssues` accumulates warnings from each enabled category's fetcher into a per-pull array and returns them with the result. The host route at `server/routes/issues.ts:27` forwards them verbatim through the response envelope. The Configure dialog reads them out of the React Query cache for `["issues", projectId, integrationId]` rather than via a new endpoint. Rationale: warnings are naturally per-pull-fresh; coupling them to the pull means they auto-clear on the next successful pull per FR-046.
+- **Why a separate `getSourceWarnings` RPC was rejected**: a separate RPC creates a freshness-coupling problem (warnings could be stale relative to the last pull), adds a new method to the contract (which we explicitly do not want to do at host-API 1.0.0), and doubles the work on noisy refresh. Inline is strictly smaller.
+
+#### OAuth re-consent flow integration
+
+- **Path**: `plugins/github-com/src/methods/validate-config.ts` (modified), `plugins/github-com/src/methods/list-issues.ts` (modified), `client/src/components/PluginConfigureDialog.tsx` (modified), `client/src/hooks/useGitHubAuth.ts` (modified), `electron/src/main.ts:87` (UNCHANGED).
+- **Responsibility**: when a `SourceWarning` with `code: "missing-scope"` is surfaced for a github.com source, the per-source warning chip becomes the actionable button that re-enters the existing OAuth flow with `scope=repo,read:org,read:project,security_events`. On successful callback, the github.com plugin's OAuth-exchange handler writes the new token, invalidates the scope cache, and the next pull picks up the new scope.
+- **Reuse vs new**: NO new deep-link path. The callback URL stays `roubo://oauth/github/callback`; the Electron handler at `electron/src/main.ts:87` is untouched. The github.com plugin's OAuth-exchange handler at the post-migration location of `server/services/github-auth.ts:1` (which moves into `plugins/github-com/src/methods/oauth-exchange.ts` per the broader migration) gains one extra step in its success path: `invalidateScopeCache(oldFingerprint); detectTokenScopes(newToken)`. The authorize URL builder gains a conditional scope: `requiredScopesFor(activeConfig)` returns `BASE_SCOPES.concat(anyAlertCategoryEnabled ? ["security_events"] : [])`. This preserves the 2026-05-24 decision "users who never enable any category never see a re-consent prompt."
+- **Dialog state during round-trip**: the Configure dialog stays open. On `Continue to GitHub` (mockup screen 19), the warning chip flips to a `Waiting for browser...` state via local React state. The dialog itself does NOT subscribe to OAuth status; instead, the `useGitHubAuth` hook observes `GET /api/auth/github/status` via React Query's `useQuery` with a 2-second `refetchInterval` ONLY while the chip is in `Waiting for browser...` state (the chip mounts a side-effect that toggles the polling on/off). On status flip to `connected`, the chip side-effect calls `queryClient.invalidateQueries(["issues", projectId, integrationId])` to force a fresh pull, which will repopulate warnings; if the scope is now present and the endpoint returns 200, the warning clears. On dialog close mid-round-trip, the polling unsubscribes; the next dialog open resumes from the OAuth status. This matches today's `useGitHubAuth.ts` pattern for the existing Reconnect banner.
+- **GHE variant**: GHE uses a PAT, not OAuth. The warning chip text for `code: "missing-scope"` becomes `Open token settings on <instance URL>` with a plain external link to `<instance>/settings/tokens`. There is no deep-link round-trip; the user regenerates the PAT manually, pastes it into the existing `Personal access token` field, and clicks Save. The Save handler calls `invalidateScopeCache` for the GHE token fingerprint before triggering the next pull. The `NFR-015` `code: "scope-unverifiable"` warning (fine-grained PAT) renders with `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` and no actionable button.
+
+#### Test connection per-category extension
+
+- **Path**: `plugins/github-com/src/methods/validate-config.ts` (modified), `plugins/ghe/src/methods/validate-config.ts` (modified), `server/routes/integration.ts` (the `POST /api/projects/:projectId/integration/test` handler, modified), `client/src/components/PluginConfigureDialog.tsx` (modified, mockup screen 20).
+- **Responsibility**: when `Test connection` is invoked on a source whose effective config has at least one alert category enabled, the plugin's `validateConfig` issues per-category probes against the relevant REST endpoint with `per_page=1` in parallel, returning a per-category status alongside the existing connection result.
+- **Reuse vs new**: extension of the existing `validateConfig` return shape. The `ValidateConfigResult` interface at `plugin-sdk/src/types.ts:57` gains an optional `categoryProbes?: Array<{ sourceExternalId, category, status: "ok" | "unavailable" | "timed-out", cause?: string }>`. Additive; older plugins remain compatible.
+- **Probe details**:
+  - **Parallelism**: the per-source per-category probes run in parallel via `Promise.allSettled`. For a configured source set of 5 sources with all 3 categories enabled, that is 15 concurrent in-flight requests. Each one is a `per_page=1` REST call, which is cheap relative to a full `listIssues` pull. The existing primary rate-limit backoff inside `githubRequest` handles bursts.
+  - **Per-probe timeout**: 5 seconds, hard. A probe that exceeds 5s resolves to `{ status: "timed-out" }` and does NOT fail the overall Test connection result. The 5s cap is enforced inside `validateConfig` via `Promise.race([probe, sleep(5000).then(() => ({ status: "timed-out" }))])`.
+  - **Overall Test connection budget**: 12 seconds (the existing connection-test budget; not changed by this addendum). The host route's outer timeout is the existing `pluginManager.invoke` 30s default minus a safety margin; the plugin's internal budget is 12s. Per-category probes that have not resolved by 12s are forcibly cut off and rendered as `timed-out` rows.
+  - **Order of operations**: the existing connection probe (the `getCurrentUser` call from FR-035) runs FIRST and serially; on its success, the per-category probes fan out in parallel. On `getCurrentUser` failure, no category probes run.
+
+#### Issue-list category chip and bench Transition/Assign suppression
+
+- **Path**: `client/src/components/IssueQueuePanel.tsx:47` (modified), `client/src/components/IssuePickerModal.tsx:131` (modified), `client/src/components/IssueTransitionDropdown.tsx` (modified), `client/src/components/AssignIssueControl.tsx` (modified), `client/src/components/BenchDetail.tsx` (modified).
+- **Responsibility**: render the category chip (`CodeQL` / `Secret` / `Dependabot`) in the Issues list when `issue.issueType` matches one of the three security strings; hide the Transition dropdown and disable the Assign control on benches whose `assignedIssue.issueType` matches.
+- **Reuse vs new**: small in-place edits. A new `client/src/components/IssueCategoryChip.tsx` component encapsulates the chip rendering with the three label/background variants (mockup screen 18). The Transition dropdown's render path adds an early-return when `issueType.startsWith("security-")`. The Assign control adds `isDisabled={isSecurityAlert}` plus a React Aria `<Tooltip>` with the explanatory string from mockup screen 10-extended.
+- **Dependencies**: React Aria `<Tooltip>`, existing chip styling tokens (see Forward compatibility section below for token notes).
+
+### Data model (addendum)
+
+#### `ListIssuesResult` envelope change
+
+Already detailed under "Warning surface" above. Recap:
+
+```ts
+// plugin-sdk/src/types.ts (additive only)
+export interface SourceWarning {
+  sourceExternalId: string;
+  category: "code-scanning" | "secret-scanning" | "dependabot";
+  code:
+    | "missing-scope"
+    | "scope-unverifiable"
+    | "ghas-not-enabled"
+    | "feature-disabled"
+    | "insufficient-permission"
+    | "not-found"
+    | "rate-limited"
+    | "timed-out"
+    | "unknown";
+  cause: string;
+}
+
+export interface ListIssuesResult {
+  items: NormalizedIssue[];
+  nextCursor: string | null;
+  warnings?: SourceWarning[]; // NEW
+}
+
+export interface ValidateConfigResult {
+  ok: boolean;
+  errors?: Array<{ field?: string; message: string; code?: string }>;
+  categoryProbes?: Array<{
+    sourceExternalId: string;
+    category: "code-scanning" | "secret-scanning" | "dependabot";
+    status: "ok" | "unavailable" | "timed-out";
+    cause?: string;
+  }>; // NEW
+}
+```
+
+#### Normalized issue `issueType` candidate set expansion
+
+The `issueType: string | null` field at `plugin-sdk/src/types.ts:19` is unchanged in shape. The candidate set the github.com and GHE plugins emit now includes three additional values:
+
+- `security-code-scanning`
+- `security-secret-scanning`
+- `security-dependabot`
+
+The `listIssueTypes` method (`plugins/github-com/src/methods/list-issue-types.ts:1`, `plugins/ghe/src/methods/list-issue-types.ts:1`) appends these three to the returned `IssueTypeOption[]` ONLY when at least one configured source has the corresponding category boolean on. Rationale: the blueprint-by-issue-type mapping UI at `/api/projects/:projectId/blueprints/issue-type-mappings` lists exactly the types the user can encounter; we do not clutter the UI with categories that are off for every source.
+
+The blueprint resolver at `server/services/blueprint-manager.ts:339` (`findBlueprintForIssue`) requires no change; the mapping keys are opaque strings.
+
+#### External-id format change for alerts (FR-044)
+
+- **Regular issues** (unchanged): `<owner>/<repo>#<issue_number>`, integer after `#`. Example: `wday-planning/roubo#123`.
+- **Alerts** (new): `<owner>/<repo>#<category>-<alert_number>`, where `<category>` is one of `code-scanning`, `secret-scanning`, `dependabot`. Example: `wday-planning/roubo#code-scanning-17`. The integer is preserved after the `-`; the category prefix disambiguates the namespace.
+- **Parser contract**: `plugins/_shared-github/src/external-id.ts` exposes `parseExternalId(id): { kind: "issue", repoFullName, issueNumber } | { kind: "alert", repoFullName, category, alertNumber } | { kind: "invalid" }`. The github-com and GHE plugins replace their local `parseExternalId` callers with this shared variant. The existing `plugins/github-com/src/external-id.ts:10` parser stays as a thin wrapper that calls the shared one and narrows to `kind: "issue"` for backwards compatibility with existing call sites; alert-targeted method calls (`getIssue`, `getComments` against an alert external id) currently are not exercised because alerts are read-only and there is no per-alert refetch path.
+- **Stability**: the format is stable across pulls. The category prefix is part of the externalId, so dedup at the `(integrationId, externalId)` level (FR-020) naturally distinguishes between an issue numbered 17 and an alert numbered 17 in the same repo.
+
+#### External-id dedup logic in BenchManager, pr-sync, issue-assignment
+
+A grep across the codebase shows the following call sites that consume `assignedIssue.externalId` or assume integer-parseable formats:
+
+- `server/services/state.ts:104` (`migrateAssignedIssue`) — defaults `externalId` from legacy numeric `number`. Treats `externalId` as an opaque string. **Safe** for the new format; no change.
+- `server/services/issue-assignment.ts:186, :295` — assigns `externalId: String(issueNumber)` on bench creation for regular issues. **Safe**; alert benches go through a separate creation path (the Issue picker resolves the externalId from the plugin's `listIssues` return, which is already in the correct format).
+- `server/services/bench-manager.ts` — no externalId-string parsing. The bench manager treats `assignedIssue.externalId` as opaque. **Safe**.
+- `server/services/pr-sync.ts` — does not read `externalId` (grep returned no matches). PR sync operates on branch names + PR numbers, not issue externalIds. **Safe**. Also already gated on `integrationId === "github-com"` per the broader design; alerts have no linked PRs so this path naturally short-circuits.
+- `plugins/github-com/src/methods/{get-issue,get-comments,apply-transition,assign-issue,unassign-issue}.ts` — all call `parseExternalId` from the plugin's local `external-id.ts:10`. The current parser throws on non-integer suffixes. **Action**: the shared `parseExternalId` returns `{ kind: "alert", ... }` for the new format. Alert-targeted calls to these methods are NOT expected (alerts are read-only and have no comments path exposed), but to be defensive, each method's entry point checks `if (parsed.kind === "alert") throw new Error("[github-com] alert externalIds are read-only; method '<name>' is not supported on alerts")`. This produces a clear error rather than a confusing "not in expected form" message if the host ever routes such a call.
+- `server/services/state.test.ts` and `server/services/issue-assignment.test.ts` — test fixtures use integer-string externalIds. **Action**: add fixture coverage for alert-format externalIds to verify load-time round-trip through `migrateAssignedIssue` and bench creation.
+
+No new dedup logic is required in BenchManager; the existing `(integrationId, externalId)` key already distinguishes alerts from issues per FR-020.
+
+#### Token-scope cache shape
+
+```ts
+// plugins/_shared-github/src/scope-cache.ts (new)
+interface ScopeCacheEntry {
+  // SHA-256 hex of the bearer token; the actual token is NEVER stored here.
+  fingerprint: string;
+  // Resolved scope state at capture time.
+  state: { kind: "known"; scopes: string[] } | { kind: "unknown"; reason: "no-scope-header" };
+  // Wall-clock ms epoch.
+  capturedAt: number;
+}
+
+const TTL_MS = 5 * 60 * 1000;
+const cache = new Map<string, ScopeCacheEntry>(); // keyed by fingerprint
+```
+
+In-memory only (NFR-012 reinforcement: scopes are not on disk). Plugin-process-local. Cleared on plugin restart. Wiped explicitly by `invalidateScopeCache` after a credential change.
+
+#### `raw` redaction contract (NFR-012)
+
+The `redactAlertRaw(category, alertPayload)` function in `plugins/_shared-github/src/redact.ts` applies the following per-category transforms BEFORE the alert is placed in `NormalizedIssue.raw`:
+
+- **`category: "code-scanning"`**:
+  - **Drop**: `most_recent_instance.location.snippet` (code excerpt from the source file), `most_recent_instance.message.text` if it contains a snippet (heuristic: includes newline characters), the entire `most_recent_instance.classifications` array (unbounded vendor blob).
+  - **Keep**: `rule.id`, `rule.severity`, `rule.description`, `most_recent_instance.location.path`, `most_recent_instance.location.start_line`, `most_recent_instance.location.end_line`, `html_url`, `state`, `created_at`, `updated_at`, `number`.
+- **`category: "secret-scanning"`**:
+  - **Drop**: `secret` (the leaked secret value in full). Replace with `secret_preview: string` where the preview is `<first 4 chars> + "..." + <redaction marker>` (e.g. `ghp_...REDACTED`). If the secret is shorter than 4 chars, use the whole string + marker. Also drop `secret_type_display_name` if it includes the secret value as a substring (defensive against API regressions).
+  - **Keep**: `secret_type`, `resolution`, `html_url`, `state`, `created_at`, `updated_at`, `number`, `locations[].path`, `locations[].start_line`, `locations[].end_line`. The `locations[].blob_sha` and `locations[].commit_sha` are kept (sha hashes, not secret material).
+- **`category: "dependabot"`**:
+  - **Drop**: `security_advisory.description` (verbose CVE body), `security_advisory.references` (long URL list).
+  - **Keep**: `security_advisory.ghsa_id`, `security_advisory.cve_id`, `security_advisory.severity`, `security_advisory.summary` (short single-line summary), `security_advisory.cvss.score`, `dependency.package.name`, `dependency.package.ecosystem`, `dependency.manifest_path`, `html_url`, `state`, `auto_dismissed_at`, `created_at`, `updated_at`, `number`.
+
+The redactor is total: it never returns the original payload object reference. Output is a freshly-constructed object with only the allowlisted fields. The plugin's `console.log` / `console.error` paths NEVER receive the un-redacted payload; the `githubRequest` adapter's debug log path strips response bodies entirely for alert endpoints (a one-line check on the route prefix in `plugins/_shared-github/src/fetchers/*.ts` runs the redactor before any logger call). Unit tests against recorded REST fixtures per category verify the redactor leaves no PII or secret material; see NFR-012's "verified by unit test against a recorded REST fixture" clause.
+
+### Sequence flows (addendum)
+
+#### Successful `listIssues` pull with categories enabled
+
+```mermaid
+sequenceDiagram
+    participant UI as Client (useInfiniteQuery)
+    participant Route as /api/projects/.../issues
+    participant Plugin as github-com plugin
+    participant Shared as _shared-github (scope+fetchers)
+    participant GH as api.github.com
+
+    UI->>Route: GET ?cursor=null
+    Route->>Plugin: invoke("listIssues", { cursor, pageSize, filters })
+    Plugin->>Shared: detectTokenScopes(deps)
+    Shared->>Shared: cache lookup; miss
+    Shared->>GH: GET /user (via host.fetch)
+    GH-->>Shared: 200 + X-OAuth-Scopes: repo, security_events
+    Shared-->>Plugin: { kind: "known", scopes: [...] }
+    Plugin->>Shared: fetch issues page (existing path)
+    Shared->>GH: GET /repos/o/r/issues?page=1
+    GH-->>Shared: 200 + items
+    par per-category fan-out
+        Plugin->>Shared: fetchCodeScanningAlerts
+        Shared->>GH: GET /repos/o/r/code-scanning/alerts?state=open
+        GH-->>Shared: 200 + alerts
+    and
+        Plugin->>Shared: fetchSecretScanningAlerts
+        Shared->>GH: GET /repos/o/r/secret-scanning/alerts?state=open
+        GH-->>Shared: 451 (GHAS off on private repo)
+    and
+        Plugin->>Shared: fetchDependabotAlerts
+        Shared->>GH: GET /repos/o/r/dependabot/alerts?state=open
+        GH-->>Shared: 200 + alerts
+    end
+    Plugin->>Plugin: redact + normalize + merge<br/>build warnings[] for secret-scanning
+    Plugin-->>Route: { items, nextCursor, warnings: [{ secret-scanning, ghas-not-enabled }] }
+    Route-->>UI: same envelope; cached by React Query
+```
+
+#### OAuth re-consent flow triggered by a warning chip click
+
+```mermaid
+sequenceDiagram
+    participant Dialog as PluginConfigureDialog
+    participant Hook as useGitHubAuth
+    participant API as /api/auth/github/*
+    participant Browser as External browser
+    participant Electron as Electron deep-link handler
+    participant Plugin as github-com plugin
+    participant Shared as _shared-github scope cache
+
+    Dialog->>Hook: chip.onClick() -> startReconsent()
+    Hook->>API: GET /api/auth/github/authorize?scopes=...,security_events
+    API->>Plugin: invoke("buildAuthorizeUrl", { scopes })
+    Plugin-->>API: { url, state }
+    API-->>Hook: { url }
+    Hook->>Browser: open(url)
+    Hook->>Hook: chip state -> "Waiting for browser..."
+    Hook->>API: poll GET /api/auth/github/status (refetchInterval 2s)
+    Browser->>Electron: roubo://oauth/github/callback?code=...&state=...
+    Electron->>API: POST /api/auth/github/exchange { code, state }
+    API->>Plugin: invoke("exchangeOAuthCode", { code, state })
+    Plugin->>Shared: invalidateScopeCache(oldFingerprint)
+    Plugin->>Shared: detectTokenScopes(newToken) (warm cache)
+    Plugin-->>API: { ok: true, scopes }
+    API-->>Hook: status flips to "connected"
+    Hook->>Hook: chip state -> "Connection upgraded."
+    Hook->>Hook: queryClient.invalidateQueries(["issues", projectId, ...])
+    Note over Dialog: dialog stayed open throughout; <br/>chip lives in dialog-local state
+```
+
+#### Test connection with per-category probes
+
+```mermaid
+sequenceDiagram
+    participant Dialog as PluginConfigureDialog
+    participant Route as /api/projects/.../integration/test
+    participant Plugin as github-com plugin
+    participant GH as api.github.com
+
+    Dialog->>Route: POST { config }
+    Route->>Plugin: invoke("validateConfig", { config })
+    Plugin->>GH: GET /user (getCurrentUser; serial)
+    GH-->>Plugin: 200 + viewer
+    par per-category probes (parallel, Promise.allSettled, 5s per-probe cap)
+        Plugin->>GH: GET /repos/o/r/code-scanning/alerts?per_page=1
+        GH-->>Plugin: 200
+    and
+        Plugin->>GH: GET /repos/o/r/secret-scanning/alerts?per_page=1
+        GH-->>Plugin: 451
+    and
+        Plugin->>GH: GET /repos/o/r/dependabot/alerts?per_page=1
+        GH-->>Plugin: 200
+    end
+    Plugin-->>Route: { ok, identity, categoryProbes: [...] }
+    Route-->>Dialog: same envelope; render screen 20
+```
+
+### Integration points (addendum)
+
+File-level changes by path:
+
+- **`plugins/_shared-github/`** — NEW npm workspace. Wire into root `package.json` workspaces array alongside existing `plugins/github-com`, `plugins/ghe`, `plugin-sdk`.
+- **`plugins/github-com/roubo-plugin.yaml:14`** — `configSchema.properties.sources.items.properties` gains three optional booleans (`includeCodeScanningAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`, each `default: false`).
+- **`plugins/ghe/roubo-plugin.yaml:36`** — same three booleans on the GHE per-source item schema.
+- **`plugins/github-com/src/active-config.ts:47`** — extend `parseConfig` to read and validate the three booleans.
+- **`plugins/github-com/src/types.ts`** and **`plugins/ghe/src/types.ts`** — extend `ConfiguredSource` with the three booleans.
+- **`plugins/github-com/src/external-id.ts:10`** — `parseExternalId` becomes a wrapper over the shared parser; recognises alert-format ids and returns a discriminated union. Existing call sites narrow to `kind: "issue"`.
+- **`plugins/github-com/src/github-fetchers.ts`** — no change (issue fetchers stay where they are); the three new alert fetchers live in the shared workspace and are imported by `methods/list-issues.ts`.
+- **`plugins/github-com/src/methods/list-issues.ts:112`** — `listIssues` becomes a merge: scope probe via the shared detector, fan out to enabled alert fetchers per configured source, accumulate warnings, return `{ items, nextCursor, warnings }`. Cursor decoding stays a single integer for the simplest case; multi-category cursoring is handled by per-category pagination state encoded in the cursor blob (a base64-encoded JSON `{ issues?: number, codeScanning?: number, secretScanning?: number, dependabot?: number }` per the feasibility recommendation).
+- **`plugins/github-com/src/methods/list-issue-types.ts:1`** — append `security-code-scanning` / `security-secret-scanning` / `security-dependabot` to the returned types when at least one configured source has the matching boolean on.
+- **`plugins/github-com/src/methods/validate-config.ts`** — extend with the per-category `per_page=1` probe path described above. Returns the new `categoryProbes` field on success.
+- **`plugins/github-com/src/normalize.ts`** — gains three `*AlertToNormalizedIssue` adapters in a new sub-module under `plugins/_shared-github/src/normalize/` (the redaction-aware path).
+- **`server/services/github-auth.ts:19`** — `REQUIRED_SCOPES` constant. NOTE: per the broader migration, this file moves into `plugins/github-com/src/oauth/scopes.ts`. The addendum edit happens at the post-migration location and adds a derived helper: `function requiredScopesFor(config) { return anyAlertCategoryEnabled(config) ? [...BASE_SCOPES, "security_events"] : BASE_SCOPES }`. The constant `BASE_SCOPES = ["repo", "read:org", "read:project"]` is unchanged. The `areScopesOutdated` helper at `server/services/github-auth.ts:22` (also moved to the post-migration location) is split into `areBaseScopesOutdated(scopes)` and `hasSecurityEventsScope(scopes)`.
+- **`server/routes/issues.ts:27`** — already proxies through the plugin manager; the new optional `warnings` field rides through the response envelope unchanged.
+- **`server/routes/integration.ts`** — the `POST /api/projects/:projectId/integration/test` handler returns the new optional `categoryProbes` field on the result envelope unchanged.
+- **`plugin-sdk/src/types.ts:40`** — `ListIssuesResult` gains optional `warnings?: SourceWarning[]`. `ValidateConfigResult` gains optional `categoryProbes?: [...]`. Both additive.
+- **`client/src/components/PluginConfigureDialog.tsx`** — render the `Security & quality alerts` per-source section (mockup screen 4-extended), the warning chips with re-consent action (mockup screen 19), and the per-category Test connection rows (mockup screen 20).
+- **`client/src/components/IssueQueuePanel.tsx:47`** and **`client/src/components/IssuePickerModal.tsx:131`** — render `IssueCategoryChip` to the left of issue titles when `issueType.startsWith("security-")`.
+- **`client/src/components/IssueCategoryChip.tsx`** — NEW. Three label/style variants per mockup screen 18.
+- **`client/src/components/IssueTransitionDropdown.tsx`** — early-return + explanatory line when issue is an alert.
+- **`client/src/components/AssignIssueControl.tsx`** — disabled + tooltip when issue is an alert.
+- **`client/src/components/BenchDetail.tsx`** — renders the category chip alongside the bench title for alert-backed benches.
+- **`client/src/hooks/useGitHubAuth.ts:1`** — gains a `startReconsent()` action that triggers an authorize-URL fetch with the upgraded scope set; existing `disconnectGitHub` / `connectGitHub` mutations are reused.
+- **Electron `electron/src/main.ts:87`** — UNCHANGED. Same callback URL, same handler. The github.com plugin's authorize-URL builder is the only thing that conditionally adds `security_events` to the requested scopes.
+
+### Observability (addendum)
+
+- **Per-category fetch counters and timings (per-plugin log file)**: each invocation of a category fetcher emits one log line at `info` level with shape `{ kind: "alert-fetch", category, repoFullName, page, perPage, durationMs, status: "ok" | "warning", warningCode?: string, itemCount }`. Sufficient to compute a histogram from log scraping; no out-of-process telemetry.
+- **Warning surface emission count by `code` (per-plugin log file)**: each emitted `SourceWarning` is logged at `warn` level with shape `{ kind: "warning-emitted", sourceExternalId, category, code }`. The `cause` field is intentionally NOT logged here (it is a UI rendering string, not a metric dimension). No PII.
+- **Token-scope cache events (per-plugin log file)**: every cache miss, hit, refresh, and explicit invalidation emits a log line at `debug` level with shape `{ kind: "scope-cache", event: "hit" | "miss" | "refresh" | "invalidate", reason?: string }`. The `fingerprint` is NEVER logged (it would defeat the purpose); only the event type and reason.
+- **OAuth re-consent invocation (host-side log, NOT the plugin log)**: the host route at `POST /api/auth/github/authorize` already logs the authorize URL build event; the addendum adds one extra structured field `{ scopesRequested: ["repo", "read:org", "read:project", "security_events"] }` to surface that the upgraded scope set was requested. The authorize URL itself is logged at `info` for parity with existing OAuth observability; the URL contains client id and state but no token. On exchange success, an `info` line records `{ kind: "oauth-exchange", scopesGranted: [...], reconsentForCategories: ["code-scanning", "dependabot"] }` so a user can correlate a "Connection upgraded" UI flip with the log.
+- **No new metric names, no new alarm thresholds.** Roubo is a local dev tool; metrics live in support volume and incident reports, not Prometheus.
+
+### Security considerations (addendum)
+
+- **Redaction contract (NFR-012)**: implemented in `plugins/_shared-github/src/redact.ts` per the per-category schedule under "Data model". The redactor is total: it constructs a fresh output object and never returns the original payload reference. The matched-secret bytes from Secret Scanning are reduced to `<first 4 chars> + ... + REDACTED`; the matched code excerpts from Code Scanning are dropped entirely (only `path`, `start_line`, `end_line` survive). Unit tests against recorded REST fixtures per category verify the redactor leaves no PII or secret material. The bundled plugin's `console.log` paths are forbidden from receiving the un-redacted payload; the github-com and GHE plugins' linting setup MUST flag any direct `console.log(alertPayload)` call.
+- **Token-scope cache MUST NOT persist scopes to disk**: enforced by design — the cache is a `Map<string, ScopeCacheEntry>` in the plugin's child process, with no FS writes. The cache is also keyed by SHA-256 fingerprint of the token, not the token itself, so a process memory dump does not reveal the token. Plugin restart wipes the cache.
+- **OAuth re-consent dialog MUST NOT log the token or the authorize URL with sensitive state**: the existing OAuth flow already pulls the `state` parameter from process memory (`pendingStates` Map in `github-auth.ts:31`), not from logs. The addendum does not change this. The authorize URL is logged at `info` level for observability (per "OAuth re-consent invocation" above); this URL contains the client id and the `state` token, NOT a user secret. The exchanged access token is NEVER logged (existing constraint; the addendum reinforces it via a code review checklist item on the `exchangeOAuthCode` handler).
+- **The opaque `raw` field**: the broader architecture's NFR-004 constraint stands ("plugin-scoped opaque payload, never persisted beyond active bench"). Alert benches inherit this constraint; the `raw` payload (severity, CVE id, file path, etc.) lives in memory while the bench is active and is stripped on persistence to `state.json`. The bench's `state.json` writer is unchanged from the broader design.
+- **`security_events` scope is requested CONDITIONALLY**: the authorize-URL builder appends `security_events` to the requested scope list ONLY when at least one configured source has at least one alert category enabled. Users who never enable an alert category never see a re-consent prompt and never grant the new scope. This matches the 2026-05-24 decision and is the security-friendliest path.
+
+### Forward compatibility check (addendum)
+
+The addendum is strictly additive and requires NO host-API change. Verified by walking the host-API surface:
+
+- **No new host RPC method.** `host.fetch`, `host.credentials.get/set`, `host.logger` are unchanged.
+- **No new plugin-to-host RPC method.** All work goes through the existing `listIssues`, `listIssueTypes`, `validateConfig`. The two additive SDK type changes (`ListIssuesResult.warnings`, `ValidateConfigResult.categoryProbes`) are wire-compatible optional fields per the JSON-RPC + `vscode-jsonrpc` framing; older host code that does not look for these fields ignores them.
+- **No new permission category.** `network.hosts: ["api.github.com"]` already covers the three alert endpoints (same host). For GHE, the existing `network.hosts: ["**"]` already covers any instance URL the user configures. No `roubo-plugin.yaml` `permissions` changes.
+- **No new credential slot.** The github.com plugin's existing `github-token` slot stores the OAuth token; the GHE plugin's existing `token` slot stores the PAT. The new `security_events` scope is a property of the token, not a separate credential.
+- **No new manifest-schema field beyond the three configSchema booleans.** Those are user-config, not manifest-permission, additions and validate through the existing JSON Schema path on the manifest's `configSchema`.
+
+`hostApiVersion` stays at 1.0.0. The SDK package version bumps to a minor (e.g. 1.1.0) on the day the addendum lands, with the two optional fields documented as additive.
+
+### Risks and alternatives (addendum)
+
+- **GHE fine-grained PAT scope detection (NFR-015 implementation).** Fine-grained PATs do not return `X-OAuth-Scopes`; they return `X-Accepted-GitHub-Permissions` or nothing at all. The scope detector returns `{ kind: "unknown", reason: "no-scope-header" }` for this case; the warning chip renders `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` (NFR-015 copy). The plugin STILL attempts the per-category probe; a successful 200 means the user is good even though scope verification was inconclusive. **Risk**: a user with a fine-grained PAT that lacks the security alerts permission will see the `scope-unverifiable` warning AND the per-category `ghas-not-enabled` / `insufficient-permission` warning on the next pull. The chip will display the more specific warning preferentially (the per-category warning takes precedence over the generic scope-unverifiable warning when both are emitted; the rendering rule is encoded in `client/src/components/PluginConfigureDialog.tsx`).
+- **Polling cost amplification on noisy Dependabot repos.** Per the feasibility addendum: a single source with 500 open Dependabot alerts at `per_page=100` is 5 extra REST calls; 5 sources × 3 categories × 5 pages = 75 calls worst case. **Mitigation**: (a) the existing ETag/304 short-circuit inside `plugins/github-com/src/github-request.ts:208` makes unchanged pages near-free; (b) `useInfiniteQuery` lazy-loads pages only as the user scrolls, so the worst case is paid only when the user explicitly pages through all results; (c) primary rate-limit backoff is already in place. **Residual risk**: a manual Refresh on a busy day with a flapping ETag store could burn a chunk of the user's REST quota. Surfaced via the existing plugin error path (Retry-After + next-reset timestamp) per the re-interview decision.
+- **External-id collision detection in BenchManager (FR-044 wiring).** Verified above: no existing dedup logic chokes on the new format. **Residual risk**: a future code path that parses the integer after `#` (which currently does not exist in the codebase, per Grep) would break. **Mitigation**: the shared `parseExternalId` is the single point of parsing; bench-snapshot consumers treat `externalId` as opaque. A grep regression test in `plugin-sdk/__tests__/external-id-format.test.ts` (new) asserts that no production code parses the suffix with `Number(...)`.
+- **OAuth re-consent UX during in-progress configure-dialog edits (dialog state during browser round-trip).** Specified above: the dialog stays open; the chip lives in dialog-local React state; `useGitHubAuth` polls `/api/auth/github/status` ONLY while the chip is in `Waiting for browser...` state and unsubscribes on dialog close or chip dismissal. **Residual risk**: if the user closes the dialog mid-round-trip and the OAuth callback fires later, the github.com plugin's token is updated in the background but the user does not see the chip clear. **Mitigation**: the next time the user opens the dialog OR triggers a list refresh, the `["issues", projectId]` cache is fresh and the warning auto-clears per FR-046. The user does not have to re-click anything.
+- **Per-source per-category cache invalidation on OAuth re-consent.** Scope cache invalidation is described above. **Risk**: the ETag cache inside `githubRequest` for the alert endpoints contains entries keyed by the prior token's auth context. On a successful re-consent, those cached entries are technically still valid (ETag is per-resource, not per-token), but a defensive plugin author might wonder. **Decision**: the ETag cache is NOT wiped on re-consent. ETags are resource-scoped on GitHub's side; the prior cache stays valid and the next conditional GET correctly returns 304 or fresh data. This is intentional behaviour and is documented in `plugins/_shared-github/src/scope-cache.ts` next to the `invalidateScopeCache` function.
+- **GHAS HTTP code → cause string mapping table.** Per category:
+
+  | Endpoint | HTTP status | `code` | `cause` |
+  |---|---|---|---|
+  | `code-scanning` | 401 | `missing-scope` | `Code Scanning unavailable: token lacks security_events permission. Click to upgrade.` |
+  | `code-scanning` | 403 (Forbidden) | `insufficient-permission` | `Code Scanning unavailable: token lacks security_events or read access to alerts.` |
+  | `code-scanning` | 404 | `feature-disabled` | `Code Scanning unavailable: not enabled on this repo.` |
+  | `code-scanning` | 451 | `ghas-not-enabled` | `Code Scanning unavailable: requires GitHub Advanced Security on this repo.` |
+  | `code-scanning` | 429 / 403+rate-limit-header | `rate-limited` | `Code Scanning rate-limited: retry after <timestamp>.` |
+  | `secret-scanning` | 401 | `missing-scope` | `Secret Scanning unavailable: token lacks security_events permission. Click to upgrade.` |
+  | `secret-scanning` | 403 | `insufficient-permission` | `Secret Scanning unavailable: token lacks repo admin access.` |
+  | `secret-scanning` | 404 | `not-found` | `Secret Scanning unavailable: not enabled on this repo.` |
+  | `secret-scanning` | 451 | `ghas-not-enabled` | `Secret Scanning unavailable: requires GitHub Advanced Security on private repos.` |
+  | `dependabot` | 401 | `missing-scope` | `Dependabot unavailable: token lacks security_events permission. Click to upgrade.` |
+  | `dependabot` | 403 | `insufficient-permission` | `Dependabot unavailable: not a repo admin.` |
+  | `dependabot` | 404 | `feature-disabled` | `Dependabot unavailable: not enabled on this repo.` |
+  | any | 5xx | `unknown` | `<Category> unavailable: GitHub returned a server error. Roubo will retry on the next pull.` |
+  | any | client timeout | `timed-out` | `<Category> probe timed out.` |
+  | any | `X-OAuth-Scopes` absent and probe failed | `scope-unverifiable` | `Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.` |
+
+  The table lives in code at `plugins/_shared-github/src/warnings.ts` as the `httpStatusToCauseString` function. **Risk**: GitHub may add new status codes for new GHAS gating modes; the table will require maintenance. **Mitigation**: the `unknown` row is the safe fallback; new status codes degrade gracefully to a generic message until a follow-up updates the table.
+- **Shared package NOT exposed via the public SDK.** The 2026-05-24 decision keeps `plugins/_shared-github/` an internal workspace dependency of `plugins/github-com/` and `plugins/ghe/`. Third-party plugins cannot depend on it. **Rationale**: avoids committing to its API surface as part of the host-API contract; the package can evolve freely as a 0.x internal dep. **Re-evaluation trigger**: if a third-party plugin asks to reuse the redactor or the scope detector, lift the relevant function into `@roubo/plugin-sdk` as a 1.x minor.
+
+### Addendum closing notes
+
+- **Component count delta**: +6 logical components within the existing 18 (the shared workspace, the warning surface, the scope cache, the OAuth re-consent integration, the test-connection extension, the issue-category chip + bench suppression). None are new top-level concerns.
+- **Integration-point delta**: +14 file-level changes spread across the existing 11 integration points. No new integration-point category; this addendum lights up new code on the same surfaces.
+- **No host-API change**, no new RPC method, no new permission category, no new credential slot. `hostApiVersion` stays at 1.0.0.
+- **Open architectural questions still gated on user input**: none that block the tests stage. Every prototype-note open question has a concrete decision above. The GHE fine-grained PAT case (NFR-015) and the polling cost amplification (NFR-013 ceiling) are documented risks rather than open architectural decisions.
+- **`unknown - flag for refinement` markers added by this addendum**: none. The OAuth re-consent placement, frozen-snapshot semantics, test-connection coverage, code-sharing boundary, external-id format, and HTTP code mapping are all decided above. The two true unknowns (GHE fine-grained PAT prevalence and polling-cost amplification thresholds) are surfaced as risks with defined mitigations, not as architectural markers.
+

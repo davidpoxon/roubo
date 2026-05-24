@@ -217,3 +217,85 @@ All decisions below correspond to a direct user selection during the structured 
 - **Test connection UX:** explicit button on the configure flow that calls `plugin.validateConfig()`.
 - **Leading indicators of success:** owner dogfoods bundled GHE + Jira for 2 weeks before release; zero migration regressions across the alpha cohort.
 - **Lagging indicators of success:** zero P0 security incidents in 6 months; integration-config support volume under 10% in 6 months.
+
+## Re-interview - 2026-05-24: Security & quality issues option
+
+> Scope: a single new requirement layered on top of the bundled github.com (and GitHub Enterprise) integration plugin. Adds an option to pull GitHub's "Security & quality" alerts alongside regular Issues. All clusters below were answered via interactive `AskUserQuestion` round-trips on 2026-05-24. Verbatim Q&A is in `qa-log.md` under the matching dated section.
+
+### New requirement (one-liner)
+
+Add a per-source option on the bundled github.com plugin (and, in this slug, the bundled GHE plugin as well) to also retrieve GitHub "Security & quality" alerts. These are surfaced in the existing normalized issue list, distinguished by a visible category chip, and are bench-creatable like any other issue. They are read-only with respect to write-back.
+
+### Categories in scope
+
+Three independent per-source booleans, default off:
+
+- **Include Code Scanning alerts** (CodeQL or third-party SAST findings).
+- **Include Secret Scanning alerts** (leaked tokens; private repos require GitHub Advanced Security; public repos always available).
+- **Include Dependabot alerts** (dependency vulnerabilities; requires repo admin).
+
+User can mix and match. No "include all security & quality" master switch; the three booleans are the model. No severity, state, or age filters this slug (deferred).
+
+### Surfacing in the product
+
+- Alerts are merged into the existing Issues list returned by `listIssues`.
+- Each alert carries a category tag so the UI renders a distinct chip ("CodeQL", "Secret", "Dependabot") next to the title. The chip is the only required visual distinction.
+- Bench creation has full parity with regular Issues: blueprint-by-issue-type lookup (issue types like `security-code-scanning`, `security-secret-scanning`, `security-dependabot` participate in the existing blueprint-by-issue-type UI), blocks / blocked-by stays empty (alerts don't have linked dependencies), assign uses the existing captured-identity flow (but see write-back below: assign is disabled for alerts).
+- Source picker: no change. Alerts ride along with their parent repo; the per-source option determines whether alerts are pulled for that repo.
+
+### Setting model and config location
+
+- Three per-source booleans live as fields on the github.com / GHE plugin's per-source configuration (the source-level override, not the plugin-global config). Different teammates and different projects opt in independently.
+- Follows the existing field-level-optional `roubo.yaml` integration block + per-user override pattern. The committed `roubo.yaml` MAY pin the booleans (so a team can require Dependabot alerts everywhere) but defaults are unset (= off) and the per-user override deep-merges on top.
+- Plugin Configure dialog grows a single "Security & quality alerts" section per source row with three checkboxes.
+
+### Auth and permissions
+
+- The Roubo GitHub OAuth app's scope set MUST add `security_events` (existing tokens continue to work for regular Issues).
+- The plugin detects, per source per pull, whether the user's current token grants `security_events`. If it does not AND any of the three booleans are on for that source, the plugin triggers an OAuth re-consent flow with an upgrade prompt that explains why the new scope is needed.
+- Users who never enable any security category never see the re-consent prompt. The OAuth app change itself does not force existing users to re-consent.
+- GHE Personal Access Tokens behave analogously: the plugin checks the token's scopes on each pull and, if `security_events` is missing while a category is enabled, surfaces a configure-dialog warning telling the user to regenerate the PAT.
+
+### Failure semantics (degradation)
+
+- Per-category graceful skip. If a category is enabled but unavailable (token lacks scope, repo doesn't have GHAS, Code Scanning disabled, Dependabot off, etc.), that category is silently skipped for that source on that pull. Other enabled categories continue to fetch. The Issues list is never bench-blocked by a misconfigured category.
+- A warning chip is surfaced on the source row in the Configure dialog explaining the cause: "Code Scanning unavailable: GHAS not enabled on this repo.", "Dependabot alerts unavailable: token lacks `security_events`.", etc. Warnings are per-source per-category and dismiss themselves once the condition resolves on the next successful pull.
+
+### Polling cost
+
+- Alerts are fetched on the same trigger as Issues (on-demand and on UI events). No new background timer.
+- Each enabled category becomes one additional paginated REST call sequence per source per pull. Same `page size` config the rest of `listIssues` uses; the UI pages through the merged result.
+- No pre-emptive rate-limit headroom display in the Configure UI. Rate-limit errors, if they occur, surface through the existing plugin error path with the next-reset timestamp.
+
+### Write-back semantics for alerts
+
+- Alerts are read-only from Roubo. `allowedTransitions: []` and `assignees: []` on every alert.
+- The bench's Transition dropdown is hidden when the assigned issue is an alert; the Assign control is disabled.
+- Resolution happens by pushing code that fixes the underlying issue (GitHub auto-closes the alert). Dismissal from Roubo is explicitly out of scope.
+
+### Normalized issue contract changes
+
+- No new normalized fields. Alert-specific metadata (severity, CVE id, affected package, advisory URL, etc.) lives in the opaque plugin-scoped `raw` field. The category tag is carried as `issueType` (e.g. `security-code-scanning`).
+- Future slug may promote severity to a normalized field if there is user pull; out of scope here.
+
+### Integration parity within this slug
+
+- Both bundled GitHub.com **and** bundled GitHub Enterprise plugins gain this option in this slug. Same code path (REST endpoints are identical between github.com and GHE); the GHE PAT auth shape carries the `security_events` scope check.
+- Jira self-hosted plugin gains nothing. Jira has no equivalent surface; "out".
+
+### Out of scope (explicitly recorded)
+
+- Jira plugin parity (Jira has no equivalent surface).
+- Write-back to alerts from Roubo: dismiss / resolve / re-open. Explicit follow-on if there is pull.
+- Webhook / push delivery of new alerts ("notify me the moment Dependabot fires"). Polling-only, same as the rest of the integration runtime.
+- Auto-creating benches when a high-severity alert fires. Bench creation stays user-initiated.
+- Severity / state / age filter UI in the Configure dialog. Booleans only this slug.
+- Sorting or grouping the merged Issues list by severity, category, or any alert-specific field beyond what the existing list already supports.
+- Pre-emptive rate-limit headroom UI.
+- Surfacing alert metadata (severity, CVE, package) as first-class normalized fields. Lives in `raw` only.
+
+### Open questions raised during re-interview (all resolved downstream)
+
+- **OAuth re-consent placement.** Resolved during the PRD stage: inline action inside the per-source warning chip (decisions-log.md 2026-05-24; FR-045). Replaces the top-level-banner and dedicated-section alternatives that were on the table at re-interview time.
+- **Migration of pre-existing bench `assignedIssue` snapshots when a category is later disabled.** Resolved during the PRD stage: bench snapshot is frozen at create-time, list pull simply stops returning new alerts in that category, existing benches keep functioning (FR-050; decisions-log.md 2026-05-24). The architecture addendum confirms the BenchManager read path tolerates the frozen value.
+- **Type-chip UI presence for regular Issues.** Resolved during the prototype stage: regular Issues do NOT receive a type chip. Chips render only for the three security categories (CodeQL / Secret / Dependabot). See screen 18 in prototype/mockups.md.

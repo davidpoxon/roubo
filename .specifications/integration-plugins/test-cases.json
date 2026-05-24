@@ -1998,5 +1998,611 @@
     "tags": ["exploratory", "manual", "future-slug"],
     "linked_requirement_ids": ["FR-038", "NFR-011"],
     "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-085",
+    "title": "Configure dialog renders three independent security & quality checkboxes per github.com source",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin is enabled and configured with at least one repo source",
+      "Configure dialog is open for the github.com plugin",
+      "The 2026-05-24 addendum is built"
+    ],
+    "steps": [
+      { "action": "Expand the 'Security & quality alerts' disclosure for the configured source" },
+      {
+        "action": "Inspect the rendered section",
+        "expected": [
+          "Three React Aria Checkbox rows: Code Scanning alerts, Secret Scanning alerts, Dependabot alerts",
+          "All three default unchecked",
+          "Help text under each names the category and any GitHub Advanced Security or admin requirement",
+          "Toggling any single checkbox does not toggle the other two"
+        ]
+      }
+    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-040"],
+    "linked_user_story_ids": ["US-011"]
+  },
+  {
+    "id": "TC-086",
+    "title": "Enabling all three categories on a healthy github.com source returns alerts merged with regular Issues",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Source is a public github.com repo with at least one open Issue, one open Code Scanning alert, one open Secret Scanning alert, and one open Dependabot alert",
+      "Stored token has security_events scope and the user is a repo admin",
+      "All three category checkboxes are enabled for the source"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull from the Issues panel" },
+      {
+        "action": "Inspect the returned merged list",
+        "expected": [
+          "Regular Issue appears with no category chip",
+          "Code Scanning alert appears with chip 'CodeQL'",
+          "Secret Scanning alert appears with chip 'Secret'",
+          "Dependabot alert appears with chip 'Dependabot'",
+          "Each alert's external id has the form '<owner>/<repo>#<category>-<n>'"
+        ]
+      }
+    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-041", "FR-043", "FR-044"],
+    "linked_user_story_ids": ["US-011"]
+  },
+  {
+    "id": "TC-087",
+    "title": "Both bundled plugins import alert fetchers from the shared workspace package",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "structural",
+    "preconditions": [
+      "plugins/_shared-github/ workspace package exists",
+      "plugins/github-com/ and plugins/ghe/ each declare a workspace dependency on it"
+    ],
+    "steps": [
+      { "action": "Run a workspace dependency audit (npm ls --workspaces)" },
+      {
+        "action": "Verify",
+        "expected": [
+          "Both plugins resolve `@roubo/shared-github` (or the chosen package name) to plugins/_shared-github/",
+          "Neither plugin declares its own copy of the alert fetcher functions",
+          "@roubo/shared-github is NOT exported from plugin-sdk/ (decision per decisions-log.md 2026-05-24)"
+        ]
+      }
+    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-042"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-088",
+    "title": "Secret Scanning raw payload is redacted before being placed in the normalized issue",
+    "area": "security",
+    "level": 1,
+    "type": "security",
+    "preconditions": [
+      "Test fixture: a Secret Scanning alert REST response that includes a known secret value 'ghp_AAAA1111BBBB2222CCCC3333'",
+      "Secret Scanning is enabled on the source"
+    ],
+    "steps": [
+      { "action": "Invoke the alert-to-normalized mapper against the fixture" },
+      {
+        "action": "Inspect normalized.raw",
+        "expected": [
+          "raw.secret_prefix equals 'ghp_***' or first 4 chars + redaction marker",
+          "raw does NOT contain the full secret string 'ghp_AAAA1111BBBB2222CCCC3333' anywhere",
+          "Plugin stdout and stderr captured during the test contain neither the full secret nor raw"
+        ]
+      }
+    ],
+    "tags": ["security", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-043", "NFR-012"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-089",
+    "title": "Code Scanning raw payload strips embedded code snippets",
+    "area": "security",
+    "level": 1,
+    "type": "security",
+    "preconditions": [
+      "Test fixture: a Code Scanning alert REST response with `most_recent_instance.location.snippet` populated",
+      "Code Scanning is enabled on the source"
+    ],
+    "steps": [
+      { "action": "Invoke the alert-to-normalized mapper against the fixture" },
+      {
+        "action": "Inspect normalized.raw",
+        "expected": [
+          "raw.location includes file path and line/column",
+          "raw does NOT include the snippet text",
+          "Plugin stdout and stderr contain neither the snippet nor raw"
+        ]
+      }
+    ],
+    "tags": ["security", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-043", "NFR-012"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-090",
+    "title": "External-id format prevents collision between Issue #17 and Code Scanning alert #17 on the same repo",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Fixture: repo wday-planning/roubo has an Issue numbered 17 AND a Code Scanning alert numbered 17",
+      "Code Scanning is enabled for the source"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Inspect the returned merged list",
+        "expected": [
+          "Issue 17 has externalId 'wday-planning/roubo#17'",
+          "Code Scanning alert 17 has externalId 'wday-planning/roubo#code-scanning-17'",
+          "Dedup logic does not collapse the two entries",
+          "Bench creation on each succeeds without raising 'duplicate external id'"
+        ]
+      }
+    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-044", "FR-020"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-091",
+    "title": "Enabling a category on a source with a scope-lacking token surfaces inline re-consent action",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Stored OAuth token's scope set does NOT include security_events",
+      "OAuth app's scope set now includes security_events",
+      "Configure dialog is open for a github.com source"
+    ],
+    "steps": [
+      { "action": "Toggle Dependabot alerts ON for the source" },
+      {
+        "action": "Observe the source row",
+        "expected": [
+          "A warning chip appears with cause 'token lacks security_events permission. Click to upgrade.'",
+          "Save is blocked until the chip's action is taken",
+          "Clicking the chip opens the OAuth re-consent dialog",
+          "Completing the OAuth flow replaces the stored token in place and clears the chip on the next probe"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045"],
+    "linked_user_story_ids": ["US-011"]
+  },
+  {
+    "id": "TC-092",
+    "title": "User who never enables a category never sees an OAuth re-consent prompt after scope-set upgrade",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Stored OAuth token predates the 2026-05-24 scope-set upgrade",
+      "User has no source with any security category enabled"
+    ],
+    "steps": [
+      { "action": "Launch Roubo and load any project with a github.com integration" },
+      {
+        "action": "Observe top-of-shell, project view, Plugins page, and Configure dialog",
+        "expected": [
+          "No re-consent prompt appears anywhere",
+          "Regular Issues continue to fetch and render normally",
+          "No banner mentions security alerts or new scopes"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-093",
+    "title": "Code Scanning disabled on the repo: category gracefully skipped with warning chip",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Source is a public repo with Code Scanning explicitly disabled (HTTP 404 from /code-scanning/alerts)",
+      "Token has security_events scope",
+      "Code Scanning checkbox is enabled for the source"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Observe results and Configure dialog",
+        "expected": [
+          "Pull succeeds; regular Issues and any other enabled categories return normally",
+          "Source row in Configure dialog shows a warning chip 'Code Scanning unavailable: GHAS not enabled on this repo.' (or equivalent HTTP-404 cause copy)",
+          "No error toast or hard failure surfaced to the user"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
+  },
+  {
+    "id": "TC-094",
+    "title": "Test connection probes each enabled category and renders per-category status",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Configure dialog open for a source with all three categories enabled",
+      "Token has security_events; Secret Scanning is unavailable because the repo is a private repo without GHAS"
+    ],
+    "steps": [
+      { "action": "Click Test connection" },
+      {
+        "action": "Inspect the result strip",
+        "expected": [
+          "Row 'Connected as @<user>.'",
+          "Row 'Issues: ok (read 1 item).'",
+          "Row 'Code Scanning: ok (read 1 item).'",
+          "Row 'Secret Scanning: requires GitHub Advanced Security on private repos.'",
+          "Row 'Dependabot: ok (read 1 item).'",
+          "Overall result is success; the unavailable Secret Scanning row uses an amber-warning icon but does NOT fail the overall test"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-047"],
+    "linked_user_story_ids": ["US-013"]
+  },
+  {
+    "id": "TC-095",
+    "title": "Alert-backed bench hides Transition dropdown and disables Assign control",
+    "area": "bench-view",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "A bench is created from a Code Scanning alert",
+      "The bench's assignedIssue.issueType is 'security-code-scanning'"
+    ],
+    "steps": [
+      { "action": "Open the bench detail view" },
+      {
+        "action": "Observe Transition and Assign controls",
+        "expected": [
+          "No Transition dropdown is rendered",
+          "In its place is the muted line 'Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.'",
+          "Assign control is rendered but disabled",
+          "Tooltip on the disabled Assign reads 'Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work.'",
+          "Start / stop / clear / logs / terminal all function normally"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-048"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-096",
+    "title": "Blueprint-by-issue-type resolver accepts the three new security issue type strings",
+    "area": "blueprint-mappings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Existing blueprint-by-issue-type UI is open for a project linked to a github.com source",
+      "At least one blueprint exists in the project"
+    ],
+    "steps": [
+      { "action": "Open the issue-type dropdown in the mapping UI" },
+      {
+        "action": "Inspect candidate issue types",
+        "expected": [
+          "'security-code-scanning' appears as a selectable type",
+          "'security-secret-scanning' appears as a selectable type",
+          "'security-dependabot' appears as a selectable type",
+          "Mapping any of the three to a blueprint persists and a subsequent bench created from an alert of that category uses the mapped blueprint"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-049"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-097",
+    "title": "Toggling a category OFF does not mutate or clear existing alert-backed benches",
+    "area": "bench-snapshot",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Two benches exist whose assignedIssue.issueType is 'security-dependabot' from the same source",
+      "Dependabot alerts checkbox is currently ON for that source"
+    ],
+    "steps": [
+      { "action": "Toggle Dependabot alerts OFF for the source and Save" },
+      {
+        "action": "Trigger a listIssues pull and observe the benches",
+        "expected": [
+          "Both existing benches remain present and operational",
+          "Each bench's assignedIssue title, externalId, externalUrl, and category chip remain unchanged",
+          "The Configure dialog source row shows muted help text '2 existing benches still show alerts from this category.'",
+          "No new Dependabot alerts appear in the next listIssues pull"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-050"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-098",
+    "title": "p95 listIssues round-trip stays under 8 seconds for 5 sources x 200 items warm with ETag/304",
+    "area": "github-com-plugin",
+    "level": 1,
+    "type": "performance",
+    "preconditions": [
+      "5 github.com sources configured, each with ~200 open items split across regular Issues + the three security categories",
+      "All three categories enabled on every source",
+      "ETag store is warm from a prior pull (so 304 short-circuit is in play)"
+    ],
+    "steps": [
+      { "action": "Trigger 30 sequential warm listIssues pulls and record wall-clock latency per pull" },
+      {
+        "action": "Compute p95",
+        "expected": [
+          "p95 latency is under 8000ms",
+          "Issues-only baseline (run separately with all three categories disabled) is recorded; p95 of that baseline plus 10% is the regression gate",
+          "All-categories-disabled p95 is not more than baseline * 1.10"
+        ]
+      }
+    ],
+    "tags": ["performance", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-013"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-099",
+    "title": "Warning chip and inline re-consent action are accessible per WCAG 2.1 AA",
+    "area": "plugins-ui",
+    "level": 1,
+    "type": "accessibility",
+    "preconditions": [
+      "Configure dialog open with a source whose Dependabot alerts checkbox is enabled and stored token lacks security_events"
+    ],
+    "steps": [
+      { "action": "Navigate to the warning chip via keyboard only (Tab)" },
+      {
+        "action": "Verify keyboard reachability and screen-reader announcements",
+        "expected": [
+          "Tab focus lands on the warning chip with a visible focus ring",
+          "Enter or Space activates the chip and opens the re-consent dialog",
+          "Screen reader announces the chip's accessible name (cause text)",
+          "State change from idle to 'Connecting...' to 'Waiting for browser...' to clear is announced via React Aria live region",
+          "axe-core scan of the dialog reports zero serious violations"
+        ]
+      }
+    ],
+    "tags": ["accessibility", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-014"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-100",
+    "title": "Fine-grained GHE PAT without X-OAuth-Scopes header surfaces graceful warning copy",
+    "area": "ghe-plugin",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "GHE plugin configured with a fine-grained PAT (no X-OAuth-Scopes header on responses)",
+      "User enables Dependabot alerts for the source"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Observe Configure dialog warning chip for the source",
+        "expected": [
+          "Warning chip cause reads 'Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.' (or the documented graceful copy)",
+          "Chip does NOT assert 'token lacks security_events' as a definite truth",
+          "Plugin still attempted the Dependabot probe and the resulting HTTP code (if non-2xx) is captured in observability counters"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-015", "FR-046"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-101",
+    "title": "Secret Scanning HTTP 451 (GHAS not enabled on private repo) renders the GHAS-specific cause string",
+    "area": "github-com-plugin",
+    "level": 2,
+    "type": "functional",
+    "preconditions": [
+      "Source is a private repo without GitHub Advanced Security",
+      "Secret Scanning checkbox is enabled",
+      "Token has security_events scope"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Observe Configure dialog source row",
+        "expected": [
+          "Warning chip cause is 'Secret Scanning unavailable: requires GitHub Advanced Security on private repos.'",
+          "Other categories' fetch state is unaffected",
+          "Subsequent successful pull of Secret Scanning (after GHAS is enabled) clears the chip automatically"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
+  },
+  {
+    "id": "TC-102",
+    "title": "Dependabot HTTP 403 (caller is not repo admin) renders the admin-specific cause string",
+    "area": "github-com-plugin",
+    "level": 2,
+    "type": "functional",
+    "preconditions": [
+      "Source is a repo where the user is not a repo admin",
+      "Dependabot checkbox is enabled",
+      "Token has security_events scope"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Observe Configure dialog source row",
+        "expected": [
+          "Warning chip cause distinguishes 'not a repo admin' from 'missing scope'",
+          "Other categories continue to fetch unaffected",
+          "Plugin observability counters record the 403 against the Dependabot endpoint, not the generic catch-all bucket"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
+  },
+  {
+    "id": "TC-103",
+    "title": "Test connection per-category probe times out without failing the overall test",
+    "area": "github-com-plugin",
+    "level": 2,
+    "type": "functional",
+    "preconditions": [
+      "Code Scanning endpoint for the test source is artificially slow (exceeds per-probe 5s cap but other probes return quickly)",
+      "All three categories enabled"
+    ],
+    "steps": [
+      { "action": "Click Test connection and wait for the result" },
+      {
+        "action": "Observe the result strip",
+        "expected": [
+          "Issues row: ok",
+          "Code Scanning row: 'Timed out'",
+          "Secret Scanning and Dependabot rows: ok",
+          "Overall result is success (validateConfig still returned successfully and the Connected-as line is present)",
+          "Total wall-clock for the strip is within the 12s overall budget"
+        ]
+      }
+    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-047"],
+    "linked_user_story_ids": ["US-013"]
+  },
+  {
+    "id": "TC-104",
+    "title": "Rate-limit (HTTP 429) on a Dependabot endpoint backs off without poisoning other categories",
+    "area": "github-com-plugin",
+    "level": 2,
+    "type": "reliability",
+    "preconditions": [
+      "GitHub.com plugin sees an HTTP 429 with Retry-After: 30 on /dependabot/alerts for one of the sources",
+      "All three categories enabled"
+    ],
+    "steps": [
+      { "action": "Trigger a listIssues pull during the 429" },
+      {
+        "action": "Observe per-category outcome",
+        "expected": [
+          "Dependabot fetch is skipped for this pull with a warning chip cause naming the rate-limit reset",
+          "Code Scanning and Secret Scanning fetches complete normally",
+          "Next pull initiated after Retry-After respects the reset window before re-attempting Dependabot",
+          "Plugin error path receives a structured rate-limit error with the reset timestamp"
+        ]
+      }
+    ],
+    "tags": ["reliability", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046", "FR-041"],
+    "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-105",
+    "title": "End-to-end OAuth re-consent flow upgrades the token and the next pull returns Dependabot alerts",
+    "area": "github-com-plugin",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "Stored OAuth token lacks security_events",
+      "OAuth app's scope set includes security_events",
+      "User opens Configure dialog and toggles Dependabot ON for a source"
+    ],
+    "steps": [
+      { "action": "Click the inline 'Click to upgrade.' chip action" },
+      { "action": "Click 'Continue to GitHub' on the re-consent dialog" },
+      { "action": "Complete the OAuth authorize flow in the system browser" },
+      { "action": "Wait for the roubo://oauth/github/callback deep link" },
+      {
+        "action": "Observe the chip and trigger a listIssues pull",
+        "expected": [
+          "Configure dialog stayed open through the round-trip",
+          "Stored token in the keyring slot is replaced in place (old token is no longer valid)",
+          "Token-scope cache is invalidated for that token id",
+          "Chip clears on the next probe; if a different category cause now applies (e.g. not-a-repo-admin), the new cause renders",
+          "Next listIssues pull returns Dependabot alerts merged with regular Issues"
+        ]
+      }
+    ],
+    "tags": ["integration", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045", "FR-041", "FR-046"],
+    "linked_user_story_ids": ["US-011"]
+  },
+  {
+    "id": "TC-106",
+    "title": "End-to-end bench creation from an alert uses the security-category blueprint mapping",
+    "area": "bench-creation",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "A blueprint mapping exists: 'security-dependabot' -> 'dep-update-blueprint'",
+      "A Dependabot alert appears in the merged Issues list for a github.com source"
+    ],
+    "steps": [
+      { "action": "Right-click the alert in the Issues list and select 'Create bench'" },
+      {
+        "action": "Observe bench detail after creation",
+        "expected": [
+          "Bench is created with the dep-update-blueprint injected into the workspace",
+          "assignedIssue.issueType is 'security-dependabot'",
+          "assignedIssue.externalId follows the namespaced format",
+          "blocks and blockedBy are empty",
+          "Transition is hidden and Assign is disabled per FR-048"
+        ]
+      }
+    ],
+    "tags": ["integration", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-049", "FR-048", "FR-044"],
+    "linked_user_story_ids": ["US-011"]
+  },
+  {
+    "id": "TC-107",
+    "title": "Scale: 5 sources x 3 categories warm pull stays within latency budget with ETag/304 short-circuit",
+    "area": "github-com-plugin",
+    "level": 4,
+    "type": "performance",
+    "preconditions": [
+      "5 sources configured with all categories on; each source's previous pull populated the ETag store",
+      "Test harness records per-endpoint If-None-Match request count and 304 response count"
+    ],
+    "steps": [
+      { "action": "Run 100 warm pulls back-to-back and capture latency + cache-hit ratio" },
+      {
+        "action": "Analyze the trace",
+        "expected": [
+          "p95 latency stays under 8s (NFR-013)",
+          "304 short-circuit hit rate for unchanged endpoints is >= 90% across the 100 runs",
+          "No category endpoint exceeds the rate-limit budget across the run"
+        ]
+      }
+    ],
+    "tags": ["scale", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-013", "FR-041"],
+    "linked_user_story_ids": []
   }
 ]
