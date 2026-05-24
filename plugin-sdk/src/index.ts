@@ -16,6 +16,10 @@ export type {
   PluginContract,
   PluginHandle,
   SetActiveConfigResult,
-  SourceCandidate,
+  SourceCandidateCategory,
+  SourceCandidateIcon,
+  SourceCandidateItem,
+  SourceCandidatesResponse,
+  SourceCandidatesShape,
   ValidateConfigResult,
 } from "./types.js";

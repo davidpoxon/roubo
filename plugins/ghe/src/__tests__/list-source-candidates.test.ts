@@ -13,7 +13,7 @@ describe("listSourceCandidates", () => {
     teardownMocks();
   });
 
-  it("returns repos and projects for the current user", async () => {
+  it("returns a categorized envelope of repos and projects for the current user", async () => {
     // GET /user/repos
     mocks.mockOctokit.request.mockResolvedValueOnce(
       okResponse([
@@ -30,25 +30,44 @@ describe("listSourceCandidates", () => {
       organization: { projectsV2: { nodes: [{ number: 7, title: "Roadmap" }] } },
     });
 
-    const candidates = await listSourceCandidates();
-    expect(candidates).toEqual([
-      {
-        category: "Repository",
-        externalId: "foo/bar",
-        displayName: "foo/bar",
-        description: "A repo",
-      },
-      { category: "Repository", externalId: "foo/qux", displayName: "foo/qux" },
-      {
-        category: "Project",
-        externalId: "foo/#7",
-        displayName: "Roadmap (#7)",
-        description: "GitHub Project v2 owned by foo",
-      },
-    ]);
+    const result = await listSourceCandidates();
+    expect(result).toEqual({
+      shape: "categorized-multi-list",
+      categories: [
+        {
+          id: "Repository",
+          label: "Repositories",
+          items: [
+            {
+              externalId: "foo/bar",
+              label: "foo/bar",
+              sublabel: "A repo",
+              icon: "repo",
+            },
+            {
+              externalId: "foo/qux",
+              label: "foo/qux",
+              icon: "repo",
+            },
+          ],
+        },
+        {
+          id: "Project",
+          label: "Projects",
+          items: [
+            {
+              externalId: "foo/#7",
+              label: "Roadmap (#7)",
+              sublabel: "GitHub Project v2 owned by foo",
+              icon: "project",
+            },
+          ],
+        },
+      ],
+    });
   });
 
-  it("returns repos even if project listing fails", async () => {
+  it("returns repos with an empty Project category if project listing fails", async () => {
     mocks.mockOctokit.request
       .mockResolvedValueOnce(okResponse([{ name: "bar", full_name: "foo/bar" }]))
       .mockResolvedValueOnce(okResponse({ id: 1, login: "foo" }));
@@ -58,10 +77,16 @@ describe("listSourceCandidates", () => {
       .mockRejectedValueOnce(new Error("user not found"));
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const candidates = await listSourceCandidates();
+    const result = await listSourceCandidates();
     warnSpy.mockRestore();
 
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].externalId).toBe("foo/bar");
+    expect(result.shape).toBe("categorized-multi-list");
+    expect(result.categories).toHaveLength(2);
+    const [repoCategory, projectCategory] = result.categories ?? [];
+    expect(repoCategory.id).toBe("Repository");
+    expect(repoCategory.items).toHaveLength(1);
+    expect(repoCategory.items[0].externalId).toBe("foo/bar");
+    expect(projectCategory.id).toBe("Project");
+    expect(projectCategory.items).toEqual([]);
   });
 });
