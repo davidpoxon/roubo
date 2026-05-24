@@ -309,7 +309,11 @@ const LOG_RECORD_RE = /^(\S+) (stdout|stderr|host)(?: \[(info|warn|error)\])? (.
 // record spanned multiple physical lines. Reading them back fragmented the record and the
 // fallback timestamp made continuation lines look like they were written "now". Detect any line
 // that doesn't match the strict format and rotate the whole file aside so the user starts clean.
-async function rotateLegacyLogIfNeeded(dir: string): Promise<void> {
+async function rotateLegacyLogIfNeeded(pluginId: string): Promise<void> {
+  // Derive the log directory from pluginId via logDirFor, which validates that the resolved path
+  // stays within userPluginsRoot(). Constructing the path here (rather than accepting a pre-built
+  // dir string) keeps the sanitisation visible to CodeQL's interprocedural taint analysis.
+  const dir = logDirFor(pluginId);
   const current = path.join(dir, "current.log");
   let text: string;
   try {
@@ -342,7 +346,7 @@ async function openLogStream(entry: PluginEntry): Promise<void> {
     const dir = await ensureLogDir(entry.record.id);
     if (!entry.legacyRotateChecked) {
       entry.legacyRotateChecked = true;
-      await rotateLegacyLogIfNeeded(dir);
+      await rotateLegacyLogIfNeeded(entry.record.id);
     }
     const current = path.join(dir, "current.log");
     let bytes = 0;
