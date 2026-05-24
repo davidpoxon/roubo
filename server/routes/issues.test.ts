@@ -12,6 +12,12 @@ vi.mock("../services/active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(),
 }));
 
+vi.mock("../services/plugin-activation.js", () => ({
+  ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
+  forgetProjectActivation: vi.fn(),
+  forgetPluginActivation: vi.fn(),
+}));
+
 vi.mock("../services/issue-assignment.js", () => ({
   assignIssue: vi.fn(),
   unassignIssue: vi.fn(),
@@ -20,6 +26,7 @@ vi.mock("../services/issue-assignment.js", () => ({
 import router from "./issues.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
+import * as pluginActivation from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 
 const app = express();
@@ -61,6 +68,19 @@ describe("GET /:projectId/issues", () => {
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(503);
     expect(res.body.error).toBe("no-active-integration");
+  });
+
+  it("returns 502 plugin-activation-failed when ensurePluginActivated rejects", async () => {
+    vi.mocked(pluginActivation.ensurePluginActivated).mockRejectedValueOnce(
+      new Error("bad config"),
+    );
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      error: "plugin-activation-failed",
+      message: "bad config",
+    });
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
   it("calls the plugin's listIssues with the resolved pageSize and forwarded filters", async () => {

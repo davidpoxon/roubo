@@ -15,6 +15,7 @@ export type {
   NormalizedIssue,
   PluginContract,
   PluginHandle,
+  SetActiveConfigResult,
   SourceCandidate,
   ValidateConfigResult,
 } from "./types.js";

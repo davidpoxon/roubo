@@ -31,6 +31,12 @@ vi.mock("../services/integration-test.js", () => ({
   runIntegrationTest: vi.fn(),
 }));
 
+vi.mock("../services/plugin-activation.js", () => ({
+  ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
+  forgetProjectActivation: vi.fn(),
+  forgetPluginActivation: vi.fn(),
+}));
+
 vi.mock("../services/plugin-installer.js", async () => {
   class InstallError extends Error {
     code: string;

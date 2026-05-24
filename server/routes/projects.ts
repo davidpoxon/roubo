@@ -9,6 +9,7 @@ import { scanRepo } from "../services/repo-scanner.js";
 import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
+import { ensurePluginActivated } from "../services/plugin-activation.js";
 import { atomicWrite } from "../services/state.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import type {
@@ -181,6 +182,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
   }
 
   try {
+    await ensurePluginActivated(req.params.projectId, active.pluginId);
     const types = await pluginManager.invoke<string[]>(active.pluginId, "listIssueTypes", {});
     const body: ProjectIssueTypesV2Response = { configured: true, types };
     res.json(body);

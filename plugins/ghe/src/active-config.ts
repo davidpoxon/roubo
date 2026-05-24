@@ -78,6 +78,15 @@ export function parseConfig(raw: Record<string, unknown>): {
   }
 
   const rawSources = (raw as { sources?: unknown }).sources;
+  // Token-only validation (e.g. the global "Test connection" flow before any
+  // sources have been picked) sends a config without a `sources` key. We
+  // accept that as an empty selection so the credential probe can still run;
+  // it is the caller's responsibility not to overwrite a non-empty active
+  // config with an empty one.
+  if (rawSources === undefined) {
+    if (errors.length > 0) return { config: null, errors };
+    return { config: { instance, allowSelfSignedTls, sources: [] }, errors: [] };
+  }
   if (!Array.isArray(rawSources)) {
     errors.push({ field: "sources", message: "sources must be an array" });
     return { config: null, errors };

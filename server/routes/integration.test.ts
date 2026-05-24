@@ -11,6 +11,11 @@ import type {
 vi.mock("../services/project-registry.js");
 vi.mock("../services/plugin-manager.js");
 vi.mock("../services/credential-store.js");
+vi.mock("../services/plugin-activation.js", () => ({
+  ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
+  forgetProjectActivation: vi.fn(),
+  forgetPluginActivation: vi.fn(),
+}));
 vi.mock("../services/integration-overrides.js", async () => {
   const actual = await vi.importActual<typeof import("../services/integration-overrides.js")>(
     "../services/integration-overrides.js",

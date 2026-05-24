@@ -40,6 +40,14 @@ export async function validateConfig(params: {
     return { ok: false, errors };
   }
 
+  // Token-only validation: no sources to probe. The credential check above
+  // already covered the only assertion we can make. Skip activating an empty
+  // config because that would erase a previously-set one and re-break
+  // source-bound calls (listIssues etc.) for downstream callers.
+  if (config.sources.length === 0) {
+    return { ok: true };
+  }
+
   for (let i = 0; i < config.sources.length; i++) {
     const source = config.sources[i];
     try {

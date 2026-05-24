@@ -24,6 +24,7 @@ import {
   persistSecretFields,
   runIntegrationTest,
 } from "../services/integration-test.js";
+import { forgetProjectActivation } from "../services/plugin-activation.js";
 
 const router = Router();
 
@@ -218,6 +219,10 @@ router.put("/:projectId/integration/override", (req, res) => {
     delete next.integration.sources;
 
     saveOverride(req.params.projectId, next);
+    // Switching plugin: any cached activation for this project (against the
+    // old plugin) is meaningless. Cheaper to forget all and let the next
+    // call re-push than to track per-plugin entries here.
+    forgetProjectActivation(req.params.projectId);
     res.json(buildState(req.params.projectId));
   } catch (err) {
     if (err instanceof IntegrationOverrideError) {
@@ -325,6 +330,9 @@ router.put("/:projectId/integration/config", (req, res) => {
       integration: nextIntegration,
     };
     saveOverride(req.params.projectId, next);
+    // Any source-bound call after this must re-push to pick up the new
+    // instance / sources / advanced settings.
+    forgetProjectActivation(req.params.projectId);
     res.json(buildState(req.params.projectId));
   } catch (err) {
     if (err instanceof IntegrationOverrideError) {
@@ -392,6 +400,7 @@ router.put("/:projectId/integration/sources", (req, res) => {
     }
 
     saveOverride(req.params.projectId, next);
+    forgetProjectActivation(req.params.projectId);
     res.json(buildState(req.params.projectId));
   } catch (err) {
     if (err instanceof IntegrationOverrideError) {
