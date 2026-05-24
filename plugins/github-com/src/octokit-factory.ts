@@ -16,7 +16,6 @@ export interface OctokitLike {
 }
 
 let octokit: OctokitLike | null = null;
-let tokenLoaded = false;
 let cachedToken: string | null = null;
 let injectedForTests: OctokitLike | null = null;
 
@@ -28,17 +27,18 @@ export function __setOctokitForTests(client: OctokitLike | null): void {
 /**
  * Returns a singleton Octokit instance authenticated with the token stored at
  * the `github-token` credential slot, with `request.fetch` wired through the
- * host. The token is loaded lazily on first use and cached for the process
- * lifetime. Call `resetOctokit()` to clear the cache (e.g. on token rotation).
+ * host. A successfully-loaded token is cached for the process lifetime; a
+ * missing token is NOT cached so the next call (after an OAuth completes)
+ * picks it up without requiring a plugin restart. Call `resetOctokit()` to
+ * force a re-read (e.g. on token rotation).
  */
 export async function getOctokit(): Promise<OctokitLike> {
   if (injectedForTests) return injectedForTests;
   if (octokit) return octokit;
 
   const host = getHost();
-  if (!tokenLoaded) {
+  if (!cachedToken) {
     cachedToken = await host.credentials.get("github-token");
-    tokenLoaded = true;
   }
 
   if (!cachedToken) {
@@ -56,7 +56,6 @@ export async function getOctokit(): Promise<OctokitLike> {
 
 export function resetOctokit(): void {
   octokit = null;
-  tokenLoaded = false;
   cachedToken = null;
   injectedForTests = null;
 }

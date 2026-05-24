@@ -185,6 +185,37 @@ describe("handleDeepLink", () => {
     expect(dialog.showErrorBox).toHaveBeenCalledWith("GitHub Connection Failed", "Invalid state");
   });
 
+  it("forwards the OAuth callback URL to the renderer after a successful exchange", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    const mockWin = {
+      restore: vi.fn(),
+      focus: vi.fn(),
+      webContents: { send: vi.fn() },
+    };
+    setWin(mockWin as unknown as import("electron").BrowserWindow);
+    const callbackUrl = "roubo://oauth/github/callback?code=abc&state=xyz";
+    await handleDeepLink(callbackUrl);
+    expect(mockWin.restore).toHaveBeenCalled();
+    expect(mockWin.focus).toHaveBeenCalled();
+    expect(mockWin.webContents.send).toHaveBeenCalledWith("deep-link", callbackUrl);
+  });
+
+  it("does not send the OAuth callback URL to the renderer when the exchange fails", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: vi.fn().mockResolvedValue({ error: "Invalid state" }),
+    } as unknown as Response);
+    const mockWin = {
+      restore: vi.fn(),
+      focus: vi.fn(),
+      webContents: { send: vi.fn() },
+    };
+    setWin(mockWin as unknown as import("electron").BrowserWindow);
+    await handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
+    expect(mockWin.webContents.send).not.toHaveBeenCalled();
+  });
+
   it("sends deep-link IPC and focuses the window for project navigation", async () => {
     const mockWin = {
       restore: vi.fn(),

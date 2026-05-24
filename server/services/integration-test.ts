@@ -78,11 +78,11 @@ export async function runIntegrationTest(
   config: Record<string, unknown>,
 ): Promise<IntegrationTestResult> {
   try {
-    await pluginManager.invoke(record.id, "validateConfig", config, { timeoutMs: 15_000 });
+    await pluginManager.invoke(record.id, "validateConfig", { config }, { timeoutMs: 15_000 });
     const identity = await pluginManager.invoke<CapturedUserId>(
       record.id,
       "getCurrentUser",
-      config,
+      {},
       { timeoutMs: 15_000 },
     );
     const parsedIdentity = CapturedUserIdSchema.safeParse(identity);
