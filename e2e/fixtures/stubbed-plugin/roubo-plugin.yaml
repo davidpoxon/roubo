@@ -1,0 +1,32 @@
+id: e2e-stub
+name: Roubo E2E Stub
+version: 0.1.0
+description: Deterministic stub plugin used by the Roubo E2E harness. Not for production.
+kind: integration
+roubo: ^1.0.0
+entry: ./dist/index.js
+configSchema:
+  type: object
+  required:
+    - sources
+  properties:
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

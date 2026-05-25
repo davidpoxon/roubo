@@ -28,6 +28,7 @@ export default defineConfig({
       "electron/**/*.test.ts",
       "plugin-sdk/src/**/*.test.ts",
       "plugins/**/src/**/*.test.ts",
+      "e2e/fixtures/stubbed-plugin/src/**/*.test.ts",
     ],
     environmentMatchGlobs: [["client/src/**", "jsdom"]],
     setupFiles: ["./client/src/test/setup.ts"],

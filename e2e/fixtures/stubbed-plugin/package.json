@@ -1,0 +1,22 @@
+{
+  "name": "@roubo/e2e-stubbed-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic stub plugin used by the Roubo E2E harness. Implements the full plugin RPC contract over canned scenario data with a pinned clock.",
+  "author": "David Poxon",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --noEmit && tsup"
+  },
+  "dependencies": {
+    "@roubo/plugin-sdk": "*",
+    "@roubo/shared": "*"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vscode-jsonrpc": "8.2.1"
+  }
+}
