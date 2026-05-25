@@ -5,6 +5,7 @@ description: Roubo integration for self-hosted Atlassian Jira (Data Center 8.14+
 kind: integration
 roubo: ^1.0.0
 entry: ./dist/index.js
+icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="%230052cc"/><path fill="%23fff" d="M15.45 8.5h.5l5.6 9.05a1 1 0 01-.85 1.52H6.3a1 1 0 01-.85-1.52L11.05 8.5a.5.5 0 01.42-.23h3.56c.16 0 .31.08.42.23zm.55 5.27l-2.7 4.4h5.4l-2.7-4.4z"/><path fill="%23fff" opacity="0.7" d="M19.55 14.95h.5l5.6 9.05a1 1 0 01-.85 1.52H10.4a1 1 0 01-.85-1.52l5.6-9.05a.5.5 0 01.42-.23h3.56c.16 0 .31.08.42.23z"/></svg>'
 capabilities:
   prSync: false
 configSchema:

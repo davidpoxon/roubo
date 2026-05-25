@@ -68,6 +68,20 @@ export const PluginDefaultIntegrationConfigSchema = z
   .strict();
 export type PluginDefaultIntegrationConfig = z.infer<typeof PluginDefaultIntegrationConfigSchema>;
 
+// Per FR-057 / mockups §22, plugins may ship an icon rendered in the
+// Plugins-page tile header (32×32) and the Configure modal header (24×24).
+// Accepted forms:
+//   - `data:image/svg+xml;...` or `data:image/png;base64,...` data URI
+//   - relative POSIX path inside the plugin directory (e.g. `assets/icon.svg`)
+// Loose validation here: the client renders this as an <img src>; manifest
+// authors are trusted to ship something sensible. 16 KB ceiling guards
+// against accidentally shipping a megabyte of base64.
+export const PluginIconSchema = z
+  .string()
+  .min(1, "Required")
+  .max(16 * 1024, "Icon must be at most 16 KB");
+export type PluginIcon = z.infer<typeof PluginIconSchema>;
+
 // ── Root manifest ──
 
 export const PluginManifestSchema = z
@@ -81,6 +95,7 @@ export const PluginManifestSchema = z
     kind: z.literal("integration"),
     roubo: z.string().min(1, "Required"),
     entry: z.string().min(1, "Required"),
+    icon: PluginIconSchema.optional(),
     configSchema: z.record(z.string(), z.unknown()).optional(),
     capabilities: PluginCapabilitiesSchema.optional(),
     defaultIntegrationConfig: PluginDefaultIntegrationConfigSchema.optional(),

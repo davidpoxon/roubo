@@ -1,33 +1,25 @@
 import { useState } from "react";
-import {
-  Button,
-  Dialog,
-  DialogTrigger,
-  Modal,
-  ModalOverlay,
-  Tooltip,
-  TooltipTrigger,
-} from "react-aria-components";
+import { Button, Dialog, DialogTrigger, Modal, ModalOverlay, Switch } from "react-aria-components";
+import { Plug, Puzzle } from "lucide-react";
 import type { PluginRecord } from "@roubo/shared";
 import { useDisablePlugin, useEnablePlugin, useUninstallPlugin } from "../../../hooks/usePlugins";
 import { useGlobalPluginIntegration } from "../../../hooks/useGlobalPluginIntegration";
 import PluginConfigureDialog from "../../PluginConfigureDialog";
 import Spinner from "../../Spinner";
-import StatusPill from "./StatusPill";
+import ConnectionStatusPill from "./ConnectionStatusPill";
 import SourceLabel from "./SourceLabel";
 import ErroredBanner from "./ErroredBanner";
 import IncompatibleBanner from "./IncompatibleBanner";
 import InvalidBanner from "./InvalidBanner";
 import ViewLogsDialog from "./ViewLogsDialog";
 import UninstallPluginDialog from "./UninstallPluginDialog";
+import { derivePluginConnectionState, primaryActionLabelFor } from "./derivePluginConnectionState";
 
-const TOOLTIP_CONFIGURE_DISABLED = "Enable this plugin to configure it";
-
-const TOOLTIP_CLASS =
-  "bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg";
-
-const ACTION_BUTTON_CLASS =
+const SECONDARY_BUTTON_CLASS =
   "px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+
+const PRIMARY_BUTTON_CLASS =
+  "px-3 py-1 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 interface Props {
   plugin: PluginRecord;
@@ -41,30 +33,49 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const enable = useEnablePlugin();
   const disable = useDisablePlugin();
   const uninstall = useUninstallPlugin();
-  // Lazy: only fetch the effective global config when the dialog opens.
-  // Avoids fanning out N background requests on the settings page just to
-  // populate a "Configure" button that may never be clicked.
-  const globalIntegrationQuery = useGlobalPluginIntegration(plugin.id, configureOpen);
+  const isEnabled = plugin.status === "enabled";
+  // For enabled plugins we eagerly fetch the effective integration so the
+  // chip and primary-action label reflect credential state on first paint.
+  // Disabled plugins always derive to "Connect" without a fetch. The query
+  // also re-runs while the Configure dialog is open (existing dialog needs
+  // the same data).
+  const integrationQuery = useGlobalPluginIntegration(plugin.id, isEnabled || configureOpen);
 
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
   const description = plugin.manifest?.description;
   const isUser = plugin.source === "user";
-  const isEnabled = plugin.status === "enabled";
   const canToggle =
     plugin.status === "enabled" || plugin.status === "disabled" || plugin.status === "errored";
   const togglePending = enable.isPending || disable.isPending;
+
+  const connectionState = derivePluginConnectionState(plugin, integrationQuery.data ?? undefined);
+  const primaryLabel = primaryActionLabelFor(connectionState);
+  // Acceptance criterion 2: pressing Connect on a disabled bundled plugin
+  // both enables it and opens the Configure modal in the same gesture.
+  // DialogTrigger handles the open; we only own the side effect.
+  const primaryEnablesPlugin = plugin.status === "disabled";
+
+  function handlePrimaryPress() {
+    if (primaryEnablesPlugin) enable.mutate(plugin.id);
+  }
+
+  function handleSwitchChange(selected: boolean) {
+    if (selected) enable.mutate(plugin.id);
+    else disable.mutate(plugin.id);
+  }
 
   return (
     <article
       data-testid="plugin-card"
       data-plugin-id={plugin.id}
-      className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-4"
+      className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-4 transition-colors hover:border-amber-500/40"
     >
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <header className="flex items-start gap-3">
+        <PluginIcon plugin={plugin} />
+        <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
               {displayName}
             </h3>
             {version && (
@@ -77,11 +88,11 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             <SourceLabel source={plugin.source} pluginId={plugin.id} />
           </div>
         </div>
-        <StatusPill status={plugin.status} />
+        <ConnectionStatusPill status={{ state: connectionState }} />
       </header>
 
       {description && (
-        <p className="mt-3 text-[13px] text-stone-600 dark:text-stone-400 leading-relaxed">
+        <p className="mt-3 text-[13px] text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-2">
           {description}
         </p>
       )}
@@ -104,63 +115,57 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-1 pt-3 border-t border-stone-100 dark:border-stone-800/60">
-        {isEnabled && plugin.manifest ? (
+      <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-stone-100 dark:border-stone-800/60">
+        <EnableSwitch
+          isEnabled={isEnabled}
+          isDisabled={!canToggle || togglePending}
+          onChange={handleSwitchChange}
+        />
+
+        <div className="flex items-center gap-1">
+          <Button onPress={() => setLogsOpen(true)} className={SECONDARY_BUTTON_CLASS}>
+            View logs
+          </Button>
+
+          {isUser && (
+            <DialogTrigger isOpen={uninstallOpen} onOpenChange={setUninstallOpen}>
+              <Button isDisabled={uninstall.isPending} className={SECONDARY_BUTTON_CLASS}>
+                {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
+              </Button>
+              <UninstallPluginDialog
+                pluginName={displayName}
+                onConfirm={() => uninstall.mutate(plugin.id)}
+                isPending={uninstall.isPending}
+              />
+            </DialogTrigger>
+          )}
+
           <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
-            <Button className={ACTION_BUTTON_CLASS}>Configure</Button>
-            {globalIntegrationQuery.isError ? (
+            <Button
+              onPress={handlePrimaryPress}
+              isDisabled={!plugin.manifest}
+              className={PRIMARY_BUTTON_CLASS}
+            >
+              {primaryLabel}
+            </Button>
+            {integrationQuery.isError ? (
               <ConfigureErrorDialog
-                error={globalIntegrationQuery.error}
+                error={integrationQuery.error}
                 onRetry={() => {
-                  void globalIntegrationQuery.refetch();
+                  void integrationQuery.refetch();
                 }}
               />
-            ) : globalIntegrationQuery.data ? (
+            ) : integrationQuery.data ? (
               <PluginConfigureDialog
                 scope="global"
-                plugin={globalIntegrationQuery.data.plugin}
-                effective={globalIntegrationQuery.data.effective}
+                plugin={integrationQuery.data.plugin}
+                effective={integrationQuery.data.effective}
               />
             ) : (
               <ConfigureLoadingDialog />
             )}
           </DialogTrigger>
-        ) : (
-          <TooltipTrigger delay={400}>
-            <Button isDisabled className={ACTION_BUTTON_CLASS}>
-              Configure
-            </Button>
-            <Tooltip className={TOOLTIP_CLASS}>{TOOLTIP_CONFIGURE_DISABLED}</Tooltip>
-          </TooltipTrigger>
-        )}
-
-        <Button onPress={() => setLogsOpen(true)} className={ACTION_BUTTON_CLASS}>
-          View logs
-        </Button>
-
-        <Button
-          isDisabled={!canToggle || togglePending}
-          onPress={() => {
-            if (isEnabled) disable.mutate(plugin.id);
-            else enable.mutate(plugin.id);
-          }}
-          className={ACTION_BUTTON_CLASS}
-        >
-          {togglePending ? "Working..." : isEnabled ? "Disable" : "Enable"}
-        </Button>
-
-        {isUser && (
-          <DialogTrigger isOpen={uninstallOpen} onOpenChange={setUninstallOpen}>
-            <Button isDisabled={uninstall.isPending} className={ACTION_BUTTON_CLASS}>
-              {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
-            </Button>
-            <UninstallPluginDialog
-              pluginName={displayName}
-              onConfirm={() => uninstall.mutate(plugin.id)}
-              isPending={uninstall.isPending}
-            />
-          </DialogTrigger>
-        )}
+        </div>
       </div>
 
       <ViewLogsDialog
@@ -170,6 +175,83 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         onClose={() => setLogsOpen(false)}
       />
     </article>
+  );
+}
+
+function PluginIcon({ plugin }: { plugin: PluginRecord }) {
+  const icon = plugin.manifest?.icon;
+  // Path-based icons aren't served by the host today; issue #204 (or a
+  // dedicated WU) can add `GET /api/plugins/:id/icon` if a third-party
+  // plugin needs them. Bundled plugins ship `data:` URIs.
+  const usable = typeof icon === "string" && icon.startsWith("data:");
+  if (usable) {
+    return (
+      <img
+        src={icon}
+        alt=""
+        data-testid="plugin-icon"
+        className="h-8 w-8 shrink-0 rounded-md"
+        width={32}
+        height={32}
+      />
+    );
+  }
+  const Fallback = plugin.source === "user" ? Puzzle : Plug;
+  return (
+    <div
+      data-testid="plugin-icon-fallback"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+    >
+      <Fallback size={16} aria-hidden />
+    </div>
+  );
+}
+
+function EnableSwitch({
+  isEnabled,
+  isDisabled,
+  onChange,
+}: {
+  isEnabled: boolean;
+  isDisabled: boolean;
+  onChange: (selected: boolean) => void;
+}) {
+  return (
+    <Switch
+      isSelected={isEnabled}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      data-testid="plugin-enable-switch"
+      className={`group flex items-center gap-2 outline-none ${isDisabled ? "opacity-40" : ""}`}
+    >
+      {({ isFocusVisible }) => (
+        <>
+          <div
+            className={[
+              "relative shrink-0 w-9 h-5 rounded-full border transition-all duration-150",
+              isEnabled
+                ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
+                : "bg-transparent border-stone-300 dark:border-stone-600",
+              isFocusVisible
+                ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
+                : "",
+            ].join(" ")}
+          >
+            <div
+              className={[
+                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150",
+                isEnabled
+                  ? "left-[18px] bg-white dark:bg-stone-900"
+                  : "left-0.5 bg-stone-300 dark:bg-stone-600",
+              ].join(" ")}
+            />
+          </div>
+          <span className="text-xs font-medium text-stone-700 dark:text-stone-200">
+            {isEnabled ? "Enabled" : "Disabled"}
+          </span>
+        </>
+      )}
+    </Switch>
   );
 }
 
@@ -211,10 +293,10 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2">
-                <Button onPress={close} className={ACTION_BUTTON_CLASS}>
+                <Button onPress={close} className={SECONDARY_BUTTON_CLASS}>
                   Close
                 </Button>
-                <Button onPress={onRetry} className={ACTION_BUTTON_CLASS}>
+                <Button onPress={onRetry} className={SECONDARY_BUTTON_CLASS}>
                   Retry
                 </Button>
               </div>
