@@ -448,7 +448,7 @@ describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
     });
   });
 
-  it("renders a GHE 'Open token settings' link chip for missing-scope when pluginId is 'ghe' (WU-032 AC #5)", async () => {
+  it("renders a GHE PAT scope reminder chip for missing-scope when pluginId is 'ghe' (WU-040 / TC-137 GHE PAT branch)", async () => {
     const user = userEvent.setup();
     const warning = {
       category: "code-scanning" as const,
@@ -472,10 +472,11 @@ describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
     );
 
     const link = screen.getByTestId("alert-chip-missing-scope-ghe");
+    expect(link).toBeInstanceOf(HTMLAnchorElement);
     expect(link).toHaveAttribute("href", "https://ghe.example.com/settings/tokens");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(link.textContent).toMatch(/Open token settings/);
+    expect(link.textContent).toMatch(/Verify your PAT has security_events scope/);
   });
 
   it("trims trailing slash from gheInstanceUrl when building the token settings link", async () => {

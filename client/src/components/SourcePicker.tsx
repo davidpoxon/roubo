@@ -292,9 +292,11 @@ interface WarningChipProps {
 /**
  * Picks a chip variant based on `warning.code` and the surrounding context:
  *
- *  - `missing-scope` + GHE: link chip to `<instance>/settings/tokens`. User
- *    regenerates the PAT with `security_events` and pastes it back into the
- *    Configure dialog's existing PAT field (WU-032 AC #5).
+ *  - `missing-scope` + GHE: link chip reading "Verify your PAT has
+ *    `security_events` scope" that opens `<instance>/settings/tokens` in a new
+ *    tab. User regenerates the PAT with `security_events` and pastes it back
+ *    into the Configure dialog's existing PAT field. No OAuth flow is run
+ *    (WU-032 AC #5, WU-040 / TC-137 GHE PAT branch).
  *  - `missing-scope` + github.com: "Reconnect GitHub" chip that runs the
  *    OAuth re-consent flow (WU-031). The chip's onPress drives the shared
  *    dialog state owned by SourcePicker.
@@ -315,13 +317,13 @@ function WarningChip({ warning, chipContext, onReconsent, showRetry }: WarningCh
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`Open token settings on ${chipContext.gheInstanceUrl}. The GHE token is missing the security_events scope; regenerate it with that scope and paste it back into the Personal access token field.`}
-        title={`Open token settings on ${chipContext.gheInstanceUrl}. Regenerate the token with the security_events scope and paste it back into the Personal access token field.`}
+        aria-label={`Verify your PAT has the security_events scope. Opens token settings on ${chipContext.gheInstanceUrl} so you can regenerate the token with that scope and paste it back into the Personal access token field.`}
+        title={`Verify your PAT has the security_events scope. Opens token settings on ${chipContext.gheInstanceUrl}.`}
         className="inline-flex outline-none rounded focus-visible:ring-2 focus-visible:ring-amber-500/40"
         data-testid="alert-chip-missing-scope-ghe"
       >
         <IssueChip variant="status" tone="warning" icon={ExternalLink}>
-          Open token settings
+          Verify your PAT has <code className="font-mono">security_events</code> scope
         </IssueChip>
       </a>
     );
