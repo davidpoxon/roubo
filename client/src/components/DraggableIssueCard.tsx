@@ -7,6 +7,7 @@ import {
   METADATA_ICONS,
   alertSeverityTooltip,
   issueTypeChip,
+  securityCategoryFor,
   statusTone,
   truncateChips,
   type ChipItem,
@@ -38,6 +39,7 @@ export default function DraggableIssueCard({
   const isInteractive = !isAssigned && !isBlocked;
   const primaryAssignee = issue.assignees[0]?.displayName;
   const typeChip = issueTypeChip(issue.issueType);
+  const securityCategory = securityCategoryFor(issue.issueType);
 
   const chips: ChipItem[] = [];
 
@@ -51,7 +53,10 @@ export default function DraggableIssueCard({
     ariaDescription: isBlocked ? `Blocked by ${blockers.join(", ")}` : undefined,
   });
 
-  if (typeChip) {
+  // Security categories surface a dedicated chip inline-left of the title
+  // (rendered below). Suppress the duplicate row-chip so the list shows only
+  // the category chip per prototype-notes.
+  if (typeChip && !securityCategory) {
     const tooltip = alertSeverityTooltip(issue) ?? undefined;
     chips.push({
       category: "issue-type",
@@ -123,6 +128,17 @@ export default function DraggableIssueCard({
             >
               {issue.externalId}
             </span>
+            {securityCategory && typeChip && (
+              <IssueChip
+                variant="security-category"
+                securityCategory={securityCategory}
+                icon={typeChip.icon}
+                tooltip={issue.externalId}
+                data-testid="security-category-chip"
+              >
+                {typeChip.label}
+              </IssueChip>
+            )}
             <span
               className={`text-xs font-medium truncate ${isAssigned ? "text-stone-400 dark:text-stone-600" : "text-stone-800 dark:text-stone-200"}`}
             >

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DirtyReason } from "@roubo/shared";
 import BenchDetail from "./BenchDetail";
 import { ApiError } from "../lib/api";
@@ -26,9 +27,18 @@ vi.mock("./AssignContainerModal", () => ({ default: () => null }));
 vi.mock("./IssueTransitionDropdown", () => ({
   default: () => <span data-testid="issue-transition-dropdown" />,
 }));
-vi.mock("../hooks/useBenchIssue", () => ({
-  useBenchIssue: () => ({ data: undefined }),
+const issueAssignControlMock = vi.fn();
+vi.mock("./IssueAssignControl", () => ({
+  default: (props: Record<string, unknown>) => {
+    issueAssignControlMock(props);
+    return <span data-testid="issue-assign-control" />;
+  },
 }));
+vi.mock("../hooks/useBenchIssue", () => ({
+  useBenchIssue: vi.fn(() => ({ data: undefined })),
+}));
+import { useBenchIssue } from "../hooks/useBenchIssue";
+const mockUseBenchIssue = vi.mocked(useBenchIssue);
 
 import {
   useBenchDetail,
@@ -390,6 +400,88 @@ describe("BenchDetail", () => {
       assignedIssue: { number: 42, title: "Fix the bug" },
     } as never);
     expect(screen.queryByRole("button", { name: /blocked/i })).not.toBeInTheDocument();
+  });
+
+  describe("WU-033: alert-backed bench (TC-095)", () => {
+    function mockBenchIssue(issueType: string | null) {
+      mockUseBenchIssue.mockReturnValue({
+        data: {
+          integrationId: "github-com",
+          externalId: "org/repo#code-scanning-7",
+          externalUrl: "https://github.com/org/repo/security/code-scanning/7",
+          title: "SQL injection",
+          body: null,
+          currentState: "open",
+          allowedTransitions: [],
+          assignees: [],
+          labels: [],
+          issueType,
+          blocks: [],
+          blockedBy: [],
+          updatedAt: "2026-05-24T00:00:00Z",
+          raw: null,
+        },
+      } as never);
+    }
+
+    function renderAlertBench(bench: typeof baseBench) {
+      mockUseBenchDetail.mockReturnValue({
+        data: bench,
+        isLoading: false,
+        isError: false,
+      } as never);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+            <Routes>
+              <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
+              <Route path="/projects/:projectId" element={<div>Project page</div>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    }
+
+    const alertBench = {
+      ...baseBench,
+      assignedIssue: {
+        number: 7,
+        integrationId: "github-com",
+        externalId: "org/repo#code-scanning-7",
+        title: "SQL injection",
+      },
+    };
+
+    it("hides the Transition dropdown and shows the muted Resolved-by-pushing-code line", () => {
+      mockBenchIssue("security-code-scanning");
+      renderAlertBench(alertBench as never);
+      expect(screen.queryByTestId("issue-transition-dropdown")).not.toBeInTheDocument();
+      expect(screen.getByTestId("alert-bench-transition-explanation")).toHaveTextContent(
+        "Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.",
+      );
+    });
+
+    it("passes isDisabled and the documented tooltip copy to IssueAssignControl (TC-095)", () => {
+      mockBenchIssue("security-dependabot");
+      renderAlertBench(alertBench as never);
+      expect(screen.getByTestId("issue-assign-control")).toBeInTheDocument();
+      const props = issueAssignControlMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+      expect(props.isDisabled).toBe(true);
+      expect(props.disabledTooltip).toBe(
+        "Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work.",
+      );
+    });
+
+    it("renders the Transition dropdown and a non-disabled Assign for non-security issueTypes", () => {
+      mockBenchIssue("bug");
+      renderAlertBench(alertBench as never);
+      expect(screen.getByTestId("issue-transition-dropdown")).toBeInTheDocument();
+      expect(screen.queryByTestId("alert-bench-transition-explanation")).not.toBeInTheDocument();
+      const props = issueAssignControlMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+      expect(props.isDisabled).toBeFalsy();
+      expect(props.disabledTooltip).toBeUndefined();
+    });
   });
 
   describe("notification indicators", () => {

@@ -221,4 +221,64 @@ describe("IssueAssignControl", () => {
 
     expect(screen.getByTestId("assign-control").textContent).toBe("Unassign me");
   });
+
+  describe("WU-033: alert-backed bench disabled state", () => {
+    it("renders the button disabled and does not invoke the API when isDisabled is set", async () => {
+      const user = userEvent.setup();
+      renderWithClient(
+        <IssueAssignControl
+          projectId="p1"
+          externalId="org/repo#code-scanning-7"
+          assignees={[]}
+          capturedUserId={jane}
+          isDisabled
+          disabledTooltip="Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work."
+        />,
+      );
+      const button = screen.getByTestId("assign-control");
+      expect(button).toBeDisabled();
+      await user.click(button);
+      expect(mockedAssign).not.toHaveBeenCalled();
+      expect(mockedUnassign).not.toHaveBeenCalled();
+      expect(button.textContent).toBe("Assign to me");
+    });
+
+    it("wraps the disabled button in a TooltipTrigger so the documented copy is exposed on focus/hover (TC-095)", () => {
+      // We can't reliably trigger the React Aria Tooltip popover for a disabled
+      // <button> in jsdom (disabled elements drop pointer/focus events). Instead
+      // assert the wiring: the button is disabled and React Aria's keyboard-
+      // focusable Button is in place, which is what receives the tooltip
+      // hover/focus events in the browser. The verbatim copy is enforced
+      // statically by the BenchDetail source constant and verified in the
+      // BenchDetail integration test.
+      renderWithClient(
+        <IssueAssignControl
+          projectId="p1"
+          externalId="org/repo#code-scanning-7"
+          assignees={[]}
+          capturedUserId={jane}
+          isDisabled
+          disabledTooltip="Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work."
+        />,
+      );
+      const button = screen.getByTestId("assign-control");
+      expect(button).toBeDisabled();
+      expect(button.tagName).toBe("BUTTON");
+      expect(button.getAttribute("data-rac")).toBe("");
+    });
+
+    it("renders disabled without tooltip wrapping when disabledTooltip is omitted", () => {
+      renderWithClient(
+        <IssueAssignControl
+          projectId="p1"
+          externalId="org/repo#code-scanning-7"
+          assignees={[]}
+          capturedUserId={jane}
+          isDisabled
+        />,
+      );
+      const button = screen.getByTestId("assign-control");
+      expect(button).toBeDisabled();
+    });
+  });
 });

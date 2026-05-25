@@ -1,15 +1,18 @@
 import { useId, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
-import type { StatusTone } from "../lib/chip-mapping";
+import type { SecurityCategory, StatusTone } from "../lib/chip-mapping";
 
-export type IssueChipVariant = "status" | "label" | "issue-type" | "metadata";
+export type IssueChipVariant = "status" | "label" | "issue-type" | "metadata" | "security-category";
 
 interface IssueChipProps {
   variant: IssueChipVariant;
   children: ReactNode;
   icon?: LucideIcon;
   tone?: StatusTone;
+  // WU-033: required when variant === "security-category". Drives the
+  // per-category color (CodeQL slate, Secret amber, Dependabot zinc).
+  securityCategory?: SecurityCategory;
   ariaDescription?: string;
   // WU-031: when provided, the chip renders as an interactive React Aria
   // Button so it can act as a re-consent trigger. Visual styling is identical.
@@ -32,6 +35,12 @@ const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
   warning: "bg-amber-500/20 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200",
 };
 
+const SECURITY_CATEGORY_CLASSES: Record<SecurityCategory, string> = {
+  codeql: "bg-slate-500/15 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300",
+  "secret-scanning": "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  dependabot: "bg-zinc-500/15 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-300",
+};
+
 const BASE_CLASSES =
   "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium leading-none";
 const INTERACTIVE_CLASSES =
@@ -45,13 +54,14 @@ export default function IssueChip({
   children,
   icon: Icon,
   tone = "neutral",
+  securityCategory,
   ariaDescription,
   onPress,
   actionSuffix,
   "data-testid": dataTestid,
   tooltip,
 }: IssueChipProps) {
-  const variantClasses = classesForVariant(variant, tone);
+  const variantClasses = classesForVariant(variant, tone, securityCategory);
   const showIcon = Icon !== undefined && variant !== "label";
   const generatedId = useId();
   const describedById = ariaDescription ? `chip-desc-${generatedId}` : undefined;
@@ -113,7 +123,11 @@ export default function IssueChip({
   );
 }
 
-function classesForVariant(variant: IssueChipVariant, tone: StatusTone): string {
+function classesForVariant(
+  variant: IssueChipVariant,
+  tone: StatusTone,
+  securityCategory: SecurityCategory | undefined,
+): string {
   switch (variant) {
     case "status":
       return `rounded-full ${STATUS_TONE_CLASSES[tone]}`;
@@ -123,5 +137,9 @@ function classesForVariant(variant: IssueChipVariant, tone: StatusTone): string 
       return "rounded-full bg-violet-500/15 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300";
     case "metadata":
       return "rounded-full bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-300";
+    case "security-category": {
+      const category = securityCategory ?? "codeql";
+      return `rounded-full ${SECURITY_CATEGORY_CLASSES[category]}`;
+    }
   }
 }

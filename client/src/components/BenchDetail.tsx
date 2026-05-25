@@ -77,6 +77,12 @@ import { useToast } from "../hooks/useToast";
 import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
 import IssueAssignControl from "./IssueAssignControl";
+import { securityCategoryFor } from "../lib/chip-mapping";
+
+const ALERT_BENCH_DISABLED_TRANSITION_COPY =
+  "Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.";
+const ALERT_BENCH_DISABLED_ASSIGN_TOOLTIP =
+  "Security alerts cannot be assigned from Roubo. They are repo-level findings, not user-assigned work.";
 
 function ComponentStatusText({ status, startedAt }: { status: string; startedAt?: string }) {
   const elapsed = useElapsed(status === "starting" ? startedAt : undefined);
@@ -755,19 +761,31 @@ function AssignedIssueTransition({
 }) {
   const { data: issue } = useBenchIssue(projectId, externalId);
   if (!issue) return null;
+  const isAlertBacked = securityCategoryFor(issue.issueType) !== null;
   return (
     <>
-      <IssueTransitionDropdown
-        projectId={projectId}
-        externalId={externalId}
-        currentState={issue.currentState}
-        allowedTransitions={issue.allowedTransitions}
-      />
+      {isAlertBacked ? (
+        <p
+          data-testid="alert-bench-transition-explanation"
+          className="text-[11px] text-stone-500 dark:text-stone-600"
+        >
+          {ALERT_BENCH_DISABLED_TRANSITION_COPY}
+        </p>
+      ) : (
+        <IssueTransitionDropdown
+          projectId={projectId}
+          externalId={externalId}
+          currentState={issue.currentState}
+          allowedTransitions={issue.allowedTransitions}
+        />
+      )}
       <IssueAssignControl
         projectId={projectId}
         externalId={externalId}
         assignees={issue.assignees}
         capturedUserId={capturedUserId}
+        isDisabled={isAlertBacked}
+        disabledTooltip={isAlertBacked ? ALERT_BENCH_DISABLED_ASSIGN_TOOLTIP : undefined}
       />
     </>
   );

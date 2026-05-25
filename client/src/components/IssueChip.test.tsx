@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Bug, KeyRound, Tag } from "lucide-react";
+import { Bug, KeyRound, Package, Shield, Tag } from "lucide-react";
 import IssueChip from "./IssueChip";
 
 describe("IssueChip", () => {
@@ -179,6 +179,64 @@ describe("IssueChip", () => {
       const desc = screen.getByText("Token lacks security_events scope");
       expect(desc.id).toBe(describedBy);
       expect(desc.className).toContain("sr-only");
+    });
+  });
+
+  describe("security-category variant (WU-033)", () => {
+    it("uses slate family for codeql", () => {
+      const { container } = render(
+        <IssueChip variant="security-category" securityCategory="codeql" icon={Shield}>
+          CodeQL
+        </IssueChip>,
+      );
+      const chip = container.querySelector(
+        '[data-chip-category="security-category"]',
+      ) as HTMLElement;
+      expect(chip).not.toBeNull();
+      expect(chip.className).toContain("rounded-full");
+      expect(chip.className).toMatch(/slate-/);
+      expect(chip.querySelector("svg")).not.toBeNull();
+    });
+
+    it("uses amber family for secret-scanning", () => {
+      const { container } = render(
+        <IssueChip variant="security-category" securityCategory="secret-scanning" icon={KeyRound}>
+          Secret scanning
+        </IssueChip>,
+      );
+      const chip = container.querySelector(
+        '[data-chip-category="security-category"]',
+      ) as HTMLElement;
+      expect(chip.className).toMatch(/amber-/);
+    });
+
+    it("uses zinc family for dependabot", () => {
+      const { container } = render(
+        <IssueChip variant="security-category" securityCategory="dependabot" icon={Package}>
+          Dependabot
+        </IssueChip>,
+      );
+      const chip = container.querySelector(
+        '[data-chip-category="security-category"]',
+      ) as HTMLElement;
+      expect(chip.className).toMatch(/zinc-/);
+    });
+
+    it("wraps in a focusable Button when tooltip is provided", () => {
+      const { container } = render(
+        <IssueChip
+          variant="security-category"
+          securityCategory="codeql"
+          icon={Shield}
+          tooltip="org/repo#code-scanning-7"
+        >
+          CodeQL
+        </IssueChip>,
+      );
+      const chip = container.querySelector(
+        '[data-chip-category="security-category"]',
+      ) as HTMLElement;
+      expect(chip.tagName).toBe("BUTTON");
     });
   });
 

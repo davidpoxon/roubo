@@ -17,6 +17,8 @@ export type StatusTone = "open" | "in-progress" | "blocked" | "done" | "neutral"
 
 export type ChipCategory = "status" | "issue-type" | "label" | "metadata";
 
+export type SecurityCategory = "codeql" | "secret-scanning" | "dependabot";
+
 export interface ChipItem {
   category: ChipCategory;
   key: string;
@@ -63,6 +65,20 @@ export function issueTypeChip(type: string | null | undefined): IssueTypeChip | 
   const icon = entry?.icon ?? Tag;
   const label = entry?.label ?? trimmed;
   return { label, icon };
+}
+
+const SECURITY_CATEGORY_BY_NORMALIZED_TYPE: Record<string, SecurityCategory> = {
+  "security-code-scanning": "codeql",
+  "security-secret-scanning": "secret-scanning",
+  "security-dependabot": "dependabot",
+};
+
+export function securityCategoryFor(issueType: string | null | undefined): SecurityCategory | null {
+  if (!issueType) return null;
+  const trimmed = issueType.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.toLowerCase().replace(/[_\s]+/g, "-");
+  return SECURITY_CATEGORY_BY_NORMALIZED_TYPE[normalized] ?? null;
 }
 
 interface IssueTypeEntry {

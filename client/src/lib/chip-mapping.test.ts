@@ -4,6 +4,7 @@ import type { NormalizedIssue } from "@roubo/shared";
 import {
   alertSeverityTooltip,
   issueTypeChip,
+  securityCategoryFor,
   statusTone,
   truncateChips,
   type ChipItem,
@@ -79,6 +80,33 @@ describe("issueTypeChip", () => {
     expect(chip?.icon).toBe(Tag);
     expect(chip?.label).toBe("Unknown");
   });
+});
+
+describe("securityCategoryFor", () => {
+  it("returns null for empty or null type", () => {
+    expect(securityCategoryFor(null)).toBeNull();
+    expect(securityCategoryFor(undefined)).toBeNull();
+    expect(securityCategoryFor("")).toBeNull();
+    expect(securityCategoryFor("   ")).toBeNull();
+  });
+
+  it.each([
+    ["security-code-scanning", "codeql"],
+    ["security-secret-scanning", "secret-scanning"],
+    ["security-dependabot", "dependabot"],
+    ["security_code_scanning", "codeql"],
+    ["Security Secret Scanning", "secret-scanning"],
+    ["  security-dependabot  ", "dependabot"],
+  ] as const)("maps %p to %p", (input, expected) => {
+    expect(securityCategoryFor(input)).toBe(expected);
+  });
+
+  it.each(["bug", "feature", "enhancement", "chore", "task", "unknown"])(
+    "returns null for non-security type %p",
+    (input) => {
+      expect(securityCategoryFor(input)).toBeNull();
+    },
+  );
 });
 
 describe("alertSeverityTooltip", () => {
