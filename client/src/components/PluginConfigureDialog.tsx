@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
-import { CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ExternalLink,
+  MinusCircle,
+  ShieldAlert,
+} from "lucide-react";
 import type {
+  IntegrationCategoryReport,
+  IntegrationCategoryStatus,
   IntegrationConfig,
   IntegrationConfigUpdate,
   IntegrationTestResult,
@@ -517,6 +526,84 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   );
 }
 
+// Worst-status colour for the outer container when per-category rows render:
+// any `error` => red, else any `scope-missing` => amber, else green. Keeps the
+// outer card readable at a glance while the per-row icons carry the detail.
+type StripTone = "green" | "amber" | "red";
+
+const TONE_BORDER: Record<StripTone, string> = {
+  green: "border-green-200 dark:border-green-900/40",
+  amber: "border-amber-200 dark:border-amber-900/40",
+  red: "border-red-200 dark:border-red-900/40",
+};
+
+const TONE_BG: Record<StripTone, string> = {
+  green: "bg-green-50 dark:bg-green-950/20",
+  amber: "bg-amber-50 dark:bg-amber-950/20",
+  red: "bg-red-50 dark:bg-red-950/20",
+};
+
+function worstStatusTone(categories: readonly IntegrationCategoryReport[]): StripTone {
+  let tone: StripTone = "green";
+  for (const c of categories) {
+    if (c.status === "error") return "red";
+    if (c.status === "scope-missing") tone = "amber";
+  }
+  return tone;
+}
+
+const STATUS_TEXT: Record<IntegrationCategoryStatus, string> = {
+  ok: "ok",
+  "scope-missing": "scope missing",
+  "not-enabled": "not enabled",
+  error: "error",
+};
+
+function CategoryRow({ category }: { category: IntegrationCategoryReport }) {
+  const testId = `test-result-category-${category.category}-${category.status}`;
+  const iconClass = "shrink-0";
+  let Icon: typeof CheckCircle2;
+  let iconColor: string;
+  let textColor: string;
+  switch (category.status) {
+    case "ok":
+      Icon = CheckCircle2;
+      iconColor = "text-green-600 dark:text-green-400";
+      textColor = "text-green-800 dark:text-green-300";
+      break;
+    case "scope-missing":
+      Icon = ShieldAlert;
+      iconColor = "text-amber-600 dark:text-amber-400";
+      textColor = "text-amber-800 dark:text-amber-300";
+      break;
+    case "not-enabled":
+      Icon = MinusCircle;
+      iconColor = "text-stone-400 dark:text-stone-500";
+      textColor = "text-stone-500 dark:text-stone-500";
+      break;
+    case "error":
+      Icon = AlertCircle;
+      iconColor = "text-red-500";
+      textColor = "text-red-800 dark:text-red-300";
+      break;
+  }
+  return (
+    <li data-testid={testId} className="flex items-start gap-2 text-[12px] leading-snug">
+      <Icon size={13} className={`${iconClass} ${iconColor} mt-0.5`} />
+      <div className="min-w-0 flex-1">
+        <p className={textColor}>
+          <span className="font-medium">{category.label}</span>
+          <span className="mx-1.5 text-stone-400 dark:text-stone-600">·</span>
+          <span>{STATUS_TEXT[category.status]}</span>
+        </p>
+        {category.detail && (
+          <p className="text-[11px] text-stone-500 dark:text-stone-500 mt-0.5">{category.detail}</p>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function ResultStrip({
   testing,
   result,
@@ -542,16 +629,39 @@ function ResultStrip({
   if (!result) return null;
 
   if (result.ok) {
+    const categories = result.categories ?? [];
+    if (categories.length === 0) {
+      return (
+        <div
+          role="status"
+          data-testid="test-result-success"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20"
+        >
+          <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+          <p className="text-[12px] text-green-800 dark:text-green-300">
+            Connected as {result.identity.displayName}.
+          </p>
+        </div>
+      );
+    }
+    const containerTone = worstStatusTone(categories);
     return (
       <div
         role="status"
         data-testid="test-result-success"
-        className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20"
+        className={`px-3 py-2 rounded-md border ${TONE_BORDER[containerTone]} ${TONE_BG[containerTone]}`}
       >
-        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-        <p className="text-[12px] text-green-800 dark:text-green-300">
-          Connected as {result.identity.displayName}.
-        </p>
+        <div className="flex items-center gap-2.5">
+          <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+          <p className="text-[12px] text-green-800 dark:text-green-300">
+            Connected as {result.identity.displayName}.
+          </p>
+        </div>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {categories.map((category) => (
+            <CategoryRow key={category.category} category={category} />
+          ))}
+        </ul>
       </div>
     );
   }

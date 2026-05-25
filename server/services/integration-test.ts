@@ -1,13 +1,18 @@
 import type {
   CapturedUserId,
+  IntegrationCategoryReport,
+  IntegrationCategoryStatus,
+  IntegrationConfig,
   IntegrationTestErrorKind,
   IntegrationTestResult,
   PluginManifest,
   PluginRecord,
 } from "@roubo/shared";
-import { CapturedUserIdSchema } from "@roubo/shared";
+import { CapturedUserIdSchema, INTEGRATION_CATEGORY_LABELS } from "@roubo/shared";
+import type { ProbeAlertCategoriesResult, ProbeAlertCategory } from "@roubo/plugin-sdk";
 import * as credentialStore from "./credential-store.js";
 import * as pluginManager from "./plugin-manager.js";
+import { translateSources } from "./plugin-source-translation.js";
 
 export function passwordFieldKeys(manifest: PluginManifest | null | undefined): string[] {
   if (!manifest?.configSchema) return [];
@@ -69,13 +74,155 @@ export function errorMessage(err: unknown): string {
   return "Unknown error";
 }
 
+// Plugin ids that model the three GitHub Advanced Security alert categories.
+// Other plugins ignore the per-source alert flags entirely, so the host
+// shouldn't ask them to probe.
+const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
+
+// Host-side budgets for the per-category probe. The per-probe value is what
+// gets handed to the plugin so it can race each individual HTTP probe; the
+// invoke timeout caps the whole RPC round-trip (probes run in parallel inside
+// the plugin, so the wall-clock budget is roughly the per-probe value plus
+// RPC overhead).
+const PROBE_PER_REQUEST_TIMEOUT_MS = 2_000;
+const PROBE_INVOKE_TIMEOUT_MS = 8_000;
+
+interface SourceWithAlertFlags {
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
+}
+
+export interface RunIntegrationTestContext {
+  /**
+   * The project's currently-saved effective integration config. Drives which
+   * alert categories the host asks the plugin to probe: the union across all
+   * saved sources. At global plugin scope the route passes no context, so no
+   * category probes run and only the always-on Issues row is emitted.
+   */
+  effective: IntegrationConfig;
+}
+
+function issuesRow(): IntegrationCategoryReport {
+  return {
+    category: "issues",
+    label: INTEGRATION_CATEGORY_LABELS.issues,
+    status: "ok",
+  };
+}
+
+function computeEnabledCategories(sources: readonly SourceWithAlertFlags[]): ProbeAlertCategory[] {
+  let codeQl = false;
+  let secret = false;
+  let dependabot = false;
+  for (const source of sources) {
+    if (source.includeCodeQLAlerts === true) codeQl = true;
+    if (source.includeSecretScanningAlerts === true) secret = true;
+    if (source.includeDependabotAlerts === true) dependabot = true;
+  }
+  const out: ProbeAlertCategory[] = [];
+  if (codeQl) out.push("code-scanning");
+  if (secret) out.push("secret-scanning");
+  if (dependabot) out.push("dependabot");
+  return out;
+}
+
+function categoryIdFor(
+  probeCategory: ProbeAlertCategory,
+): "code-scanning" | "secret-scanning" | "dependabot" {
+  return probeCategory;
+}
+
+function buildErrorReports(
+  enabledCategories: readonly ProbeAlertCategory[],
+  detail: string,
+): IntegrationCategoryReport[] {
+  return enabledCategories.map((category) => ({
+    category: categoryIdFor(category),
+    label: INTEGRATION_CATEGORY_LABELS[categoryIdFor(category)],
+    status: "error" as IntegrationCategoryStatus,
+    detail,
+  }));
+}
+
+function isMethodNotFound(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === "string" && code === "MethodNotFound";
+}
+
+async function runCategoryProbes(
+  record: PluginRecord,
+  ctx: RunIntegrationTestContext,
+): Promise<IntegrationCategoryReport[]> {
+  // Only the GitHub-family plugins model these categories today. Anything else
+  // returns just the Issues row.
+  if (!GITHUB_FAMILY_PLUGIN_IDS.has(record.id)) return [];
+
+  const sources = translateSources(ctx.effective.sources);
+  if (sources.length === 0) return [];
+
+  const enabledCategories = computeEnabledCategories(sources);
+  if (enabledCategories.length === 0) return [];
+
+  try {
+    const result = await pluginManager.invoke<ProbeAlertCategoriesResult>(
+      record.id,
+      "probeAlertCategories",
+      {
+        sources,
+        enabledCategories,
+        timeoutMsPerProbe: PROBE_PER_REQUEST_TIMEOUT_MS,
+      },
+      { timeoutMs: PROBE_INVOKE_TIMEOUT_MS },
+    );
+
+    if (!result || !Array.isArray(result.reports)) {
+      return buildErrorReports(enabledCategories, "Plugin returned an invalid probe response.");
+    }
+
+    const byCategory = new Map<ProbeAlertCategory, (typeof result.reports)[number]>();
+    for (const report of result.reports) {
+      byCategory.set(report.category, report);
+    }
+    return enabledCategories.map<IntegrationCategoryReport>((category) => {
+      const id = categoryIdFor(category);
+      const report = byCategory.get(category);
+      if (!report) {
+        return {
+          category: id,
+          label: INTEGRATION_CATEGORY_LABELS[id],
+          status: "error",
+          detail: "Plugin did not report this category.",
+        };
+      }
+      return {
+        category: id,
+        label: INTEGRATION_CATEGORY_LABELS[id],
+        status: report.status,
+        ...(report.detail !== undefined ? { detail: report.detail } : {}),
+        ...(report.httpStatus !== undefined ? { httpStatus: report.httpStatus } : {}),
+      };
+    });
+  } catch (err) {
+    if (isMethodNotFound(err)) {
+      // Plugin doesn't implement the optional method: surface no category
+      // rows beyond Issues, leaving the test "ok" per FR-047.
+      return [];
+    }
+    return buildErrorReports(enabledCategories, errorMessage(err));
+  }
+}
+
 // Runs the plugin's validateConfig + getCurrentUser pair against an arbitrary
 // config snapshot and classifies any failure. Shared between the project- and
 // plugin-scoped Configure dialogs (the only difference between them is which
-// override file a successful test eventually writes to).
+// override file a successful test eventually writes to, and whether the
+// per-category probe runs).
 export async function runIntegrationTest(
   record: PluginRecord,
   config: Record<string, unknown>,
+  ctx?: RunIntegrationTestContext,
 ): Promise<IntegrationTestResult> {
   try {
     await pluginManager.invoke(record.id, "validateConfig", { config }, { timeoutMs: 15_000 });
@@ -95,7 +242,12 @@ export async function runIntegrationTest(
         },
       };
     }
-    return { ok: true, identity: parsedIdentity.data };
+    const categories: IntegrationCategoryReport[] = [issuesRow()];
+    if (ctx) {
+      const probed = await runCategoryProbes(record, ctx);
+      categories.push(...probed);
+    }
+    return { ok: true, identity: parsedIdentity.data, categories };
   } catch (err) {
     const message = errorMessage(err);
     return { ok: false, error: { kind: classifyError(message), message } };

@@ -7,6 +7,14 @@ export type {
   SafeFetchResult,
   SafeFetchWarningCode,
 } from "./alerts/safe-fetch.js";
+export { probeAlertCategories } from "./alerts/probe-categories.js";
+export type {
+  ProbeAlertCategoriesArgs,
+  ProbeCategory,
+  ProbeReport,
+  ProbeSource,
+  ProbeStatus,
+} from "./alerts/probe-categories.js";
 export { fetchCodeScanningAlerts, type RawCodeScanningAlert } from "./alerts/code-scanning.js";
 export {
   fetchSecretScanningAlerts,

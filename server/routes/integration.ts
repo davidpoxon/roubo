@@ -316,7 +316,7 @@ router.post("/:projectId/integration/test", async (req, res) => {
     return;
   }
 
-  const result = await runIntegrationTest(record, parsed.data.config);
+  const result = await runIntegrationTest(record, parsed.data.config, { effective });
   res.json(result);
 });
 
