@@ -1,7 +1,15 @@
 import { Button } from "react-aria-components";
 import { useDraggable } from "@dnd-kit/core";
-import { ExternalLink, Lock, Tag } from "lucide-react";
+import { ExternalLink, Lock } from "lucide-react";
 import type { NormalizedIssue } from "@roubo/shared";
+import IssueChip from "./IssueChip";
+import {
+  METADATA_ICONS,
+  issueTypeChip,
+  statusTone,
+  truncateChips,
+  type ChipItem,
+} from "../lib/chip-mapping";
 
 export default function DraggableIssueCard({
   issue,
@@ -19,7 +27,6 @@ export default function DraggableIssueCard({
   const dragId = dragIdSuffix
     ? `issue-${issue.externalId}-${dragIdSuffix}`
     : `issue-${issue.externalId}`;
-  const blockedDescriptionId = `blocked-by-${dragId}`;
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: dragId,
@@ -29,6 +36,65 @@ export default function DraggableIssueCard({
 
   const isInteractive = !isAssigned && !isBlocked;
   const primaryAssignee = issue.assignees[0]?.displayName;
+  const typeChip = issueTypeChip(issue.issueType);
+
+  const chips: ChipItem[] = [];
+
+  const tone = statusTone(issue.currentState, isBlocked);
+  chips.push({
+    category: "status",
+    key: "status",
+    label: isBlocked ? "Blocked" : issue.currentState,
+    tone,
+    icon: isBlocked ? Lock : undefined,
+    ariaDescription: isBlocked ? `Blocked by ${blockers.join(", ")}` : undefined,
+  });
+
+  if (typeChip) {
+    chips.push({
+      category: "issue-type",
+      key: "issue-type",
+      label: typeChip.label,
+      icon: typeChip.icon,
+    });
+  }
+
+  for (const label of issue.labels) {
+    chips.push({
+      category: "label",
+      key: `label:${label}`,
+      label,
+    });
+  }
+
+  if (primaryAssignee) {
+    chips.push({
+      category: "metadata",
+      key: "assignee",
+      label: primaryAssignee,
+      icon: METADATA_ICONS.assignee,
+    });
+  }
+
+  if (issue.blocks.length > 0) {
+    chips.push({
+      category: "metadata",
+      key: "blocks",
+      label: `Blocks ${issue.blocks.length} ${issue.blocks.length === 1 ? "issue" : "issues"}`,
+      icon: METADATA_ICONS.blocks,
+    });
+  }
+
+  if (isAssigned) {
+    chips.push({
+      category: "metadata",
+      key: "bench",
+      label: `Bench ${assignedBenchId}`,
+      icon: METADATA_ICONS.bench,
+    });
+  }
+
+  const { visible, overflowCount } = truncateChips(chips, 6);
 
   return (
     <div
@@ -36,7 +102,6 @@ export default function DraggableIssueCard({
       {...(isInteractive ? listeners : {})}
       {...(isInteractive ? attributes : {})}
       aria-disabled={isBlocked || undefined}
-      aria-describedby={isBlocked ? blockedDescriptionId : undefined}
       className={`group relative rounded-lg transition-colors ${
         isDragging
           ? "opacity-40 bg-stone-100 dark:bg-stone-900/50"
@@ -61,47 +126,22 @@ export default function DraggableIssueCard({
               {issue.title}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {issue.issueType && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                {issue.issueType}
-              </span>
-            )}
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
-              {issue.currentState}
-            </span>
-            {issue.labels.map((label) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500"
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {visible.map((chip) => (
+              <IssueChip
+                key={chip.key}
+                variant={chip.category}
+                icon={chip.icon}
+                tone={chip.tone}
+                ariaDescription={chip.ariaDescription}
               >
-                <Tag size={7} />
-                {label}
-              </span>
+                {chip.label}
+              </IssueChip>
             ))}
-            {issue.blocks.length > 0 && (
-              <span className="text-[10px] text-amber-500/70 dark:text-amber-400/50">
-                Blocks {issue.blocks.length} {issue.blocks.length === 1 ? "issue" : "issues"}
-              </span>
-            )}
-            {primaryAssignee && (
-              <span className="text-[10px] text-stone-400 dark:text-stone-600">
-                {primaryAssignee}
-              </span>
-            )}
-            {isAssigned && (
-              <span className="text-[10px] font-medium text-violet-400/60">
-                Bench {assignedBenchId}
-              </span>
-            )}
-            {isBlocked && (
-              <span
-                id={blockedDescriptionId}
-                className="inline-flex items-center gap-1 text-[10px] text-red-500 dark:text-red-400"
-              >
-                <Lock size={8} />
-                Blocked by {blockers.join(", ")}
-              </span>
+            {overflowCount > 0 && (
+              <IssueChip key="overflow" variant="metadata">
+                +{overflowCount} more
+              </IssueChip>
             )}
           </div>
         </div>
