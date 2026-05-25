@@ -229,6 +229,52 @@ export interface IssueTypeOption {
 }
 
 /**
+ * Stable identifier for an alert category probed by `probeAlertCategories`.
+ * The host's Test Connection result strip surfaces one row per probe result.
+ */
+export type ProbeAlertCategory = "code-scanning" | "secret-scanning" | "dependabot";
+
+/**
+ * Per-probe status returned by `probeAlertCategories`. The host maps these
+ * directly into result-strip rows; semantics match the host's
+ * `IntegrationCategoryStatus`:
+ *
+ * - `ok`: probe succeeded (HTTP 2xx)
+ * - `scope-missing`: token lacks the required scope (HTTP 401/403)
+ * - `not-enabled`: feature is not enabled for the probed repo (HTTP 404/410/451)
+ * - `error`: probe timed out, returned an unexpected status, or threw
+ */
+export type ProbeAlertCategoryStatus = "ok" | "scope-missing" | "not-enabled" | "error";
+
+export interface ProbeAlertCategoriesParams {
+  /**
+   * The same source list a host would pass to `listIssues`. The plugin picks
+   * its sample target from this list (typically the first repo source) and
+   * may return an `error` row for every requested category if none of the
+   * sources are probeable.
+   */
+  sources: ConfiguredSource[];
+  /** Subset of categories the host wants probed; never empty. */
+  enabledCategories: ProbeAlertCategory[];
+  /**
+   * Host-supplied hint for the per-probe timeout. Plugins SHOULD honour this;
+   * the host defaults to 2000ms when omitted.
+   */
+  timeoutMsPerProbe?: number;
+}
+
+export interface ProbeAlertCategoryReport {
+  category: ProbeAlertCategory;
+  status: ProbeAlertCategoryStatus;
+  detail?: string;
+  httpStatus?: number;
+}
+
+export interface ProbeAlertCategoriesResult {
+  reports: ProbeAlertCategoryReport[];
+}
+
+/**
  * The contract methods a plugin may implement. All methods are optional;
  * a host call to an unimplemented method receives JSON-RPC MethodNotFound.
  */
@@ -259,6 +305,15 @@ export interface PluginContract {
   listIssueTypes?: (params: ListIssueTypesParams) => Promise<IssueTypeOption[]> | IssueTypeOption[];
   listLabels?: (params: ListLabelsParams) => Promise<string[]> | string[];
   getConnectionStatus?: () => Promise<ConnectionStatus> | ConnectionStatus;
+  /**
+   * Probe each requested alert-category endpoint for a sample source and
+   * return one report per category. Invoked by the host as part of Test
+   * Connection (FR-047, WU-041). A throw or `MethodNotFound` is treated by
+   * the host as "no per-category data"; it never fails the overall test.
+   */
+  probeAlertCategories?: (
+    params: ProbeAlertCategoriesParams,
+  ) => Promise<ProbeAlertCategoriesResult> | ProbeAlertCategoriesResult;
   filterFacets?: () => Promise<FilterFacet[]> | FilterFacet[];
   getFacetOptions?: (
     params: GetFacetOptionsParams,

@@ -305,6 +305,85 @@ describe("PluginConfigureDialog", () => {
     expect(screen.queryByTestId("test-result-success")).not.toBeInTheDocument();
   });
 
+  describe("per-category result strip (WU-041, FR-047)", () => {
+    it("renders one row per category returned by the test (Issues always; alert categories when enabled)", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+        categories: [
+          { category: "issues", label: "Issues", status: "ok" },
+          {
+            category: "code-scanning",
+            label: "Code Scanning alerts",
+            status: "ok",
+            httpStatus: 200,
+          },
+          {
+            category: "dependabot",
+            label: "Dependabot alerts",
+            status: "scope-missing",
+            detail: "Token missing `security_events` scope.",
+          },
+        ],
+      });
+      installMocks({ test, save: vi.fn() });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      expect(screen.getByText("Connected as Jane Doe.")).toBeInTheDocument();
+      expect(screen.getByTestId("test-result-category-issues-ok")).toBeInTheDocument();
+      expect(screen.getByTestId("test-result-category-code-scanning-ok")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("test-result-category-dependabot-scope-missing"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Token missing `security_events` scope.")).toBeInTheDocument();
+    });
+
+    it("never renders a row for a disabled category (AC: 'not 'not-enabled' placeholders')", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+        categories: [{ category: "issues", label: "Issues", status: "ok" }],
+      });
+      installMocks({ test, save: vi.fn() });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      expect(screen.getByTestId("test-result-category-issues-ok")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("test-result-category-code-scanning-not-enabled"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("test-result-category-secret-scanning-not-enabled"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("test-result-category-dependabot-not-enabled"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("falls back to the single 'Connected as' row when the server returns no categories", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      installMocks({ test, save: vi.fn() });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      expect(screen.getByText("Connected as Jane Doe.")).toBeInTheDocument();
+      expect(screen.queryByTestId("test-result-category-issues-ok")).not.toBeInTheDocument();
+    });
+  });
+
   it("seeds initial values from the effective integration config (instance + advanced)", () => {
     installMocks({ test: vi.fn(), save: vi.fn() });
     renderDialog({

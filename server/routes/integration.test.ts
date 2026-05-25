@@ -414,6 +414,7 @@ describe("POST /:projectId/integration/test", () => {
     expect(res.body).toEqual({
       ok: true,
       identity: { externalId: "u-1", displayName: "Jane Doe" },
+      categories: [{ category: "issues", label: "Issues", status: "ok" }],
     });
 
     // Credential persistence MUST happen before validateConfig is invoked
@@ -512,6 +513,159 @@ describe("POST /:projectId/integration/test", () => {
 
     expect(res.body.ok).toBe(false);
     expect(res.body.error.kind).toBe("other");
+  });
+
+  it("probes per-category endpoints when sources have alert categories enabled (WU-041, FR-047)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        plugin: "github-com",
+        sources: {
+          Repository: [
+            { externalId: "octo/widget", includeCodeQLAlerts: true, includeDependabotAlerts: true },
+          ],
+        },
+      }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePluginWithSchema("github-com", "GitHub"),
+    ]);
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce(undefined) // validateConfig
+      .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" }) // getCurrentUser
+      .mockResolvedValueOnce({
+        reports: [
+          { category: "code-scanning", status: "ok", httpStatus: 200 },
+          { category: "dependabot", status: "scope-missing", detail: "missing scope" },
+        ],
+      });
+
+    const res = await request(app)
+      .post("/demo/integration/test")
+      .send({ config: { token: "ghp_secret" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.categories).toEqual([
+      { category: "issues", label: "Issues", status: "ok" },
+      { category: "code-scanning", label: "Code Scanning alerts", status: "ok", httpStatus: 200 },
+      {
+        category: "dependabot",
+        label: "Dependabot alerts",
+        status: "scope-missing",
+        detail: "missing scope",
+      },
+    ]);
+    expect(pluginManager.invoke).toHaveBeenNthCalledWith(
+      3,
+      "github-com",
+      "probeAlertCategories",
+      {
+        sources: [
+          {
+            kind: "repo",
+            externalId: "octo/widget",
+            includeCodeQLAlerts: true,
+            includeDependabotAlerts: true,
+          },
+        ],
+        enabledCategories: ["code-scanning", "dependabot"],
+        timeoutMsPerProbe: 2000,
+      },
+      expect.objectContaining({ timeoutMs: 8000 }),
+    );
+  });
+
+  it("returns Issues-only and skips the probe when no alert categories are enabled", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        plugin: "github-com",
+        sources: { Repository: [{ externalId: "octo/widget" }] },
+      }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePluginWithSchema("github-com", "GitHub"),
+    ]);
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" });
+
+    const res = await request(app)
+      .post("/demo/integration/test")
+      .send({ config: { token: "ghp_secret" } });
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.categories).toEqual([{ category: "issues", label: "Issues", status: "ok" }]);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats MethodNotFound from probeAlertCategories as Issues-only", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        plugin: "github-com",
+        sources: { Repository: [{ externalId: "octo/widget", includeCodeQLAlerts: true }] },
+      }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePluginWithSchema("github-com", "GitHub"),
+    ]);
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
+      .mockRejectedValueOnce(
+        Object.assign(new Error("not implemented"), { code: "MethodNotFound" }),
+      );
+
+    const res = await request(app)
+      .post("/demo/integration/test")
+      .send({ config: { token: "ghp_secret" } });
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.categories).toEqual([{ category: "issues", label: "Issues", status: "ok" }]);
+  });
+
+  it("marks each enabled category as error when the probe throws (FR-047: overall test stays ok)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        plugin: "github-com",
+        sources: {
+          Repository: [
+            {
+              externalId: "octo/widget",
+              includeCodeQLAlerts: true,
+              includeSecretScanningAlerts: true,
+            },
+          ],
+        },
+      }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePluginWithSchema("github-com", "GitHub"),
+    ]);
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
+      .mockRejectedValueOnce(new Error("plugin crashed"));
+
+    const res = await request(app)
+      .post("/demo/integration/test")
+      .send({ config: { token: "ghp_secret" } });
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.categories).toEqual([
+      { category: "issues", label: "Issues", status: "ok" },
+      {
+        category: "code-scanning",
+        label: "Code Scanning alerts",
+        status: "error",
+        detail: "plugin crashed",
+      },
+      {
+        category: "secret-scanning",
+        label: "Secret Scanning alerts",
+        status: "error",
+        detail: "plugin crashed",
+      },
+    ]);
   });
 });
 

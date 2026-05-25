@@ -9,6 +9,7 @@ import { listIssueTypes } from "./methods/list-issue-types.js";
 import { listIssues } from "./methods/list-issues.js";
 import { listLabels } from "./methods/list-labels.js";
 import { listSourceCandidates } from "./methods/list-source-candidates.js";
+import { probeAlertCategories } from "./methods/probe-alert-categories.js";
 import { setActiveConfigMethod } from "./methods/set-active-config.js";
 import { validateConfig } from "./methods/validate-config.js";
 
@@ -26,4 +27,5 @@ definePlugin({
   listIssueTypes,
   listLabels,
   getConnectionStatus,
+  probeAlertCategories,
 });

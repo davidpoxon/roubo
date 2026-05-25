@@ -224,13 +224,64 @@ export interface IntegrationTestErrorPayload {
 }
 
 /**
- * Response shape for `POST /api/projects/:projectId/integration/test`. On
- * `ok: true`, `identity` carries the value returned by `plugin.getCurrentUser`,
- * which the dialog stashes and submits as `capturedUserId` when the user saves.
+ * Stable identifier for a row in the Test Connection result strip. `"issues"`
+ * is always present on a successful test; the three alert categories appear
+ * only when the project has at least one source with that category enabled.
+ */
+export type IntegrationCategoryId = "issues" | "code-scanning" | "secret-scanning" | "dependabot";
+
+/**
+ * Per-row status in the Test Connection result strip (FR-047, WU-041).
+ *
+ * - `ok`: probe succeeded
+ * - `scope-missing`: token lacks the required scope (401/403)
+ * - `not-enabled`: feature is not enabled for the probed repo (404/410/451)
+ * - `error`: probe timed out, returned an unexpected status, or threw
+ */
+export type IntegrationCategoryStatus = "ok" | "scope-missing" | "not-enabled" | "error";
+
+/**
+ * One row in the Test Connection result strip. `label` is the human-facing
+ * string the strip renders (kept in sync with `SourcePicker`'s ALERT_CATEGORIES
+ * via `shared/integration-categories.ts`). `detail` is rendered verbatim
+ * underneath the row when present (e.g. "Timed out", "Token missing
+ * `security_events` scope"). `httpStatus` is included for diagnostics and
+ * tests; the UI does not render it directly.
+ */
+export interface IntegrationCategoryReport {
+  category: IntegrationCategoryId;
+  label: string;
+  status: IntegrationCategoryStatus;
+  detail?: string;
+  httpStatus?: number;
+}
+
+/**
+ * Response shape for `POST /api/projects/:projectId/integration/test` and
+ * `POST /api/plugins/:pluginId/integration/test`. On `ok: true`, `identity`
+ * carries the value returned by `plugin.getCurrentUser`, which the dialog
+ * stashes and submits as `capturedUserId` when the user saves. `categories`
+ * drives the per-row Test Connection result strip (WU-041); the host always
+ * emits at least an Issues row on success, and adds alert-category rows for
+ * each category enabled by at least one saved source. Omitted on the failure
+ * variant.
  */
 export type IntegrationTestResult =
-  | { ok: true; identity: CapturedUserId }
+  | { ok: true; identity: CapturedUserId; categories?: IntegrationCategoryReport[] }
   | { ok: false; error: IntegrationTestErrorPayload };
+
+/**
+ * Human-facing labels for each Test Connection result-strip row. Mirrors the
+ * `ALERT_CATEGORIES` table the SourcePicker uses for checkbox labels so the
+ * two surfaces stay aligned. Kept in `shared/` so client, server, and plugin
+ * code all read from one place.
+ */
+export const INTEGRATION_CATEGORY_LABELS: Record<IntegrationCategoryId, string> = {
+  issues: "Issues",
+  "code-scanning": "Code Scanning alerts",
+  "secret-scanning": "Secret Scanning alerts",
+  dependabot: "Dependabot alerts",
+};
 
 /**
  * Discrete states a plugin's connection can be in. Drives the
