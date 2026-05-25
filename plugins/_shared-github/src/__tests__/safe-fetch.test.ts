@@ -49,6 +49,7 @@ describe("safeFetchAlerts", () => {
       ok: false,
       cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
       status: 404,
+      code: "not-found",
     });
   });
 
@@ -63,6 +64,7 @@ describe("safeFetchAlerts", () => {
       ok: false,
       cause: "Secret Scanning unavailable: requires GitHub Advanced Security on private repos.",
       status: 451,
+      code: "feature-disabled",
     });
   });
 
@@ -78,6 +80,7 @@ describe("safeFetchAlerts", () => {
       cause:
         "Dependabot alerts unavailable: token lacks permission to read dependabot alerts on this repo.",
       status: 403,
+      code: "insufficient-permission",
     });
   });
 
@@ -101,9 +104,40 @@ describe("safeFetchAlerts", () => {
     expect(c.ok).toBe(false);
     expect(s.ok).toBe(false);
     expect(d.ok).toBe(false);
-    if (!c.ok) expect(c.cause).toMatch(/security_events/);
-    if (!s.ok) expect(s.cause).toMatch(/repo or security_events/);
-    if (!d.ok) expect(d.cause).toMatch(/security_events/);
+    if (!c.ok) {
+      expect(c.cause).toMatch(/security_events/);
+      expect(c.code).toBe("missing-scope");
+    }
+    if (!s.ok) {
+      expect(s.cause).toMatch(/repo or security_events/);
+      expect(s.code).toBe("missing-scope");
+    }
+    if (!d.ok) {
+      expect(d.cause).toMatch(/security_events/);
+      expect(d.code).toBe("missing-scope");
+    }
+  });
+
+  it("classifies 410 / 451 / 429 statuses", async () => {
+    const transport = makeTransport({
+      [CODE_URL]: { status: 410, headers: {}, body: "" },
+      [SECRET_URL]: { status: 451, headers: {}, body: "" },
+      [DEP_URL]: { status: 429, headers: {}, body: "" },
+    });
+    const [c, s, d] = await Promise.all([
+      safeFetchAlerts("code-scanning", () =>
+        fetchCodeScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("secret-scanning", () =>
+        fetchSecretScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("dependabot", () =>
+        fetchDependabotAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+    ]);
+    if (!c.ok) expect(c.code).toBe("feature-disabled");
+    if (!s.ok) expect(s.code).toBe("feature-disabled");
+    if (!d.ok) expect(d.code).toBe("rate-limited");
   });
 
   it("falls back to a generic cause for unmapped HTTP statuses", async () => {
@@ -117,6 +151,7 @@ describe("safeFetchAlerts", () => {
       ok: false,
       cause: "Code Scanning unavailable: GitHub returned HTTP 500.",
       status: 500,
+      code: "unknown",
     });
   });
 
@@ -130,6 +165,7 @@ describe("safeFetchAlerts", () => {
     expect(result).toEqual({
       ok: false,
       cause: "Dependabot alerts unavailable: ENOTFOUND api.github.com",
+      code: "unknown",
     });
   });
 

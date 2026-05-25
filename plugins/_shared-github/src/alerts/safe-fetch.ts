@@ -16,9 +16,22 @@ import { AlertPaginationError } from "../pagination.js";
 
 export type AlertFetchCategory = "code-scanning" | "secret-scanning" | "dependabot";
 
+/**
+ * Discriminator the client uses to pick chip variants for the cut-list
+ * source picker. Mirrors `ListIssuesWarningCode` in `@roubo/plugin-sdk`,
+ * intentionally duplicated here so this package has no dep on the SDK.
+ */
+export type SafeFetchWarningCode =
+  | "missing-scope"
+  | "feature-disabled"
+  | "insufficient-permission"
+  | "not-found"
+  | "rate-limited"
+  | "unknown";
+
 export type SafeFetchResult<T> =
   | { ok: true; items: T[] }
-  | { ok: false; cause: string; status?: number };
+  | { ok: false; cause: string; status?: number; code: SafeFetchWarningCode };
 
 const CATEGORY_PREFIX: Record<AlertFetchCategory, string> = {
   "code-scanning": "Code Scanning",
@@ -52,6 +65,15 @@ const CAUSE_TABLE: CauseTable = {
   },
 };
 
+function classifyStatus(status: number): SafeFetchWarningCode {
+  if (status === 401) return "missing-scope";
+  if (status === 403) return "insufficient-permission";
+  if (status === 404) return "not-found";
+  if (status === 410 || status === 451) return "feature-disabled";
+  if (status === 429) return "rate-limited";
+  return "unknown";
+}
+
 export async function safeFetchAlerts<T>(
   category: AlertFetchCategory,
   run: () => Promise<T[]>,
@@ -64,9 +86,13 @@ export async function safeFetchAlerts<T>(
       const mapped = CAUSE_TABLE[category][err.status];
       const cause =
         mapped ?? `${CATEGORY_PREFIX[category]} unavailable: GitHub returned HTTP ${err.status}.`;
-      return { ok: false, cause, status: err.status };
+      return { ok: false, cause, status: err.status, code: classifyStatus(err.status) };
     }
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, cause: `${CATEGORY_PREFIX[category]} unavailable: ${message}` };
+    return {
+      ok: false,
+      cause: `${CATEGORY_PREFIX[category]} unavailable: ${message}`,
+      code: "unknown",
+    };
   }
 }

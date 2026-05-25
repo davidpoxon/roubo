@@ -967,15 +967,33 @@ export interface ConfiguredSource {
 }
 
 /**
+ * Discriminator for `ListIssuesWarning.code`. Mirrors
+ * `ListIssuesWarningCode` in `@roubo/plugin-sdk`. The cut-list source picker
+ * uses this to pick chip variants for the GitHub family's PAT/OAuth
+ * remediation affordances.
+ */
+export type ListIssuesWarningCode =
+  | "missing-scope"
+  | "scope-unverifiable"
+  | "feature-disabled"
+  | "insufficient-permission"
+  | "not-found"
+  | "rate-limited"
+  | "unknown";
+
+/**
  * Non-fatal warning about a single source / category for a `listIssues` call.
  * Mirrors `ListIssuesWarning` in `@roubo/plugin-sdk`. A given
  * `(sourceExternalId, category)` warning clears on the next successful
  * page-1 pull that omits it.
+ *
+ * `code` is an optional discriminator the client uses to pick a chip variant.
  */
 export interface ListIssuesWarning {
   category: "code-scanning" | "secret-scanning" | "dependabot" | string;
   sourceExternalId: string;
   cause: string;
+  code?: ListIssuesWarningCode;
   detail?: { status?: number; code?: string };
 }
 

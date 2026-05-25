@@ -447,4 +447,144 @@ describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
       );
     });
   });
+
+  it("renders a GHE 'Open token settings' link chip for missing-scope when pluginId is 'ghe' (WU-032 AC #5)", async () => {
+    const user = userEvent.setup();
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+      code: "missing-scope" as const,
+      detail: { status: 401 },
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+        chipContext={{ pluginId: "ghe", gheInstanceUrl: "https://ghe.example.com" }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const link = screen.getByTestId("alert-chip-missing-scope-ghe");
+    expect(link).toHaveAttribute("href", "https://ghe.example.com/settings/tokens");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.textContent).toMatch(/Open token settings/);
+  });
+
+  it("trims trailing slash from gheInstanceUrl when building the token settings link", async () => {
+    const user = userEvent.setup();
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+      code: "missing-scope" as const,
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+        chipContext={{ pluginId: "ghe", gheInstanceUrl: "https://ghe.example.com/" }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const link = screen.getByTestId("alert-chip-missing-scope-ghe");
+    expect(link).toHaveAttribute("href", "https://ghe.example.com/settings/tokens");
+  });
+
+  it("renders a github.com 'Reconnect GitHub' chip for missing-scope when pluginId is 'github-com'", async () => {
+    const user = userEvent.setup();
+    const onReconnect = vi.fn();
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+      code: "missing-scope" as const,
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+        chipContext={{ pluginId: "github-com", onReconnectOAuth: onReconnect }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const chip = screen.getByTestId("alert-chip-missing-scope-github-com");
+    expect(chip.textContent).toMatch(/Reconnect GitHub/);
+    await user.click(chip);
+    expect(onReconnect).toHaveBeenCalledOnce();
+  });
+
+  it("renders the NFR-015 graceful copy for scope-unverifiable warnings", async () => {
+    const user = userEvent.setup();
+    const NFR_015 =
+      "Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.";
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: NFR_015,
+      code: "scope-unverifiable" as const,
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+        chipContext={{ pluginId: "ghe", gheInstanceUrl: "https://ghe.example.com" }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const chip = screen.getByTestId("alert-chip-scope-unverifiable");
+    expect(chip.textContent).toMatch(/Verify token/);
+    expect(screen.getByText(NFR_015)).toHaveClass("sr-only");
+  });
+
+  it("falls back to the generic 'Unavailable' chip when missing-scope has no plugin context", async () => {
+    const user = userEvent.setup();
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+      code: "missing-scope" as const,
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    expect(screen.queryByTestId("alert-chip-missing-scope-ghe")).toBeNull();
+    expect(screen.queryByTestId("alert-chip-missing-scope-github-com")).toBeNull();
+    expect(screen.getByText(/Unavailable/)).toBeInTheDocument();
+  });
 });

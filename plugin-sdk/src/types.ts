@@ -94,10 +94,29 @@ export interface ConfiguredSource {
 }
 
 /**
+ * Discriminator for `ListIssuesWarning.code`. The client maps these to chip
+ * variants in the cut-list source picker. `missing-scope` and
+ * `scope-unverifiable` drive the GitHub family's PAT/OAuth remediation
+ * affordances (WU-032); other codes share the generic "Unavailable" chip.
+ */
+export type ListIssuesWarningCode =
+  | "missing-scope"
+  | "scope-unverifiable"
+  | "feature-disabled"
+  | "insufficient-permission"
+  | "not-found"
+  | "rate-limited"
+  | "unknown";
+
+/**
  * Non-fatal warning emitted alongside a `listIssues` result. Used by the
  * GitHub plugins to surface per-source per-category fetch failures without
  * failing the entire pull. Categories are stable string identifiers; the
  * host treats unknown values as opaque and surfaces `cause` verbatim to UI.
+ *
+ * `code` is an optional discriminator the client uses to pick a chip variant
+ * (e.g. `missing-scope` → link chip pointing at PAT settings / OAuth re-auth).
+ * Absent means the client renders the generic chip with `cause` as the tooltip.
  *
  * A warning with a given `(sourceExternalId, category)` is cleared on the
  * next successful pull for that pair: a subsequent `listIssues` page-1
@@ -107,6 +126,7 @@ export interface ListIssuesWarning {
   category: "code-scanning" | "secret-scanning" | "dependabot" | string;
   sourceExternalId: string;
   cause: string;
+  code?: ListIssuesWarningCode;
   detail?: { status?: number; code?: string };
 }
 

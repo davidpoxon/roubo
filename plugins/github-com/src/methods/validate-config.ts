@@ -1,6 +1,8 @@
 import type { ValidateConfigResult } from "@roubo/plugin-sdk";
 import { parseSourcesConfig } from "../parse-sources.js";
 import { fetchCurrentUser, fetchProjects, fetchRepoSummary } from "../github-fetchers.js";
+import { resetAlertsRuntime } from "../alerts-runtime.js";
+import { resetOctokit } from "../octokit-factory.js";
 
 /**
  * Validates the host-provided config:
@@ -20,6 +22,13 @@ export async function validateConfig(params: {
   if (!config) {
     return { ok: false, errors: shapeErrors };
   }
+
+  // WU-032 AC #7 parity: clear the alerts-runtime token cache and Octokit
+  // cache so a freshly-rotated OAuth token (e.g. after a re-consent flow
+  // that ended with another validateConfig call) is picked up immediately
+  // by the next source-bound RPC. Same defensive reset on every save path.
+  resetAlertsRuntime();
+  resetOctokit();
 
   const errors: NonNullable<ValidateConfigResult["errors"]> = [];
 

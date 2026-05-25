@@ -138,6 +138,7 @@ describe("listIssues + alerts (WU-030)", () => {
         category: "code-scanning",
         sourceExternalId: "foo/bar",
         cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+        code: "not-found",
         detail: { status: 404 },
       },
     ]);
@@ -324,6 +325,7 @@ describe("listIssues + alerts (WU-030)", () => {
         category: "code-scanning",
         sourceExternalId: "foo/#1",
         cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+        code: "not-found",
         detail: { status: 404 },
       },
     ]);

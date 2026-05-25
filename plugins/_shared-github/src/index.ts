@@ -2,7 +2,11 @@ export type { FetchTransport } from "./transport.js";
 export { parseLinkHeader, paginateAlerts, AlertPaginationError } from "./pagination.js";
 export type { PaginateOptions } from "./pagination.js";
 export { safeFetchAlerts } from "./alerts/safe-fetch.js";
-export type { AlertFetchCategory, SafeFetchResult } from "./alerts/safe-fetch.js";
+export type {
+  AlertFetchCategory,
+  SafeFetchResult,
+  SafeFetchWarningCode,
+} from "./alerts/safe-fetch.js";
 export { fetchCodeScanningAlerts, type RawCodeScanningAlert } from "./alerts/code-scanning.js";
 export {
   fetchSecretScanningAlerts,

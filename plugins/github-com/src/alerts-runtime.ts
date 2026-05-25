@@ -10,6 +10,7 @@
 
 import type { FetchInit, FetchResult, ListIssuesWarning, NormalizedIssue } from "@roubo/plugin-sdk";
 import {
+  detectTokenScopes,
   fetchCodeScanningAlerts,
   fetchDependabotAlerts,
   fetchSecretScanningAlerts,
@@ -23,6 +24,14 @@ import { getHost } from "./host-binding.js";
 import { INTEGRATION_ID } from "./normalize.js";
 
 const GITHUB_API_BASE = "https://api.github.com";
+
+/**
+ * NFR-015 graceful copy for fine-grained PATs / GitHub App installation
+ * tokens that do not emit the `X-OAuth-Scopes` response header. The
+ * client renders this verbatim as the chip tooltip. Do not edit casually.
+ */
+export const SCOPE_UNVERIFIABLE_CAUSE =
+  "Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.";
 
 export interface AlertFlags {
   includeCodeQLAlerts?: boolean;
@@ -42,6 +51,7 @@ export interface FetchRepoAlertsResult {
 }
 
 let cachedToken: string | null = null;
+let cachedScopeProbe: Promise<"known" | "unknown"> | null = null;
 
 async function getTransport(): Promise<FetchTransport> {
   const host = getHost();
@@ -58,9 +68,26 @@ async function getTransport(): Promise<FetchTransport> {
   };
 }
 
-/** Reset the cached GitHub token. Tests call this between cases. */
+/**
+ * One-shot probe of `/user` to detect whether the current token emits
+ * `X-OAuth-Scopes`. Cached per process; cleared by `resetAlertsRuntime()`.
+ * Returns `"unknown"` for fine-grained PATs / GitHub App tokens (NFR-015)
+ * so callers can rewrite a `missing-scope` warning to `scope-unverifiable`.
+ */
+async function probeTokenShape(transport: FetchTransport): Promise<"known" | "unknown"> {
+  if (!cachedScopeProbe) {
+    cachedScopeProbe = (async () => {
+      const result = await detectTokenScopes(transport, GITHUB_API_BASE);
+      return result.kind === "unknown" ? "unknown" : "known";
+    })();
+  }
+  return cachedScopeProbe;
+}
+
+/** Reset the cached GitHub token and scope-probe result. Tests call this between cases. */
 export function resetAlertsRuntime(): void {
   cachedToken = null;
+  cachedScopeProbe = null;
 }
 
 function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } | null {
@@ -111,17 +138,25 @@ export async function fetchRepoAlerts(
   const items: NormalizedIssue[] = [];
   const warnings: FetchRepoAlertsResult["warnings"] = [];
 
+  const pushWarning = (
+    category: "code-scanning" | "secret-scanning" | "dependabot",
+    res: { cause: string; status?: number; code: string },
+  ): void => {
+    warnings.push({
+      category,
+      cause: res.cause,
+      code: res.code as FetchRepoAlertsResult["warnings"][number]["code"],
+      ...(res.status !== undefined ? { detail: { status: res.status } } : {}),
+    });
+  };
+
   if (codeRes) {
     if (codeRes.ok) {
       for (const raw of codeRes.items) {
         items.push(mapCodeScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "code-scanning",
-        cause: codeRes.cause,
-        ...(codeRes.status !== undefined ? { detail: { status: codeRes.status } } : {}),
-      });
+      pushWarning("code-scanning", codeRes);
     }
   }
   if (secretRes) {
@@ -130,11 +165,7 @@ export async function fetchRepoAlerts(
         items.push(mapSecretScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "secret-scanning",
-        cause: secretRes.cause,
-        ...(secretRes.status !== undefined ? { detail: { status: secretRes.status } } : {}),
-      });
+      pushWarning("secret-scanning", secretRes);
     }
   }
   if (depRes) {
@@ -143,11 +174,23 @@ export async function fetchRepoAlerts(
         items.push(mapDependabotAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "dependabot",
-        cause: depRes.cause,
-        ...(depRes.status !== undefined ? { detail: { status: depRes.status } } : {}),
-      });
+      pushWarning("dependabot", depRes);
+    }
+  }
+
+  // NFR-015: if any category came back as `missing-scope` (HTTP 401), probe
+  // the token shape once. Fine-grained PATs and GitHub App tokens do not emit
+  // `X-OAuth-Scopes`, so we cannot honestly say `security_events` is missing;
+  // rewrite the warning to a graceful "verify scopes" variant instead.
+  if (warnings.some((w) => w.code === "missing-scope")) {
+    const shape = await probeTokenShape(transport);
+    if (shape === "unknown") {
+      for (const w of warnings) {
+        if (w.code === "missing-scope") {
+          w.code = "scope-unverifiable";
+          w.cause = SCOPE_UNVERIFIABLE_CAUSE;
+        }
+      }
     }
   }
 

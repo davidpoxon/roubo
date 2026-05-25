@@ -17,6 +17,7 @@ export type {
   ListIssuesParams,
   ListIssuesResult,
   ListIssuesWarning,
+  ListIssuesWarningCode,
   ListLabelsParams,
   LogPayload,
   NormalizedComment,
