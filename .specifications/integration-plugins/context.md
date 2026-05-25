@@ -323,29 +323,34 @@ A user opens Settings, sees a grid of plugins with their connection state at a g
 #### In scope
 
 **Connection-status surfacing (bullet 1).**
+
 - Status appears in three places: the plugin card on Settings > Plugins, the Configure modal header, and the project Issue Source tile.
 - States: Connected, Disconnected / never configured, Auth problem (token expired / 401 - covers OAuth re-consent needed), Errored / unreachable (covers rate-limited, plugin crashed, never checked - detail on hover / in tooltip).
 - Disabled plugins show a distinct "Disabled" chip; no status check runs on disabled plugins.
 - Freshness model: cached last-known value (rendered as "as of HH:MM") with opportunistic background re-check on UI events (Settings tab open, Configure modal open, cut-list load). UI updates when the re-check returns. No constant polling.
 
 **Plugin grid + Settings page width (bullet 2).**
+
 - Settings > Plugins switches from vertical stack to a responsive auto-fit CSS grid (target tile width ~360px). 1 column on narrow viewports, 2 at default app width, 3+ on wide displays. No fixed breakpoints.
 - Settings page container width changes from constrained to full container width for the entire Settings surface (all tabs).
 - Each plugin tile shows: plugin name + short description, status chip (from cluster 1), enabled/disabled toggle, Configure button.
 
 **Bundled plugins default-disabled + migration (bullet 3).**
+
 - Greenfield installs: all bundled plugins land disabled. User opts in.
 - Existing installations: untouched. Already-enabled plugins stay enabled. No surprise disabling on upgrade.
 - When a project's active integration references a disabled bundled plugin, project load surfaces a friendly prompt: "Enable github.com plugin to load this project?" with one-click Enable. No silent state mutation.
 - Disabled bundled plugins surface in Settings > Plugins with a "Disabled" chip; the connection-status freshness loop does not run for them.
 
 **Cut-list filtering & visual chips (bullets 4, 5, 6).**
+
 - Exclusion config (which statuses NOT to show in the cut list) is three-layer: plugin-global default + per-project override + per-source override, deep-merged. Matches the existing config-merge pattern.
 - Default exclusions: Closed / Done / Resolved AND In-review / PR-open / waiting-on-reviewer. Both excluded by default; user opts back in if desired.
 - Filter facets are plugin-declared via a new `filterFacets()` RPC. Each plugin returns a descriptor list (id, label, type ('enum' / 'enum-async' / 'multi-enum'), options). Core renders generic filter UI from the descriptor. github.com plugin declares Milestone; Jira plugin declares Epic. Future plugins can add facets without core changes.
 - Chip visual taxonomy: distinct treatment for Status, Label, Issue type, Milestone/Epic, Priority, Assignee, Security-alert category. Status vs Label collision the user originally flagged is the most acute case but all categories get distinct visual buckets (colour + optional icon prefix). Specific design tokens deferred to the prototype stage.
 
 **GitHub settings consolidation (bullets 7, 8).**
+
 - Fields that move from Project Settings > Identity into the GitHub.com / GHE plugin Configure modal: Repository path (repo URL), Linked GitHub Project (Project v2 board), Meta-repo submodule list.
 - Default branch STAYS at the project level - it's a git concept, not a GitHub concept, and Roubo uses it independently of which integration plugin is active.
 - Nothing else GitHub-shaped remains at the project level. Project Settings > Identity keeps only Roubo-native fields (project name, default branch, Roubo-managed paths).
@@ -353,9 +358,11 @@ A user opens Settings, sees a grid of plugins with their connection state at a g
 - Configure / Choose-sources buttons collapse to ONE context-dependent button: label is "Connect" when no credentials are configured, "Configure" once connected. Source selection lives inside the (renamed) Configure modal. Choose-sources button retired.
 
 **GHE parity (bullets 7, 8 follow-up).**
+
 - GitHub Enterprise plugin consolidates identically to github.com: same fields, same modal layout, same Connect/Configure button collapse. Maximum parity, one mental model.
 
 **E2E test coverage (bullet 9, expanded per user clarification 2026-05-25).**
+
 - Scope is the **entire integration-plugins feature**, not only the 2026-05-25 polish work and not only the 2026-05-24 alerts addition. No e2e exists yet; this stage defines e2e systematically.
 - Harness: Playwright UI tests against the running Roubo app (real client, real server, stubbed plugin process). Vitest integration tests already cover plugin-RPC contracts at the unit level - they stay.
 - Plugin target in CI and locally: a stubbed plugin process implementing the plugin RPC contract deterministically. No real GitHub.com / GHE / Jira network calls in e2e runs. No rate-limit risk, no flaky-network failures, CI-friendly.
@@ -394,11 +401,13 @@ A user opens Settings, sees a grid of plugins with their connection state at a g
 ### Success indicators
 
 **Leading.**
+
 - Every e2e suite defined in the tests stage runs green in CI under `pr-check` against a stubbed plugin process.
 - Plugin grid renders at 1 / 2 / 3 columns at the three breakpoint widths defined in the prototype.
 - Status chips render the correct state for all four states across all three placements (cards, Configure header, project Issue Source tile).
 
 **Lagging.**
+
 - Zero "I had to click Test Connection to see if I was still connected" support reports after rollout.
 - Zero project-load failures attributable to a disabled bundled plugin (the prompt-and-enable flow catches them).
 - A new plugin author can add a filter facet to a community plugin without core code changes (proven by adding one to the existing self-hosted Jira bundled plugin in the same slug as a dogfooding step).

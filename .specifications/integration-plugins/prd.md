@@ -588,191 +588,243 @@ The plugin runtime and three bundled integration plugins have shipped, and users
 ### User stories
 
 #### US-014 — See integration connection status at a glance
+
 As a Roubo user with one or more integration plugins configured, I want each plugin's connection state visible without clicking Test Connection, so that I know whether my cut list is current and which plugin needs my attention.
 
 #### US-015 — Browse plugins as a grid, not a stack
+
 As a Roubo user with multiple integration plugins installed, I want the Settings > Plugins page to render as a responsive grid filling the full Settings surface, so that I can scan all plugins at once instead of scrolling a tall vertical stack.
 
 #### US-016 — Install Roubo with bundled plugins disabled by default
+
 As a new Roubo user who only uses github.com, I want bundled plugins (GHE, Jira) to land disabled on a fresh install, so that my Settings surface is uncluttered and I never accidentally route to the wrong source.
 
 #### US-017 — Be prompted to enable a disabled bundled plugin when I open a project that needs it
+
 As a Roubo user opening a colleague's project whose `roubo.yaml` points at a bundled plugin I have not enabled, I want a one-click Enable prompt instead of a silent failure or silent enable, so that I'm in control and understand what just got enabled.
 
 #### US-018 — Hide closed and in-review issues from the cut list by default
+
 As a Roubo user planning my next bench, I want my cut list to exclude closed/done/resolved and in-review/PR-open issues by default, so that the list shows only work I can pick up right now.
 
 #### US-019 — Configure status exclusions per source when one source is noisier than others
+
 As a Roubo user with multiple sources in one plugin (e.g. several github.com repos), I want to override the status exclusion at the source level when one source has unusual workflow states, so that I'm not forced into a one-size-fits-all rule.
 
 #### US-020 — Filter the cut list by Milestone (github.com) or Epic (Jira)
+
 As a Roubo user picking work for a release, I want to filter the cut list by Milestone (github.com) or Epic (Jira), so that I can see only the issues that count toward my current release.
 
 #### US-021 — Distinguish chip categories at a glance
+
 As a Roubo user (including colour-blind users), I want status, label, type, and metadata chips on cut-list rows to be visually distinct in shape AND colour, so that I can read a row without parsing legend text or relying on colour alone.
 
 #### US-022 — Configure all my GitHub settings in one place
+
 As a Roubo user whose source-of-truth is GitHub, I want repo path, linked GitHub Project, and meta-repo submodules configured inside the GitHub plugin tab on my project Settings page (next to credentials and sources), so that GitHub-shaped config doesn't live in two places.
 
 #### US-023 — Use one Connect / Configure button for the active integration
+
 As a Roubo user opening my project's Settings, I want a single button on the integration tab whose label says `Connect` before I have credentials and `Configure` after, so that I'm not faced with two overlapping buttons (Configure + Choose sources) doing similar things.
 
 #### US-024 — See security and quality alerts in my cut list (github.com / GHE)
+
 As a Roubo user whose source-of-truth is github.com or GHE, I want to opt each source into CodeQL, Secret Scanning, and Dependabot alerts so they appear in my cut list interleaved with regular issues, so that I can triage security work alongside feature work without leaving Roubo.
 
 #### US-025 — Trust that integration changes don't regress with every release
+
 As a Roubo maintainer, I want every user-facing integration flow covered by a deterministic Playwright e2e suite running against a stubbed plugin, so that I can ship plugin runtime / UI changes with confidence and catch regressions before they reach users.
 
 ### Functional requirements
 
 #### FR-051 — Status chip on Settings > Plugins tile
+
 Each plugin tile on Settings > Plugins displays a status chip showing one of: `Connected`, `Disconnected`, `Auth problem`, `Errored`, `Disabled`. The chip surfaces the cached last-known status with a relative timestamp ("as of HH:MM"). Disabled plugins always show the `Disabled` chip and skip status checks.
 
 #### FR-052 — Status chip in Configure modal header
+
 The Configure (or Connect) modal renders a status chip in its header for the current plugin. The chip uses the same component as the tile chip and reflects the same cached value.
 
 #### FR-053 — Status chip on project Settings page integration tile
+
 The active integration plugin's tile inside the per-project Settings page renders a status chip identical in shape and palette to the chips on Settings > Plugins.
 
 #### FR-054 — Opportunistic status re-check on UI events
+
 Opening the Settings > Plugins tab, opening the Configure modal, or loading the cut list re-checks status in the background for every enabled plugin. The cached value renders synchronously; the re-check updates the chip when it returns. No background timer fires when no UI event has triggered.
 
 #### FR-055 — `getConnectionStatus()` plugin RPC
+
 The plugin contract gains an optional `getConnectionStatus(): Promise<ConnectionStatus>` method where `ConnectionStatus = { state: 'connected' | 'disconnected' | 'auth-problem' | 'errored', detail?: string, checkedAt: string }`. Plugins built against host-API 1.0.0 that omit this method are tolerated via `MethodNotFound`; the host falls back to invoking `validateConfig()` and inferring state from its result.
 
 #### FR-056 — Settings > Plugins renders as a responsive auto-fit grid
+
 The Settings > Plugins layout switches from a vertical stack to a CSS Grid with `auto-fit minmax(360px, 1fr)`. Tiles wrap to 1 / 2 / 3 columns based on the available width, with no fixed breakpoint values in JS.
 
 #### FR-057 — Plugin tile content
+
 Each tile renders, in order: plugin name (heading), one-line description, status chip, enabled/disabled toggle, action button (`Connect` if no credentials, `Configure` otherwise). Tile minimum width is 360px and tile height is consistent within a row.
 
 #### FR-058 — Settings page full container width
+
 The Settings page wrapper changes from `max-w-*` constrained to `w-full`/full-container-width across every tab (Plugins, Project setup, others). Child layouts are responsible for any inner content constraints.
 
 #### FR-059 — Bundled plugins ship in disabled state on greenfield installs
+
 On a fresh install (no `~/.roubo/state.json` version marker), all bundled plugins (github.com, GHE, Jira) are recorded with `enabled: false` in the persistent plugin state. Existing installs (state file with a prior `version` marker) are not modified.
 
 #### FR-060 — Persistent plugin enable state
+
 The server persists per-plugin enable state across restarts in a state file under `~/.roubo/` (architecture pins the exact filename and field). Enable / disable RPC calls update both the in-memory plugin manager record AND the persistent state. Plugin enable state is local to the user's installation and never transmitted to telemetry.
 
 #### FR-061 — Project-load prompt when a disabled bundled plugin is needed
+
 When the user opens a project whose `roubo.yaml` references a disabled bundled plugin, the UI shows a modal "Enable [plugin name] to load this project?" with `Enable` and `Cancel` buttons. `Enable` flips the plugin to enabled and continues project load. `Cancel` returns to the project list with no state change.
 
 #### FR-062 — `excludedStatuses` config setting (three-layer)
+
 A new `excludedStatuses: string[]` setting is supported at three layers: plugin-global (in plugin defaults), per-project (in the project's integration override block), and per-source (under `sources[<id>]`). Effective value is the deep-merged result across the three layers, with later layers overriding earlier ones.
 
 #### FR-063 — Per-source `excludedStatuses` post-merge pass
+
 The existing config merge walker does not descend into `sources[<id>]` entries; a post-merge pass applies per-source overrides to each resolved source's `excludedStatuses`. The pass is idempotent and runs in `server/services/integration-overrides.ts`.
 
 #### FR-064 — Default `excludedStatuses` for bundled plugins
+
 github.com / GHE / Jira bundled plugins ship with default `excludedStatuses: ['Closed', 'Done', 'Resolved', 'In review', 'PR open', 'Waiting on reviewer']` at the plugin-global layer (mapped to each provider's actual state strings).
 
 #### FR-065 — `filterFacets()` plugin RPC
+
 The plugin contract gains an optional `filterFacets(): Promise<FilterFacet[]>` method where `FilterFacet = { id: string, label: string, type: 'enum' | 'enum-async' | 'multi-enum', options?: string[] }`. github.com plugin returns at minimum a `Milestone` facet. Jira returns at minimum an `Epic` facet. Plugins built against 1.0.0 that omit this method fall back to a fixed common-facet set (`Status`, `Label`, `Assignee`, `Type`).
 
 #### FR-066 — Optional `facetValues` field on NormalizedIssue
+
 `NormalizedIssue` gains an optional `facetValues?: Record<string, string | string[]>` field. Plugins populate this when they declare facets; the keys match facet ids returned by `filterFacets()`. Core uses this map to filter the cut list.
 
 #### FR-067 — Host-API minor bump to 1.1.0
+
 The host-API version increments from 1.0.0 to 1.1.0 to cover `getConnectionStatus()`, `filterFacets()`, and the optional `facetValues` field. The SDK package version follows. Plugins built against 1.0.0 keep working via existing `MethodNotFound` tolerance.
 
 #### FR-068 — Cut-list chip taxonomy
+
 Cut-list rows render chips for Status, Label, Issue type, and metadata (Milestone/Epic, Priority, Assignee, Security-alert) as four visually-distinct buckets. Each bucket uses a distinct colour AND a non-colour signal (shape or icon prefix), so the four categories remain distinguishable in greyscale or under colour-blind palettes.
 
 #### FR-069 — Per-project Settings tab title driven by active plugin
+
 The per-project Settings page renders a tab whose title is the active integration plugin's display name (github.com -> "GitHub", GHE -> "GitHub Enterprise", Jira -> "Jira"). When no integration is configured, the tab title is `Source`.
 
 #### FR-070 — Repo path / linked Project / submodules move into the plugin tab
+
 The repository path, linked GitHub Project (Project v2 board), and meta-repo submodule list move from Project Settings > Identity into the new plugin-driven tab. Identity tab loses those fields and retains project name, default branch, and Roubo-managed paths only.
 
 #### FR-071 — Default branch stays on Identity
+
 Default branch remains on Project Settings > Identity. It is a git concept used by Roubo independently of which integration plugin is active.
 
 #### FR-072 — Single context-aware Connect / Configure button
+
 The integration tab's primary action button renders the label `Connect` when the plugin has no credentials configured, and `Configure` otherwise. Clicking opens the same modal in both cases. The legacy `Choose sources` button is removed; source selection lives inside the Configure modal.
 
 #### FR-073 — GHE consolidation parity
+
 GitHub Enterprise plugin's UI consolidates identically to github.com: same fields, same modal layout, same single-button collapse. No GHE-specific divergence in field set.
 
 #### FR-074 — Per-source security/quality alert booleans (2026-05-24)
+
 Bundled github.com and GHE plugins expose three optional per-source booleans on each source: `includeCodeQLAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. All three default to `false`.
 
 #### FR-075 — Alert rendering in the cut list
+
 When a category is enabled for a source, alerts of that category appear in the cut list interleaved with regular issues, rendered with the matching issue-type chip (`CodeQL`, `Secret scanning`, `Dependabot`). Alerts are read-only - the row does not show transition or assign actions.
 
 #### FR-076 — Inline OAuth re-consent on enabling an alert category
+
 For github.com (OAuth), enabling an alert category surfaces an inline re-consent affordance inside the per-source warning chip; clicking re-runs the OAuth flow with extended `security_events` scope. For GHE (PAT), the affordance surfaces an inline reminder to verify the PAT's `security_events` scope.
 
 #### FR-077 — Playwright e2e harness
+
 The repo gains a Playwright test suite running against the built Roubo app (real client + real server + stubbed plugin process). Suite runs headless, deterministically, with no network access. CI runs the suite under the existing `pr-check` workflow.
 
 #### FR-078 — Deterministic stubbed plugin
+
 The harness provides a fake plugin process implementing the full plugin RPC contract: lifecycle, validateConfig, listSources, listIssues, transitionIssue, assignIssue, unassignIssue, filterFacets, getConnectionStatus. Output is byte-deterministic given the same test inputs; time is pinned by the harness.
 
 #### FR-079 — Env-gated `/test/__reset` route
+
 The server exposes a `POST /test/__reset` route that resets module-level singletons (plugin-manager, project-registry, state cache) between Playwright specs. The route is gated behind `process.env.ROUBO_E2E === '1'` and is not exposed in production builds.
 
 #### FR-080 — E2E coverage surface (feature-wide)
+
 The Playwright suite covers, at minimum: plugin lifecycle (install/enable/disable/uninstall/auto-restart), Configure flow per bundled plugin, source picker shapes, cut-list filtering (status exclusion x three layers, plugin-declared facets, chip categories), legacy github.com migration, alerts re-consent flow, status surfacing across all three placements, GitHub settings consolidation, bench creation per source type, write-back ops, host permission gates. The tests stage enumerates individual cases.
 
 ### Non-functional requirements
 
 #### NFR-016 — Accessibility: WCAG 2.1 AA + keyboard-only + colour-blind safe
+
 Category: accessibility
 Every new and modified surface (plugin grid, status chips, Configure modal, integration tab, cut-list chips, project-load Enable prompt) meets WCAG 2.1 AA contrast against the surrounding background. Plugin grid is keyboard-navigable (Tab order through tiles, Enter to open Configure, Space to toggle enable/disable). Chip discrimination does not rely on colour alone; every category combines colour with a non-colour signal (shape, icon prefix, or border style).
 
 #### NFR-017 — Performance: status chip render and re-check budgets
+
 Category: performance
 Cached status chips render synchronously within 50ms of the parent surface mounting. Opportunistic background re-check completes within 2 seconds p95 for healthy plugins (excluding intentional `errored` cases). Plugin grid first paint completes within 100ms of the Settings > Plugins tab opening.
 
 #### NFR-018 — Reliability: e2e suite is deterministic in CI
+
 Category: reliability
 The Playwright suite must pass 10 consecutive runs in CI with zero flaky reruns. The stubbed plugin produces byte-identical output across runs given the same inputs; the harness pins time via fake timers in the Playwright fixture.
 
 #### NFR-019 — Security: plugin enable state is local-only
+
 Category: security
 Plugin enable state is persisted to `~/.roubo/` (filename pinned by architecture). It is never transmitted to telemetry, never written into committed `roubo.yaml`, and is excluded from any state-snapshot endpoint. Telemetry events that reference plugins use the plugin id only; enable state never appears in any event payload.
 
 #### NFR-020 — Security: status re-check honours network-host allowlist
+
 Category: security
 The opportunistic status re-check flows through the host-provided `host.fetch` helper. Plugins cannot bypass the allowlist or the self-signed-TLS opt-in. Any re-check call to a host not on the plugin's manifest-declared allowlist is rejected by the host before the plugin code runs.
 
 #### NFR-021 — Performance: cut-list filter recompute under 50ms p95
+
 Category: performance
 Applying or removing a filter facet on the cut list completes the client-side recompute and re-render within 50ms p95 for a cut list of up to 500 issues. Filter changes do not trigger a fresh server fetch unless the user explicitly refreshes.
 
 #### NFR-022 — Accessibility: project-load Enable prompt is focus-trapped
+
 Category: accessibility
 The "Enable [plugin name] to load this project?" modal traps focus, restores focus to the originating UI on close, and exposes its title and description via aria-labelledby / aria-describedby. Esc cancels, Enter confirms when the Enable button has focus.
 
 #### NFR-023 — Observability: connection status changes are logged
+
 Category: observability
 Connection status transitions (e.g. `connected` -> `auth-problem`) are written to the plugin's host-provided structured logger with the plugin id, the previous state, the new state, and the trigger (UI-event source). Logs go to the existing log destination; no new logging infrastructure introduced.
 
 #### NFR-024 — Reliability: project-load prompt never deadlocks
+
 Category: reliability
 If the user cancels the project-load Enable prompt, the project list view re-renders within 500ms with no plugin in a partially-enabled state. If the Enable click fails (plugin process refuses to start), the modal displays the error inline and the plugin remains in its previous disabled state.
 
 #### NFR-025 — Localization-readiness: all new copy uses string keys
+
 Category: localization
 All user-facing copy introduced by this scope (status chip labels, modal titles, button labels, error strings, alert category names) uses the existing string-key pattern so a future localization pass can swap them without touching component code. No inline English strings in new components.
 
 ### Traceability
 
-| User story | Functional requirements | Non-functional requirements |
-|---|---|---|
-| US-014 — See integration connection status at a glance | FR-051, FR-052, FR-053, FR-054, FR-055 | NFR-016, NFR-017, NFR-020, NFR-023, NFR-025 |
-| US-015 — Browse plugins as a grid, not a stack | FR-056, FR-057, FR-058 | NFR-016, NFR-017, NFR-025 |
-| US-016 — Install Roubo with bundled plugins disabled by default | FR-059, FR-060 | NFR-019, NFR-025 |
-| US-017 — Be prompted to enable a disabled bundled plugin when I open a project that needs it | FR-061 | NFR-016, NFR-022, NFR-024, NFR-025 |
-| US-018 — Hide closed and in-review issues from the cut list by default | FR-062, FR-063, FR-064 | NFR-021, NFR-025 |
-| US-019 — Configure status exclusions per source when one source is noisier than others | FR-062, FR-063 | NFR-021, NFR-025 |
-| US-020 — Filter the cut list by Milestone (github.com) or Epic (Jira) | FR-065, FR-066, FR-067 | NFR-021, NFR-025 |
-| US-021 — Distinguish chip categories at a glance | FR-068 | NFR-016, NFR-025 |
-| US-022 — Configure all my GitHub settings in one place | FR-069, FR-070, FR-071, FR-073 | NFR-016, NFR-025 |
-| US-023 — Use one Connect / Configure button for the active integration | FR-072, FR-073 | NFR-016, NFR-025 |
-| US-024 — See security and quality alerts in my cut list (github.com / GHE) | FR-074, FR-075, FR-076 | NFR-020, NFR-025 |
-| US-025 — Trust that integration changes don't regress with every release | FR-077, FR-078, FR-079, FR-080 | NFR-018 |
+| User story                                                                                   | Functional requirements                | Non-functional requirements                 |
+| -------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------- |
+| US-014 — See integration connection status at a glance                                       | FR-051, FR-052, FR-053, FR-054, FR-055 | NFR-016, NFR-017, NFR-020, NFR-023, NFR-025 |
+| US-015 — Browse plugins as a grid, not a stack                                               | FR-056, FR-057, FR-058                 | NFR-016, NFR-017, NFR-025                   |
+| US-016 — Install Roubo with bundled plugins disabled by default                              | FR-059, FR-060                         | NFR-019, NFR-025                            |
+| US-017 — Be prompted to enable a disabled bundled plugin when I open a project that needs it | FR-061                                 | NFR-016, NFR-022, NFR-024, NFR-025          |
+| US-018 — Hide closed and in-review issues from the cut list by default                       | FR-062, FR-063, FR-064                 | NFR-021, NFR-025                            |
+| US-019 — Configure status exclusions per source when one source is noisier than others       | FR-062, FR-063                         | NFR-021, NFR-025                            |
+| US-020 — Filter the cut list by Milestone (github.com) or Epic (Jira)                        | FR-065, FR-066, FR-067                 | NFR-021, NFR-025                            |
+| US-021 — Distinguish chip categories at a glance                                             | FR-068                                 | NFR-016, NFR-025                            |
+| US-022 — Configure all my GitHub settings in one place                                       | FR-069, FR-070, FR-071, FR-073         | NFR-016, NFR-025                            |
+| US-023 — Use one Connect / Configure button for the active integration                       | FR-072, FR-073                         | NFR-016, NFR-025                            |
+| US-024 — See security and quality alerts in my cut list (github.com / GHE)                   | FR-074, FR-075, FR-076                 | NFR-020, NFR-025                            |
+| US-025 — Trust that integration changes don't regress with every release                     | FR-077, FR-078, FR-079, FR-080         | NFR-018                                     |
 
 ### Leading indicators of success
 
@@ -794,4 +846,3 @@ All user-facing copy introduced by this scope (status chip labels, modal titles,
 - `filterFacets()` async value population strategy (immediate vs lazy on filter open) - deferred to the architecture stage.
 - Whether the renamed integration tab title appears in the project sidebar / breadcrumb in addition to the tab itself - deferred to the prototype stage.
 - Whether `pluginEnableState` lives in `~/.roubo/state.json` (extend existing) or a new `~/.roubo/plugins-state.json` - deferred to the architecture stage.
-
