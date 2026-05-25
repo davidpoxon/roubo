@@ -34,6 +34,7 @@ import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
 import migrationRouter from "./routes/migration.js";
+import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
 import * as autoClear from "./services/auto-clear.js";
 import * as pluginManager from "./services/plugin-manager.js";
@@ -100,6 +101,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/plugins/github-com/oauth", pluginsGithubOauthRouter);
   app.use("/api/hooks", hooksRouter);
   app.use("/api/notifications", notificationsRouter);
+  // WU-061 / FR-079: env-gated e2e reset route. The handler returns 404 when
+  // ROUBO_E2E !== "1", so this mount is safe in production builds.
+  app.use("/test", testRouter);
 
   app.get("/api/benches", (req, res) => {
     let benches = benchManager.getBenches();
