@@ -251,3 +251,12 @@ export class ProjectRegistryError extends Error {
     this.name = "ProjectRegistryError";
   }
 }
+
+// Test-only reset so the e2e /test/__reset handler can clear the projects Map
+// between Playwright specs. Production code paths should call initialize() at
+// boot; this exists only for the env-gated reset route.
+export const __test = {
+  reset(): void {
+    projects.clear();
+  },
+};
