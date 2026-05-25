@@ -57,7 +57,8 @@ describe("ClearBenchDirtyDialog", () => {
     ["dirty-worktree", "Uncommitted changes"],
     ["stash", "Stashed changes"],
     ["unpushed-commits", "Unpushed commits"],
-    ["no-upstream", "No upstream branch — cannot check for unpushed commits"],
+    ["no-upstream", "No upstream branch (cannot check for unpushed commits)"],
+    ["local-only-after-merge", "Local-only commits (upstream deleted)"],
   ])("renders correct label for kind %s", (kind, expectedLabel) => {
     render(
       <ClearBenchDirtyDialog
@@ -69,6 +70,22 @@ describe("ClearBenchDirtyDialog", () => {
       />,
     );
     expect(screen.getByText(expectedLabel)).toBeInTheDocument();
+  });
+
+  it("does not use em dashes in any rendered label or heading", () => {
+    render(
+      <ClearBenchDirtyDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        benchId={1}
+        reasons={[
+          { kind: "no-upstream", location: "workspace", detail: "x" },
+          { kind: "local-only-after-merge", location: "workspace", detail: "y" },
+        ]}
+        onConfirmForce={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog").textContent ?? "").not.toContain("—");
   });
 
   it("clicking Cancel calls onClose and does not call onConfirmForce", async () => {
@@ -113,8 +130,8 @@ describe("ClearBenchDirtyDialog", () => {
   });
 
   it("shows forceError message when provided", () => {
-    renderDialog({ forceError: "Clear failed — please try again." });
-    expect(screen.getByText("Clear failed — please try again.")).toBeInTheDocument();
+    renderDialog({ forceError: "Clear failed: please try again." });
+    expect(screen.getByText("Clear failed: please try again.")).toBeInTheDocument();
   });
 
   it("does not show error message when forceError is null", () => {

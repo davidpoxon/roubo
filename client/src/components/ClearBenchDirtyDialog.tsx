@@ -6,7 +6,8 @@ const KIND_LABEL: Record<DirtyReasonKind, string> = {
   "dirty-worktree": "Uncommitted changes",
   stash: "Stashed changes",
   "unpushed-commits": "Unpushed commits",
-  "no-upstream": "No upstream branch — cannot check for unpushed commits",
+  "no-upstream": "No upstream branch (cannot check for unpushed commits)",
+  "local-only-after-merge": "Local-only commits (upstream deleted)",
 };
 
 export default function ClearBenchDirtyDialog({
@@ -54,7 +55,7 @@ export default function ClearBenchDirtyDialog({
                   slot="title"
                   className="text-sm font-semibold text-stone-900 dark:text-stone-100"
                 >
-                  Clear Bench {benchId} — uncommitted work detected
+                  Clear Bench {benchId}: uncommitted work detected
                 </Heading>
               </div>
 

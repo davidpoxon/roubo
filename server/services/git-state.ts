@@ -1,9 +1,44 @@
 import path from "node:path";
-import type { Bench, DirtyReason, DirtyState } from "@roubo/shared";
+import type { Bench, BenchWorkUnit, DirtyReason, DirtyState } from "@roubo/shared";
 import { runCommand } from "./exec.js";
+
+export interface DirtyStateOptions {
+  /**
+   * Locations (workspace or submodule `$displaypath`) whose branch is
+   * known-merged via an external signal (e.g. a tracked PR with `merged: true`).
+   * For these locations we skip the unpushed/no-upstream checks entirely. The
+   * worktree and stash checks still run, since post-merge edits or stashes are
+   * still real reasons to warn the user.
+   */
+  knownMergedLocations?: Set<string>;
+}
 
 function execGit(args: string[], cwd: string) {
   return runCommand("git", args, cwd);
+}
+
+/**
+ * Builds the per-location merge hint set for a bench from its work units.
+ * A work unit is treated as known-merged when its tracked PR is merged.
+ *
+ * The returned keys must match the `location` strings used by `getDirtyState`:
+ * `"workspace"` for the meta-repo root, and the submodule's on-disk
+ * `$displaypath` (forward-slash relative path) for each submodule. The
+ * `wu.submodule` field is the roubo.yaml LayoutConfig key, which may differ
+ * from the displaypath, so we derive the location from `workspacePath` instead.
+ */
+export function buildKnownMergedLocations(bench: Bench): Set<string> {
+  const set = new Set<string>();
+  for (const wu of bench.workUnits ?? ([] as BenchWorkUnit[])) {
+    if (wu.pullRequest?.merged !== true) continue;
+    if (wu.submodule === ".") {
+      set.add("workspace");
+      continue;
+    }
+    const rel = path.relative(bench.workspacePath, wu.workspacePath).split(path.sep).join("/");
+    if (rel) set.add(rel);
+  }
+  return set;
 }
 
 async function enumerateSubmodules(
@@ -53,6 +88,56 @@ async function checkStashes(location: string, cwd: string): Promise<DirtyReason 
   return { kind: "stash", location, detail: `${count} ${count === 1 ? "stash" : "stashes"}` };
 }
 
+/**
+ * Resolves the default branch's remote-tracking ref (e.g. `origin/main`).
+ * Tries `origin/HEAD` first; falls back to probing `origin/main` then
+ * `origin/master`. Returns null when none is available (offline mirror, weird
+ * remote layout). Callers should treat null as "give up and use the legacy
+ * no-upstream path".
+ */
+async function resolveDefaultBranch(cwd: string): Promise<string | null> {
+  const head = await execGit(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd);
+  if (head.code === 0 && head.stdout.trim()) return head.stdout.trim();
+  for (const candidate of ["origin/main", "origin/master"]) {
+    const probe = await execGit(
+      ["show-ref", "--verify", "--quiet", `refs/remotes/${candidate}`],
+      cwd,
+    );
+    if (probe.code === 0) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Handles the "branch was tracking an upstream that no longer exists on the
+ * remote" case (typical after a PR is merged and the remote branch is
+ * auto-deleted). Uses `git cherry` against the default branch to detect
+ * patch-equivalent commits (handles squash, rebase, and fast-forward merges)
+ * and only flags commits that have no equivalent on the default branch.
+ */
+async function classifyDeletedUpstream(location: string, cwd: string): Promise<DirtyReason | null> {
+  const defaultBranch = await resolveDefaultBranch(cwd);
+  if (!defaultBranch) {
+    return { kind: "no-upstream", location, detail: "no upstream configured" };
+  }
+  const cherry = await execGit(["cherry", defaultBranch, "HEAD"], cwd);
+  if (cherry.code !== 0) {
+    return {
+      kind: "local-only-after-merge",
+      location,
+      detail: `git error (exit ${cherry.code})`,
+    };
+  }
+  const lines = cherry.stdout.split("\n").filter((l) => l.trim().length > 0);
+  const localOnly = lines.filter((l) => l.startsWith("+")).length;
+  if (localOnly === 0) return null;
+  return {
+    kind: "local-only-after-merge",
+    location,
+    detail: `upstream deleted, ${localOnly} ${localOnly === 1 ? "commit" : "commits"} not in ${defaultBranch}`,
+  };
+}
+
 async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason | null> {
   // Exit code 1 = detached HEAD (expected — skip unpushed check).
   // Any other non-zero = real git error — fail safe to dirty.
@@ -61,12 +146,27 @@ async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason
   if (symref.code !== 0) {
     return { kind: "unpushed-commits", location, detail: `git error (exit ${symref.code})` };
   }
+  const branchName = symref.stdout.trim().replace(/^refs\/heads\//, "");
 
   const upstream = await execGit(
     ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
     cwd,
   );
   if (upstream.code !== 0) {
+    // `@{upstream}` failed: either the branch never had upstream tracking, or
+    // it had tracking that has since been deleted from the remote (typical
+    // after a merged PR with auto-delete enabled). The two cases need
+    // different treatment, and git's per-branch config is the source of truth.
+    const trackingConfig = branchName
+      ? await execGit(["config", "--get", `branch.${branchName}.merge`], cwd)
+      : { code: 1, stdout: "", stderr: "" };
+    const wasTracked =
+      branchName.length > 0 && trackingConfig.code === 0 && trackingConfig.stdout.trim().length > 0;
+
+    if (wasTracked) {
+      return await classifyDeletedUpstream(location, cwd);
+    }
+
     // No upstream tracking configured. This is expected for freshly created bench
     // branches that were never pushed. Check if HEAD has any commits that don't
     // exist on any remote branch — if not, the branch is effectively clean and
@@ -100,22 +200,33 @@ async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason
 async function checkLocation({
   location,
   cwd,
+  skipUnpushed,
 }: {
   location: string;
   cwd: string;
+  skipUnpushed: boolean;
 }): Promise<DirtyReason[]> {
-  const [worktree, stash, unpushed] = await Promise.all([
+  const checks: Promise<DirtyReason | null>[] = [
     checkDirtyWorktree(location, cwd),
     checkStashes(location, cwd),
-    checkUnpushed(location, cwd),
-  ]);
-  return [worktree, stash, unpushed].filter((r): r is DirtyReason => r !== null);
+  ];
+  if (!skipUnpushed) checks.push(checkUnpushed(location, cwd));
+  const results = await Promise.all(checks);
+  return results.filter((r): r is DirtyReason => r !== null);
 }
 
-export async function getDirtyState(bench: Bench): Promise<DirtyState> {
+export async function getDirtyState(
+  bench: Bench,
+  options?: DirtyStateOptions,
+): Promise<DirtyState> {
+  const knownMerged = options?.knownMergedLocations ?? new Set<string>();
   const submodules = await enumerateSubmodules(bench.workspacePath);
   const locations = [{ location: "workspace", cwd: bench.workspacePath }, ...submodules];
-  const perLocation = await Promise.all(locations.map(checkLocation));
+  const perLocation = await Promise.all(
+    locations.map(({ location, cwd }) =>
+      checkLocation({ location, cwd, skipUnpushed: knownMerged.has(location) }),
+    ),
+  );
   const reasons = perLocation.flat();
   reasons.sort((a, b) => a.location.localeCompare(b.location) || a.kind.localeCompare(b.kind));
   return { clean: reasons.length === 0, reasons };

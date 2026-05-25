@@ -456,7 +456,12 @@ export interface TrackedPullRequest {
 
 // ── Git dirty-state types ──
 
-export type DirtyReasonKind = "dirty-worktree" | "stash" | "unpushed-commits" | "no-upstream";
+export type DirtyReasonKind =
+  | "dirty-worktree"
+  | "stash"
+  | "unpushed-commits"
+  | "no-upstream"
+  | "local-only-after-merge";
 
 /**
  * A single reason a bench is not safe to tear down.
