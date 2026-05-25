@@ -242,9 +242,16 @@ export type ProbeAlertCategory = "code-scanning" | "secret-scanning" | "dependab
  * - `ok`: probe succeeded (HTTP 2xx)
  * - `scope-missing`: token lacks the required scope (HTTP 401/403)
  * - `not-enabled`: feature is not enabled for the probed repo (HTTP 404/410/451)
- * - `error`: probe timed out, returned an unexpected status, or threw
+ * - `timed-out`: probe exceeded the per-probe cap. Rendered as an amber
+ *   warning; does not fail the overall Test Connection result.
+ * - `error`: probe returned an unexpected status or threw a non-timeout error
  */
-export type ProbeAlertCategoryStatus = "ok" | "scope-missing" | "not-enabled" | "error";
+export type ProbeAlertCategoryStatus =
+  | "ok"
+  | "scope-missing"
+  | "not-enabled"
+  | "timed-out"
+  | "error";
 
 export interface ProbeAlertCategoriesParams {
   /**
@@ -258,7 +265,7 @@ export interface ProbeAlertCategoriesParams {
   enabledCategories: ProbeAlertCategory[];
   /**
    * Host-supplied hint for the per-probe timeout. Plugins SHOULD honour this;
-   * the host defaults to 2000ms when omitted.
+   * the host defaults to 5000ms when omitted (FR-047: 5s per-probe cap).
    */
   timeoutMsPerProbe?: number;
 }

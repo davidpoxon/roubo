@@ -17,7 +17,7 @@ import { trimTrailingSlash } from "./code-scanning.js";
 
 export type ProbeCategory = "code-scanning" | "secret-scanning" | "dependabot";
 
-export type ProbeStatus = "ok" | "scope-missing" | "not-enabled" | "error";
+export type ProbeStatus = "ok" | "scope-missing" | "not-enabled" | "timed-out" | "error";
 
 export interface ProbeReport {
   category: ProbeCategory;
@@ -36,7 +36,7 @@ export interface ProbeAlertCategoriesArgs {
   transport: FetchTransport;
   sources: ProbeSource[];
   enabledCategories: ProbeCategory[];
-  /** Per-probe timeout (ms). Default 2000. */
+  /** Per-probe timeout (ms). Default 5000 (FR-047: 5s per-probe cap). */
   timeoutMsPerProbe?: number;
   /** Forwarded as `allowSelfSignedTls` on each probe (GHE). */
   allowSelfSignedTls?: boolean;
@@ -48,7 +48,7 @@ const ALERT_PATH: Record<ProbeCategory, string> = {
   dependabot: "dependabot/alerts",
 };
 
-const DEFAULT_TIMEOUT_MS = 2_000;
+const DEFAULT_TIMEOUT_MS = 5_000;
 
 function parseOwnerRepo(externalId: string): { owner: string; repo: string } | null {
   const slash = externalId.indexOf("/");
@@ -190,7 +190,7 @@ async function probeCategory(
     return classifyResponse(category, res);
   } catch (err) {
     if (err instanceof ProbeTimeoutError) {
-      return { category, status: "error", detail: "Timed out" };
+      return { category, status: "timed-out", detail: "Timed out" };
     }
     const message = err instanceof Error ? err.message : String(err);
     return { category, status: "error", detail: message };
@@ -250,9 +250,23 @@ export async function probeAlertCategories(args: ProbeAlertCategoriesArgs): Prom
     );
   }
 
-  return Promise.all(
-    args.enabledCategories.map((category) =>
+  // FR-047: fan out per-category probes with `Promise.allSettled` so a single
+  // rejected probe cannot short-circuit the others. `probeCategory` already
+  // catches its own errors and never throws today, but using `allSettled` keeps
+  // that isolation contract explicit and defends against any future probe
+  // implementation that bubbles up.
+  const categories = args.enabledCategories;
+  const settled = await Promise.allSettled(
+    categories.map((category) =>
       probeCategory(args, sample.owner, sample.repo, category, timeoutMs),
     ),
   );
+  return categories.map((category, index) => {
+    const entry = settled[index];
+    if (!entry || entry.status === "fulfilled") {
+      return entry?.value ?? { category, status: "error", detail: "Missing probe result." };
+    }
+    const message = entry.reason instanceof Error ? entry.reason.message : String(entry.reason);
+    return { category, status: "error", detail: message };
+  });
 }

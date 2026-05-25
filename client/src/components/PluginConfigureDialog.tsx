@@ -12,6 +12,7 @@ import {
 import {
   CheckCircle2,
   AlertCircle,
+  Clock,
   Loader2,
   ExternalLink,
   MinusCircle,
@@ -664,7 +665,7 @@ function worstStatusTone(categories: readonly IntegrationCategoryReport[]): Stri
   let tone: StripTone = "green";
   for (const c of categories) {
     if (c.status === "error") return "red";
-    if (c.status === "scope-missing") tone = "amber";
+    if (c.status === "scope-missing" || c.status === "timed-out") tone = "amber";
   }
   return tone;
 }
@@ -673,6 +674,7 @@ const STATUS_TEXT: Record<IntegrationCategoryStatus, string> = {
   ok: "ok",
   "scope-missing": "scope missing",
   "not-enabled": "not enabled",
+  "timed-out": "timed out",
   error: "error",
 };
 
@@ -697,6 +699,11 @@ function CategoryRow({ category }: { category: IntegrationCategoryReport }) {
       Icon = MinusCircle;
       iconColor = "text-stone-400 dark:text-stone-500";
       textColor = "text-stone-500 dark:text-stone-500";
+      break;
+    case "timed-out":
+      Icon = Clock;
+      iconColor = "text-amber-600 dark:text-amber-400";
+      textColor = "text-amber-800 dark:text-amber-300";
       break;
     case "error":
       Icon = AlertCircle;
