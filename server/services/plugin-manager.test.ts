@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginEnableState, PluginRecord } from "@roubo/shared";
+import type { ConnectionStatus } from "@roubo/plugin-sdk";
 
 vi.mock("./project-registry.js", () => ({
   getProjects: vi.fn(() => []),
@@ -927,5 +928,210 @@ describe("plugin-enable-state integration (WU-046)", () => {
 
     expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("echo", false);
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
+  });
+});
+
+describe("getConnectionStatus (WU-044)", () => {
+  const PLUGIN_ID = "github-com";
+  const CONFIG = { instance: "https://api.github.com" };
+  const FROZEN_TIME = new Date("2026-05-25T12:00:00.000Z");
+
+  type InvokerArgs = [string, string, unknown, { timeoutMs?: number } | undefined];
+  let invokerMock: ReturnType<typeof vi.fn<(...a: InvokerArgs) => Promise<unknown>>>;
+
+  function methodNotFound(method: string): Error & { code: string } {
+    const err = new Error(`Method not found: ${method}`) as Error & { code: string };
+    err.code = "MethodNotFound";
+    return err;
+  }
+
+  beforeEach(() => {
+    pluginManager.__test.reset();
+    vi.useFakeTimers();
+    vi.setSystemTime(FROZEN_TIME);
+    invokerMock = vi.fn();
+    pluginManager.__test.setConnectionStatusInvoker(invokerMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    pluginManager.__test.setConnectionStatusInvoker(null);
+    pluginManager.__test.resetConnectionStatusCache();
+  });
+
+  it("returns the plugin's reported status when getConnectionStatus is implemented", async () => {
+    invokerMock.mockResolvedValueOnce({
+      state: "connected",
+      checkedAt: "2026-05-25T11:59:59.000Z",
+    });
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({ state: "connected", checkedAt: "2026-05-25T11:59:59.000Z" });
+    expect(invokerMock).toHaveBeenCalledExactlyOnceWith(
+      PLUGIN_ID,
+      "getConnectionStatus",
+      undefined,
+      { timeoutMs: 5_000 },
+    );
+  });
+
+  it("falls back to validateConfig and reports connected when ok (TC-113)", async () => {
+    invokerMock
+      .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
+      .mockResolvedValueOnce({ ok: true });
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+    expect(invokerMock).toHaveBeenNthCalledWith(
+      2,
+      PLUGIN_ID,
+      "validateConfig",
+      { config: CONFIG },
+      { timeoutMs: 5_000 },
+    );
+  });
+
+  it("falls back to validateConfig and reports auth-problem with detail when not ok", async () => {
+    invokerMock.mockRejectedValueOnce(methodNotFound("getConnectionStatus")).mockResolvedValueOnce({
+      ok: false,
+      errors: [{ field: "token", message: "Token expired" }],
+    });
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({
+      state: "auth-problem",
+      detail: "Token expired",
+      checkedAt: FROZEN_TIME.toISOString(),
+    });
+  });
+
+  it("reports auth-problem with undefined detail when validateConfig returns no errors array", async () => {
+    invokerMock
+      .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
+      .mockResolvedValueOnce({ ok: false });
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({
+      state: "auth-problem",
+      detail: undefined,
+      checkedAt: FROZEN_TIME.toISOString(),
+    });
+  });
+
+  it("treats both methods missing as connected (no plugin-wide config to validate)", async () => {
+    invokerMock
+      .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
+      .mockRejectedValueOnce(methodNotFound("validateConfig"));
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+  });
+
+  it("reports errored when validateConfig throws a non-MethodNotFound error", async () => {
+    const boom = Object.assign(new Error("upstream down"), { code: "rpc-error" });
+    invokerMock
+      .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
+      .mockRejectedValueOnce(boom);
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({
+      state: "errored",
+      detail: "upstream down",
+      checkedAt: FROZEN_TIME.toISOString(),
+    });
+  });
+
+  it("reports errored when getConnectionStatus throws a non-MethodNotFound error", async () => {
+    const boom = Object.assign(new Error("connection refused"), { code: "rpc-error" });
+    invokerMock.mockRejectedValueOnce(boom);
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(status).toEqual({
+      state: "errored",
+      detail: "connection refused",
+      checkedAt: FROZEN_TIME.toISOString(),
+    });
+    expect(invokerMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("produces a parseable ISO-8601 checkedAt in fallback paths", async () => {
+    invokerMock
+      .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
+      .mockResolvedValueOnce({ ok: true });
+
+    const status = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(Number.isNaN(Date.parse(status.checkedAt))).toBe(false);
+  });
+
+  it("returns the cached value for subsequent calls within the 30s TTL", async () => {
+    invokerMock.mockResolvedValueOnce({
+      state: "connected",
+      checkedAt: FROZEN_TIME.toISOString(),
+    });
+
+    const first = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+    vi.advanceTimersByTime(pluginManager.CONNECTION_STATUS_TTL_MS - 1);
+    const second = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(second).toEqual(first);
+    expect(invokerMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches after the 30s TTL expires", async () => {
+    invokerMock
+      .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
+      .mockResolvedValueOnce({
+        state: "auth-problem",
+        detail: "token expired",
+        checkedAt: new Date(FROZEN_TIME.getTime() + 31_000).toISOString(),
+      });
+
+    await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+    vi.advanceTimersByTime(pluginManager.CONNECTION_STATUS_TTL_MS + 1);
+    const second = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(second.state).toBe("auth-problem");
+    expect(invokerMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("de-dups concurrent in-flight calls for the same plugin (acceptance criterion)", async () => {
+    let resolveInvoker: (value: ConnectionStatus) => void = () => {};
+    invokerMock.mockReturnValueOnce(
+      new Promise<ConnectionStatus>((resolve) => {
+        resolveInvoker = resolve;
+      }),
+    );
+
+    const inFlight = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+    const piggyback = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    resolveInvoker({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+    const [a, b] = await Promise.all([inFlight, piggyback]);
+
+    expect(a).toEqual(b);
+    expect(invokerMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the in-flight slot after settle so the next call can refresh post-TTL", async () => {
+    invokerMock
+      .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
+      .mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: new Date(FROZEN_TIME.getTime() + 31_000).toISOString(),
+      });
+
+    await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+    vi.advanceTimersByTime(pluginManager.CONNECTION_STATUS_TTL_MS + 1);
+    await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+    expect(invokerMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -16,6 +16,7 @@ import {
   type PluginStatus,
   type RestartEvent,
 } from "@roubo/shared";
+import type { ConnectionStatus, ValidateConfigResult } from "@roubo/plugin-sdk";
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
@@ -30,6 +31,13 @@ export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
 export const DEFAULT_RPC_TIMEOUT_MS = 30_000;
 export const BACKOFF_SCHEDULE_MS = [500, 1000, 2000];
+
+// WU-044: getConnectionStatus is polled by the UI; cache per plugin for 30s
+// and de-dup concurrent in-flight calls so UI fan-out doesn't thunder against
+// the plugin process. RPC timeout is tighter than DEFAULT_RPC_TIMEOUT_MS so a
+// hung plugin can't stall the status indicator for half a minute.
+export const CONNECTION_STATUS_TTL_MS = 30_000;
+export const CONNECTION_STATUS_RPC_TIMEOUT_MS = 5_000;
 
 let LOG_ROTATION_BYTES = 5 * 1024 * 1024;
 
@@ -47,6 +55,24 @@ interface PluginEntry {
 
 const plugins = new Map<string, PluginEntry>();
 let initialized = false;
+
+interface CachedConnectionStatus {
+  value: ConnectionStatus;
+  expiresAt: number;
+}
+const connectionStatusCache = new Map<string, CachedConnectionStatus>();
+const inFlightConnectionStatusRequests = new Map<string, Promise<ConnectionStatus>>();
+// ESM bindings prevent vitest from spying on `invoke` from this module's own
+// test file. Funnel the connection-status RPC calls through a swappable
+// reference so tests can inject a mock via `__test.setConnectionStatusInvoker`.
+type ConnectionStatusInvoker = <T>(
+  pluginId: string,
+  method: string,
+  params: unknown,
+  opts?: { timeoutMs?: number },
+) => Promise<T>;
+let connectionStatusInvoker: ConnectionStatusInvoker = (pluginId, method, params, opts) =>
+  invoke(pluginId, method, params, opts);
 // WU-046: enable-state snapshot loaded once at initialize() and kept in sync
 // via setPluginEnabled/removePlugin write-throughs. `null` means the file
 // did not exist on boot (legacy install), in which case every discovered
@@ -973,6 +999,120 @@ function parseLogLine(raw: string): LogLine {
   };
 }
 
+/**
+ * WU-044: cached, de-duped wrapper around the plugin's `getConnectionStatus`
+ * RPC (host-API 1.1.0+, FR-054/FR-055). Plugins built against 1.0.0 don't
+ * implement `getConnectionStatus`; the host catches the `MethodNotFound` and
+ * falls back to invoking `validateConfig`, inferring `connected` vs
+ * `auth-problem` from the result (TC-113).
+ *
+ * Results are cached for 30 seconds per `pluginId`; concurrent calls within
+ * the in-flight window share a single RPC invocation. Callers resolve the
+ * plugin-wide config (same shape as `setActiveConfig`) and pass it in, which
+ * keeps this layer free of the project-registry / overrides plumbing.
+ */
+export async function getConnectionStatus(
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<ConnectionStatus> {
+  const cached = connectionStatusCache.get(pluginId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const inFlight = inFlightConnectionStatusRequests.get(pluginId);
+  if (inFlight) return inFlight;
+
+  const promise = fetchConnectionStatus(pluginId, config)
+    .then((value) => {
+      connectionStatusCache.set(pluginId, {
+        value,
+        expiresAt: Date.now() + CONNECTION_STATUS_TTL_MS,
+      });
+      return value;
+    })
+    .finally(() => {
+      inFlightConnectionStatusRequests.delete(pluginId);
+    });
+
+  inFlightConnectionStatusRequests.set(pluginId, promise);
+  return promise;
+}
+
+async function fetchConnectionStatus(
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<ConnectionStatus> {
+  try {
+    return await connectionStatusInvoker<ConnectionStatus>(
+      pluginId,
+      "getConnectionStatus",
+      undefined,
+      { timeoutMs: CONNECTION_STATUS_RPC_TIMEOUT_MS },
+    );
+  } catch (err) {
+    if (!isMethodNotFound(err)) {
+      return {
+        state: "errored",
+        detail: errorMessage(err),
+        checkedAt: nowIso(),
+      };
+    }
+    return await connectionStatusViaValidateConfig(pluginId, config);
+  }
+}
+
+async function connectionStatusViaValidateConfig(
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<ConnectionStatus> {
+  let result: ValidateConfigResult;
+  try {
+    result = await connectionStatusInvoker<ValidateConfigResult>(
+      pluginId,
+      "validateConfig",
+      { config },
+      { timeoutMs: CONNECTION_STATUS_RPC_TIMEOUT_MS },
+    );
+  } catch (err) {
+    if (isMethodNotFound(err)) {
+      // No plugin-wide config to validate (e.g. github.com with a fixed
+      // API host). The spec treats this as healthy in the fallback path.
+      return { state: "connected", checkedAt: nowIso() };
+    }
+    return {
+      state: "errored",
+      detail: errorMessage(err),
+      checkedAt: nowIso(),
+    };
+  }
+
+  if (result.ok) {
+    return { state: "connected", checkedAt: nowIso() };
+  }
+  return {
+    state: "auth-problem",
+    detail: result.errors?.[0]?.message,
+    checkedAt: nowIso(),
+  };
+}
+
+function isMethodNotFound(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === "string" && code === "MethodNotFound";
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return String(err);
+}
+
 function makeRpcError(code: string, message: string, methodName?: string): Error & PluginError {
   const err = new Error(message) as Error & PluginError;
   err.code = code;
@@ -987,7 +1127,19 @@ export const __test = {
     plugins.clear();
     initialized = false;
     enableStateCache = null;
+    connectionStatusCache.clear();
+    inFlightConnectionStatusRequests.clear();
+    connectionStatusInvoker = (pluginId, method, params, opts) =>
+      invoke(pluginId, method, params, opts);
     LOG_ROTATION_BYTES = 5 * 1024 * 1024;
+  },
+  resetConnectionStatusCache(): void {
+    connectionStatusCache.clear();
+    inFlightConnectionStatusRequests.clear();
+  },
+  setConnectionStatusInvoker(fn: ConnectionStatusInvoker | null): void {
+    connectionStatusInvoker =
+      fn ?? ((pluginId, method, params, opts) => invoke(pluginId, method, params, opts));
   },
   setEnableStateCache(state: PluginEnableState | null): void {
     enableStateCache = state;
