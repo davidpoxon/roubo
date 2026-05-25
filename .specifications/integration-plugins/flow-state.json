@@ -2,12 +2,25 @@
   "schema_version": 1,
   "slug": "integration-plugins",
   "started_at": "2026-05-21T11:45:00Z",
-  "last_updated_at": "2026-05-24T03:30:00Z",
+  "last_updated_at": "2026-05-25T03:30:00Z",
   "last_completed_stage": "align",
   "re_interview_log": [
     {
       "date": "2026-05-24",
       "scope": "Add per-source security & quality alerts option to bundled github.com (and GHE) integration plugins",
+      "downstream_stages_pending_rerun": [
+        "feasibility",
+        "prd",
+        "prototype",
+        "architecture",
+        "tests",
+        "work-breakdown",
+        "align"
+      ]
+    },
+    {
+      "date": "2026-05-25",
+      "scope": "UI/UX polish (connection status surfacing, plugin grid + Settings full-width, bundled-disabled default, cut-list status exclusion + plugin-declared filter facets + chip colour discrimination), GitHub settings consolidation (move repo/project/submodule fields into github.com & GHE plugin Configure modal, rename tab to active-plugin name, collapse Configure/Choose-sources into single Connect/Configure button), plus systematic Playwright e2e coverage of the ENTIRE integration-plugins feature against a stubbed plugin process",
       "downstream_stages_pending_rerun": [
         "feasibility",
         "prd",
@@ -27,6 +40,14 @@
     "architecture",
     "tests",
     "work-breakdown",
+    "align",
+    "interview",
+    "feasibility",
+    "prd",
+    "prototype",
+    "architecture",
+    "tests",
+    "work-breakdown",
     "align"
   ],
   "pending_decisions": [
@@ -37,24 +58,6 @@
       "deferred_at": "2026-05-21T13:40:00Z",
       "source_finding_category": "unresolved_refinement_marker",
       "source_finding_identifiers": ["architecture.md:527"],
-      "resurface_trigger": "never"
-    },
-    {
-      "id": "PD-002",
-      "raised_during": "align",
-      "question": "Paper sketch output may force ports / docker permission categories now rather than later",
-      "deferred_at": "2026-05-21T13:40:00Z",
-      "source_finding_category": "unresolved_refinement_marker",
-      "source_finding_identifiers": ["architecture.md:538"],
-      "resurface_trigger": "never"
-    },
-    {
-      "id": "PD-003",
-      "raised_during": "align",
-      "question": "Source picker pagination on very large Jira instances",
-      "deferred_at": "2026-05-21T13:40:00Z",
-      "source_finding_category": "unresolved_refinement_marker",
-      "source_finding_identifiers": ["architecture.md:541"],
       "resurface_trigger": "never"
     }
   ],

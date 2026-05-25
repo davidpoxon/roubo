@@ -331,3 +331,127 @@ After the previous answer, the orchestrator initially proposed four pre-canned m
 
 - Options: Jira plugin parity · Writing back to alerts (dismiss/resolve/re-open) · Push / webhook delivery + auto-create benches on high-severity · Severity/state filter UI in Configure
 - **A:** All four items above confirmed out of scope
+
+---
+
+## Re-interview - 2026-05-25
+
+> Verbatim Q&A. Scope expansion captured via inline orchestrator AskUserQuestion (the product-interviewer subagent could not call AskUserQuestion; see iss_20260524_001 and prior iss_20260523_004 for the recurring paper-cut).
+
+### Cluster 1 - Connection-status surfacing (bullet 1)
+
+**RIQ1.1 (multi-select): Where should integration connection status be visible?**
+
+- Options: Plugin card on Settings > Plugins · Configure modal header · Project > Issue Source tile · Per-source row inside Configure
+- **A:** Plugin card on Settings > Plugins, Configure modal header, Project > Issue Source tile
+
+**RIQ1.2 (multi-select): Which connection states need distinct UI representation?**
+
+- Options: Connected (healthy) · Disconnected / never configured · Auth problem (token expired / 401) · Errored / unreachable (covers rate-limited, crashed, unknown)
+- **A:** All four states
+
+**RIQ1.3 (single-select): How fresh should the displayed connection status be?**
+
+- Options: Cached last-known + opportunistic re-check on UI events (Recommended) · Cached last-known + manual refresh only · Live ping on every view · Background interval refresh
+- **A:** Cached last-known + opportunistic re-check on UI events
+
+### Cluster 2 - Plugin grid layout & Settings page width (bullet 2)
+
+**RIQ2.1 (single-select): What grid layout should Settings > Plugins use?**
+
+- Options: Responsive auto-fit (~360px tile, Recommended) · Fixed 2-column · Fixed 3-column · Keep vertical stack, just widen the Settings page
+- **A:** Responsive auto-fit (~360px tile)
+
+**RIQ2.2 (single-select): How wide should the Settings surface be?**
+
+- Options: Full container width for entire Settings surface (Recommended) · Full width only on Plugins tab · Full width on Plugins + the consolidated GitHub tab
+- **A:** Full container width for entire Settings surface
+
+**RIQ2.3 (multi-select): What should each plugin tile show?**
+
+- Options: Plugin name + short description · Status chip (from cluster 1) · Enabled/disabled toggle · Configure button
+- **A:** All four
+
+### Cluster 3 - Bundled plugins default-disabled + migration (bullet 3)
+
+**RIQ3.1 (single-select): Bundled plugins default to disabled - how should this apply to existing installations vs new installs?**
+
+- Options: New installs only; existing installs keep current enabled state (Recommended) · Flip existing bundled plugins to disabled on upgrade, with one-time banner · Migrate existing, but require explicit user-confirm before disabling · New installs only, but bundled plugins enabled by a project become auto-enabled going forward
+- **A:** New installs only; existing installs keep current enabled state
+
+**RIQ3.2 (single-select): When a project depends on a disabled bundled plugin, what should happen?**
+
+- Options: Prompt 'Enable github.com plugin to load this project?' with one-click enable (Recommended) · Auto-enable on demand without prompting · Show explanatory empty state and require user to go to Settings > Plugins to enable
+- **A:** Prompt 'Enable github.com plugin to load this project?' with one-click enable
+
+**RIQ3.3 (single-select): Should connection status surface 'never connected' on disabled bundled plugins, or hide them from the status check entirely?**
+
+- Options: Show 'Disabled' as a distinct chip (Recommended) · Show 'Never connected' · Hide the status chip entirely on disabled plugins
+- **A:** Show 'Disabled' as a distinct chip
+
+### Cluster 4 - Cut-list filtering & visual chips (bullets 4, 5, 6)
+
+**RIQ4.1 (single-select): Where does the 'exclude closed / non-actionable items' setting live?**
+
+- Options: Plugin-global default + per-project override + per-source override (Recommended) · Plugin-global default + per-project override only · Per-project only · Per-source only
+- **A:** Plugin-global default + per-project override + per-source override
+
+**RIQ4.2 (multi-select): Which statuses should be excluded by default in the cut list?**
+
+- Options: Closed / Done / Resolved · In review / PR open / waiting on reviewer · Blocked / waiting on external · None by default - opt in per exclusion
+- **A:** Closed / Done / Resolved AND In review / PR open / waiting on reviewer
+
+**RIQ4.3 (single-select): How do new filter facets (Milestone for GitHub.com, Epic for Jira, etc.) get added to the cut list?**
+
+- Options: Plugin-declared facets via a filterFacets() RPC (Recommended) · Fixed core set (assignee, label, status, milestone, type, priority) · Hybrid: fixed core set + plugin extensions
+- **A:** Plugin-declared facets via a filterFacets() RPC
+
+**RIQ4.4 (multi-select): Chip colour discrimination - which categories need visually-distinct treatment?**
+
+- Options: Status (open / in-progress / blocked / done) · Label (user-defined repo labels) · Issue type (bug / feature / chore / task) · Milestone / Epic / Priority / Assignee / Security-alert
+- **A:** All four categories
+
+### Cluster 5 - GitHub settings consolidation (bullets 7, 8)
+
+**RIQ5.1 (multi-select): Which Project Settings > Identity fields should move into the GitHub plugin config?**
+
+- Options: Repository path / GitHub repo URL · Linked GitHub Project (the GH Project v2 board) · Default branch · Meta-repo submodule list
+- **A:** Repository path / GitHub repo URL, Linked GitHub Project, Meta-repo submodule list (NOT default branch - it stays project-level)
+
+**RIQ5.2 (single-select): What stays at the project level?**
+
+- Options: Nothing GitHub-shaped remains (Recommended) · Repo URL stays project-level for discoverability · Default branch stays project-level
+- **A:** Nothing GitHub-shaped remains; project keeps only Roubo-native fields
+
+**RIQ5.3 (single-select): What should the renamed 'Issue Source' tab be called?**
+
+- Options: Plugin-driven label - active plugin owns the tab title (Recommended) · 'Integration' (generic) · 'Source' (terse generic) · Keep 'Issue Source'
+- **A:** Plugin-driven label - active plugin owns the tab title
+
+**RIQ5.4 (single-select): Configure vs Choose-sources - how to consolidate the two buttons?**
+
+- Options: Single context-dependent button: 'Connect' pre-connection, 'Configure' post-connection (Recommended) · Single 'Configure' button always; sources inside the modal · Keep both buttons but make 'Choose sources' visually subordinate
+- **A:** Single context-dependent button: 'Connect' pre-connection, 'Configure' post-connection
+
+### Cluster 6 - GHE parity + E2E test scope (bullet 9)
+
+**RIQ6.1 (single-select): Does GitHub Enterprise consolidate identically to github.com, or diverge?**
+
+- Options: Identical - same UX, same fields, same modal (Recommended) · GHE diverges - instance URL prominent, otherwise identical · Defer GHE consolidation to follow-up
+- **A:** Identical - same UX, same fields, same modal
+
+**RIQ6.2 (single-select): What e2e test harness should be used?**
+
+- Options: Playwright UI tests against running Roubo app (Recommended) · Vitest integration tests with stubbed plugin processes · Both - Playwright for UI flows + Vitest integration for plugin-RPC contracts
+- **A:** Playwright UI tests against running Roubo app
+
+**RIQ6.3 (multi-select): Which new scope items need e2e coverage?**
+
+- Options: Connection status surfacing + recheck on UI events · Plugin grid + Settings full-width + enable/disable toggle · Cut-list filtering (status exclusion, milestone/epic, chip colours) · GitHub settings consolidation + Connect/Configure button collapse
+- **A:** [Verbatim user reply] "We don't just need new scope items. We need to review the entire feature as no e2e tests have yet been defined. Define all tests that make sense"
+  - Interpretation: e2e scope expands to the entire integration-plugins feature, not the new bullets only. Tests stage must enumerate e2e for plugin runtime, bundled plugins, source picker, write-back ops, migration, security-and-quality alerts, AND the new 2026-05-25 polish. Recorded as a constraint on the tests + work-breakdown stages.
+
+**RIQ6.4 (single-select): What does e2e run against in CI vs locally?**
+
+- Options: Stubbed plugin (deterministic, no network) for all e2e (Recommended) · Stub for CI; real GitHub.com sandbox account for local smoke pre-release · Real GitHub.com sandbox account always
+- **A:** Stubbed plugin (deterministic, no network) for all e2e

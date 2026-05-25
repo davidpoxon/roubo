@@ -11,7 +11,9 @@
       "hostApiVersion is 1.0.0"
     ],
     "steps": [
-      { "action": "Start the Roubo host process" },
+      {
+        "action": "Start the Roubo host process"
+      },
       {
         "action": "Observe the Plugins page",
         "expected": [
@@ -21,8 +23,16 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-001", "FR-002", "FR-016", "FR-033"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-002",
+      "FR-016",
+      "FR-033"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -35,7 +45,9 @@
       "~/.roubo/plugins/broken-plugin/roubo-plugin.yaml is missing the required 'entry' field"
     ],
     "steps": [
-      { "action": "Start the Roubo host process" },
+      {
+        "action": "Start the Roubo host process"
+      },
       {
         "action": "Observe the Plugins page",
         "expected": [
@@ -46,8 +58,15 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-001", "FR-033", "NFR-008"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-033",
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -56,9 +75,13 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin declares roubo: ^2.0.0; current hostApiVersion is 1.0.0"],
+    "preconditions": [
+      "A plugin declares roubo: ^2.0.0; current hostApiVersion is 1.0.0"
+    ],
     "steps": [
-      { "action": "Open the Plugins page" },
+      {
+        "action": "Open the Plugins page"
+      },
       {
         "action": "Locate the plugin",
         "expected": [
@@ -68,8 +91,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-005"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-005"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -78,7 +105,9 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A bundled plugin is enabled"],
+    "preconditions": [
+      "A bundled plugin is enabled"
+    ],
     "steps": [
       {
         "action": "Inspect the host process tree",
@@ -89,8 +118,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-003"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-003"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -99,9 +132,13 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin is enabled"],
+    "preconditions": [
+      "A plugin is enabled"
+    ],
     "steps": [
-      { "action": "Call a plugin method via the host RPC layer (e.g. listSourceCandidates)" },
+      {
+        "action": "Call a plugin method via the host RPC layer (e.g. listSourceCandidates)"
+      },
       {
         "action": "Inspect the wire log",
         "expected": [
@@ -111,8 +148,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-004"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-004"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -125,7 +166,9 @@
       "A plugin manifest declares permissions.network.hosts, permissions.credentials.slots, permissions.filesystem.paths, and permissions.processes"
     ],
     "steps": [
-      { "action": "Enable the plugin" },
+      {
+        "action": "Enable the plugin"
+      },
       {
         "action": "Read the parsed manifest record",
         "expected": [
@@ -134,8 +177,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-006"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-006"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -144,11 +191,16 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Roubo is running", "User opens the Install plugin dialog"],
+    "preconditions": [
+      "Roubo is running",
+      "User opens the Install plugin dialog"
+    ],
     "steps": [
       {
         "action": "Paste a valid Git URL pointing at a plugin repository",
-        "expected": ["Host clones the repo into ~/.roubo/plugins/<id>/"]
+        "expected": [
+          "Host clones the repo into ~/.roubo/plugins/<id>/"
+        ]
       },
       {
         "action": "Wait for the permissions dialog",
@@ -160,9 +212,18 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-007", "FR-017", "NFR-003"],
-    "linked_user_story_ids": ["US-007"]
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-007",
+      "FR-017",
+      "NFR-003"
+    ],
+    "linked_user_story_ids": [
+      "US-007"
+    ]
   },
   {
     "id": "TC-008",
@@ -170,7 +231,10 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "security",
-    "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
+    "preconditions": [
+      "A plugin declares network.hosts: ['api.github.com']",
+      "Plugin is enabled"
+    ],
     "steps": [
       {
         "action": "Plugin calls host.fetch('https://example.com/secret')",
@@ -181,8 +245,14 @@
         ]
       }
     ],
-    "tags": ["security", "automated"],
-    "linked_requirement_ids": ["FR-008", "NFR-001"],
+    "tags": [
+      "security",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-008",
+      "NFR-001"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -191,7 +261,10 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "performance",
-    "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
+    "preconditions": [
+      "A plugin declares network.hosts: ['api.github.com']",
+      "Plugin is enabled"
+    ],
     "steps": [
       {
         "action": "Plugin calls host.fetch against an endpoint that returns ETag and Retry-After",
@@ -202,8 +275,14 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-008", "NFR-006", "FR-039"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-008",
+      "NFR-006",
+      "FR-039"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -212,7 +291,9 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "security",
-    "preconditions": ["A fresh plugin install with no prior config"],
+    "preconditions": [
+      "A fresh plugin install with no prior config"
+    ],
     "steps": [
       {
         "action": "Open the plugin configure dialog",
@@ -223,7 +304,9 @@
       },
       {
         "action": "Toggle the checkbox on",
-        "expected": ["A warning is shown explaining the risk"]
+        "expected": [
+          "A warning is shown explaining the risk"
+        ]
       },
       {
         "action": "Save the configuration",
@@ -233,8 +316,13 @@
         ]
       }
     ],
-    "tags": ["security", "automated"],
-    "linked_requirement_ids": ["FR-009"],
+    "tags": [
+      "security",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-009"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -243,9 +331,14 @@
     "area": "credential-store",
     "level": 1,
     "type": "security",
-    "preconditions": ["Running on macOS", "Keychain accessible"],
+    "preconditions": [
+      "Running on macOS",
+      "Keychain accessible"
+    ],
     "steps": [
-      { "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')" },
+      {
+        "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')"
+      },
       {
         "action": "Plugin calls host.credentials.get('jira-token')",
         "expected": [
@@ -255,8 +348,15 @@
         ]
       }
     ],
-    "tags": ["security", "macos", "automated"],
-    "linked_requirement_ids": ["FR-010", "NFR-002"],
+    "tags": [
+      "security",
+      "macos",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-010",
+      "NFR-002"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -270,7 +370,9 @@
       "secret-tool CLI installed"
     ],
     "steps": [
-      { "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')" },
+      {
+        "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')"
+      },
       {
         "action": "Plugin calls host.credentials.get('jira-token')",
         "expected": [
@@ -279,8 +381,15 @@
         ]
       }
     ],
-    "tags": ["security", "linux", "automated"],
-    "linked_requirement_ids": ["FR-010", "NFR-002"],
+    "tags": [
+      "security",
+      "linux",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-010",
+      "NFR-002"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -289,7 +398,9 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["An enabled plugin"],
+    "preconditions": [
+      "An enabled plugin"
+    ],
     "steps": [
       {
         "action": "Click Disable on the plugin card",
@@ -301,11 +412,20 @@
       },
       {
         "action": "Click Enable on the plugin card",
-        "expected": ["A fresh plugin child process is spawned", "Status pill changes to Enabled"]
+        "expected": [
+          "A fresh plugin child process is spawned",
+          "Status pill changes to Enabled"
+        ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-011", "FR-016"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-011",
+      "FR-016"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -314,9 +434,13 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A fixture plugin that hangs on listIssues"],
+    "preconditions": [
+      "A fixture plugin that hangs on listIssues"
+    ],
     "steps": [
-      { "action": "Host calls listIssues with default timeout (30s)" },
+      {
+        "action": "Host calls listIssues with default timeout (30s)"
+      },
       {
         "action": "Wait for timeout",
         "expected": [
@@ -326,8 +450,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-012"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-012"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -336,9 +464,13 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A fixture plugin that exits immediately on every start"],
+    "preconditions": [
+      "A fixture plugin that exits immediately on every start"
+    ],
     "steps": [
-      { "action": "Enable the plugin" },
+      {
+        "action": "Enable the plugin"
+      },
       {
         "action": "Observe the restart loop",
         "expected": [
@@ -348,8 +480,13 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-013", "NFR-008"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-013",
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -363,7 +500,9 @@
       "Plugin then enters errored state"
     ],
     "steps": [
-      { "action": "Open the project that uses the plugin" },
+      {
+        "action": "Open the project that uses the plugin"
+      },
       {
         "action": "Observe issue list",
         "expected": [
@@ -373,9 +512,16 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-014", "NFR-008"],
-    "linked_user_story_ids": ["US-009"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-014",
+      "NFR-008"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ]
   },
   {
     "id": "TC-017",
@@ -383,12 +529,18 @@
     "area": "observability",
     "level": 1,
     "type": "functional",
-    "preconditions": ["An enabled plugin that emits stdout and stderr output"],
+    "preconditions": [
+      "An enabled plugin that emits stdout and stderr output"
+    ],
     "steps": [
-      { "action": "Cause the plugin to emit log output via host.logger.info / warn / error" },
+      {
+        "action": "Cause the plugin to emit log output via host.logger.info / warn / error"
+      },
       {
         "action": "Check the filesystem",
-        "expected": ["~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"]
+        "expected": [
+          "~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"
+        ]
       },
       {
         "action": "Open the View logs dialog from the Plugins page",
@@ -398,9 +550,16 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-015", "NFR-010"],
-    "linked_user_story_ids": ["US-009"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-015",
+      "NFR-010"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ]
   },
   {
     "id": "TC-018",
@@ -421,8 +580,13 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-016"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-016"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -431,7 +595,9 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A local directory at /tmp/my-plugin with a valid roubo-plugin.yaml"],
+    "preconditions": [
+      "A local directory at /tmp/my-plugin with a valid roubo-plugin.yaml"
+    ],
     "steps": [
       {
         "action": "Open Install plugin, switch to 'From local directory' tab, enter /tmp/my-plugin"
@@ -444,9 +610,15 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-017"],
-    "linked_user_story_ids": ["US-004"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-017"
+    ],
+    "linked_user_story_ids": [
+      "US-004"
+    ]
   },
   {
     "id": "TC-020",
@@ -454,9 +626,13 @@
     "area": "project-config",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A project with the github-com plugin selected"],
+    "preconditions": [
+      "A project with the github-com plugin selected"
+    ],
     "steps": [
-      { "action": "Open the Issue source tile and click Switch integration" },
+      {
+        "action": "Open the Issue source tile and click Switch integration"
+      },
       {
         "action": "Select jira-self-hosted and confirm",
         "expected": [
@@ -466,9 +642,15 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-018"],
-    "linked_user_story_ids": ["US-006"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-006"
+    ]
   },
   {
     "id": "TC-021",
@@ -476,9 +658,13 @@
     "area": "source-picker",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Active integration is github-com or ghe"],
+    "preconditions": [
+      "Active integration is github-com or ghe"
+    ],
     "steps": [
-      { "action": "Open Configure sources" },
+      {
+        "action": "Open Configure sources"
+      },
       {
         "action": "Observe the picker",
         "expected": [
@@ -488,9 +674,16 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-019"],
-    "linked_user_story_ids": ["US-001", "US-008"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-019"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-008"
+    ]
   },
   {
     "id": "TC-022",
@@ -498,9 +691,13 @@
     "area": "source-picker",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Active integration is jira-self-hosted"],
+    "preconditions": [
+      "Active integration is jira-self-hosted"
+    ],
     "steps": [
-      { "action": "Open Configure sources" },
+      {
+        "action": "Open Configure sources"
+      },
       {
         "action": "Observe the picker",
         "expected": [
@@ -510,9 +707,15 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-019"],
-    "linked_user_story_ids": ["US-002"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-019"
+    ],
+    "linked_user_story_ids": [
+      "US-002"
+    ]
   },
   {
     "id": "TC-023",
@@ -524,7 +727,9 @@
       "A GitHub issue is reachable via both a selected Project and a selected repo"
     ],
     "steps": [
-      { "action": "Refresh the issue list" },
+      {
+        "action": "Refresh the issue list"
+      },
       {
         "action": "Inspect the rendered list",
         "expected": [
@@ -533,8 +738,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-020"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-020"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -543,7 +752,9 @@
     "area": "issue-list",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plugin returns an issue from listIssues"],
+    "preconditions": [
+      "A plugin returns an issue from listIssues"
+    ],
     "steps": [
       {
         "action": "Inspect the issue object received by the host",
@@ -553,8 +764,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-021"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-021"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -568,7 +783,9 @@
       "Source contains at least 120 issues"
     ],
     "steps": [
-      { "action": "Open the issue picker" },
+      {
+        "action": "Open the issue picker"
+      },
       {
         "action": "Observe paging",
         "expected": [
@@ -578,8 +795,14 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-022", "NFR-005"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-022",
+      "NFR-005"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -593,7 +816,9 @@
       "User override: integration: { sources: { boards: [12] } }"
     ],
     "steps": [
-      { "action": "Compute the effective integration config" },
+      {
+        "action": "Compute the effective integration config"
+      },
       {
         "action": "Inspect the result",
         "expected": [
@@ -603,9 +828,16 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-023"],
-    "linked_user_story_ids": ["US-010"]
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ]
   },
   {
     "id": "TC-027",
@@ -618,7 +850,9 @@
       "User override: integration.sources.boards = [99]"
     ],
     "steps": [
-      { "action": "Compute the effective integration config" },
+      {
+        "action": "Compute the effective integration config"
+      },
       {
         "action": "Inspect sources.boards",
         "expected": [
@@ -627,9 +861,15 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-023"],
-    "linked_user_story_ids": ["US-010"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ]
   },
   {
     "id": "TC-028",
@@ -642,7 +882,9 @@
       "jira-self-hosted is NOT installed locally"
     ],
     "steps": [
-      { "action": "Open the project" },
+      {
+        "action": "Open the project"
+      },
       {
         "action": "Observe the prompt",
         "expected": [
@@ -653,12 +895,22 @@
       },
       {
         "action": "Click Install and accept permissions",
-        "expected": ["Plugin installs", "Project loads normally"]
+        "expected": [
+          "Plugin installs",
+          "Project loads normally"
+        ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-024"],
-    "linked_user_story_ids": ["US-005"]
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-005"
+    ]
   },
   {
     "id": "TC-029",
@@ -671,7 +923,9 @@
       "Issue PROJ-200 is linked 'blocks' to PROJ-201"
     ],
     "steps": [
-      { "action": "Plugin returns the normalized PROJ-200 issue" },
+      {
+        "action": "Plugin returns the normalized PROJ-200 issue"
+      },
       {
         "action": "Inspect blocks / blockedBy",
         "expected": [
@@ -681,8 +935,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-025"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-025"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -691,9 +949,13 @@
     "area": "jira-plugin",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Plugin has a stored last-poll timestamp for a source"],
+    "preconditions": [
+      "Plugin has a stored last-poll timestamp for a source"
+    ],
     "steps": [
-      { "action": "Trigger a poll" },
+      {
+        "action": "Trigger a poll"
+      },
       {
         "action": "Inspect the JQL sent",
         "expected": [
@@ -702,8 +964,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-026"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-026"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -716,7 +982,9 @@
       "A pre-plugin ~/.roubo with auth.json (plaintext token), projects.json referencing a GitHub.com Project, and state.json with assignedIssue numeric fields"
     ],
     "steps": [
-      { "action": "Start the new Roubo binary" },
+      {
+        "action": "Start the new Roubo binary"
+      },
       {
         "action": "Observe migration",
         "expected": [
@@ -730,9 +998,19 @@
         ]
       }
     ],
-    "tags": ["smoke", "migration", "automated"],
-    "linked_requirement_ids": ["FR-027", "FR-028", "NFR-009"],
-    "linked_user_story_ids": ["US-003"]
+    "tags": [
+      "smoke",
+      "migration",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-027",
+      "FR-028",
+      "NFR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ]
   },
   {
     "id": "TC-032",
@@ -740,7 +1018,9 @@
     "area": "bench-snapshot",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A migrated bench from a pre-plugin Roubo"],
+    "preconditions": [
+      "A migrated bench from a pre-plugin Roubo"
+    ],
     "steps": [
       {
         "action": "Inspect the bench's assignedIssue",
@@ -751,12 +1031,21 @@
       },
       {
         "action": "Create a new bench against a new integration",
-        "expected": ["integrationId reflects the new active integration"]
+        "expected": [
+          "integrationId reflects the new active integration"
+        ]
       }
     ],
-    "tags": ["automated", "migration"],
-    "linked_requirement_ids": ["FR-028"],
-    "linked_user_story_ids": ["US-003"]
+    "tags": [
+      "automated",
+      "migration"
+    ],
+    "linked_requirement_ids": [
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ]
   },
   {
     "id": "TC-033",
@@ -776,8 +1065,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-029"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-029"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -786,9 +1079,14 @@
     "area": "bench-creation",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Issue PROJ-200 has blockedBy: ['PROJ-100']", "PROJ-100 is open"],
+    "preconditions": [
+      "Issue PROJ-200 has blockedBy: ['PROJ-100']",
+      "PROJ-100 is open"
+    ],
     "steps": [
-      { "action": "Open the Issue Picker on PROJ-200" },
+      {
+        "action": "Open the Issue Picker on PROJ-200"
+      },
       {
         "action": "Observe the banner",
         "expected": [
@@ -798,11 +1096,19 @@
       },
       {
         "action": "Click Create bench",
-        "expected": ["Bench is created successfully", "No hard-block error is thrown"]
+        "expected": [
+          "Bench is created successfully",
+          "No hard-block error is thrown"
+        ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-030"],
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-030"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -811,9 +1117,13 @@
     "area": "sdk",
     "level": 1,
     "type": "functional",
-    "preconditions": ["@roubo/plugin-sdk is published or available as a local package"],
+    "preconditions": [
+      "@roubo/plugin-sdk is published or available as a local package"
+    ],
     "steps": [
-      { "action": "Author imports definePlugin and calls it with a contract object" },
+      {
+        "action": "Author imports definePlugin and calls it with a contract object"
+      },
       {
         "action": "Run the plugin",
         "expected": [
@@ -822,9 +1132,15 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-031"],
-    "linked_user_story_ids": ["US-004"]
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-031"
+    ],
+    "linked_user_story_ids": [
+      "US-004"
+    ]
   },
   {
     "id": "TC-036",
@@ -832,7 +1148,9 @@
     "area": "manifest-schema",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A built Roubo distribution"],
+    "preconditions": [
+      "A built Roubo distribution"
+    ],
     "steps": [
       {
         "action": "Inspect schema/roubo-plugin.schema.json",
@@ -843,8 +1161,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-032"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-032"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -853,9 +1175,13 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["GHE plugin configure dialog is open with instance URL and PAT entered"],
+    "preconditions": [
+      "GHE plugin configure dialog is open with instance URL and PAT entered"
+    ],
     "steps": [
-      { "action": "Click Test connection" },
+      {
+        "action": "Click Test connection"
+      },
       {
         "action": "Wait for result",
         "expected": [
@@ -866,9 +1192,18 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-034", "FR-035"],
-    "linked_user_story_ids": ["US-001", "US-002"]
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-034",
+      "FR-035"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-002"
+    ]
   },
   {
     "id": "TC-038",
@@ -876,9 +1211,13 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Test connection has succeeded with a valid PAT"],
+    "preconditions": [
+      "Test connection has succeeded with a valid PAT"
+    ],
     "steps": [
-      { "action": "Save the configuration" },
+      {
+        "action": "Save the configuration"
+      },
       {
         "action": "Inspect the per-user override",
         "expected": [
@@ -887,8 +1226,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-035"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-035"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -901,7 +1244,9 @@
       "A bench against an issue whose allowedTransitions is ['In Review', 'Blocked']"
     ],
     "steps": [
-      { "action": "Open the Transition control" },
+      {
+        "action": "Open the Transition control"
+      },
       {
         "action": "Inspect the menu",
         "expected": [
@@ -910,9 +1255,16 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-036"],
-    "linked_user_story_ids": ["US-008"]
+    "tags": [
+      "smoke",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
+    "linked_user_story_ids": [
+      "US-008"
+    ]
   },
   {
     "id": "TC-040",
@@ -925,7 +1277,9 @@
       "A bench against an issue with assignees: []"
     ],
     "steps": [
-      { "action": "Click Assign to me" },
+      {
+        "action": "Click Assign to me"
+      },
       {
         "action": "Observe the call",
         "expected": [
@@ -934,8 +1288,12 @@
         ]
       }
     ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-037"],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-037"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -944,7 +1302,9 @@
     "area": "forward-compat",
     "level": 1,
     "type": "functional",
-    "preconditions": ["The slug folder contains the paper sketch"],
+    "preconditions": [
+      "The slug folder contains the paper sketch"
+    ],
     "steps": [
       {
         "action": "Verify the sketch exists under .specifications/integration-plugins/ and is referenced from architecture.md"
@@ -958,8 +1318,14 @@
         ]
       }
     ],
-    "tags": ["manual", "review-gate"],
-    "linked_requirement_ids": ["FR-038", "NFR-011"],
+    "tags": [
+      "manual",
+      "review-gate"
+    ],
+    "linked_requirement_ids": [
+      "FR-038",
+      "NFR-011"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -973,7 +1339,9 @@
       "A prior request stored an ETag for /repos/foo/bar/issues"
     ],
     "steps": [
-      { "action": "Plugin issues a second request to the same URL" },
+      {
+        "action": "Plugin issues a second request to the same URL"
+      },
       {
         "action": "Inspect the call",
         "expected": [
@@ -983,8 +1351,13 @@
         ]
       }
     ],
-    "tags": ["automated", "github-parity"],
-    "linked_requirement_ids": ["FR-039"],
+    "tags": [
+      "automated",
+      "github-parity"
+    ],
+    "linked_requirement_ids": [
+      "FR-039"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -998,7 +1371,9 @@
       "A request elicits a 429 with Retry-After: 30"
     ],
     "steps": [
-      { "action": "Plugin issues a subsequent request to the same endpoint" },
+      {
+        "action": "Plugin issues a subsequent request to the same endpoint"
+      },
       {
         "action": "Inspect timing",
         "expected": [
@@ -1007,8 +1382,13 @@
         ]
       }
     ],
-    "tags": ["automated", "github-parity"],
-    "linked_requirement_ids": ["FR-039"],
+    "tags": [
+      "automated",
+      "github-parity"
+    ],
+    "linked_requirement_ids": [
+      "FR-039"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1017,9 +1397,13 @@
     "area": "observability",
     "level": 1,
     "type": "security",
-    "preconditions": ["A plugin attempts an out-of-allowlist host.fetch"],
+    "preconditions": [
+      "A plugin attempts an out-of-allowlist host.fetch"
+    ],
     "steps": [
-      { "action": "Trigger the denial" },
+      {
+        "action": "Trigger the denial"
+      },
       {
         "action": "Inspect the plugin log file",
         "expected": [
@@ -1028,8 +1412,14 @@
         ]
       }
     ],
-    "tags": ["automated", "security"],
-    "linked_requirement_ids": ["NFR-001", "NFR-010"],
+    "tags": [
+      "automated",
+      "security"
+    ],
+    "linked_requirement_ids": [
+      "NFR-001",
+      "NFR-010"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1038,21 +1428,36 @@
     "area": "security",
     "level": 1,
     "type": "security",
-    "preconditions": ["A plugin returns a normalized issue with a populated 'raw' field"],
+    "preconditions": [
+      "A plugin returns a normalized issue with a populated 'raw' field"
+    ],
     "steps": [
-      { "action": "Assign the issue to a bench" },
+      {
+        "action": "Assign the issue to a bench"
+      },
       {
         "action": "Inspect ~/.roubo/state.json",
-        "expected": ["The active bench's assignedIssue.raw is present"]
+        "expected": [
+          "The active bench's assignedIssue.raw is present"
+        ]
       },
-      { "action": "Clear the bench" },
+      {
+        "action": "Clear the bench"
+      },
       {
         "action": "Re-inspect ~/.roubo/state.json",
-        "expected": ["No 'raw' field remains anywhere in state.json after the bench is cleared"]
+        "expected": [
+          "No 'raw' field remains anywhere in state.json after the bench is cleared"
+        ]
       }
     ],
-    "tags": ["automated", "security"],
-    "linked_requirement_ids": ["NFR-004"],
+    "tags": [
+      "automated",
+      "security"
+    ],
+    "linked_requirement_ids": [
+      "NFR-004"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1061,7 +1466,9 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "accessibility",
-    "preconditions": ["Plugins page is open"],
+    "preconditions": [
+      "Plugins page is open"
+    ],
     "steps": [
       {
         "action": "Press Tab repeatedly through the page",
@@ -1072,11 +1479,19 @@
       },
       {
         "action": "Open the Install dialog and press Escape",
-        "expected": ["Dialog closes", "Focus returns to the Install plugin button"]
+        "expected": [
+          "Dialog closes",
+          "Focus returns to the Install plugin button"
+        ]
       }
     ],
-    "tags": ["accessibility", "manual"],
-    "linked_requirement_ids": ["NFR-007"],
+    "tags": [
+      "accessibility",
+      "manual"
+    ],
+    "linked_requirement_ids": [
+      "NFR-007"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1085,26 +1500,60 @@
     "area": "ghe-plugin",
     "level": 2,
     "type": "functional",
-    "preconditions": ["GHE plugin is bundled", "User has a valid GHE PAT and instance URL"],
+    "preconditions": [
+      "GHE plugin is bundled",
+      "User has a valid GHE PAT and instance URL"
+    ],
     "steps": [
-      { "action": "Open Plugins page, enable GHE plugin" },
-      { "action": "Open project Issue source tile, choose GHE" },
-      { "action": "Enter instance URL and PAT in the configure dialog" },
-      { "action": "Click Test connection", "expected": ["Returns 'Connected as <user>' inline"] },
-      { "action": "Click Save" },
+      {
+        "action": "Open Plugins page, enable GHE plugin"
+      },
+      {
+        "action": "Open project Issue source tile, choose GHE"
+      },
+      {
+        "action": "Enter instance URL and PAT in the configure dialog"
+      },
+      {
+        "action": "Click Test connection",
+        "expected": [
+          "Returns 'Connected as <user>' inline"
+        ]
+      },
+      {
+        "action": "Click Save"
+      },
       {
         "action": "Open Configure sources",
-        "expected": ["multi-list picker shows the user's repos and Projects"]
+        "expected": [
+          "multi-list picker shows the user's repos and Projects"
+        ]
       },
-      { "action": "Select at least one repo and one Project, click Select" },
+      {
+        "action": "Select at least one repo and one Project, click Select"
+      },
       {
         "action": "Open the issue queue",
-        "expected": ["Issues from the selected sources appear", "Cross-source dedup applies"]
+        "expected": [
+          "Issues from the selected sources appear",
+          "Cross-source dedup applies"
+        ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-018", "FR-019", "FR-022", "FR-034", "FR-035"],
-    "linked_user_story_ids": ["US-001"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-019",
+      "FR-022",
+      "FR-034",
+      "FR-035"
+    ],
+    "linked_user_story_ids": [
+      "US-001"
+    ]
   },
   {
     "id": "TC-048",
@@ -1117,14 +1566,24 @@
       "User has a valid Jira Data Center PAT and instance URL"
     ],
     "steps": [
-      { "action": "Enable jira-self-hosted plugin" },
-      { "action": "Configure plugin: enter instance URL and PAT" },
+      {
+        "action": "Enable jira-self-hosted plugin"
+      },
+      {
+        "action": "Configure plugin: enter instance URL and PAT"
+      },
       {
         "action": "Click Test connection",
-        "expected": ["Returns 'Connected as <displayName>' inline"]
+        "expected": [
+          "Returns 'Connected as <displayName>' inline"
+        ]
       },
-      { "action": "Save" },
-      { "action": "Open Configure sources, select a board, an epic, and a filter" },
+      {
+        "action": "Save"
+      },
+      {
+        "action": "Open Configure sources, select a board, an epic, and a filter"
+      },
       {
         "action": "Open the issue queue",
         "expected": [
@@ -1133,7 +1592,10 @@
         ]
       }
     ],
-    "tags": ["journey", "automated"],
+    "tags": [
+      "journey",
+      "automated"
+    ],
     "linked_requirement_ids": [
       "FR-018",
       "FR-019",
@@ -1145,7 +1607,9 @@
       "FR-034",
       "FR-035"
     ],
-    "linked_user_story_ids": ["US-002"]
+    "linked_user_story_ids": [
+      "US-002"
+    ]
   },
   {
     "id": "TC-049",
@@ -1157,8 +1621,15 @@
       "A real pre-plugin ~/.roubo fixture is set up (auth.json, projects.json with GitHub Project, state.json with two assigned benches)"
     ],
     "steps": [
-      { "action": "Start the new Roubo binary" },
-      { "action": "Observe migration banner", "expected": ["Single one-time success banner"] },
+      {
+        "action": "Start the new Roubo binary"
+      },
+      {
+        "action": "Observe migration banner",
+        "expected": [
+          "Single one-time success banner"
+        ]
+      },
       {
         "action": "Open both pre-existing projects",
         "expected": [
@@ -1176,9 +1647,21 @@
         ]
       }
     ],
-    "tags": ["journey", "migration", "automated"],
-    "linked_requirement_ids": ["FR-010", "FR-027", "FR-028", "NFR-002", "NFR-009"],
-    "linked_user_story_ids": ["US-003"]
+    "tags": [
+      "journey",
+      "migration",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-010",
+      "FR-027",
+      "FR-028",
+      "NFR-002",
+      "NFR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ]
   },
   {
     "id": "TC-050",
@@ -1190,18 +1673,39 @@
       "@roubo/plugin-sdk is available; user has a local /tmp/linear-plugin/ directory with a valid roubo-plugin.yaml and entry point"
     ],
     "steps": [
-      { "action": "Open Install plugin, From local directory, enter /tmp/linear-plugin" },
-      { "action": "Accept permissions dialog" },
-      { "action": "Configure plugin with Linear API token" },
-      { "action": "Add the plugin as the project's integration" },
+      {
+        "action": "Open Install plugin, From local directory, enter /tmp/linear-plugin"
+      },
+      {
+        "action": "Accept permissions dialog"
+      },
+      {
+        "action": "Configure plugin with Linear API token"
+      },
+      {
+        "action": "Add the plugin as the project's integration"
+      },
       {
         "action": "Observe issue queue",
-        "expected": ["Linear issues appear in the normalized shape"]
+        "expected": [
+          "Linear issues appear in the normalized shape"
+        ]
       }
     ],
-    "tags": ["journey", "manual"],
-    "linked_requirement_ids": ["FR-007", "FR-017", "FR-018", "FR-021", "FR-031"],
-    "linked_user_story_ids": ["US-004"]
+    "tags": [
+      "journey",
+      "manual"
+    ],
+    "linked_requirement_ids": [
+      "FR-007",
+      "FR-017",
+      "FR-018",
+      "FR-021",
+      "FR-031"
+    ],
+    "linked_user_story_ids": [
+      "US-004"
+    ]
   },
   {
     "id": "TC-051",
@@ -1214,21 +1718,40 @@
       "Teammate's Roubo has jira-self-hosted NOT installed"
     ],
     "steps": [
-      { "action": "Teammate opens the project" },
+      {
+        "action": "Teammate opens the project"
+      },
       {
         "action": "Missing-plugin prompt appears",
-        "expected": ["One-click Install button is shown using the pluginSource"]
+        "expected": [
+          "One-click Install button is shown using the pluginSource"
+        ]
       },
-      { "action": "Click Install and accept permissions" },
-      { "action": "Configure the plugin (teammate enters their own credentials)" },
+      {
+        "action": "Click Install and accept permissions"
+      },
+      {
+        "action": "Configure the plugin (teammate enters their own credentials)"
+      },
       {
         "action": "Open the issue queue",
-        "expected": ["Teammate sees their own slice of issues per the merged effective config"]
+        "expected": [
+          "Teammate sees their own slice of issues per the merged effective config"
+        ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-017", "FR-023", "FR-024"],
-    "linked_user_story_ids": ["US-005"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-017",
+      "FR-023",
+      "FR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-005"
+    ]
   },
   {
     "id": "TC-052",
@@ -1236,9 +1759,13 @@
     "area": "project-config",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A project on github-com with two active benches against GitHub issues"],
+    "preconditions": [
+      "A project on github-com with two active benches against GitHub issues"
+    ],
     "steps": [
-      { "action": "Open Switch integration, pick jira-self-hosted, confirm" },
+      {
+        "action": "Open Switch integration, pick jira-self-hosted, confirm"
+      },
       {
         "action": "Inspect the active benches",
         "expected": [
@@ -1254,9 +1781,17 @@
         ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-018", "FR-028"],
-    "linked_user_story_ids": ["US-006"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-006"
+    ]
   },
   {
     "id": "TC-053",
@@ -1264,17 +1799,40 @@
     "area": "plugins-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A reachable Git URL hosting a valid plugin"],
-    "steps": [
-      { "action": "Open Install plugin, From Git URL tab, paste the URL" },
-      { "action": "Click Install", "expected": ["Host clones into ~/.roubo/plugins/<id>/"] },
-      { "action": "Accept permissions dialog" },
-      { "action": "Configure plugin" },
-      { "action": "Confirm plugin is enabled and reachable from a project's Issue source tile" }
+    "preconditions": [
+      "A reachable Git URL hosting a valid plugin"
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-007", "FR-017"],
-    "linked_user_story_ids": ["US-007"]
+    "steps": [
+      {
+        "action": "Open Install plugin, From Git URL tab, paste the URL"
+      },
+      {
+        "action": "Click Install",
+        "expected": [
+          "Host clones into ~/.roubo/plugins/<id>/"
+        ]
+      },
+      {
+        "action": "Accept permissions dialog"
+      },
+      {
+        "action": "Configure plugin"
+      },
+      {
+        "action": "Confirm plugin is enabled and reachable from a project's Issue source tile"
+      }
+    ],
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-007",
+      "FR-017"
+    ],
+    "linked_user_story_ids": [
+      "US-007"
+    ]
   },
   {
     "id": "TC-054",
@@ -1282,9 +1840,13 @@
     "area": "bench-view",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A bench against an issue whose allowedTransitions = ['In Review', 'Done']"],
+    "preconditions": [
+      "A bench against an issue whose allowedTransitions = ['In Review', 'Done']"
+    ],
     "steps": [
-      { "action": "Open the Transition control" },
+      {
+        "action": "Open the Transition control"
+      },
       {
         "action": "Select 'In Review'",
         "expected": [
@@ -1294,9 +1856,16 @@
         ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-036"],
-    "linked_user_story_ids": ["US-008"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
+    "linked_user_story_ids": [
+      "US-008"
+    ]
   },
   {
     "id": "TC-055",
@@ -1310,20 +1879,37 @@
     "steps": [
       {
         "action": "Observe Plugins page",
-        "expected": ["Plugin status is errored after the 3rd crash"]
+        "expected": [
+          "Plugin status is errored after the 3rd crash"
+        ]
       },
       {
         "action": "Open a project that uses this plugin",
-        "expected": ["Last-good snapshot is served with a global banner"]
+        "expected": [
+          "Last-good snapshot is served with a global banner"
+        ]
       },
       {
         "action": "Click Restart on the errored card",
-        "expected": ["Restart counter clears", "Plugin starts; status becomes Enabled"]
+        "expected": [
+          "Restart counter clears",
+          "Plugin starts; status becomes Enabled"
+        ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-013", "FR-014", "FR-015", "FR-016"],
-    "linked_user_story_ids": ["US-009"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-013",
+      "FR-014",
+      "FR-015",
+      "FR-016"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ]
   },
   {
     "id": "TC-056",
@@ -1336,7 +1922,9 @@
       "User creates a per-user override picking jira-self-hosted with one filter"
     ],
     "steps": [
-      { "action": "Open the project" },
+      {
+        "action": "Open the project"
+      },
       {
         "action": "Inspect effective config",
         "expected": [
@@ -1347,12 +1935,21 @@
       },
       {
         "action": "Inspect git status",
-        "expected": ["No changes to roubo.yaml (override is per-user, not committed)"]
+        "expected": [
+          "No changes to roubo.yaml (override is per-user, not committed)"
+        ]
       }
     ],
-    "tags": ["journey", "automated"],
-    "linked_requirement_ids": ["FR-023"],
-    "linked_user_story_ids": ["US-010"]
+    "tags": [
+      "journey",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ]
   },
   {
     "id": "TC-057",
@@ -1360,9 +1957,14 @@
     "area": "issue-list",
     "level": 2,
     "type": "performance",
-    "preconditions": ["A source with exactly 500 issues", "Page size = 50"],
+    "preconditions": [
+      "A source with exactly 500 issues",
+      "Page size = 50"
+    ],
     "steps": [
-      { "action": "Open the issue picker and scroll to the bottom" },
+      {
+        "action": "Open the issue picker and scroll to the bottom"
+      },
       {
         "action": "Observe paging",
         "expected": [
@@ -1372,8 +1974,15 @@
         ]
       }
     ],
-    "tags": ["performance", "automated", "slow"],
-    "linked_requirement_ids": ["FR-022", "NFR-005"],
+    "tags": [
+      "performance",
+      "automated",
+      "slow"
+    ],
+    "linked_requirement_ids": [
+      "FR-022",
+      "NFR-005"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1382,9 +1991,13 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Install dialog open"],
+    "preconditions": [
+      "Install dialog open"
+    ],
     "steps": [
-      { "action": "Paste https://github.com/this-repo/does-not-exist.git" },
+      {
+        "action": "Paste https://github.com/this-repo/does-not-exist.git"
+      },
       {
         "action": "Click Install",
         "expected": [
@@ -1394,8 +2007,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-017"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-017"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1404,9 +2022,13 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Install dialog open"],
+    "preconditions": [
+      "Install dialog open"
+    ],
     "steps": [
-      { "action": "Paste a local directory path that has no roubo-plugin.yaml" },
+      {
+        "action": "Paste a local directory path that has no roubo-plugin.yaml"
+      },
       {
         "action": "Click Install",
         "expected": [
@@ -1415,8 +2037,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-017"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-017"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1425,7 +2052,9 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["GHE configure dialog open with a valid instance URL but a junk PAT"],
+    "preconditions": [
+      "GHE configure dialog open with a valid instance URL but a junk PAT"
+    ],
     "steps": [
       {
         "action": "Click Test connection",
@@ -1436,8 +2065,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-034"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-034"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1446,7 +2080,9 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Jira configure dialog with a non-resolving instance URL"],
+    "preconditions": [
+      "Jira configure dialog with a non-resolving instance URL"
+    ],
     "steps": [
       {
         "action": "Click Test connection",
@@ -1456,8 +2092,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-034"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-034"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1486,8 +2127,14 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-009", "FR-034"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-009",
+      "FR-034"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1511,8 +2158,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-036"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1521,12 +2173,22 @@
     "area": "bench-view",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["A bench is created against an issue in state 'To Do'"],
+    "preconditions": [
+      "A bench is created against an issue in state 'To Do'"
+    ],
     "steps": [
-      { "action": "Create the bench" },
-      { "action": "Start all components" },
-      { "action": "Merge the linked PR" },
-      { "action": "Clear the bench" },
+      {
+        "action": "Create the bench"
+      },
+      {
+        "action": "Start all components"
+      },
+      {
+        "action": "Merge the linked PR"
+      },
+      {
+        "action": "Clear the bench"
+      },
       {
         "action": "Inspect plugin RPC log",
         "expected": [
@@ -1535,8 +2197,13 @@
         ]
       }
     ],
-    "tags": ["edge_case", "automated"],
-    "linked_requirement_ids": ["FR-036"],
+    "tags": [
+      "edge_case",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1550,7 +2217,9 @@
       "User override: integration.sources.boards = []"
     ],
     "steps": [
-      { "action": "Compute effective config" },
+      {
+        "action": "Compute effective config"
+      },
       {
         "action": "Inspect sources.boards",
         "expected": [
@@ -1559,8 +2228,13 @@
         ]
       }
     ],
-    "tags": ["edge_case", "automated"],
-    "linked_requirement_ids": ["FR-023"],
+    "tags": [
+      "edge_case",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1574,7 +2248,9 @@
       "Teammate does not have the plugin installed"
     ],
     "steps": [
-      { "action": "Open the project" },
+      {
+        "action": "Open the project"
+      },
       {
         "action": "Missing-plugin prompt appears",
         "expected": [
@@ -1584,8 +2260,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-024"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-024"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1594,7 +2275,9 @@
     "area": "project-config",
     "level": 3,
     "type": "negative",
-    "preconditions": ["roubo.yaml: integration: { plugin: 'jira-self-hosted', bogus_field: true }"],
+    "preconditions": [
+      "roubo.yaml: integration: { plugin: 'jira-self-hosted', bogus_field: true }"
+    ],
     "steps": [
       {
         "action": "Parse roubo.yaml",
@@ -1605,8 +2288,13 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-023"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1615,9 +2303,13 @@
     "area": "migration",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["Migration has already completed once; schemaVersion is bumped"],
+    "preconditions": [
+      "Migration has already completed once; schemaVersion is bumped"
+    ],
     "steps": [
-      { "action": "Restart Roubo" },
+      {
+        "action": "Restart Roubo"
+      },
       {
         "action": "Inspect migration logs",
         "expected": [
@@ -1627,8 +2319,15 @@
         ]
       }
     ],
-    "tags": ["edge_case", "automated", "migration"],
-    "linked_requirement_ids": ["FR-027", "NFR-009"],
+    "tags": [
+      "edge_case",
+      "automated",
+      "migration"
+    ],
+    "linked_requirement_ids": [
+      "FR-027",
+      "NFR-009"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1637,10 +2336,16 @@
     "area": "migration",
     "level": 3,
     "type": "negative",
-    "preconditions": ["Migration is run with the OS keyring temporarily unavailable"],
+    "preconditions": [
+      "Migration is run with the OS keyring temporarily unavailable"
+    ],
     "steps": [
-      { "action": "Start Roubo" },
-      { "action": "Migration attempts to move auth.json token into keyring; keyring set fails" },
+      {
+        "action": "Start Roubo"
+      },
+      {
+        "action": "Migration attempts to move auth.json token into keyring; keyring set fails"
+      },
       {
         "action": "Inspect ~/.roubo",
         "expected": [
@@ -1651,8 +2356,15 @@
         ]
       }
     ],
-    "tags": ["negative", "automated", "migration"],
-    "linked_requirement_ids": ["FR-027", "NFR-009"],
+    "tags": [
+      "negative",
+      "automated",
+      "migration"
+    ],
+    "linked_requirement_ids": [
+      "FR-027",
+      "NFR-009"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1666,7 +2378,9 @@
       "Plugin attempts host.credentials.get('github-token')"
     ],
     "steps": [
-      { "action": "Plugin issues the disallowed get" },
+      {
+        "action": "Plugin issues the disallowed get"
+      },
       {
         "action": "Inspect the RPC response",
         "expected": [
@@ -1676,8 +2390,15 @@
         ]
       }
     ],
-    "tags": ["security", "automated"],
-    "linked_requirement_ids": ["FR-006", "FR-010", "NFR-001"],
+    "tags": [
+      "security",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-006",
+      "FR-010",
+      "NFR-001"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1690,7 +2411,9 @@
       "A misbehaving plugin that always returns the same page regardless of cursor"
     ],
     "steps": [
-      { "action": "Open the issue picker and scroll" },
+      {
+        "action": "Open the issue picker and scroll"
+      },
       {
         "action": "Observe",
         "expected": [
@@ -1700,8 +2423,14 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-020", "FR-022"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-020",
+      "FR-022"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1717,11 +2446,18 @@
     "steps": [
       {
         "action": "Plugin normalises a linked issue",
-        "expected": ["The custom-named link is correctly mapped to blocks / blockedBy"]
+        "expected": [
+          "The custom-named link is correctly mapped to blocks / blockedBy"
+        ]
       }
     ],
-    "tags": ["edge_case", "automated"],
-    "linked_requirement_ids": ["FR-025"],
+    "tags": [
+      "edge_case",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-025"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1730,9 +2466,13 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "negative",
-    "preconditions": ["A fixture plugin that emits a chunk of non-JSON to stdout"],
+    "preconditions": [
+      "A fixture plugin that emits a chunk of non-JSON to stdout"
+    ],
     "steps": [
-      { "action": "Host receives the malformed message" },
+      {
+        "action": "Host receives the malformed message"
+      },
       {
         "action": "Observe behaviour",
         "expected": [
@@ -1742,8 +2482,14 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-004", "NFR-008"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-004",
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1752,9 +2498,13 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "performance",
-    "preconditions": ["A fixture plugin that returns a 10MB+ payload for listIssues"],
+    "preconditions": [
+      "A fixture plugin that returns a 10MB+ payload for listIssues"
+    ],
     "steps": [
-      { "action": "Host receives the payload" },
+      {
+        "action": "Host receives the payload"
+      },
       {
         "action": "Observe",
         "expected": [
@@ -1764,8 +2514,15 @@
         ]
       }
     ],
-    "tags": ["performance", "automated", "slow"],
-    "linked_requirement_ids": ["FR-004", "NFR-008"],
+    "tags": [
+      "performance",
+      "automated",
+      "slow"
+    ],
+    "linked_requirement_ids": [
+      "FR-004",
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1774,9 +2531,13 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "accessibility",
-    "preconditions": ["A screen reader (VoiceOver on macOS or Orca on Linux) is running"],
+    "preconditions": [
+      "A screen reader (VoiceOver on macOS or Orca on Linux) is running"
+    ],
     "steps": [
-      { "action": "Trigger the install permissions dialog" },
+      {
+        "action": "Trigger the install permissions dialog"
+      },
       {
         "action": "Navigate via the screen reader",
         "expected": [
@@ -1787,8 +2548,14 @@
         ]
       }
     ],
-    "tags": ["accessibility", "manual"],
-    "linked_requirement_ids": ["NFR-003", "NFR-007"],
+    "tags": [
+      "accessibility",
+      "manual"
+    ],
+    "linked_requirement_ids": [
+      "NFR-003",
+      "NFR-007"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1797,7 +2564,9 @@
     "area": "source-picker",
     "level": 3,
     "type": "accessibility",
-    "preconditions": ["categorized-multi-list source picker is open"],
+    "preconditions": [
+      "categorized-multi-list source picker is open"
+    ],
     "steps": [
       {
         "action": "Tab through tabs and items",
@@ -1808,11 +2577,18 @@
       },
       {
         "action": "Use Space / Enter to select",
-        "expected": ["Selection state updates and is announced"]
+        "expected": [
+          "Selection state updates and is announced"
+        ]
       }
     ],
-    "tags": ["accessibility", "manual"],
-    "linked_requirement_ids": ["NFR-007"],
+    "tags": [
+      "accessibility",
+      "manual"
+    ],
+    "linked_requirement_ids": [
+      "NFR-007"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1821,9 +2597,13 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["Two plugins are running"],
+    "preconditions": [
+      "Two plugins are running"
+    ],
     "steps": [
-      { "action": "Send SIGTERM to the host" },
+      {
+        "action": "Send SIGTERM to the host"
+      },
       {
         "action": "Observe",
         "expected": [
@@ -1833,8 +2613,13 @@
         ]
       }
     ],
-    "tags": ["reliability", "automated"],
-    "linked_requirement_ids": ["NFR-008"],
+    "tags": [
+      "reliability",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1848,7 +2633,9 @@
       "Plugin children are spawned with detached: false (the default)"
     ],
     "steps": [
-      { "action": "SIGKILL the host" },
+      {
+        "action": "SIGKILL the host"
+      },
       {
         "action": "Observe child behaviour",
         "expected": [
@@ -1857,8 +2644,13 @@
         ]
       }
     ],
-    "tags": ["reliability", "automated"],
-    "linked_requirement_ids": ["NFR-008"],
+    "tags": [
+      "reliability",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "NFR-008"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1871,7 +2663,9 @@
       "Plugin returns successfully for page 1, errors for page 2, returns successfully for page 3"
     ],
     "steps": [
-      { "action": "Scroll through pages" },
+      {
+        "action": "Scroll through pages"
+      },
       {
         "action": "Observe",
         "expected": [
@@ -1881,8 +2675,14 @@
         ]
       }
     ],
-    "tags": ["negative", "automated"],
-    "linked_requirement_ids": ["FR-022", "NFR-005"],
+    "tags": [
+      "negative",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-022",
+      "NFR-005"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1891,7 +2691,9 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "security",
-    "preconditions": ["Plugin manifest declares no filesystem permission beyond its plugin dir"],
+    "preconditions": [
+      "Plugin manifest declares no filesystem permission beyond its plugin dir"
+    ],
     "steps": [
       {
         "action": "Plugin attempts to write to /tmp/exfiltrate.txt",
@@ -1901,8 +2703,15 @@
         ]
       }
     ],
-    "tags": ["security", "manual", "review-gate"],
-    "linked_requirement_ids": ["FR-006", "NFR-001"],
+    "tags": [
+      "security",
+      "manual",
+      "review-gate"
+    ],
+    "linked_requirement_ids": [
+      "FR-006",
+      "NFR-001"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1911,9 +2720,13 @@
     "area": "source-picker",
     "level": 4,
     "type": "performance",
-    "preconditions": ["A Jira instance with 300+ filters visible to the user"],
+    "preconditions": [
+      "A Jira instance with 300+ filters visible to the user"
+    ],
     "steps": [
-      { "action": "Open the source picker, Filters tab" },
+      {
+        "action": "Open the source picker, Filters tab"
+      },
       {
         "action": "Observe",
         "expected": [
@@ -1923,8 +2736,15 @@
         ]
       }
     ],
-    "tags": ["performance", "manual", "exploratory", "slow"],
-    "linked_requirement_ids": ["FR-019"],
+    "tags": [
+      "performance",
+      "manual",
+      "exploratory",
+      "slow"
+    ],
+    "linked_requirement_ids": [
+      "FR-019"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1933,9 +2753,13 @@
     "area": "plugins-ui",
     "level": 4,
     "type": "edge_case",
-    "preconditions": ["A community plugin whose configSchema includes nested objects and arrays"],
+    "preconditions": [
+      "A community plugin whose configSchema includes nested objects and arrays"
+    ],
     "steps": [
-      { "action": "Open the plugin configure dialog" },
+      {
+        "action": "Open the plugin configure dialog"
+      },
       {
         "action": "Observe the form rendering",
         "expected": [
@@ -1945,8 +2769,13 @@
         ]
       }
     ],
-    "tags": ["exploratory", "manual"],
-    "linked_requirement_ids": ["FR-034"],
+    "tags": [
+      "exploratory",
+      "manual"
+    ],
+    "linked_requirement_ids": [
+      "FR-034"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1971,8 +2800,16 @@
         ]
       }
     ],
-    "tags": ["exploratory", "manual", "linux", "headless"],
-    "linked_requirement_ids": ["FR-010", "NFR-002"],
+    "tags": [
+      "exploratory",
+      "manual",
+      "linux",
+      "headless"
+    ],
+    "linked_requirement_ids": [
+      "FR-010",
+      "NFR-002"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -1981,7 +2818,9 @@
     "area": "forward-compat",
     "level": 4,
     "type": "integration",
-    "preconditions": ["Slug for AI-agent plugins is in interview / feasibility"],
+    "preconditions": [
+      "Slug for AI-agent plugins is in interview / feasibility"
+    ],
     "steps": [
       {
         "action": "Compare the AI-agent slug's manifest and method-set proposal to the paper sketch"
@@ -1995,8 +2834,15 @@
         ]
       }
     ],
-    "tags": ["exploratory", "manual", "future-slug"],
-    "linked_requirement_ids": ["FR-038", "NFR-011"],
+    "tags": [
+      "exploratory",
+      "manual",
+      "future-slug"
+    ],
+    "linked_requirement_ids": [
+      "FR-038",
+      "NFR-011"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2011,7 +2857,9 @@
       "The 2026-05-24 addendum is built"
     ],
     "steps": [
-      { "action": "Expand the 'Security & quality alerts' disclosure for the configured source" },
+      {
+        "action": "Expand the 'Security & quality alerts' disclosure for the configured source"
+      },
       {
         "action": "Inspect the rendered section",
         "expected": [
@@ -2022,9 +2870,17 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-040"],
-    "linked_user_story_ids": ["US-011"]
+    "tags": [
+      "smoke",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-040"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
   },
   {
     "id": "TC-086",
@@ -2038,7 +2894,9 @@
       "All three category checkboxes are enabled for the source"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull from the Issues panel" },
+      {
+        "action": "Trigger a listIssues pull from the Issues panel"
+      },
       {
         "action": "Inspect the returned merged list",
         "expected": [
@@ -2050,9 +2908,19 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-041", "FR-043", "FR-044"],
-    "linked_user_story_ids": ["US-011"]
+    "tags": [
+      "smoke",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-041",
+      "FR-043",
+      "FR-044"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
   },
   {
     "id": "TC-087",
@@ -2065,7 +2933,9 @@
       "plugins/github-com/ and plugins/ghe/ each declare a workspace dependency on it"
     ],
     "steps": [
-      { "action": "Run a workspace dependency audit (npm ls --workspaces)" },
+      {
+        "action": "Run a workspace dependency audit (npm ls --workspaces)"
+      },
       {
         "action": "Verify",
         "expected": [
@@ -2075,8 +2945,14 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-042"],
+    "tags": [
+      "smoke",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-042"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2090,7 +2966,9 @@
       "Secret Scanning is enabled on the source"
     ],
     "steps": [
-      { "action": "Invoke the alert-to-normalized mapper against the fixture" },
+      {
+        "action": "Invoke the alert-to-normalized mapper against the fixture"
+      },
       {
         "action": "Inspect normalized.raw",
         "expected": [
@@ -2100,8 +2978,15 @@
         ]
       }
     ],
-    "tags": ["security", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-043", "NFR-012"],
+    "tags": [
+      "security",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-043",
+      "NFR-012"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2115,7 +3000,9 @@
       "Code Scanning is enabled on the source"
     ],
     "steps": [
-      { "action": "Invoke the alert-to-normalized mapper against the fixture" },
+      {
+        "action": "Invoke the alert-to-normalized mapper against the fixture"
+      },
       {
         "action": "Inspect normalized.raw",
         "expected": [
@@ -2125,8 +3012,15 @@
         ]
       }
     ],
-    "tags": ["security", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-043", "NFR-012"],
+    "tags": [
+      "security",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-043",
+      "NFR-012"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2140,7 +3034,9 @@
       "Code Scanning is enabled for the source"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Trigger a listIssues pull"
+      },
       {
         "action": "Inspect the returned merged list",
         "expected": [
@@ -2151,8 +3047,15 @@
         ]
       }
     ],
-    "tags": ["smoke", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-044", "FR-020"],
+    "tags": [
+      "smoke",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-044",
+      "FR-020"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2167,7 +3070,9 @@
       "Configure dialog is open for a github.com source"
     ],
     "steps": [
-      { "action": "Toggle Dependabot alerts ON for the source" },
+      {
+        "action": "Toggle Dependabot alerts ON for the source"
+      },
       {
         "action": "Observe the source row",
         "expected": [
@@ -2178,9 +3083,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-045"],
-    "linked_user_story_ids": ["US-011"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-045"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
   },
   {
     "id": "TC-092",
@@ -2193,7 +3106,9 @@
       "User has no source with any security category enabled"
     ],
     "steps": [
-      { "action": "Launch Roubo and load any project with a github.com integration" },
+      {
+        "action": "Launch Roubo and load any project with a github.com integration"
+      },
       {
         "action": "Observe top-of-shell, project view, Plugins page, and Configure dialog",
         "expected": [
@@ -2203,8 +3118,14 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-045"],
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-045"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2219,7 +3140,9 @@
       "Code Scanning checkbox is enabled for the source"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Trigger a listIssues pull"
+      },
       {
         "action": "Observe results and Configure dialog",
         "expected": [
@@ -2229,9 +3152,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-046"],
-    "linked_user_story_ids": ["US-012"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-046"
+    ],
+    "linked_user_story_ids": [
+      "US-012"
+    ]
   },
   {
     "id": "TC-094",
@@ -2244,7 +3175,9 @@
       "Token has security_events; Secret Scanning is unavailable because the repo is a private repo without GHAS"
     ],
     "steps": [
-      { "action": "Click Test connection" },
+      {
+        "action": "Click Test connection"
+      },
       {
         "action": "Inspect the result strip",
         "expected": [
@@ -2257,9 +3190,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-047"],
-    "linked_user_story_ids": ["US-013"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-047"
+    ],
+    "linked_user_story_ids": [
+      "US-013"
+    ]
   },
   {
     "id": "TC-095",
@@ -2272,7 +3213,9 @@
       "The bench's assignedIssue.issueType is 'security-code-scanning'"
     ],
     "steps": [
-      { "action": "Open the bench detail view" },
+      {
+        "action": "Open the bench detail view"
+      },
       {
         "action": "Observe Transition and Assign controls",
         "expected": [
@@ -2284,8 +3227,14 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-048"],
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-048"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2299,7 +3248,9 @@
       "At least one blueprint exists in the project"
     ],
     "steps": [
-      { "action": "Open the issue-type dropdown in the mapping UI" },
+      {
+        "action": "Open the issue-type dropdown in the mapping UI"
+      },
       {
         "action": "Inspect candidate issue types",
         "expected": [
@@ -2310,8 +3261,14 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-049"],
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-049"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2325,7 +3282,9 @@
       "Dependabot alerts checkbox is currently ON for that source"
     ],
     "steps": [
-      { "action": "Toggle Dependabot alerts OFF for the source and Save" },
+      {
+        "action": "Toggle Dependabot alerts OFF for the source and Save"
+      },
       {
         "action": "Trigger a listIssues pull and observe the benches",
         "expected": [
@@ -2336,8 +3295,14 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-050"],
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-050"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2364,8 +3329,14 @@
         ]
       }
     ],
-    "tags": ["performance", "automated", "addendum"],
-    "linked_requirement_ids": ["NFR-013"],
+    "tags": [
+      "performance",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "NFR-013"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2378,7 +3349,9 @@
       "Configure dialog open with a source whose Dependabot alerts checkbox is enabled and stored token lacks security_events"
     ],
     "steps": [
-      { "action": "Navigate to the warning chip via keyboard only (Tab)" },
+      {
+        "action": "Navigate to the warning chip via keyboard only (Tab)"
+      },
       {
         "action": "Verify keyboard reachability and screen-reader announcements",
         "expected": [
@@ -2390,8 +3363,14 @@
         ]
       }
     ],
-    "tags": ["accessibility", "automated", "addendum"],
-    "linked_requirement_ids": ["NFR-014"],
+    "tags": [
+      "accessibility",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "NFR-014"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2405,7 +3384,9 @@
       "User enables Dependabot alerts for the source"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Trigger a listIssues pull"
+      },
       {
         "action": "Observe Configure dialog warning chip for the source",
         "expected": [
@@ -2415,8 +3396,15 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["NFR-015", "FR-046"],
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "NFR-015",
+      "FR-046"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2431,7 +3419,9 @@
       "Token has security_events scope"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Trigger a listIssues pull"
+      },
       {
         "action": "Observe Configure dialog source row",
         "expected": [
@@ -2441,9 +3431,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-046"],
-    "linked_user_story_ids": ["US-012"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-046"
+    ],
+    "linked_user_story_ids": [
+      "US-012"
+    ]
   },
   {
     "id": "TC-102",
@@ -2457,7 +3455,9 @@
       "Token has security_events scope"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull" },
+      {
+        "action": "Trigger a listIssues pull"
+      },
       {
         "action": "Observe Configure dialog source row",
         "expected": [
@@ -2467,9 +3467,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-046"],
-    "linked_user_story_ids": ["US-012"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-046"
+    ],
+    "linked_user_story_ids": [
+      "US-012"
+    ]
   },
   {
     "id": "TC-103",
@@ -2482,7 +3490,9 @@
       "All three categories enabled"
     ],
     "steps": [
-      { "action": "Click Test connection and wait for the result" },
+      {
+        "action": "Click Test connection and wait for the result"
+      },
       {
         "action": "Observe the result strip",
         "expected": [
@@ -2494,9 +3504,17 @@
         ]
       }
     ],
-    "tags": ["functional", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-047"],
-    "linked_user_story_ids": ["US-013"]
+    "tags": [
+      "functional",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-047"
+    ],
+    "linked_user_story_ids": [
+      "US-013"
+    ]
   },
   {
     "id": "TC-104",
@@ -2509,7 +3527,9 @@
       "All three categories enabled"
     ],
     "steps": [
-      { "action": "Trigger a listIssues pull during the 429" },
+      {
+        "action": "Trigger a listIssues pull during the 429"
+      },
       {
         "action": "Observe per-category outcome",
         "expected": [
@@ -2520,8 +3540,15 @@
         ]
       }
     ],
-    "tags": ["reliability", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-046", "FR-041"],
+    "tags": [
+      "reliability",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-046",
+      "FR-041"
+    ],
     "linked_user_story_ids": []
   },
   {
@@ -2536,10 +3563,18 @@
       "User opens Configure dialog and toggles Dependabot ON for a source"
     ],
     "steps": [
-      { "action": "Click the inline 'Click to upgrade.' chip action" },
-      { "action": "Click 'Continue to GitHub' on the re-consent dialog" },
-      { "action": "Complete the OAuth authorize flow in the system browser" },
-      { "action": "Wait for the roubo://oauth/github/callback deep link" },
+      {
+        "action": "Click the inline 'Click to upgrade.' chip action"
+      },
+      {
+        "action": "Click 'Continue to GitHub' on the re-consent dialog"
+      },
+      {
+        "action": "Complete the OAuth authorize flow in the system browser"
+      },
+      {
+        "action": "Wait for the roubo://oauth/github/callback deep link"
+      },
       {
         "action": "Observe the chip and trigger a listIssues pull",
         "expected": [
@@ -2551,9 +3586,19 @@
         ]
       }
     ],
-    "tags": ["integration", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-045", "FR-041", "FR-046"],
-    "linked_user_story_ids": ["US-011"]
+    "tags": [
+      "integration",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-045",
+      "FR-041",
+      "FR-046"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
   },
   {
     "id": "TC-106",
@@ -2566,7 +3611,9 @@
       "A Dependabot alert appears in the merged Issues list for a github.com source"
     ],
     "steps": [
-      { "action": "Right-click the alert in the Issues list and select 'Create bench'" },
+      {
+        "action": "Right-click the alert in the Issues list and select 'Create bench'"
+      },
       {
         "action": "Observe bench detail after creation",
         "expected": [
@@ -2578,9 +3625,19 @@
         ]
       }
     ],
-    "tags": ["integration", "automated", "addendum"],
-    "linked_requirement_ids": ["FR-049", "FR-048", "FR-044"],
-    "linked_user_story_ids": ["US-011"]
+    "tags": [
+      "integration",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "FR-049",
+      "FR-048",
+      "FR-044"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
   },
   {
     "id": "TC-107",
@@ -2593,7 +3650,9 @@
       "Test harness records per-endpoint If-None-Match request count and 304 response count"
     ],
     "steps": [
-      { "action": "Run 100 warm pulls back-to-back and capture latency + cache-hit ratio" },
+      {
+        "action": "Run 100 warm pulls back-to-back and capture latency + cache-hit ratio"
+      },
       {
         "action": "Analyze the trace",
         "expected": [
@@ -2603,8 +3662,2999 @@
         ]
       }
     ],
-    "tags": ["scale", "automated", "addendum"],
-    "linked_requirement_ids": ["NFR-013", "FR-041"],
+    "tags": [
+      "scale",
+      "automated",
+      "addendum"
+    ],
+    "linked_requirement_ids": [
+      "NFR-013",
+      "FR-041"
+    ],
     "linked_user_story_ids": []
+  },
+  {
+    "id": "TC-108",
+    "title": "Status chip on Settings > Plugins tile renders cached value for each canonical state",
+    "area": "connection-status",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Plugin manager has cached ConnectionStatus values for github.com (connected), GHE (auth-problem), Jira (disconnected), and a fourth plugin in errored state",
+      "A fifth plugin tile is in disabled state"
+    ],
+    "steps": [
+      {
+        "action": "Open Settings > Plugins"
+      },
+      {
+        "action": "Observe each tile",
+        "expected": [
+          "github.com tile shows the connected variant chip with emerald background and timestamp \"as of HH:MM\"",
+          "GHE tile shows the auth-problem variant with amber background and \"Sign in again\" copy",
+          "Jira tile shows the disconnected variant with stone background and \"Not connected\" copy",
+          "Errored plugin tile shows the red errored variant",
+          "Disabled plugin tile shows the disabled chip with no timestamp suffix"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-051"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-109",
+    "title": "Configure modal header surfaces the same status chip",
+    "area": "connection-status",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin has cached connected status"
+    ],
+    "steps": [
+      {
+        "action": "Click Configure on the github.com tile"
+      },
+      {
+        "action": "Observe modal header",
+        "expected": [
+          "Header shows plugin icon, plugin name, and the connected status chip flush right",
+          "No Test Connection click was required to surface the chip"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-052"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-110",
+    "title": "Per-project integration tab tile shows status chip identical to Settings tile",
+    "area": "connection-status",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Project opened that uses github.com integration, github.com cached as connected"
+    ],
+    "steps": [
+      {
+        "action": "Open per-project Settings > GitHub tab"
+      },
+      {
+        "action": "Observe tile header",
+        "expected": [
+          "Status chip renders the connected variant identical to the Settings > Plugins tile"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-053"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-111",
+    "title": "Opportunistic re-check fires on Settings > Plugins tab open",
+    "area": "connection-status",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Two enabled plugins with cached status",
+      "No prior re-check in flight"
+    ],
+    "steps": [
+      {
+        "action": "Open the Settings > Plugins tab"
+      },
+      {
+        "action": "Observe network and UI",
+        "expected": [
+          "getConnectionStatus is invoked once per enabled plugin",
+          "Each chip transiently shows \"rechecking...\" until response",
+          "No re-check fires for the disabled plugin",
+          "No background timer fires when the tab is not in focus"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-054"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-112",
+    "title": "getConnectionStatus RPC contract: shape, state enum, optional detail",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Plugin built against host-API 1.1.0 implements getConnectionStatus"
+    ],
+    "steps": [
+      {
+        "action": "Call getConnectionStatus on the plugin process"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Returns { state: \"connected\" | \"disconnected\" | \"auth-problem\" | \"errored\", checkedAt: ISO-8601, detail?: string }",
+          "state field matches one of the four enum values exactly",
+          "checkedAt parses as a valid ISO-8601 timestamp"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-113",
+    "title": "getConnectionStatus MethodNotFound fallback infers state from validateConfig",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "negative",
+    "preconditions": [
+      "Plugin built against host-API 1.0.0 does NOT implement getConnectionStatus"
+    ],
+    "steps": [
+      {
+        "action": "Host invokes getConnectionStatus"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "MethodNotFound is caught",
+          "Host falls back to invoking validateConfig and inferring connected vs auth-problem from the result",
+          "No exception surfaces to the UI"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "fallback"
+    ],
+    "linked_requirement_ids": [
+      "FR-055",
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-114",
+    "title": "Settings > Plugins uses CSS Grid auto-fit minmax(360px, 1fr)",
+    "area": "settings-ui",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Five plugins installed and enabled"
+    ],
+    "steps": [
+      {
+        "action": "Open Settings > Plugins at default viewport width"
+      },
+      {
+        "action": "Inspect the grid container computed style",
+        "expected": [
+          "grid-template-columns matches repeat(auto-fit, minmax(360px, 1fr))",
+          "Tiles wrap to multiple rows based on container width with no JS breakpoint logic"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-056"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-115",
+    "title": "Plugin tile renders required content in order",
+    "area": "settings-ui",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin connected"
+    ],
+    "steps": [
+      {
+        "action": "Observe a plugin tile",
+        "expected": [
+          "Header row: icon, name, status chip",
+          "Description row beneath header",
+          "Footer row: enable Switch and primary action button",
+          "Action button label is Configure (plugin has credentials configured)"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-057"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-116",
+    "title": "Settings page wrapper uses full container width across all tabs",
+    "area": "settings-ui",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "App at default viewport width"
+    ],
+    "steps": [
+      {
+        "action": "Navigate to Settings > Plugins, then Settings > Project setup, then Settings > Identity"
+      },
+      {
+        "action": "Inspect wrapper",
+        "expected": [
+          "Every Settings tab wrapper uses w-full (no max-w-* constraint)",
+          "Inner content uses appropriate constraints per tab"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-058"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-117",
+    "title": "Greenfield install records all bundled plugins as enabled=false in plugins-state.json",
+    "area": "migration",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Fresh ~/.roubo/ directory with no state.json"
+    ],
+    "steps": [
+      {
+        "action": "Start Roubo for the first time"
+      },
+      {
+        "action": "Inspect ~/.roubo/plugins-state.json",
+        "expected": [
+          "File exists with { github-com: false, ghe: false, jira-self-hosted: false }",
+          "state.json has been created with the current version marker"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-059",
+      "FR-060"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-118",
+    "title": "Existing install preserves prior enable state across upgrade",
+    "area": "migration",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "~/.roubo/state.json exists with version marker from prior Roubo build",
+      "github.com plugin was previously enabled"
+    ],
+    "steps": [
+      {
+        "action": "Upgrade Roubo to this build and start"
+      },
+      {
+        "action": "Open Settings > Plugins",
+        "expected": [
+          "github.com plugin remains enabled (not flipped to disabled)",
+          "No migration banner shown for this change"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-059",
+      "FR-060"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-119",
+    "title": "Enable / disable persists across server restart",
+    "area": "persistence",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Server running, all bundled plugins disabled"
+    ],
+    "steps": [
+      {
+        "action": "Enable github.com plugin via the Switch in the tile"
+      },
+      {
+        "action": "Restart the server"
+      },
+      {
+        "action": "Open Settings > Plugins",
+        "expected": [
+          "github.com remains enabled",
+          "~/.roubo/plugins-state.json reflects { github-com: true, ... }"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-060"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-120",
+    "title": "Project-load Enable prompt appears when the project needs a disabled bundled plugin",
+    "area": "project-load",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin disabled",
+      "A project whose roubo.yaml integration block references github-com"
+    ],
+    "steps": [
+      {
+        "action": "Click the project from the project list"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "A modal opens titled \"Enable github.com to load this project?\"",
+          "Body text references the plugin name and roubo.yaml",
+          "Buttons: Cancel (secondary) and Enable and load project (primary)",
+          "Initial focus is on Enable and load project"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-121",
+    "title": "Cancel on Enable prompt returns to project list with no state change",
+    "area": "project-load",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Enable prompt is open"
+    ],
+    "steps": [
+      {
+        "action": "Click Cancel"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Modal closes",
+          "Project does not load",
+          "plugins-state.json is unchanged",
+          "Focus restores to the original project list row"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-122",
+    "title": "excludedStatuses three-layer merge: plugin-global + per-project + per-source",
+    "area": "config-merge",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Plugin-global default excludedStatuses: [\"Closed\", \"Done\", \"Resolved\", \"In review\", \"PR open\", \"Waiting on reviewer\"]",
+      "Project override excludedStatuses: [\"Closed\"] (overrides global to only exclude Closed)",
+      "Source override on sources[\"repo-a\"] excludedStatuses: [\"Closed\", \"Blocked\"] (per-source override)"
+    ],
+    "steps": [
+      {
+        "action": "Resolve effective excludedStatuses for sources[\"repo-a\"]"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Effective value equals [\"Closed\", \"Blocked\"]",
+          "Deep merge applied with later layers overriding earlier"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-062"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019"
+    ]
+  },
+  {
+    "id": "TC-123",
+    "title": "Per-source post-merge pass traverses sources[<id>] entries",
+    "area": "config-merge",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "A roubo.yaml with two sources, each with their own excludedStatuses override"
+    ],
+    "steps": [
+      {
+        "action": "Call resolveIntegrationOverrides"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Both source entries have their excludedStatuses correctly merged",
+          "The post-merge pass runs after the root walker",
+          "Calling resolveIntegrationOverrides a second time produces an identical result (idempotent)"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-063"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019"
+    ]
+  },
+  {
+    "id": "TC-124",
+    "title": "Bundled plugin manifests ship with default excludedStatuses",
+    "area": "plugin-defaults",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Fresh install"
+    ],
+    "steps": [
+      {
+        "action": "Read github.com plugin manifest defaultSettings.excludedStatuses"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Default equals [\"Closed\", \"Done\", \"Resolved\", \"In review\", \"PR open\", \"Waiting on reviewer\"] mapped to the github.com state strings",
+          "GHE plugin default matches github.com",
+          "Jira plugin default uses Jira-native state strings (Closed, Done, Resolved, In Review, etc.)"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-064"
+    ],
+    "linked_user_story_ids": [
+      "US-018"
+    ]
+  },
+  {
+    "id": "TC-125",
+    "title": "filterFacets RPC returns descriptor list with id, label, type",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin built against host-API 1.1.0"
+    ],
+    "steps": [
+      {
+        "action": "Call filterFacets on the plugin"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Returns array of FilterFacet entries",
+          "Each entry has { id: string, label: string, type: \"enum\" | \"enum-async\" | \"multi-enum\" }",
+          "github.com returns at minimum a Milestone facet of type enum-async",
+          "Jira plugin equivalent returns an Epic facet"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-065"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-126",
+    "title": "filterFacets MethodNotFound fallback yields fixed common-facet set",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "negative",
+    "preconditions": [
+      "Plugin built against host-API 1.0.0 omits filterFacets"
+    ],
+    "steps": [
+      {
+        "action": "Host invokes filterFacets"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "MethodNotFound caught",
+          "Host returns the fixed common-facet set: Status, Label, Assignee, Type",
+          "UI renders four filter dropdowns from the fallback set"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "fallback"
+    ],
+    "linked_requirement_ids": [
+      "FR-065",
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-020",
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-127",
+    "title": "NormalizedIssue carries optional facetValues map for plugin-declared facets",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin returns issues with milestone metadata"
+    ],
+    "steps": [
+      {
+        "action": "Call listIssues"
+      },
+      {
+        "action": "Observe a returned NormalizedIssue",
+        "expected": [
+          "facetValues is present as Record<string, string | string[]>",
+          "Keys match facet ids returned by filterFacets (e.g. \"milestone\")",
+          "Plugins built against 1.0.0 omit facetValues; core treats absence as empty map"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-066"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-128",
+    "title": "Host-API version is reported as 1.1.0",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Fresh install of this Roubo build"
+    ],
+    "steps": [
+      {
+        "action": "Call host.getHostApiVersion via plugin SDK"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Version string is \"1.1.0\""
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-129",
+    "title": "Cut-list chips render four distinct visual categories",
+    "area": "cut-list-ui",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Cut list contains issues with Status, Label, Issue type, and Metadata chips"
+    ],
+    "steps": [
+      {
+        "action": "Inspect chip categories in the cut list"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Status chips: pill, emerald family, no icon prefix",
+          "Label chips: rounded-sm square corners, cyan family, border-only style",
+          "Issue type chips: pill with leading icon (bug, spark, wrench, etc.), violet family",
+          "Metadata chips: pill with leading key icon, stone family"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-068"
+    ],
+    "linked_user_story_ids": [
+      "US-021"
+    ]
+  },
+  {
+    "id": "TC-130",
+    "title": "Per-project Settings tab title is driven by active plugin display name",
+    "area": "project-settings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Project configured with github.com integration"
+    ],
+    "steps": [
+      {
+        "action": "Open the project Settings page"
+      },
+      {
+        "action": "Observe the tab list",
+        "expected": [
+          "A tab titled \"GitHub\" appears in place of the legacy \"Issue source\"",
+          "Switching the active integration to GHE renames the tab to \"GitHub Enterprise\"",
+          "Switching to Jira renames to \"Jira\"",
+          "When no integration configured, tab is titled \"Source\""
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-069"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-131",
+    "title": "Repo path / linked Project / submodules move into the plugin tab",
+    "area": "project-settings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Project configured with github.com integration; project is a meta-repo"
+    ],
+    "steps": [
+      {
+        "action": "Open the project Settings page"
+      },
+      {
+        "action": "Observe Identity tab",
+        "expected": [
+          "Identity tab no longer shows Repository, GitHub project, or submodules",
+          "Identity tab keeps project name, default branch, Roubo-managed paths"
+        ]
+      },
+      {
+        "action": "Open the GitHub tab",
+        "expected": [
+          "Repository path field appears",
+          "Linked GitHub Project field appears",
+          "Meta-repo submodule list appears"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-070",
+      "FR-071"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-132",
+    "title": "Default branch stays on Identity tab",
+    "area": "project-settings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Project configured with github.com integration"
+    ],
+    "steps": [
+      {
+        "action": "Open project Settings > Identity"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Default branch field present",
+          "Editing default branch persists to project state independently of the integration plugin"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-071"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-133",
+    "title": "Single Connect / Configure button renders correct label per connection state",
+    "area": "project-settings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin enabled; project has no credentials configured for github.com"
+    ],
+    "steps": [
+      {
+        "action": "Open project Settings > GitHub tab"
+      },
+      {
+        "action": "Observe button",
+        "expected": [
+          "Button label is Connect"
+        ]
+      },
+      {
+        "action": "Complete OAuth flow to add credentials"
+      },
+      {
+        "action": "Observe button",
+        "expected": [
+          "Button label flips to Configure",
+          "Choose sources button is not present"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-072"
+    ],
+    "linked_user_story_ids": [
+      "US-023"
+    ]
+  },
+  {
+    "id": "TC-134",
+    "title": "GHE plugin tab renders identical layout to github.com plus instance URL",
+    "area": "project-settings",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Project configured with GHE integration"
+    ],
+    "steps": [
+      {
+        "action": "Open project Settings > GitHub Enterprise tab"
+      },
+      {
+        "action": "Observe layout",
+        "expected": [
+          "Same Repository / Linked Project / Submodules fields as github.com",
+          "Single Connect/Configure button identical to github.com",
+          "A read-only Instance URL line at the top: \"Instance: https://github.acme.com\""
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-073"
+    ],
+    "linked_user_story_ids": [
+      "US-022",
+      "US-023"
+    ]
+  },
+  {
+    "id": "TC-135",
+    "title": "Per-source alert booleans default to false on bundled github.com plugin",
+    "area": "alerts",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Fresh github.com plugin source configuration"
+    ],
+    "steps": [
+      {
+        "action": "Inspect source config defaults"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "includeCodeQLAlerts defaults to false",
+          "includeSecretScanningAlerts defaults to false",
+          "includeDependabotAlerts defaults to false"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-074"
+    ],
+    "linked_user_story_ids": [
+      "US-024"
+    ]
+  },
+  {
+    "id": "TC-136",
+    "title": "Alerts appear in cut list with distinct issue-type chip",
+    "area": "alerts",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com source has includeCodeQLAlerts and includeDependabotAlerts enabled",
+      "Repo has at least one CodeQL alert and one Dependabot alert"
+    ],
+    "steps": [
+      {
+        "action": "Open the cut list"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "CodeQL alert appears with a CodeQL issue-type chip (shield icon, violet family)",
+          "Dependabot alert appears with a Dependabot chip (package icon)",
+          "Alert rows do NOT show transition or assign actions"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-075"
+    ],
+    "linked_user_story_ids": [
+      "US-024"
+    ]
+  },
+  {
+    "id": "TC-137",
+    "title": "Inline OAuth re-consent affordance surfaces when enabling alert category",
+    "area": "alerts",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "github.com plugin connected via OAuth with read-only scope (no security_events)"
+    ],
+    "steps": [
+      {
+        "action": "In Configure modal, toggle includeCodeQLAlerts for a source"
+      },
+      {
+        "action": "Observe per-source warning chip",
+        "expected": [
+          "Inline re-consent affordance appears reading \"Sign in again to grant security_events access\"",
+          "Clicking it re-runs OAuth with extended scope"
+        ]
+      },
+      {
+        "action": "For a GHE PAT user (no OAuth), observe",
+        "expected": [
+          "Inline reminder reads \"Verify your PAT has security_events scope\"",
+          "No OAuth flow triggered"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-076"
+    ],
+    "linked_user_story_ids": [
+      "US-024"
+    ]
+  },
+  {
+    "id": "TC-138",
+    "title": "Playwright config points at the new e2e spec set",
+    "area": "e2e-harness",
+    "level": 1,
+    "type": "structural",
+    "preconditions": [
+      "playwright.config.ts exists at repo root"
+    ],
+    "steps": [
+      {
+        "action": "Inspect playwright.config.ts"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "testDir or testMatch resolves to e2e/**/*.spec.ts",
+          "fullyParallel: false retained",
+          "Default headless mode",
+          "No real-network dependencies declared"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-077"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-139",
+    "title": "Stubbed plugin process implements full RPC contract",
+    "area": "e2e-harness",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Stubbed plugin built at e2e/fixtures/stubbed-plugin/"
+    ],
+    "steps": [
+      {
+        "action": "Spawn the stub with --scenario=default --now=2026-05-25T00:00:00Z"
+      },
+      {
+        "action": "Exercise each RPC method",
+        "expected": [
+          "lifecycle (init, start, stop, shutdown) responds with deterministic ack",
+          "validateConfig, listSources, listIssues, transitionIssue, assignIssue, unassignIssue, filterFacets, getConnectionStatus all respond",
+          "Outputs match the fixture pack byte-for-byte across two consecutive runs with the same args"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-078",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-140",
+    "title": "POST /test/__reset is gated on ROUBO_E2E env var",
+    "area": "e2e-harness",
+    "level": 1,
+    "type": "security",
+    "preconditions": [
+      "Server built with ROUBO_E2E unset"
+    ],
+    "steps": [
+      {
+        "action": "POST /test/__reset"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Response is 404 Not Found",
+          "No internal state mutated"
+        ]
+      },
+      {
+        "action": "Restart server with ROUBO_E2E=1 and POST /test/__reset"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Response 200",
+          "Plugin manager + connection-status cache + project-registry + migrate singleton + integration-overrides caches + OAuth pendingStates are reset"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-079"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-141",
+    "title": "E2E coverage surface enumerated in specs",
+    "area": "e2e-harness",
+    "level": 1,
+    "type": "structural",
+    "preconditions": [
+      "e2e/ directory present"
+    ],
+    "steps": [
+      {
+        "action": "Inspect spec files"
+      },
+      {
+        "action": "Observe presence",
+        "expected": [
+          "Specs exist for: plugin lifecycle, Configure flow per plugin, source picker shapes, cut-list filter (three layers + facets + chips), legacy github.com migration, alerts re-consent, status surfacing, GitHub settings consolidation, bench creation, write-back ops, host permission gates"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-080"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-142",
+    "title": "Plugin grid passes WCAG 2.1 AA contrast on every chip variant",
+    "area": "accessibility",
+    "level": 2,
+    "type": "accessibility",
+    "preconditions": [
+      "All five chip variants visible in the grid"
+    ],
+    "steps": [
+      {
+        "action": "Run axe-core against Settings > Plugins"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Zero violations of color-contrast rule",
+          "Every chip variant background/foreground pair meets 4.5:1 ratio"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "accessibility"
+    ],
+    "linked_requirement_ids": [
+      "NFR-016",
+      "FR-051"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-015",
+      "US-021"
+    ]
+  },
+  {
+    "id": "TC-143",
+    "title": "Plugin grid keyboard navigation walks tiles in DOM order",
+    "area": "accessibility",
+    "level": 2,
+    "type": "accessibility",
+    "preconditions": [
+      "Three tiles in the grid"
+    ],
+    "steps": [
+      {
+        "action": "Tab from outside the grid"
+      },
+      {
+        "action": "Observe focus order",
+        "expected": [
+          "Focus moves: tile 1 enable Switch -> tile 1 primary action -> tile 2 enable Switch -> tile 2 primary action -> tile 3 ...",
+          "Space on Switch toggles enabled state",
+          "Enter on primary action opens Configure modal"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "accessibility",
+      "keyboard"
+    ],
+    "linked_requirement_ids": [
+      "NFR-016",
+      "FR-056",
+      "FR-057"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-144",
+    "title": "Chip categories remain distinguishable in greyscale and colour-blind palettes",
+    "area": "accessibility",
+    "level": 2,
+    "type": "accessibility",
+    "preconditions": [
+      "Cut list with all four chip categories visible"
+    ],
+    "steps": [
+      {
+        "action": "Apply greyscale filter to the page"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Status (pill no icon), Label (rounded-sm border-only), Issue type (pill with leading icon), Metadata (pill with key icon) remain visually distinct"
+        ]
+      },
+      {
+        "action": "Apply protanopia and deuteranopia colour-blind simulation"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Categories remain distinguishable via shape and icon signals"
+        ]
+      }
+    ],
+    "tags": [
+      "accessibility",
+      "manual",
+      "visual"
+    ],
+    "linked_requirement_ids": [
+      "NFR-016",
+      "FR-068"
+    ],
+    "linked_user_story_ids": [
+      "US-021"
+    ]
+  },
+  {
+    "id": "TC-145",
+    "title": "Cached status chip renders synchronously within 50ms p95",
+    "area": "performance",
+    "level": 2,
+    "type": "performance",
+    "preconditions": [
+      "Plugin manager has cached ConnectionStatus values"
+    ],
+    "steps": [
+      {
+        "action": "Mount Settings > Plugins 100 times in a perf harness"
+      },
+      {
+        "action": "Measure render time",
+        "expected": [
+          "p95 < 50ms from mount to first paint of the status chip"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "performance"
+    ],
+    "linked_requirement_ids": [
+      "NFR-017",
+      "FR-051",
+      "FR-054"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-146",
+    "title": "Opportunistic re-check completes within 2s p95 for healthy plugins",
+    "area": "performance",
+    "level": 2,
+    "type": "performance",
+    "preconditions": [
+      "Three healthy plugins enabled",
+      "Network conditions normal"
+    ],
+    "steps": [
+      {
+        "action": "Trigger UI event that fires re-check"
+      },
+      {
+        "action": "Measure round-trip",
+        "expected": [
+          "p95 latency from event to chip update < 2 seconds across 50 iterations"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "performance"
+    ],
+    "linked_requirement_ids": [
+      "NFR-017",
+      "FR-054"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-147",
+    "title": "Plugin grid first paint completes within 100ms",
+    "area": "performance",
+    "level": 2,
+    "type": "performance",
+    "preconditions": [
+      "Five plugins installed"
+    ],
+    "steps": [
+      {
+        "action": "Navigate to Settings > Plugins"
+      },
+      {
+        "action": "Measure",
+        "expected": [
+          "First contentful paint of the grid < 100ms"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "performance"
+    ],
+    "linked_requirement_ids": [
+      "NFR-017",
+      "FR-056"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-148",
+    "title": "Playwright e2e suite passes 10 consecutive runs with zero flakes",
+    "area": "e2e-harness",
+    "level": 2,
+    "type": "reliability",
+    "preconditions": [
+      "Full e2e suite in place"
+    ],
+    "steps": [
+      {
+        "action": "Run \"npx playwright test\" 10 times in CI"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "All 10 runs pass",
+          "No spec retries triggered (retries=0 enforced in config)",
+          "Total duration variance < 10%"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "reliability",
+      "slow"
+    ],
+    "linked_requirement_ids": [
+      "NFR-018",
+      "FR-077",
+      "FR-078"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-149",
+    "title": "plugin enable state never appears in telemetry payloads",
+    "area": "security",
+    "level": 2,
+    "type": "security",
+    "preconditions": [
+      "Telemetry pipeline mocked to capture all emitted events"
+    ],
+    "steps": [
+      {
+        "action": "Enable and disable plugins via the UI"
+      },
+      {
+        "action": "Inspect captured telemetry",
+        "expected": [
+          "No event payload contains plugins-state.json values",
+          "Plugin events reference pluginId only",
+          "plugins-state.json is excluded from any state-snapshot endpoint"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "security"
+    ],
+    "linked_requirement_ids": [
+      "NFR-019",
+      "FR-060"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-150",
+    "title": "Status re-check rejected when plugin requests host outside allowlist",
+    "area": "security",
+    "level": 2,
+    "type": "security",
+    "preconditions": [
+      "Plugin manifest declares allowlist for api.github.com only",
+      "Plugin attempts re-check against malicious.example.com"
+    ],
+    "steps": [
+      {
+        "action": "Trigger re-check"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "host.fetch returns AllowlistViolation error before any network I/O",
+          "Plugin code never receives a response",
+          "Error logged to host structured logger with plugin id and attempted host"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "security"
+    ],
+    "linked_requirement_ids": [
+      "NFR-020",
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-151",
+    "title": "Cut-list filter recompute < 50ms p95 for 500 issues",
+    "area": "performance",
+    "level": 2,
+    "type": "performance",
+    "preconditions": [
+      "Cut list loaded with 500 issues"
+    ],
+    "steps": [
+      {
+        "action": "Toggle a filter facet 50 times"
+      },
+      {
+        "action": "Measure",
+        "expected": [
+          "p95 recompute + re-render latency < 50ms",
+          "No additional server fetches triggered by toggle"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "performance"
+    ],
+    "linked_requirement_ids": [
+      "NFR-021",
+      "FR-065"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019",
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-152",
+    "title": "Enable-plugin modal traps focus, Esc cancels, Enter confirms",
+    "area": "accessibility",
+    "level": 2,
+    "type": "accessibility",
+    "preconditions": [
+      "Enable prompt is open"
+    ],
+    "steps": [
+      {
+        "action": "Tab through focusable elements"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Focus stays within the modal"
+        ]
+      },
+      {
+        "action": "Press Esc"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Modal closes",
+          "Focus restores to triggering element"
+        ]
+      },
+      {
+        "action": "Re-open modal, focus the Enable button, press Enter"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Enable action fires"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "accessibility",
+      "keyboard"
+    ],
+    "linked_requirement_ids": [
+      "NFR-022",
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-153",
+    "title": "Connection-status transitions logged with plugin id and both states",
+    "area": "observability",
+    "level": 1,
+    "type": "functional",
+    "preconditions": [
+      "Plugin in connected state"
+    ],
+    "steps": [
+      {
+        "action": "Cause plugin to transition to auth-problem (e.g. invalidate token)"
+      },
+      {
+        "action": "Inspect host structured logs",
+        "expected": [
+          "A log entry exists with { pluginId, previousState: \"connected\", newState: \"auth-problem\", trigger: \"ui-event:settings-tab-open\" }",
+          "No PII or token values in the log payload"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "observability"
+    ],
+    "linked_requirement_ids": [
+      "NFR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-154",
+    "title": "Enable-prompt failure path: plugin refuses to start",
+    "area": "project-load",
+    "level": 2,
+    "type": "reliability",
+    "preconditions": [
+      "github.com plugin disabled",
+      "Plugin process is broken (e.g. corrupted manifest)"
+    ],
+    "steps": [
+      {
+        "action": "Open a project that needs github.com"
+      },
+      {
+        "action": "Click Enable and load project"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Plugin start attempt fails",
+          "Modal displays inline error with the failure message",
+          "plugins-state.json remains in its previous disabled state",
+          "Project does not load",
+          "User can dismiss modal or open Configure to investigate"
+        ]
+      }
+    ],
+    "tags": [
+      "automated",
+      "reliability"
+    ],
+    "linked_requirement_ids": [
+      "NFR-024",
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-155",
+    "title": "New copy strings use the existing string-key pattern",
+    "area": "localization",
+    "level": 1,
+    "type": "structural",
+    "preconditions": [
+      "Source files for new components present"
+    ],
+    "steps": [
+      {
+        "action": "Grep new components for inline English strings"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Status chip labels, Enable prompt copy, Connect/Configure button labels reference string keys",
+          "No hardcoded English in JSX of new components"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "NFR-025"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-015",
+      "US-017",
+      "US-022",
+      "US-023"
+    ]
+  },
+  {
+    "id": "TC-156",
+    "title": "E2E: User configures github.com source and creates a bench from an issue",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=github-com-multi-list",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "User opens project, clicks GitHub tab > Connect, completes OAuth (stubbed), picks two repos in source picker, sees issues in cut list, creates a bench from an issue.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-005",
+      "FR-019",
+      "FR-021",
+      "FR-034",
+      "FR-039"
+    ],
+    "linked_user_story_ids": [
+      "US-001"
+    ]
+  },
+  {
+    "id": "TC-157",
+    "title": "E2E: User configures self-hosted Jira and creates a bench",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=jira-self-hosted-categorized",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "User opens project, clicks Jira tab > Connect, pastes PAT + instance URL, picks two projects + two filters in categorized-multi-list, creates a bench from an issue.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-005",
+      "FR-020",
+      "FR-021",
+      "FR-022",
+      "FR-034",
+      "FR-039"
+    ],
+    "linked_user_story_ids": [
+      "US-002"
+    ]
+  },
+  {
+    "id": "TC-158",
+    "title": "E2E: Legacy github.com user migration on first launch",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=migration-legacy-github",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Pre-populate ~/.roubo with auth.json + legacy project; start Roubo build with plugin runtime; observe migration banner, keyring writeback, deletion of auth.json, bench snapshot tagged github-com, no double-prompts on second start.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-026",
+      "FR-027",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ]
+  },
+  {
+    "id": "TC-159",
+    "title": "E2E: User installs a community plugin from a git URL, configures it, uses it",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=community-plugin-install",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "User opens Settings > Plugins, clicks Install > git URL, accepts permissions dialog (allowlist, credential slot), enables, configures with a PAT, picks sources, sees issues.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-004",
+      "FR-008",
+      "FR-009",
+      "FR-010",
+      "FR-016"
+    ],
+    "linked_user_story_ids": [
+      "US-004",
+      "US-007"
+    ]
+  },
+  {
+    "id": "TC-160",
+    "title": "E2E: Project requires a community plugin that is not installed",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=missing-plugin-prompt",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Open a project whose roubo.yaml references plugin \"acme-custom\" not installed; the Missing-plugin prompt offers Install from URL or Cancel; user installs from URL; project loads.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-024",
+      "FR-025"
+    ],
+    "linked_user_story_ids": [
+      "US-005"
+    ]
+  },
+  {
+    "id": "TC-161",
+    "title": "E2E: Switching a project from github.com to Jira mid-flight",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=switch-integration",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Project on github.com with two active benches; user opens Switch integration dialog; picks Jira; existing benches show \"Issue from previous integration\" badge; new cut list pulls from Jira.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-028",
+      "FR-029"
+    ],
+    "linked_user_story_ids": [
+      "US-006"
+    ]
+  },
+  {
+    "id": "TC-162",
+    "title": "E2E: User transitions issue status and assigns from bench view",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=transition-and-assign",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Bench attached to issue; user opens Transition dropdown, picks \"In review\", confirms; status updates and bench badge reflects; user clicks Assign, picks themself; assignment persists.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-035",
+      "FR-036",
+      "FR-037"
+    ],
+    "linked_user_story_ids": [
+      "US-008"
+    ]
+  },
+  {
+    "id": "TC-163",
+    "title": "E2E: Plugin crashes and auto-restarts; user views logs",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=plugin-crash-restart",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Inject a crash into the stubbed plugin; observe auto-restart up to 3 within 5min; after 3rd crash plugin enters errored, last-good snapshot still served; user opens log viewer and sees the crash entries.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-013",
+      "FR-014",
+      "FR-015"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ]
+  },
+  {
+    "id": "TC-164",
+    "title": "E2E: User configures Issue source tile on project page",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=project-issue-source-tile",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "User opens project page, sees Issue source tile (now: plugin-driven tab from FR-069), configures, picks sources, sees the tile reflect connected state.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ]
+  },
+  {
+    "id": "TC-165",
+    "title": "E2E: User enables CodeQL alerts on a github.com source and sees alerts in cut list",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=alerts-codeql-enable",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com connected via OAuth without security_events; user opens Configure, toggles includeCodeQLAlerts on for repo-a; inline re-consent affordance appears; user clicks Sign in again; OAuth re-runs with extended scope; cut list now interleaves CodeQL alerts with regular issues, each with CodeQL chip.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-040",
+      "FR-041",
+      "FR-043",
+      "FR-045"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ]
+  },
+  {
+    "id": "TC-166",
+    "title": "E2E: GHE PAT user enables Secret scanning alerts and verifies token scope",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=alerts-secret-ghe",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "GHE PAT user with security_events scope; opens Configure, toggles includeSecretScanningAlerts on; no OAuth flow; inline reminder reads \"Verify PAT has security_events scope\"; cut list shows Secret scanning alerts with the right chip.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-040",
+      "FR-046",
+      "FR-048"
+    ],
+    "linked_user_story_ids": [
+      "US-012"
+    ]
+  },
+  {
+    "id": "TC-167",
+    "title": "E2E: Test connection per-category status surfaces alert-feed errors distinctly",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=alerts-test-connection",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com source with alerts enabled but security_events scope revoked; user clicks Test Connection in Configure; per-category result strip shows: Issues OK, Alerts: scope missing; clicking Re-consent fixes it.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-047"
+    ],
+    "linked_user_story_ids": [
+      "US-013"
+    ]
+  },
+  {
+    "id": "TC-168",
+    "title": "E2E: Connection status surfaces in all three placements without Test Connection click",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=status-surfacing-three-placements",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com connected; user opens Settings > Plugins, observes connected chip on tile (with as-of timestamp); opens Configure modal, observes same chip in header; opens project Settings > GitHub tab, observes same chip in tile header. No Test Connection click anywhere.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-051",
+      "FR-052",
+      "FR-053",
+      "FR-054",
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-169",
+    "title": "E2E: Token expires; chip flips to auth-problem on opportunistic re-check",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=status-auth-problem-flip",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com connected; stubbed plugin scripted to return auth-problem on next getConnectionStatus; user opens Settings > Plugins; chip transiently shows \"rechecking...\" then flips to amber \"Sign in again\"; tooltip surfaces \"Token expired\"; observability log records the transition.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-054",
+      "FR-055",
+      "NFR-017",
+      "NFR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-170",
+    "title": "E2E: Plugin grid wraps responsively across viewport widths",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=plugin-grid-responsive",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Five plugins enabled; resize viewport to 600px (1 col), 1200px (3 cols), 1700px (4 cols); observe wrap behavior; Settings wrapper fills container at every width.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-056",
+      "FR-057",
+      "FR-058"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ]
+  },
+  {
+    "id": "TC-171",
+    "title": "E2E: Greenfield install lands bundled plugins disabled; project-load prompts Enable",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=greenfield-and-enable-prompt",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Start Roubo against empty ~/.roubo/; observe all bundled tiles show Disabled chip; create a project pointing at github-com; project-load modal asks \"Enable github.com to load this project?\"; user clicks Enable; plugin enables, modal closes, project loads, plugins-state.json reflects { github-com: true }.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-059",
+      "FR-060",
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-016",
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-172",
+    "title": "E2E: Project-load Cancel + failure path",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=enable-prompt-edges",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Greenfield install; user opens project, gets Enable modal, clicks Cancel - returns to project list with no state change; re-open project, click Enable, but stubbed plugin scripted to fail start; modal displays inline error, plugin remains disabled, no project loaded.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-061",
+      "NFR-022",
+      "NFR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-173",
+    "title": "E2E: Cut-list default exclusions hide closed/in-review; per-source override widens scope",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=cut-list-exclusions",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com source with default config; cut list opens and hides 6 statuses; user opens Status filter dropdown, observes \"Hidden by default\" tags, toggles Closed on for this session; row count grows; user opens Configure > Advanced, edits per-source excludedStatuses to drop only Closed; reopens cut list, observes In review + others now visible by default.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-062",
+      "FR-063",
+      "FR-064"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019"
+    ]
+  },
+  {
+    "id": "TC-174",
+    "title": "E2E: Milestone filter appears for github.com via filterFacets RPC",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=filter-facets-milestone",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com plugin declares Milestone facet (enum-async); user opens cut list, sees a Milestone dropdown alongside Status/Label; opening dropdown lazily fetches options via getFacetOptions; selecting \"v1.2\" filters cut list rows whose facetValues.milestone equals v1.2.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-065",
+      "FR-066",
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-175",
+    "title": "E2E: Plugin without filterFacets falls back to fixed common-facet set",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=filter-facets-fallback",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Install a stub plugin built against host-API 1.0.0 omitting filterFacets; observe cut list shows the fixed common-facet set (Status, Label, Assignee, Type) and no MethodNotFound error reaches the UI.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-176",
+    "title": "E2E: Chip taxonomy renders four distinct categories incl. greyscale and colour-blind",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=chip-taxonomy",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Cut list with rows displaying chips from all four categories; visual snapshot in default palette, greyscale, protanopia, deuteranopia; all four categories remain distinguishable in each.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-068",
+      "NFR-016"
+    ],
+    "linked_user_story_ids": [
+      "US-021"
+    ]
+  },
+  {
+    "id": "TC-177",
+    "title": "E2E: Per-project Settings tab is plugin-driven; GitHub fields move into tab",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=github-tab-consolidation",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Project configured with github.com; open project Settings; observe tab list shows \"GitHub\" not \"Issue source\"; Identity tab shows only project name + default branch + Roubo paths; GitHub tab shows Repository + Linked Project + Submodules + source picker + Configure button.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-069",
+      "FR-070",
+      "FR-071"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-178",
+    "title": "E2E: Single Connect/Configure button switches label by state",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=connect-configure-button",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Fresh project, no credentials for github.com; observe single button labelled Connect, Choose sources button is gone; click Connect, complete OAuth; button now reads Configure; same modal opens for both; flip plugin to auth-problem, button label flips to Sign in again.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-072",
+      "FR-073"
+    ],
+    "linked_user_story_ids": [
+      "US-023"
+    ]
+  },
+  {
+    "id": "TC-179",
+    "title": "E2E: GHE consolidation parity",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=ghe-consolidation-parity",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "GHE project configured; open Settings > GitHub Enterprise tab; observe same field set as github.com plus a read-only Instance URL line; single Connect/Configure button identical in behaviour.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-073"
+    ],
+    "linked_user_story_ids": [
+      "US-023"
+    ]
+  },
+  {
+    "id": "TC-180",
+    "title": "E2E: Enable Dependabot alerts, see in cut list, re-consent flow",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=alerts-dependabot-e2e",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "github.com OAuth user without security_events; open Configure > Advanced on a source; toggle includeDependabotAlerts on; warning chip surfaces with inline re-consent; click Sign in again; OAuth re-runs; cut list now shows Dependabot alerts interleaved with regular issues; alert rows have no transition/assign actions.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-074",
+      "FR-075",
+      "FR-076"
+    ],
+    "linked_user_story_ids": [
+      "US-024"
+    ]
+  },
+  {
+    "id": "TC-181",
+    "title": "E2E: The e2e suite itself: zero-flake, deterministic, env-gated reset works",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=meta-e2e-self-test",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Run the full Playwright suite 10 times in CI; assert all pass; verify /test/__reset returns 404 in non-ROUBO_E2E builds; verify stub --now=<ISO> produces byte-identical fixture responses across two runs.",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-079",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-182",
+    "title": "E2E: Plugin-driven tab title propagates to sidebar and breadcrumb",
+    "area": "e2e-flow",
+    "level": 4,
+    "type": "e2e_flow",
+    "preconditions": [
+      "Playwright running against built Roubo app (real client + real server)",
+      "Stubbed plugin scenario loaded: --scenario=tab-propagation",
+      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
+      "POST /test/__reset run at spec start to reset all server singletons"
+    ],
+    "steps": [
+      {
+        "action": "Configure project for github.com; open project; observe tab is \"GitHub\", sidebar entry reads \"GitHub\", breadcrumb shows \"Settings > GitHub\"; switch to Jira; all three update consistently to \"Jira\".",
+        "expected": [
+          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+        ]
+      }
+    ],
+    "tags": [
+      "e2e",
+      "playwright",
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-053",
+      "FR-069"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-183",
+    "title": "Three-layer merge integration: full roubo.yaml end-to-end",
+    "area": "config-merge",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "Real roubo.yaml on disk with plugin-global, per-project, and per-source excludedStatuses"
+    ],
+    "steps": [
+      {
+        "action": "Load project, resolve effective config"
+      },
+      {
+        "action": "Pass effective excludedStatuses to listIssues"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Returned issues exclude the merged statuses",
+          "Per-source overrides applied correctly to each source"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-062",
+      "FR-063",
+      "FR-064"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019"
+    ]
+  },
+  {
+    "id": "TC-184",
+    "title": "Status re-check de-dups concurrent UI events for same plugin",
+    "area": "connection-status",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "Plugin manager with no in-flight check"
+    ],
+    "steps": [
+      {
+        "action": "Fire three UI events that each trigger re-check for plugin X within 50ms"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Only one getConnectionStatus invocation reaches the plugin",
+          "All three callers receive the same result",
+          "No host-wide throttle queue exists"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-054",
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-185",
+    "title": "plugins-state.json corruption: server logs and recovers with safe defaults",
+    "area": "persistence",
+    "level": 3,
+    "type": "reliability",
+    "preconditions": [
+      "plugins-state.json corrupted (invalid JSON)"
+    ],
+    "steps": [
+      {
+        "action": "Start the server"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Server logs the corruption with file path and parse error",
+          "Existing install rule applies: existing version marker -> all bundled plugins remain in their last-known state if recoverable, else all disabled",
+          "File is backed up as plugins-state.json.broken-<timestamp>",
+          "A new plugins-state.json is created with the recovered or default values"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-060",
+      "NFR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-186",
+    "title": "filterFacets enum-async: getFacetOptions called lazily on dropdown open",
+    "area": "plugin-contract",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "github.com plugin declares Milestone as enum-async"
+    ],
+    "steps": [
+      {
+        "action": "Open cut list"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "filterFacets is called once",
+          "No getFacetOptions call yet"
+        ]
+      },
+      {
+        "action": "Open Milestone dropdown"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "getFacetOptions(\"milestone\") is invoked",
+          "Dropdown populated with returned options"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-065",
+      "FR-066"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-187",
+    "title": "GitHub settings push-down: server route + client form move",
+    "area": "project-settings",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "Project with existing Identity fields"
+    ],
+    "steps": [
+      {
+        "action": "Migrate the project via the upgrade path"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Server route GET/PUT for repo + linked project + submodules now resolves through the active plugin's integration block",
+          "Client form moved into the plugin-driven tab",
+          "Existing tests that hit the legacy Identity endpoints still pass with shims"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-069",
+      "FR-070"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ]
+  },
+  {
+    "id": "TC-188",
+    "title": "/test/__reset wipes plugin-manager, cache, registry, OAuth pendingStates",
+    "area": "e2e-harness",
+    "level": 3,
+    "type": "integration",
+    "preconditions": [
+      "ROUBO_E2E=1; populated server state"
+    ],
+    "steps": [
+      {
+        "action": "Confirm state: enabled plugin, project loaded, OAuth flow in pending state"
+      },
+      {
+        "action": "POST /test/__reset"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "plugin-manager singleton reinitialized (all plugin processes terminated and restartable)",
+          "Connection-status cache empty",
+          "project-registry empty",
+          "migrate singleton reset",
+          "integration-overrides caches empty",
+          "OAuth pendingStates cleared",
+          "Subsequent GET endpoints return empty results"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-079"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ]
+  },
+  {
+    "id": "TC-189",
+    "title": "Negative: enable a bundled plugin that fails its manifest validation",
+    "area": "plugin-runtime",
+    "level": 1,
+    "type": "negative",
+    "preconditions": [
+      "Stubbed plugin with broken manifest"
+    ],
+    "steps": [
+      {
+        "action": "Toggle the enable switch in the tile"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Switch returns to disabled state",
+          "Inline error appears in the tile",
+          "plugins-state.json is NOT updated (stays disabled)",
+          "Error is logged with plugin id"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-060",
+      "NFR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ]
+  },
+  {
+    "id": "TC-190",
+    "title": "Negative: filterFacets returns malformed descriptor",
+    "area": "plugin-contract",
+    "level": 1,
+    "type": "negative",
+    "preconditions": [
+      "Stubbed plugin returns { id: \"x\" } missing label and type"
+    ],
+    "steps": [
+      {
+        "action": "Open cut list"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Host validates against zod schema",
+          "Malformed entry is dropped (not rendered)",
+          "Error logged with plugin id and the malformed entry",
+          "UI degrades gracefully to fallback facets"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-065"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ]
+  },
+  {
+    "id": "TC-191",
+    "title": "Edge: opportunistic re-check fires while previous re-check still in flight",
+    "area": "connection-status",
+    "level": 1,
+    "type": "edge_case",
+    "preconditions": [
+      "First re-check in-flight for plugin X"
+    ],
+    "steps": [
+      {
+        "action": "Trigger second UI event for plugin X"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Second event de-dups onto the in-flight check",
+          "No second RPC invocation",
+          "Both callers receive the same eventual result"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-054",
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-192",
+    "title": "Edge: project references a disabled bundled plugin AND user has not installed it",
+    "area": "project-load",
+    "level": 1,
+    "type": "edge_case",
+    "preconditions": [
+      "Project references plugin \"github-com\" which is BOTH disabled AND missing"
+    ],
+    "steps": [
+      {
+        "action": "Open project"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "For bundled plugins, disabled-but-bundled-present case fires the Enable prompt (FR-061)",
+          "For truly-missing case, the Missing-plugin prompt fires (existing FR-024)",
+          "Implementation distinguishes the two unambiguously: bundled plugins are never \"missing\""
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-061"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ]
+  },
+  {
+    "id": "TC-193",
+    "title": "Edge: GHE plugin with bad instance URL on Test Connection",
+    "area": "connection-status",
+    "level": 1,
+    "type": "negative",
+    "preconditions": [
+      "GHE plugin enabled, user enters wrong instance URL"
+    ],
+    "steps": [
+      {
+        "action": "Click Test Connection in Configure modal"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "getConnectionStatus returns errored with detail = \"DNS resolution failed\"",
+          "Header chip flips to errored variant",
+          "Tooltip shows the detail string"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ]
+  },
+  {
+    "id": "TC-194",
+    "title": "Edge: enabling a plugin from a tile already disables Choose-sources entirely",
+    "area": "project-settings",
+    "level": 1,
+    "type": "edge_case",
+    "preconditions": [
+      "Project with github.com previously configured; user toggles plugin off via Settings > Plugins"
+    ],
+    "steps": [
+      {
+        "action": "Open project Settings > GitHub"
+      },
+      {
+        "action": "Observe",
+        "expected": [
+          "Tab is still labelled \"GitHub\" (the rename is based on configured integration, not enabled state)",
+          "Connect/Configure button reflects current state",
+          "No Choose sources button exists; the legacy affordance is gone"
+        ]
+      }
+    ],
+    "tags": [
+      "automated"
+    ],
+    "linked_requirement_ids": [
+      "FR-069",
+      "FR-072"
+    ],
+    "linked_user_story_ids": [
+      "US-022",
+      "US-023"
+    ]
   }
 ]

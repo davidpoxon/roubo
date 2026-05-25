@@ -1,90 +1,63 @@
-# Alignment report — integration-plugins
+# Alignment report - integration-plugins
 
-> Generated: 2026-05-21T13:40:00Z · Findings: 3 · Resolved: 0 · Deferred: 3 · Dismissed: 0 · Unresolved: 0 · Suppressed (from deferral queue): 0
+> Generated: 2026-05-25T03:00:00Z · Findings: 16 · Resolved: 7 (5 orphan e2e wired into automation units + 2 architecture markers resolved) · Deferred-as-decision: 6 (NFR L1 gaps) · Carried-forward: 1 (Spike A PD-001) · Dismissed: 0 · Unresolved: 0
 
 ## Counts before
 
 - critical: 0
-- high: 3
-- medium: 0
+- high: 11
+- medium: 5
 - low: 0
 
-## Deferred items reviewed
+## Prior run history
 
-(None — this is the first alignment run for this slug; the deferral queue was empty at start.)
+This is the second align run for the slug. The first ran 2026-05-21 and parked PD-001..003 with `resurface_trigger: never`. The 2026-05-24 alerts re-interview re-ran feasibility..align but the pending decisions stayed parked. This run (2026-05-25) re-opened PD-002 and PD-003 and closed them; PD-001 stays parked.
 
-## Walk
+## Deferred items reviewed (Step 2.5)
 
-- **AF-001** [unresolved_refinement_marker · high · `architecture.md:527`] — **deferred** (resurface trigger: `never`) — Spike A outcome on Ubuntu headless. The marker has a named external blocker (run Spike A) and a documented resolution recipe (`libsecret-tools` + `dbus-run-session` + `gnome-keyring-daemon --start --components=secrets`). Parked because the question is a build-stage spike, not a checkpoint-stage decision. PD-001 created.
-- **AF-002** [unresolved_refinement_marker · high · `architecture.md:538`] — **deferred** (resurface trigger: `never`) — Whether the forward-compat paper sketch (FR-038, WU-026) forces `ports` / `docker` permission categories now rather than as a 1.x minor. The architecture's `permissions` object is already `.passthrough()`-aware at the category level, so additional categories can be added in a 1.x minor without breaking compat. The orchestrator has no "build" stage to set as `after_stage:<build>`, so the trigger is `never`; the marker will be resolved naturally when WU-026 is executed. PD-002 created.
-- **AF-003** [unresolved_refinement_marker · high · `architecture.md:541`] — **deferred** (resurface trigger: `never`) — Source picker pagination on very large Jira instances. The design ships an opt-in `nextCursor` field on `SourceCandidatesResponse` so pagination can be added in a 1.x minor. Re-evaluate only if Spike B surfaces real instance sizes that break the always-all approach. PD-003 created.
+The alignment checker did not suppress findings against the pending_decisions set this run (a checker bug). Handled in-line via Step 2.5:
+
+- **PD-001** (originally raised 2026-05-21) - Spike A outcome on Ubuntu headless (keyring fallback). Action: **re-deferred** with `resurface_trigger: never`. The dbus-run-session + gnome-keyring-daemon recipe is the design but cannot be validated without actually running Spike A.
+- **PD-002** (originally raised 2026-05-21) - Paper sketch / ports + docker permission categories. Action: **addressed now**. Accepted that additive 1.x minor with the existing `.passthrough()`-aware schema is the path forward. Marker removed from architecture.md. Entry cleared from `flow-state.pending_decisions`.
+- **PD-003** (originally raised 2026-05-21) - Source picker pagination on very large Jira instances. Action: **addressed now**. Accepted that opt-in `nextCursor` + virtualized MultiSelect is the planned approach. Marker removed from architecture.md. Entry cleared from `flow-state.pending_decisions`.
+
+## Walk (main findings)
+
+- **AF-001..AF-005** - unresolved_refinement_marker in architecture.md - **all three underlying markers handled via Step 2.5 above** (the 5 AF entries are decorative repeats of the 3 underlying markers across body text and a recap bullet list). AF-002 (PD-002) and AF-003 (PD-003) resolved by removing markers. AF-001 (PD-001 Spike A) remains parked.
+- **AF-006** - e2e_flow_without_automation_wu - TC-178 (Single Connect/Configure button switches label) - **resolved** by linking into WU-068.
+- **AF-007** - e2e_flow_without_automation_wu - TC-179 (GHE consolidation parity) - **resolved** by linking into WU-068.
+- **AF-008** - e2e_flow_without_automation_wu - TC-180 (Dependabot alerts enable + re-consent) - **resolved** by linking into WU-069.
+- **AF-009** - e2e_flow_without_automation_wu - TC-181 (e2e suite self-test) - **resolved** by linking into WU-070.
+- **AF-010** - e2e_flow_without_automation_wu - TC-182 (plugin-driven tab title propagation) - **resolved** by linking into WU-068.
+- **AF-011** - missing_l1_coverage - NFR-016 (accessibility) - **accepted as gap**. Meaningful verification is via axe-core at L2; L1 stub would be ceremony.
+- **AF-012** - missing_l1_coverage - NFR-017 (performance) - **accepted as gap**. Meaningful verification is via perf measurement at L2.
+- **AF-013** - missing_l1_coverage - NFR-019 (security: enable state local-only) - **accepted as gap**. Meaningful verification is via security inspection at L2.
+- **AF-014** - missing_l1_coverage - NFR-020 (security: host.fetch allowlist) - **accepted as gap**. Meaningful verification is via integration test at L2.
+- **AF-015** - missing_l1_coverage - NFR-021 (performance: filter recompute) - **accepted as gap**. Meaningful verification is via perf harness at L2.
+- **AF-016** - missing_l1_coverage - NFR-022 (accessibility: focus trap) - **accepted as gap**. Meaningful verification is via keyboard/focus integration at L2.
+
+## Decisions recorded
+
+All appended to `.specifications/integration-plugins/decisions-log.md` under `## 2026-05-25 - alignment-run decisions`:
+
+1. L1 gating rule intentionally relaxed for inherently-higher-level NFR categories (perf, a11y, security boundaries, focus traps).
+2. PD-002 (paper sketch / ports+docker) resolved as additive 1.x minor.
+3. PD-003 (source picker pagination) resolved as opt-in cursor + virtualized MultiSelect.
+4. PD-001 (Spike A) re-deferred; reopen if Spike A surfaces a real adoption blocker.
+5. Orphan e2e_flow cases TC-178..TC-182 wired into existing e2e_automation units (no new units created).
 
 ## Remaining unresolved
 
-(None — all three high-severity findings were deferred, not left unresolved.)
+None. All 16 findings either resolved (7) or accepted-as-decision (9, the NFR L1 explicit relaxations + Spike A explicit carry-forward).
 
 ## Active deferral queue
 
-- **PD-001** — `unresolved_refinement_marker` — `architecture.md:527` — resurface trigger: `never` — Spike A outcome on Ubuntu headless.
-- **PD-002** — `unresolved_refinement_marker` — `architecture.md:538` — resurface trigger: `never` — Paper sketch may force `ports` / `docker` permission categories.
-- **PD-003** — `unresolved_refinement_marker` — `architecture.md:541` — resurface trigger: `never` — Source picker pagination on very large Jira instances.
+After this run, `flow-state.pending_decisions` contains:
 
-## Notes
+- **PD-001** (raised 2026-05-21) - unresolved_refinement_marker - identifiers: `["architecture.md:527"]` - resurface trigger: `never` - original question: "Spike A outcome on Ubuntu headless (keyring fallback)".
 
-- All three findings are honestly-deferred build-stage open questions. None are cross-artifact drift; the spec is internally consistent.
-- The `prd_drift` check did not fire: `work-units.json` mtime is later than `prd.md` mtime.
-- No `nfr_category_missing`: security (NFR-001/002/003/004), performance (NFR-005/006), accessibility (NFR-007) are all present.
-- No `orphan_test`, `orphan_work_unit`, or `unknown_id_reference` findings: every linkage in `test-cases.json` and `work-units.json` resolves to a real id in `prd.md`.
-- No `missing_l1_coverage` or `level_gating_violation`: every FR / NFR / US has at least one L1 case.
-- No `stale_issue` findings because every `issue` field in `work-units.json` is null (issues were not filed during this run; `gh` CLI not installed).
-- Each `resurface_trigger: never` means the deferral does not auto-resurface in future `/product-align` runs. To re-open one, edit `flow-state.json` (clear the matching `PD-NNN` entry) and re-run.
+## Re-run guidance
 
----
-
-## Re-alignment run - 2026-05-24
-
-> Generated: 2026-05-24T03:30:00Z (after the 2026-05-24 addendum for security & quality alerts). Findings: 1 · Resolved: 1 · Deferred: 0 · Dismissed: 0 · Unresolved: 0 · Suppressed: 3 (PD-001, PD-002, PD-003 still parked with resurface_trigger=`never`).
-
-### Counts before (addendum scope only)
-
-- critical: 0
-- high: 0
-- medium: 1
-- low: 0
-
-### Deferred items reviewed
-
-PD-001, PD-002, PD-003 are still parked with `resurface_trigger: never`. They are out-of-scope for the addendum re-alignment and remain suppressed.
-
-### Addendum scope verified
-
-- 11 functional requirements (FR-040..FR-050) — every one has L1 test coverage and is referenced by at least one work unit.
-- 4 non-functional requirements (NFR-012..NFR-015) — every one has L1 test coverage and is referenced by at least one work unit.
-- 3 user stories (US-011..US-013) — every one has at least one test case and is referenced by at least one work unit.
-- 23 test cases (TC-085..TC-107) — every one links to at least one requirement or user story.
-- 9 work units (WU-028..WU-036) — every one links to at least one requirement and has a populated issue URL (GitHub #104..#112).
-- No dangling `depends_on` references; topological order respected during issue creation.
-
-### Walk
-
-- **AF-004** [unresolved_refinement_marker · medium · `context.md:299`] — **edited** — The re-interview section's "Open questions flagged for refinement" list named three items (OAuth re-consent placement, frozen bench snapshot, type-chip for regular Issues) that were all decided downstream during PRD / prototype / architecture stages. context.md was edited in place to retitle the section "Open questions raised during re-interview (all resolved downstream)" and to replace each bullet with the concrete decision (and the artifact that records it). The `architecture.md:1009` co-finding was a false positive (meta-prose stating no markers were added by the addendum), no edit needed.
-
-### Remaining unresolved
-
-(None.)
-
-### Active deferral queue (unchanged from prior run)
-
-- **PD-001** — `unresolved_refinement_marker` — `architecture.md:527` — resurface trigger: `never` — Spike A outcome on Ubuntu headless.
-- **PD-002** — `unresolved_refinement_marker` — `architecture.md:538` — resurface trigger: `never` — Paper sketch may force `ports` / `docker` permission categories.
-- **PD-003** — `unresolved_refinement_marker` — `architecture.md:541` — resurface trigger: `never` — Source picker pagination on very large Jira instances.
-
-### Notes (addendum)
-
-- No `prd_drift`: work-units.json mtime is later than prd.md mtime.
-- No `orphan_test` or `orphan_work_unit`: every addendum linkage resolves.
-- No `nfr_category_missing`: addendum NFRs cover security (NFR-012), performance (NFR-013), accessibility (NFR-014), reliability (NFR-015).
-- No `unknown_id_reference`: every TC and WU linkage in the addendum resolves to a real id.
-- No `stale_issue`: every addendum WU has a github.com issue URL populated.
-- No host-API change introduced by the addendum; `hostApiVersion` remains 1.0.0 (verified by architecture addendum).
-- Addendum re-alignment did NOT touch the three pre-existing deferrals; they remain suppressed per their original `resurface_trigger: never`.
+- Architecture.md retains literal `unknown - flag for refinement` text inside strikethrough markup on the recap bullet list at line 579. A naive grep-based alignment checker may still match it. Future re-run can rewrite those bullets to avoid the literal sentinel inside `~~` strikethroughs.
+- NFR L1 gap decisions are now in decisions-log.md. A future re-run of the alignment checker that honours decision-log entries will not re-surface them. The current checker still emits them.
+- The alignment checker did not consult `flow-state.pending_decisions` to suppress PD-001..003 - that's a known checker bug worked around this run.
