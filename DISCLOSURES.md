@@ -11,7 +11,7 @@ Roubo is open-source software that runs entirely on the developer's local machin
 
 ## OAuth scope minimisation
 
-Roubo requests only `repo`, `read:org`, and `read:project`. It does not request `delete_repo`, `admin:org`, `user:email`, `workflow`, or other administrative scopes. Scopes are used only to read and update issues, pull requests, branches, labels, and Projects (v2) for repositories the user has registered as projects.
+Roubo requests only `repo`, `read:org`, `read:project`, and `security_events`. It does not request `delete_repo`, `admin:org`, `user:email`, `workflow`, or other administrative scopes. Scopes are used only to read and update issues, pull requests, branches, labels, and Projects (v2), and to read code-scanning alerts, for repositories the user has registered as projects.
 
 ## Risk management and safety
 
