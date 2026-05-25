@@ -635,10 +635,12 @@ describe("GET /:projectId/issue-types", () => {
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("returns the active plugin's listIssueTypes output mapped to a string list of names (TC-033)", async () => {
+  it("returns the active plugin's listIssueTypes output mapped to a string list of names, with security categories appended for github-family plugins (TC-033, TC-096)", async () => {
     // The plugin returns IssueTypeOption[] ({id, name}); the host flattens to
     // names before responding so the client sees `types: string[]` per the
-    // declared ProjectIssueTypesV2Response contract.
+    // declared ProjectIssueTypesV2Response contract. For github-com / ghe the
+    // host also appends the three alert-category issue types so the
+    // blueprint-by-issue-type UI can target them (WU-035 / FR-049).
     vi.mocked(pluginManager.invoke).mockResolvedValue([
       { id: "T_1", name: "Bug" },
       { id: "T_2", name: "Feature" },
@@ -646,10 +648,64 @@ describe("GET /:projectId/issue-types", () => {
     ]);
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ configured: true, types: ["Bug", "Feature", "Epic"] });
+    expect(res.body).toEqual({
+      configured: true,
+      types: [
+        "Bug",
+        "Feature",
+        "Epic",
+        "security-code-scanning",
+        "security-secret-scanning",
+        "security-dependabot",
+      ],
+    });
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssueTypes", {
       sources: [{ kind: "repo", externalId: "foo/bar" }],
     });
+  });
+
+  it("appends security categories for the ghe plugin (TC-096)", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "ghe",
+      integrationId: "ghe",
+      pageSize: 50,
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue([{ id: "T_1", name: "Bug" }]);
+    const res = await request(app).get("/project/issue-types");
+    expect(res.status).toBe(200);
+    expect(res.body.types).toEqual([
+      "Bug",
+      "security-code-scanning",
+      "security-secret-scanning",
+      "security-dependabot",
+    ]);
+  });
+
+  it("does NOT append security categories for non-github-family plugins (TC-096)", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "jira-self-hosted",
+      integrationId: "jira-self-hosted",
+      pageSize: 50,
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue([{ id: "T_1", name: "Story" }]);
+    const res = await request(app).get("/project/issue-types");
+    expect(res.status).toBe(200);
+    expect(res.body.types).toEqual(["Story"]);
+  });
+
+  it("dedupes when listIssueTypes already includes a security category name (TC-096)", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue([
+      { id: "T_1", name: "Bug" },
+      { id: "T_2", name: "security-dependabot" },
+    ]);
+    const res = await request(app).get("/project/issue-types");
+    expect(res.status).toBe(200);
+    expect(res.body.types).toEqual([
+      "Bug",
+      "security-dependabot",
+      "security-code-scanning",
+      "security-secret-scanning",
+    ]);
   });
 
   it("maps plugin-not-enabled to 503", async () => {

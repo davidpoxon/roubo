@@ -839,6 +839,29 @@ describe("resolveJigForIssue", () => {
     const result = resolveJigForIssue("project-1", "Bug");
     expect(result).toEqual({ jigId: "__global_default__", source: "issue-type-mapping" });
   });
+
+  it("resolves a mapping keyed on a security-* issue type for alert-backed benches (TC-096)", () => {
+    const repoDir = path.join(tmpDir, "repo");
+    const repoJigs = path.join(repoDir, ".roubo", "jigs");
+    fs.mkdirSync(repoJigs, { recursive: true });
+    fs.writeFileSync(
+      path.join(repoJigs, "security-triage.md"),
+      "---\nname: Security Triage\ndescription: d\n---\nContent.\n",
+    );
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "project-1",
+      repoPath: repoDir,
+      config: {
+        project: { name: "p" },
+        jigs: { issueTypeMappings: { "security-dependabot": "security-triage" } },
+      },
+    } as unknown as ReturnType<typeof projectRegistry.getProject>);
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
+    invalidateCache();
+
+    const result = resolveJigForIssue("project-1", "security-dependabot");
+    expect(result).toEqual({ jigId: "security-triage", source: "issue-type-mapping" });
+  });
 });
 
 describe("invalidateCache", () => {

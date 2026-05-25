@@ -182,6 +182,7 @@ export async function createBenchAndAssignIssue(
     externalId: String(issueNumber),
     title: issue.title,
     linkedPullRequests,
+    issueType: issueType ?? null,
   };
 
   // Persist the assignment
@@ -291,6 +292,7 @@ export async function assignIssue(
     externalId: String(issueNumber),
     title: issue.title,
     linkedPullRequests,
+    issueType: issueType ?? null,
   };
 
   // Persist changes

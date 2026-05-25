@@ -168,6 +168,7 @@ describe("assignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(result.bench.branch).toBe("issue-42-fix-login-bug");
     expect(result.terminalSessionId).toBe("term-1");
@@ -315,6 +316,7 @@ describe("assignIssue", () => {
       externalId: "42",
       title: "New issue",
       linkedPullRequests: [],
+      issueType: null,
     });
   });
 
@@ -631,6 +633,7 @@ describe("assignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
@@ -720,6 +723,7 @@ describe("assignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [{ repoFullName: "org/repo", number: 99 }],
+      issueType: null,
     });
     expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
   });
@@ -832,6 +836,7 @@ describe("createBenchAndAssignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(result.terminalSessionId).toBe("term-1");
     expect(result.status).toBe("success");
@@ -867,6 +872,7 @@ describe("createBenchAndAssignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -904,6 +910,7 @@ describe("createBenchAndAssignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1214,6 +1221,7 @@ describe("createBenchAndAssignIssue", () => {
       externalId: "42",
       title: "Fix login bug",
       linkedPullRequests: [],
+      issueType: null,
     });
     expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
@@ -1257,6 +1265,7 @@ describe("createBenchAndAssignIssue", () => {
         { repoFullName: "org/repo", number: 55 },
         { repoFullName: "org/other", number: 12 },
       ],
+      issueType: null,
     });
     expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
   });

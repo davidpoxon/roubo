@@ -145,6 +145,32 @@ describe("IssueTypeMappingsSection", () => {
     expect(onChange).toHaveBeenCalledWith({ Bug: "bp-feat" });
   });
 
+  it("renders the three security-alert categories as selectable mapping targets (TC-096)", async () => {
+    mockedUseIssueTypes.mockReturnValue({
+      data: {
+        configured: true,
+        types: ["Bug", "security-code-scanning", "security-secret-scanning", "security-dependabot"],
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useIssueTypes>);
+    const onChange = vi.fn();
+    renderSection({}, onChange);
+
+    expect(screen.getByText("security-code-scanning")).toBeInTheDocument();
+    expect(screen.getByText("security-secret-scanning")).toBeInTheDocument();
+    expect(screen.getByText("security-dependabot")).toBeInTheDocument();
+
+    // Mapping a security category to a blueprint persists via onChange.
+    const user = userEvent.setup();
+    const useDefaultButtons = screen.getAllByRole("button", { name: /use default/i });
+    // Bug, security-code-scanning, security-secret-scanning, security-dependabot -> 4 rows.
+    expect(useDefaultButtons).toHaveLength(4);
+    await user.click(useDefaultButtons[3]);
+    await user.click(screen.getByRole("option", { name: "Bug fix" }));
+    expect(onChange).toHaveBeenCalledWith({ "security-dependabot": "bp-bug" });
+  });
+
   it("removes mapping entry when 'Use default' is picked", async () => {
     mockedUseIssueTypes.mockReturnValue({
       data: {
