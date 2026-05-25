@@ -58,6 +58,16 @@ export const PluginCapabilitiesSchema = z
   .strict();
 export type PluginCapabilities = z.infer<typeof PluginCapabilitiesSchema>;
 
+// Plugin-global defaults seeded into the three-layer effective-config merge
+// (FR-064). Per-project and per-source layers override these. The host reads
+// this section at manifest parse time; plugins do not see it via host-RPC.
+export const PluginDefaultIntegrationConfigSchema = z
+  .object({
+    excludedStatuses: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+export type PluginDefaultIntegrationConfig = z.infer<typeof PluginDefaultIntegrationConfigSchema>;
+
 // ── Root manifest ──
 
 export const PluginManifestSchema = z
@@ -73,6 +83,7 @@ export const PluginManifestSchema = z
     entry: z.string().min(1, "Required"),
     configSchema: z.record(z.string(), z.unknown()).optional(),
     capabilities: PluginCapabilitiesSchema.optional(),
+    defaultIntegrationConfig: PluginDefaultIntegrationConfigSchema.optional(),
     permissions: PluginPermissionsSchema,
   })
   .strict();

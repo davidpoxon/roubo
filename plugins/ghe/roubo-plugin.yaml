@@ -41,6 +41,14 @@ configSchema:
               - project
           externalId:
             type: string
+defaultIntegrationConfig:
+  excludedStatuses:
+    - Closed
+    - Done
+    - Resolved
+    - In review
+    - PR open
+    - Waiting on reviewer
 permissions:
   network:
     hosts:

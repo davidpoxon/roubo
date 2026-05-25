@@ -321,3 +321,122 @@ describe("getEffectiveWithGlobal", () => {
     ).toEqual({ instance: "from-committed", advanced: { token: "p" } });
   });
 });
+
+const GH_DEFAULTS = ["Closed", "Done", "Resolved", "In review", "PR open", "Waiting on reviewer"];
+
+describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
+  it("TC-122: per-source override beats per-project beats plugin-global", () => {
+    const projectLevel: import("@roubo/shared").IntegrationOverride = {
+      schemaVersion: 1,
+      integration: {
+        excludedStatuses: ["Closed"],
+        sources: {
+          repos: [{ externalId: "repo-a", excludedStatuses: ["Closed", "Blocked"] }],
+        },
+      },
+    };
+    const effective = mod.getEffectiveIntegrationConfig(undefined, null, projectLevel);
+    const applied = mod.applyPerSourceExcludedStatuses(effective, GH_DEFAULTS);
+
+    expect(mod.sourceExcludedStatuses(applied, "repo-a", GH_DEFAULTS)).toEqual([
+      "Closed",
+      "Blocked",
+    ]);
+  });
+
+  it("per-project root override beats plugin-global default for sources with no per-source value", () => {
+    const projectLevel: import("@roubo/shared").IntegrationOverride = {
+      schemaVersion: 1,
+      integration: {
+        excludedStatuses: ["Closed"],
+        sources: { repos: ["repo-a"] },
+      },
+    };
+    const effective = mod.getEffectiveIntegrationConfig(undefined, null, projectLevel);
+    const applied = mod.applyPerSourceExcludedStatuses(effective, GH_DEFAULTS);
+
+    expect(mod.sourceExcludedStatuses(applied, "repo-a", GH_DEFAULTS)).toEqual(["Closed"]);
+  });
+
+  it("plugin-global default applies when no per-project root and no per-source override exists", () => {
+    const projectLevel: import("@roubo/shared").IntegrationOverride = {
+      schemaVersion: 1,
+      integration: { sources: { repos: ["repo-a"] } },
+    };
+    const effective = mod.getEffectiveIntegrationConfig(undefined, null, projectLevel);
+    const applied = mod.applyPerSourceExcludedStatuses(effective, GH_DEFAULTS);
+
+    expect(mod.sourceExcludedStatuses(applied, "repo-a", GH_DEFAULTS)).toEqual(GH_DEFAULTS);
+  });
+
+  it("returns undefined when no layer has an opinion", () => {
+    const applied = mod.applyPerSourceExcludedStatuses(
+      { sources: { repos: ["repo-a"] } },
+      undefined,
+    );
+    expect(mod.sourceExcludedStatuses(applied, "repo-a", undefined)).toBeUndefined();
+    // Primitive entries stay primitive when no fallback applies.
+    expect(applied.sources?.repos[0]).toBe("repo-a");
+  });
+
+  it("TC-123: post-merge pass walks every source entry and is idempotent", () => {
+    const projectLevel: import("@roubo/shared").IntegrationOverride = {
+      schemaVersion: 1,
+      integration: {
+        excludedStatuses: ["Closed"],
+        sources: {
+          repos: [
+            { externalId: "repo-a", excludedStatuses: ["Closed", "Blocked"] },
+            { externalId: "repo-b", excludedStatuses: ["Closed", "Deferred"] },
+          ],
+        },
+      },
+    };
+    const effective = mod.getEffectiveIntegrationConfig(undefined, null, projectLevel);
+    const once = mod.applyPerSourceExcludedStatuses(effective, GH_DEFAULTS);
+    const twice = mod.applyPerSourceExcludedStatuses(once, GH_DEFAULTS);
+
+    expect(mod.sourceExcludedStatuses(once, "repo-a", GH_DEFAULTS)).toEqual(["Closed", "Blocked"]);
+    expect(mod.sourceExcludedStatuses(once, "repo-b", GH_DEFAULTS)).toEqual(["Closed", "Deferred"]);
+    expect(twice).toEqual(once);
+  });
+
+  it("post-merge pass is idempotent on a mixed-shape sources structure", () => {
+    const projectLevel: import("@roubo/shared").IntegrationOverride = {
+      schemaVersion: 1,
+      integration: {
+        excludedStatuses: ["Closed"],
+        sources: {
+          repos: ["repo-a", { externalId: "repo-b", excludedStatuses: ["Closed", "Blocked"] }],
+        },
+      },
+    };
+    const effective = mod.getEffectiveIntegrationConfig(undefined, null, projectLevel);
+    const once = mod.applyPerSourceExcludedStatuses(effective, GH_DEFAULTS);
+    const twice = mod.applyPerSourceExcludedStatuses(once, GH_DEFAULTS);
+
+    // Primitive entry got normalised to object form with the root fallback.
+    expect(once.sources?.repos).toEqual([
+      { externalId: "repo-a", excludedStatuses: ["Closed"] },
+      { externalId: "repo-b", excludedStatuses: ["Closed", "Blocked"] },
+    ]);
+    expect(twice).toEqual(once);
+  });
+
+  it("root-level excludedStatuses follows array-replace merge semantics across layers", () => {
+    const effective = mod.getEffectiveIntegrationConfig(
+      { excludedStatuses: ["Closed", "Done"] },
+      { schemaVersion: 1, integration: { excludedStatuses: ["Done"] } },
+      { schemaVersion: 1, integration: { excludedStatuses: ["Blocked"] } },
+    );
+    expect(effective.excludedStatuses).toEqual(["Blocked"]);
+  });
+
+  it("returns input unchanged when sources is absent", () => {
+    const input: import("@roubo/shared").IntegrationConfig = {
+      plugin: "github-com",
+      excludedStatuses: ["Closed"],
+    };
+    expect(mod.applyPerSourceExcludedStatuses(input, GH_DEFAULTS)).toBe(input);
+  });
+});

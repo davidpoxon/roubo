@@ -191,10 +191,31 @@
           "type": "object",
           "additionalProperties": {
             "type": "array",
-            "items": { "type": ["string", "number"] }
+            "items": {
+              "oneOf": [
+                { "type": ["string", "number"] },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["externalId"],
+                  "properties": {
+                    "externalId": { "type": ["string", "number"] },
+                    "excludedStatuses": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    }
+                  }
+                }
+              ]
+            }
           }
         },
-        "pluginSource": { "type": "string" }
+        "pluginSource": { "type": "string" },
+        "excludedStatuses": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Per-project layer of the three-layer excludedStatuses merge. Plugin-global defaults live in plugin manifests; per-source overrides ride on each sources[<cat>][<i>] object entry."
+        }
       }
     },
     "users": {

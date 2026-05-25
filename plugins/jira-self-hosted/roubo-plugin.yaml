@@ -32,6 +32,12 @@ configSchema:
       type: string
       title: '"is blocked by" link-type name'
       default: is blocked by
+defaultIntegrationConfig:
+  excludedStatuses:
+    - Closed
+    - Done
+    - Resolved
+    - In Review
 permissions:
   network:
     hosts:
