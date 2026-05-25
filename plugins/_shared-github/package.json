@@ -1,25 +1,17 @@
 {
-  "name": "@roubo/plugin-ghe",
+  "name": "@roubo/shared-github",
   "version": "0.1.0",
   "private": true,
-  "description": "Bundled GitHub Enterprise Server integration plugin for Roubo.",
+  "description": "Internal helpers shared by the bundled GitHub.com and GitHub Enterprise plugins. Not part of the public plugin SDK.",
   "author": "David Poxon",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
-  "files": [
-    "dist",
-    "roubo-plugin.yaml",
-    "README.md"
-  ],
   "scripts": {
     "build": "tsc --noEmit && tsup"
   },
   "dependencies": {
-    "@roubo/plugin-sdk": "*",
-    "@roubo/shared": "*",
-    "@roubo/shared-github": "*",
-    "octokit": "5.0.5"
+    "@roubo/plugin-sdk": "*"
   },
   "devDependencies": {
     "tsup": "8.5.1",

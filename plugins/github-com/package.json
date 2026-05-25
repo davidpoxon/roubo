@@ -13,6 +13,7 @@
   "dependencies": {
     "@roubo/plugin-sdk": "*",
     "@roubo/shared": "*",
+    "@roubo/shared-github": "*",
     "octokit": "5.0.5"
   },
   "devDependencies": {
