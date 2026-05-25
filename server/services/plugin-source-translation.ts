@@ -26,8 +26,7 @@ export interface PluginSourceEntry {
  *
  * Currently hard-coded for GitHub-shaped plugins. When non-GitHub plugins
  * grow per-call activation this should move into the plugin manifest so
- * each plugin advertises its own mapping; see the follow-up issue
- * "Adopt setActiveConfig per-call activation across all integration plugins".
+ * each plugin advertises its own mapping; see #120.
  */
 const CATEGORY_TO_KIND: Record<string, string> = {
   Repository: "repo",
@@ -48,7 +47,7 @@ export interface TranslateSourcesOptions {
  * externalId arrays) into the `{ kind, externalId }[]` shape plugins expect.
  *
  * Unknown categories are dropped (with an optional callback) rather than
- * thrown — a forward-compatible config that mentions a not-yet-known
+ * thrown; a forward-compatible config that mentions a not-yet-known
  * category should not break source-bound calls for the categories we do
  * understand. A `null`/`undefined` selection becomes `[]`.
  */

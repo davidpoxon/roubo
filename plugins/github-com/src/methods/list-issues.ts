@@ -184,14 +184,25 @@ async function listFromProject(
   };
 
   // Alerts fan out across every distinct repo the project surfaces. Only on
-  // page 1 — see note in listFromRepo.
+  // page 1; see note in listFromRepo. Walk the full `page.nodes`, not just
+  // `slice`, so repos that first appear past the page-1 issue slice still
+  // get their alerts pulled. Skipping them would silently hide GHAS warnings
+  // for whole repos in a project that spans more than `pageSize` items.
   if (pageNumber === 1) {
     const alertFlags = alertFlagsOf(source);
-    const repos = Array.from(numbersByRepo.keys());
-    const perRepo = await Promise.all(repos.map((r) => fetchRepoAlerts(r, alertFlags)));
+    const reposForAlerts = new Set<string>();
+    for (const node of page.nodes) {
+      const content = node.content;
+      if (!content || !content.number) continue;
+      if (content.__typename && content.__typename !== "Issue") continue;
+      reposForAlerts.add(content.repository?.nameWithOwner ?? `${owner}/unknown`);
+    }
+    const perRepo = await Promise.all(
+      Array.from(reposForAlerts).map((r) => fetchRepoAlerts(r, alertFlags)),
+    );
 
     const alertItems: NormalizedIssue[] = [];
-    // Dedupe warnings by (category, cause) across the repos the project spans —
+    // Dedupe warnings by (category, cause) across the repos the project spans.
     // N copies of "GHAS not enabled" for one project source is noise.
     const seenWarning = new Set<string>();
     const dedupedWarnings: ListIssuesWarning[] = [];

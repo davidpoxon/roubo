@@ -158,6 +158,90 @@ describe("listIssues + alerts (WU-030)", () => {
     expect(mocks.mockHost.fetch).not.toHaveBeenCalled();
   });
 
+  it("fans alerts out across every repo the project spans, even repos that first appear past the page-1 issue slice", async () => {
+    // Project has two items in two different repos. With pageSize 1 the
+    // page-1 issue slice only includes the item in repo1, but alerts must
+    // still fan out to both repo1 and repo2 since alerts only fire on page 1.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      organization: {
+        projectV2: {
+          title: "P",
+          items: {
+            nodes: [
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 1,
+                  title: "a",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "foo/repo1" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "u1",
+                },
+                fieldValueByName: null,
+              },
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 2,
+                  title: "b",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "foo/repo2" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "u2",
+                },
+                fieldValueByName: null,
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    });
+    // Only the page-1 slice (repo1) drives a blocking-relationships call.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
+
+    const CODE_URL_1 =
+      "https://api.github.com/repos/foo/repo1/code-scanning/alerts?state=open&per_page=50&page=1";
+    const CODE_URL_2 =
+      "https://api.github.com/repos/foo/repo2/code-scanning/alerts?state=open&per_page=50&page=1";
+
+    const seenUrls: string[] = [];
+    mocks.mockHost.fetch.mockImplementation(async (url: string) => {
+      seenUrls.push(url);
+      if (url === CODE_URL_1 || url === CODE_URL_2) {
+        return { status: 200, headers: {}, body: JSON.stringify([]) };
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+
+    const sources: ConfiguredSource[] = [
+      {
+        kind: "project",
+        externalId: "foo/#1",
+        includeCodeQLAlerts: true,
+      },
+    ];
+    await listIssues({ sources, cursor: null, pageSize: 1 });
+
+    expect(seenUrls).toContain(CODE_URL_1);
+    expect(seenUrls).toContain(CODE_URL_2);
+  });
+
   it("dedupes project warnings by (category, cause) across repos in the project", async () => {
     // Two repos sharing the same 404 cause should produce a single warning.
     mocks.mockOctokit.graphql.mockResolvedValueOnce({

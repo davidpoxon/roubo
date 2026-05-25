@@ -58,7 +58,7 @@ export function setEntryFlag(
   if (value) {
     next[key] = true;
   } else {
-    // Reassign as undefined and reconstruct without the key — avoids
+    // Reassign as undefined and reconstruct without the key: avoids
     // the eslint @typescript-eslint/no-dynamic-delete rule which forbids
     // `delete` on computed property keys.
     next[key] = undefined;

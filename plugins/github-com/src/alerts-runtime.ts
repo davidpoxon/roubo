@@ -3,7 +3,7 @@
  *
  * Wraps the `_shared-github` fetchers with `safeFetchAlerts` so per-category
  * fetch failures degrade to a `ListIssuesWarning` rather than throwing the
- * whole `listIssues` call. Only invoked on page 1 of a `listIssues` call —
+ * whole `listIssues` call. Only invoked on page 1 of a `listIssues` call;
  * `paginateAlerts` walks all alert pages internally, so subsequent issue
  * pages MUST NOT re-fetch.
  */
@@ -34,7 +34,7 @@ export interface FetchRepoAlertsResult {
   items: NormalizedIssue[];
   /**
    * Warnings emitted by this dispatch. `sourceExternalId` is left for the
-   * caller to fill — it is the configured-source id (e.g. the project source
+   * caller to fill: it is the configured-source id (e.g. the project source
    * `owner/#42`), which a project that spans multiple repos shares across
    * its per-repo dispatches.
    */

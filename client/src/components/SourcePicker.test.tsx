@@ -216,7 +216,7 @@ describe("SourcePicker — accessibility & keyboard nav (TC-076)", () => {
   });
 });
 
-describe("SourcePicker — security & quality alerts disclosure (WU-030)", () => {
+describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
   it("renders three unchecked checkboxes per selected GitHub-family source (AC #1)", async () => {
     const user = userEvent.setup();
     render(<ControlledPicker response={multiListFixture} initial={{ items: ["org/api"] }} />);

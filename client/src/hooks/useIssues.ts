@@ -69,7 +69,7 @@ export function useRefreshIssues() {
 /**
  * Project-scoped per-source per-category warnings emitted on the most recent
  * `listIssues` page-1 pull. Alerts only fetch on page 1, so page 1 is the
- * authoritative health signal — a category that is no longer in the warnings
+ * authoritative health signal. A category that is no longer in the warnings
  * array after the next pull is implicitly cleared (AC #7).
  *
  * Lives on its own React Query key so the Configure dialog can subscribe
