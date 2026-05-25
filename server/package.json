@@ -24,7 +24,7 @@
     "@roubo/shared": "*",
     "ajv": "8.20.0",
     "cors": "2.8.6",
-    "dockerode": "4.0.10",
+    "dockerode": "5.0.0",
     "express": "5.2.1",
     "express-rate-limit": "8.5.2",
     "mssql": "12.5.0",
