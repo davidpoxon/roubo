@@ -73,7 +73,7 @@ export type PluginDefaultIntegrationConfig = z.infer<typeof PluginDefaultIntegra
 // Accepted forms:
 //   - `data:image/svg+xml;...` or `data:image/png;base64,...` data URI
 //   - relative POSIX path inside the plugin directory (e.g. `assets/icon.svg`)
-// Loose validation here — the client renders this as an <img src>; manifest
+// Loose validation here: the client renders this as an <img src>; manifest
 // authors are trusted to ship something sensible. 16 KB ceiling guards
 // against accidentally shipping a megabyte of base64.
 export const PluginIconSchema = z
