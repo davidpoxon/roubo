@@ -51,6 +51,17 @@ vi.mock("../hooks/useGlobalPluginIntegration", () => ({
   useGlobalPluginIntegration: vi.fn(),
 }));
 
+const { useOpportunisticRecheckOnMountMock } = vi.hoisted(() => ({
+  useOpportunisticRecheckOnMountMock: vi.fn(),
+}));
+vi.mock("../hooks/usePlugins", async () => {
+  const actual = await vi.importActual<typeof import("../hooks/usePlugins")>("../hooks/usePlugins");
+  return {
+    ...actual,
+    useOpportunisticRecheckOnMount: useOpportunisticRecheckOnMountMock,
+  };
+});
+
 const { useIssueListWarningsMock } = vi.hoisted(() => ({
   useIssueListWarningsMock: vi.fn() as unknown as ReturnType<
     typeof vi.fn<(projectId: string | undefined) => import("@roubo/shared").ListIssuesWarning[]>
@@ -1018,6 +1029,21 @@ describe("PluginConfigureDialog (global scope)", () => {
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
       await userEvent.click(screen.getByTestId("github-connect"));
       await waitFor(() => expect(screen.getByText("server down")).toBeInTheDocument());
+    });
+  });
+
+  describe("WU-050: opportunistic connection-status re-check on modal mount", () => {
+    it("fires for the plugin when status is enabled", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({ plugin: makePlugin() }); // makePlugin status = "enabled"
+      expect(useOpportunisticRecheckOnMountMock).toHaveBeenCalledWith(["ghe"]);
+    });
+
+    it("passes an empty list when the plugin is not enabled", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      const disabled: Plugin = { ...makePlugin(), status: "disabled" };
+      renderDialog({ plugin: disabled });
+      expect(useOpportunisticRecheckOnMountMock).toHaveBeenCalledWith([]);
     });
   });
 });

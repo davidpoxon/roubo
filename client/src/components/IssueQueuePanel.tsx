@@ -6,6 +6,7 @@ import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import { useFilterFacets } from "../hooks/useCutListFacets";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
@@ -49,6 +50,15 @@ export default function IssueQueuePanel({
   } = useIssues(projectId);
   const refreshItems = useRefreshIssues();
   const integrationQuery = useProjectIntegration(projectId);
+
+  // WU-050: loading the cut list triggers a fresh connection-status re-check
+  // for every enabled plugin (FR-054). Disabled plugins are not invalidated.
+  const pluginsQuery = usePlugins();
+  const enabledPluginIds = useMemo(
+    () => (pluginsQuery.data?.plugins ?? []).filter((p) => p.status === "enabled").map((p) => p.id),
+    [pluginsQuery.data],
+  );
+  useOpportunisticRecheckOnMount(enabledPluginIds);
   const activePluginId = integrationQuery.data?.plugin?.id ?? null;
   const excludedStatuses = useMemo(
     () => integrationQuery.data?.effective?.excludedStatuses ?? [],

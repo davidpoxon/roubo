@@ -43,6 +43,7 @@ import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import { useIssueListWarnings } from "../hooks/useIssues";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
+import { useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import SourcePicker from "./SourcePicker";
 import Spinner from "./Spinner";
@@ -323,6 +324,15 @@ type ConfigureFlowProps =
 function ConfigureFlow(props: ConfigureFlowProps) {
   const { mode, plugin, effective, close, testMutation, saveMutation } = props;
   const manifest = plugin.manifest;
+
+  // WU-050: opening the Configure modal triggers a fresh connection-status
+  // re-check for this plugin if it is enabled. Skipped for any other status
+  // (disabled, errored, incompatible, invalid) per FR-054.
+  const recheckIds = useMemo(
+    () => (plugin.status === "enabled" ? [plugin.id] : []),
+    [plugin.status, plugin.id],
+  );
+  useOpportunisticRecheckOnMount(recheckIds);
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
     [manifest?.configSchema, effective],

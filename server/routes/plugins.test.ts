@@ -12,6 +12,8 @@ vi.mock("../services/plugin-manager.js", () => ({
   readLogs: vi.fn(),
   uninstall: vi.fn(),
   invoke: vi.fn(),
+  getConnectionStatus: vi.fn(),
+  invalidateConnectionStatus: vi.fn(),
 }));
 
 vi.mock("../services/integration-overrides.js", async () => {
@@ -623,5 +625,74 @@ describe("PUT /:id/integration/config", () => {
     vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
     const res = await request(app).put("/missing/integration/config").send({ instance: "x" });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /:id/connection-status (WU-050)", () => {
+  beforeEach(() => {
+    vi.mocked(pluginManager.getConnectionStatus).mockReset();
+    vi.mocked(pluginManager.invalidateConnectionStatus).mockReset();
+    vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue(null);
+  });
+
+  it("returns 400 for an invalid id", async () => {
+    const res = await request(app).get("/Bad_Id/connection-status");
+    expect(res.status).toBe(400);
+    expect(pluginManager.getConnectionStatus).not.toHaveBeenCalled();
+    expect(pluginManager.invalidateConnectionStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when plugin is unknown", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).get("/github-com/connection-status");
+    expect(res.status).toBe(404);
+    expect(pluginManager.getConnectionStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns { state: 'disabled' } for a disabled plugin without invoking the manager", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ status: "disabled" })]);
+    const res = await request(app).get("/github-com/connection-status");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ state: "disabled" });
+    expect(pluginManager.getConnectionStatus).not.toHaveBeenCalled();
+    expect(pluginManager.invalidateConnectionStatus).not.toHaveBeenCalled();
+  });
+
+  it("forces a fresh probe (bypassing the value cache) and returns the ConnectionStatus for an enabled plugin", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ status: "enabled" })]);
+    const status = {
+      state: "connected" as const,
+      checkedAt: "2026-05-26T09:00:00.000Z",
+    };
+    vi.mocked(pluginManager.getConnectionStatus).mockResolvedValue(status);
+
+    const res = await request(app).get("/github-com/connection-status");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(status);
+    // The route must NOT call `invalidateConnectionStatus`: doing so would
+    // drop any in-flight RPC and defeat the per-plugin dedup that
+    // `getConnectionStatus` relies on. Instead it passes `{ force: true }`
+    // to skip only the value cache.
+    expect(pluginManager.invalidateConnectionStatus).not.toHaveBeenCalled();
+    expect(pluginManager.getConnectionStatus).toHaveBeenCalledTimes(1);
+    expect(pluginManager.getConnectionStatus).toHaveBeenCalledWith(
+      "github-com",
+      expect.objectContaining({ plugin: "github-com" }),
+      { force: true },
+    );
+  });
+
+  it("returns the errored state surfaced by getConnectionStatus", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ status: "enabled" })]);
+    vi.mocked(pluginManager.getConnectionStatus).mockResolvedValue({
+      state: "errored",
+      detail: "RPC timeout",
+      checkedAt: "2026-05-26T09:00:00.000Z",
+    });
+
+    const res = await request(app).get("/github-com/connection-status");
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe("errored");
+    expect(res.body.detail).toBe("RPC timeout");
   });
 });

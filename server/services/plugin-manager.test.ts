@@ -1135,6 +1135,55 @@ describe("getConnectionStatus (WU-044)", () => {
     expect(invokerMock).toHaveBeenCalledTimes(2);
   });
 
+  describe("force option (WU-050)", () => {
+    it("bypasses the value cache so the next call re-probes the plugin", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ state: "auth-problem", checkedAt: FROZEN_TIME.toISOString() })
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      const fresh = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
+
+      expect(fresh.state).toBe("connected");
+      expect(invokerMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("still participates in per-plugin in-flight dedup", async () => {
+      let resolveInvoker: (value: ConnectionStatus) => void = () => {};
+      invokerMock.mockReturnValueOnce(
+        new Promise<ConnectionStatus>((resolve) => {
+          resolveInvoker = resolve;
+        }),
+      );
+
+      const forced = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
+      const piggyback = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
+
+      resolveInvoker({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+      const [a, b] = await Promise.all([forced, piggyback]);
+
+      expect(a).toEqual(b);
+      expect(invokerMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("piggy-backs on an in-flight non-forced call instead of starting a second RPC", async () => {
+      let resolveInvoker: (value: ConnectionStatus) => void = () => {};
+      invokerMock.mockReturnValueOnce(
+        new Promise<ConnectionStatus>((resolve) => {
+          resolveInvoker = resolve;
+        }),
+      );
+
+      const cached = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      const forced = pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
+
+      resolveInvoker({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+      await Promise.all([cached, forced]);
+
+      expect(invokerMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("invalidateConnectionStatus (WU-031)", () => {
     it("drops the cached value so the next call re-probes the plugin", async () => {
       invokerMock
