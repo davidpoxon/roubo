@@ -88,6 +88,65 @@ describe("DraggableIssueCard", () => {
     expect(screen.getByText(/org\/repo#10/)).toBeInTheDocument();
   });
 
+  it("collapses to a red Status chip labelled 'Blocked' when blocked", () => {
+    const { container } = render(
+      <DraggableIssueCard issue={makeIssue({ blockedBy: ["org/repo#10"] })} />,
+    );
+    const statusChip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
+    expect(statusChip).not.toBeNull();
+    expect(statusChip.textContent).toContain("Blocked");
+    expect(statusChip.className).toMatch(/red-/);
+    expect(statusChip.className).toContain("rounded-full");
+  });
+
+  it("renders the issue-type chip in violet with leading icon", () => {
+    const { container } = render(<DraggableIssueCard issue={makeIssue({ issueType: "bug" })} />);
+    const typeChip = container.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
+    expect(typeChip).not.toBeNull();
+    expect(typeChip.className).toMatch(/violet-/);
+    expect(typeChip.querySelector("svg")).not.toBeNull();
+  });
+
+  it("renders CodeQL and Dependabot issue-types with their distinguishing icons (TC-136)", () => {
+    const { container: codeqlContainer } = render(
+      <DraggableIssueCard issue={makeIssue({ issueType: "CodeQL" })} />,
+    );
+    const codeqlChip = codeqlContainer.querySelector(
+      '[data-chip-category="issue-type"]',
+    ) as HTMLElement;
+    expect(codeqlChip.querySelector("svg")).not.toBeNull();
+    expect(codeqlChip.className).toMatch(/violet-/);
+
+    const { container: depContainer } = render(
+      <DraggableIssueCard issue={makeIssue({ issueType: "dependabot" })} />,
+    );
+    const depChip = depContainer.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
+    expect(depChip.querySelector("svg")).not.toBeNull();
+    expect(depChip.className).toMatch(/violet-/);
+  });
+
+  it("renders labels as cyan border-only chips with rounded-sm shape", () => {
+    const { container } = render(<DraggableIssueCard issue={makeIssue({ labels: ["bug"] })} />);
+    const labelChip = container.querySelector('[data-chip-category="label"]') as HTMLElement;
+    expect(labelChip).not.toBeNull();
+    expect(labelChip.className).toContain("rounded-sm");
+    expect(labelChip.className).toMatch(/border-cyan/);
+  });
+
+  it("truncates to <=6 chips and renders a +N more chip when row overflows", () => {
+    const { container, getByText } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "bug",
+          labels: ["a", "b", "c", "d", "e", "f", "g", "h"],
+        })}
+      />,
+    );
+    const chips = container.querySelectorAll("[data-chip-category]");
+    expect(chips.length).toBeLessThanOrEqual(6);
+    expect(getByText(/^\+\d+ more$/)).toBeInTheDocument();
+  });
+
   it("renders with cursor-not-allowed style when issue is blocked", () => {
     const { container } = render(
       <DraggableIssueCard issue={makeIssue({ blockedBy: ["other#99"] })} />,
