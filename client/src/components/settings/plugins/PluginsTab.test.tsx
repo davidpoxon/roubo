@@ -127,6 +127,33 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     expect(cards).toHaveLength(2);
   });
 
+  it("WU-051 / TC-114: card containers use CSS Grid auto-fit minmax(360px, 1fr)", () => {
+    mockedUsePlugins.mockReturnValue({
+      data: {
+        hostApiVersion: "1.0.0",
+        plugins: [
+          record(),
+          record({ id: "my-tool", source: "user", manifest: null, status: "disabled" }),
+        ],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof _usePlugins>);
+
+    render(<PluginsTab />);
+
+    const cards = screen.getAllByTestId("plugin-card");
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      const gridContainer = card.parentElement;
+      if (!gridContainer) throw new Error("Plugin card has no parent grid container");
+      expect(gridContainer.className).toContain("grid");
+      expect(gridContainer.className).toContain("grid-cols-[repeat(auto-fit,minmax(360px,1fr))]");
+      // Regression guard: ensure the inner container hasn't reverted to a vertical stack.
+      expect(gridContainer.className).not.toContain("space-y-3");
+    }
+  });
+
   it("shows the empty-state message when there are no third-party plugins", () => {
     mockedUsePlugins.mockReturnValue({
       data: { hostApiVersion: "1.0.0", plugins: [record()] },

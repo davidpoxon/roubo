@@ -117,6 +117,16 @@ describe("ProjectSettings", () => {
       expect(screen.getByText("Settings")).toBeInTheDocument();
     });
 
+    it("WU-051 / TC-116: outer wrapper uses w-full with no max-w constraint", () => {
+      render();
+      // The Settings <h2> is the first child of the page wrapper, so walking
+      // up one level gives us the wrapper element under test.
+      const wrapper = screen.getByText("Settings").parentElement;
+      if (!wrapper) throw new Error("Settings heading has no parent wrapper");
+      expect(wrapper.className).toContain("w-full");
+      expect(wrapper.className).not.toMatch(/\bmax-w-/);
+    });
+
     it("renders all five tab labels", () => {
       render();
       expect(screen.getByRole("tab", { name: "Bench Defaults" })).toBeInTheDocument();
