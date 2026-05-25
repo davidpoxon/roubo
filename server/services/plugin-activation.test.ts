@@ -6,6 +6,14 @@ vi.mock("./integration-overrides.js", async (importOriginal) => {
   return {
     ...original,
     loadOverride: vi.fn(),
+    // Stub the wrapper so the test doesn't read ~/.roubo/integrations/_global/
+    // off disk. loadGlobalOverride is reached via a same-module lexical
+    // reference that vi.mock can't intercept; mocking the wrapper is the
+    // established pattern (see active-plugin.test.ts).
+    getEffectiveWithGlobal: vi.fn((c, p) => ({
+      ...(c ?? {}),
+      ...(p?.integration ?? {}),
+    })),
   };
 });
 vi.mock("./plugin-manager.js", () => ({ invoke: vi.fn() }));
