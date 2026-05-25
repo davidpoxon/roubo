@@ -194,9 +194,9 @@ type FilterFacet = {
 };
 ```
 
-- `enum` — small fixed set; provide `options` inline.
-- `enum-async` — set is large or remote; omit `options` and the host requests them lazily on dropdown open via a separate RPC (to be specified).
-- `multi-enum` — multi-select variant of `enum`.
+- `enum`: small fixed set; provide `options` inline.
+- `enum-async`: set is large or remote; omit `options` and the host requests them lazily on dropdown open via a separate RPC (see #136).
+- `multi-enum`: multi-select variant of `enum`.
 
 ```js
 async filterFacets() {
