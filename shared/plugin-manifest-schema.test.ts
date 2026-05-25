@@ -96,8 +96,25 @@ describe("PluginManifestSchema: TC-006 happy paths", () => {
         properties: { instance: { type: "string" } },
       },
       capabilities: { prSync: true },
+      icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>',
     });
     expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
+  });
+
+  it("accepts a manifest with a relative-path icon", () => {
+    const manifest = makeManifest({ icon: "assets/icon.svg" });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
+  });
+
+  it("rejects an empty icon string", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest({ icon: "" }));
+    expectFieldError(result, "icon");
+  });
+
+  it("rejects an icon exceeding the 16 KB ceiling", () => {
+    const huge = "a".repeat(16 * 1024 + 1);
+    const result = PluginManifestSchema.safeParse(makeManifest({ icon: huge }));
+    expectFieldError(result, "icon");
   });
 });
 
@@ -385,6 +402,16 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       "processes",
     ]);
     expect(properties.permissions.additionalProperties).toBe(true);
+  });
+
+  it("declares icon as an optional bounded string", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    expect(properties.icon).toMatchObject({
+      type: "string",
+      minLength: 1,
+      maxLength: 16384,
+    });
+    expect((jsonSchema.required as string[]).includes("icon")).toBe(false);
   });
 });
 

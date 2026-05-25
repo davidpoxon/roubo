@@ -67,6 +67,7 @@ export {
   PluginPermissionsSchema,
   PluginCapabilitiesSchema,
   PluginDefaultIntegrationConfigSchema,
+  PluginIconSchema,
 } from "./plugin-manifest-schema.js";
 
 export type {
@@ -79,6 +80,7 @@ export type {
   PluginPermissions,
   PluginCapabilities,
   PluginDefaultIntegrationConfig,
+  PluginIcon,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
