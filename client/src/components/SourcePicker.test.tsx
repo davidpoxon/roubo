@@ -215,3 +215,88 @@ describe("SourcePicker — accessibility & keyboard nav (TC-076)", () => {
     expect(within(boardsTab).getByLabelText(/1 selected/i)).toBeInTheDocument();
   });
 });
+
+describe("SourcePicker — security & quality alerts disclosure (WU-030)", () => {
+  it("renders three unchecked checkboxes per selected GitHub-family source (AC #1)", async () => {
+    const user = userEvent.setup();
+    render(<ControlledPicker response={multiListFixture} initial={{ items: ["org/api"] }} />);
+
+    // Expand the disclosure so the checkboxes are reachable.
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const codeCheckbox = screen.getByRole("checkbox", { name: "Code Scanning alerts" });
+    const secretCheckbox = screen.getByRole("checkbox", { name: "Secret Scanning alerts" });
+    const depCheckbox = screen.getByRole("checkbox", { name: "Dependabot alerts" });
+    expect(codeCheckbox).not.toBeChecked();
+    expect(secretCheckbox).not.toBeChecked();
+    expect(depCheckbox).not.toBeChecked();
+  });
+
+  it("toggling a checkbox emits the object form via onChange (AC #2)", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ControlledPicker
+        response={multiListFixture}
+        initial={{ items: ["org/api"] }}
+        onChangeSpy={onChange}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Code Scanning alerts" }));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      items: [{ externalId: "org/api", includeCodeQLAlerts: true }],
+    });
+  });
+
+  it("shows a chip-count and comma-separated summary on the collapsed label (AC #9)", async () => {
+    render(
+      <ControlledPicker
+        response={multiListFixture}
+        initial={{
+          items: [
+            {
+              externalId: "org/api",
+              includeCodeQLAlerts: true,
+              includeDependabotAlerts: true,
+            },
+          ],
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Security & quality alerts for org\/api/i });
+    expect(within(trigger).getByText("(Code Scanning, Dependabot)")).toBeInTheDocument();
+    expect(within(trigger).getByLabelText(/2 enabled/)).toBeInTheDocument();
+  });
+
+  it("renders a warning chip with accessible cause when a warning matches the row (AC #7)", async () => {
+    const user = userEvent.setup();
+    const warning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+    };
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+        onChange={() => {}}
+        warnings={[warning]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const description = screen.getByText(warning.cause);
+    expect(description).toHaveClass("sr-only");
+  });
+});

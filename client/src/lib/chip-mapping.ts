@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type StatusTone = "open" | "in-progress" | "blocked" | "done" | "neutral";
+export type StatusTone = "open" | "in-progress" | "blocked" | "done" | "neutral" | "warning";
 
 export type ChipCategory = "status" | "issue-type" | "label" | "metadata";
 

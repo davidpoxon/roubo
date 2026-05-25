@@ -103,6 +103,7 @@ export type {
   SourceCandidatesShape,
   SourceCandidatesResponse,
   SourceSelection,
+  SourceSelectionEntry,
 } from "./integration-types.js";
 
 export type {
@@ -926,6 +927,26 @@ export interface NormalizedComment {
 export interface ConfiguredSource {
   kind: string;
   externalId: string;
+  /**
+   * GitHub family only: per-source toggles for Code Scanning, Secret Scanning,
+   * and Dependabot alerts. Default false on each. Other plugins ignore.
+   */
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
+}
+
+/**
+ * Non-fatal warning about a single source / category for a `listIssues` call.
+ * Mirrors `ListIssuesWarning` in `@roubo/plugin-sdk`. A given
+ * `(sourceExternalId, category)` warning clears on the next successful
+ * page-1 pull that omits it.
+ */
+export interface ListIssuesWarning {
+  category: "code-scanning" | "secret-scanning" | "dependabot" | string;
+  sourceExternalId: string;
+  cause: string;
+  detail?: { status?: number; code?: string };
 }
 
 /**
@@ -971,6 +992,8 @@ export interface PaginatedIssues {
   items: NormalizedIssue[];
   nextCursor: string | null;
   stalled?: boolean;
+  /** Per-source per-category non-fatal warnings from the underlying plugin call. */
+  warnings?: ListIssuesWarning[];
 }
 
 /** Server response to `GET /api/projects/:projectId/issue-types` (WU-016). */

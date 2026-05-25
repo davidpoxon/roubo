@@ -1,8 +1,8 @@
 import type { ConfiguredSource } from "@roubo/plugin-sdk";
 
 // Optional per-source alert-category opt-ins (FR-074). Absent ⇒ false at the
-// host layer; not yet surfaced across the plugin SDK boundary (`ConfiguredSource`
-// is unchanged), so they appear only on entries returned by `parseSourcesConfig`.
+// host layer. As of WU-030 the plugin SDK's `ConfiguredSource` carries these
+// fields as optional booleans, so they ride into source-bound RPCs verbatim.
 export interface GithubSourceAlertFlags {
   includeCodeQLAlerts?: boolean;
   includeSecretScanningAlerts?: boolean;

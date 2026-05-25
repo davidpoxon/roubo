@@ -20,6 +20,7 @@ import {
 } from "../hooks/useGlobalPluginIntegration";
 import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
+import { useIssueListWarnings } from "../hooks/useIssues";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import SourcePicker from "./SourcePicker";
 import Spinner from "./Spinner";
@@ -197,9 +198,24 @@ function initialSourceSelection(effective: IntegrationConfig): SourceSelection {
   const raw = effective.sources;
   if (!raw) return out;
   for (const [key, value] of Object.entries(raw)) {
-    if (Array.isArray(value)) {
-      out[key] = value.map(String);
-    }
+    if (!Array.isArray(value)) continue;
+    out[key] = value.map((entry) => {
+      // Primitive forms (string or number) flatten to the externalId string.
+      if (typeof entry === "string") return entry;
+      if (typeof entry === "number") return String(entry);
+      // Object form: keep only the SourceSelectionEntry-recognized fields so
+      // we round-trip the alert booleans but drop any plugin-internal extras.
+      const next: {
+        externalId: string;
+        includeCodeQLAlerts?: boolean;
+        includeSecretScanningAlerts?: boolean;
+        includeDependabotAlerts?: boolean;
+      } = { externalId: String(entry.externalId) };
+      if (entry.includeCodeQLAlerts === true) next.includeCodeQLAlerts = true;
+      if (entry.includeSecretScanningAlerts === true) next.includeSecretScanningAlerts = true;
+      if (entry.includeDependabotAlerts === true) next.includeDependabotAlerts = true;
+      return next;
+    });
   }
   return out;
 }
@@ -260,6 +276,12 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     testResult?.ok === true &&
     lastTestedSnapshot !== null &&
     snapshotEquals(values, lastTestedSnapshot);
+
+  // Per-source per-category warnings from the most recent listIssues page-1
+  // pull. Global scope has no project context, so the hook is called with
+  // undefined and returns [] (AC #7 clear-on-next-pull is implicit: the
+  // underlying queryKey is invalidated whenever the issues query refreshes).
+  const warnings = useIssueListWarnings(mode === "project" ? props.projectId : undefined);
 
   // Sources are inherently per-project, so the global Plugins-page Configure
   // dialog never queries or renders them. Hooks must still be called
@@ -419,6 +441,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                 response={sourceCandidatesQuery.data}
                 value={sources}
                 onChange={setSources}
+                warnings={warnings}
               />
             ) : null}
           </div>

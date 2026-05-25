@@ -4,10 +4,18 @@ import type { SourceSelection, SourceEntry } from "@roubo/shared";
  * The shape every integration plugin expects under `config.sources`: a flat
  * list of `{ kind, externalId }` entries. Plugins translate this internally
  * into per-source API calls.
+ *
+ * The optional per-source alert-category booleans (FR-074) are passed through
+ * verbatim when present on an object-form source entry. Plugins that do not
+ * implement security alerts (i.e. anything outside the GitHub family) ignore
+ * them; the host treats them as plugin-defined per-source config.
  */
 export interface PluginSourceEntry {
   kind: string;
   externalId: string;
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
 }
 
 /**
@@ -72,9 +80,20 @@ export function translateSources(
     }
     for (const entry of entries) {
       const asString = entryToExternalId(entry);
-      if (asString.length > 0) {
-        out.push({ kind, externalId: asString });
+      if (asString.length === 0) continue;
+      const translated: PluginSourceEntry = { kind, externalId: asString };
+      if (typeof entry === "object" && entry !== null) {
+        if (entry.includeCodeQLAlerts !== undefined) {
+          translated.includeCodeQLAlerts = entry.includeCodeQLAlerts;
+        }
+        if (entry.includeSecretScanningAlerts !== undefined) {
+          translated.includeSecretScanningAlerts = entry.includeSecretScanningAlerts;
+        }
+        if (entry.includeDependabotAlerts !== undefined) {
+          translated.includeDependabotAlerts = entry.includeDependabotAlerts;
+        }
       }
+      out.push(translated);
     }
   }
   return out;

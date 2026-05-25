@@ -83,6 +83,31 @@ export interface NormalizedComment {
 export interface ConfiguredSource {
   kind: string;
   externalId: string;
+  /**
+   * github.com / GHE only: per-source toggles for the GitHub Advanced Security
+   * alert categories surfaced as security-* issue types. Plugins outside the
+   * GitHub family ignore these fields. Default false on each.
+   */
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
+}
+
+/**
+ * Non-fatal warning emitted alongside a `listIssues` result. Used by the
+ * GitHub plugins to surface per-source per-category fetch failures without
+ * failing the entire pull. Categories are stable string identifiers; the
+ * host treats unknown values as opaque and surfaces `cause` verbatim to UI.
+ *
+ * A warning with a given `(sourceExternalId, category)` is cleared on the
+ * next successful pull for that pair: a subsequent `listIssues` page-1
+ * result that omits it constitutes a clear.
+ */
+export interface ListIssuesWarning {
+  category: "code-scanning" | "secret-scanning" | "dependabot" | string;
+  sourceExternalId: string;
+  cause: string;
+  detail?: { status?: number; code?: string };
 }
 
 export interface ListIssuesParams {
@@ -116,6 +141,8 @@ export interface GetFacetOptionsParams {
 export interface ListIssuesResult {
   items: NormalizedIssue[];
   nextCursor: string | null;
+  /** Absent or empty means "no per-category problems on this page." */
+  warnings?: ListIssuesWarning[];
 }
 
 export type SourceCandidateIcon = "repo" | "project" | "board" | "epic" | "filter";
