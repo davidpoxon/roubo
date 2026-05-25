@@ -1,8 +1,17 @@
 import type { ConfiguredSource } from "@roubo/plugin-sdk";
 
+// Optional per-source alert-category opt-ins (FR-074). Absent ⇒ false at the
+// host layer; not yet surfaced across the plugin SDK boundary (`ConfiguredSource`
+// is unchanged), so they appear only on entries returned by `parseSourcesConfig`.
+export interface GithubSourceAlertFlags {
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
+}
+
 export type GithubSource =
-  | { kind: "repo"; externalId: string }
-  | { kind: "project"; externalId: string };
+  | ({ kind: "repo"; externalId: string } & GithubSourceAlertFlags)
+  | ({ kind: "project"; externalId: string } & GithubSourceAlertFlags);
 
 function isGithubSource(s: ConfiguredSource): s is GithubSource {
   return (s.kind === "repo" || s.kind === "project") && typeof s.externalId === "string";

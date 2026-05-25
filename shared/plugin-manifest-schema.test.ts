@@ -295,6 +295,62 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
   });
 });
 
+describe("Bundled github.com / GHE plugin manifests declare per-source alert booleans (TC-135, FR-074)", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pluginsDir = resolve(here, "..", "plugins");
+
+  async function loadManifest(pluginId: string): Promise<PluginManifest> {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const file = resolve(pluginsDir, pluginId, "roubo-plugin.yaml");
+    const result = parseManifest(readFileSync(file, "utf-8"), file);
+    if (!result.ok) throw new Error(`Failed to parse ${file}: ${JSON.stringify(result)}`);
+    return result.manifest;
+  }
+
+  function sourceItemProperties(manifest: PluginManifest): Record<string, Record<string, unknown>> {
+    const configSchema = manifest.configSchema as Record<string, unknown> | undefined;
+    const properties = configSchema?.properties as Record<string, Record<string, unknown>>;
+    const sources = properties?.sources;
+    const items = sources?.items as Record<string, unknown>;
+    return items.properties as Record<string, Record<string, unknown>>;
+  }
+
+  function sourceItemRequired(manifest: PluginManifest): string[] {
+    const configSchema = manifest.configSchema as Record<string, unknown> | undefined;
+    const properties = configSchema?.properties as Record<string, Record<string, unknown>>;
+    const items = properties.sources.items as Record<string, unknown>;
+    return (items.required as string[]) ?? [];
+  }
+
+  for (const pluginId of ["github-com", "ghe"] as const) {
+    describe(`${pluginId} manifest`, () => {
+      it("declares includeCodeQLAlerts as an optional boolean defaulting to false", async () => {
+        const manifest = await loadManifest(pluginId);
+        const props = sourceItemProperties(manifest);
+        expect(props.includeCodeQLAlerts).toMatchObject({ type: "boolean", default: false });
+        expect(sourceItemRequired(manifest)).not.toContain("includeCodeQLAlerts");
+      });
+
+      it("declares includeSecretScanningAlerts as an optional boolean defaulting to false", async () => {
+        const manifest = await loadManifest(pluginId);
+        const props = sourceItemProperties(manifest);
+        expect(props.includeSecretScanningAlerts).toMatchObject({
+          type: "boolean",
+          default: false,
+        });
+        expect(sourceItemRequired(manifest)).not.toContain("includeSecretScanningAlerts");
+      });
+
+      it("declares includeDependabotAlerts as an optional boolean defaulting to false", async () => {
+        const manifest = await loadManifest(pluginId);
+        const props = sourceItemProperties(manifest);
+        expect(props.includeDependabotAlerts).toMatchObject({ type: "boolean", default: false });
+        expect(sourceItemRequired(manifest)).not.toContain("includeDependabotAlerts");
+      });
+    });
+  }
+});
+
 describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const jsonSchemaPath = resolve(here, "..", "schema", "roubo-plugin.schema.json");

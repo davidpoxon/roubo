@@ -215,8 +215,9 @@ export type CapturedUserId = z.infer<typeof CapturedUserIdSchema>;
 
 // Per-source entries accept either the legacy primitive form (`"owner/repo"`
 // or `42`) or an object form that carries Roubo-core-reserved per-source
-// fields like `excludedStatuses` (FR-062, FR-063). Plugins MUST NOT use
-// `excludedStatuses` as a per-source key in their own configSchema.
+// fields like `excludedStatuses` (FR-062, FR-063) and the bundled
+// github.com / GHE alert-category booleans (FR-074). Plugins MUST NOT use
+// any of these reserved keys in their own configSchema.
 export const SourceEntrySchema = z.union([
   z.string(),
   z.number(),
@@ -224,6 +225,9 @@ export const SourceEntrySchema = z.union([
     .object({
       externalId: z.union([z.string(), z.number()]),
       excludedStatuses: z.array(z.string().min(1)).optional(),
+      includeCodeQLAlerts: z.boolean().optional(),
+      includeSecretScanningAlerts: z.boolean().optional(),
+      includeDependabotAlerts: z.boolean().optional(),
     })
     .strict(),
 ]);

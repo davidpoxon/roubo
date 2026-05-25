@@ -3,6 +3,7 @@ import {
   RouboConfigSchema,
   ProjectConfigSchema,
   IntegrationOverrideSchema,
+  SourceEntrySchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
   type RouboConfig,
@@ -493,6 +494,108 @@ describe("integration block", () => {
       integration: { sources: { boards: "not-an-array" } },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("SourceEntrySchema per-source alert booleans (FR-074, TC-135)", () => {
+  it("accepts an object entry with all three booleans set to true", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeCodeQLAlerts: true,
+      includeSecretScanningAlerts: true,
+      includeDependabotAlerts: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an object entry with all three booleans set to false", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeCodeQLAlerts: false,
+      includeSecretScanningAlerts: false,
+      includeDependabotAlerts: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an object entry omitting all three booleans (all optional)", () => {
+    const result = SourceEntrySchema.safeParse({ externalId: "owner/repo" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an object entry with only one boolean set", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeDependabotAlerts: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a non-boolean includeCodeQLAlerts", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeCodeQLAlerts: "yes",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-boolean includeSecretScanningAlerts", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeSecretScanningAlerts: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-boolean includeDependabotAlerts", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "owner/repo",
+      includeDependabotAlerts: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("preserves the booleans alongside excludedStatuses on a single entry", () => {
+    const entry = {
+      externalId: "owner/repo",
+      excludedStatuses: ["Closed"],
+      includeCodeQLAlerts: true,
+      includeSecretScanningAlerts: false,
+      includeDependabotAlerts: true,
+    };
+    const result = SourceEntrySchema.safeParse(entry);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual(entry);
+  });
+
+  it("round-trips through RouboConfigSchema on integration.sources entries", () => {
+    const config = makeConfig({
+      integration: {
+        sources: {
+          repo: [
+            {
+              externalId: "owner/repo",
+              includeCodeQLAlerts: true,
+              includeSecretScanningAlerts: false,
+              includeDependabotAlerts: true,
+            },
+          ],
+        },
+      },
+    });
+    const parsed = RouboConfigSchema.safeParse(config);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const reparsed = RouboConfigSchema.safeParse(parsed.data);
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.data.integration?.sources?.repo?.[0]).toEqual({
+      externalId: "owner/repo",
+      includeCodeQLAlerts: true,
+      includeSecretScanningAlerts: false,
+      includeDependabotAlerts: true,
+    });
   });
 });
 
