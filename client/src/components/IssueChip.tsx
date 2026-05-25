@@ -69,6 +69,7 @@ export default function IssueChip({
         className={`${BASE_CLASSES} ${variantClasses} ${INTERACTIVE_CLASSES}`}
         data-chip-category={variant}
         aria-describedby={describedById}
+        data-testid={dataTestid}
       >
         {inner}
       </Button>

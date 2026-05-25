@@ -211,11 +211,7 @@ export async function fetchRepoAlerts(
   // so we cannot honestly say `security_events` is missing; rewrite to a
   // graceful "verify scopes" variant instead.
   if (warnings.some((w) => w.code === "missing-scope")) {
-    const shape = await probeTokenShape(
-      transport,
-      baseUrl,
-      config.allowSelfSignedTls === true,
-    );
+    const shape = await probeTokenShape(transport, baseUrl, config.allowSelfSignedTls === true);
     if (shape === "unknown") {
       for (const w of warnings) {
         if (w.code === "missing-scope") {
