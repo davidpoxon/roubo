@@ -4,6 +4,7 @@ import { useParams, Routes, Route, useBlocker, useNavigate, Link } from "react-r
 import { Plus, Zap } from "lucide-react";
 import type { JigMeta, JigReference } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useToast } from "../hooks/useToast";
 import { useJigs, useDeleteProjectJig, useDuplicateProjectJig } from "../hooks/useJigs";
 import { ApiError, isJigReferencedError } from "../lib/api";
@@ -171,6 +172,11 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
 
   const isMetaRepo = project.config?.layout?.type === "meta-repo";
 
+  // FR-069: section title reflects the active plugin's display name; falls
+  // back to "Source" when none is configured.
+  const { data: integration } = useProjectIntegration(project.id);
+  const sourceSectionTitle = integration?.plugin?.manifest?.name ?? "Source";
+
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       hasAnyDirty && !justSavedRef.current && currentLocation.pathname !== nextLocation.pathname,
@@ -200,10 +206,10 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Issue source
+              {sourceSectionTitle}
             </h2>
           </div>
-          <IssueSourceTile projectId={project.id} />
+          <IssueSourceTile projectId={project.id} title={sourceSectionTitle} />
         </section>
         <section>
           <div className="flex items-center gap-2 mb-4">

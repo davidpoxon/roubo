@@ -8,11 +8,19 @@ import ProjectSettingsTab from "./ProjectSettingsTab";
 import type { RegisteredProject } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useToast } from "../hooks/useToast";
 import { useSettingsOverviewDraft } from "./project-settings/useSettingsOverviewDraft";
 
 vi.mock("../hooks/useProjects", () => ({
   useProjects: vi.fn(),
+}));
+
+vi.mock("../hooks/useProjectIntegration", () => ({
+  useProjectIntegration: vi.fn(),
+  useSwitchProjectIntegration: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useTestIntegrationConnection: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useSaveIntegrationConfig: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 vi.mock("../hooks/useToast", () => ({
@@ -125,8 +133,37 @@ vi.mock("react-router-dom", async (importOriginal) => {
 });
 
 const mockedUseProjects = vi.mocked(useProjects);
+const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 const mockedUseToast = vi.mocked(useToast);
 const mockedUseSettingsOverviewDraft = vi.mocked(useSettingsOverviewDraft);
+
+function withIntegration(plugin: { id: string; name: string } | null) {
+  mockedUseProjectIntegration.mockReturnValue({
+    data: plugin
+      ? {
+          effective: { plugin: plugin.id },
+          committed: { plugin: plugin.id },
+          override: null,
+          plugin: {
+            id: plugin.id,
+            installed: true,
+            status: "enabled" as const,
+            manifest: { name: plugin.name },
+          },
+          captionKey: "yaml-only" as const,
+        }
+      : {
+          effective: {},
+          committed: null,
+          override: null,
+          plugin: null,
+          captionKey: "none" as const,
+        },
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof useProjectIntegration>);
+}
 
 const baseConfig = {
   project: {
@@ -218,6 +255,8 @@ beforeEach(() => {
   mockedUseSettingsOverviewDraft.mockReturnValue(
     defaultDraft as unknown as ReturnType<typeof useSettingsOverviewDraft>,
   );
+
+  withIntegration(null);
 });
 
 describe("ProjectSettingsTab", () => {
@@ -257,6 +296,20 @@ describe("ProjectSettingsTab", () => {
   it("renders the Setup section heading", () => {
     renderTab();
     expect(screen.getByRole("heading", { name: "Setup" })).toBeInTheDocument();
+  });
+
+  it('renders the source section heading as "Source" when no integration is configured (FR-069 fallback)', () => {
+    withIntegration(null);
+    renderTab();
+    expect(screen.getByRole("heading", { name: "Source" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Issue source" })).not.toBeInTheDocument();
+  });
+
+  it("renders the source section heading as the active plugin display name (FR-069)", () => {
+    withIntegration({ id: "github-com", name: "GitHub.com" });
+    renderTab();
+    expect(screen.getByRole("heading", { name: "GitHub.com" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "GitHub.com" })).toBeInTheDocument();
   });
 
   it("renders the Bench behaviour section heading", () => {
