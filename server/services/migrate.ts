@@ -18,11 +18,13 @@ import { saveEnableState } from "./plugin-enable-state.js";
 //   .specifications/integration-plugins/prd.md (FR-027, FR-028, NFR-009)
 //   .specifications/integration-plugins/test-cases.json (TC-031, TC-049, TC-068, TC-069)
 //
-// WU-046 / issue #137 — plugins-state.json seeding rides the same atomic
-// commit. See architecture.md lines 1027-1097 and 1418-1422. Greenfield
-// installs (no schemaVersion, no auth.json, no registered projects) get all
-// bundled plugins seeded as "disabled"; existing installs keep current
-// behaviour by seeding them as "enabled".
+// WU-046 / issue #137 + WU-047 / issue #138 — plugins-state.json seeding
+// rides the same atomic commit on greenfield only. See FR-059 and
+// architecture.md lines 1027-1097 and 1418-1422. Greenfield installs (no
+// schemaVersion, no auth.json, no registered projects) get all bundled
+// plugins seeded as "disabled". Existing installs are not modified: the
+// migration leaves plugins-state.json alone so downstream readers fall
+// through to the legacy default of "enabled" for unknown ids.
 
 const PLUGIN_ID = "github-com";
 const CREDENTIAL_SLOT = "github-token";
@@ -180,12 +182,11 @@ export async function run(): Promise<MigrationOutcome> {
     return outcome;
   }
 
-  // Commit: write plugins-state.json (existing-install seed: every bundled
-  // plugin "enabled" to preserve current behaviour) and then state.json. The
-  // state.json write is the gate that prevents migrate from re-running; doing
-  // the plugin-state write first means a crash between the two leaves the
-  // install ready to retry rather than partially gated.
-  saveEnableState(buildEnableStateSeed("enabled"));
+  // Commit: write state.json. Existing installs are not touched in
+  // plugins-state.json (FR-059 / WU-047): if the file is absent, downstream
+  // readers default to "enabled" for unknown plugin ids; if the user has
+  // already toggled enable state via the regular RPC, their choices are
+  // preserved.
   const record: MigrationRecord = {
     status: "success",
     at,
