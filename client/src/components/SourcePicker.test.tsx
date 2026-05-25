@@ -286,6 +286,54 @@ describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
     expect(within(trigger).getByLabelText(/2 enabled/)).toBeInTheDocument();
   });
 
+  it("renders the muted existing-benches line for each category when alertBenchCounts is provided (TC-097)", async () => {
+    const user = userEvent.setup();
+    render(
+      <SourcePicker
+        response={multiListFixture}
+        value={{ items: ["org/api"] }}
+        onChange={() => {}}
+        alertBenchCounts={{
+          "security-dependabot": 2,
+          "security-code-scanning": 1,
+        }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    const depLine = screen.getByTestId("alert-existing-benches-includeDependabotAlerts");
+    expect(depLine).toHaveTextContent("2 existing benches still show alerts from this category.");
+
+    const codeLine = screen.getByTestId("alert-existing-benches-includeCodeQLAlerts");
+    expect(codeLine).toHaveTextContent("1 existing bench still shows alerts from this category.");
+
+    expect(
+      screen.queryByTestId("alert-existing-benches-includeSecretScanningAlerts"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the existing-benches line when alertBenchCounts is absent or zero (TC-097)", async () => {
+    const user = userEvent.setup();
+    render(<ControlledPicker response={multiListFixture} initial={{ items: ["org/api"] }} />);
+
+    await user.click(
+      screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+    );
+
+    expect(
+      screen.queryByTestId("alert-existing-benches-includeDependabotAlerts"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("alert-existing-benches-includeCodeQLAlerts"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("alert-existing-benches-includeSecretScanningAlerts"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders a warning chip with accessible cause when a warning matches the row (AC #7)", async () => {
     const user = userEvent.setup();
     const warning = {

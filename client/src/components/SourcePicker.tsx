@@ -86,6 +86,14 @@ interface SourcePickerProps {
    * Optional; see `SourcePickerChipContext`.
    */
   chipContext?: SourcePickerChipContext;
+  /**
+   * Project-wide count of benches whose persisted `assignedIssue.issueType`
+   * matches a given security category, keyed by the category's frozen-snapshot
+   * issueType (e.g. `"security-dependabot"`). Drives the muted help text
+   * "<K> existing benches still show alerts from this category." rendered in
+   * the per-source security disclosure. WU-035 / TC-097.
+   */
+  alertBenchCounts?: Partial<Record<string, number>>;
 }
 
 const MULTI_LIST_KEY = "items";
@@ -95,16 +103,33 @@ interface AlertCategoryDef {
   label: string;
   /** Warning category id emitted by the github-com plugin. */
   warningCategory: ListIssuesWarning["category"];
+  /**
+   * Frozen-snapshot issueType the github-family plugins stamp on alerts of
+   * this category. Used by the Configure dialog to count alert-backed
+   * benches via `assignedIssue.issueType` (see WU-035 / TC-097).
+   */
+  issueType: string;
 }
 
 const ALERT_CATEGORIES: AlertCategoryDef[] = [
-  { flag: "includeCodeQLAlerts", label: "Code Scanning alerts", warningCategory: "code-scanning" },
+  {
+    flag: "includeCodeQLAlerts",
+    label: "Code Scanning alerts",
+    warningCategory: "code-scanning",
+    issueType: "security-code-scanning",
+  },
   {
     flag: "includeSecretScanningAlerts",
     label: "Secret Scanning alerts",
     warningCategory: "secret-scanning",
+    issueType: "security-secret-scanning",
   },
-  { flag: "includeDependabotAlerts", label: "Dependabot alerts", warningCategory: "dependabot" },
+  {
+    flag: "includeDependabotAlerts",
+    label: "Dependabot alerts",
+    warningCategory: "dependabot",
+    issueType: "security-dependabot",
+  },
 ];
 
 function iconFor(icon: SourceCandidateIcon | undefined) {
@@ -408,6 +433,12 @@ interface AlertCheckboxRowProps {
   chipContext?: SourcePickerChipContext;
   onReconsent?: () => void;
   showRetry?: boolean;
+  /**
+   * Count of alert-backed benches for this category across the project. When
+   * > 0, the row renders a muted line explaining that toggling the category
+   * does not affect existing benches.
+   */
+  benchCount?: number;
 }
 
 function AlertCheckboxRow({
@@ -418,38 +449,52 @@ function AlertCheckboxRow({
   chipContext,
   onReconsent,
   showRetry,
+  benchCount,
 }: AlertCheckboxRowProps) {
+  const k = benchCount ?? 0;
   return (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        isSelected={selected}
-        onChange={onChange}
-        aria-label={category.label}
-        data-testid={`alert-checkbox-${category.flag}`}
-        className="flex items-center gap-2 cursor-pointer group flex-1"
-      >
-        {({ isSelected }) => (
-          <>
-            <div
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                isSelected
-                  ? "bg-stone-600 border-stone-500"
-                  : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
-              }`}
-            >
-              {isSelected && <Check size={10} className="text-stone-100" />}
-            </div>
-            <span className="text-sm text-stone-700 dark:text-stone-300">{category.label}</span>
-          </>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          isSelected={selected}
+          onChange={onChange}
+          aria-label={category.label}
+          data-testid={`alert-checkbox-${category.flag}`}
+          className="flex items-center gap-2 cursor-pointer group flex-1"
+        >
+          {({ isSelected }) => (
+            <>
+              <div
+                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  isSelected
+                    ? "bg-stone-600 border-stone-500"
+                    : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                }`}
+              >
+                {isSelected && <Check size={10} className="text-stone-100" />}
+              </div>
+              <span className="text-sm text-stone-700 dark:text-stone-300">{category.label}</span>
+            </>
+          )}
+        </Checkbox>
+        {warning && (
+          <WarningChip
+            warning={warning}
+            chipContext={chipContext}
+            onReconsent={onReconsent}
+            showRetry={showRetry}
+          />
         )}
-      </Checkbox>
-      {warning && (
-        <WarningChip
-          warning={warning}
-          chipContext={chipContext}
-          onReconsent={onReconsent}
-          showRetry={showRetry}
-        />
+      </div>
+      {k > 0 && (
+        <p
+          className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed pl-6"
+          data-testid={`alert-existing-benches-${category.flag}`}
+        >
+          {k === 1
+            ? "1 existing bench still shows alerts from this category."
+            : `${k} existing benches still show alerts from this category.`}
+        </p>
       )}
     </div>
   );
@@ -464,6 +509,7 @@ interface SecurityAlertsDisclosureProps {
   chipContext?: SourcePickerChipContext;
   onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
   retryHints?: ReadonlySet<string>;
+  alertBenchCounts?: Partial<Record<string, number>>;
 }
 
 function SecurityAlertsDisclosure({
@@ -475,6 +521,7 @@ function SecurityAlertsDisclosure({
   chipContext,
   onReconsent,
   retryHints,
+  alertBenchCounts,
 }: SecurityAlertsDisclosureProps) {
   const enabled = ALERT_CATEGORIES.filter((c) => entryFlag(entry, c.flag));
   const enabledCount = enabled.length;
@@ -531,6 +578,7 @@ function SecurityAlertsDisclosure({
                       : undefined
                   }
                   showRetry={retryHints?.has(retryKey) ?? false}
+                  benchCount={alertBenchCounts?.[category.issueType]}
                 />
               );
             })}
@@ -552,6 +600,7 @@ interface PerSourceConfigListProps {
   chipContext?: SourcePickerChipContext;
   onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
   retryHints?: ReadonlySet<string>;
+  alertBenchCounts?: Partial<Record<string, number>>;
 }
 
 function PerSourceConfigList({
@@ -564,6 +613,7 @@ function PerSourceConfigList({
   chipContext,
   onReconsent,
   retryHints,
+  alertBenchCounts,
 }: PerSourceConfigListProps) {
   if (!showSecurityAlerts || entries.length === 0) return null;
   const byId = new Map(items.map((i) => [i.externalId, i]));
@@ -594,6 +644,7 @@ function PerSourceConfigList({
               chipContext={chipContext}
               onReconsent={onReconsent}
               retryHints={retryHints}
+              alertBenchCounts={alertBenchCounts}
             />
           </div>
         );
@@ -611,6 +662,7 @@ function MultiListVariant({
   showSecurityAlerts,
   onReconsent,
   retryHints,
+  alertBenchCounts,
 }: SourcePickerProps & {
   response: SourceCandidatesResponse & { items: SourceCandidateItem[] };
   showSecurityAlerts: boolean;
@@ -668,6 +720,7 @@ function MultiListVariant({
         chipContext={chipContext}
         onReconsent={onReconsent}
         retryHints={retryHints}
+        alertBenchCounts={alertBenchCounts}
       />
     </div>
   );
@@ -682,6 +735,7 @@ function CategorizedVariant({
   showSecurityAlerts,
   onReconsent,
   retryHints,
+  alertBenchCounts,
 }: SourcePickerProps & {
   response: SourceCandidatesResponse & { categories: SourceCandidateCategory[] };
   showSecurityAlerts: boolean;
@@ -750,6 +804,7 @@ function CategorizedVariant({
                 chipContext={chipContext}
                 onReconsent={onReconsent}
                 retryHints={retryHints}
+                alertBenchCounts={alertBenchCounts}
               />
             </TabPanel>
           );
@@ -844,6 +899,7 @@ export default function SourcePicker({
   onChange,
   warnings,
   chipContext,
+  alertBenchCounts,
 }: SourcePickerProps) {
   // Only the bundled GitHub-family source kinds use the security alert toggles.
   // Detect via the icon hint declared on the candidate items; other plugins
@@ -903,6 +959,7 @@ export default function SourcePicker({
         warnings={warnings}
         chipContext={chipContext}
         showSecurityAlerts={showSecurityAlerts}
+        alertBenchCounts={alertBenchCounts}
         {...variantPropsExtras}
       />
     ) : (
@@ -913,6 +970,7 @@ export default function SourcePicker({
         warnings={warnings}
         chipContext={chipContext}
         showSecurityAlerts={showSecurityAlerts}
+        alertBenchCounts={alertBenchCounts}
         {...variantPropsExtras}
       />
     );

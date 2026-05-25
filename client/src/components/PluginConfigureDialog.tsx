@@ -44,6 +44,7 @@ import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import { useIssueListWarnings } from "../hooks/useIssues";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
 import { useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
+import { useProjectBenches } from "../hooks/useBenches";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import SourcePicker from "./SourcePicker";
 import Spinner from "./Spinner";
@@ -388,6 +389,24 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   // underlying queryKey is invalidated whenever the issues query refreshes).
   const warnings = useIssueListWarnings(mode === "project" ? props.projectId : undefined);
 
+  // Project-wide count of alert-backed benches keyed by frozen-snapshot
+  // issueType. Drives the "<K> existing benches still show alerts from this
+  // category." line in the security alerts disclosure (WU-035 / TC-097).
+  // Global scope has no project context; the result is left empty.
+  const projectIdForBenches = mode === "project" ? props.projectId : undefined;
+  const benchesQuery = useProjectBenches(projectIdForBenches);
+  const alertBenchCounts = useMemo(() => {
+    if (!projectIdForBenches) return undefined;
+    const counts: Record<string, number> = {};
+    for (const bench of benchesQuery.data ?? []) {
+      if (bench.projectId !== projectIdForBenches) continue;
+      const it = bench.assignedIssue?.issueType;
+      if (!it) continue;
+      counts[it] = (counts[it] ?? 0) + 1;
+    }
+    return counts;
+  }, [projectIdForBenches, benchesQuery.data]);
+
   // Sources are inherently per-project, so the global Plugins-page Configure
   // dialog never queries or renders them. Hooks must still be called
   // unconditionally; passing `null` as the pluginId disables the underlying
@@ -553,6 +572,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                 value={sources}
                 onChange={setSources}
                 warnings={warnings}
+                alertBenchCounts={alertBenchCounts}
                 chipContext={{
                   pluginId: plugin.id,
                   // GHE PAT settings link target, derived from whichever

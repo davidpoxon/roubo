@@ -377,6 +377,41 @@ describe("initialize", () => {
     expect(bench.injectedJigSource).toBe("issue-type-mapping");
   });
 
+  it("preserves assignedIssue.issueType even when the category is no longer enabled (TC-097, frozen snapshot)", () => {
+    // The snapshot-read path must not validate issueType against the current
+    // listIssueTypes catalog: an alert-backed bench whose source has since
+    // toggled its category off should still render with its original frozen
+    // metadata. The initialize loop simply copies assignedIssue through, so
+    // any value the user persisted (including the security-* alert types)
+    // survives intact.
+    const config = makeConfig();
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Bump lodash from 4.17.20 to 4.17.21",
+        issueType: "security-dependabot",
+      },
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.assignedIssue).toEqual({
+      number: 42,
+      integrationId: "github-com",
+      externalId: "42",
+      title: "Bump lodash from 4.17.20 to 4.17.21",
+      issueType: "security-dependabot",
+    });
+  });
+
   it("coerces missing componentSetupState to true (legacy migration)", () => {
     // Even though backend defines a setup command, a bench persisted before
     // setupComplete existed is treated as already-setup-complete because it

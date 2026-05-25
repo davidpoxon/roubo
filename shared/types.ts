@@ -1160,6 +1160,14 @@ export interface AssignedIssue {
     number: number;
   }>;
   /**
+   * Frozen snapshot of the issue's type at assignment time (e.g. "bug",
+   * "security-dependabot"). Drives blueprint-by-issue-type counting in the
+   * source-picker Configure dialog and survives the user toggling the alert
+   * category off afterwards. Never re-validated against current listIssueTypes.
+   * Optional: benches assigned before this field was added persist without it.
+   */
+  issueType?: string | null;
+  /**
    * Plugin-scoped opaque payload (NFR-004). Allowed on the active bench's
    * assignedIssue so a plugin can re-hydrate context across Roubo restarts.
    * Removed from state.json when the bench is cleared (removeBench filters

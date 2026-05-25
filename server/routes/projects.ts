@@ -30,6 +30,21 @@ import type {
 
 const router = Router();
 
+/**
+ * Bundled github.com / GHE plugins emit alerts as NormalizedIssue with these
+ * issueType strings (see plugins/_shared-github/src/mapper.ts). They are not
+ * GitHub-native Issue Types, so they never appear in the plugin's
+ * listIssueTypes response; we append them here so the blueprint-by-issue-type
+ * mapping UI can target alert categories.
+ */
+const GITHUB_FAMILY_SECURITY_ISSUE_TYPES = [
+  "security-code-scanning",
+  "security-secret-scanning",
+  "security-dependabot",
+] as const;
+
+const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
+
 router.get("/", (_req, res) => {
   const projects = projectRegistry.getProjects();
   res.json(projects);
@@ -201,6 +216,17 @@ router.get("/:projectId/issue-types", async (req, res) => {
       { sources: resolveSources(req.params.projectId) },
     );
     const types = rawTypes.map((t) => t.name);
+    if (GITHUB_FAMILY_PLUGIN_IDS.has(active.pluginId)) {
+      // Append alert-category issue types, dedupe (case-sensitive match against
+      // whatever the GitHub-native catalog returned).
+      const seen = new Set(types);
+      for (const securityType of GITHUB_FAMILY_SECURITY_ISSUE_TYPES) {
+        if (!seen.has(securityType)) {
+          types.push(securityType);
+          seen.add(securityType);
+        }
+      }
+    }
     const body: ProjectIssueTypesV2Response = { configured: true, types };
     res.json(body);
   } catch (err) {
