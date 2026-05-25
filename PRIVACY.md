@@ -42,6 +42,7 @@ When you authorize "Roubo for Github", GitHub will ask you to grant the followin
 - **`repo`**: lets Roubo read and write the issues, pull requests, branches, labels, and metadata of repositories your GitHub account can access. Roubo only ever touches repositories you have explicitly registered as projects in the local app.
 - **`read:org`**: lets Roubo read your organization memberships. This is required by GitHub in order to enumerate GitHub Projects (v2) that live under an organization you belong to.
 - **`read:project`**: lets Roubo read GitHub Projects (v2), so it can list issues from a linked project and read project metadata such as fields and issue types.
+- **`security_events`**: lets Roubo read GitHub code-scanning alerts for the repositories you have registered as projects, so they can be surfaced inside the local app.
 
 Roubo does not request any other scopes (for example, it does not request `delete_repo`, `admin:org`, `user:email`, `workflow`, or any GitHub App equivalents).
 

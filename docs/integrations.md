@@ -41,11 +41,12 @@ Roubo ships with a default bundled OAuth App (client ID `Ov23li8FytWzZPHmc7fm`).
 
 Roubo requests the following scopes at authorize-time (configured in [`server/services/github-oauth.ts`](../server/services/github-oauth.ts)):
 
-| Scope          | Purpose                                   |
-| -------------- | ----------------------------------------- |
-| `repo`         | Read/write access to repositories and PRs |
-| `read:org`     | Read org membership for issue assignment  |
-| `read:project` | Read GitHub Projects data                 |
+| Scope             | Purpose                                            |
+| ----------------- | -------------------------------------------------- |
+| `repo`            | Read/write access to repositories and PRs          |
+| `read:org`        | Read org membership for issue assignment           |
+| `read:project`    | Read GitHub Projects data                          |
+| `security_events` | Read code-scanning alerts for project repositories |
 
 No action is needed to configure scopes on the OAuth App itself; they are requested during the authorization flow. If `REQUIRED_SCOPES` is ever changed, connected users will be prompted to re-authorize.
 
