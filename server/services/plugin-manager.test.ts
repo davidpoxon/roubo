@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { mkdtemp, rm, symlink, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PluginRecord } from "@roubo/shared";
+import type { PluginEnableState, PluginRecord } from "@roubo/shared";
 
 vi.mock("./project-registry.js", () => ({
   getProjects: vi.fn(() => []),
@@ -11,6 +11,31 @@ vi.mock("./project-registry.js", () => ({
 vi.mock("./active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(() => null),
 }));
+
+// Mock the persistence boundary so plugin-manager tests don't touch the real
+// ~/.roubo/plugins-state.json. The unit-tested behaviour is "plugin-manager
+// calls these in the right order" — the actual file IO is covered by
+// plugin-enable-state.test.ts and the migrate integration test.
+const enableStateMocks = vi.hoisted(() => {
+  return {
+    loadEnableState: vi.fn<() => PluginEnableState | null>(() => null),
+    saveEnableState: vi.fn<(s: PluginEnableState) => void>(),
+    setPluginEnabled: vi.fn<(id: string, enabled: boolean) => PluginEnableState>(),
+    removePlugin: vi.fn<(id: string) => void>(),
+  };
+});
+vi.mock("./plugin-enable-state.js", () => enableStateMocks);
+
+beforeEach(() => {
+  enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
+  enableStateMocks.saveEnableState.mockReset();
+  enableStateMocks.setPluginEnabled.mockReset().mockImplementation((id, enabled) => ({
+    schemaVersion: 1,
+    installInitialized: true,
+    plugins: { [id]: enabled ? "enabled" : "disabled" },
+  }));
+  enableStateMocks.removePlugin.mockReset();
+});
 
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
@@ -698,6 +723,9 @@ permissions:
       .then(() => false)
       .catch(() => true);
     expect(dirGone).toBe(true);
+    // WU-046: uninstall must also drop the plugin from plugins-state.json so
+    // a future install of the same id starts from the default.
+    expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-remove");
   });
 
   it("refuses to uninstall a bundled plugin", async () => {
@@ -803,5 +831,95 @@ describe("registerInstalled (WU-011)", () => {
     const empty = path.join(sandbox.userDir, "empty");
     await mkdir(empty, { recursive: true });
     await expect(mgr.registerInstalled(empty)).rejects.toThrow(/No roubo-plugin manifest/);
+  });
+});
+
+describe("plugin-enable-state integration (WU-046)", () => {
+  it("does not spawn plugins whose persisted state is 'disabled'", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("disabled");
+    expect(echo.pid).toBeNull();
+  });
+
+  it("spawns plugins whose persisted state is 'enabled'", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("enabled");
+    expect(echo.pid).not.toBeNull();
+  });
+
+  it("treats a missing plugins-state.json file as 'enable everything' (legacy install)", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce(null);
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("enabled");
+  });
+
+  it("treats a plugin missing from the persisted map as enabled (preserves discovery default)", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "some-other-plugin": "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("enabled");
+  });
+
+  it("write-throughs enable() to setPluginEnabled before spawning", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
+
+    await mgr.enable("echo");
+
+    expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("echo", true);
+    expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
+  });
+
+  it("write-throughs disable() to setPluginEnabled before stopping the process", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
+
+    await mgr.disable("echo");
+
+    expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("echo", false);
+    expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
   });
 });

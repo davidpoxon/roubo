@@ -21,6 +21,8 @@ import { CancellationTokenSource, createConnection, type JsonRpcConnection } fro
 import { registerHostHandlers } from "./plugin-host-api.js";
 import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
+import * as pluginEnableState from "./plugin-enable-state.js";
+import type { PluginEnableState } from "@roubo/shared";
 
 export const HOST_API_VERSION = "1.0.0";
 export const RESTART_BUDGET = 3;
@@ -45,6 +47,20 @@ interface PluginEntry {
 
 const plugins = new Map<string, PluginEntry>();
 let initialized = false;
+// WU-046: enable-state snapshot loaded once at initialize() and kept in sync
+// via setPluginEnabled/removePlugin write-throughs. `null` means the file
+// did not exist on boot (legacy install), in which case every discovered
+// plugin is treated as implicitly "enabled" per architecture.md:1097.
+let enableStateCache: PluginEnableState | null = null;
+
+function isPluginEnabled(pluginId: string): boolean {
+  if (!enableStateCache) return true; // legacy install: preserve existing behaviour
+  const value = enableStateCache.plugins[pluginId];
+  // Missing entries also default to "enabled" so a plugin that appears after
+  // the seed (e.g. user-installed via the install pipeline before its first
+  // toggle) is not silently held back.
+  return value !== "disabled";
+}
 
 function bundledPluginsRoot(): string {
   const override = process.env.ROUBO_BUNDLED_PLUGINS_DIR;
@@ -660,6 +676,12 @@ export async function initialize(): Promise<void> {
   }
   initialized = true;
 
+  // WU-046: load the persisted enable-state once at boot. The migrate.run()
+  // pass that ran moments earlier seeds this file; a missing file means
+  // legacy install (pre-WU-046), and isPluginEnabled() preserves the prior
+  // behaviour by defaulting everything to enabled.
+  enableStateCache = pluginEnableState.loadEnableState();
+
   const discovered = new Map<string, PluginEntry>();
   try {
     await discoverRoot(bundledPluginsRoot(), "bundled", discovered);
@@ -678,9 +700,9 @@ export async function initialize(): Promise<void> {
 
   const spawns: Promise<void>[] = [];
   for (const entry of plugins.values()) {
-    if (entry.record.status === "disabled" && entry.record.manifest) {
-      spawns.push(spawnPlugin(entry));
-    }
+    if (entry.record.status !== "disabled" || !entry.record.manifest) continue;
+    if (!isPluginEnabled(entry.record.id)) continue;
+    spawns.push(spawnPlugin(entry));
   }
   await Promise.all(spawns);
 }
@@ -705,6 +727,7 @@ export async function shutdown(): Promise<void> {
     }
   }
   plugins.clear();
+  enableStateCache = null;
   initialized = false;
 }
 
@@ -724,6 +747,9 @@ export async function enable(pluginId: string): Promise<void> {
   if (entry.record.status === "incompatible") {
     throw new Error(`Plugin "${pluginId}" is incompatible with this host`);
   }
+  // WU-046: persist before mutating in-memory state so a write-through failure
+  // surfaces to the caller without leaving the runtime and disk out of sync.
+  enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
   if (entry.process) return; // already running
   entry.record.status = "disabled";
   entry.record.lastError = null;
@@ -733,6 +759,7 @@ export async function enable(pluginId: string): Promise<void> {
 export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
   if (!entry.process) {
     entry.record.status = "disabled";
     return;
@@ -796,6 +823,9 @@ export async function uninstall(pluginId: string): Promise<void> {
 
   await rm(entry.record.pluginDir, { recursive: true, force: true });
   plugins.delete(pluginId);
+  // WU-046: keep plugins-state.json in sync so a re-installed plugin id
+  // doesn't carry the prior install's enable bit by accident.
+  pluginEnableState.removePlugin(pluginId);
 }
 
 /**
@@ -956,7 +986,14 @@ export const __test = {
   reset(): void {
     plugins.clear();
     initialized = false;
+    enableStateCache = null;
     LOG_ROTATION_BYTES = 5 * 1024 * 1024;
+  },
+  setEnableStateCache(state: PluginEnableState | null): void {
+    enableStateCache = state;
+  },
+  getEnableStateCache(): PluginEnableState | null {
+    return enableStateCache;
   },
   setLogRotationBytes(bytes: number): void {
     LOG_ROTATION_BYTES = bytes;
