@@ -190,12 +190,19 @@ type FilterFacet = {
   id: string;
   label: string;
   type: "enum" | "enum-async" | "multi-enum";
-  options?: string[];
+  options?: FilterFacetOption[];
+};
+
+type FilterFacetOption = {
+  value: string;
+  label: string;
 };
 ```
 
-- `enum`: small fixed set; provide `options` inline.
-- `enum-async`: set is large or remote; omit `options` and the host requests them lazily on dropdown open via a separate RPC (see #136).
+Pick a `type` based on how big and stable the option set is:
+
+- `enum`: small, stable set; ship `options` inline. Recommended only when you expect the option set to stay under roughly 100 items.
+- `enum-async`: set is large or remote; omit `options` and implement `getFacetOptions` (below). The host renders the dropdown empty with a loading affordance until the user opens it.
 - `multi-enum`: multi-select variant of `enum`.
 
 ```js
@@ -207,6 +214,25 @@ async filterFacets() {
 ```
 
 If you omit this method, the host falls back to a fixed common-facet set (Status, Label, Assignee, Type). Plugins built against host-API 1.0.0 keep working without changes.
+
+### `getFacetOptions({ facetId, sources, search? }): Promise<FilterFacetOption[]>` (host-API 1.1.0+)
+
+Optional. The lazy counterpart to `filterFacets` for any facet you declared with `type: "enum-async"`. The host calls this when the user opens the dropdown for that facet; `search` is the optional user-typed prefix/substring (apply it server-side if your upstream supports it, otherwise filter the full set yourself).
+
+`sources` is the same `ConfiguredSource[]` shape the rest of the source-bound RPCs receive, so the plugin stays stateless across projects.
+
+```js
+async getFacetOptions({ facetId, sources, search }) {
+  if (facetId !== "milestone") return [];
+  const titles = await fetchMilestones(sources[0].externalId);
+  const options = titles.map((title) => ({ value: title, label: title }));
+  if (!search) return options;
+  const needle = search.toLowerCase();
+  return options.filter((o) => o.label.toLowerCase().includes(needle));
+}
+```
+
+If you omit this method, the host resolves to an empty option list rather than surfacing `MethodNotFound`; the dropdown stays empty. Plugins built against host-API 1.0.0 keep working without changes.
 
 ### Per-issue facet values (host-API 1.1.0+)
 

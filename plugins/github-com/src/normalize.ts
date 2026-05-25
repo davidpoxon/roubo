@@ -31,6 +31,10 @@ function labelList(raw: RawIssue): string[] {
   return (raw.labels ?? []).map((l) => (typeof l === "string" ? l : (l.name ?? "")));
 }
 
+function facetValuesFor(milestoneTitle: string | undefined): Record<string, string> | undefined {
+  return milestoneTitle ? { milestone: milestoneTitle } : undefined;
+}
+
 export interface NormalizeIssueOptions {
   blockedBy?: string[];
   blocks?: string[];
@@ -61,6 +65,7 @@ export function rawToNormalizedIssue(
     blockedBy: options.blockedBy ?? [],
     updatedAt: raw.updated_at,
     raw,
+    facetValues: facetValuesFor(raw.milestone?.title),
   };
 }
 
@@ -127,6 +132,7 @@ export function projectNodeToNormalizedIssue(
     blockedBy: options.blockedBy ?? [],
     updatedAt: content.updatedAt ?? "",
     raw,
+    facetValues: facetValuesFor(content.milestone?.title),
   };
 }
 

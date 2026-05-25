@@ -24,7 +24,8 @@ import {
   persistSecretFields,
   runIntegrationTest,
 } from "../services/integration-test.js";
-import { forgetProjectActivation } from "../services/plugin-activation.js";
+import { forgetProjectActivation, resolveSources } from "../services/plugin-activation.js";
+import { getPluginFacetOptions, getPluginFilterFacets } from "../services/plugin-filter-facets.js";
 
 const router = Router();
 
@@ -367,6 +368,69 @@ router.get("/:projectId/integration/sources", async (req, res) => {
     res.json(response);
   } catch (err) {
     res.status(502).json({ error: `Plugin listSourceCandidates failed: ${errorMessage(err)}` });
+  }
+});
+
+router.get("/:projectId/integration/filter-facets", async (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const committed: IntegrationConfig | null = project.config?.integration ?? null;
+  const overrideEnvelope = loadOverride(req.params.projectId);
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
+
+  if (!effective.plugin) {
+    res.status(409).json({ error: "No active integration plugin for this project" });
+    return;
+  }
+
+  try {
+    const facets = await getPluginFilterFacets(effective.plugin);
+    res.json(facets);
+  } catch (err) {
+    res.status(502).json({ error: `Plugin filterFacets failed: ${errorMessage(err)}` });
+  }
+});
+
+router.get("/:projectId/integration/facet-options", async (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const facetId = req.query.facetId;
+  if (typeof facetId !== "string" || facetId.length === 0) {
+    res.status(400).json({ error: "Missing required query param: facetId" });
+    return;
+  }
+  const search = req.query.search;
+  if (search !== undefined && typeof search !== "string") {
+    res.status(400).json({ error: "search must be a string" });
+    return;
+  }
+
+  const committed: IntegrationConfig | null = project.config?.integration ?? null;
+  const overrideEnvelope = loadOverride(req.params.projectId);
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
+
+  if (!effective.plugin) {
+    res.status(409).json({ error: "No active integration plugin for this project" });
+    return;
+  }
+
+  try {
+    const options = await getPluginFacetOptions(effective.plugin, {
+      facetId,
+      sources: resolveSources(req.params.projectId),
+      ...(typeof search === "string" && search.length > 0 ? { search } : {}),
+    });
+    res.json(options);
+  } catch (err) {
+    res.status(502).json({ error: `Plugin getFacetOptions failed: ${errorMessage(err)}` });
   }
 });
 

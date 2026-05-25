@@ -64,6 +64,31 @@ describe("normalize", () => {
       expect(issue.blockedBy).toEqual(["foo/bar#1"]);
       expect(issue.blocks).toEqual(["foo/bar#9"]);
     });
+
+    it("populates facetValues.milestone when the issue has a milestone (TC-127)", () => {
+      const raw: RawIssue = {
+        number: 7,
+        title: "with milestone",
+        state: "open",
+        created_at: "x",
+        updated_at: "x",
+        html_url: "u",
+        milestone: { title: "v1.2" },
+      };
+      expect(rawToNormalizedIssue(raw).facetValues).toEqual({ milestone: "v1.2" });
+    });
+
+    it("omits facetValues entirely when no milestone is set (TC-127)", () => {
+      const raw: RawIssue = {
+        number: 8,
+        title: "no milestone",
+        state: "open",
+        created_at: "x",
+        updated_at: "x",
+        html_url: "u",
+      };
+      expect(rawToNormalizedIssue(raw).facetValues).toBeUndefined();
+    });
   });
 
   describe("rawToNormalizedComment", () => {
@@ -170,6 +195,29 @@ describe("normalize", () => {
       if (!result) throw new Error("projectNodeToNormalizedIssue returned null");
       expect(result.blockedBy).toEqual(["foo/bar#1"]);
       expect(result.blocks).toEqual(["foo/bar#9"]);
+    });
+
+    it("populates facetValues.milestone for project items with a milestone (TC-127)", () => {
+      const node: ProjectV2Data["items"]["nodes"][number] = {
+        content: {
+          __typename: "Issue",
+          number: 21,
+          title: "T",
+          body: null,
+          state: "OPEN",
+          labels: { nodes: [] },
+          assignees: { nodes: [] },
+          milestone: { title: "v2.0" },
+          issueType: null,
+          createdAt: "x",
+          updatedAt: "x",
+          comments: { totalCount: 0 },
+        },
+        fieldValueByName: null,
+      };
+      const result = projectNodeToNormalizedIssue(node, "foo/bar");
+      if (!result) throw new Error("projectNodeToNormalizedIssue returned null");
+      expect(result.facetValues).toEqual({ milestone: "v2.0" });
     });
   });
 });

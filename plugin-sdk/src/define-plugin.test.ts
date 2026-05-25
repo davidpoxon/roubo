@@ -8,7 +8,13 @@ import {
 } from "vscode-jsonrpc/node.js";
 import { definePlugin } from "./define-plugin.js";
 import { host } from "./host-client.js";
-import type { ConnectionStatus, FilterFacet, ListIssuesResult, PluginHandle } from "./types.js";
+import type {
+  ConnectionStatus,
+  FilterFacet,
+  FilterFacetOption,
+  ListIssuesResult,
+  PluginHandle,
+} from "./types.js";
 
 /**
  * Build a paired in-memory JSON-RPC connection: one half is the SDK
@@ -288,7 +294,15 @@ describe("definePlugin (TC-035)", () => {
         {
           async filterFacets() {
             return [
-              { id: "status", label: "Status", type: "enum", options: ["open", "closed"] },
+              {
+                id: "status",
+                label: "Status",
+                type: "enum",
+                options: [
+                  { value: "open", label: "Open" },
+                  { value: "closed", label: "Closed" },
+                ],
+              },
               { id: "milestone", label: "Milestone", type: "enum-async" },
             ];
           },
@@ -299,7 +313,15 @@ describe("definePlugin (TC-035)", () => {
 
     const facets = await hostConnection.sendRequest<FilterFacet[]>("filterFacets", undefined);
     expect(facets).toEqual([
-      { id: "status", label: "Status", type: "enum", options: ["open", "closed"] },
+      {
+        id: "status",
+        label: "Status",
+        type: "enum",
+        options: [
+          { value: "open", label: "Open" },
+          { value: "closed", label: "Closed" },
+        ],
+      },
       { id: "milestone", label: "Milestone", type: "enum-async" },
     ]);
   });
@@ -313,6 +335,64 @@ describe("definePlugin (TC-035)", () => {
     await expect(hostConnection.sendRequest("filterFacets", undefined)).rejects.toMatchObject({
       code: -32601,
     });
+  });
+
+  it("round-trips getFacetOptions for an enum-async facet (host-API 1.1.0)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(
+      definePlugin(
+        {
+          async getFacetOptions({ facetId, search }) {
+            expect(facetId).toBe("milestone");
+            const all: FilterFacetOption[] = [
+              { value: "v1.0", label: "v1.0" },
+              { value: "v1.1", label: "v1.1" },
+              { value: "v2.0", label: "v2.0" },
+            ];
+            if (!search) return all;
+            const needle = search.toLowerCase();
+            return all.filter((o) => o.label.toLowerCase().includes(needle));
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const all = await hostConnection.sendRequest<FilterFacetOption[]>("getFacetOptions", {
+      facetId: "milestone",
+      sources: [{ kind: "repo", externalId: "owner/repo" }],
+    });
+    expect(all).toEqual([
+      { value: "v1.0", label: "v1.0" },
+      { value: "v1.1", label: "v1.1" },
+      { value: "v2.0", label: "v2.0" },
+    ]);
+
+    const filtered = await hostConnection.sendRequest<FilterFacetOption[]>("getFacetOptions", {
+      facetId: "milestone",
+      sources: [{ kind: "repo", externalId: "owner/repo" }],
+      search: "v1",
+    });
+    expect(filtered).toEqual([
+      { value: "v1.0", label: "v1.0" },
+      { value: "v1.1", label: "v1.1" },
+    ]);
+  });
+
+  it("returns MethodNotFound when getFacetOptions is omitted", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(definePlugin({}, { streams: pluginStreams }));
+
+    await expect(
+      hostConnection.sendRequest("getFacetOptions", {
+        facetId: "milestone",
+        sources: [],
+      }),
+    ).rejects.toMatchObject({ code: -32601 });
   });
 
   it("preserves NormalizedIssue.facetValues across the RPC boundary (TC-127)", async () => {

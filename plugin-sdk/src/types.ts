@@ -42,14 +42,26 @@ export interface ConnectionStatus {
 /**
  * One descriptor returned by `filterFacets`. Core renders generic filter UI
  * from these; for `enum-async` the host requests options lazily on dropdown
- * open. Plugins built against host-API 1.0.0 omit `filterFacets` and core
- * falls back to a fixed common-facet set.
+ * open via `getFacetOptions`. Plugins built against host-API 1.0.0 omit
+ * `filterFacets` and core falls back to a fixed common-facet set.
  */
 export interface FilterFacet {
   id: string;
   label: string;
   type: "enum" | "enum-async" | "multi-enum";
-  options?: string[];
+  // Present iff the facet's option set is small and stable enough to ship
+  // inline (typical for `enum`/`multi-enum`). Absent for `enum-async` and for
+  // large facets whose options are populated lazily via `getFacetOptions`.
+  options?: FilterFacetOption[];
+}
+
+/**
+ * One option for a `FilterFacet`. Used both inline (eager `enum`/`multi-enum`)
+ * and as the return shape of `getFacetOptions` (lazy `enum-async`).
+ */
+export interface FilterFacetOption {
+  value: string;
+  label: string;
 }
 
 export interface NormalizedComment {
@@ -86,6 +98,19 @@ export interface ListIssueTypesParams {
 
 export interface ListLabelsParams {
   sources: ConfiguredSource[];
+}
+
+/**
+ * Params for the lazy facet-option loader. `facetId` matches a `FilterFacet.id`
+ * the plugin previously returned from `filterFacets()`. `sources` follows the
+ * existing source-bound pattern so plugins remain stateless across projects.
+ * `search` is the optional user-typed prefix/substring; plugins MAY ignore it
+ * and return the full set.
+ */
+export interface GetFacetOptionsParams {
+  facetId: string;
+  sources: ConfiguredSource[];
+  search?: string;
 }
 
 export interface ListIssuesResult {
@@ -188,6 +213,9 @@ export interface PluginContract {
   listLabels?: (params: ListLabelsParams) => Promise<string[]> | string[];
   getConnectionStatus?: () => Promise<ConnectionStatus> | ConnectionStatus;
   filterFacets?: () => Promise<FilterFacet[]> | FilterFacet[];
+  getFacetOptions?: (
+    params: GetFacetOptionsParams,
+  ) => Promise<FilterFacetOption[]> | FilterFacetOption[];
 }
 
 export type ContractMethodName = keyof PluginContract;

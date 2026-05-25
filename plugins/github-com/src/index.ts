@@ -2,9 +2,11 @@ import { definePlugin, host } from "@roubo/plugin-sdk";
 import { bindHost } from "./host-binding.js";
 import { applyTransition } from "./methods/apply-transition.js";
 import { assignIssue } from "./methods/assign-issue.js";
+import { filterFacets } from "./methods/filter-facets.js";
 import { getAvailableTransitions } from "./methods/get-available-transitions.js";
 import { getComments } from "./methods/get-comments.js";
 import { getCurrentUser } from "./methods/get-current-user.js";
+import { getFacetOptions } from "./methods/get-facet-options.js";
 import { getIssue } from "./methods/get-issue.js";
 import { listIssueTypes } from "./methods/list-issue-types.js";
 import { listIssues } from "./methods/list-issues.js";
@@ -28,4 +30,6 @@ definePlugin({
   getAvailableTransitions,
   listIssueTypes,
   listLabels,
+  filterFacets,
+  getFacetOptions,
 });
