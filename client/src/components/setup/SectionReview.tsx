@@ -5,7 +5,6 @@ import type { LucideIcon } from "lucide-react";
 import type { RouboConfig, ComponentConfig, ToolConfig } from "@roubo/shared";
 import FilePathLabel from "../FilePathLabel";
 import WrapCode from "../WrapCode";
-import { useGitHubProjects } from "../../hooks/useSetup";
 import {
   WIZARD_SECTIONS,
   REQUIRED_SECTIONS,
@@ -230,8 +229,6 @@ export default function SectionReview({
   }, [sectionStatus, dispatch]);
 
   const maxBenches = config.benches?.max ?? 1;
-  const { data: projects } = useGitHubProjects(config.project?.repo ?? "");
-  const projectName = projects?.find((p) => p.number === config.project?.github?.project)?.title;
 
   return (
     <div className="space-y-5">
@@ -247,6 +244,9 @@ export default function SectionReview({
       )}
 
       {/* Project Info */}
+      {/* FR-070 (WU-057): Repository, linked GitHub Project, and submodules
+          are owned by the plugin Configure modal now, so Review omits them.
+          Identity here only lists project name and type. */}
       {config.project && (
         <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
           <SectionHeader icon={Globe} label="Project Info" status={sectionStatus.project} />
@@ -256,13 +256,6 @@ export default function SectionReview({
               badge={config.project.type}
             />
             <Row label="Name" value={config.project.name} mono />
-            <Row label="Repository" value={config.project.repo} mono />
-            {config.project.github?.project && (
-              <Row
-                label="GitHub project"
-                value={projectName ?? `#${config.project.github.project}`}
-              />
-            )}
           </div>
         </div>
       )}
@@ -273,22 +266,6 @@ export default function SectionReview({
           <SectionHeader icon={GitFork} label="Structure" status={sectionStatus.layout} />
           <div className="space-y-2">
             {config.layout.type && <Badge>{config.layout.type}</Badge>}
-            {config.layout.type === "meta-repo" &&
-              config.layout.submodules &&
-              Object.keys(config.layout.submodules).length > 0 && (
-                <div>
-                  <span className="text-[11px] text-stone-500 dark:text-stone-600">Submodules</span>
-                  <div className="mt-1 space-y-0.5 pl-2">
-                    {Object.entries(config.layout.submodules).map(([alias, dir]) => (
-                      <div key={alias} className="flex items-center gap-2 text-[12px] font-mono">
-                        <span className="text-stone-500 dark:text-stone-400">{alias}</span>
-                        <span className="text-stone-400 dark:text-stone-600">&rarr;</span>
-                        <span className="text-stone-700 dark:text-stone-300">{dir}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
           </div>
         </div>
       )}

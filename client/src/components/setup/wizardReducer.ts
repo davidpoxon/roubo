@@ -59,17 +59,19 @@ export function validateSection(
 ): SectionStatus | undefined {
   switch (section) {
     case "project": {
+      // FR-070 (WU-057): `repo` lives in the plugin Configure modal now, not
+      // this Identity step, so it is no longer part of the section's validity
+      // gate. Name + displayName + type remain required.
       const p = config.project;
-      if (!p?.name && !p?.displayName && !p?.type && !p?.repo) return undefined;
-      return p?.name && NAME_PATTERN.test(p.name) && p.displayName && p.type && p.repo
-        ? "valid"
-        : "invalid";
+      if (!p?.name && !p?.displayName && !p?.type) return undefined;
+      return p?.name && NAME_PATTERN.test(p.name) && p.displayName && p.type ? "valid" : "invalid";
     }
     case "layout": {
+      // FR-070 (WU-057): `submodules` is edited inside the plugin Configure
+      // modal. The setup-wizard layout step only locks in the structure type;
+      // an empty submodules map for a meta-repo is allowed at this stage.
       const l = config.layout;
       if (!l?.type) return undefined;
-      if (l.type === "meta-repo")
-        return l.submodules && Object.keys(l.submodules).length > 0 ? "valid" : "invalid";
       return "valid";
     }
     case "components": {

@@ -61,17 +61,14 @@ describe("validateSection", () => {
       ).toBe("invalid");
     });
 
-    it("returns invalid when repo is missing", () => {
+    // FR-070 (WU-057): repo is owned by the plugin Configure modal, so the
+    // wizard's Identity step no longer requires it.
+    it("returns valid even when repo is missing", () => {
       expect(
         validateSection("project", {
-          project: {
-            name: "my-project",
-            displayName: "My Project",
-            type: "web",
-            repo: "",
-          },
+          project: { name: "my-project", displayName: "My Project", type: "web" },
         }),
-      ).toBe("invalid");
+      ).toBe("valid");
     });
   });
 
@@ -88,11 +85,11 @@ describe("validateSection", () => {
       expect(validateSection("layout", { layout: { type: "monorepo" } })).toBe("valid");
     });
 
-    it("returns invalid for meta-repo without submodules", () => {
-      expect(validateSection("layout", { layout: { type: "meta-repo" } })).toBe("invalid");
-    });
-
-    it("returns valid for meta-repo with submodules", () => {
+    // FR-070 (WU-057): submodules moved to the plugin Configure modal; the
+    // wizard's Layout step only locks in the structure type now, so meta-repo
+    // is valid with or without submodules at this stage.
+    it("returns valid for meta-repo regardless of submodules", () => {
+      expect(validateSection("layout", { layout: { type: "meta-repo" } })).toBe("valid");
       expect(
         validateSection("layout", {
           layout: { type: "meta-repo", submodules: { backend: "backend/" } },

@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import {
+  Button,
+  Dialog,
+  Heading,
+  Input,
+  Label,
+  Modal,
+  ModalOverlay,
+  TextField,
+} from "react-aria-components";
 import {
   CheckCircle2,
   AlertCircle,
@@ -13,6 +22,8 @@ import type {
   IntegrationCategoryStatus,
   IntegrationConfig,
   IntegrationConfigUpdate,
+  IntegrationFields,
+  IntegrationFieldsUpdate,
   IntegrationTestResult,
   ProjectIntegrationState,
   SourceCandidatesResponse,
@@ -30,10 +41,19 @@ import {
 import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import { useIssueListWarnings } from "../hooks/useIssues";
+import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import SourcePicker from "./SourcePicker";
 import Spinner from "./Spinner";
+import GitHubProjectField from "./project-settings/GitHubProjectField";
+import SubmodulesEditor from "./project-settings/SubmodulesEditor";
 import { passwordFieldKeys } from "./config-schema-utils";
+import { INPUT } from "./setup/styles";
+
+// FR-070 (WU-057): plugins listed here host the Repository / GitHub Project /
+// Submodules controls inside their Configure modal. Other plugins continue to
+// surface the controls elsewhere (or not at all) until their own WU lands.
+const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com"]);
 
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
 
@@ -139,7 +159,12 @@ function ProjectScopeDialog({
   const testMutation = useTestIntegrationConnection(projectId);
   const saveMutation = useSaveIntegrationConfig(projectId);
   const saveSourcesMutation = useSaveProjectSources(projectId);
-  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesMutation.isPending;
+  const saveFieldsMutation = useSaveIntegrationFields(projectId);
+  const isBusy =
+    testMutation.isPending ||
+    saveMutation.isPending ||
+    saveSourcesMutation.isPending ||
+    saveFieldsMutation.isPending;
 
   return (
     <ModalOverlay
@@ -159,6 +184,7 @@ function ProjectScopeDialog({
               testMutation={testMutation}
               saveMutation={saveMutation}
               saveSourcesMutation={saveSourcesMutation}
+              saveFieldsMutation={saveFieldsMutation}
             />
           )}
         </Dialog>
@@ -229,6 +255,43 @@ function initialSourceSelection(effective: IntegrationConfig): SourceSelection {
   return out;
 }
 
+function submodulesEqual(
+  a: Record<string, string> | undefined,
+  b: Record<string, string> | undefined,
+): boolean {
+  const aMap = a ?? {};
+  const bMap = b ?? {};
+  const aKeys = Object.keys(aMap);
+  const bKeys = Object.keys(bMap);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) if (aMap[k] !== bMap[k]) return false;
+  return true;
+}
+
+function diffIntegrationFields(
+  original: IntegrationFields | undefined,
+  next: IntegrationFields,
+): IntegrationFieldsUpdate | null {
+  if (!original) return null;
+  const update: IntegrationFieldsUpdate = {};
+  let changed = false;
+  const trimmedRepo = next.repo?.trim() ?? "";
+  if (trimmedRepo !== (original.repo ?? "")) {
+    update.repo = trimmedRepo.length > 0 ? trimmedRepo : null;
+    changed = true;
+  }
+  if (next.githubProject !== original.githubProject) {
+    update.githubProject = next.githubProject ?? null;
+    changed = true;
+  }
+  if (!submodulesEqual(next.submodules, original.submodules)) {
+    update.submodules =
+      next.submodules && Object.keys(next.submodules).length > 0 ? next.submodules : null;
+    changed = true;
+  }
+  return changed ? update : null;
+}
+
 function hasAnyCandidates(data: SourceCandidatesResponse | undefined): boolean {
   if (!data) return false;
   if (data.shape === "multi-list") return (data.items?.length ?? 0) > 0;
@@ -245,6 +308,7 @@ type ConfigureFlowProps =
       testMutation: ReturnType<typeof useTestIntegrationConnection>;
       saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
       saveSourcesMutation: ReturnType<typeof useSaveProjectSources>;
+      saveFieldsMutation: ReturnType<typeof useSaveIntegrationFields>;
     }
   | {
       mode: "global";
@@ -271,6 +335,27 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceSelection>(initialSources);
+
+  // FR-070: repo / linked GitHub Project / submodules are now edited inside
+  // the plugin Configure modal. Server values arrive via /integration/fields
+  // and the user's pending edits are tracked as a partial overlay so we can
+  // diff against the original on Save without an effect-based seed.
+  const showIntegrationFields =
+    mode === "project" && PLUGINS_WITH_INTEGRATION_FIELDS.has(plugin.id);
+  const integrationFieldsQuery = useIntegrationFields(
+    mode === "project" && showIntegrationFields ? props.projectId : undefined,
+  );
+  const [fieldEdits, setFieldEdits] = useState<Partial<IntegrationFields>>({});
+  const serverFields = integrationFieldsQuery.data;
+  const fields: IntegrationFields = { ...serverFields, ...fieldEdits };
+  const setFields = (next: IntegrationFields) => {
+    setFieldEdits({
+      repo: next.repo,
+      githubProject: next.githubProject,
+      submodules: next.submodules,
+    });
+  };
+  const isMetaRepo = fields.layoutType === "meta-repo";
 
   const passwordKeys = useMemo(
     () => new Set(passwordFieldKeys(manifest?.configSchema)),
@@ -392,6 +477,10 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     }
     try {
       await props.saveSourcesMutation.mutateAsync(sources);
+      const update = diffIntegrationFields(serverFields, fields);
+      if (update) {
+        await props.saveFieldsMutation.mutateAsync(update);
+      }
       close();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
@@ -399,7 +488,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   }
 
   const saveSourcesPending = mode === "project" ? props.saveSourcesMutation.isPending : false;
-  const isBusy = testMutation.isPending || saveMutation.isPending || saveSourcesPending;
+  const saveFieldsPending = mode === "project" ? props.saveFieldsMutation.isPending : false;
+  const isBusy =
+    testMutation.isPending || saveMutation.isPending || saveSourcesPending || saveFieldsPending;
   const showSourcesSection =
     mode === "project" &&
     hasTestedSuccessfully &&
@@ -488,6 +579,32 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           </div>
         )}
 
+        {showIntegrationFields && (
+          <div className="flex flex-col gap-4" data-testid="integration-fields-section">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+              Repository &amp; metadata
+            </span>
+            <TextField
+              value={fields.repo ?? ""}
+              onChange={(v) => setFields({ ...fields, repo: v })}
+            >
+              <Label className="block text-xs text-stone-500 mb-1.5">Repository</Label>
+              <Input placeholder="org/repo-name" className={INPUT} />
+            </TextField>
+            <GitHubProjectField
+              repo={fields.repo}
+              value={fields.githubProject}
+              onChange={(next) => setFields({ ...fields, githubProject: next })}
+            />
+            {isMetaRepo && (
+              <SubmodulesEditor
+                value={fields.submodules ?? {}}
+                onChange={(next) => setFields({ ...fields, submodules: next })}
+              />
+            )}
+          </div>
+        )}
+
         {submitError && (
           <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
             {submitError}
@@ -518,7 +635,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending || saveSourcesPending ? "Saving…" : "Save"}
+            {saveMutation.isPending || saveSourcesPending || saveFieldsPending ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>

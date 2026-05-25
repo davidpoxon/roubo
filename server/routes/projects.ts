@@ -11,6 +11,12 @@ import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import { atomicWrite } from "../services/state.js";
+import {
+  getIntegrationFields,
+  setIntegrationFields,
+  touchesIntegrationFields,
+  IntegrationFieldsError,
+} from "../services/project-integration-fields.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import type {
   RegisterProjectRequest,
@@ -19,6 +25,7 @@ import type {
   CheckConfigRequest,
   PluginError,
   ProjectIssueTypesV2Response,
+  IntegrationFieldsUpdate,
 } from "@roubo/shared";
 
 const router = Router();
@@ -311,6 +318,47 @@ router.get("/:projectId/config/raw", (req, res) => {
   }
 });
 
+router.get("/:projectId/integration/fields", (req, res) => {
+  try {
+    const fields = getIntegrationFields(req.params.projectId);
+    res.json(fields);
+  } catch (err) {
+    if (err instanceof IntegrationFieldsError) {
+      const status =
+        err.code === "PROJECT_NOT_FOUND" ? 404 : err.code === "CONFIG_INVALID" ? 400 : 500;
+      res.status(status).json({ error: err.message, code: err.code });
+    } else {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  }
+});
+
+router.put("/:projectId/integration/fields", (req, res) => {
+  const update = req.body as IntegrationFieldsUpdate;
+  if (!update || typeof update !== "object" || Array.isArray(update)) {
+    res.status(400).json({ error: "Request body must be an object" });
+    return;
+  }
+  try {
+    const fields = setIntegrationFields(req.params.projectId, update);
+    res.json(fields);
+  } catch (err) {
+    if (err instanceof IntegrationFieldsError) {
+      const status =
+        err.code === "PROJECT_NOT_FOUND"
+          ? 404
+          : err.code === "NO_ACTIVE_PLUGIN" || err.code === "PLUGIN_NOT_SUPPORTED"
+            ? 409
+            : err.code === "INVALID_FIELD" || err.code === "CONFIG_INVALID"
+              ? 400
+              : 500;
+      res.status(status).json({ error: err.message, code: err.code });
+    } else {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  }
+});
+
 router.put("/:projectId/config/raw", (req, res) => {
   const project = projectRegistry.getProject(req.params.projectId);
   if (!project) {
@@ -350,6 +398,18 @@ router.put("/:projectId/config/raw", (req, res) => {
       details: parseResult.errors ?? [],
     });
     return;
+  }
+
+  // WU-057 migration shim: PUT /config/raw still writes the full YAML, but
+  // when it touches plugin-owned fields (repo, github.project, submodules)
+  // we log a one-line deprecation so call-sites can be migrated to
+  // /integration/fields. Both paths write to the same roubo.yaml, so the
+  // two stores never disagree during the migration window.
+  if (touchesIntegrationFields(parsed)) {
+    console.warn(
+      `[deprecated] PUT /projects/${req.params.projectId}/config/raw set plugin-owned fields ` +
+        "(repo / github.project / submodules); prefer PUT /integration/fields.",
+    );
   }
 
   try {
