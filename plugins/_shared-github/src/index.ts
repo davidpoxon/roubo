@@ -27,3 +27,11 @@ export {
   type AlertCategory,
   type ParsedGithubExternalId,
 } from "./external-id.js";
+export {
+  detectTokenScopes,
+  hasScope,
+  scopeStatus,
+  SECURITY_EVENTS_SCOPE,
+  type DetectTokenScopesResult,
+  type DetectTokenScopesOptions,
+} from "./token-scopes.js";

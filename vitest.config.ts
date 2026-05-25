@@ -1,8 +1,21 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // Plugin tests under `plugins/{github-com,ghe}/src/__tests__/` import
+      // transitively from `@roubo/shared-github`, which only exists at
+      // `plugins/_shared-github/dist/` after a build step. CI runs tests
+      // directly off `npm ci` (no build), so we alias the package to its
+      // source entry to keep the test job hermetic.
+      "@roubo/shared-github": fileURLToPath(
+        new URL("./plugins/_shared-github/src/index.ts", import.meta.url),
+      ),
+    },
+  },
   test: {
     globals: true,
     restoreMocks: true,
