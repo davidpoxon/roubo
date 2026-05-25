@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Bug, KeyRound, Tag } from "lucide-react";
 import IssueChip from "./IssueChip";
 
@@ -105,5 +106,79 @@ describe("IssueChip", () => {
     const desc = getByText("Blocked by org/repo#10");
     expect(desc.id).toBe(describedBy);
     expect(desc.className).toContain("sr-only");
+  });
+
+  describe("interactive mode (WU-031)", () => {
+    it("renders as a non-interactive span when onPress is omitted", () => {
+      const { container } = render(
+        <IssueChip variant="status" tone="warning">
+          Unavailable
+        </IssueChip>,
+      );
+      const chip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
+      expect(chip.tagName).toBe("SPAN");
+      expect(chip.getAttribute("role")).toBeNull();
+    });
+
+    it("renders as an accessible button when onPress is provided", () => {
+      const onPress = vi.fn();
+      render(
+        <IssueChip variant="status" tone="warning" onPress={onPress}>
+          Unavailable
+        </IssueChip>,
+      );
+      const chip = screen.getByRole("button", { name: /unavailable/i });
+      expect(chip.tagName).toBe("BUTTON");
+      expect(chip.className).toMatch(/amber-/);
+      expect(chip.className).toContain("rounded-full");
+    });
+
+    it("invokes onPress when the button chip is clicked", async () => {
+      const onPress = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <IssueChip variant="status" tone="warning" onPress={onPress}>
+          Unavailable
+        </IssueChip>,
+      );
+      await user.click(screen.getByRole("button", { name: /unavailable/i }));
+      expect(onPress).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders actionSuffix content inside the chip after children", () => {
+      render(
+        <IssueChip
+          variant="status"
+          tone="warning"
+          onPress={vi.fn()}
+          actionSuffix={<span data-testid="retry-link">Retry</span>}
+        >
+          Unavailable
+        </IssueChip>,
+      );
+      const chip = screen.getByRole("button");
+      expect(chip).toContainElement(screen.getByTestId("retry-link"));
+      expect(chip.textContent).toContain("Unavailable");
+      expect(chip.textContent).toContain("Retry");
+    });
+
+    it("preserves ariaDescription wiring in interactive mode", () => {
+      render(
+        <IssueChip
+          variant="status"
+          tone="warning"
+          ariaDescription="Token lacks security_events scope"
+          onPress={vi.fn()}
+        >
+          Unavailable
+        </IssueChip>,
+      );
+      const chip = screen.getByRole("button");
+      const describedBy = chip.getAttribute("aria-describedby");
+      expect(describedBy).not.toBeNull();
+      const desc = screen.getByText("Token lacks security_events scope");
+      expect(desc.id).toBe(describedBy);
+      expect(desc.className).toContain("sr-only");
+    });
   });
 });

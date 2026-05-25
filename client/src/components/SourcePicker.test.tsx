@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import type { SourceCandidatesResponse, SourceSelection } from "@roubo/shared";
 import SourcePicker from "./SourcePicker";
+
+const { apiMocks } = vi.hoisted(() => ({
+  apiMocks: { startGithubPluginOauth: vi.fn() },
+}));
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
+  return { ...actual, startGithubPluginOauth: apiMocks.startGithubPluginOauth };
+});
 
 function ControlledPicker({
   response,
@@ -298,5 +308,143 @@ describe("SourcePicker: security & quality alerts disclosure (WU-030)", () => {
 
     const description = screen.getByText(warning.cause);
     expect(description).toHaveClass("sr-only");
+  });
+
+  describe("OAuth re-consent (WU-031)", () => {
+    let queryClient: QueryClient;
+    let windowOpenSpy: ReturnType<typeof vi.fn>;
+
+    function wrapWithProviders(node: React.ReactElement): ReactNode {
+      return <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>;
+    }
+
+    beforeEach(() => {
+      apiMocks.startGithubPluginOauth.mockReset();
+      queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.invalidateQueries = vi.fn() as never;
+      Object.defineProperty(window, "roubo", {
+        configurable: true,
+        value: {
+          onDeepLink: vi.fn(() => () => {}),
+          onNavigate: vi.fn(() => () => {}),
+          platform: "darwin",
+          setTitleBarOverlayTheme: vi.fn(),
+          getAppVersion: vi.fn().mockResolvedValue("1.0.0"),
+        },
+      });
+      windowOpenSpy = vi.fn();
+      vi.stubGlobal("open", windowOpenSpy);
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, "roubo", { configurable: true, value: undefined });
+      vi.unstubAllGlobals();
+    });
+
+    const oauthWarning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+      detail: { status: 401 as const },
+    };
+
+    const nonOauthWarning = {
+      category: "code-scanning" as const,
+      sourceExternalId: "org/api",
+      cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+      detail: { status: 403 as const },
+    };
+
+    it("renders the chip as a button when the warning is a 401 on a security category", async () => {
+      const user = userEvent.setup();
+      render(
+        wrapWithProviders(
+          <SourcePicker
+            response={multiListFixture}
+            value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+            onChange={() => {}}
+            warnings={[oauthWarning]}
+          />,
+        ),
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+      );
+
+      // Two buttons named "Unavailable" should not be possible; the chip is
+      // the only one with that name + a button role.
+      const chip = screen.getByRole("button", { name: /unavailable/i });
+      expect(chip.tagName).toBe("BUTTON");
+    });
+
+    it("renders the chip as a non-interactive span when the warning is not OAuth-recoverable", async () => {
+      const user = userEvent.setup();
+      const { container } = render(
+        wrapWithProviders(
+          <SourcePicker
+            response={multiListFixture}
+            value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+            onChange={() => {}}
+            warnings={[nonOauthWarning]}
+          />,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+      );
+      // Chip should not be a button (no accessible name "Unavailable" on a BUTTON).
+      expect(screen.queryByRole("button", { name: /unavailable/i })).toBeNull();
+      const chip = container.querySelector('[data-chip-category="status"]') as HTMLElement | null;
+      expect(chip).not.toBeNull();
+      expect(chip?.tagName).toBe("SPAN");
+    });
+
+    it("opens the OAuth re-consent dialog when the chip-as-button is clicked", async () => {
+      const user = userEvent.setup();
+      render(
+        wrapWithProviders(
+          <SourcePicker
+            response={multiListFixture}
+            value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+            onChange={() => {}}
+            warnings={[oauthWarning]}
+          />,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+      );
+      await user.click(screen.getByRole("button", { name: /unavailable/i }));
+      expect(screen.getByTestId("oauth-reconsent-dialog")).toBeInTheDocument();
+    });
+
+    it("shows a Retry hint inside the chip after the user cancels the OAuth flow", async () => {
+      apiMocks.startGithubPluginOauth.mockResolvedValueOnce({
+        url: "https://github.com/login/oauth/authorize?state=xyz",
+      });
+      const user = userEvent.setup();
+      render(
+        wrapWithProviders(
+          <SourcePicker
+            response={multiListFixture}
+            value={{ items: [{ externalId: "org/api", includeCodeQLAlerts: true }] }}
+            onChange={() => {}}
+            warnings={[oauthWarning]}
+          />,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: /Security & quality alerts for org\/api/i }),
+      );
+      await user.click(screen.getByRole("button", { name: /unavailable/i }));
+      await user.click(screen.getByRole("button", { name: /continue to github/i }));
+      await waitFor(() => expect(windowOpenSpy).toHaveBeenCalled());
+      await user.click(screen.getByTestId("oauth-reconsent-cancel"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("oauth-reconsent-retry-hint")).toBeInTheDocument(),
+      );
+    });
   });
 });

@@ -31,6 +31,9 @@ function pruneExpiredStates(): void {
   }
 }
 
+// WU-031 / NFR (logs): the returned URL embeds a single-use `state` nonce.
+// Do NOT log the URL or pass it to any plugin-process log surface. The renderer
+// receives it directly from /authorize and hands it to the system browser.
 export function buildAuthorizationUrl(): { url: string } {
   pruneExpiredStates();
   const state = crypto.randomBytes(32).toString("hex");
