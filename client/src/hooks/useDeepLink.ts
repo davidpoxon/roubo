@@ -28,12 +28,16 @@ export function useDeepLink(): void {
           // OAuth completed in the browser and Electron main forwarded the
           // callback URL here. Refetch any cached integration state so the
           // Configure dialog reflects the new credential without a manual
-          // Test connection click.
+          // Test connection click. Also bust the cut list and per-source
+          // warnings so a re-consent flow (WU-039) immediately hides the
+          // inline affordance and surfaces freshly-permitted alerts.
           void queryClient.invalidateQueries({
             queryKey: ["global-plugin-integration", "github-com"],
           });
           void queryClient.invalidateQueries({ queryKey: ["project-integration"] });
           void queryClient.invalidateQueries({ queryKey: ["source-candidates"] });
+          void queryClient.invalidateQueries({ queryKey: ["issues"] });
+          void queryClient.invalidateQueries({ queryKey: ["integration-warnings"] });
         }
       } catch {
         // ignore malformed URLs

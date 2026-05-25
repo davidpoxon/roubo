@@ -166,15 +166,18 @@ export async function fetchRepoAlerts(
 
   const pushWarning = (
     category: "code-scanning" | "secret-scanning" | "dependabot",
-    res: { cause: string; status?: number; code?: string },
+    res: { cause: string; status?: number; code?: string; missingScope?: string },
   ): void => {
+    const detail: NonNullable<ListIssuesWarning["detail"]> = {};
+    if (res.status !== undefined) detail.status = res.status;
+    if (res.missingScope !== undefined) detail.missingScope = res.missingScope;
     warnings.push({
       category,
       cause: res.cause,
       ...(res.code !== undefined
         ? { code: res.code as FetchRepoAlertsResult["warnings"][number]["code"] }
         : {}),
-      ...(res.status !== undefined ? { detail: { status: res.status } } : {}),
+      ...(Object.keys(detail).length > 0 ? { detail } : {}),
     });
   };
 
@@ -217,6 +220,12 @@ export async function fetchRepoAlerts(
         if (w.code === "missing-scope") {
           w.code = "scope-unverifiable";
           w.cause = SCOPE_UNVERIFIABLE_CAUSE;
+          if (w.detail?.missingScope !== undefined) {
+            delete w.detail.missingScope;
+            if (Object.keys(w.detail).length === 0) {
+              delete w.detail;
+            }
+          }
         }
       }
     }

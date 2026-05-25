@@ -51,7 +51,12 @@ export function Fixture() {
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
       <h1 style={{ fontSize: 14, marginBottom: 16 }}>SourcePicker fixture</h1>
-      <SourcePicker response={response} value={value} onChange={setValue} />
+      <SourcePicker
+        response={response}
+        value={value}
+        onChange={setValue}
+        chipContext={{ pluginId: "github-com" }}
+      />
       <pre data-testid="value-debug" style={{ marginTop: 24, fontSize: 12 }}>
         {JSON.stringify(value, null, 2)}
       </pre>

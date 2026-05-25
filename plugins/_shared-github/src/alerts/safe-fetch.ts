@@ -31,7 +31,13 @@ export type SafeFetchWarningCode =
 
 export type SafeFetchResult<T> =
   | { ok: true; items: T[] }
-  | { ok: false; cause: string; status?: number; code: SafeFetchWarningCode };
+  | {
+      ok: false;
+      cause: string;
+      status?: number;
+      code: SafeFetchWarningCode;
+      missingScope?: string;
+    };
 
 const CATEGORY_PREFIX: Record<AlertFetchCategory, string> = {
   "code-scanning": "Code Scanning",
@@ -86,7 +92,15 @@ export async function safeFetchAlerts<T>(
       const mapped = CAUSE_TABLE[category][err.status];
       const cause =
         mapped ?? `${CATEGORY_PREFIX[category]} unavailable: GitHub returned HTTP ${err.status}.`;
-      return { ok: false, cause, status: err.status, code: classifyStatus(err.status) };
+      const code = classifyStatus(err.status);
+      const missingScope = err.status === 401 ? "security_events" : undefined;
+      return {
+        ok: false,
+        cause,
+        status: err.status,
+        code,
+        ...(missingScope !== undefined ? { missingScope } : {}),
+      };
     }
     const message = err instanceof Error ? err.message : String(err);
     return {
