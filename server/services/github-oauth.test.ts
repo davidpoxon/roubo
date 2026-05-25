@@ -26,7 +26,7 @@ describe("buildAuthorizationUrl", () => {
     expect(ua.searchParams.get("client_id")).toBeTruthy();
     expect(ua.searchParams.get("redirect_uri")).toBe("roubo://oauth/github/callback");
     expect(ua.searchParams.get("scope")?.split(" ")).toEqual(
-      expect.arrayContaining(["repo", "read:org", "read:project"]),
+      expect.arrayContaining(["repo", "read:org", "read:project", "security_events"]),
     );
     expect(ua.searchParams.get("state")).toBeTruthy();
     expect(ua.searchParams.get("state")).not.toEqual(ub.searchParams.get("state"));
