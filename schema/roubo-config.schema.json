@@ -203,7 +203,10 @@
                     "excludedStatuses": {
                       "type": "array",
                       "items": { "type": "string", "minLength": 1 }
-                    }
+                    },
+                    "includeCodeQLAlerts": { "type": "boolean" },
+                    "includeSecretScanningAlerts": { "type": "boolean" },
+                    "includeDependabotAlerts": { "type": "boolean" }
                   }
                 }
               ]

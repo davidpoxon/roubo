@@ -41,6 +41,18 @@ configSchema:
               - project
           externalId:
             type: string
+          includeCodeQLAlerts:
+            type: boolean
+            default: false
+            description: When true, this source's CodeQL (code-scanning) alerts are pulled into the cut list.
+          includeSecretScanningAlerts:
+            type: boolean
+            default: false
+            description: When true, this source's secret-scanning alerts are pulled into the cut list.
+          includeDependabotAlerts:
+            type: boolean
+            default: false
+            description: When true, this source's Dependabot alerts are pulled into the cut list.
 defaultIntegrationConfig:
   excludedStatuses:
     - Closed
