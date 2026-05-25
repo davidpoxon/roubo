@@ -153,7 +153,17 @@ function validateUpdateShape(update: IntegrationFieldsUpdate): void {
 
 function writeConfig(repoPath: string, config: RouboConfig): void {
   try {
-    const dir = path.join(repoPath, ".roubo");
+    // Resolve to an absolute, normalised path and assert it stays inside
+    // the registered repoPath. `repoPath` originates from the operator-
+    // controlled project registry, not from request input, but the
+    // surrounding handler is reached via a user-controlled projectId, so
+    // we defend against a malformed registry entry escaping the project
+    // root via traversal (CodeQL js/path-injection).
+    const repoRoot = path.resolve(repoPath);
+    const dir = path.resolve(repoRoot, ".roubo");
+    if (dir !== path.join(repoRoot, ".roubo")) {
+      throw new Error("Resolved config directory escaped the project root");
+    }
     fs.mkdirSync(dir, { recursive: true });
     const configPath = path.join(dir, "roubo.yaml");
     const yamlContent = YAML.stringify(config, {
