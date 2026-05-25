@@ -18,7 +18,7 @@ router.post("/__reset", async (_req: Request, res: Response) => {
   try {
     migrate.__test.reset();
     githubOauth.__test.reset();
-    // Clear the connection-status cache before shutdown — shutdown() itself
+    // Clear the connection-status cache before shutdown. shutdown() itself
     // clears `plugins` and `enableStateCache` but leaves the status maps
     // populated, which would otherwise survive the reset.
     pluginManager.__test.resetConnectionStatusCache();
