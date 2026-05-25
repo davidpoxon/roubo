@@ -24,6 +24,7 @@ import {
   useInstallPluginPreview as _useInstallPluginPreview,
   useInstallPluginConfirm as _useInstallPluginConfirm,
   useInstallPluginCancel as _useInstallPluginCancel,
+  useOpportunisticRecheckOnMount as _useOpportunisticRecheckOnMount,
 } from "../../../hooks/usePlugins";
 import PluginsTab from "./PluginsTab";
 
@@ -36,6 +37,7 @@ const mockedLogs = vi.mocked(_usePluginLogs);
 const mockedInstallPreview = vi.mocked(_useInstallPluginPreview);
 const mockedInstallConfirm = vi.mocked(_useInstallPluginConfirm);
 const mockedInstallCancel = vi.mocked(_useInstallPluginCancel);
+const mockedRecheck = vi.mocked(_useOpportunisticRecheckOnMount);
 
 function record(over: Partial<PluginRecord> = {}): PluginRecord {
   return {
@@ -101,6 +103,7 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof _useInstallPluginCancel>);
+  mockedRecheck.mockClear();
 });
 
 describe("PluginsTab (TC-001, TC-018)", () => {
@@ -185,6 +188,40 @@ describe("PluginsTab (TC-001, TC-018)", () => {
 
     render(<PluginsTab />);
     expect(screen.getByRole("alert").textContent).toContain("offline");
+  });
+
+  it("WU-050 / TC-111: opening the tab fires opportunistic re-check for enabled plugins only", () => {
+    mockedUsePlugins.mockReturnValue({
+      data: {
+        hostApiVersion: "1.1.0",
+        plugins: [
+          record({ id: "github-com", status: "enabled" }),
+          record({ id: "jira", source: "user", status: "enabled" }),
+          record({ id: "ghe", source: "user", status: "disabled" }),
+          record({ id: "broken", source: "user", status: "errored" }),
+        ],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof _usePlugins>);
+
+    render(<PluginsTab />);
+
+    // Disabled and errored plugins must be excluded — only "enabled" plugins
+    // participate in opportunistic re-check (FR-054 acceptance criterion).
+    expect(mockedRecheck).toHaveBeenCalledWith(["github-com", "jira"]);
+  });
+
+  it("WU-050: passes an empty list while the plugin list is still loading", () => {
+    mockedUsePlugins.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as unknown as ReturnType<typeof _usePlugins>);
+
+    render(<PluginsTab />);
+
+    expect(mockedRecheck).toHaveBeenCalledWith([]);
   });
 
   it("WU-027 / TC-046: Escape closes the Install dialog and restores focus to the Install button", async () => {

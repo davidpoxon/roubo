@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, DialogTrigger } from "react-aria-components";
 import { Plus, Loader2 } from "lucide-react";
 import type { PluginRecord } from "@roubo/shared";
-import { usePlugins } from "../../../hooks/usePlugins";
+import { usePlugins, useOpportunisticRecheckOnMount } from "../../../hooks/usePlugins";
 import PluginCard from "./PluginCard";
 import InstallPluginDialog from "./InstallPluginDialog";
 
@@ -15,6 +15,14 @@ function partition(plugins: PluginRecord[]) {
 export default function PluginsTab() {
   const { data, isLoading, error } = usePlugins();
   const [installOpen, setInstallOpen] = useState(false);
+
+  // WU-050: opening the tab triggers a fresh connection-status re-check for
+  // every enabled plugin. Disabled plugins are skipped per FR-054.
+  const enabledIds = useMemo(
+    () => (data?.plugins ?? []).filter((p) => p.status === "enabled").map((p) => p.id),
+    [data],
+  );
+  useOpportunisticRecheckOnMount(enabledIds);
 
   return (
     <div className="space-y-8">

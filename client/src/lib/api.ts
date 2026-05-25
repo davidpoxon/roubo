@@ -52,6 +52,7 @@ import type {
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
+  ConnectionStatus,
   LogLine,
   InstallPreview,
   InstallSource,
@@ -925,6 +926,10 @@ export function restartPlugin(pluginId: string): Promise<void> {
 
 export function uninstallPlugin(pluginId: string): Promise<void> {
   return requestVoid(`/plugins/${encodeURIComponent(pluginId)}`, { method: "DELETE" });
+}
+
+export function fetchConnectionStatus(pluginId: string): Promise<ConnectionStatus> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/connection-status`);
 }
 
 export function fetchPluginLogs(

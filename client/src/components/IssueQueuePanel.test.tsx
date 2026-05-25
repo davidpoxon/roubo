@@ -14,6 +14,10 @@ vi.mock("../hooks/useIssues", () => ({
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
 }));
+vi.mock("../hooks/usePlugins", () => ({
+  usePlugins: vi.fn(() => ({ data: undefined })),
+  useOpportunisticRecheckOnMount: vi.fn(),
+}));
 vi.mock("../hooks/useCutListFacets", () => ({
   useFilterFacets: vi.fn(() => ({ data: [] })),
   useFacetOptions: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
@@ -65,8 +69,11 @@ vi.mock("./CutListGroupByControl", () => ({
 
 import { useIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 const mockedUseIssues = vi.mocked(useIssues);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
+const mockedUsePlugins = vi.mocked(usePlugins);
+const mockedRecheck = vi.mocked(useOpportunisticRecheckOnMount);
 
 function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
@@ -122,6 +129,9 @@ beforeEach(() => {
   mockedUseProjectIntegration.mockReturnValue({
     data: undefined,
   } as unknown as ReturnType<typeof useProjectIntegration>);
+  mockedUsePlugins.mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof usePlugins>);
 });
 
 describe("IssueQueuePanel", () => {
@@ -364,6 +374,35 @@ describe("IssueQueuePanel", () => {
         <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
       );
       expect(screen.queryByRole("button", { name: /connect github/i })).toBeNull();
+    });
+  });
+
+  describe("WU-050: opportunistic connection-status re-check on cut-list load", () => {
+    it("fires for every enabled plugin and skips disabled ones", () => {
+      mockedUsePlugins.mockReturnValue({
+        data: {
+          hostApiVersion: "1.1.0",
+          plugins: [
+            { id: "github-com", source: "bundled", status: "enabled" },
+            { id: "jira", source: "user", status: "enabled" },
+            { id: "ghe", source: "user", status: "disabled" },
+            { id: "broken", source: "user", status: "errored" },
+          ],
+        },
+      } as unknown as ReturnType<typeof usePlugins>);
+
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+
+      expect(mockedRecheck).toHaveBeenCalledWith(["github-com", "jira"]);
+    });
+
+    it("passes an empty list while the plugin query is still loading", () => {
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(mockedRecheck).toHaveBeenCalledWith([]);
     });
   });
 });

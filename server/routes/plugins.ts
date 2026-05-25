@@ -430,4 +430,34 @@ router.put("/:id/integration/config", (req, res) => {
   }
 });
 
+// WU-050: opportunistic re-check endpoint. Called from PluginsTab,
+// PluginConfigureDialog, and IssueQueuePanel via react-query whenever those
+// surfaces mount. The handler bypasses the plugin-manager's 30s cache so the
+// returned status reflects a fresh RPC; per-plugin in-flight dedup in
+// plugin-manager coalesces concurrent calls.
+router.get("/:id/connection-status", async (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  const rec = pluginManager.listInstalled().find((r) => r.id === id);
+  if (!rec) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  if (rec.status !== "enabled") {
+    res.json({ state: "disabled" });
+    return;
+  }
+  const state = buildGlobalState(id);
+  const config = state?.effective ?? { plugin: id };
+  pluginManager.invalidateConnectionStatus(id);
+  const status = await pluginManager.getConnectionStatus(
+    id,
+    config as unknown as Record<string, unknown>,
+  );
+  res.json(status);
+});
+
 export default router;

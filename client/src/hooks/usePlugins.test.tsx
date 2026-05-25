@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, waitFor } from "@testing-library/react";
-import { renderHookWithProviders } from "../test/renderWithProviders";
+import { makeQueryClient, renderHookWithProviders } from "../test/renderWithProviders";
 import { ApiError } from "../lib/api";
 
 vi.mock("../lib/api", async () => {
@@ -14,6 +14,7 @@ vi.mock("../lib/api", async () => {
     restartPlugin: vi.fn(),
     uninstallPlugin: vi.fn(),
     fetchPluginLogs: vi.fn(),
+    fetchConnectionStatus: vi.fn(),
   };
 });
 vi.mock("./useToast");
@@ -27,6 +28,9 @@ import {
   useRestartPlugin,
   useUninstallPlugin,
   usePluginLogs,
+  useConnectionStatus,
+  useOpportunisticRecheckOnMount,
+  connectionStatusQueryKey,
 } from "./usePlugins";
 
 const mockedApi = vi.mocked(api);
@@ -34,6 +38,7 @@ const mockedUseToast = vi.mocked(_useToast);
 
 let addToast: ReturnType<typeof vi.fn>;
 beforeEach(() => {
+  vi.clearAllMocks();
   addToast = vi.fn();
   mockedUseToast.mockReturnValue({
     addToast,
@@ -135,6 +140,68 @@ describe("useUninstallPlugin", () => {
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(addToast).toHaveBeenCalledWith("Failed to uninstall plugin.");
+  });
+});
+
+describe("useConnectionStatus (WU-050)", () => {
+  it("does not fetch while disabled (skips disabled plugins)", () => {
+    mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
+    renderHookWithProviders(() => useConnectionStatus("github-com", false));
+    expect(mockedApi.fetchConnectionStatus).not.toHaveBeenCalled();
+  });
+
+  it("fetches when enabled and caches the result indefinitely (no refetchInterval)", async () => {
+    mockedApi.fetchConnectionStatus.mockResolvedValue({
+      state: "connected",
+      checkedAt: "2026-05-26T09:00:00.000Z",
+    });
+    const { result } = renderHookWithProviders(() => useConnectionStatus("github-com", true));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledWith("github-com");
+    expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toEqual({
+      state: "connected",
+      checkedAt: "2026-05-26T09:00:00.000Z",
+    });
+  });
+});
+
+describe("useOpportunisticRecheckOnMount (WU-050)", () => {
+  it("fires fetchConnectionStatus once per enabled plugin id on mount", async () => {
+    mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
+    renderHookWithProviders(() => useOpportunisticRecheckOnMount(["github-com", "jira"]));
+    await waitFor(() => expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledTimes(2));
+    expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledWith("github-com");
+    expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledWith("jira");
+  });
+
+  it("does not fire when the enabled id list is empty", () => {
+    renderHookWithProviders(() => useOpportunisticRecheckOnMount([]));
+    expect(mockedApi.fetchConnectionStatus).not.toHaveBeenCalled();
+  });
+
+  it("populates the same react-query cache key consumed by useConnectionStatus", async () => {
+    mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
+    const queryClient = makeQueryClient();
+    renderHookWithProviders(() => useOpportunisticRecheckOnMount(["github-com"]), {
+      queryClient,
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData(connectionStatusQueryKey("github-com"))).toEqual({
+        state: "connected",
+      }),
+    );
+  });
+
+  it("re-fires when the enabled id set changes", async () => {
+    mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
+    const { rerender } = renderHookWithProviders(
+      ({ ids }: { ids: string[] }) => useOpportunisticRecheckOnMount(ids),
+      { initialProps: { ids: ["github-com"] } },
+    );
+    await waitFor(() => expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledTimes(1));
+    rerender({ ids: ["github-com", "jira"] });
+    await waitFor(() => expect(mockedApi.fetchConnectionStatus).toHaveBeenCalledTimes(3));
   });
 });
 
