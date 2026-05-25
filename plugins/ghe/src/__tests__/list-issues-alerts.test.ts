@@ -201,7 +201,7 @@ describe("listIssues + alerts (GHE)", () => {
         sourceExternalId: "foo/bar",
         cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
         code: "missing-scope",
-        detail: { status: 401 },
+        detail: { status: 401, missingScope: "security_events" },
       },
     ]);
   });

@@ -106,7 +106,14 @@ function SourcePickerFlow({
           </p>
         )}
 
-        {data && <SourcePicker response={data} value={draft} onChange={setDraft} />}
+        {data && (
+          <SourcePicker
+            response={data}
+            value={draft}
+            onChange={setDraft}
+            chipContext={{ pluginId }}
+          />
+        )}
 
         {errorMessage && (
           <p role="alert" className="text-[12px] text-red-400">

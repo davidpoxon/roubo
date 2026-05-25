@@ -64,6 +64,8 @@ describe("useDeepLink", () => {
         ["global-plugin-integration", "github-com"],
         ["project-integration"],
         ["source-candidates"],
+        ["issues"],
+        ["integration-warnings"],
       ]),
     );
   });

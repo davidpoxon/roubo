@@ -127,7 +127,7 @@ export interface ListIssuesWarning {
   sourceExternalId: string;
   cause: string;
   code?: ListIssuesWarningCode;
-  detail?: { status?: number; code?: string };
+  detail?: { status?: number; code?: string; missingScope?: string };
 }
 
 export interface ListIssuesParams {

@@ -140,6 +140,50 @@ describe("safeFetchAlerts", () => {
     if (!d.ok) expect(d.code).toBe("rate-limited");
   });
 
+  it("flags 401 with missingScope=security_events on every category (WU-039)", async () => {
+    const transport = makeTransport({
+      [CODE_URL]: { status: 401, headers: {}, body: "" },
+      [SECRET_URL]: { status: 401, headers: {}, body: "" },
+      [DEP_URL]: { status: 401, headers: {}, body: "" },
+    });
+    const [c, s, d] = await Promise.all([
+      safeFetchAlerts("code-scanning", () =>
+        fetchCodeScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("secret-scanning", () =>
+        fetchSecretScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("dependabot", () =>
+        fetchDependabotAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+    ]);
+    if (!c.ok) expect(c.missingScope).toBe("security_events");
+    if (!s.ok) expect(s.missingScope).toBe("security_events");
+    if (!d.ok) expect(d.missingScope).toBe("security_events");
+  });
+
+  it("does not set missingScope on non-401 failures (WU-039)", async () => {
+    const transport = makeTransport({
+      [CODE_URL]: { status: 404, headers: {}, body: "" },
+      [SECRET_URL]: { status: 451, headers: {}, body: "" },
+      [DEP_URL]: { status: 403, headers: {}, body: "" },
+    });
+    const [c, s, d] = await Promise.all([
+      safeFetchAlerts("code-scanning", () =>
+        fetchCodeScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("secret-scanning", () =>
+        fetchSecretScanningAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+      safeFetchAlerts("dependabot", () =>
+        fetchDependabotAlerts(transport, { baseUrl: BASE, owner: "foo", repo: "bar" }),
+      ),
+    ]);
+    if (!c.ok) expect(c.missingScope).toBeUndefined();
+    if (!s.ok) expect(s.missingScope).toBeUndefined();
+    if (!d.ok) expect(d.missingScope).toBeUndefined();
+  });
+
   it("falls back to a generic cause for unmapped HTTP statuses", async () => {
     const transport = makeTransport({
       [CODE_URL]: { status: 500, headers: {}, body: "" },

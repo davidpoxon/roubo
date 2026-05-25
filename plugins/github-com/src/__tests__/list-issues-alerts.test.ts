@@ -109,6 +109,36 @@ describe("listIssues + alerts (WU-030)", () => {
     ]);
   });
 
+  it("flags missing security_events scope via detail.missingScope on 401 (WU-039)", async () => {
+    queueIssuesPage();
+    queueHostResponses({
+      [CODE_URL]: { status: 401, headers: {}, body: "" },
+      [SECRET_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+      [DEP_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+    });
+
+    const sources: ConfiguredSource[] = [
+      {
+        kind: "repo",
+        externalId: "foo/bar",
+        includeCodeQLAlerts: true,
+        includeSecretScanningAlerts: true,
+        includeDependabotAlerts: true,
+      },
+    ];
+    const result = await listIssues({ sources, cursor: null, pageSize: 50 });
+
+    expect(result.warnings).toEqual([
+      {
+        category: "code-scanning",
+        sourceExternalId: "foo/bar",
+        cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+        code: "missing-scope",
+        detail: { status: 401, missingScope: "security_events" },
+      },
+    ]);
+  });
+
   it("emits a warning for the failing category and continues fetching the others (AC #5, #8)", async () => {
     queueIssuesPage();
     queueHostResponses({
