@@ -219,10 +219,108 @@ describe("runIntegrationTest", () => {
             },
           ],
           enabledCategories: ["code-scanning", "secret-scanning"],
-          timeoutMsPerProbe: 2000,
+          timeoutMsPerProbe: 5000,
         }),
-        expect.objectContaining({ timeoutMs: 8000 }),
+        expect.objectContaining({ timeoutMs: 12000 }),
       );
+    });
+
+    it("passes through a full TC-094 mix (ok + scope-aware not-enabled + ok) verbatim", async () => {
+      vi.mocked(pluginManager.invoke)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
+        .mockResolvedValueOnce({
+          reports: [
+            { category: "code-scanning", status: "ok", httpStatus: 200 },
+            {
+              category: "secret-scanning",
+              status: "not-enabled",
+              detail: "requires GitHub Advanced Security on private repos.",
+              httpStatus: 410,
+            },
+            { category: "dependabot", status: "ok", httpStatus: 200 },
+          ],
+        });
+
+      const result = await runIntegrationTest(
+        makeRecord("github-com"),
+        {},
+        {
+          effective: makeEffective({
+            Repository: [
+              {
+                externalId: "octo/widget",
+                includeCodeQLAlerts: true,
+                includeSecretScanningAlerts: true,
+                includeDependabotAlerts: true,
+              },
+            ],
+          }),
+        },
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.identity.displayName).toBe("Octo");
+        expect(result.categories).toEqual([
+          { category: "issues", label: "Issues", status: "ok" },
+          {
+            category: "code-scanning",
+            label: "Code Scanning alerts",
+            status: "ok",
+            httpStatus: 200,
+          },
+          {
+            category: "secret-scanning",
+            label: "Secret Scanning alerts",
+            status: "not-enabled",
+            detail: "requires GitHub Advanced Security on private repos.",
+            httpStatus: 410,
+          },
+          { category: "dependabot", label: "Dependabot alerts", status: "ok", httpStatus: 200 },
+        ]);
+      }
+    });
+
+    it("surfaces a timed-out probe row without failing the overall test (TC-103, FR-047)", async () => {
+      vi.mocked(pluginManager.invoke)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
+        .mockResolvedValueOnce({
+          reports: [
+            { category: "code-scanning", status: "timed-out", detail: "Timed out" },
+            { category: "secret-scanning", status: "ok", httpStatus: 200 },
+            { category: "dependabot", status: "ok", httpStatus: 200 },
+          ],
+        });
+
+      const result = await runIntegrationTest(
+        makeRecord("github-com"),
+        {},
+        {
+          effective: makeEffective({
+            Repository: [
+              {
+                externalId: "octo/widget",
+                includeCodeQLAlerts: true,
+                includeSecretScanningAlerts: true,
+                includeDependabotAlerts: true,
+              },
+            ],
+          }),
+        },
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.categories?.[1]).toEqual({
+          category: "code-scanning",
+          label: "Code Scanning alerts",
+          status: "timed-out",
+          detail: "Timed out",
+        });
+        expect(result.categories?.slice(2).map((c) => c.status)).toEqual(["ok", "ok"]);
+      }
     });
 
     it("treats MethodNotFound from probeAlertCategories as no extra rows (Issues only)", async () => {

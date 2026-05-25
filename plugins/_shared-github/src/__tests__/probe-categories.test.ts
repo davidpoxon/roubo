@@ -183,7 +183,7 @@ describe("probeAlertCategories", () => {
     },
   );
 
-  it("surfaces a per-probe timeout as { status: 'error', detail: 'Timed out' }", async () => {
+  it("surfaces a per-probe timeout as { status: 'timed-out', detail: 'Timed out' } (FR-047)", async () => {
     const transport = makeTransport({
       [REPO_URL]: ok(),
       [DEP_URL]: () =>
@@ -198,7 +198,30 @@ describe("probeAlertCategories", () => {
       enabledCategories: ["dependabot"],
       timeoutMsPerProbe: 10,
     });
-    expect(reports).toEqual([{ category: "dependabot", status: "error", detail: "Timed out" }]);
+    expect(reports).toEqual([{ category: "dependabot", status: "timed-out", detail: "Timed out" }]);
+  });
+
+  it("isolates one slow probe via Promise.allSettled so others still resolve (TC-103)", async () => {
+    const transport = makeTransport({
+      [REPO_URL]: ok(),
+      [CODE_URL]: () =>
+        new Promise<FetchResult>(() => {
+          /* never resolves: exceeds the per-probe cap */
+        }),
+      [SECRET_URL]: ok(),
+      [DEP_URL]: ok(),
+    });
+    const categories: ProbeCategory[] = ["code-scanning", "secret-scanning", "dependabot"];
+    const reports = await probeAlertCategories({
+      baseUrl: BASE,
+      transport,
+      sources: [repoSource("octo/widget")],
+      enabledCategories: categories,
+      timeoutMsPerProbe: 20,
+    });
+    expect(reports.map((r) => r.category)).toEqual(categories);
+    expect(reports.map((r) => r.status)).toEqual(["timed-out", "ok", "ok"]);
+    expect(reports[0]?.detail).toBe("Timed out");
   });
 
   it("probes every requested category in parallel and uses per_page=1", async () => {

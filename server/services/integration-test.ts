@@ -79,13 +79,14 @@ export function errorMessage(err: unknown): string {
 // shouldn't ask them to probe.
 const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
 
-// Host-side budgets for the per-category probe. The per-probe value is what
-// gets handed to the plugin so it can race each individual HTTP probe; the
-// invoke timeout caps the whole RPC round-trip (probes run in parallel inside
-// the plugin, so the wall-clock budget is roughly the per-probe value plus
-// RPC overhead).
-const PROBE_PER_REQUEST_TIMEOUT_MS = 2_000;
-const PROBE_INVOKE_TIMEOUT_MS = 8_000;
+// Host-side budgets for the per-category probe (FR-047, WU-034). The per-probe
+// value is what gets handed to the plugin so it can race each individual HTTP
+// probe (5s per-probe cap); the invoke timeout caps the whole RPC round-trip
+// (12s overall budget). Probes run in parallel inside the plugin via
+// `Promise.allSettled`, so the wall-clock budget is roughly the slowest
+// per-probe value plus RPC overhead, bounded above by the invoke timeout.
+const PROBE_PER_REQUEST_TIMEOUT_MS = 5_000;
+const PROBE_INVOKE_TIMEOUT_MS = 12_000;
 
 interface SourceWithAlertFlags {
   includeCodeQLAlerts?: boolean;

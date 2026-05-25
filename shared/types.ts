@@ -231,14 +231,21 @@ export interface IntegrationTestErrorPayload {
 export type IntegrationCategoryId = "issues" | "code-scanning" | "secret-scanning" | "dependabot";
 
 /**
- * Per-row status in the Test Connection result strip (FR-047, WU-041).
+ * Per-row status in the Test Connection result strip (FR-047, WU-041, WU-034).
  *
  * - `ok`: probe succeeded
  * - `scope-missing`: token lacks the required scope (401/403)
  * - `not-enabled`: feature is not enabled for the probed repo (404/410/451)
- * - `error`: probe timed out, returned an unexpected status, or threw
+ * - `timed-out`: probe exceeded the per-probe cap (rendered amber; does not
+ *   fail the overall test)
+ * - `error`: probe returned an unexpected status or threw a non-timeout error
  */
-export type IntegrationCategoryStatus = "ok" | "scope-missing" | "not-enabled" | "error";
+export type IntegrationCategoryStatus =
+  | "ok"
+  | "scope-missing"
+  | "not-enabled"
+  | "timed-out"
+  | "error";
 
 /**
  * One row in the Test Connection result strip. `label` is the human-facing

@@ -395,6 +395,50 @@ describe("PluginConfigureDialog", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("renders a timed-out row with amber styling and keeps the strip in success tone (TC-103)", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+        categories: [
+          { category: "issues", label: "Issues", status: "ok" },
+          {
+            category: "code-scanning",
+            label: "Code Scanning alerts",
+            status: "timed-out",
+            detail: "Timed out",
+          },
+          {
+            category: "secret-scanning",
+            label: "Secret Scanning alerts",
+            status: "ok",
+            httpStatus: 200,
+          },
+          {
+            category: "dependabot",
+            label: "Dependabot alerts",
+            status: "ok",
+            httpStatus: 200,
+          },
+        ],
+      });
+      installMocks({ test, save: vi.fn() });
+      renderDialog();
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
+
+      const timedOutRow = screen.getByTestId("test-result-category-code-scanning-timed-out");
+      expect(timedOutRow).toBeInTheDocument();
+      // The row's text and detail use amber tones.
+      expect(timedOutRow.querySelector(".text-amber-800")).not.toBeNull();
+      expect(screen.getByText("Timed out")).toBeInTheDocument();
+      // Overall strip is in amber (not red) tone: timed-out is non-fatal, but
+      // the worst-status helper bumps the container above plain green.
+      expect(screen.getByTestId("test-result-success").className).toMatch(/amber/);
+      expect(screen.getByText("Connected as Jane Doe.")).toBeInTheDocument();
+    });
+
     it("falls back to the single 'Connected as' row when the server returns no categories", async () => {
       const user = userEvent.setup();
       const test = vi.fn().mockResolvedValue({

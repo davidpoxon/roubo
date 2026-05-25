@@ -569,9 +569,9 @@ describe("POST /:projectId/integration/test", () => {
           },
         ],
         enabledCategories: ["code-scanning", "dependabot"],
-        timeoutMsPerProbe: 2000,
+        timeoutMsPerProbe: 5000,
       },
-      expect.objectContaining({ timeoutMs: 8000 }),
+      expect.objectContaining({ timeoutMs: 12000 }),
     );
   });
 
