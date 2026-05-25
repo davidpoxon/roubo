@@ -6,9 +6,11 @@ import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { useFilterFacets } from "../hooks/useCutListFacets";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
+import type { FilterFacet } from "@roubo/shared";
 import CutListGroupByControl from "./CutListGroupByControl";
 import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 import type { GroupingState } from "../lib/cut-list-groups";
@@ -47,6 +49,13 @@ export default function IssueQueuePanel({
   } = useIssues(projectId);
   const refreshItems = useRefreshIssues();
   const integrationQuery = useProjectIntegration(projectId);
+  const activePluginId = integrationQuery.data?.plugin?.id ?? null;
+  const excludedStatuses = useMemo(
+    () => integrationQuery.data?.effective?.excludedStatuses ?? [],
+    [integrationQuery.data],
+  );
+  const facetsQuery = useFilterFacets(projectId, activePluginId);
+  const facets: FilterFacet[] = useMemo(() => facetsQuery.data ?? [], [facetsQuery.data]);
   const [reconnectOpen, setReconnectOpen] = useState(false);
   // Only the github-com plugin has an in-dialog OAuth flow; reconnect for other
   // plugins falls back to the schema form's existing token entry.
@@ -106,23 +115,42 @@ export default function IssueQueuePanel({
     );
   }, [issues, assignedMap, pendingIssueExternalIds]);
 
-  const availableTypes = useMemo(() => {
-    const set = new Set<string>();
+  // Derive option universes per facet id from the currently-loaded issues.
+  // Used as the fallback option set for `enum` facets that the plugin
+  // declared but didn't ship inline options for (typical for the
+  // COMMON_FACET_FALLBACK set). `enum-async` facets ignore this and lazy
+  // fetch instead. Includes both `facetValues[facetId]` (host-API 1.1.0+)
+  // and the canonical NormalizedIssue field for the four common facets so
+  // 1.0.0 plugins keep working.
+  const derivedOptions = useMemo<Record<string, string[]>>(() => {
+    const sets: Record<string, Set<string>> = {};
+    const bump = (facetId: string, value: string | null | undefined) => {
+      if (!value) return;
+      (sets[facetId] ??= new Set<string>()).add(value);
+    };
     for (const issue of baseItems) {
-      if (issue.issueType) set.add(issue.issueType);
+      bump("type", issue.issueType);
+      for (const label of issue.labels) bump("label", label);
+      for (const label of issue.labels) bump("labels", label);
+      for (const a of issue.assignees) bump("assignee", a.externalId);
+      bump("status", issue.currentState);
+      const values = issue.facetValues ?? {};
+      for (const [id, val] of Object.entries(values)) {
+        if (Array.isArray(val)) for (const v of val) bump(id, v);
+        else bump(id, val);
+      }
     }
-    return [...set].sort();
+    const out: Record<string, string[]> = {};
+    for (const [id, set] of Object.entries(sets)) {
+      out[id] = [...set].sort();
+    }
+    return out;
   }, [baseItems]);
 
-  const availableLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const issue of baseItems) {
-      for (const label of issue.labels) set.add(label);
-    }
-    return [...set].sort();
-  }, [baseItems]);
-
-  const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
+  const filteredItems = useMemo(
+    () => applyFilters(baseItems, filters, { excludedStatuses }),
+    [baseItems, filters, excludedStatuses],
+  );
 
   const groups = useMemo(
     () => (isGroupingActive(grouping) ? groupItems(filteredItems, grouping.groupBy) : []),
@@ -187,8 +215,11 @@ export default function IssueQueuePanel({
             <CutListFilterBar
               filters={filters}
               onFiltersChange={updateFilters}
-              availableTypes={availableTypes}
-              availableLabels={availableLabels}
+              facets={facets}
+              excludedStatuses={excludedStatuses}
+              projectId={projectId}
+              pluginId={activePluginId}
+              derivedOptions={derivedOptions}
             />
           </div>
           <CutListGroupByControl grouping={grouping} onGroupingChange={updateGrouping} />

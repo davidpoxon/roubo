@@ -928,6 +928,31 @@ export interface ConfiguredSource {
   externalId: string;
 }
 
+/**
+ * Descriptor returned by the active integration plugin's `filterFacets` RPC
+ * (host-API 1.1.0+). The cut-list filter row renders one section per facet;
+ * `enum-async` sections load their options lazily via `getFacetOptions`.
+ * Mirrors `FilterFacet` in `@roubo/plugin-sdk` so the web client can consume
+ * the server's `/integration/filter-facets` response without depending on
+ * the plugin SDK.
+ */
+export interface FilterFacet {
+  id: string;
+  label: string;
+  type: "enum" | "enum-async" | "multi-enum";
+  options?: FilterFacetOption[];
+}
+
+/**
+ * One option for a `FilterFacet`. Used both inline (eager `enum`/`multi-enum`)
+ * and as the response shape of `getFacetOptions` (lazy `enum-async`). Mirrors
+ * `FilterFacetOption` in `@roubo/plugin-sdk`.
+ */
+export interface FilterFacetOption {
+  value: string;
+  label: string;
+}
+
 /** Parameters for the plugin's paginated `listIssues` JSON-RPC call (FR-022). */
 export interface ListIssuesParams {
   sources: ConfiguredSource[];

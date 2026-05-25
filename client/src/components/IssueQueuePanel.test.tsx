@@ -14,6 +14,10 @@ vi.mock("../hooks/useIssues", () => ({
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
 }));
+vi.mock("../hooks/useCutListFacets", () => ({
+  useFilterFacets: vi.fn(() => ({ data: [] })),
+  useFacetOptions: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
+}));
 vi.mock("./PluginConfigureDialog", () => ({
   default: ({ pluginId, plugin }: { pluginId?: string; plugin?: { id: string } }) => (
     <div data-testid="plugin-configure-dialog" data-plugin-id={pluginId ?? plugin?.id} />
@@ -28,10 +32,22 @@ vi.mock("./CutListFilterBar", () => ({
   default: ({
     onFiltersChange,
   }: {
-    onFiltersChange: (f: { type: string; labels: Set<string>; search: string }) => void;
+    onFiltersChange: (f: {
+      search: string;
+      facetValues: Record<string, Set<string>>;
+      includeHiddenStatuses: boolean;
+    }) => void;
   }) => (
     <div data-testid="filter-bar">
-      <button onClick={() => onFiltersChange({ type: "Bug", labels: new Set(), search: "" })}>
+      <button
+        onClick={() =>
+          onFiltersChange({
+            search: "",
+            facetValues: { type: new Set(["Bug"]) },
+            includeHiddenStatuses: false,
+          })
+        }
+      >
         Filter by Bug
       </button>
     </div>
@@ -221,7 +237,7 @@ describe("IssueQueuePanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
     expect(onFiltersChange).toHaveBeenCalledWith(
       "proj-1",
-      expect.objectContaining({ type: "Bug" }),
+      expect.objectContaining({ facetValues: { type: new Set(["Bug"]) } }),
     );
   });
 
