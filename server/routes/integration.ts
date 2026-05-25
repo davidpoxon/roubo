@@ -9,7 +9,7 @@ import type {
   SourceCandidatesResponse,
   SourceSelection,
 } from "@roubo/shared";
-import { IntegrationConfigSchema } from "@roubo/shared";
+import { IntegrationConfigSchema, SourceEntrySchema } from "@roubo/shared";
 import { z } from "zod";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
@@ -153,7 +153,7 @@ function validateSourceCandidatesResponse(raw: unknown): SourceCandidatesRespons
 
 function validateSourceSelectionBody(body: unknown): SourceSelection {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error("Invalid body: { sources: Record<string, string[]> } required");
+    throw new Error("Invalid body: { sources: Record<string, SourceEntry[]> } required");
   }
   const sources = (body as Record<string, unknown>).sources;
   if (sources === null || typeof sources !== "object" || Array.isArray(sources)) {
@@ -161,10 +161,43 @@ function validateSourceSelectionBody(body: unknown): SourceSelection {
   }
   const out: SourceSelection = {};
   for (const [key, value] of Object.entries(sources as Record<string, unknown>)) {
-    if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
-      throw new Error(`Invalid body: sources.${key} must be an array of strings`);
+    if (!Array.isArray(value)) {
+      throw new Error(`Invalid body: sources.${key} must be an array`);
     }
-    out[key] = value as string[];
+    const list: SourceSelection[string] = [];
+    for (const entry of value) {
+      if (typeof entry === "string") {
+        list.push(entry);
+        continue;
+      }
+      const parsed = SourceEntrySchema.safeParse(entry);
+      if (!parsed.success) {
+        throw new Error(`Invalid body: sources.${key} entry: ${parsed.error.message}`);
+      }
+      const data = parsed.data;
+      // The schema also accepts numbers and primitive numerics; the persisted
+      // SourceSelection only carries string-or-object entries, so normalize.
+      if (typeof data === "number") {
+        list.push(String(data));
+      } else if (typeof data === "string") {
+        list.push(data);
+      } else {
+        const normalized: Exclude<SourceSelection[string][number], string> = {
+          externalId: String(data.externalId),
+        };
+        if (data.includeCodeQLAlerts !== undefined) {
+          normalized.includeCodeQLAlerts = data.includeCodeQLAlerts;
+        }
+        if (data.includeSecretScanningAlerts !== undefined) {
+          normalized.includeSecretScanningAlerts = data.includeSecretScanningAlerts;
+        }
+        if (data.includeDependabotAlerts !== undefined) {
+          normalized.includeDependabotAlerts = data.includeDependabotAlerts;
+        }
+        list.push(normalized);
+      }
+    }
+    out[key] = list;
   }
   return out;
 }

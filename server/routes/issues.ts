@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import type {
   AssignIssueRequest,
   ListIssuesParams,
+  ListIssuesWarning,
   NormalizedComment,
   NormalizedIssue,
   PaginatedIssues,
@@ -88,13 +89,17 @@ router.get("/:projectId/issues", async (req, res) => {
     filters: Object.keys(filters).length > 0 ? filters : undefined,
   };
 
-  let raw: { items: NormalizedIssue[]; nextCursor: string | null };
+  let raw: {
+    items: NormalizedIssue[];
+    nextCursor: string | null;
+    warnings?: ListIssuesWarning[];
+  };
   try {
-    raw = await pluginManager.invoke<{ items: NormalizedIssue[]; nextCursor: string | null }>(
-      active.pluginId,
-      "listIssues",
-      params,
-    );
+    raw = await pluginManager.invoke<{
+      items: NormalizedIssue[];
+      nextCursor: string | null;
+      warnings?: ListIssuesWarning[];
+    }>(active.pluginId, "listIssues", params);
   } catch (err) {
     sendPluginRpcError(res, err);
     return;
@@ -120,6 +125,9 @@ router.get("/:projectId/issues", async (req, res) => {
     nextCursor: stalled ? null : raw.nextCursor,
     stalled: stalled || undefined,
   };
+  if (raw.warnings && raw.warnings.length > 0) {
+    body.warnings = raw.warnings;
+  }
   res.json(body);
 });
 

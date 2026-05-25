@@ -727,15 +727,68 @@ describe("PUT /:projectId/integration/sources", () => {
     expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when a value is not a string array", async () => {
+  it("returns 400 when a value is not an array", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
 
     const res = await request(app)
       .put("/demo/integration/sources")
-      .send({ sources: { items: [1, 2, 3] } });
+      .send({ sources: { items: "not-an-array" } });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/array of strings/i);
+    expect(res.body.error).toMatch(/must be an array/i);
+  });
+
+  it("returns 400 when an object entry has a malformed alert flag (WU-030)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({
+        sources: {
+          items: [{ externalId: "org/a", includeCodeQLAlerts: "yes" }],
+        },
+      });
+
+    expect(res.status).toBe(400);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("accepts object-form source entries with alert booleans and round-trips them (WU-030)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("github-com", "GitHub.com"),
+    ]);
+    vi.mocked(integrationOverrides.saveOverride).mockImplementation((_id, next) => {
+      vi.mocked(integrationOverrides.loadOverride).mockReturnValue(next);
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({
+        sources: {
+          items: [
+            {
+              externalId: "org/a",
+              includeCodeQLAlerts: true,
+              includeDependabotAlerts: true,
+            },
+            "org/b",
+          ],
+        },
+      });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.sources).toEqual({
+      items: [
+        {
+          externalId: "org/a",
+          includeCodeQLAlerts: true,
+          includeDependabotAlerts: true,
+        },
+        "org/b",
+      ],
+    });
   });
 
   it("writes the sources block into the override and returns the new state", async () => {

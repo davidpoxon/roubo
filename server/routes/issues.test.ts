@@ -143,6 +143,34 @@ describe("GET /:projectId/issues", () => {
     expect(res.body.items).toHaveLength(1);
   });
 
+  it("forwards plugin warnings on the response body (WU-030)", async () => {
+    const warning = {
+      category: "code-scanning",
+      sourceExternalId: "foo/bar",
+      cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+      detail: { status: 404 },
+    };
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      warnings: [warning],
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.warnings).toEqual([warning]);
+  });
+
+  it("omits the warnings field when the plugin returns an empty warnings array", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      warnings: [],
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.warnings).toBeUndefined();
+  });
+
   it("maps plugin-not-enabled to 503", async () => {
     vi.mocked(pluginManager.invoke).mockRejectedValue(
       Object.assign(new Error("disabled"), { code: "plugin-not-enabled" }),

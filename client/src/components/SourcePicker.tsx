@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import {
   Button,
+  Checkbox,
+  Disclosure,
+  DisclosurePanel,
+  Heading,
   Input,
   ListBox,
   ListBoxItem,
@@ -11,22 +15,68 @@ import {
   TextField,
   type Selection,
 } from "react-aria-components";
-import { Check, Filter, Folder, Grid3x3, Layout, Search, Crown, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  Filter,
+  Folder,
+  Grid3x3,
+  Layout,
+  Search,
+  Crown,
+  X,
+} from "lucide-react";
 import type {
+  ListIssuesWarning,
   SourceCandidateCategory,
   SourceCandidateIcon,
   SourceCandidateItem,
   SourceCandidatesResponse,
   SourceSelection,
+  SourceSelectionEntry,
 } from "@roubo/shared";
+import IssueChip from "./IssueChip";
+import {
+  applyIdSelection,
+  entriesFor,
+  entryFlag,
+  entryId,
+  idsFor,
+  setFlagForEntry,
+  type AlertFlagKey,
+} from "../lib/source-selection-helpers";
 
 interface SourcePickerProps {
   response: SourceCandidatesResponse;
   value: SourceSelection;
   onChange: (next: SourceSelection) => void;
+  /**
+   * Per-source per-category warnings from the latest listIssues page-1 pull.
+   * Drives the inline warning chips shown next to each alert-category
+   * checkbox. Absent or empty means "no warnings."
+   */
+  warnings?: ListIssuesWarning[];
 }
 
 const MULTI_LIST_KEY = "items";
+
+interface AlertCategoryDef {
+  flag: AlertFlagKey;
+  label: string;
+  /** Warning category id emitted by the github-com plugin. */
+  warningCategory: ListIssuesWarning["category"];
+}
+
+const ALERT_CATEGORIES: AlertCategoryDef[] = [
+  { flag: "includeCodeQLAlerts", label: "Code Scanning alerts", warningCategory: "code-scanning" },
+  {
+    flag: "includeSecretScanningAlerts",
+    label: "Secret Scanning alerts",
+    warningCategory: "secret-scanning",
+  },
+  { flag: "includeDependabotAlerts", label: "Dependabot alerts", warningCategory: "dependabot" },
+];
 
 function iconFor(icon: SourceCandidateIcon | undefined) {
   switch (icon) {
@@ -53,24 +103,6 @@ function filterItems(items: SourceCandidateItem[], query: string): SourceCandida
       item.label.toLowerCase().includes(q) ||
       (item.sublabel && item.sublabel.toLowerCase().includes(q)),
   );
-}
-
-function setSelectionForKey(
-  value: SourceSelection,
-  key: string,
-  next: Set<string>,
-): SourceSelection {
-  if (next.size === 0) {
-    const { [key]: _removed, ...rest } = value;
-    void _removed;
-    return rest;
-  }
-  return { ...value, [key]: [...next] };
-}
-
-function selectionFromValue(value: SourceSelection, key: string): Set<string> {
-  const arr = value[key];
-  return arr ? new Set(arr) : new Set();
 }
 
 function selectionToKeys(selection: Selection, items: SourceCandidateItem[]): Set<string> {
@@ -190,32 +222,218 @@ function Chip({ label, onRemove }: ChipProps) {
   );
 }
 
+function findWarning(
+  warnings: ListIssuesWarning[] | undefined,
+  sourceExternalId: string,
+  category: ListIssuesWarning["category"],
+): ListIssuesWarning | undefined {
+  if (!warnings) return undefined;
+  return warnings.find((w) => w.sourceExternalId === sourceExternalId && w.category === category);
+}
+
+interface AlertCheckboxRowProps {
+  category: AlertCategoryDef;
+  selected: boolean;
+  onChange: (next: boolean) => void;
+  warning?: ListIssuesWarning;
+}
+
+function AlertCheckboxRow({ category, selected, onChange, warning }: AlertCheckboxRowProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        isSelected={selected}
+        onChange={onChange}
+        aria-label={category.label}
+        data-testid={`alert-checkbox-${category.flag}`}
+        className="flex items-center gap-2 cursor-pointer group flex-1"
+      >
+        {({ isSelected }) => (
+          <>
+            <div
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                isSelected
+                  ? "bg-stone-600 border-stone-500"
+                  : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+              }`}
+            >
+              {isSelected && <Check size={10} className="text-stone-100" />}
+            </div>
+            <span className="text-sm text-stone-700 dark:text-stone-300">{category.label}</span>
+          </>
+        )}
+      </Checkbox>
+      {warning && (
+        <IssueChip
+          variant="status"
+          tone="warning"
+          icon={AlertTriangle}
+          ariaDescription={warning.cause}
+        >
+          Unavailable
+        </IssueChip>
+      )}
+    </div>
+  );
+}
+
+interface SecurityAlertsDisclosureProps {
+  sourceExternalId: string;
+  sourceLabel: string;
+  entry: SourceSelectionEntry;
+  warnings: ListIssuesWarning[] | undefined;
+  onFlagChange: (flag: AlertFlagKey, value: boolean) => void;
+}
+
+function SecurityAlertsDisclosure({
+  sourceExternalId,
+  sourceLabel,
+  entry,
+  warnings,
+  onFlagChange,
+}: SecurityAlertsDisclosureProps) {
+  const enabled = ALERT_CATEGORIES.filter((c) => entryFlag(entry, c.flag));
+  const enabledCount = enabled.length;
+  const summary =
+    enabledCount > 0 ? `(${enabled.map((c) => c.label.replace(/ alerts$/, "")).join(", ")})` : null;
+
+  return (
+    <Disclosure
+      className="border-t border-stone-100 dark:border-stone-800 pt-2"
+      data-testid={`security-alerts-disclosure-${sourceExternalId}`}
+    >
+      {({ isExpanded }) => (
+        <>
+          <Heading level={4} className="m-0">
+            <Button
+              slot="trigger"
+              className="w-full flex items-center gap-2 px-1 py-1 text-left text-[12px] text-stone-600 dark:text-stone-400 outline-none rounded transition-colors hover:text-stone-800 dark:hover:text-stone-200 focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              aria-label={`Security & quality alerts for ${sourceLabel}`}
+            >
+              <ChevronRight
+                size={12}
+                className={`shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                aria-hidden
+              />
+              <span className="font-medium">Security & quality alerts</span>
+              {summary && (
+                <span className="text-stone-500 dark:text-stone-500 truncate">{summary}</span>
+              )}
+              {enabledCount > 0 && (
+                <span
+                  aria-label={`${enabledCount} enabled`}
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                >
+                  {enabledCount}
+                </span>
+              )}
+            </Button>
+          </Heading>
+          <DisclosurePanel className="flex flex-col gap-2 pt-2 pl-5">
+            {ALERT_CATEGORIES.map((category) => (
+              <AlertCheckboxRow
+                key={category.flag}
+                category={category}
+                selected={entryFlag(entry, category.flag)}
+                onChange={(next) => onFlagChange(category.flag, next)}
+                warning={findWarning(warnings, sourceExternalId, category.warningCategory)}
+              />
+            ))}
+          </DisclosurePanel>
+        </>
+      )}
+    </Disclosure>
+  );
+}
+
+interface PerSourceConfigListProps {
+  category: string;
+  items: SourceCandidateItem[];
+  entries: SourceSelectionEntry[];
+  warnings: ListIssuesWarning[] | undefined;
+  /** Set true to show the security disclosure (github-com/GHE). Other plugins hide it. */
+  showSecurityAlerts: boolean;
+  onFlagChange: (externalId: string, flag: AlertFlagKey, value: boolean) => void;
+}
+
+function PerSourceConfigList({
+  category,
+  items,
+  entries,
+  warnings,
+  showSecurityAlerts,
+  onFlagChange,
+}: PerSourceConfigListProps) {
+  if (!showSecurityAlerts || entries.length === 0) return null;
+  const byId = new Map(items.map((i) => [i.externalId, i]));
+  return (
+    <div
+      className="flex flex-col gap-3"
+      data-testid={`per-source-config-${category}`}
+      data-category={category}
+    >
+      {entries.map((entry) => {
+        const id = entryId(entry);
+        const item = byId.get(id);
+        const sourceLabel = item?.label ?? id;
+        return (
+          <div
+            key={id}
+            className="flex flex-col gap-1 rounded-md border border-stone-200 dark:border-stone-700/50 px-3 py-2 bg-white/40 dark:bg-stone-900/40"
+          >
+            <div className="flex items-center gap-2 text-xs text-stone-700 dark:text-stone-300 font-mono">
+              <span className="truncate">{sourceLabel}</span>
+            </div>
+            <SecurityAlertsDisclosure
+              sourceExternalId={id}
+              sourceLabel={sourceLabel}
+              entry={entry}
+              warnings={warnings}
+              onFlagChange={(flag, value) => onFlagChange(id, flag, value)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MultiListVariant({
   response,
   value,
   onChange,
-}: SourcePickerProps & { response: SourceCandidatesResponse & { items: SourceCandidateItem[] } }) {
+  warnings,
+  showSecurityAlerts,
+}: SourcePickerProps & {
+  response: SourceCandidatesResponse & { items: SourceCandidateItem[] };
+  showSecurityAlerts: boolean;
+}) {
   const items = useMemo(() => response.items ?? [], [response.items]);
-  const selected = selectionFromValue(value, MULTI_LIST_KEY);
+  const selectedIds = useMemo(() => new Set(idsFor(value, MULTI_LIST_KEY)), [value]);
+  const entries = entriesFor(value, MULTI_LIST_KEY);
   const byId = useMemo(() => {
     const map = new Map<string, SourceCandidateItem>();
     for (const it of items) map.set(it.externalId, it);
     return map;
   }, [items]);
 
-  const selectedList = [...selected]
+  const selectedList = [...selectedIds]
     .map((id) => byId.get(id))
     .filter((it): it is SourceCandidateItem => !!it);
 
   const handleChange = (next: Set<string>) => {
-    onChange(setSelectionForKey(value, MULTI_LIST_KEY, next));
+    onChange(applyIdSelection(value, MULTI_LIST_KEY, next));
+  };
+
+  const handleFlagChange = (externalId: string, flag: AlertFlagKey, val: boolean) => {
+    onChange(setFlagForEntry(value, MULTI_LIST_KEY, externalId, flag, val));
   };
 
   return (
     <div className="flex flex-col gap-4">
       <CandidateList
         items={items}
-        selected={selected}
+        selected={selectedIds}
         onSelectionChange={handleChange}
         ariaLabel="Source candidates"
       />
@@ -225,11 +443,19 @@ function MultiListVariant({
           id: it.externalId,
           label: it.label,
           onRemove: () => {
-            const next = new Set(selected);
+            const next = new Set(selectedIds);
             next.delete(it.externalId);
             handleChange(next);
           },
         }))}
+      />
+      <PerSourceConfigList
+        category={MULTI_LIST_KEY}
+        items={items}
+        entries={entries}
+        warnings={warnings}
+        showSecurityAlerts={showSecurityAlerts}
+        onFlagChange={handleFlagChange}
       />
     </div>
   );
@@ -239,8 +465,11 @@ function CategorizedVariant({
   response,
   value,
   onChange,
+  warnings,
+  showSecurityAlerts,
 }: SourcePickerProps & {
   response: SourceCandidatesResponse & { categories: SourceCandidateCategory[] };
+  showSecurityAlerts: boolean;
 }) {
   const categories = useMemo(() => response.categories ?? [], [response.categories]);
   const [activeId, setActiveId] = useState<string>(() => categories[0]?.id ?? "");
@@ -248,7 +477,7 @@ function CategorizedVariant({
   const counts = useMemo(() => {
     const out: Record<string, number> = {};
     for (const cat of categories) {
-      out[cat.id] = value[cat.id]?.length ?? 0;
+      out[cat.id] = entriesFor(value, cat.id).length;
     }
     return out;
   }, [categories, value]);
@@ -282,16 +511,29 @@ function CategorizedVariant({
             </Tab>
           ))}
         </TabList>
-        {categories.map((cat) => (
-          <TabPanel key={cat.id} id={cat.id} className="outline-none">
-            <CandidateList
-              items={cat.items}
-              selected={selectionFromValue(value, cat.id)}
-              onSelectionChange={(next) => onChange(setSelectionForKey(value, cat.id, next))}
-              ariaLabel={`${cat.label} candidates`}
-            />
-          </TabPanel>
-        ))}
+        {categories.map((cat) => {
+          const catIds = new Set(idsFor(value, cat.id));
+          return (
+            <TabPanel key={cat.id} id={cat.id} className="outline-none flex flex-col gap-3">
+              <CandidateList
+                items={cat.items}
+                selected={catIds}
+                onSelectionChange={(next) => onChange(applyIdSelection(value, cat.id, next))}
+                ariaLabel={`${cat.label} candidates`}
+              />
+              <PerSourceConfigList
+                category={cat.id}
+                items={cat.items}
+                entries={entriesFor(value, cat.id)}
+                warnings={warnings}
+                showSecurityAlerts={showSecurityAlerts}
+                onFlagChange={(externalId, flag, val) =>
+                  onChange(setFlagForEntry(value, cat.id, externalId, flag, val))
+                }
+              />
+            </TabPanel>
+          );
+        })}
       </Tabs>
 
       <GroupedChipStrip categories={categories} value={value} onChange={onChange} />
@@ -335,7 +577,7 @@ function GroupedChipStrip({
   const groups = categories
     .map((cat) => {
       const byId = new Map(cat.items.map((it) => [it.externalId, it]));
-      const selected = value[cat.id] ?? [];
+      const selected = idsFor(value, cat.id);
       const chips = selected
         .map((id) => byId.get(id))
         .filter((it): it is SourceCandidateItem => !!it);
@@ -363,9 +605,9 @@ function GroupedChipStrip({
                 key={it.externalId}
                 label={it.label}
                 onRemove={() => {
-                  const current = new Set(value[cat.id] ?? []);
+                  const current = new Set(idsFor(value, cat.id));
                   current.delete(it.externalId);
-                  onChange(setSelectionForKey(value, cat.id, current));
+                  onChange(applyIdSelection(value, cat.id, current));
                 }}
               />
             ))}
@@ -376,13 +618,38 @@ function GroupedChipStrip({
   );
 }
 
-export default function SourcePicker({ response, value, onChange }: SourcePickerProps) {
+export default function SourcePicker({ response, value, onChange, warnings }: SourcePickerProps) {
+  // Only the bundled GitHub-family source kinds use the security alert toggles.
+  // Detect via the icon hint declared on the candidate items; other plugins
+  // (e.g. Jira) declare their own icons, so the disclosure stays hidden there.
+  const showSecurityAlerts = useMemo(() => {
+    const items =
+      response.shape === "multi-list"
+        ? (response.items ?? [])
+        : (response.categories ?? []).flatMap((c) => c.items);
+    return items.some((it) => it.icon === "repo" || it.icon === "project");
+  }, [response]);
+
   if (response.shape === "multi-list") {
     const items = response.items ?? [];
-    return <MultiListVariant response={{ ...response, items }} value={value} onChange={onChange} />;
+    return (
+      <MultiListVariant
+        response={{ ...response, items }}
+        value={value}
+        onChange={onChange}
+        warnings={warnings}
+        showSecurityAlerts={showSecurityAlerts}
+      />
+    );
   }
   const categories = response.categories ?? [];
   return (
-    <CategorizedVariant response={{ ...response, categories }} value={value} onChange={onChange} />
+    <CategorizedVariant
+      response={{ ...response, categories }}
+      value={value}
+      onChange={onChange}
+      warnings={warnings}
+      showSecurityAlerts={showSecurityAlerts}
+    />
   );
 }

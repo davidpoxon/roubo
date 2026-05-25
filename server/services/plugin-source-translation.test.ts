@@ -52,4 +52,41 @@ describe("translateSources", () => {
     const result = translateSources({ Repository: ["foo/bar", ""] });
     expect(result).toEqual([{ kind: "repo", externalId: "foo/bar" }]);
   });
+
+  it("preserves per-source alert booleans on object-form entries (WU-030)", () => {
+    const result = translateSources({
+      Repository: [
+        {
+          externalId: "foo/bar",
+          includeCodeQLAlerts: true,
+          includeSecretScanningAlerts: false,
+          includeDependabotAlerts: true,
+        },
+        "foo/baz",
+      ],
+    });
+    expect(result).toEqual([
+      {
+        kind: "repo",
+        externalId: "foo/bar",
+        includeCodeQLAlerts: true,
+        includeSecretScanningAlerts: false,
+        includeDependabotAlerts: true,
+      },
+      { kind: "repo", externalId: "foo/baz" },
+    ]);
+  });
+
+  it("omits absent alert booleans rather than emitting undefined fields", () => {
+    const result = translateSources({
+      Repository: [{ externalId: "foo/bar", includeCodeQLAlerts: true }],
+    });
+    expect(result[0]).toEqual({
+      kind: "repo",
+      externalId: "foo/bar",
+      includeCodeQLAlerts: true,
+    });
+    expect(Object.keys(result[0])).not.toContain("includeSecretScanningAlerts");
+    expect(Object.keys(result[0])).not.toContain("includeDependabotAlerts");
+  });
 });

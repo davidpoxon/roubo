@@ -51,6 +51,22 @@ export interface PaginateOptions {
 }
 
 /**
+ * Status-bearing error thrown by `paginateAlerts` on non-2xx responses.
+ * Callers (notably `safeFetchAlerts`) classify by `status` without
+ * resorting to message string-matching.
+ */
+export class AlertPaginationError extends Error {
+  readonly status: number;
+  readonly url: string;
+  constructor(status: number, url: string) {
+    super(`[shared-github] paginateAlerts: GET ${url} returned status ${status}`);
+    this.name = "AlertPaginationError";
+    this.status = status;
+    this.url = url;
+  }
+}
+
+/**
  * Follows GitHub's `Link: rel="next"` header to walk a paginated REST listing
  * and concatenates each page's JSON body. Each page body is expected to parse
  * to `T[]`; non-array bodies surface as a clear error. Stops as soon as no
@@ -78,9 +94,7 @@ export async function paginateAlerts<T>(
   while (url && pages < maxPages) {
     const res = await transport(url, init);
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(
-        `[shared-github] paginateAlerts: ${init.method} ${url} returned status ${res.status}`,
-      );
+      throw new AlertPaginationError(res.status, url);
     }
     const parsed: unknown = res.body.length === 0 ? [] : JSON.parse(res.body);
     if (!Array.isArray(parsed)) {

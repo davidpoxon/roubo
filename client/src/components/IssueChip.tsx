@@ -18,6 +18,7 @@ const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
   blocked: "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300",
   done: "bg-stone-500/15 text-stone-600 dark:bg-stone-500/20 dark:text-stone-300",
   neutral: "bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
+  warning: "bg-amber-500/20 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200",
 };
 
 const BASE_CLASSES =
