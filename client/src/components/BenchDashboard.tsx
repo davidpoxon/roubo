@@ -26,6 +26,7 @@ import ProjectTile from "./ProjectTile";
 import RegisterProjectTile from "./RegisterProjectTile";
 import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import MissingPluginDialog from "./MissingPluginDialog";
+import EnablePluginPromptModal from "./EnablePluginPromptModal";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
 export type ProjectOutletContext = {
@@ -90,6 +91,10 @@ export default function BenchDashboard() {
   // Session-scoped suppression of the "Plugin needed" prompt. Resets on page
   // reload; users always get a fresh chance to install on the next session.
   const [missingPluginSkipped, setMissingPluginSkipped] = useState<Set<string>>(new Set());
+  // Session-scoped suppression of the "Enable plugin?" prompt. Same lifecycle
+  // as missingPluginSkipped above; the two sets are kept separate because the
+  // dialogs target different integration states.
+  const [enablePluginSkipped, setEnablePluginSkipped] = useState<Set<string>>(new Set());
 
   const initialFilters = projectId
     ? (filterCache.get(projectId) ?? createEmptyFilters())
@@ -508,6 +513,26 @@ export default function BenchDashboard() {
                 pluginSource={integration.effective.pluginSource}
                 onClose={() => setMissingPluginSkipped((prev) => new Set(prev).add(projectId))}
                 onSkip={() => setMissingPluginSkipped((prev) => new Set(prev).add(projectId))}
+              />
+            )}
+
+          {/* Mutually exclusive with MissingPluginDialog above: that branch only
+              fires when plugin.installed === false; this one requires installed
+              === true && status === "disabled". */}
+          {projectId &&
+            integration?.plugin &&
+            integration.plugin.installed &&
+            integration.plugin.status === "disabled" &&
+            !enablePluginSkipped.has(projectId) && (
+              <EnablePluginPromptModal
+                projectId={projectId}
+                pluginId={integration.plugin.id}
+                pluginName={integration.plugin.manifest?.name ?? integration.plugin.id}
+                onCancel={() => setEnablePluginSkipped((prev) => new Set(prev).add(projectId))}
+                onEnabled={() => {
+                  // Modal unmounts automatically once the project-integration
+                  // query (invalidated by the modal) returns status: "enabled".
+                }}
               />
             )}
         </>

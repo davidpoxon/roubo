@@ -290,6 +290,30 @@ vi.mock("./MissingPluginDialog", () => ({
     </div>
   ),
 }));
+vi.mock("./EnablePluginPromptModal", () => ({
+  default: ({
+    projectId,
+    pluginId,
+    pluginName,
+    onCancel,
+  }: {
+    projectId: string;
+    pluginId: string;
+    pluginName: string;
+    onCancel: () => void;
+  }) => (
+    <div
+      data-testid="enable-plugin-modal"
+      data-project-id={projectId}
+      data-plugin-id={pluginId}
+      data-plugin-name={pluginName}
+    >
+      <button data-testid="enable-plugin-modal-cancel" onClick={onCancel}>
+        Cancel
+      </button>
+    </div>
+  ),
+}));
 
 import { useProjects } from "../hooks/useProjects";
 import { useProjectBenches, useCreateBench } from "../hooks/useBenches";
@@ -1182,6 +1206,107 @@ describe("BenchDashboard", () => {
       expect(screen.getByTestId("missing-plugin-dialog")).toBeInTheDocument();
       await user.click(screen.getByTestId("missing-plugin-dialog-skip"));
       expect(screen.queryByTestId("missing-plugin-dialog")).toBeNull();
+    });
+  });
+
+  describe("enable-plugin prompt (WU-053)", () => {
+    const disabledPlugin: NonNullable<ProjectIntegrationState["plugin"]> = {
+      id: "github-com",
+      installed: true,
+      status: "disabled",
+      manifest: { name: "GitHub.com" },
+    };
+    const disabledIntegration: ProjectIntegrationState = {
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: disabledPlugin,
+      captionKey: "yaml-only",
+    };
+
+    it("renders EnablePluginPromptModal when integration plugin is installed-but-disabled (TC-123)", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: disabledIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      const modal = screen.getByTestId("enable-plugin-modal");
+      expect(modal).toBeInTheDocument();
+      expect(modal).toHaveAttribute("data-plugin-id", "github-com");
+      expect(modal).toHaveAttribute("data-plugin-name", "GitHub.com");
+    });
+
+    it("falls back to plugin id when manifest name is missing", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          ...disabledIntegration,
+          plugin: { ...disabledPlugin, manifest: null },
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByTestId("enable-plugin-modal")).toHaveAttribute(
+        "data-plugin-name",
+        "github-com",
+      );
+    });
+
+    it("does not render the prompt when status is enabled", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          ...disabledIntegration,
+          plugin: { ...disabledPlugin, status: "enabled" },
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
+    });
+
+    it("does not render the prompt when status is errored", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          ...disabledIntegration,
+          plugin: { ...disabledPlugin, status: "errored" },
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
+    });
+
+    it("renders MissingPluginDialog (not EnablePluginPromptModal) when plugin is not installed (TC-189)", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          effective: { plugin: "jira-self-hosted" },
+          committed: { plugin: "jira-self-hosted" },
+          override: null,
+          plugin: { id: "jira-self-hosted", installed: false, status: null, manifest: null },
+          captionKey: "yaml-only",
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByTestId("missing-plugin-dialog")).toBeInTheDocument();
+      expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
+    });
+
+    it("dismisses the prompt after Cancel and stays dismissed for the session (TC-124)", async () => {
+      const user = userEvent.setup();
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: disabledIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByTestId("enable-plugin-modal")).toBeInTheDocument();
+      await user.click(screen.getByTestId("enable-plugin-modal-cancel"));
+      expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
   });
 });
