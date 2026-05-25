@@ -1165,11 +1165,11 @@
     "acceptance_criteria": [
       "Greenfield detection returns true only when state.json has no version marker",
       "Idempotent: running migration twice does not flip already-set plugin states",
-      "TC-115, TC-116 pass"
+      "TC-117, TC-118 pass"
     ],
     "linked_requirement_ids": ["FR-059"],
     "linked_user_story_ids": ["US-016"],
-    "linked_test_ids": ["TC-115", "TC-116"],
+    "linked_test_ids": ["TC-117", "TC-118"],
     "estimate": 2,
     "depends_on": ["WU-046"],
     "issue": {

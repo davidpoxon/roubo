@@ -323,7 +323,7 @@ describe("migrate.run — rollback path (TC-069)", () => {
   });
 });
 
-describe("migrate.run — plugins-state.json seed (WU-046)", () => {
+describe("migrate.run — plugins-state.json seed (WU-046 / WU-047)", () => {
   it("seeds all bundled plugins as disabled before bumping schemaVersion on greenfield install", async () => {
     mockState({ benches: [] });
     mockProjects({ projects: [] });
@@ -345,7 +345,7 @@ describe("migrate.run — plugins-state.json seed (WU-046)", () => {
     expect(seedOrder).toBeLessThan(stateOrder);
   });
 
-  it("seeds all bundled plugins as enabled on existing install (auth present)", async () => {
+  it("does not touch plugins-state.json on existing install (auth present) — FR-059 / TC-118", async () => {
     mockState({ benches: [] });
     mockProjects({ projects: [] });
     mockAuth("ghp_secret_token");
@@ -354,16 +354,13 @@ describe("migrate.run — plugins-state.json seed (WU-046)", () => {
     const outcome = await mod.run();
 
     expect(outcome.status).toBe("success");
-    expect(enableStateMocks.saveEnableState).toHaveBeenCalledTimes(1);
-    expect(enableStateMocks.saveEnableState).toHaveBeenCalledWith({
-      schemaVersion: 1,
-      installInitialized: true,
-      plugins: { "github-com": "enabled", ghe: "enabled", "jira-self-hosted": "enabled" },
-    });
+    expect(enableStateMocks.saveEnableState).not.toHaveBeenCalled();
 
-    const seedOrder = enableStateMocks.saveEnableState.mock.invocationCallOrder[0];
-    const stateOrder = stateMocks.saveState.mock.invocationCallOrder[0];
-    expect(seedOrder).toBeLessThan(stateOrder);
+    // state.json gate still bumped so the migration is idempotent next boot.
+    expect(stateMocks.saveState).toHaveBeenCalledTimes(1);
+    const committed = stateMocks.saveState.mock.calls[0][0] as PersistedState;
+    expect(committed.schemaVersion).toBe(1);
+    expect(committed.migration?.status).toBe("success");
   });
 
   it("does not seed when already migrated (schemaVersion already bumped)", async () => {

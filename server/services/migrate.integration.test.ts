@@ -149,15 +149,11 @@ describe("migrate.run — integration (TC-031, TC-049)", () => {
       "ghp_fixture_token",
     );
 
-    // WU-046: existing-install seed lands every bundled plugin as enabled.
+    // WU-047 / FR-059: existing installs are not modified — migrate must
+    // leave plugins-state.json absent (downstream readers default missing
+    // plugin ids to "enabled").
     const enableStatePath = path.join(fx.rouboDir, "plugins-state.json");
-    expect(fs.existsSync(enableStatePath)).toBe(true);
-    const enableState = JSON.parse(fs.readFileSync(enableStatePath, "utf-8")) as PluginEnableState;
-    expect(enableState).toEqual({
-      schemaVersion: 1,
-      installInitialized: true,
-      plugins: { "github-com": "enabled", ghe: "enabled", "jira-self-hosted": "enabled" },
-    });
+    expect(fs.existsSync(enableStatePath)).toBe(false);
 
     // Re-run is a no-op (TC-068): no further fs mutation, no new credential calls.
     const alphaBefore = fs.statSync(path.join(fx.rouboDir, "integrations", "alpha.yaml")).mtimeMs;
@@ -226,5 +222,35 @@ describe("migrate.run — integration (TC-031, TC-049)", () => {
       fs.readFileSync(path.join(rouboDir, "state.json"), "utf-8"),
     ) as PersistedState;
     expect(stateAfter.schemaVersion).toBe(1);
+  });
+
+  it("preserves a pre-existing plugins-state.json across migration (WU-047 / TC-118)", async () => {
+    // Existing install upgrading from pre-migration to post-migration. The
+    // user already toggled github-com to disabled via the regular RPC, so
+    // plugins-state.json sits next to auth.json + projects.json. FR-059
+    // requires the migration to commit (schemaVersion bump, overrides, auth
+    // cleanup) without flipping the user's prior plugin choices back.
+    const fx = scaffoldFixture();
+    const enableStatePath = path.join(fx.rouboDir, "plugins-state.json");
+    const preExisting = {
+      schemaVersion: 1,
+      installInitialized: false,
+      plugins: { "github-com": "disabled" as const },
+    };
+    const preExistingRaw = JSON.stringify(preExisting, null, 2);
+    fs.writeFileSync(enableStatePath, preExistingRaw);
+
+    const outcome = await mod.run();
+
+    expect(outcome.status).toBe("success");
+
+    // Migration still committed.
+    const stateAfter = JSON.parse(fs.readFileSync(fx.statePath, "utf-8")) as PersistedState;
+    expect(stateAfter.schemaVersion).toBe(1);
+    expect(fs.existsSync(fx.authPath)).toBe(false);
+    expect(fs.existsSync(path.join(fx.rouboDir, "integrations", "alpha.yaml"))).toBe(true);
+
+    // plugins-state.json is byte-identical to the pre-existing file.
+    expect(fs.readFileSync(enableStatePath, "utf-8")).toBe(preExistingRaw);
   });
 });
