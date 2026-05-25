@@ -75,6 +75,7 @@
     "@types/semver": "7.7.1",
     "@types/supertest": "7.2.0",
     "@vitest/coverage-v8": "4.1.5",
+    "axe-core": "4.11.4",
     "concurrently": "9.2.1",
     "cross-env": "10.1.0",
     "eslint": "10.2.1",
@@ -86,7 +87,8 @@
     "prettier": "3.8.3",
     "supertest": "7.2.2",
     "typescript-eslint": "8.59.0",
-    "vitest": "4.1.5"
+    "vitest": "4.1.5",
+    "vitest-axe": "0.1.0"
   },
   "overrides": {
     "tar": "7.5.15"
