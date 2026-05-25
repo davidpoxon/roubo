@@ -3,7 +3,7 @@ import { DONE_STATUSES } from "@roubo/shared";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
-import { getDirtyState } from "./git-state.js";
+import { buildKnownMergedLocations, getDirtyState } from "./git-state.js";
 import * as notificationService from "./notification.js";
 import { syncAllWorkUnitPRs } from "./pr-sync.js";
 import { loadSettings } from "./state.js";
@@ -116,23 +116,36 @@ export async function checkAndClearDoneBenches(): Promise<void> {
 }
 
 async function safeTeardown(projectId: string, bench: Bench): Promise<void> {
-  // Short-circuit: do not retry while an active teardown-blocked notification exists.
-  // Dismissing it clears the flag; the next poll re-evaluates and re-blocks if still
-  // dirty or proceeds if the worktree is clean.
-  if (bench.notifications.some((n) => n.type === "teardown-blocked")) {
+  // Compute dirty state first, suppressing the unpushed/no-upstream checks for
+  // submodules whose PR is known merged. Their remote branch may be deleted
+  // and the local commits squash-merged, both of which produce false positives.
+  const dirty = await getDirtyState(bench, {
+    knownMergedLocations: buildKnownMergedLocations(bench),
+  });
+
+  const stale = bench.notifications.filter((n) => n.type === "teardown-blocked");
+
+  if (!dirty.clean) {
+    // Still dirty: keep any existing teardown-blocked notification sticky so we
+    // do not spam the user, and only create a new one if none exists yet.
+    if (stale.length === 0) {
+      console.log(
+        `[auto-clear] Skipping teardown of bench ${bench.id} (project ${projectId}): ` +
+          `${dirty.reasons.length} dirty reason(s)`,
+      );
+      notificationService.createNotification(bench, "teardown-blocked", undefined, {
+        dirtyReasons: dirty.reasons,
+      });
+    }
     return;
   }
 
-  const dirty = await getDirtyState(bench);
-  if (!dirty.clean) {
-    console.log(
-      `[auto-clear] Skipping teardown of bench ${bench.id} (project ${projectId}): ` +
-        `${dirty.reasons.length} dirty reason(s)`,
-    );
-    notificationService.createNotification(bench, "teardown-blocked", undefined, {
-      dirtyReasons: dirty.reasons,
-    });
-    return;
+  // Clean now. Dismiss any prior teardown-blocked notification so its dismissal
+  // is not stranded after the underlying state self-heals (e.g. a merged PR's
+  // remote branch was deleted, and the new git-cherry path now recognises the
+  // local commits as patch-equivalent on the default branch).
+  for (const n of stale) {
+    notificationService.dismissOne(bench, n.id);
   }
 
   try {

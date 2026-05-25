@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
-import { getDirtyState } from "../services/git-state.js";
+import { buildKnownMergedLocations, getDirtyState } from "../services/git-state.js";
 import * as notificationService from "../services/notification.js";
 import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
@@ -150,7 +150,9 @@ router.delete("/:projectId/benches/:id", async (req, res) => {
         return;
       }
 
-      const dirtyState = await getDirtyState(bench);
+      const dirtyState = await getDirtyState(bench, {
+        knownMergedLocations: buildKnownMergedLocations(bench),
+      });
       if (!dirtyState.clean && !force) {
         res.status(409).json({
           error: "Bench has uncommitted work; pass force=true to override",

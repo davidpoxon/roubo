@@ -53,6 +53,7 @@ vi.mock("../services/notification.js", () => ({
 
 vi.mock("../services/git-state.js", () => ({
   getDirtyState: vi.fn(),
+  buildKnownMergedLocations: vi.fn(() => new Set<string>()),
 }));
 
 vi.mock("../services/pr-sync.js", () => ({
@@ -416,7 +417,21 @@ describe("DELETE /:projectId/benches/:id", () => {
     const res = await request(app).delete("/my-project/benches/1?removeWorkspace=true");
     expect(res.status).toBe(202);
     expect(benchManager.teardownBench).toHaveBeenCalledWith("my-project", 1, true);
-    expect(gitState.getDirtyState).toHaveBeenCalledWith(mockBench);
+    expect(gitState.getDirtyState).toHaveBeenCalledWith(
+      mockBench,
+      expect.objectContaining({ knownMergedLocations: expect.any(Set) }),
+    );
+  });
+
+  it("passes a knownMergedLocations set derived from the bench into getDirtyState", async () => {
+    vi.mocked(gitState.buildKnownMergedLocations).mockReturnValueOnce(new Set(["api", "web"]));
+
+    const res = await request(app).delete("/my-project/benches/1?removeWorkspace=true");
+    expect(res.status).toBe(202);
+    const call = vi.mocked(gitState.getDirtyState).mock.calls.at(-1);
+    expect(call?.[1]?.knownMergedLocations).toBeInstanceOf(Set);
+    expect([...(call?.[1]?.knownMergedLocations ?? new Set())].sort()).toEqual(["api", "web"]);
+    expect(gitState.buildKnownMergedLocations).toHaveBeenCalledWith(mockBench);
   });
 
   it("returns 409 with bench-dirty code when bench is dirty and force is not set", async () => {

@@ -599,7 +599,10 @@ describe("checkAndClearDoneBenches", () => {
       consoleSpy.mockRestore();
     });
 
-    it("short-circuits when a teardown-blocked notification already exists (does not re-check dirty state or call teardown)", async () => {
+    it("stays sticky when a teardown-blocked notification already exists and the bench is still dirty", async () => {
+      // Re-evaluating dirty state on each poll lets us self-heal when state
+      // clears, but as long as the bench is still dirty we must not pile up
+      // duplicate notifications or attempt teardown.
       const bench = makeBench({
         notifications: [
           {
@@ -616,10 +619,96 @@ describe("checkAndClearDoneBenches", () => {
         number: 42,
         state: "closed",
       } as unknown as GitHubIssue);
+      vi.mocked(gitState.getDirtyState).mockResolvedValue({
+        clean: false,
+        reasons: dirtyReasons,
+      });
       await checkAndClearDoneBenches();
-      expect(gitState.getDirtyState).not.toHaveBeenCalled();
+      expect(gitState.getDirtyState).toHaveBeenCalled();
       expect(benchManager.teardownBench).not.toHaveBeenCalled();
       expect(notificationService.createNotification).not.toHaveBeenCalled();
+      expect(notificationService.dismissOne).not.toHaveBeenCalled();
+    });
+
+    it("self-heals a stale teardown-blocked notification when state is now clean (e.g. PR merged + remote branch deleted)", async () => {
+      const bench = makeBench({
+        notifications: [
+          {
+            id: "n1",
+            type: "teardown-blocked",
+            priority: "action-needed",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+      vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
+        number: 42,
+        state: "closed",
+      } as unknown as GitHubIssue);
+      vi.mocked(gitState.getDirtyState).mockResolvedValue({
+        clean: true,
+        reasons: [],
+      });
+      await checkAndClearDoneBenches();
+      expect(notificationService.dismissOne).toHaveBeenCalledWith(bench, "n1");
+      expect(benchManager.teardownBench).toHaveBeenCalledWith("proj-1", 1, true);
+    });
+
+    it("passes knownMergedLocations built from merged work-unit PRs into getDirtyState", async () => {
+      const mergedUnit = makeWorkUnit({
+        submodule: "api",
+        pullRequest: {
+          repoFullName: "acme/api",
+          number: 7,
+          title: "t",
+          state: "closed",
+          merged: true,
+          url: "u",
+          updatedAt: new Date().toISOString(),
+        },
+        lastSyncedAt: new Date().toISOString(),
+      });
+      const openUnit = makeWorkUnit({
+        submodule: "web",
+        pullRequest: {
+          repoFullName: "acme/web",
+          number: 8,
+          title: "t",
+          state: "closed",
+          merged: true,
+          url: "u",
+          updatedAt: new Date().toISOString(),
+        },
+        lastSyncedAt: new Date().toISOString(),
+      });
+      const bench = makeMetaBench([mergedUnit, openUnit]);
+      vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeMetaProject());
+      vi.mocked(gitHelpers.resolveRepoFullName).mockResolvedValue("acme/api");
+      vi.mocked(githubService.getGithubToken).mockReturnValue("test-token");
+      vi.mocked(
+        githubService.fetchOpenPullRequestByBranch as ReturnType<typeof vi.fn>,
+      ).mockResolvedValue({ notModified: true });
+      vi.mocked(gitHelpers.probeWorkUnitState).mockResolvedValue({
+        branch: "feat/checkout-v2",
+        dirty: { modifiedCount: 0, untrackedCount: 0, unpushedCommits: 0 },
+      });
+      vi.mocked(gitState.buildKnownMergedLocations).mockReturnValue(new Set(["api", "web"]));
+      vi.mocked(gitState.getDirtyState).mockResolvedValue({ clean: true, reasons: [] });
+
+      await checkAndClearDoneBenches();
+
+      expect(gitState.buildKnownMergedLocations).toHaveBeenCalledWith(
+        expect.objectContaining({ id: bench.id }),
+      );
+      const call = vi.mocked(gitState.getDirtyState).mock.calls.at(-1);
+      expect(call).toBeDefined();
+      expect(call?.[0].id).toBe(bench.id);
+      const passed = call?.[1]?.knownMergedLocations;
+      expect(passed).toBeInstanceOf(Set);
+      expect([...(passed ?? new Set())].sort()).toEqual(["api", "web"]);
     });
 
     it("re-blocks when notification is dismissed but bench is still dirty", async () => {
