@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
 import { Tag, ExternalLink, Lock } from "lucide-react";
 import Spinner from "./Spinner";
+import IssueChip from "./IssueChip";
 import { useIssues } from "../hooks/useIssues";
 import type { Bench, NormalizedIssue } from "@roubo/shared";
 import { issueNumberFromExternalId } from "../lib/issue-id";
+import { issueTypeChip, securityCategoryFor } from "../lib/chip-mapping";
 
 function IssueRow({
   issue,
@@ -17,6 +19,8 @@ function IssueRow({
   const isBlocked = blockers.length > 0;
   const issueNumber = issueNumberFromExternalId(issue.externalId);
   const canSelect = issueNumber !== null;
+  const securityCategory = securityCategoryFor(issue.issueType);
+  const typeChip = issueTypeChip(issue.issueType);
 
   return (
     <Button
@@ -31,12 +35,26 @@ function IssueRow({
           <span className="text-xs font-mono text-stone-400 dark:text-stone-600 shrink-0">
             {issue.externalId}
           </span>
+          {securityCategory && typeChip && (
+            // No tooltip here: the row is already an interactive React Aria
+            // Button (HTML <button>) and an inner tooltip-wrapped Button would
+            // produce nested buttons. The externalId tooltip is non-additive
+            // anyway, since the externalId span is rendered inline to the left.
+            <IssueChip
+              variant="security-category"
+              securityCategory={securityCategory}
+              icon={typeChip.icon}
+              data-testid="security-category-chip"
+            >
+              {typeChip.label}
+            </IssueChip>
+          )}
           <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
             {issue.title}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {issue.issueType && (
+          {issue.issueType && !securityCategory && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
               {issue.issueType}
             </span>

@@ -107,51 +107,92 @@ describe("DraggableIssueCard", () => {
     expect(typeChip.querySelector("svg")).not.toBeNull();
   });
 
-  it("renders CodeQL, Secret scanning, and Dependabot alert rows with friendly labels (FR-075)", () => {
+  it("renders CodeQL, Secret scanning, and Dependabot alert rows as security-category chips (WU-033, FR-075)", () => {
     const { container: codeqlContainer, getByText: getCodeQLText } = render(
       <DraggableIssueCard
         issue={makeIssue({
+          externalId: "org/repo#code-scanning-7",
           issueType: "security-code-scanning",
           raw: { rule: { security_severity_level: "high" } },
         })}
       />,
     );
     const codeqlChip = codeqlContainer.querySelector(
-      '[data-chip-category="issue-type"]',
+      '[data-chip-category="security-category"]',
     ) as HTMLElement;
+    expect(codeqlChip).not.toBeNull();
     expect(codeqlChip.querySelector("svg")).not.toBeNull();
-    expect(codeqlChip.className).toMatch(/violet-/);
+    expect(codeqlChip.className).toMatch(/slate-/);
     expect(getCodeQLText("CodeQL")).toBeInTheDocument();
     // Tooltip provided => keyboard-focusable Button wrapper.
     expect(codeqlChip.tagName).toBe("BUTTON");
+    // Duplicate row-level issue-type chip is suppressed for security rows.
+    expect(codeqlContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();
 
     const { container: depContainer, getByText: getDepText } = render(
       <DraggableIssueCard
         issue={makeIssue({
+          externalId: "org/repo#dependabot-3",
           issueType: "security-dependabot",
           raw: { security_advisory: { severity: "critical" } },
         })}
       />,
     );
-    const depChip = depContainer.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
+    const depChip = depContainer.querySelector(
+      '[data-chip-category="security-category"]',
+    ) as HTMLElement;
     expect(depChip.querySelector("svg")).not.toBeNull();
+    expect(depChip.className).toMatch(/zinc-/);
     expect(getDepText("Dependabot")).toBeInTheDocument();
     expect(depChip.tagName).toBe("BUTTON");
+    expect(depContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();
 
     const { container: secretContainer, getByText: getSecretText } = render(
       <DraggableIssueCard
         issue={makeIssue({
+          externalId: "org/repo#secret-scanning-9",
           issueType: "security-secret-scanning",
           raw: { secret_type_display_name: "AWS access key" },
         })}
       />,
     );
     const secretChip = secretContainer.querySelector(
-      '[data-chip-category="issue-type"]',
+      '[data-chip-category="security-category"]',
     ) as HTMLElement;
     expect(secretChip.querySelector("svg")).not.toBeNull();
+    expect(secretChip.className).toMatch(/amber-/);
     expect(getSecretText("Secret scanning")).toBeInTheDocument();
     expect(secretChip.tagName).toBe("BUTTON");
+    expect(secretContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();
+  });
+
+  it("places the security-category chip inline-left of the issue title (WU-033)", () => {
+    const { container } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          externalId: "org/repo#code-scanning-7",
+          issueType: "security-code-scanning",
+          title: "SQL injection in handler",
+          raw: { rule: { security_severity_level: "high" } },
+        })}
+      />,
+    );
+    const chip = container.querySelector('[data-chip-category="security-category"]') as HTMLElement;
+    const titleSpan = Array.from(container.querySelectorAll("span")).find(
+      (n) => n.textContent === "SQL injection in handler",
+    );
+    expect(chip).not.toBeNull();
+    expect(titleSpan).toBeDefined();
+    // Both live in the same title row, with the chip before the title element.
+    expect(chip.parentElement).toBe(titleSpan?.parentElement);
+    expect(chip.compareDocumentPosition(titleSpan as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("does not render a security-category chip for regular issueTypes (WU-033)", () => {
+    const { container } = render(<DraggableIssueCard issue={makeIssue({ issueType: "bug" })} />);
+    expect(container.querySelector('[data-chip-category="security-category"]')).toBeNull();
   });
 
   it("renders alert rows with no transition or assign affordance (FR-075)", () => {

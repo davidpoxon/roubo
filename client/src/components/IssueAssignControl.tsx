@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "react-aria-components";
+import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
 import type { CapturedUserId } from "@roubo/shared";
@@ -11,6 +11,11 @@ interface Props {
   externalId: string;
   assignees: Array<{ externalId: string; displayName: string }>;
   capturedUserId: CapturedUserId | undefined;
+  // WU-033: alert-backed benches render the control disabled with a documented
+  // tooltip. The plugin guarantees `assignees: []` for these issues so write-
+  // back would always fail; the disabled affordance tells the user why.
+  isDisabled?: boolean;
+  disabledTooltip?: string;
 }
 
 export default function IssueAssignControl({
@@ -18,6 +23,8 @@ export default function IssueAssignControl({
   externalId,
   assignees,
   capturedUserId,
+  isDisabled,
+  disabledTooltip,
 }: Props) {
   const meExternalId = capturedUserId?.externalId;
   const sourceAssigned =
@@ -56,6 +63,35 @@ export default function IssueAssignControl({
   if (!meExternalId) return null;
 
   const label = optimisticAssigned ? "Unassign me" : "Assign to me";
+  const buttonClassName =
+    "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-stone-500/15";
+
+  if (isDisabled) {
+    const disabledButton = (
+      <Button
+        data-testid="assign-control"
+        aria-pressed={optimisticAssigned}
+        isDisabled
+        className={buttonClassName}
+      >
+        {label}
+      </Button>
+    );
+    return (
+      <div className="flex flex-col gap-1">
+        {disabledTooltip ? (
+          <TooltipTrigger delay={500}>
+            {disabledButton}
+            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+              {disabledTooltip}
+            </Tooltip>
+          </TooltipTrigger>
+        ) : (
+          disabledButton
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -68,7 +104,7 @@ export default function IssueAssignControl({
           setOptimisticAssigned(nextAssigned);
           mutation.mutate({ assign: nextAssigned, userId: meExternalId });
         }}
-        className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
+        className={buttonClassName}
       >
         {label}
       </Button>
