@@ -173,7 +173,13 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
   );
 }
 
-export default function IssueSourceTile({ projectId }: { projectId: string }) {
+export default function IssueSourceTile({
+  projectId,
+  title = "Source",
+}: {
+  projectId: string;
+  title?: string;
+}) {
   const { data, isLoading, isError, error } = useProjectIntegration(projectId);
 
   const variant = (() => {
@@ -186,7 +192,7 @@ export default function IssueSourceTile({ projectId }: { projectId: string }) {
   return (
     <Tile
       icon={<Plug size={13} aria-hidden />}
-      title="Issue source"
+      title={title}
       secondary="The integration that supplies this project's issues"
       data-testid="issue-source-tile"
     >

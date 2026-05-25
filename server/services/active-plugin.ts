@@ -1,4 +1,5 @@
 import * as projectRegistry from "./project-registry.js";
+import * as pluginManager from "./plugin-manager.js";
 import {
   getEffectiveWithGlobal,
   loadOverride,
@@ -45,4 +46,18 @@ export function resolveActivePlugin(projectId: string): ActivePlugin | null {
     integrationId: effective.plugin,
     pageSize: effective.pageSize ?? DEFAULT_PAGE_SIZE,
   };
+}
+
+/**
+ * Resolve the human-readable display name for a project's active integration
+ * plugin (FR-069, WU-056). Returns `null` when the project has no active
+ * plugin or the plugin isn't installed locally; callers own the user-facing
+ * fallback string (e.g. "Source") so that "no display name" stays distinct
+ * from "plugin id used as a label".
+ */
+export function activeIntegrationDisplayName(projectId: string): string | null {
+  const active = resolveActivePlugin(projectId);
+  if (!active) return null;
+  const record = pluginManager.listInstalled().find((r) => r.id === active.pluginId);
+  return record?.manifest?.name ?? null;
 }

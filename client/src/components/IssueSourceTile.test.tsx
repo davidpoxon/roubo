@@ -71,6 +71,14 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof useInstalledPlugins>);
 });
 
+function renderTileWithTitle(title: string) {
+  return renderWithProviders(
+    <MemoryRouter>
+      <IssueSourceTile projectId="demo" title={title} />
+    </MemoryRouter>,
+  );
+}
+
 describe("IssueSourceTile", () => {
   it("renders the unconfigured variant when no plugin is set", () => {
     withData({
@@ -85,6 +93,39 @@ describe("IssueSourceTile", () => {
 
     expect(screen.getByText(/No issue source configured/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Choose integration/i })).toBeInTheDocument();
+  });
+
+  it('defaults the tile title to "Source" when no title prop is supplied (FR-069 fallback)', () => {
+    withData({
+      effective: {},
+      committed: null,
+      override: null,
+      plugin: null,
+      captionKey: "none",
+    });
+
+    renderTile();
+
+    expect(screen.getByRole("region", { name: "Source" })).toBeInTheDocument();
+  });
+
+  it("renders the supplied title prop as the tile heading (plugin display name)", () => {
+    withData({
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTileWithTitle("GitHub.com");
+
+    expect(screen.getByRole("region", { name: "GitHub.com" })).toBeInTheDocument();
   });
 
   it("renders the missing-plugin variant when the plugin is not installed", () => {
