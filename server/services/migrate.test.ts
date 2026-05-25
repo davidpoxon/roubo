@@ -28,6 +28,9 @@ const credentialMocks = {
 };
 vi.mock("./credential-store.js", () => credentialMocks);
 
+const enableStateMocks = { saveEnableState: vi.fn() };
+vi.mock("./plugin-enable-state.js", () => enableStateMocks);
+
 let mod: typeof import("./migrate.js");
 
 beforeEach(async () => {
@@ -38,6 +41,7 @@ beforeEach(async () => {
   overrideMocks.saveOverride.mockReset();
   credentialMocks.set.mockReset();
   credentialMocks.deleteSlot.mockReset();
+  enableStateMocks.saveEnableState.mockReset();
 
   vi.resetModules();
   mod = await import("./migrate.js");
@@ -316,6 +320,74 @@ describe("migrate.run — rollback path (TC-069)", () => {
     expect(written.schemaVersion).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("rollback step"), "rollback boom");
     warn.mockRestore();
+  });
+});
+
+describe("migrate.run — plugins-state.json seed (WU-046)", () => {
+  it("seeds all bundled plugins as disabled before bumping schemaVersion on greenfield install", async () => {
+    mockState({ benches: [] });
+    mockProjects({ projects: [] });
+    mockAuth(null);
+
+    await mod.run();
+
+    expect(enableStateMocks.saveEnableState).toHaveBeenCalledTimes(1);
+    expect(enableStateMocks.saveEnableState).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "github-com": "disabled", ghe: "disabled", "jira-self-hosted": "disabled" },
+    });
+
+    // Seed must precede state.json commit so a crash between writes leaves
+    // the install ready to retry migrate.
+    const seedOrder = enableStateMocks.saveEnableState.mock.invocationCallOrder[0];
+    const stateOrder = stateMocks.saveState.mock.invocationCallOrder[0];
+    expect(seedOrder).toBeLessThan(stateOrder);
+  });
+
+  it("seeds all bundled plugins as enabled on existing install (auth present)", async () => {
+    mockState({ benches: [] });
+    mockProjects({ projects: [] });
+    mockAuth("ghp_secret_token");
+    credentialMocks.set.mockResolvedValue();
+
+    const outcome = await mod.run();
+
+    expect(outcome.status).toBe("success");
+    expect(enableStateMocks.saveEnableState).toHaveBeenCalledTimes(1);
+    expect(enableStateMocks.saveEnableState).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "github-com": "enabled", ghe: "enabled", "jira-self-hosted": "enabled" },
+    });
+
+    const seedOrder = enableStateMocks.saveEnableState.mock.invocationCallOrder[0];
+    const stateOrder = stateMocks.saveState.mock.invocationCallOrder[0];
+    expect(seedOrder).toBeLessThan(stateOrder);
+  });
+
+  it("does not seed when already migrated (schemaVersion already bumped)", async () => {
+    mockState({ benches: [], schemaVersion: 1 });
+
+    await mod.run();
+
+    expect(enableStateMocks.saveEnableState).not.toHaveBeenCalled();
+  });
+
+  it("does not seed when migration rolls back", async () => {
+    mockState({ benches: [] });
+    mockProjects({ projects: [{ id: "alpha", repoPath: "/repo/alpha" }] });
+    mockAuth("ghp_secret_token");
+    configParserMocks.parseConfig.mockReturnValue({
+      valid: true,
+      config: { project: { github: { project: 1 } } },
+    });
+    credentialMocks.set.mockRejectedValue(new Error("keyring-unavailable"));
+
+    const outcome = await mod.run();
+
+    expect(outcome.status).toBe("rolled-back");
+    expect(enableStateMocks.saveEnableState).not.toHaveBeenCalled();
   });
 });
 

@@ -1,18 +1,44 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { IntegrationOverride, MigrationRecord } from "@roubo/shared";
+import {
+  BUNDLED_PLUGIN_IDS,
+  PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
+  type IntegrationOverride,
+  type MigrationRecord,
+  type PluginEnableState,
+  type PluginEnableStateValue,
+} from "@roubo/shared";
 import { getRouboDir, loadProjects, loadState, saveState } from "./state.js";
 import { parseConfig } from "./config-parser.js";
 import { saveOverride } from "./integration-overrides.js";
 import * as credentialStore from "./credential-store.js";
+import { saveEnableState } from "./plugin-enable-state.js";
 
 // WU-024 / issue #42 — pre-plugin → plugin migration. See:
 //   .specifications/integration-plugins/prd.md (FR-027, FR-028, NFR-009)
 //   .specifications/integration-plugins/test-cases.json (TC-031, TC-049, TC-068, TC-069)
+//
+// WU-046 / issue #137 — plugins-state.json seeding rides the same atomic
+// commit. See architecture.md lines 1027-1097 and 1418-1422. Greenfield
+// installs (no schemaVersion, no auth.json, no registered projects) get all
+// bundled plugins seeded as "disabled"; existing installs keep current
+// behaviour by seeding them as "enabled".
 
 const PLUGIN_ID = "github-com";
 const CREDENTIAL_SLOT = "github-token";
 const TARGET_SCHEMA_VERSION = 1;
+
+function buildEnableStateSeed(value: PluginEnableStateValue): PluginEnableState {
+  const plugins: Record<string, PluginEnableStateValue> = {};
+  for (const id of BUNDLED_PLUGIN_IDS) {
+    plugins[id] = value;
+  }
+  return {
+    schemaVersion: PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
+    installInitialized: true,
+    plugins,
+  };
+}
 
 export type MigrationOutcome =
   | { status: "noop" }
@@ -87,8 +113,12 @@ export async function run(): Promise<MigrationOutcome> {
   }
 
   // Empty migration: bump the gate so we don't retry on every boot, but don't
-  // surface a banner — nothing visible to the user has changed.
+  // surface a banner — nothing visible to the user has changed. This is the
+  // greenfield path for WU-046: seed plugins-state.json with every bundled
+  // plugin "disabled" before bumping the state.json schemaVersion so a crash
+  // between the two writes leaves the install in a re-runnable state.
   if (!auth && plans.length === 0) {
+    saveEnableState(buildEnableStateSeed("disabled"));
     saveState({ ...state, schemaVersion: TARGET_SCHEMA_VERSION });
     const outcome: MigrationOutcome = { status: "noop" };
     lastOutcome = outcome;
@@ -150,7 +180,12 @@ export async function run(): Promise<MigrationOutcome> {
     return outcome;
   }
 
-  // Commit: single state.json write bumps schemaVersion and records success.
+  // Commit: write plugins-state.json (existing-install seed: every bundled
+  // plugin "enabled" to preserve current behaviour) and then state.json. The
+  // state.json write is the gate that prevents migrate from re-running; doing
+  // the plugin-state write first means a crash between the two leaves the
+  // install ready to retry rather than partially gated.
+  saveEnableState(buildEnableStateSeed("enabled"));
   const record: MigrationRecord = {
     status: "success",
     at,

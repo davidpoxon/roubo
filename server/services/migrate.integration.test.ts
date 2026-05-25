@@ -4,7 +4,7 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import * as YAML from "yaml";
-import type { IntegrationOverride, PersistedState } from "@roubo/shared";
+import type { IntegrationOverride, PersistedState, PluginEnableState } from "@roubo/shared";
 
 // TC-031 / TC-049: integration coverage that runs the migration against a
 // real-on-disk pre-plugin ~/.roubo fixture. Only the credential-store boundary
@@ -149,6 +149,16 @@ describe("migrate.run — integration (TC-031, TC-049)", () => {
       "ghp_fixture_token",
     );
 
+    // WU-046: existing-install seed lands every bundled plugin as enabled.
+    const enableStatePath = path.join(fx.rouboDir, "plugins-state.json");
+    expect(fs.existsSync(enableStatePath)).toBe(true);
+    const enableState = JSON.parse(fs.readFileSync(enableStatePath, "utf-8")) as PluginEnableState;
+    expect(enableState).toEqual({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "github-com": "enabled", ghe: "enabled", "jira-self-hosted": "enabled" },
+    });
+
     // Re-run is a no-op (TC-068): no further fs mutation, no new credential calls.
     const alphaBefore = fs.statSync(path.join(fx.rouboDir, "integrations", "alpha.yaml")).mtimeMs;
     const stateBefore = fs.statSync(fx.statePath).mtimeMs;
@@ -187,5 +197,34 @@ describe("migrate.run — integration (TC-031, TC-049)", () => {
     expect(stateAfter.schemaVersion).toBeUndefined();
     expect(stateAfter.migration?.status).toBe("rolled-back");
     expect(stateAfter.migration?.reason).toContain("keyring-unavailable");
+
+    // WU-046: rollback must not leave a half-seeded plugins-state.json behind.
+    expect(fs.existsSync(path.join(fx.rouboDir, "plugins-state.json"))).toBe(false);
+  });
+
+  it("seeds plugins-state.json with all bundled plugins disabled on a greenfield install (WU-046)", async () => {
+    // Greenfield = no auth.json, no projects.json, no state.json schemaVersion.
+    const rouboDir = path.join(homeDir, ".roubo");
+    fs.mkdirSync(rouboDir, { recursive: true });
+
+    const outcome = await mod.run();
+
+    expect(outcome).toEqual({ status: "noop" });
+    expect(credentialMocks.set).not.toHaveBeenCalled();
+
+    const enableStatePath = path.join(rouboDir, "plugins-state.json");
+    expect(fs.existsSync(enableStatePath)).toBe(true);
+    const enableState = JSON.parse(fs.readFileSync(enableStatePath, "utf-8")) as PluginEnableState;
+    expect(enableState).toEqual({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "github-com": "disabled", ghe: "disabled", "jira-self-hosted": "disabled" },
+    });
+
+    // state.json gate also bumped so migrate is a noop next boot.
+    const stateAfter = JSON.parse(
+      fs.readFileSync(path.join(rouboDir, "state.json"), "utf-8"),
+    ) as PersistedState;
+    expect(stateAfter.schemaVersion).toBe(1);
   });
 });

@@ -80,6 +80,18 @@ export type {
 export { parseManifest } from "./plugin-manifest.js";
 export type { ParseManifestResult } from "./plugin-manifest.js";
 
+export {
+  PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
+  BUNDLED_PLUGIN_IDS,
+  PluginEnableStateSchema,
+  PluginEnableStateValueSchema,
+} from "./plugin-enable-state-schema.js";
+export type {
+  PluginEnableState,
+  PluginEnableStateValue,
+  BundledPluginId,
+} from "./plugin-enable-state-schema.js";
+
 export type {
   SourceCandidateIcon,
   SourceCandidateItem,
