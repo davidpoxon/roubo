@@ -2,6 +2,8 @@ import type { ValidateConfigResult } from "@roubo/plugin-sdk";
 import { parseConfig, setActiveConfig, tryGetActiveConfig } from "../active-config.js";
 import { parseSourcesConfig } from "../parse-sources.js";
 import { fetchCurrentUser, fetchProjects, fetchRepoSummary } from "../github-fetchers.js";
+import { resetAlertsRuntime } from "../alerts-runtime.js";
+import { resetOctokit } from "../octokit-factory.js";
 
 /**
  * Validates the host-provided config and, on credential success, caches the
@@ -35,8 +37,15 @@ export async function validateConfig(params: {
   // so the Octokit factory can build the correct baseUrl. If a probe fails
   // downstream we roll back to the previous active config so existing
   // source-bound calls keep working.
+  //
+  // WU-032 AC #7: also clear the alerts-runtime token cache and Octokit
+  // cache so the pre-flight probe (and any subsequent source-bound RPC)
+  // picks up a regenerated PAT immediately. Same reset on rollback below
+  // so the previous config's cached token doesn't leak back in.
   const prevConfig = tryGetActiveConfig();
   setActiveConfig(config);
+  resetAlertsRuntime();
+  resetOctokit();
 
   const errors: Array<{ field?: string; message: string }> = [];
 
@@ -48,6 +57,8 @@ export async function validateConfig(params: {
     // surface the inline self-signed-TLS opt-in affordance.
     const rawMessage = (err as Error).message;
     setActiveConfig(prevConfig);
+    resetAlertsRuntime();
+    resetOctokit();
     errors.push({ message: rawMessage });
     return { ok: false, errors };
   }
@@ -101,6 +112,8 @@ export async function validateConfig(params: {
 
   if (errors.length > 0) {
     setActiveConfig(prevConfig);
+    resetAlertsRuntime();
+    resetOctokit();
     return { ok: false, errors };
   }
 

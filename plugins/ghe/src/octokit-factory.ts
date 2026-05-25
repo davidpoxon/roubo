@@ -77,10 +77,17 @@ export async function getOctokit(): Promise<OctokitLike> {
   return octokit;
 }
 
+/**
+ * Clear the cached Octokit instance, baseUrl, and token so the next
+ * `getOctokit()` call re-resolves them. Used in production by
+ * setActiveConfig / validateConfig after a token rotation (WU-032 AC #7).
+ * Does NOT clear `injectedForTests` (that state belongs to
+ * `__setOctokitForTests`); clearing it here would kill any in-flight
+ * test mock.
+ */
 export function resetOctokit(): void {
   octokit = null;
   cachedBaseUrl = null;
   tokenLoaded = false;
   cachedToken = null;
-  injectedForTests = null;
 }

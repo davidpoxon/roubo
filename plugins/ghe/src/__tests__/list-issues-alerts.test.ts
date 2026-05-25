@@ -1,13 +1,20 @@
 /**
- * WU-038: GHE plugin listIssues alert-merge behaviour.
+ * GHE plugin listIssues alert-merge behaviour. Mirrors
+ * `plugins/github-com/src/__tests__/list-issues-alerts.test.ts` against the
+ * GHE plugin: base URL is `https://ghe.example.com/api/v3` (the test helper's
+ * pre-seeded active config) and the credential slot is `"token"`.
  *
  * Covers TC-136 (alerts in cut list with distinct issue-type chip) and FR-075:
  * - All booleans off → no alert fetches dispatched
  * - All booleans on, healthy → mapped alerts merged in fixed order (issues →
- *   code-scanning → secret-scanning → dependabot), no warnings
- * - Code-scanning 404 → warning emitted, other two categories proceed
+ *   code-scanning → secret-scanning → dependabot), no warnings (WU-038)
+ * - 404 on one category → `code: "not-found"` warning, others proceed
  * - Page > 1 → no alert fetches even with booleans on
- * - Project source spanning two repos → warnings deduped by (category, cause)
+ * - 401 on a classic PAT → `code: "missing-scope"` warning preserved (WU-032)
+ * - 401 on a fine-grained PAT (no X-OAuth-Scopes) → warning rewritten to
+ *   `code: "scope-unverifiable"` with NFR-015's graceful copy (WU-032)
+ * - Project source spanning two repos → warnings deduped by (code, category,
+ *   cause) and alerts fan out across every distinct repo
  * - allowSelfSignedTls flag on active config → forwarded on every alert
  *   host.fetch call (GHE-specific; self-signed instances must stay reachable)
  */
@@ -15,7 +22,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ConfiguredSource, FetchInit, FetchResult } from "@roubo/plugin-sdk";
 import { listIssues } from "../methods/list-issues.js";
-import { resetAlertsRuntime } from "../alerts-runtime.js";
+import { resetAlertsRuntime, SCOPE_UNVERIFIABLE_CAUSE } from "../alerts-runtime.js";
 import { setActiveConfig } from "../active-config.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
@@ -26,12 +33,11 @@ interface InstalledMocks {
 
 let mocks: InstalledMocks;
 
-const CODE_URL =
-  "https://ghe.example.com/api/v3/repos/foo/bar/code-scanning/alerts?state=open&per_page=50&page=1";
-const SECRET_URL =
-  "https://ghe.example.com/api/v3/repos/foo/bar/secret-scanning/alerts?state=open&per_page=50&page=1";
-const DEP_URL =
-  "https://ghe.example.com/api/v3/repos/foo/bar/dependabot/alerts?state=open&per_page=50&page=1";
+const BASE = "https://ghe.example.com/api/v3";
+const USER_URL = `${BASE}/user`;
+const CODE_URL = `${BASE}/repos/foo/bar/code-scanning/alerts?state=open&per_page=50&page=1`;
+const SECRET_URL = `${BASE}/repos/foo/bar/secret-scanning/alerts?state=open&per_page=50&page=1`;
+const DEP_URL = `${BASE}/repos/foo/bar/dependabot/alerts?state=open&per_page=50&page=1`;
 
 function queueHostResponses(map: Record<string, FetchResult>) {
   mocks.mockHost.fetch.mockImplementation(async (url: string, _init?: FetchInit) => {
@@ -56,7 +62,7 @@ function queueIssuesPage(items: unknown[] = []) {
   mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
 }
 
-describe("listIssues + alerts (WU-038, GHE)", () => {
+describe("listIssues + alerts (GHE)", () => {
   it("does not dispatch alert fetches when no booleans are enabled", async () => {
     queueIssuesPage();
     const sources: ConfiguredSource[] = [{ kind: "repo", externalId: "foo/bar" }];
@@ -114,7 +120,7 @@ describe("listIssues + alerts (WU-038, GHE)", () => {
     expect(result.items.map((i) => i.allowedTransitions)).toEqual([[], [], []]);
   });
 
-  it("emits a warning for the failing category and continues fetching the others", async () => {
+  it("emits a `not-found` warning for the failing category and continues fetching the others", async () => {
     queueIssuesPage();
     queueHostResponses({
       [CODE_URL]: { status: 404, headers: {}, body: "" },
@@ -143,6 +149,7 @@ describe("listIssues + alerts (WU-038, GHE)", () => {
         category: "code-scanning",
         sourceExternalId: "foo/bar",
         cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+        code: "not-found",
         detail: { status: 404 },
       },
     ]);
@@ -163,7 +170,82 @@ describe("listIssues + alerts (WU-038, GHE)", () => {
     expect(mocks.mockHost.fetch).not.toHaveBeenCalled();
   });
 
-  it("dedupes project warnings by (category, cause) across repos in the project", async () => {
+  it("emits `missing-scope` when a classic PAT returns 401 and X-OAuth-Scopes is present (AC #5)", async () => {
+    queueIssuesPage();
+    queueHostResponses({
+      [CODE_URL]: { status: 401, headers: {}, body: "" },
+      [SECRET_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+      [DEP_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+      // /user probe returns scopes header → classic PAT, keep `missing-scope`.
+      [USER_URL]: {
+        status: 200,
+        headers: { "X-OAuth-Scopes": "repo, read:org" },
+        body: JSON.stringify({ login: "octocat" }),
+      },
+    });
+
+    const sources: ConfiguredSource[] = [
+      {
+        kind: "repo",
+        externalId: "foo/bar",
+        includeCodeQLAlerts: true,
+        includeSecretScanningAlerts: true,
+        includeDependabotAlerts: true,
+      },
+    ];
+    const result = await listIssues({ sources, cursor: null, pageSize: 50 });
+
+    expect(result.warnings).toEqual([
+      {
+        category: "code-scanning",
+        sourceExternalId: "foo/bar",
+        cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+        code: "missing-scope",
+        detail: { status: 401 },
+      },
+    ]);
+  });
+
+  it("rewrites `missing-scope` to `scope-unverifiable` when the token is fine-grained (no X-OAuth-Scopes), per NFR-015 / AC #6", async () => {
+    queueIssuesPage();
+    queueHostResponses({
+      [CODE_URL]: { status: 401, headers: {}, body: "" },
+      [SECRET_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+      [DEP_URL]: { status: 200, headers: {}, body: JSON.stringify([]) },
+      // /user probe returns no X-OAuth-Scopes header → fine-grained PAT.
+      [USER_URL]: {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({ login: "octocat" }),
+      },
+    });
+
+    const sources: ConfiguredSource[] = [
+      {
+        kind: "repo",
+        externalId: "foo/bar",
+        includeCodeQLAlerts: true,
+        includeSecretScanningAlerts: true,
+        includeDependabotAlerts: true,
+      },
+    ];
+    const result = await listIssues({ sources, cursor: null, pageSize: 50 });
+
+    expect(result.warnings).toEqual([
+      {
+        category: "code-scanning",
+        sourceExternalId: "foo/bar",
+        cause: SCOPE_UNVERIFIABLE_CAUSE,
+        code: "scope-unverifiable",
+        detail: { status: 401 },
+      },
+    ]);
+  });
+
+  it("fans alerts out across every repo the project spans, even repos that first appear past the page-1 issue slice", async () => {
+    // Project has two items in two different repos. With pageSize 1 the
+    // page-1 issue slice only includes the item in repo1, but alerts must
+    // still fan out to both repo1 and repo2 since alerts only fire on page 1.
     mocks.mockOctokit.graphql.mockResolvedValueOnce({
       organization: {
         projectV2: {
@@ -215,10 +297,85 @@ describe("listIssues + alerts (WU-038, GHE)", () => {
       },
     });
 
-    const CODE_URL_1 =
-      "https://ghe.example.com/api/v3/repos/foo/repo1/code-scanning/alerts?state=open&per_page=50&page=1";
-    const CODE_URL_2 =
-      "https://ghe.example.com/api/v3/repos/foo/repo2/code-scanning/alerts?state=open&per_page=50&page=1";
+    const CODE_URL_1 = `${BASE}/repos/foo/repo1/code-scanning/alerts?state=open&per_page=50&page=1`;
+    const CODE_URL_2 = `${BASE}/repos/foo/repo2/code-scanning/alerts?state=open&per_page=50&page=1`;
+
+    const seenUrls: string[] = [];
+    mocks.mockHost.fetch.mockImplementation(async (url: string) => {
+      seenUrls.push(url);
+      if (url === CODE_URL_1 || url === CODE_URL_2) {
+        return { status: 200, headers: {}, body: JSON.stringify([]) };
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+
+    const sources: ConfiguredSource[] = [
+      {
+        kind: "project",
+        externalId: "foo/#1",
+        includeCodeQLAlerts: true,
+      },
+    ];
+    await listIssues({ sources, cursor: null, pageSize: 1 });
+
+    expect(seenUrls).toContain(CODE_URL_1);
+    expect(seenUrls).toContain(CODE_URL_2);
+  });
+
+  it("dedupes project warnings by (code, category, cause) across repos in the project", async () => {
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      organization: {
+        projectV2: {
+          title: "P",
+          items: {
+            nodes: [
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 1,
+                  title: "a",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "foo/repo1" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "u1",
+                },
+                fieldValueByName: null,
+              },
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 2,
+                  title: "b",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "foo/repo2" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "u2",
+                },
+                fieldValueByName: null,
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    });
+
+    const CODE_URL_1 = `${BASE}/repos/foo/repo1/code-scanning/alerts?state=open&per_page=50&page=1`;
+    const CODE_URL_2 = `${BASE}/repos/foo/repo2/code-scanning/alerts?state=open&per_page=50&page=1`;
 
     mocks.mockHost.fetch.mockImplementation(async (url: string) => {
       if (url === CODE_URL_1 || url === CODE_URL_2) {
@@ -241,6 +398,7 @@ describe("listIssues + alerts (WU-038, GHE)", () => {
         category: "code-scanning",
         sourceExternalId: "foo/#1",
         cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
+        code: "not-found",
         detail: { status: 404 },
       },
     ]);

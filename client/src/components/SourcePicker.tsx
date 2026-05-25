@@ -19,10 +19,12 @@ import {
   AlertTriangle,
   Check,
   ChevronRight,
+  ExternalLink,
   Filter,
   Folder,
   Grid3x3,
   Layout,
+  RefreshCw,
   Search,
   Crown,
   X,
@@ -48,6 +50,27 @@ import {
   type AlertFlagKey,
 } from "../lib/source-selection-helpers";
 
+/**
+ * Optional plugin-specific context the warning-chip variants need.
+ *
+ * - `pluginId` picks the remediation flow for a `missing-scope` warning:
+ *   `"ghe"` renders a link chip to the GHE instance's PAT settings page,
+ *   `"github-com"` renders a "Reconnect GitHub" chip that runs the OAuth
+ *   re-consent flow.
+ * - `gheInstanceUrl` is required to build the GHE token settings URL.
+ * - `onReconnectOAuth` lets a parent supply its own re-consent handler for
+ *   the github.com chip. When omitted, the SourcePicker falls back to its
+ *   internal WU-031 OAuth re-consent dialog.
+ *
+ * Absent or partial values fall back to the generic "Unavailable" chip so
+ * non-GitHub plugins (Jira etc.) and old call sites still render.
+ */
+export interface SourcePickerChipContext {
+  pluginId?: string;
+  gheInstanceUrl?: string;
+  onReconnectOAuth?: () => void;
+}
+
 interface SourcePickerProps {
   response: SourceCandidatesResponse;
   value: SourceSelection;
@@ -58,6 +81,11 @@ interface SourcePickerProps {
    * checkbox. Absent or empty means "no warnings."
    */
   warnings?: ListIssuesWarning[];
+  /**
+   * Plugin-specific data the chip variant switch needs (PAT settings URL).
+   * Optional; see `SourcePickerChipContext`.
+   */
+  chipContext?: SourcePickerChipContext;
 }
 
 const MULTI_LIST_KEY = "items";
@@ -246,11 +274,13 @@ function isOAuthReconsentWarning(warning: ListIssuesWarning): boolean {
   return warning.detail?.status === 401 && OAUTH_RECONSENT_CATEGORIES.has(warning.category);
 }
 
-interface AlertCheckboxRowProps {
-  category: AlertCategoryDef;
-  selected: boolean;
-  onChange: (next: boolean) => void;
-  warning?: ListIssuesWarning;
+function buildGheTokenSettingsUrl(instance: string): string {
+  return `${instance.replace(/\/$/, "")}/settings/tokens`;
+}
+
+interface WarningChipProps {
+  warning: ListIssuesWarning;
+  chipContext?: SourcePickerChipContext;
   // WU-031: triggers the shared OAuth re-consent dialog when the user clicks
   // the warning chip. Only invoked for OAuth-recoverable warnings.
   onReconsent?: () => void;
@@ -259,23 +289,134 @@ interface AlertCheckboxRowProps {
   showRetry?: boolean;
 }
 
+/**
+ * Picks a chip variant based on `warning.code` and the surrounding context:
+ *
+ *  - `missing-scope` + GHE: link chip to `<instance>/settings/tokens`. User
+ *    regenerates the PAT with `security_events` and pastes it back into the
+ *    Configure dialog's existing PAT field (WU-032 AC #5).
+ *  - `missing-scope` + github.com: "Reconnect GitHub" chip that runs the
+ *    OAuth re-consent flow (WU-031). The chip's onPress drives the shared
+ *    dialog state owned by SourcePicker.
+ *  - `scope-unverifiable` (either plugin): non-link "Verify token" chip
+ *    rendering NFR-015's graceful copy as the tooltip (WU-032 AC #6).
+ *  - 401 on an alert category (no `code`): WU-031 OAuth-recoverable warning;
+ *    same OAuth re-consent flow as missing-scope github-com.
+ *  - any other warning: the generic "Unavailable" chip, surfacing
+ *    `warning.cause` verbatim.
+ */
+function WarningChip({ warning, chipContext, onReconsent, showRetry }: WarningChipProps) {
+  const pluginId = chipContext?.pluginId;
+
+  if (warning.code === "missing-scope" && pluginId === "ghe" && chipContext?.gheInstanceUrl) {
+    const url = buildGheTokenSettingsUrl(chipContext.gheInstanceUrl);
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open token settings on ${chipContext.gheInstanceUrl}. The GHE token is missing the security_events scope; regenerate it with that scope and paste it back into the Personal access token field.`}
+        title={`Open token settings on ${chipContext.gheInstanceUrl}. Regenerate the token with the security_events scope and paste it back into the Personal access token field.`}
+        className="inline-flex outline-none rounded focus-visible:ring-2 focus-visible:ring-amber-500/40"
+        data-testid="alert-chip-missing-scope-ghe"
+      >
+        <IssueChip variant="status" tone="warning" icon={ExternalLink}>
+          Open token settings
+        </IssueChip>
+      </a>
+    );
+  }
+
+  if (warning.code === "missing-scope" && pluginId === "github-com") {
+    // Prefer a parent-supplied OAuth handler; otherwise fall back to the
+    // SourcePicker-owned re-consent dialog. Either way, the github.com chip
+    // becomes a "Reconnect GitHub" button.
+    const handler = chipContext?.onReconnectOAuth ?? onReconsent;
+    if (handler) {
+      const actionSuffix = showRetry ? (
+        <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
+          Retry
+        </span>
+      ) : undefined;
+      return (
+        <IssueChip
+          variant="status"
+          tone="warning"
+          icon={RefreshCw}
+          ariaDescription="Reconnect GitHub. The OAuth token is missing the security_events scope; re-authenticate to grant it."
+          onPress={handler}
+          actionSuffix={actionSuffix}
+          data-testid="alert-chip-missing-scope-github-com"
+        >
+          Reconnect GitHub
+        </IssueChip>
+      );
+    }
+  }
+
+  if (warning.code === "scope-unverifiable") {
+    return (
+      <IssueChip
+        variant="status"
+        tone="warning"
+        icon={AlertTriangle}
+        ariaDescription={warning.cause}
+        data-testid="alert-chip-scope-unverifiable"
+      >
+        Verify token
+      </IssueChip>
+    );
+  }
+
+  // WU-031 OAuth-recoverable 401 with no specific `code`: same behaviour as
+  // missing-scope github-com — chip becomes a button that triggers the OAuth
+  // re-consent dialog.
+  if (isOAuthReconsentWarning(warning) && onReconsent) {
+    const actionSuffix = showRetry ? (
+      <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
+        Retry
+      </span>
+    ) : undefined;
+    return (
+      <IssueChip
+        variant="status"
+        tone="warning"
+        icon={AlertTriangle}
+        ariaDescription={warning.cause}
+        onPress={onReconsent}
+        actionSuffix={actionSuffix}
+      >
+        Unavailable
+      </IssueChip>
+    );
+  }
+
+  return (
+    <IssueChip variant="status" tone="warning" icon={AlertTriangle} ariaDescription={warning.cause}>
+      Unavailable
+    </IssueChip>
+  );
+}
+
+interface AlertCheckboxRowProps {
+  category: AlertCategoryDef;
+  selected: boolean;
+  onChange: (next: boolean) => void;
+  warning?: ListIssuesWarning;
+  chipContext?: SourcePickerChipContext;
+  onReconsent?: () => void;
+  showRetry?: boolean;
+}
+
 function AlertCheckboxRow({
   category,
   selected,
   onChange,
   warning,
+  chipContext,
   onReconsent,
   showRetry,
 }: AlertCheckboxRowProps) {
-  const isOauthRecoverable = warning ? isOAuthReconsentWarning(warning) : false;
-  const chipOnPress = isOauthRecoverable ? onReconsent : undefined;
-  const actionSuffix =
-    isOauthRecoverable && showRetry ? (
-      <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
-        Retry
-      </span>
-    ) : undefined;
-
   return (
     <div className="flex items-center gap-2">
       <Checkbox
@@ -301,16 +442,12 @@ function AlertCheckboxRow({
         )}
       </Checkbox>
       {warning && (
-        <IssueChip
-          variant="status"
-          tone="warning"
-          icon={AlertTriangle}
-          ariaDescription={warning.cause}
-          onPress={chipOnPress}
-          actionSuffix={actionSuffix}
-        >
-          Unavailable
-        </IssueChip>
+        <WarningChip
+          warning={warning}
+          chipContext={chipContext}
+          onReconsent={onReconsent}
+          showRetry={showRetry}
+        />
       )}
     </div>
   );
@@ -322,6 +459,7 @@ interface SecurityAlertsDisclosureProps {
   entry: SourceSelectionEntry;
   warnings: ListIssuesWarning[] | undefined;
   onFlagChange: (flag: AlertFlagKey, value: boolean) => void;
+  chipContext?: SourcePickerChipContext;
   onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
   retryHints?: ReadonlySet<string>;
 }
@@ -332,6 +470,7 @@ function SecurityAlertsDisclosure({
   entry,
   warnings,
   onFlagChange,
+  chipContext,
   onReconsent,
   retryHints,
 }: SecurityAlertsDisclosureProps) {
@@ -383,6 +522,7 @@ function SecurityAlertsDisclosure({
                   selected={entryFlag(entry, category.flag)}
                   onChange={(next) => onFlagChange(category.flag, next)}
                   warning={warning}
+                  chipContext={chipContext}
                   onReconsent={
                     onReconsent
                       ? () => onReconsent(sourceExternalId, category.warningCategory)
@@ -407,6 +547,7 @@ interface PerSourceConfigListProps {
   /** Set true to show the security disclosure (github-com/GHE). Other plugins hide it. */
   showSecurityAlerts: boolean;
   onFlagChange: (externalId: string, flag: AlertFlagKey, value: boolean) => void;
+  chipContext?: SourcePickerChipContext;
   onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
   retryHints?: ReadonlySet<string>;
 }
@@ -418,6 +559,7 @@ function PerSourceConfigList({
   warnings,
   showSecurityAlerts,
   onFlagChange,
+  chipContext,
   onReconsent,
   retryHints,
 }: PerSourceConfigListProps) {
@@ -447,6 +589,7 @@ function PerSourceConfigList({
               entry={entry}
               warnings={warnings}
               onFlagChange={(flag, value) => onFlagChange(id, flag, value)}
+              chipContext={chipContext}
               onReconsent={onReconsent}
               retryHints={retryHints}
             />
@@ -462,6 +605,7 @@ function MultiListVariant({
   value,
   onChange,
   warnings,
+  chipContext,
   showSecurityAlerts,
   onReconsent,
   retryHints,
@@ -519,6 +663,7 @@ function MultiListVariant({
         warnings={warnings}
         showSecurityAlerts={showSecurityAlerts}
         onFlagChange={handleFlagChange}
+        chipContext={chipContext}
         onReconsent={onReconsent}
         retryHints={retryHints}
       />
@@ -531,6 +676,7 @@ function CategorizedVariant({
   value,
   onChange,
   warnings,
+  chipContext,
   showSecurityAlerts,
   onReconsent,
   retryHints,
@@ -599,6 +745,7 @@ function CategorizedVariant({
                 onFlagChange={(externalId, flag, val) =>
                   onChange(setFlagForEntry(value, cat.id, externalId, flag, val))
                 }
+                chipContext={chipContext}
                 onReconsent={onReconsent}
                 retryHints={retryHints}
               />
@@ -689,7 +836,13 @@ function GroupedChipStrip({
   );
 }
 
-export default function SourcePicker({ response, value, onChange, warnings }: SourcePickerProps) {
+export default function SourcePicker({
+  response,
+  value,
+  onChange,
+  warnings,
+  chipContext,
+}: SourcePickerProps) {
   // Only the bundled GitHub-family source kinds use the security alert toggles.
   // Detect via the icon hint declared on the candidate items; other plugins
   // (e.g. Jira) declare their own icons, so the disclosure stays hidden there.
@@ -746,6 +899,7 @@ export default function SourcePicker({ response, value, onChange, warnings }: So
         value={value}
         onChange={onChange}
         warnings={warnings}
+        chipContext={chipContext}
         showSecurityAlerts={showSecurityAlerts}
         {...variantPropsExtras}
       />
@@ -755,6 +909,7 @@ export default function SourcePicker({ response, value, onChange, warnings }: So
         value={value}
         onChange={onChange}
         warnings={warnings}
+        chipContext={chipContext}
         showSecurityAlerts={showSecurityAlerts}
         {...variantPropsExtras}
       />

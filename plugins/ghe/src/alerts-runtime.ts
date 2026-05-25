@@ -12,10 +12,16 @@
  * URL (`<instance>/api/v3`), the credential slot is `"token"` (not
  * `"github-token"`), and the `FetchInit` carries `allowSelfSignedTls: true`
  * when the active config opts in, so self-signed GHE instances stay reachable.
+ *
+ * NFR-015 contract: when any category returns `missing-scope` (HTTP 401), we
+ * probe `/user` once to detect fine-grained PATs / GitHub App tokens that do
+ * not emit `X-OAuth-Scopes`, and rewrite those warnings to a graceful
+ * `scope-unverifiable` variant.
  */
 
 import type { FetchInit, FetchResult, ListIssuesWarning, NormalizedIssue } from "@roubo/plugin-sdk";
 import {
+  detectTokenScopes,
   fetchCodeScanningAlerts,
   fetchDependabotAlerts,
   fetchSecretScanningAlerts,
@@ -28,6 +34,14 @@ import {
 import { getActiveConfig, tryGetActiveConfig } from "./active-config.js";
 import { getHost } from "./host-binding.js";
 import { INTEGRATION_ID } from "./normalize.js";
+
+/**
+ * NFR-015 graceful copy for fine-grained PATs / GitHub App installation
+ * tokens that do not emit the `X-OAuth-Scopes` response header. Client
+ * renders this verbatim as the chip tooltip. Do not edit casually.
+ */
+export const SCOPE_UNVERIFIABLE_CAUSE =
+  "Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.";
 
 export interface AlertFlags {
   includeCodeQLAlerts?: boolean;
@@ -47,6 +61,7 @@ export interface FetchRepoAlertsResult {
 }
 
 let cachedToken: string | null = null;
+let cachedScopeProbe: Promise<"known" | "unknown"> | null = null;
 
 function buildBaseUrl(instance: string): string {
   return `${instance.replace(/\/$/, "")}/api/v3`;
@@ -73,9 +88,30 @@ async function getTransport(): Promise<FetchTransport> {
   };
 }
 
-/** Reset the cached GHE token. Tests call this between cases. */
+/**
+ * One-shot probe of `/user` to detect whether the current token emits
+ * `X-OAuth-Scopes`. Cached per process; cleared by `resetAlertsRuntime()`.
+ * Returns `"unknown"` for fine-grained PATs / GitHub App tokens (NFR-015)
+ * so callers can rewrite a `missing-scope` warning to `scope-unverifiable`.
+ */
+async function probeTokenShape(
+  transport: FetchTransport,
+  baseUrl: string,
+  allowSelfSignedTls: boolean,
+): Promise<"known" | "unknown"> {
+  if (!cachedScopeProbe) {
+    cachedScopeProbe = (async () => {
+      const result = await detectTokenScopes(transport, baseUrl, { allowSelfSignedTls });
+      return result.kind === "unknown" ? "unknown" : "known";
+    })();
+  }
+  return cachedScopeProbe;
+}
+
+/** Reset the cached GHE token and scope-probe result. Called from validate-/setActiveConfig and tests. */
 export function resetAlertsRuntime(): void {
   cachedToken = null;
+  cachedScopeProbe = null;
 }
 
 function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } | null {
@@ -108,7 +144,8 @@ export async function fetchRepoAlerts(
   }
   const { owner, repo } = parsed;
 
-  const baseUrl = buildBaseUrl(getActiveConfig().instance);
+  const config = getActiveConfig();
+  const baseUrl = buildBaseUrl(config.instance);
   const transport = await getTransport();
   const fetchArgs = { baseUrl, owner, repo };
 
@@ -127,17 +164,27 @@ export async function fetchRepoAlerts(
   const items: NormalizedIssue[] = [];
   const warnings: FetchRepoAlertsResult["warnings"] = [];
 
+  const pushWarning = (
+    category: "code-scanning" | "secret-scanning" | "dependabot",
+    res: { cause: string; status?: number; code?: string },
+  ): void => {
+    warnings.push({
+      category,
+      cause: res.cause,
+      ...(res.code !== undefined
+        ? { code: res.code as FetchRepoAlertsResult["warnings"][number]["code"] }
+        : {}),
+      ...(res.status !== undefined ? { detail: { status: res.status } } : {}),
+    });
+  };
+
   if (codeRes) {
     if (codeRes.ok) {
       for (const raw of codeRes.items) {
         items.push(mapCodeScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "code-scanning",
-        cause: codeRes.cause,
-        ...(codeRes.status !== undefined ? { detail: { status: codeRes.status } } : {}),
-      });
+      pushWarning("code-scanning", codeRes);
     }
   }
   if (secretRes) {
@@ -146,11 +193,7 @@ export async function fetchRepoAlerts(
         items.push(mapSecretScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "secret-scanning",
-        cause: secretRes.cause,
-        ...(secretRes.status !== undefined ? { detail: { status: secretRes.status } } : {}),
-      });
+      pushWarning("secret-scanning", secretRes);
     }
   }
   if (depRes) {
@@ -159,11 +202,27 @@ export async function fetchRepoAlerts(
         items.push(mapDependabotAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw));
       }
     } else {
-      warnings.push({
-        category: "dependabot",
-        cause: depRes.cause,
-        ...(depRes.status !== undefined ? { detail: { status: depRes.status } } : {}),
-      });
+      pushWarning("dependabot", depRes);
+    }
+  }
+
+  // NFR-015: if any category came back as `missing-scope` (HTTP 401), probe
+  // the token shape once. Fine-grained PATs do not emit `X-OAuth-Scopes`,
+  // so we cannot honestly say `security_events` is missing; rewrite to a
+  // graceful "verify scopes" variant instead.
+  if (warnings.some((w) => w.code === "missing-scope")) {
+    const shape = await probeTokenShape(
+      transport,
+      baseUrl,
+      config.allowSelfSignedTls === true,
+    );
+    if (shape === "unknown") {
+      for (const w of warnings) {
+        if (w.code === "missing-scope") {
+          w.code = "scope-unverifiable";
+          w.cause = SCOPE_UNVERIFIABLE_CAUSE;
+        }
+      }
     }
   }
 

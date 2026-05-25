@@ -442,6 +442,38 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                 value={sources}
                 onChange={setSources}
                 warnings={warnings}
+                chipContext={{
+                  pluginId: plugin.id,
+                  // GHE PAT settings link target, derived from whichever
+                  // instance the user has typed (or saved). The chip falls
+                  // back to the generic "Unavailable" pill if absent, so the
+                  // missing-instance edge case still renders gracefully.
+                  gheInstanceUrl:
+                    plugin.id === "ghe"
+                      ? typeof values.instance === "string" && values.instance.length > 0
+                        ? values.instance
+                        : (effective.instance ?? undefined)
+                      : undefined,
+                  // OAuth re-consent fallback for the github-com chip.
+                  // Reuses the same window.open call as the standalone
+                  // GithubOauthSection's "Connect" button so the chip and
+                  // the button funnel through one flow.
+                  onReconnectOAuth:
+                    plugin.id === "github-com"
+                      ? () => {
+                          void (async () => {
+                            try {
+                              const { url } = await startGithubPluginOauth();
+                              window.open(url, "_blank", "noopener,noreferrer");
+                            } catch (err) {
+                              setSubmitError(
+                                err instanceof ApiError ? err.message : (err as Error).message,
+                              );
+                            }
+                          })();
+                        }
+                      : undefined,
+                }}
               />
             ) : null}
           </div>

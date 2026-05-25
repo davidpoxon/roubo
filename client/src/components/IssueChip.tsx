@@ -17,6 +17,7 @@ interface IssueChipProps {
   // Optional suffix rendered inside the chip after `children`. Used to attach
   // a small "Retry" affordance after a cancelled OAuth re-consent attempt.
   actionSuffix?: ReactNode;
+  "data-testid"?: string;
 }
 
 const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
@@ -41,6 +42,7 @@ export default function IssueChip({
   ariaDescription,
   onPress,
   actionSuffix,
+  "data-testid": dataTestid,
 }: IssueChipProps) {
   const variantClasses = classesForVariant(variant, tone);
   const showIcon = Icon !== undefined && variant !== "label";
@@ -78,6 +80,7 @@ export default function IssueChip({
       className={`${BASE_CLASSES} ${variantClasses}`}
       data-chip-category={variant}
       aria-describedby={describedById}
+      data-testid={dataTestid}
     >
       {inner}
     </span>

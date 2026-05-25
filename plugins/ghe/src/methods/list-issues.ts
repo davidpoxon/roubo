@@ -161,14 +161,16 @@ async function listFromProject(
     );
 
     const alertItems: NormalizedIssue[] = [];
-    // Dedupe warnings by (category, cause) across the repos the project spans.
-    // N copies of "GHAS not enabled" for one project source is noise.
+    // Dedupe warnings by (code, category, cause) across the repos the project
+    // spans. N copies of "GHAS not enabled" for one project source is noise.
+    // Include `code` in the key so two different codes for the same category
+    // (e.g. one repo missing scope, another with GHAS off) do not collapse.
     const seenWarning = new Set<string>();
     const dedupedWarnings: ListIssuesWarning[] = [];
     for (const r of perRepo) {
       for (const w of r.items) alertItems.push(w);
       for (const w of r.warnings) {
-        const key = `${w.category}::${w.cause}`;
+        const key = `${w.code ?? "_"}::${w.category}::${w.cause}`;
         if (seenWarning.has(key)) continue;
         seenWarning.add(key);
         dedupedWarnings.push({ ...w, sourceExternalId: source.externalId });
