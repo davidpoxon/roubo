@@ -551,10 +551,10 @@ Within that frame, the threats this design counters:
 - **No version pin in `roubo.yaml`.** Rejected per decisions-log; users run whatever they have installed, and plugins are responsible for backwards compat within their declared `hostApiVersion` range. If this proves painful, a future minor host-API bump can add an optional `minVersion` field without breaking compat.
 - **Drawer primitive for log viewer.** Rejected; Roubo does not ship a Drawer today and introducing one for one surface is not justified. The log viewer uses a wide React Aria `Dialog` per screen 5's fallback.
 - **Per-plugin live-reload on config change.** Rejected for the safer "restart on credential or instance-URL change; refetch on sources change" pattern. Implementation: the configure dialog's Save action calls `pluginManager.invoke(pluginId, "applyConfig", config)`; if the diff touches credentials or instance, the manager calls `disable(pluginId)` then `enable(pluginId)` before returning. If the diff is sources-only, no restart.
-- **Forward-compat: ports / docker as permission categories.** The feasibility doc noted that project-component plugins (a follow-on slug) may need `ports` and `docker` permission categories. This slug's manifest schema is designed so additional permission categories can be added in a 1.x minor (the zod schema's `permissions` object is `.passthrough()`-aware at the category level, and the host treats unknown categories as opt-out). FR-038's paper sketch verifies this before host-API 1.0.0 freeze. `unknown — flag for refinement: paper sketch output may force additional permission categories now rather than later`.
+- **Forward-compat: ports / docker as permission categories.** The feasibility doc noted that project-component plugins (a follow-on slug) may need `ports` and `docker` permission categories. This slug's manifest schema is designed so additional permission categories can be added in a 1.x minor (the zod schema's `permissions` object is `.passthrough()`-aware at the category level, and the host treats unknown categories as opt-out). FR-038's paper sketch verifies this before host-API 1.0.0 freeze. **Resolved 2026-05-25:** additive 1.x minor is the accepted path; the existing `.passthrough()`-aware schema is sufficient.
 - **Migration banner versioning across Roubo releases.** Once dismissed, never re-shown. Stored as a single boolean `state.json.migrationBannerDismissed`. If a future slug needs to surface a new banner, it adds its own dismissal key; this slug's banner does not carry a version.
 - **Optimistic UI for `applyTransition` / `assignIssue` on host crash mid-flight.** Persist nothing; reconcile from source on next refresh. The bench's local UI flips the label optimistically; on error or refresh-detected divergence, the local label is overwritten by the source's truth. Documented in `client/src/components/IssueTransitionDropdown.tsx` and `AssignIssueControl.tsx`.
-- **Source picker pagination.** Always-all in this slug. The `SourceCandidatesResponse` shape includes an optional `nextCursor` field so 1.x plugins can opt in. Real-world Jira instances with hundreds of filters get virtualization at the UI level (the `MultiSelect` primitive already virtualizes long lists). Re-evaluate if Spike B's Jira testing surfaces actual instance sizes that break this. `unknown — flag for refinement: source picker pagination needed for very large Jira instances`.
+- **Source picker pagination.** Always-all in this slug. The `SourceCandidatesResponse` shape includes an optional `nextCursor` field so 1.x plugins can opt in. Real-world Jira instances with hundreds of filters get virtualization at the UI level (the `MultiSelect` primitive already virtualizes long lists). Re-evaluate if Spike B's Jira testing surfaces actual instance sizes that break this. **Resolved 2026-05-25:** opt-in cursor on response + virtualized MultiSelect is the accepted approach; revisit only if Spike B surfaces a breaking instance.
 - **Plugin restart-window counter reset on manual Restart.** Confirmed: clicking Restart on an errored card clears the 3-in-5-minutes window and attempts a fresh spawn. This is what users expect from a manual recovery action.
 
 ## Closing summary
@@ -578,9 +578,9 @@ This design has both `context.md`, `prd.md`, and `feasibility.md` to lean on, pl
 
 **`unknown — flag for refinement` markers in this design:**
 
-- Spike A outcome on Ubuntu headless (keyring fallback path; whether the `dbus-run-session` + `gnome-keyring-daemon` recipe is sufficient for typical headless adopters).
-- Paper sketch (FR-038) may force `ports` and/or `docker` permission categories now rather than as a 1.x minor.
-- Source picker pagination on very large Jira instances (re-evaluate after Spike B Jira testing).
+- Spike A outcome on Ubuntu headless (keyring fallback path; whether the `dbus-run-session` + `gnome-keyring-daemon` recipe is sufficient for typical headless adopters). Still deferred pending real-world Spike A data.
+- ~~Paper sketch (FR-038) may force `ports` and/or `docker` permission categories now rather than as a 1.x minor.~~ **Resolved 2026-05-25:** additive 1.x minor is the accepted path.
+- ~~Source picker pagination on very large Jira instances (re-evaluate after Spike B Jira testing).~~ **Resolved 2026-05-25:** opt-in cursor + virtualized MultiSelect is the accepted approach.
 
 **CI matrix recommendation.** GitHub Actions `pr-check` should run the test matrix on `macos-latest` and `ubuntu-latest` only. No Windows runner. The Ubuntu runner should additionally exercise a headless-keyring smoke test (Spike A deliverable) once the recipe lands.
 
@@ -1010,3 +1010,647 @@ The addendum is strictly additive and requires NO host-API change. Verified by w
 - **No host-API change**, no new RPC method, no new permission category, no new credential slot. `hostApiVersion` stays at 1.0.0.
 - **Open architectural questions still gated on user input**: none that block the tests stage. Every prototype-note open question has a concrete decision above. The GHE fine-grained PAT case (NFR-015) and the polling cost amplification (NFR-013 ceiling) are documented risks rather than open architectural decisions.
 - **`unknown - flag for refinement` markers added by this addendum**: none. The OAuth re-consent placement, frozen-snapshot semantics, test-connection coverage, code-sharing boundary, external-id format, and HTTP code mapping are all decided above. The two true unknowns (GHE fine-grained PAT prevalence and polling-cost amplification thresholds) are surfaced as risks with defined mitigations, not as architectural markers.
+
+## Re-interview architecture - 2026-05-25 (covers 2026-05-24 alerts + 2026-05-25 polish/consolidation/e2e)
+
+> Scope: layered on top of the shipped runtime, three bundled plugins, three-layer config merge, and migration. This section formalises the architecture for (a) the 2026-05-24 alerts addition (already prose-detailed in the prior addendum above; this section only pins anything still ambiguous), and (b) the full 2026-05-25 scope (connection-status surfacing, plugin grid + full-width Settings, default-disabled bundled plugins + project-load Enable prompt, three-layer `excludedStatuses` with a per-source post-merge pass, plugin-declared filter facets, optional `facetValues` on `NormalizedIssue`, chip taxonomy, GitHub settings push-down into the active-plugin tab, plugin-driven tab title with sidebar/breadcrumb propagation, single context-aware Connect/Configure button, Playwright e2e harness with stubbed plugin process and env-gated reset route). Host-API bumps from 1.0.0 to 1.1.0. All five open questions from `prototype-notes.md` are resolved inline below.
+
+### 1. Summary table of proposed components
+
+| Path | Change | Responsibility | Subsystem |
+| --- | --- | --- | --- |
+| `plugin-sdk/src/types.ts` | modified | Add `ConnectionStatus`, `FilterFacet`, optional `facetValues` on `NormalizedIssue`, optional `getConnectionStatus` and `filterFacets` on `PluginContract`. | plugin-sdk |
+| `plugin-sdk/src/define-plugin.ts` | modified | Bind two additional optional handlers (`getConnectionStatus`, `filterFacets`) into the JSON-RPC dispatch table. | plugin-sdk |
+| `shared/config-schema.ts` | modified | Add `excludedStatuses?: string[]` to `IntegrationConfigSchema` (root) and inside `sources[<id>]` (the per-source override layer). | shared |
+| `shared/plugin-enable-state-schema.ts` | new | Zod schema for the new `~/.roubo/plugins-state.json` file (one-file shape: `{ schemaVersion: 1, plugins: Record<pluginId, "enabled" \| "disabled">, installInitialized: boolean }`). | shared |
+| `shared/connection-status-types.ts` | new | Shared `ConnectionStatus`, `FilterFacet`, `FilterFacetOption` types re-exported from `plugin-sdk`. | shared |
+| `server/services/plugin-enable-state.ts` | new | Load/save `~/.roubo/plugins-state.json` via `atomicWrite`. Pure persistence module, no RPC. | server |
+| `server/services/plugin-manager.ts` | modified | Read `plugin-enable-state.ts` at `initialize()`; only spawn entries whose persisted state is `"enabled"`. `enable(id)` / `disable(id)` write through. Add `getConnectionStatus(pluginId)` host method with a 30s server-side cache and per-plugin in-flight de-dup. Bump `HOST_API_VERSION` constant to `"1.1.0"`. | server |
+| `server/services/connection-status-cache.ts` | new | Module-level `Map<pluginId, { value: ConnectionStatus; capturedAt: number; inFlight: Promise<ConnectionStatus> \| null }>`. Owns the 30s TTL + in-flight de-dup. Cleared on `disable(id)`, `enable(id)`, `restart(id)`, plugin process exit, and successful `validateConfig`. | server |
+| `server/services/integration-overrides.ts` | modified | Add `applyPerSourceExcludedStatuses(effective)` post-merge pass that walks `effective.sources[<sourceId>]` entries and pulls `excludedStatuses` from each, falling back to the integration-block-root value when absent. Idempotent. | server |
+| `server/services/active-plugin.ts` | modified | Expose `getActiveIntegrationDisplay(projectId)` returning `{ pluginId, displayName }` derived from the effective config and the plugin manifest's `name`. | server |
+| `server/services/migrate.ts` | modified | At the same atomic `state.json` commit, seed `~/.roubo/plugins-state.json` according to greenfield detection. Greenfield rule: `state.schemaVersion === undefined && !auth.json && projects.length === 0` → seed all bundled plugins as `disabled`, `installInitialized: true`. Existing installs (auth.json present OR projects.length > 0 OR prior `schemaVersion`): seed each known plugin id as `enabled` to preserve current behaviour. | server |
+| `server/routes/plugins.ts` | modified | Add `GET /api/plugins/:pluginId/connection-status` (proxies via cache) and `GET /api/projects/:projectId/integration/connection-status` (same, scoped to project's active plugin). | server |
+| `server/routes/integration.ts` | modified | Existing `POST /api/projects/:projectId/integration/test` invalidates the connection-status cache on success. New `GET /api/projects/:projectId/integration/filter-facets` proxies `filterFacets()` to the active plugin. | server |
+| `server/routes/test.ts` | new | Env-gated `POST /test/__reset` route. Gated on `process.env.ROUBO_E2E === "1"`. Calls `pluginManager.shutdown()` + `pluginManager.initialize()`, clears the connection-status cache, clears the integration-config in-memory caches, resets `migrate.__test.reset()`. Returns `{ ok: true }`. | server |
+| `server/index.ts` | modified | Register `server/routes/test.ts` only when `process.env.ROUBO_E2E === "1"`. | server |
+| `client/src/lib/api.ts` | modified | Add typed wrappers for the four new endpoints (per-plugin status, per-project status, per-plugin filter-facets, `POST /test/__reset` for e2e helpers under a `__e2e` namespace). | client |
+| `client/src/hooks/usePluginConnectionStatus.ts` | new | React Query hook that reads cached status, gates `refetchOnMount` to UI events (Settings tab open, Configure modal open, cut-list load), does NOT use `refetchInterval`. | client |
+| `client/src/hooks/usePluginFilterFacets.ts` | new | React Query hook that fetches `filterFacets()` once per (project, pluginId) and caches indefinitely (invalidated only on plugin restart or config save). | client |
+| `client/src/hooks/usePluginEnablePrompt.ts` | new | Detects project-load against a disabled bundled plugin and surfaces the Enable modal. | client |
+| `client/src/components/settings/plugins/ConnectionStatusPill.tsx` | new | Five-variant chip (`connected`, `disconnected`, `auth-problem`, `errored`, `disabled`) with colour + icon + shape. Used in three placements. Sibling to `StatusPill.tsx`; the host-process `StatusPill` stays for `enabled` / `disabled` / `errored` / `incompatible` / `invalid`. | client |
+| `client/src/components/settings/plugins/PluginsTab.tsx` | modified | Switch the two bundled/third-party lists from `space-y-3` stacks to `grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-3`. | client |
+| `client/src/components/settings/plugins/PluginCard.tsx` | modified | Render `ConnectionStatusPill` alongside the existing host-process `StatusPill`; render single context-aware `Connect`/`Configure` button. | client |
+| `client/src/components/ProjectSettings.tsx` | modified | Drop `max-w-3xl`; switch to `w-full`. | client |
+| `client/src/components/EnableDisabledPluginDialog.tsx` | new | The project-load modal that confirms enabling a disabled bundled plugin (FR-061, NFR-022, NFR-024). | client |
+| `client/src/components/IssueSourceTile.tsx` | modified | Collapse three buttons (`Switch integration` + `Configure` + `Choose sources`) into two (`Switch integration` + context-aware `Connect`/`Configure`). Add `ConnectionStatusPill`. | client |
+| `client/src/components/ProjectSettingsTab.tsx` | modified | Read `activeIntegrationDisplayName` from the project state and use it as the section heading; propagate to sidebar list at the same source. | client |
+| `client/src/lib/cut-list-filters.ts` | modified | Extend `FilterState` with `excludedStatuses: Set<string>`, `includeHidden: Set<string>` (session-scoped opt-back-in), and `facetValues: Record<string, Set<string>>`. Extend `applyFilters` with status-exclusion and generic facet matching. | client |
+| `client/src/components/CutListFilters.tsx` | modified (file may not exist yet under this exact name; the host filter row component on the cut-list page) | Render the plugin-declared facets as additional dropdowns; the Status dropdown displays the default-exclusion transparency line + "Hidden by default" tagged items. | client |
+| `client/src/components/chips/Chip.tsx` | new | Base chip primitive (colour + icon prefix + shape). | client |
+| `client/src/components/chips/StatusChip.tsx`, `LabelChip.tsx`, `IssueTypeChip.tsx`, `MetadataChip.tsx` | new (four) | Four taxonomy categories per FR-068 / mockup section 28. | client |
+| `e2e/fixtures/stubbed-plugin/index.mjs` | new | Deterministic plugin process accepting `--scenario=<name>` and `--now=<ISO-8601>` startup args. Implements the full `PluginContract`. | repo root (fixtures) |
+| `e2e/fixtures/stubbed-plugin/roubo-plugin.yaml` | new | Manifest matching the stub. Declares `network.hosts: ["stub.invalid"]` so the stub cannot accidentally reach real hosts. | repo root (fixtures) |
+| `e2e/fixtures/stubbed-plugin/scenarios/*.json` | new | One file per scenario family (happy-path, disconnected, auth-problem, errored, categorized-multi-list, alerts-enabled, etc.). | repo root (fixtures) |
+| `e2e/*.spec.ts` | new | Playwright specs covering FR-080's enumerated surfaces. | repo root |
+| `playwright.config.ts` | modified | Add a second `webServer` entry that boots `server/index.ts` with `ROUBO_E2E=1`, `ROUBO_BUNDLED_PLUGINS_DIR=$PWD/e2e/fixtures`, `ROUBO_USER_PLUGINS_DIR=$TMPDIR/roubo-e2e-user-plugins`, and an isolated `HOME` pointing at a per-run temp dir. | repo root |
+
+Total: **31 new files / modified call-sites**, with **24 distinct file paths** modified or created.
+
+### 2. Data model changes
+
+#### `pluginEnableState` persistence (resolves open question 1)
+
+**Decision: separate file `~/.roubo/plugins-state.json`.** Rationale: keeps the existing `state.json` schema stable (it just shipped `schemaVersion: 1` for the plugin migration; piling onto it risks another version bump and a more delicate migration path). A separate file also matches the existing per-concern split (`projects.json`, `state.json`, `permissions/<id>.json`, `integrations/<id>.yaml`). The file lives next to those and follows the same `atomicWrite` discipline. The greenfield seed is committed inside `migrate.run()` so detection and seeding share a single atomic flow.
+
+```ts
+// shared/plugin-enable-state-schema.ts (new)
+import { z } from "zod";
+
+export const PluginEnableStateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    plugins: z.record(z.string(), z.enum(["enabled", "disabled"])),
+    // Sentinel that this install has been through the greenfield seeding pass.
+    // Prevents re-seeding a fresh-cloned alpha install that happens to look
+    // greenfield. Set to true at the same atomic write that seeds `plugins`.
+    installInitialized: z.boolean(),
+  })
+  .strict();
+export type PluginEnableState = z.infer<typeof PluginEnableStateSchema>;
+```
+
+File shape on disk:
+
+```json
+{
+  "schemaVersion": 1,
+  "installInitialized": true,
+  "plugins": {
+    "github-com": "disabled",
+    "ghe": "disabled",
+    "jira-self-hosted": "disabled"
+  }
+}
+```
+
+A missing file at host start means "this install predates the default-disabled feature." The plugin manager treats every discovered plugin id with no entry in `plugins` as implicitly `enabled` (preserves existing-install behaviour). On the very next enable/disable action, the file is written with the full known set; from then on, an absent entry is impossible.
+
+#### `ConnectionStatus` shape on the plugin contract
+
+```ts
+// plugin-sdk/src/types.ts (additive)
+export type ConnectionStatusKind = "connected" | "disconnected" | "auth-problem" | "errored";
+
+export interface ConnectionStatus {
+  kind: ConnectionStatusKind;
+  // ISO-8601. The plugin sets this from its own clock; the stubbed e2e plugin
+  // sets it from the `--now=` startup arg so specs are byte-deterministic.
+  checkedAt: string;
+  // Optional human-readable detail. Renders in the chip tooltip. NEVER contains
+  // a token, a URL with a token, or PII.
+  detail?: string;
+}
+```
+
+Wire-level addition to `PluginContract`:
+
+```ts
+export interface PluginContract {
+  // ... existing methods unchanged ...
+  getConnectionStatus?: () => Promise<ConnectionStatus> | ConnectionStatus;
+  filterFacets?: () => Promise<FilterFacet[]> | FilterFacet[];
+}
+```
+
+`MethodNotFound` fallback: when `plugin-manager.invoke(pluginId, "getConnectionStatus", {})` resolves with `code: "MethodNotFound"` (existing mapping at `server/services/plugin-manager.ts:874-879`), the cache stores `{ kind: "errored", checkedAt: now, detail: "Plugin does not report connection status" }` and the chip falls back to the `errored` variant with the tooltip explaining the gap. The host does NOT silently substitute `validateConfig` for `getConnectionStatus`; reusing `validateConfig` would conflate "credentials are valid for the integration" with "we can reach the integration right now" and would mean every status check potentially burns a write-back-capable round-trip. Plugins that want connection status MUST implement it explicitly.
+
+#### `FilterFacet` shape on the plugin contract
+
+```ts
+// plugin-sdk/src/types.ts (additive)
+export type FilterFacetType = "enum" | "enum-async" | "multi-enum";
+
+export interface FilterFacetOption {
+  value: string;
+  label: string;
+}
+
+export interface FilterFacet {
+  id: string; // matches the key under `NormalizedIssue.facetValues`
+  label: string; // user-visible facet name (e.g. "Milestone", "Epic")
+  type: FilterFacetType;
+  // Present iff type === "enum" or "multi-enum" AND the facet's option set is
+  // small and stable enough to ship inline. Absent for `enum-async` and for
+  // large "enum" facets whose options are populated lazily (see open question 2).
+  options?: FilterFacetOption[];
+}
+```
+
+`MethodNotFound` fallback: when `filterFacets()` returns `MethodNotFound`, core falls back to the built-in common-facet set (`Status`, `Label`, `Assignee`, `Type`) populated from the plugin's normalized issue stream (existing fields).
+
+#### Optional `facetValues` on `NormalizedIssue`
+
+```ts
+// plugin-sdk/src/types.ts (additive; existing fields unchanged)
+export interface NormalizedIssue {
+  // ... existing fields ...
+  // Optional plugin-populated facet bucket. Keys match `FilterFacet.id`.
+  // A facet value MAY be a single string (`enum`) or an array (`multi-enum`).
+  // Plugins that do not declare facets omit this field entirely.
+  facetValues?: Record<string, string | string[]>;
+}
+```
+
+Core filters on `issue.facetValues?.[facet.id]`; the legacy "look inside `raw`" coupling is explicitly avoided. Plugins that declare facets MUST populate `facetValues` for the facets they declared. Plugins that omit `facetValues` get only the common-facet fallback set.
+
+#### `excludedStatuses` at three config layers
+
+```ts
+// shared/config-schema.ts (modified; additive only)
+const ExcludedStatusesSchema = z.array(z.string().min(1)).optional();
+
+// Per-source entry under sources[<id>] gains an optional excludedStatuses field
+// alongside any other plugin-defined per-source settings. Because the existing
+// per-source schema is plugin-configSchema-driven (each bundled plugin's
+// `roubo-plugin.yaml` declares the shape of a source entry), `excludedStatuses`
+// is a Roubo-core-reserved field added at the merge layer; bundled plugins
+// MUST NOT use the key `excludedStatuses` for plugin-specific settings.
+
+export const IntegrationConfigSchema = z
+  .object({
+    plugin: z.string().optional(),
+    instance: z.string().optional(),
+    sources: z.record(z.string(), z.array(z.union([z.string(), z.number()]))).optional(),
+    // NEW: integration-block-root excludedStatuses (per-project layer).
+    excludedStatuses: ExcludedStatusesSchema,
+    // ... existing fields ...
+  })
+  .strict();
+```
+
+**Three layers (effective precedence: later wins per field):**
+
+1. **Plugin-global default**, declared in each plugin's `roubo-plugin.yaml` under `defaultIntegrationConfig.excludedStatuses` (a new optional manifest field). github.com / GHE / Jira plugins ship `["Closed", "Done", "Resolved", "In review", "PR open", "Waiting on reviewer"]` (or the Jira-localised equivalents in the Jira manifest).
+2. **Per-project**, in the project's integration override (`~/.roubo/integrations/<projectId>.yaml`) at the integration block root.
+3. **Per-source**, under `sources[<sourceId>].excludedStatuses` in the same override file (or in the committed `roubo.yaml` integration block).
+
+The existing `deepMergeIntegration` walker (`server/services/integration-overrides.ts:176-186`) merges the integration-block root correctly because `excludedStatuses` is a plain array (arrays REPLACE per shared/deep-merge semantics). The per-source layer is NOT covered by the root-level walker because `sources` is itself an array-replace key. A post-merge pass solves this; see component design below.
+
+#### Alerts (2026-05-24) data shape
+
+Already pinned in the prior architecture addendum (sections "Per-source category booleans," "Warning surface," "External-id format"). Recap for the architecture index:
+
+- `ListIssuesResult.warnings?: SourceWarning[]` (additive, in `plugin-sdk/src/types.ts`).
+- `ValidateConfigResult.categoryProbes?: [...]` (additive).
+- `NormalizedIssue.issueType` candidate set expands to include `security-code-scanning` / `security-secret-scanning` / `security-dependabot`.
+- Alert external-id format `<owner>/<repo>#<category>-<n>`.
+- Three new optional per-source booleans on the github-com / GHE configSchema: `includeCodeScanningAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. Defaults `false`.
+
+No further data-model changes are needed in this section for the alerts addition; the prior addendum's design stands.
+
+### 3. Component design
+
+#### Plugin manager extensions (`server/services/plugin-manager.ts`)
+
+- **`getConnectionStatus(pluginId)` host method (server-side, NOT a host-RPC).** Reads from `connection-status-cache.ts`; on miss, calls `invoke(pluginId, "getConnectionStatus", {}, { timeoutMs: 5000 })`. The 5-second per-call timeout is tighter than the default 30s because status checks are user-blocking on UI mount. Per-plugin in-flight de-dup is non-negotiable: if a status request is already in flight, subsequent callers await the same promise.
+- **Concurrency policy for opportunistic re-check (resolves open question 3).** Decision: per-plugin in-flight de-dup is the only required throttle; no host-wide concurrency cap is enforced. Rationale: (a) status checks are cheap (one HTTP round-trip via the plugin's `host.fetch`), (b) the network host allowlist already bounds where the calls go, (c) the 30-second cache TTL collapses repeated UI mounts onto one network call, (d) capping host-wide concurrency would force a queue (and the queue itself becomes a coordination surface that needs tests). The plugin process is single-threaded and serialises its own work; the underlying undici dispatcher already pools sockets. We trust those layers. A future host-API minor can introduce a `concurrency: number` knob if real-world load surfaces a problem.
+- **Persistence wiring for enable state.** `initialize()` reads `plugin-enable-state.ts` once at boot. The existing loop at `server/services/plugin-manager.ts:679-685` (spawn loop) gains a guard: `if (enableState.plugins[entry.record.manifestId] !== "enabled") { skip spawn; record stays in "disabled" }`. `enable(pluginId)` and `disable(pluginId)` write through to `plugin-enable-state.ts` via `atomicWrite` before mutating the in-memory record. `restart(pluginId)` does NOT change the persisted state (a restart is a process-level action, not an enable/disable). `uninstall(pluginId)` deletes the plugin id from `enableState.plugins` and writes through.
+- **`HOST_API_VERSION` bump.** Constant at `server/services/plugin-manager.ts:25` changes from `"1.0.0"` to `"1.1.0"`. Plugins built against `^1.0.0` continue to satisfy the host's range (semver caret is inclusive of the same major). The two new optional methods are additive; older plugins remain compatible via the existing `MethodNotFound` mapping.
+
+#### Plugin contract additions (`plugin-sdk/src/types.ts` + zod) and `MethodNotFound` fallback
+
+- `getConnectionStatus?`, `filterFacets?`, optional `facetValues` on `NormalizedIssue` — schemas in section 2. The SDK's `definePlugin` already binds optional handlers; the addition is two lines per method in the dispatch table.
+- **`MethodNotFound` fallback for `getConnectionStatus`**: host caches `{ kind: "errored", detail: "Plugin does not report connection status" }`. Distinct from a "connected" or "disconnected" inference; users see "Errored" with the tooltip explanation.
+- **`MethodNotFound` fallback for `filterFacets`**: host falls back to the built-in common-facet set (`Status`, `Label`, `Assignee`, `Type`) sourced from the existing `NormalizedIssue` fields. Core never errors a 1.0.0 plugin on the cut-list page.
+
+#### Integration-overrides post-merge pass (`server/services/integration-overrides.ts`)
+
+New function `applyPerSourceExcludedStatuses(effective: IntegrationConfig): IntegrationConfig`. Walks `effective.sources` (which is `Record<string, Array<string | number>>` per the existing schema), and for each source entry attaches a resolved `excludedStatuses` value computed as `sourceLevel ?? rootLevel ?? pluginGlobalDefault`. The pass is wrapped around `getEffectiveWithGlobal` so callers continue to receive an `IntegrationConfig` with per-source values applied. Idempotent: re-running the pass produces the same shape.
+
+A new sibling `sourceExcludedStatuses(effective, sourceExternalId)` accessor exposes the resolved value to the cut-list filter pipeline without forcing every consumer to walk the same path. The accessor is the single source of truth used by both the server (to forward into RPC params if needed) and the client (via the existing `useProjectIntegration` hook surface).
+
+Because `sources[<id>].excludedStatuses` is a Roubo-core-reserved key, the per-source value lives alongside any plugin-defined per-source fields without conflict. Plugins are documented (SDK README) to not use the key `excludedStatuses` in their per-source configSchema.
+
+#### `pluginEnableState` storage (resolves open question 1)
+
+Decided above: **separate file `~/.roubo/plugins-state.json`**. The module `server/services/plugin-enable-state.ts` exposes:
+
+```ts
+export function loadEnableState(): PluginEnableState;
+export function saveEnableState(state: PluginEnableState): void;
+export function setPluginEnabled(pluginId: string, enabled: boolean): void;
+```
+
+`setPluginEnabled` is the atomic load-modify-write helper used by `plugin-manager.enable/disable`. The file is excluded from any state-snapshot endpoint by virtue of living outside `state.json` (NFR-019). No telemetry path reads from it.
+
+#### Test harness reset route (`server/routes/test.ts`, new)
+
+Env-gated `POST /test/__reset`. Active only when `process.env.ROUBO_E2E === "1"`; `server/index.ts` skips the route registration entirely otherwise so the route file is unreachable in production builds.
+
+**Resolves open question 4 — blast radius:** the route resets everything a Playwright spec could observe between runs that does NOT survive a server restart anyway:
+
+- `pluginManager.shutdown()` then `pluginManager.initialize()` (clears in-memory plugin map, restart-window history, re-discovers plugins from `ROUBO_BUNDLED_PLUGINS_DIR`).
+- `connection-status-cache.clear()` (clears the 30s per-plugin status cache).
+- `migrate.__test.reset()` (clears the singleton last-outcome marker; existing test hook).
+- `projectRegistry.__test.reset()` (existing hook; clears the in-memory project list).
+- `integration-overrides` in-memory caches (the file-backed values stay because Playwright resets `HOME` per test run; the in-memory layer is a thin wrapper and the reset is defensive).
+- `OAuth pendingStates` map in the github-com plugin's auth module (existing test hook).
+
+Notably NOT touched: the on-disk `~/.roubo/` for the test run (the spec owns that via `HOME=`tmp`), the bundled-plugin source files, or any client state (Playwright resets the page).
+
+Implementation calls each subsystem's existing `__test.reset()` hook (where available) plus the new shutdown/initialize sweep on the plugin manager. The route handler is ~30 lines; the blast radius is documented in the file's top comment so future authors don't expand it.
+
+#### GitHub settings push-down (the active integration plugin tab inside `ProjectSettings.tsx`)
+
+**State that moves**:
+
+- `project.repo` (committed `roubo.yaml`) — STAYS in committed `roubo.yaml` because non-GitHub plugins (Jira) also need a per-source equivalent; the field's home is `roubo.yaml`. UI surface moves to the renamed integration tab. The Identity tab no longer renders an input for `repo`. The committed file format is unchanged; only the UI changes location.
+- `project.github.project` (committed `roubo.yaml`) — STAYS in committed `roubo.yaml`. Same UI move into the renamed integration tab.
+- `layout.submodules` (committed `roubo.yaml`) — STAYS in committed `roubo.yaml`. Rendered as a read-only table inside the integration tab when the project is a meta-repo.
+
+So this is **a UI move, not a schema move**. The renamed integration tab is a render-layer consolidation; the committed schema is untouched. This avoids a schema migration and keeps `roubo.yaml` field-level optional precisely as designed in the original architecture. (Earlier explorations contemplated moving fields into the github-com plugin's per-source configSchema; rejected because it (a) creates a parallel surface for the same data, (b) forces every team to migrate their committed `roubo.yaml`, (c) makes Jira parity awkward when Jira projects also need a `repo` field for cross-repo links.)
+
+**Default branch** stays on Identity (FR-071). Git concept, not GitHub concept.
+
+**Derived `activeIntegrationDisplayName` on the project state (resolves open question 5).** Decision: **yes, derive once in `server/services/active-plugin.ts` and expose via the existing `useProjectIntegration(projectId)` hook as `state.activePluginDisplayName: string | null`**. Rationale: three consumers (tab title, sidebar, breadcrumb) all need the same string; computing it three times invites drift (e.g. one place picks up the manifest `name`, another picks up the plugin id when the manifest is briefly unavailable mid-restart, yielding inconsistent UI). The derived value is computed as `pluginManager.listInstalled().find(p => p.id === effective.plugin)?.manifest?.name ?? null`. When `null`, consumers render the `Source` fallback label.
+
+#### Per-project Settings tab rename
+
+The tab list at `client/src/components/ProjectSettings.tsx:523` is currently hardcoded. The renamed tab requires reading `useProjectIntegration(projectId).data.activePluginDisplayName` and substituting it for the static `Issue source` label. When `activePluginDisplayName` is `null` (no plugin configured), the tab label is `Source` (per FR-069's explicit fallback). The tab `id` stays a fixed string (`integration` or the existing `plugins`) so deep-links continue to work; only the label is dynamic. Sidebar and breadcrumb consume the same derived value.
+
+#### Cut-list filter UI
+
+- **Plugin-declared facets flow.** On cut-list mount, `usePluginFilterFacets(projectId, activePluginId)` issues `GET /api/projects/:projectId/integration/filter-facets`. The route proxies to `pluginManager.invoke(activePluginId, "filterFacets", {})`. The response (`FilterFacet[]`) is cached by React Query keyed `["plugin-filter-facets", projectId, activePluginId]` indefinitely; invalidated only by plugin restart (via the existing plugin-restart notification SSE in `server/routes/notifications.ts` if present, or by user-initiated config save). Each facet renders as one dropdown in the existing filter row. The Status dropdown is the built-in one (not plugin-declared); plugins that declare a `status`-id facet are accepted but core's built-in status filter takes precedence visually (one dropdown labelled `Status`).
+- **`excludedStatuses` surface inline in the Status filter dropdown.** The dropdown's top region renders a single-line body-copy explanation: "By default, X, Y, Z are hidden. Toggle them above to include." Below that line, items in the dropdown corresponding to excluded statuses render with a "Hidden by default" tag and unchecked state. Toggling on an excluded status is session-scoped (held in `FilterState.includeHidden: Set<string>`) and does NOT mutate the persisted config. A separate `Including hidden: Closed, Done` chip below the filter row makes the override visible and dismissable.
+- **`applyFilters` extension.** The function gains:
+
+  ```ts
+  // pseudo-code
+  if (filters.excludedStatuses.size > 0 && !filters.includeHidden.has(issue.currentState)) {
+    if (filters.excludedStatuses.has(issue.currentState)) return false;
+  }
+  for (const [facetId, selectedValues] of Object.entries(filters.facetValues)) {
+    if (selectedValues.size === 0) continue;
+    const issueValue = issue.facetValues?.[facetId];
+    if (issueValue === undefined) return false;
+    if (Array.isArray(issueValue)) {
+      if (!issueValue.some((v) => selectedValues.has(v))) return false;
+    } else if (!selectedValues.has(issueValue)) return false;
+  }
+  ```
+
+  Pure client-side recompute. NFR-021 (50ms p95 for ≤500 issues) is comfortably met by a single linear pass; the existing label-filter loop is the same shape.
+
+#### `filterFacets()` value population strategy (resolves open question 2)
+
+**Decision: hybrid eager-with-lazy-escape-hatch.** The `FilterFacet` shape supports both:
+
+- `type: "enum"` with `options: [...]` — eager. Plugin returns small, stable enums (e.g. github.com's `Milestone` for a single repo, where the typical count is < 50).
+- `type: "enum-async"` with `options: undefined` — lazy. Plugin commits to populating options on demand. Host renders the dropdown initially empty with a "Loading…" affordance; when the user opens the dropdown, the host calls a separate `getFacetOptions(facetId, params?: { search?: string }): Promise<FilterFacetOption[]>` RPC. This RPC is added in the same 1.1.0 bump (additive; `MethodNotFound` returns an empty option list and the UI surfaces "Search not supported on this plugin").
+- `type: "multi-enum"` — same as `enum`, but the consumer selects multiple values.
+
+**Why hybrid.** Plugin-API defensibility against very large enums is the gating concern (e.g. all assignees in a giant repo, all sprints in a Jira instance with hundreds). A purely eager API would force every plugin to fetch the world up front; a purely lazy API would force github-com's small Milestone facet to pay a second RPC round-trip for no benefit. Hybrid lets each facet pick its trade-off. The github-com plugin returns `Milestone` as `enum` with options inlined. A future plugin that wants `Assignee` declares it as `enum-async` and the host handles it lazily.
+
+This is strictly additive against `MethodNotFound`-tolerant 1.0.0 plugins. Adding the `getFacetOptions` RPC alongside `filterFacets` keeps the contract coherent without an additional minor bump later.
+
+#### Status chip component (`ConnectionStatusPill.tsx`)
+
+Five variants. Each combines a colour with an icon + shape signal (NFR-016: not colour alone).
+
+| Variant | Colour family | Icon (Lucide) | Shape |
+| --- | --- | --- | --- |
+| `connected` | `emerald-500` | `<Check>` | Pill (rounded-full) |
+| `disconnected` | `stone-400` | `<PlugZap>` | Pill, outlined |
+| `auth-problem` | `amber-500` | `<KeyRound>` | Pill, filled background |
+| `errored` | `red-500` | `<AlertCircle>` | Pill, filled background |
+| `disabled` | `stone-300` | `<MinusCircle>` | Pill, outlined, muted |
+
+A sixth ephemeral state (`rechecking`) renders as the cached variant overlaid with a small spinner ring around the icon; it is not a separate `kind`, it's a render-layer presentation when `usePluginConnectionStatus().isFetching && data` (cached value present, re-fetch in flight). The chip reads from React Query cache `["plugin-connection-status", pluginId]`; the cached value is the canonical render. When `data` is undefined and `isLoading` is true, the chip shows the `disconnected` variant with a "Never checked" tooltip.
+
+`ConnectionStatusPill` is a sibling component to `StatusPill.tsx`; the host-process chip stays for `enabled` / `disabled` / `errored` / `incompatible` / `invalid` (process-state). Both chips render on the plugin card (process state on the left, connection state on the right).
+
+#### Plugin grid layout (`PluginsTab.tsx`)
+
+Two-line edit: replace each `<div className="space-y-3">` (lines 79 and 102) with `<div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-3">`. The existing `PluginCard` is a self-contained `<article>` that fits a grid tile without restructuring. Tailwind 4 arbitrary-value support is already enabled (`client/package.json:51`).
+
+Full-width Settings wrapper: at `client/src/components/ProjectSettings.tsx:511`, replace `className="p-8 max-w-3xl"` with `className="p-8 w-full"`. The change widens every Settings tab. Visual review during build confirms the existing `space-y-*`-based tabs (Bench Defaults, Appearance, Jigs, Claude Code) render cleanly at the wider width; no inner-content max-width constraints are added because the existing card-of-cards layouts already self-constrain.
+
+#### Enable-plugin prompt modal
+
+Owned by `client/src/hooks/usePluginEnablePrompt.ts`, mounted at the project-page boundary. The hook reads the project's effective integration plugin id and cross-references `usePlugins()` (the existing plugin-list query) plus the persisted enable state (`GET /api/plugins` already returns each plugin's status; the hook tests for `record.status === "disabled" && record.source === "bundled"`).
+
+When the test passes, the hook surfaces a stateful modal (`EnableDisabledPluginDialog`) blocking the project view until the user clicks Enable or Cancel. Enable calls `POST /api/plugins/:pluginId/enable`; on success, the modal closes and the project view continues to render normally. Cancel returns the user to the project list (NFR-024: re-render within 500ms; the existing route transition is well under that).
+
+**Server-side state touched**: `POST /api/plugins/:pluginId/enable` triggers `pluginManager.enable(pluginId)`, which spawns the plugin process AND writes through `plugin-enable-state.ts`. No silent state mutation: every change is the result of an explicit user action.
+
+Focus management (NFR-022): React Aria `<Dialog>` traps focus, restores to the originating button (the project-list row's open action), exposes title/description via `aria-labelledby` / `aria-describedby`. `Esc` cancels; `Enter` confirms when Enable has focus.
+
+#### Stubbed plugin fixture (`e2e/fixtures/stubbed-plugin/`)
+
+The scenario-pack model. One stubbed-plugin process implements the full contract; a `--scenario=<name>` startup arg selects the JSON file under `e2e/fixtures/stubbed-plugin/scenarios/` that drives the response set for the run. `--now=<ISO-8601>` pins the clock; the stub uses that value for every timestamp (`checkedAt`, `updatedAt`, etc.) so output is byte-deterministic across runs.
+
+A scenario file is a flat JSON map from method name to canned response:
+
+```json
+{
+  "$schema": "../scenario.schema.json",
+  "name": "happy-path-github-com",
+  "manifest": { "id": "stub-github", "kind": "integration", "...": "..." },
+  "responses": {
+    "getConnectionStatus": { "kind": "connected", "checkedAt": "{{NOW}}" },
+    "listSourceCandidates": {
+      "shape": "multi-list",
+      "items": [{ "externalId": "acme/web", "label": "acme/web", "icon": "repo" }]
+    },
+    "listIssues": {
+      "items": [
+        {
+          "integrationId": "stub-github",
+          "externalId": "acme/web#1",
+          "externalUrl": "https://stub.invalid/acme/web/issues/1",
+          "title": "Stubbed issue 1",
+          "currentState": "Open",
+          "allowedTransitions": ["Closed"],
+          "labels": ["bug"],
+          "facetValues": { "milestone": "v1.0" },
+          "blocks": [],
+          "blockedBy": [],
+          "issueType": null,
+          "updatedAt": "{{NOW}}",
+          "assignees": [],
+          "body": null,
+          "raw": null
+        }
+      ],
+      "nextCursor": null
+    },
+    "filterFacets": [
+      {
+        "id": "milestone",
+        "label": "Milestone",
+        "type": "enum",
+        "options": [{ "value": "v1.0", "label": "v1.0" }]
+      }
+    ],
+    "validateConfig": { "ok": true },
+    "getCurrentUser": { "externalId": "stub-user", "displayName": "Stub User" }
+  }
+}
+```
+
+`{{NOW}}` is the only template placeholder; the stub substitutes it from `--now=`. Specs that need to exercise state transitions over time (e.g. "status flips from connected to auth-problem after token expiry") run the plugin with two consecutive scenario files swapped between RPC calls via the `POST /test/__reset` route. Restart the plugin manager, point the stub at the second scenario; the next status check observes the new state.
+
+How time is pinned: the stub never reads `Date.now()`. Every timestamp in its responses is the `--now` arg verbatim. The vscode-jsonrpc framing and the host's RPC timeout are not time-pinned (real wall clock), but those values do not appear in test assertions because Playwright matches on response payloads, not on internal timing.
+
+### 4. Sequence diagrams
+
+#### Fresh-install: bundled plugins disabled, user enables github.com via Connect
+
+```mermaid
+sequenceDiagram
+    participant Boot as server/index.ts
+    participant Mig as migrate.run()
+    participant ES as plugin-enable-state
+    participant PM as plugin-manager
+    participant UI as Settings > Plugins
+    participant Card as PluginCard
+    participant Modal as PluginConfigureDialog
+
+    Boot->>Mig: run() (first launch)
+    Mig->>Mig: detect greenfield (no auth.json, no projects)
+    Mig->>ES: saveEnableState({ plugins: { github-com: "disabled", ghe: "disabled", jira-self-hosted: "disabled" }, installInitialized: true })
+    Mig->>Boot: { status: "noop", schemaVersion bumped }
+    Boot->>PM: initialize()
+    PM->>ES: loadEnableState()
+    ES-->>PM: all disabled
+    Note over PM: spawn loop skips every entry; <br/>all records have status="disabled"
+    PM-->>Boot: ready (no processes running)
+
+    UI->>Card: render tile (status="disabled", Disabled chip)
+    Card->>Card: user clicks "Connect"
+    Card->>PM: POST /api/plugins/github-com/enable
+    PM->>ES: setPluginEnabled("github-com", true)
+    PM->>PM: spawnPlugin(entry) → child process
+    PM-->>Card: { status: "enabled" }
+    Card->>Modal: open with focus on credentials
+    Modal->>Modal: user completes OAuth flow
+    Modal->>PM: POST .../integration/test
+    PM->>Modal: { ok: true, identity }
+    Note over Card: ConnectionStatusPill flips connected
+```
+
+#### Project-load when bundled plugin is disabled (Enable prompt)
+
+```mermaid
+sequenceDiagram
+    participant Route as React Router
+    participant ProjectPage as Project page
+    participant Hook as usePluginEnablePrompt
+    participant Plugins as usePlugins (GET /api/plugins)
+    participant Integration as useProjectIntegration
+    participant Dialog as EnableDisabledPluginDialog
+    participant PM as plugin-manager
+
+    Route->>ProjectPage: navigate to /projects/:id
+    ProjectPage->>Integration: fetch effective integration config
+    Integration-->>ProjectPage: { plugin: "github-com", ... }
+    ProjectPage->>Plugins: fetch plugin list
+    Plugins-->>ProjectPage: github-com record (status="disabled", source="bundled")
+    Hook->>Hook: detect disabled + bundled + project references it
+    Hook->>Dialog: open modal (focus-trapped, Enter=Enable, Esc=Cancel)
+    alt User clicks Enable
+        Dialog->>PM: POST /api/plugins/github-com/enable
+        PM->>PM: spawnPlugin + persist enable state
+        PM-->>Dialog: { status: "enabled" }
+        Dialog->>ProjectPage: close; project continues to render
+    else User clicks Cancel
+        Dialog->>Route: navigate back to project list
+    end
+```
+
+#### Opportunistic status re-check on cut-list open
+
+```mermaid
+sequenceDiagram
+    participant Cut as Cut-list page
+    participant Hook as usePluginConnectionStatus
+    participant Cache as connection-status-cache
+    participant PM as plugin-manager
+    participant Plugin as bundled plugin
+    participant Host as host.fetch
+    participant Remote as GitHub/Jira
+
+    Cut->>Hook: mount (queryClient.invalidateQueries on mount)
+    Hook->>Cache: GET /api/plugins/github-com/connection-status
+    Cache->>Cache: check entry { capturedAt, value }
+    alt cache fresh (< 30s old)
+        Cache-->>Hook: cached value
+        Hook-->>Cut: render chip
+    else cache stale or missing
+        alt in-flight promise present
+            Cache->>Cache: await existing promise
+        else no in-flight
+            Cache->>PM: invoke("getConnectionStatus", {}, { timeoutMs: 5000 })
+            PM->>Plugin: JSON-RPC
+            Plugin->>Host: host.fetch GET /user (allowlist enforced)
+            Host->>Remote: undici fetch
+            Remote-->>Host: 200 + headers
+            Host-->>Plugin: { status, headers, body }
+            Plugin-->>PM: { kind: "connected", checkedAt: "..." }
+            PM-->>Cache: store + resolve in-flight promise
+        end
+        Cache-->>Hook: ConnectionStatus
+        Hook-->>Cut: chip updates (React Query invalidates dependents)
+    end
+```
+
+#### Cut-list filter recompute with plugin-declared facet
+
+```mermaid
+sequenceDiagram
+    participant Cut as Cut-list page
+    participant Facets as usePluginFilterFacets
+    participant API as /api/projects/:id/integration/filter-facets
+    participant PM as plugin-manager
+    participant Plugin as active plugin
+    participant FilterRow as CutListFilters
+    participant Apply as applyFilters
+
+    Cut->>Facets: mount
+    Facets->>API: GET (cached if already fetched this session)
+    API->>PM: invoke("filterFacets", {})
+    PM->>Plugin: JSON-RPC
+    Plugin-->>PM: [{ id: "milestone", label: "Milestone", type: "enum", options: [...] }]
+    PM-->>API: FilterFacet[]
+    API-->>Facets: FilterFacet[]
+    Facets-->>FilterRow: render extra dropdown
+
+    FilterRow->>FilterRow: user picks Milestone "v1.2"
+    FilterRow->>Apply: updated FilterState (facetValues.milestone += "v1.2")
+    Apply->>Apply: synchronous filter (single pass over issues)
+    Apply-->>Cut: filtered list (≤ 50ms for 500 issues)
+```
+
+#### Per-source `excludedStatuses` override path through `integration-overrides.ts`
+
+```mermaid
+sequenceDiagram
+    participant Caller as Cut-list page (or server route)
+    participant Active as resolveActivePlugin / useProjectIntegration
+    participant Overrides as integration-overrides.ts
+    participant Merge as deepMergeIntegration
+    participant PostPass as applyPerSourceExcludedStatuses
+
+    Caller->>Active: getEffective(projectId)
+    Active->>Overrides: getEffectiveWithGlobal(committed, projectOverride)
+    Overrides->>Merge: committed ⊕ globalOverride ⊕ projectOverride (root level)
+    Merge-->>Overrides: rootMerged
+    Overrides->>PostPass: applyPerSourceExcludedStatuses(rootMerged)
+    PostPass->>PostPass: walk rootMerged.sources entries; <br/>resolve per-source excludedStatuses<br/>(sourceLevel ?? rootLevel ?? pluginGlobalDefault)
+    PostPass-->>Overrides: effective config with per-source values
+    Overrides-->>Active: IntegrationConfig
+    Active-->>Caller: { excludedStatuses by source }
+    Caller->>Caller: applyFilters uses resolved set per source
+```
+
+#### `POST /test/__reset` between Playwright specs
+
+```mermaid
+sequenceDiagram
+    participant Spec1 as Playwright spec A
+    participant Spec2 as Playwright spec B
+    participant TestRoute as POST /test/__reset
+    participant PM as plugin-manager
+    participant Cache as connection-status-cache
+    participant Reg as project-registry
+    participant Mig as migrate
+
+    Spec1->>TestRoute: (afterEach) POST /test/__reset
+    Note over TestRoute: env-gated: ROUBO_E2E === "1"
+    TestRoute->>PM: shutdown()
+    PM->>PM: SIGTERM all children, await exit
+    TestRoute->>Cache: clear()
+    TestRoute->>Reg: __test.reset()
+    TestRoute->>Mig: __test.reset()
+    TestRoute->>PM: initialize()
+    PM->>PM: rediscover plugins from ROUBO_BUNDLED_PLUGINS_DIR
+    PM-->>TestRoute: ready
+    TestRoute-->>Spec1: { ok: true }
+    Spec2->>Spec2: starts from a clean state
+```
+
+### 5. Integration points
+
+Existing modules touched, with the smallest viable change at each site.
+
+- `server/services/plugin-manager.ts:25` — `HOST_API_VERSION` bumps from `"1.0.0"` to `"1.1.0"`. One-line change.
+- `server/services/plugin-manager.ts:46-47` — module-level state map gains no new entry, but `initialized` boolean is no longer the only init guard; `loadEnableState()` runs once at `initialize()` entry.
+- `server/services/plugin-manager.ts:679-686` — spawn loop guards on `enableState.plugins[manifestId] === "enabled"` (or missing entry, which defaults to "enabled" for existing-install back-compat).
+- `server/services/plugin-manager.ts:718-742` — `enable()` and `disable()` write through `plugin-enable-state.setPluginEnabled` before mutating the in-memory record.
+- `server/services/plugin-manager.ts:829-886` — `invoke()` gains a 5-second default for the two new methods via the existing `opts.timeoutMs` parameter; no signature change.
+- `server/services/integration-overrides.ts:176-208` — `getEffectiveIntegrationConfig` and `getEffectiveWithGlobal` are unchanged in signature; a new exported `applyPerSourceExcludedStatuses` is invoked by the cut-list pipeline after the existing merge returns.
+- `server/services/migrate.ts:159` — the atomic `state.json` commit gains a sibling `plugin-enable-state.json` `atomicWrite` at the same commit moment. Both files written before the post-commit `auth.json` unlink. Migration determines greenfield via `(state.schemaVersion === undefined && !auth && plans.length === 0)`.
+- `server/routes/plugins.ts` — append two new endpoints (`GET /api/plugins/:pluginId/connection-status` and the cache-aware proxy). Existing endpoints unchanged.
+- `server/routes/integration.ts` — append `GET /api/projects/:projectId/integration/filter-facets`; the existing `POST .../integration/test` handler gets a one-line cache-invalidate at success.
+- `server/index.ts` — register `server/routes/test.ts` only when `process.env.ROUBO_E2E === "1"`. One-line conditional.
+- `shared/config-schema.ts:13-33,216-227` — add optional `excludedStatuses` on `IntegrationConfigSchema`. The `sources` field's value shape stays `Record<string, Array<string | number>>` because per-source extra fields go through the post-merge pass; bundled plugins MUST NOT use `excludedStatuses` as a per-source config key.
+- `plugin-sdk/src/types.ts:134-160` — additive contract methods (`getConnectionStatus`, `filterFacets`) and additive `facetValues` on `NormalizedIssue`. Wire-compatible.
+- `client/src/components/ProjectSettings.tsx:511,523` — `max-w-3xl` → `w-full`. The hardcoded tab list at `:523` reads `activeIntegrationDisplayName` from `useProjectIntegration` when rendering the `integration` tab's label.
+- `client/src/components/settings/plugins/PluginsTab.tsx:79,102` — replace `<div className="space-y-3">` with the grid template.
+- `client/src/components/IssueSourceTile.tsx:103-128` — collapse three buttons to two; add `ConnectionStatusPill`.
+- `client/src/components/settings/plugins/StatusPill.tsx:11-32` — unchanged. `ConnectionStatusPill` is a sibling component, not a rewrite.
+- `client/src/lib/cut-list-filters.ts:3-42` — extend `FilterState` and `applyFilters` per the component design above. Backwards compatible because consumers that don't populate the new fields get the existing behaviour.
+- `playwright.config.ts` — add a second `webServer` entry for the server, set `fullyParallel: false` (already the case), point at fixture dirs via env vars.
+- `e2e/source-picker.spec.ts` — unchanged; this existing fixture-only spec stays as the lower-level component test.
+
+Total: **18 distinct existing modules** receive smallest-viable edits.
+
+### 6. Observability
+
+- **Logs (NFR-023).** Connection-status transitions are logged through the plugin's `host.logger.info` channel with the shape `{ kind: "connection-status-transition", pluginId, previous: <ConnectionStatusKind | null>, next: <ConnectionStatusKind>, trigger: "ui-event-settings-mount" | "ui-event-configure-open" | "ui-event-cutlist-open" | "manual-test-connection" | "post-config-save", at: ISO-8601 }`. The plugin manager emits the log line on every cache write where the new `kind` differs from the previous cached `kind`; identical-to-cached re-checks do NOT emit a log line (would dominate the log file otherwise). Log level: `info` for `connected`, `warn` for `disconnected` / `auth-problem`, `error` for `errored`. The host-side `connection-status-cache.ts` is the single emission point so a plugin that misbehaves cannot mute or duplicate the signal.
+- **Metrics.** Roubo is a local dev tool; no Prometheus or OTLP. Filter recompute timings, if observability is needed later, would land in the same per-plugin log file at `debug` level with shape `{ kind: "filter-recompute", facetCount, issueCount, durationMs }`. Not emitted by default this slug.
+- **Traces.** No new spans. The existing `<pluginId>.<methodName>` correlation identifier covers `getConnectionStatus` and `filterFacets` automatically because they ride the existing `pluginManager.invoke` path.
+
+### 7. Security considerations
+
+- **NFR-019 — plugin enable state is local-only.** `~/.roubo/plugins-state.json` is read by the host only on `plugin-manager.initialize()` and on each enable/disable. No code path serialises the file's contents into a telemetry payload (Roubo has no telemetry pipeline; the file's existence outside `state.json` also means it is structurally outside any future state-snapshot endpoint). The file mode is 0600 by virtue of `atomicWrite`'s rename-from-tmp pattern, matching `projects.json` and `state.json`.
+- **NFR-020 — status re-check routes through `host.fetch`.** The plugin's `getConnectionStatus` implementation MUST issue any remote probe via `host.fetch(url, init)`. The network host allowlist is enforced in-host BEFORE the undici dispatcher runs (per the existing `server/services/plugin-fetch.ts` design); a plugin that attempts to reach a host outside its `permissions.network.hosts` glob set receives the same `{ error: "permission-denied" }` envelope as any other call, regardless of whether the call originated in `listIssues` or `getConnectionStatus`. The self-signed-TLS opt-in is per-`host.fetch`-call (`FetchInit.allowSelfSignedTls`), which means the toggle's effect is bounded to the requesting call; no global TLS state mutation. **Host-API contract for `getConnectionStatus()`**: the host RPC dispatch does NOT exempt this method from the allowlist or TLS rules. Plugins cannot bypass the allowlist by labelling a request as a status probe. The host's `plugin-fetch.ts` is the single enforcement boundary for every plugin-to-network call.
+- **OAuth scope handling for the alerts addition** carries forward from the prior addendum: `security_events` is conditionally appended to the requested scope set only when at least one source has an alert category enabled; users who do not enable alerts never see a re-consent prompt.
+- **`/test/__reset` security gating.** The route registration is conditional on `process.env.ROUBO_E2E === "1"` at `server/index.ts` boot. Production builds set `NODE_ENV=production` and never set `ROUBO_E2E`; the route file is reachable only when the Playwright harness explicitly opts in. The Electron-packaged Roubo build does not set `ROUBO_E2E`; the route is unregistered, requests to `POST /test/__reset` return 404 because the path is not bound. The conditional registration is enforced via a unit test that boots the server without `ROUBO_E2E` and asserts a 404 on `POST /test/__reset`.
+- **Stubbed plugin cannot reach real hosts.** The fixture manifest declares `permissions.network.hosts: ["stub.invalid"]`; the plugin host enforces the allowlist, so even if a stub responder is misconfigured to issue a real fetch, it would be denied. Combined with the per-run `HOME=$TMPDIR` and `ROUBO_BUNDLED_PLUGINS_DIR=$PWD/e2e/fixtures`, the e2e harness has no path to real-network or real-credential effects.
+
+### 8. Risks and alternatives
+
+- **Lazy-vs-eager `filterFacets()` value model.** Chose **hybrid** (`enum` for inline options; `enum-async` for lazy). Alternative considered: pure eager (rejected: forces large plugins to ship potentially-huge enums; users complain when typing a search filter in a dropdown that already has 5000 inline options). Alternative considered: pure lazy with a single `getFacetOptions` RPC (rejected: forces a second RPC round-trip for every small enum, including github-com's `Milestone` which is the most common facet on the most common plugin). Risk of the chosen hybrid: plugins must self-classify facets correctly; a plugin that ships `enum` with 5000 inline options creates a 5000-item dropdown. Mitigation: SDK author docs recommend `enum-async` for any facet whose option set is expected to exceed ~100 items.
+- **Separate `plugins-state.json` vs extending `state.json`.** Chose separate file. Risk: a second file means a second `atomicWrite` to coordinate during migration; mitigated by issuing both writes inside `migrate.run()` before the `state.json` `schemaVersion` bump, treating the new file as part of the same commit. Alternative considered: extend `state.json` with a `pluginEnableState` field (rejected: forces a `schemaVersion` bump on a state file that just shipped one; bigger blast radius for any persistence bug).
+- **Server-side reset route vs server restart between specs.** Chose env-gated route. Risk: an additional code path that runs only in e2e mode and could drift from production behaviour; mitigated by keeping the route's blast radius narrow (resets only what specs care about) and asserting via a unit test that the route is unregistered when `ROUBO_E2E` is unset. Alternative considered: restart the server process per spec (rejected: Playwright's `webServer` does not support graceful per-spec restarts cleanly, and the cost of process boot would dominate suite runtime).
+- **Derived `activeIntegrationDisplayName` on the project state model vs per-consumer derivation.** Chose derived on the state object. Risk: a single derivation source means a bug in the derivation logic affects all three consumers; mitigated because it is one short function and tested once. Alternative considered: each consumer derives independently (rejected: invites drift; three call sites for a small string is a recipe for "the tab says GitHub but the sidebar says github-com" bugs during transition states).
+- **`excludedStatuses` is a Roubo-core-reserved per-source key.** Risk: a plugin author might want `excludedStatuses` as a plugin-specific per-source setting in their `roubo-plugin.yaml` `configSchema`; the post-merge pass would then collide. Mitigation: SDK author docs flag the reserved keys (currently just `excludedStatuses`; future Roubo-core-reserved per-source keys will be added to the same list). The host could enforce the reservation by rejecting plugins whose `configSchema.properties.sources.items.properties.excludedStatuses` exists, but that adds a validator we'd rather avoid; cooperative documentation is sufficient.
+- **`ConnectionStatusPill` separate from host-process `StatusPill`.** Risk: two chip components increase visual surface area on the plugin card; mitigated by clear semantic split (process state on left, connection state on right). Alternative considered: collapse both into a single chip (rejected: conflates "the plugin process is running" with "the plugin can reach its remote system"; they fail independently and need to be communicated independently).
+- **Status chip "Never checked" rendered as `errored`.** Risk: confusing to users who interpret "Errored" as "actively broken" when the truth is "not yet probed." Mitigation: the tooltip explicitly explains "Never checked — open Settings or load the cut list to probe." Alternative considered: a sixth `never-checked` variant (rejected: adds a chip state for a transient condition that resolves on first UI mount; the cache TTL means most users never see it).
+- **30-second connection-status cache TTL.** Risk: a user who fixes their token expects the chip to update faster than 30s; mitigated by the explicit cache invalidation on successful `validateConfig` (Test connection clears the cache for that plugin and forces a re-probe). Alternative considered: a shorter TTL (rejected: would burst probe calls during rapid UI mounts; cut-list open, Settings open, dialog open in quick succession).
+
+### 9. `/test/__reset` route security
+
+Explicitly: the route is **gated on `process.env.ROUBO_E2E === "1"`** at server startup. The conditional sits in `server/index.ts` next to other route registrations; when the env var is unset (production, dev, packaged builds), the route file is not imported and the path returns 404. A unit test under `server/routes/test.test.ts` boots the server without `ROUBO_E2E`, issues `POST /test/__reset`, and asserts a 404 response. This both verifies the gating and documents the intent for future authors. The Electron build pipeline explicitly does not set `ROUBO_E2E`. CI runs the e2e workflow with `ROUBO_E2E=1` set only for the dedicated `e2e` job; the `pr-check` workflow's other jobs (`lint`, `typecheck`, `coverage`) do not.
+
+### 10. Open questions remaining
+
+None remain open at the architecture stage. The five prototype-stage open questions resolve as:
+
+1. **`pluginEnableState` storage location** — separate file `~/.roubo/plugins-state.json`.
+2. **`filterFacets()` value population** — hybrid: `enum` for inline options, `enum-async` for lazy via an additional `getFacetOptions` RPC.
+3. **Status re-check concurrency** — per-plugin in-flight de-dup only; no host-wide throttle.
+4. **`/test/__reset` blast radius** — plugin manager (shutdown + reinit), connection-status cache, project-registry, migrate singleton, integration-overrides caches, OAuth pendingStates. Plus the unit-test gate that asserts 404 in production.
+5. **Project state model carries `activeIntegrationDisplayName`** — yes, derived once in `server/services/active-plugin.ts`, exposed through `useProjectIntegration`, consumed by tab/sidebar/breadcrumb.
+
+`unknown — flag for refinement` markers: none new. The prior architecture's markers (Spike A on Ubuntu headless, paper sketch outcome for forward-compat permission categories, Jira source picker pagination thresholds) carry forward unchanged; this section does not need to revisit them.
+
+### Closing notes for this section
+
+- **Proposed-component count**: 31 new files / modified call-sites across 24 distinct file paths.
+- **Integration-point count**: 18 distinct existing modules receive smallest-viable edits.
+- **Host-API**: bumps from 1.0.0 to 1.1.0. Additive only (two optional contract methods, one optional `NormalizedIssue` field, one new RPC `getFacetOptions` paired with `filterFacets`). `MethodNotFound` tolerance covers 1.0.0 plugins for every new method.
+- **No new permission categories**, no new credential slots, no new manifest sections. The reserved per-source key `excludedStatuses` is documented in SDK author docs.
+- **Top risks** carried into the build stage: (a) the hybrid `filterFacets` contract requires plugins to self-classify; SDK docs must steer authors correctly. (b) The `ConnectionStatusPill` vs `StatusPill` separation introduces two chips on each plugin card; visual review during prototype confirms the layout. (c) The Playwright harness's stubbed-plugin determinism is load-bearing for NFR-018; the scenario-pack model is byte-deterministic by construction, but every new scenario needs a paired unit test that asserts the canned responses round-trip through the SDK without time leakage.

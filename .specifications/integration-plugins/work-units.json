@@ -11,9 +11,15 @@
       "Unknown top-level fields are rejected by .strict()",
       "Test coverage from TC-006 passes"
     ],
-    "linked_requirement_ids": ["FR-001", "FR-006", "FR-032"],
+    "linked_requirement_ids": [
+      "FR-001",
+      "FR-006",
+      "FR-032"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-006"],
+    "linked_test_ids": [
+      "TC-006"
+    ],
     "estimate": "M",
     "depends_on": [],
     "issue": {
@@ -34,9 +40,17 @@
       "Server compiles without breaking existing consumers (adapter where needed)",
       "Test coverage from TC-024, TC-032 passes"
     ],
-    "linked_requirement_ids": ["FR-021", "FR-028"],
-    "linked_user_story_ids": ["US-003"],
-    "linked_test_ids": ["TC-024", "TC-032"],
+    "linked_requirement_ids": [
+      "FR-021",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ],
+    "linked_test_ids": [
+      "TC-024",
+      "TC-032"
+    ],
     "estimate": "M",
     "depends_on": [],
     "issue": {
@@ -57,9 +71,17 @@
       "Unknown subfields under integration are rejected per the existing .strict() pattern",
       "Test coverage from TC-026 (input parse path) and TC-067 passes"
     ],
-    "linked_requirement_ids": ["FR-018", "FR-023"],
-    "linked_user_story_ids": ["US-010"],
-    "linked_test_ids": ["TC-026", "TC-067"],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-026",
+      "TC-067"
+    ],
     "estimate": "S",
     "depends_on": [],
     "issue": {
@@ -81,16 +103,28 @@
       "Resolver exposed as a server service consumed by routes",
       "Test coverage from TC-026, TC-027, TC-065 passes"
     ],
-    "linked_requirement_ids": ["FR-023"],
-    "linked_user_story_ids": ["US-010"],
-    "linked_test_ids": ["TC-026", "TC-027", "TC-065"],
+    "linked_requirement_ids": [
+      "FR-023"
+    ],
+    "linked_user_story_ids": [
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-026",
+      "TC-027",
+      "TC-065"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-003"],
+    "depends_on": [
+      "WU-003"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/20",
       "id": 20,
-      "blocked_by": [19]
+      "blocked_by": [
+        19
+      ]
     }
   },
   {
@@ -124,7 +158,9 @@
       "NFR-008",
       "NFR-010"
     ],
-    "linked_user_story_ids": ["US-009"],
+    "linked_user_story_ids": [
+      "US-009"
+    ],
     "linked_test_ids": [
       "TC-001",
       "TC-002",
@@ -141,12 +177,16 @@
       "TC-078"
     ],
     "estimate": "L",
-    "depends_on": ["WU-001"],
+    "depends_on": [
+      "WU-001"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/21",
       "id": 21,
-      "blocked_by": [17]
+      "blocked_by": [
+        17
+      ]
     }
   },
   {
@@ -161,16 +201,29 @@
       "Denials logged with stable pluginId.methodName identifier",
       "Test coverage from TC-008, TC-009, TC-010 passes"
     ],
-    "linked_requirement_ids": ["FR-008", "FR-009", "NFR-001", "NFR-006"],
+    "linked_requirement_ids": [
+      "FR-008",
+      "FR-009",
+      "NFR-001",
+      "NFR-006"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-008", "TC-009", "TC-010"],
+    "linked_test_ids": [
+      "TC-008",
+      "TC-009",
+      "TC-010"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-005"],
+    "depends_on": [
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/23",
       "id": 23,
-      "blocked_by": [21]
+      "blocked_by": [
+        21
+      ]
     }
   },
   {
@@ -186,16 +239,30 @@
       "Ubuntu headless recipe documented in module README + architecture.md",
       "Test coverage from TC-011, TC-012, TC-070 passes; TC-083 covers the headless recipe manually"
     ],
-    "linked_requirement_ids": ["FR-006", "FR-010", "NFR-001", "NFR-002"],
+    "linked_requirement_ids": [
+      "FR-006",
+      "FR-010",
+      "NFR-001",
+      "NFR-002"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-011", "TC-012", "TC-070", "TC-083"],
+    "linked_test_ids": [
+      "TC-011",
+      "TC-012",
+      "TC-070",
+      "TC-083"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-005"],
+    "depends_on": [
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/24",
       "id": 24,
-      "blocked_by": [21]
+      "blocked_by": [
+        21
+      ]
     }
   },
   {
@@ -208,16 +275,27 @@
       "Bypass-via-raw-fs limitation documented in the SDK / plugin author docs",
       "Test coverage from TC-080 passes; TC-070 cross-checked"
     ],
-    "linked_requirement_ids": ["FR-006", "NFR-001"],
+    "linked_requirement_ids": [
+      "FR-006",
+      "NFR-001"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-080"],
+    "linked_test_ids": [
+      "TC-080"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-006", "WU-007"],
+    "depends_on": [
+      "WU-006",
+      "WU-007"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/29",
       "id": 29,
-      "blocked_by": [23, 24]
+      "blocked_by": [
+        23,
+        24
+      ]
     }
   },
   {
@@ -230,16 +308,32 @@
       "Author docs cover manifest, all contract methods, error shapes, and pagination",
       "Test coverage from TC-035 passes"
     ],
-    "linked_requirement_ids": ["FR-031"],
-    "linked_user_story_ids": ["US-004"],
-    "linked_test_ids": ["TC-035"],
+    "linked_requirement_ids": [
+      "FR-031"
+    ],
+    "linked_user_story_ids": [
+      "US-004"
+    ],
+    "linked_test_ids": [
+      "TC-035"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-001", "WU-005", "WU-006", "WU-007"],
+    "depends_on": [
+      "WU-001",
+      "WU-005",
+      "WU-006",
+      "WU-007"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/30",
       "id": 30,
-      "blocked_by": [17, 21, 23, 24]
+      "blocked_by": [
+        17,
+        21,
+        23,
+        24
+      ]
     }
   },
   {
@@ -255,8 +349,16 @@
       "Page is keyboard-navigable per Roubo accessibility conventions",
       "Test coverage from TC-001, TC-002, TC-003, TC-013, TC-016, TC-017, TC-018 passes; TC-046 (keyboard nav) passes"
     ],
-    "linked_requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-007", "NFR-010"],
-    "linked_user_story_ids": ["US-009"],
+    "linked_requirement_ids": [
+      "FR-014",
+      "FR-015",
+      "FR-016",
+      "NFR-007",
+      "NFR-010"
+    ],
+    "linked_user_story_ids": [
+      "US-009"
+    ],
     "linked_test_ids": [
       "TC-001",
       "TC-002",
@@ -268,12 +370,16 @@
       "TC-046"
     ],
     "estimate": "L",
-    "depends_on": ["WU-005"],
+    "depends_on": [
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/25",
       "id": 25,
-      "blocked_by": [21]
+      "blocked_by": [
+        21
+      ]
     }
   },
   {
@@ -289,16 +395,38 @@
       "Cancel from permissions Dialog reverts cleanly (no orphan files / state)",
       "Test coverage from TC-007, TC-019, TC-058, TC-059, TC-075 passes"
     ],
-    "linked_requirement_ids": ["FR-007", "FR-017", "NFR-003", "NFR-007"],
-    "linked_user_story_ids": ["US-004", "US-007"],
-    "linked_test_ids": ["TC-007", "TC-019", "TC-058", "TC-059", "TC-075"],
+    "linked_requirement_ids": [
+      "FR-007",
+      "FR-017",
+      "NFR-003",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-004",
+      "US-007"
+    ],
+    "linked_test_ids": [
+      "TC-007",
+      "TC-019",
+      "TC-058",
+      "TC-059",
+      "TC-075"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-001", "WU-005", "WU-010"],
+    "depends_on": [
+      "WU-001",
+      "WU-005",
+      "WU-010"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/31",
       "id": 31,
-      "blocked_by": [17, 21, 25]
+      "blocked_by": [
+        17,
+        21,
+        25
+      ]
     }
   },
   {
@@ -314,16 +442,40 @@
       "Save writes to ~/.roubo/integrations/<projectId>.yaml (override), not roubo.yaml",
       "Test coverage from TC-037, TC-038, TC-060, TC-061, TC-062 passes"
     ],
-    "linked_requirement_ids": ["FR-009", "FR-034", "FR-035", "NFR-007"],
-    "linked_user_story_ids": ["US-001", "US-002"],
-    "linked_test_ids": ["TC-037", "TC-038", "TC-060", "TC-061", "TC-062"],
+    "linked_requirement_ids": [
+      "FR-009",
+      "FR-034",
+      "FR-035",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-037",
+      "TC-038",
+      "TC-060",
+      "TC-061",
+      "TC-062"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-004", "WU-005", "WU-006", "WU-010"],
+    "depends_on": [
+      "WU-004",
+      "WU-005",
+      "WU-006",
+      "WU-010"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/32",
       "id": 32,
-      "blocked_by": [20, 21, 23, 25]
+      "blocked_by": [
+        20,
+        21,
+        23,
+        25
+      ]
     }
   },
   {
@@ -339,16 +491,34 @@
       "Source-sync controls disabled on those benches",
       "Test coverage from TC-020, TC-028 (variant), TC-052, TC-056 passes"
     ],
-    "linked_requirement_ids": ["FR-018", "FR-028"],
-    "linked_user_story_ids": ["US-006", "US-010"],
-    "linked_test_ids": ["TC-020", "TC-052", "TC-056"],
+    "linked_requirement_ids": [
+      "FR-018",
+      "FR-028"
+    ],
+    "linked_user_story_ids": [
+      "US-006",
+      "US-010"
+    ],
+    "linked_test_ids": [
+      "TC-020",
+      "TC-052",
+      "TC-056"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-002", "WU-004", "WU-005"],
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/26",
       "id": 26,
-      "blocked_by": [18, 20, 21]
+      "blocked_by": [
+        18,
+        20,
+        21
+      ]
     }
   },
   {
@@ -362,16 +532,32 @@
       "Keyboard navigation works: Tab order is sane, arrow keys navigate items, Space/Enter selects",
       "Test coverage from TC-021, TC-022, TC-076 passes"
     ],
-    "linked_requirement_ids": ["FR-019", "NFR-007"],
-    "linked_user_story_ids": ["US-001", "US-002"],
-    "linked_test_ids": ["TC-021", "TC-022", "TC-076"],
+    "linked_requirement_ids": [
+      "FR-019",
+      "NFR-007"
+    ],
+    "linked_user_story_ids": [
+      "US-001",
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-021",
+      "TC-022",
+      "TC-076"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-005", "WU-013"],
+    "depends_on": [
+      "WU-005",
+      "WU-013"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/33",
       "id": 33,
-      "blocked_by": [21, 26]
+      "blocked_by": [
+        21,
+        26
+      ]
     }
   },
   {
@@ -386,16 +572,32 @@
       "Install completes and project loads normally",
       "Test coverage from TC-028, TC-051, TC-066 passes"
     ],
-    "linked_requirement_ids": ["FR-024"],
-    "linked_user_story_ids": ["US-005"],
-    "linked_test_ids": ["TC-028", "TC-051", "TC-066"],
+    "linked_requirement_ids": [
+      "FR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-005"
+    ],
+    "linked_test_ids": [
+      "TC-028",
+      "TC-051",
+      "TC-066"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-003", "WU-011", "WU-013"],
+    "depends_on": [
+      "WU-003",
+      "WU-011",
+      "WU-013"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/39",
       "id": 39,
-      "blocked_by": [19, 31, 26]
+      "blocked_by": [
+        19,
+        31,
+        26
+      ]
     }
   },
   {
@@ -412,16 +614,36 @@
       "Server compiles; client renders without referencing GitHub-only fields",
       "Test coverage from TC-023, TC-025, TC-033, TC-057, TC-071, TC-079 passes"
     ],
-    "linked_requirement_ids": ["FR-020", "FR-022", "FR-029", "NFR-005"],
+    "linked_requirement_ids": [
+      "FR-020",
+      "FR-022",
+      "FR-029",
+      "NFR-005"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-023", "TC-025", "TC-033", "TC-057", "TC-071", "TC-079"],
+    "linked_test_ids": [
+      "TC-023",
+      "TC-025",
+      "TC-033",
+      "TC-057",
+      "TC-071",
+      "TC-079"
+    ],
     "estimate": "L",
-    "depends_on": ["WU-002", "WU-004", "WU-005"],
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/27",
       "id": 27,
-      "blocked_by": [18, 20, 21]
+      "blocked_by": [
+        18,
+        20,
+        21
+      ]
     }
   },
   {
@@ -435,16 +657,24 @@
       "Existing unit / integration tests are updated to match the new behaviour",
       "Test coverage from TC-034 passes"
     ],
-    "linked_requirement_ids": ["FR-030"],
+    "linked_requirement_ids": [
+      "FR-030"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-034"],
+    "linked_test_ids": [
+      "TC-034"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-002"],
+    "depends_on": [
+      "WU-002"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/22",
       "id": 22,
-      "blocked_by": [18]
+      "blocked_by": [
+        18
+      ]
     }
   },
   {
@@ -460,16 +690,31 @@
       "On host crash mid-flight: no persisted in-flight state; next refresh reconciles from source",
       "Test coverage from TC-039, TC-054, TC-063, TC-064 passes"
     ],
-    "linked_requirement_ids": ["FR-036"],
-    "linked_user_story_ids": ["US-008"],
-    "linked_test_ids": ["TC-039", "TC-054", "TC-063", "TC-064"],
+    "linked_requirement_ids": [
+      "FR-036"
+    ],
+    "linked_user_story_ids": [
+      "US-008"
+    ],
+    "linked_test_ids": [
+      "TC-039",
+      "TC-054",
+      "TC-063",
+      "TC-064"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-005", "WU-016"],
+    "depends_on": [
+      "WU-005",
+      "WU-016"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/34",
       "id": 34,
-      "blocked_by": [21, 27]
+      "blocked_by": [
+        21,
+        27
+      ]
     }
   },
   {
@@ -482,16 +727,24 @@
       "Optimistic UI revert on plugin error",
       "Test coverage from TC-040 passes"
     ],
-    "linked_requirement_ids": ["FR-037"],
+    "linked_requirement_ids": [
+      "FR-037"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-040"],
+    "linked_test_ids": [
+      "TC-040"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-018"],
+    "depends_on": [
+      "WU-018"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/40",
       "id": 40,
-      "blocked_by": [34]
+      "blocked_by": [
+        34
+      ]
     }
   },
   {
@@ -508,16 +761,32 @@
       "Projects v2 pagination + issue-type fetching parity preserved",
       "Test coverage from TC-042, TC-043 passes"
     ],
-    "linked_requirement_ids": ["FR-039", "NFR-006"],
+    "linked_requirement_ids": [
+      "FR-039",
+      "NFR-006"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-042", "TC-043"],
+    "linked_test_ids": [
+      "TC-042",
+      "TC-043"
+    ],
     "estimate": "L",
-    "depends_on": ["WU-001", "WU-006", "WU-007", "WU-009"],
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/35",
       "id": 35,
-      "blocked_by": [17, 23, 24, 30]
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
     }
   },
   {
@@ -532,16 +801,30 @@
       "Existing Roubo OAuth app continues to work (no client id / secret changes)",
       "Test coverage tied to TC-037, TC-038, TC-054 (re-runs against github-com)"
     ],
-    "linked_requirement_ids": ["FR-034", "FR-035", "FR-036", "FR-037", "FR-039"],
+    "linked_requirement_ids": [
+      "FR-034",
+      "FR-035",
+      "FR-036",
+      "FR-037",
+      "FR-039"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-037", "TC-038", "TC-054"],
+    "linked_test_ids": [
+      "TC-037",
+      "TC-038",
+      "TC-054"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-020"],
+    "depends_on": [
+      "WU-020"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/41",
       "id": 41,
-      "blocked_by": [35]
+      "blocked_by": [
+        35
+      ]
     }
   },
   {
@@ -556,43 +839,83 @@
       "Self-signed TLS opt-in flows end-to-end via host.fetch",
       "Test coverage from TC-047, TC-062 passes"
     ],
-    "linked_requirement_ids": ["FR-009"],
-    "linked_user_story_ids": ["US-001"],
-    "linked_test_ids": ["TC-047", "TC-062"],
+    "linked_requirement_ids": [
+      "FR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-001"
+    ],
+    "linked_test_ids": [
+      "TC-047",
+      "TC-062"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-001", "WU-006", "WU-007", "WU-009"],
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/36",
       "id": 36,
-      "blocked_by": [17, 23, 24, 30]
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
     }
   },
   {
     "id": "WU-023",
-    "title": "Self-hosted Jira bundled plugin (Data Center 8.14+, PAT, JQL polling, ADF\u2192markdown, blocks mapping)",
-    "description": "Build `plugins/jira-self-hosted/` with manifest, entry, full plugin contract. PAT + instance URL auth (Data Center 8.14+). Incremental polling via JQL `updated >= <last-poll-timestamp>`. ADF (Atlassian Document Format) \u2192 markdown walker for issue bodies (hand-rolled; no @atlaskit deps). Blocks / is blocked by link-type mapping configurable per project (defaults: 'blocks', 'is blocked by'). categorized-multi-list source picker shape returning Boards, Epics, Filters. Write-back: applyTransition via Jira transitions API; assignIssue via PUT /rest/api/2/issue/<key>/assignee.",
+    "title": "Self-hosted Jira bundled plugin (Data Center 8.14+, PAT, JQL polling, ADF→markdown, blocks mapping)",
+    "description": "Build `plugins/jira-self-hosted/` with manifest, entry, full plugin contract. PAT + instance URL auth (Data Center 8.14+). Incremental polling via JQL `updated >= <last-poll-timestamp>`. ADF (Atlassian Document Format) → markdown walker for issue bodies (hand-rolled; no @atlaskit deps). Blocks / is blocked by link-type mapping configurable per project (defaults: 'blocks', 'is blocked by'). categorized-multi-list source picker shape returning Boards, Epics, Filters. Write-back: applyTransition via Jira transitions API; assignIssue via PUT /rest/api/2/issue/<key>/assignee.",
     "acceptance_criteria": [
       "plugins/jira-self-hosted/ ships as a bundled plugin",
       "PAT auth works on Data Center 8.14+",
       "JQL incremental polling keyed off a stored last-poll timestamp per source",
-      "ADF \u2192 markdown walker produces readable output for body / comments",
+      "ADF → markdown walker produces readable output for body / comments",
       "blocks / is blocked by link types map to NormalizedIssue.blocks / blockedBy; configurable names per project",
       "applyTransition uses Jira's transitions API; allowedTransitions returned by getIssue",
       "assignIssue updates the assignee via PUT /assignee",
       "Source picker returns categorized-multi-list shape (Boards, Epics, Filters)",
       "Test coverage from TC-029, TC-030, TC-048, TC-063, TC-072 passes"
     ],
-    "linked_requirement_ids": ["FR-025", "FR-026", "FR-036", "FR-037"],
-    "linked_user_story_ids": ["US-002"],
-    "linked_test_ids": ["TC-029", "TC-030", "TC-048", "TC-063", "TC-072"],
+    "linked_requirement_ids": [
+      "FR-025",
+      "FR-026",
+      "FR-036",
+      "FR-037"
+    ],
+    "linked_user_story_ids": [
+      "US-002"
+    ],
+    "linked_test_ids": [
+      "TC-029",
+      "TC-030",
+      "TC-048",
+      "TC-063",
+      "TC-072"
+    ],
     "estimate": "L",
-    "depends_on": ["WU-001", "WU-006", "WU-007", "WU-009"],
+    "depends_on": [
+      "WU-001",
+      "WU-006",
+      "WU-007",
+      "WU-009"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/37",
       "id": 37,
-      "blocked_by": [17, 23, 24, 30]
+      "blocked_by": [
+        17,
+        23,
+        24,
+        30
+      ]
     }
   },
   {
@@ -609,16 +932,39 @@
       "Integration test boots Roubo on a fixture pre-plugin ~/.roubo and asserts post-boot shape; runs in CI",
       "Test coverage from TC-031, TC-049, TC-068, TC-069 passes"
     ],
-    "linked_requirement_ids": ["FR-010", "FR-027", "FR-028", "NFR-002", "NFR-009"],
-    "linked_user_story_ids": ["US-003"],
-    "linked_test_ids": ["TC-031", "TC-049", "TC-068", "TC-069"],
+    "linked_requirement_ids": [
+      "FR-010",
+      "FR-027",
+      "FR-028",
+      "NFR-002",
+      "NFR-009"
+    ],
+    "linked_user_story_ids": [
+      "US-003"
+    ],
+    "linked_test_ids": [
+      "TC-031",
+      "TC-049",
+      "TC-068",
+      "TC-069"
+    ],
     "estimate": "L",
-    "depends_on": ["WU-002", "WU-004", "WU-007", "WU-020"],
+    "depends_on": [
+      "WU-002",
+      "WU-004",
+      "WU-007",
+      "WU-020"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/42",
       "id": 42,
-      "blocked_by": [18, 20, 24, 35]
+      "blocked_by": [
+        18,
+        20,
+        24,
+        35
+      ]
     }
   },
   {
@@ -631,16 +977,26 @@
       "Plugin author docs include the raw-field contract",
       "Test coverage from TC-045 passes"
     ],
-    "linked_requirement_ids": ["NFR-004"],
+    "linked_requirement_ids": [
+      "NFR-004"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-045"],
+    "linked_test_ids": [
+      "TC-045"
+    ],
     "estimate": "XS",
-    "depends_on": ["WU-002", "WU-016"],
+    "depends_on": [
+      "WU-002",
+      "WU-016"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/38",
       "id": 38,
-      "blocked_by": [18, 27]
+      "blocked_by": [
+        18,
+        27
+      ]
     }
   },
   {
@@ -656,16 +1012,26 @@
       "Reviewed before hostApiVersion 1.0.0 freeze",
       "Test coverage from TC-041 (existence + reference) passes; TC-084 covers later validation"
     ],
-    "linked_requirement_ids": ["FR-038", "NFR-011"],
+    "linked_requirement_ids": [
+      "FR-038",
+      "NFR-011"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-041", "TC-084"],
+    "linked_test_ids": [
+      "TC-041",
+      "TC-084"
+    ],
     "estimate": "XS",
-    "depends_on": ["WU-005"],
+    "depends_on": [
+      "WU-005"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/28",
       "id": 28,
-      "blocked_by": [21]
+      "blocked_by": [
+        21
+      ]
     }
   },
   {
@@ -680,16 +1046,40 @@
       "No accessibility regressions vs the existing Roubo baseline (measured via the existing Vitest + React Testing Library a11y checks)",
       "Test coverage from TC-046, TC-075, TC-076 passes"
     ],
-    "linked_requirement_ids": ["NFR-007"],
+    "linked_requirement_ids": [
+      "NFR-007"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-046", "TC-075", "TC-076"],
+    "linked_test_ids": [
+      "TC-046",
+      "TC-075",
+      "TC-076"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-010", "WU-011", "WU-012", "WU-013", "WU-014", "WU-015", "WU-018", "WU-019"],
+    "depends_on": [
+      "WU-010",
+      "WU-011",
+      "WU-012",
+      "WU-013",
+      "WU-014",
+      "WU-015",
+      "WU-018",
+      "WU-019"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/43",
       "id": 43,
-      "blocked_by": [25, 31, 32, 26, 33, 39, 34, 40]
+      "blocked_by": [
+        25,
+        31,
+        32,
+        26,
+        33,
+        39,
+        34,
+        40
+      ]
     }
   },
   {
@@ -708,9 +1098,18 @@
       "Scope cache and detector are not persisted to disk; in-memory only",
       "Plugin stdout / stderr never contains a raw token; only fingerprints"
     ],
-    "linked_requirement_ids": ["FR-045", "NFR-015"],
-    "linked_user_story_ids": ["US-011"],
-    "linked_test_ids": ["TC-091", "TC-092", "TC-100"],
+    "linked_requirement_ids": [
+      "FR-045",
+      "NFR-015"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ],
+    "linked_test_ids": [
+      "TC-091",
+      "TC-092",
+      "TC-100"
+    ],
     "estimate": "S",
     "depends_on": [],
     "issue": {
@@ -734,9 +1133,21 @@
       "The format remains stable when the input alert object is re-fetched (no time-dependent fields used)",
       "Mapper produces `allowedTransitions: []` and `assignees: []` on every alert per FR-048"
     ],
-    "linked_requirement_ids": ["FR-041", "FR-042", "FR-043", "FR-044", "FR-048", "NFR-012"],
+    "linked_requirement_ids": [
+      "FR-041",
+      "FR-042",
+      "FR-043",
+      "FR-044",
+      "FR-048",
+      "NFR-012"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-087", "TC-088", "TC-089", "TC-090"],
+    "linked_test_ids": [
+      "TC-087",
+      "TC-088",
+      "TC-089",
+      "TC-090"
+    ],
     "estimate": "M",
     "depends_on": [],
     "issue": {
@@ -749,7 +1160,7 @@
   {
     "id": "WU-030",
     "title": "GitHub.com plugin: per-source security category booleans, listIssues merge, inline warnings, Configure warning chip",
-    "description": "Wires the addendum into the bundled GitHub.com plugin. Adds three per-source booleans to the plugin's configSchema (and the manifest's documented config shape). Threads them through the active-config resolver so the effective per-source object carries booleans the listIssues method reads. Extends listIssues to invoke the WU-029 fetchers for any enabled category on each source, merge results with regular Issues, and emit per-source per-category warnings inline on the `ListIssuesResult` envelope (new optional `warnings` field). Adds a `Security & quality alerts` disclosure section in the Configure dialog with three React Aria Checkbox rows per source, and renders a per-category warning chip when the host receives a warning for that source/category. Disclosure label surfaces a chip-count when at least one category is on. GHAS HTTP-code \u2192 cause-string mapping table is implemented per the architecture addendum.",
+    "description": "Wires the addendum into the bundled GitHub.com plugin. Adds three per-source booleans to the plugin's configSchema (and the manifest's documented config shape). Threads them through the active-config resolver so the effective per-source object carries booleans the listIssues method reads. Extends listIssues to invoke the WU-029 fetchers for any enabled category on each source, merge results with regular Issues, and emit per-source per-category warnings inline on the `ListIssuesResult` envelope (new optional `warnings` field). Adds a `Security & quality alerts` disclosure section in the Configure dialog with three React Aria Checkbox rows per source, and renders a per-category warning chip when the host receives a warning for that source/category. Disclosure label surfaces a chip-count when at least one category is on. GHAS HTTP-code → cause-string mapping table is implemented per the architecture addendum.",
     "acceptance_criteria": [
       "Configure dialog renders the three checkboxes per source, defaulting off",
       "Toggling a checkbox on/off persists to the per-user override file (NOT roubo.yaml) and survives a Roubo restart",
@@ -758,25 +1169,44 @@
       "When the Code Scanning endpoint returns 404, the warning chip appears with cause 'Code Scanning unavailable: GHAS not enabled on this repo.' and the other categories continue to fetch",
       "When the Secret Scanning endpoint returns 451, the chip cause is 'Secret Scanning unavailable: requires GitHub Advanced Security on private repos.'",
       "Warning chip is keyboard-reachable, has an accessible name, and clears on the next successful pull for that category",
-      "Per-category fetch failures never cause listIssues to throw \u2014 the warnings envelope is the failure surface",
+      "Per-category fetch failures never cause listIssues to throw — the warnings envelope is the failure surface",
       "Source-row disclosure label shows '(Code Scanning, Dependabot)' style chip-count when categories are on"
     ],
-    "linked_requirement_ids": ["FR-040", "FR-041", "FR-046"],
-    "linked_user_story_ids": ["US-011", "US-012"],
-    "linked_test_ids": ["TC-085", "TC-086", "TC-093", "TC-101", "TC-102"],
+    "linked_requirement_ids": [
+      "FR-040",
+      "FR-041",
+      "FR-046"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-012"
+    ],
+    "linked_test_ids": [
+      "TC-085",
+      "TC-086",
+      "TC-093",
+      "TC-101",
+      "TC-102"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-028", "WU-029"],
+    "depends_on": [
+      "WU-028",
+      "WU-029"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/106",
       "id": 106,
-      "blocked_by": [104, 105]
+      "blocked_by": [
+        104,
+        105
+      ]
     }
   },
   {
     "id": "WU-031",
     "title": "OAuth re-consent inline action: chip-as-button wired through existing roubo://oauth/github/callback",
-    "description": "Adds the inline re-consent affordance to the per-category warning chip when the cause is a missing OAuth scope. When the user clicks the chip, Roubo opens a React Aria Dialog with upgrade copy, then opens the OAuth authorize URL in the system browser using the existing `roubo://oauth/github/callback` deep link. On successful callback, the stored token is replaced in the keyring slot in place, the token-scope cache is invalidated for the old fingerprint, and the chip re-probes on the next listIssues pull. On user cancel or callback failure, the chip reverts to its unauthenticated cause with a Retry link inside. Configure dialog must stay open through the round-trip \u2014 dialog-local React state tracks the in-flight OAuth phase (idle / connecting / waiting-for-browser / success / error).",
+    "description": "Adds the inline re-consent affordance to the per-category warning chip when the cause is a missing OAuth scope. When the user clicks the chip, Roubo opens a React Aria Dialog with upgrade copy, then opens the OAuth authorize URL in the system browser using the existing `roubo://oauth/github/callback` deep link. On successful callback, the stored token is replaced in the keyring slot in place, the token-scope cache is invalidated for the old fingerprint, and the chip re-probes on the next listIssues pull. On user cancel or callback failure, the chip reverts to its unauthenticated cause with a Retry link inside. Configure dialog must stay open through the round-trip — dialog-local React state tracks the in-flight OAuth phase (idle / connecting / waiting-for-browser / success / error).",
     "acceptance_criteria": [
       "Clicking the chip when cause is 'token lacks security_events permission' opens the OAuth re-consent Dialog",
       "Continuing through the dialog opens the system browser at the GitHub authorize URL with the new scope appended",
@@ -788,16 +1218,29 @@
       "State transitions are announced via a React Aria live region for screen readers per NFR-014",
       "The OAuth authorize URL is never written to plugin logs"
     ],
-    "linked_requirement_ids": ["FR-045"],
-    "linked_user_story_ids": ["US-011"],
-    "linked_test_ids": ["TC-091", "TC-105"],
+    "linked_requirement_ids": [
+      "FR-045"
+    ],
+    "linked_user_story_ids": [
+      "US-011"
+    ],
+    "linked_test_ids": [
+      "TC-091",
+      "TC-105"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-028", "WU-030"],
+    "depends_on": [
+      "WU-028",
+      "WU-030"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/108",
       "id": 108,
-      "blocked_by": [104, 106]
+      "blocked_by": [
+        104,
+        106
+      ]
     }
   },
   {
@@ -813,16 +1256,30 @@
       "When the GHE PAT is fine-grained (no X-OAuth-Scopes header), the chip renders the graceful copy 'Unable to verify token scopes. If category data is missing, regenerate your token with the security alert permission.' per NFR-015",
       "Pasting a regenerated PAT into the existing PAT field on Save invalidates the scope cache and triggers a probe on the next listIssues pull"
     ],
-    "linked_requirement_ids": ["FR-040", "FR-041", "FR-046", "NFR-015"],
-    "linked_user_story_ids": ["US-011", "US-012"],
-    "linked_test_ids": ["TC-100"],
+    "linked_requirement_ids": [
+      "FR-040",
+      "FR-041",
+      "FR-046",
+      "NFR-015"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-012"
+    ],
+    "linked_test_ids": [
+      "TC-100"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-029"],
+    "depends_on": [
+      "WU-029"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/107",
       "id": 107,
-      "blocked_by": [105]
+      "blocked_by": [
+        105
+      ]
     }
   },
   {
@@ -838,16 +1295,25 @@
       "All other bench affordances (start, stop, clear, logs, terminal, blueprint selection) work identically to regular Issues",
       "Test coverage TC-095 passes"
     ],
-    "linked_requirement_ids": ["FR-043", "FR-048"],
+    "linked_requirement_ids": [
+      "FR-043",
+      "FR-048"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-095"],
+    "linked_test_ids": [
+      "TC-095"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-030"],
+    "depends_on": [
+      "WU-030"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/109",
       "id": 109,
-      "blocked_by": [106]
+      "blocked_by": [
+        106
+      ]
     }
   },
   {
@@ -860,25 +1326,36 @@
       "Total wall-clock for the strip stays within the 12-second overall budget",
       "Per-category rows render with ok (green check) / unavailable + cause (amber warning) / Timed out (amber warning)",
       "Disabled categories do not appear in the strip",
-      "An individual probe timeout does not fail the overall connection test \u2014 the `Connected as @<user>` row still shows green if validateConfig succeeded",
+      "An individual probe timeout does not fail the overall connection test — the `Connected as @<user>` row still shows green if validateConfig succeeded",
       "Test coverage TC-094, TC-103 passes"
     ],
-    "linked_requirement_ids": ["FR-047"],
-    "linked_user_story_ids": ["US-013"],
-    "linked_test_ids": ["TC-094", "TC-103"],
+    "linked_requirement_ids": [
+      "FR-047"
+    ],
+    "linked_user_story_ids": [
+      "US-013"
+    ],
+    "linked_test_ids": [
+      "TC-094",
+      "TC-103"
+    ],
     "estimate": "S",
-    "depends_on": ["WU-030"],
+    "depends_on": [
+      "WU-030"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/110",
       "id": 110,
-      "blocked_by": [106]
+      "blocked_by": [
+        106
+      ]
     }
   },
   {
     "id": "WU-035",
     "title": "Blueprint-by-issue-type extension + frozen-snapshot tolerance for alert-backed benches",
-    "description": "Two small wirings. (1) Extends the blueprint-by-issue-type resolver and the mapping UI's candidate-types list to include the three new issue type strings (`security-code-scanning`, `security-secret-scanning`, `security-dependabot`). No new resolver logic \u2014 the existing matcher just needs to know the candidates. (2) Verifies the BenchManager snapshot-read path tolerates an `assignedIssue.issueType` value that no longer matches any currently-fetched alert (when the user later toggles the category off). Adds a smoke test and, if necessary, a defensive guard so the bench renders normally with its frozen snapshot.",
+    "description": "Two small wirings. (1) Extends the blueprint-by-issue-type resolver and the mapping UI's candidate-types list to include the three new issue type strings (`security-code-scanning`, `security-secret-scanning`, `security-dependabot`). No new resolver logic — the existing matcher just needs to know the candidates. (2) Verifies the BenchManager snapshot-read path tolerates an `assignedIssue.issueType` value that no longer matches any currently-fetched alert (when the user later toggles the category off). Adds a smoke test and, if necessary, a defensive guard so the bench renders normally with its frozen snapshot.",
     "acceptance_criteria": [
       "Blueprint-by-issue-type UI lists the three security categories as selectable mapping targets",
       "Mapping a security category to a blueprint persists and is honored when a bench is created from an alert in that category",
@@ -886,24 +1363,34 @@
       "The Configure dialog source row shows the muted help text '<K> existing benches still show alerts from this category.' when applicable",
       "Test coverage TC-096, TC-097 passes"
     ],
-    "linked_requirement_ids": ["FR-049", "FR-050"],
+    "linked_requirement_ids": [
+      "FR-049",
+      "FR-050"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-096", "TC-097"],
+    "linked_test_ids": [
+      "TC-096",
+      "TC-097"
+    ],
     "estimate": "XS",
-    "depends_on": ["WU-030"],
+    "depends_on": [
+      "WU-030"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/111",
       "id": 111,
-      "blocked_by": [106]
+      "blocked_by": [
+        106
+      ]
     }
   },
   {
     "id": "WU-036",
     "title": "Performance + scale + accessibility hardening for the addendum surfaces",
-    "description": "Final hardening pass for the 2026-05-24 addendum. (1) Performance: instruments the listIssues pull with per-category fetch timings and the ETag/304 hit ratio; verifies the NFR-013 p95 8s bar against a 5 sources \u00d7 200 items fixture and the +10% regression bar for the alerts-disabled baseline. (2) Scale: 100 sequential warm pulls (TC-107) verifying the 304 short-circuit hit rate. (3) Accessibility: axe-core scan across the new warning chip, OAuth re-consent dialog, Test connection per-category rows, Issues-list category chip, and bench Transition-hidden / Assign-disabled state. Fix any zero-serious-violations gaps. (4) Telemetry: per-category fetch counters, warning surface emission count by cause string (no PII), OAuth re-consent invocation counter \u2014 surfaced in observability per the architecture addendum.",
+    "description": "Final hardening pass for the 2026-05-24 addendum. (1) Performance: instruments the listIssues pull with per-category fetch timings and the ETag/304 hit ratio; verifies the NFR-013 p95 8s bar against a 5 sources × 200 items fixture and the +10% regression bar for the alerts-disabled baseline. (2) Scale: 100 sequential warm pulls (TC-107) verifying the 304 short-circuit hit rate. (3) Accessibility: axe-core scan across the new warning chip, OAuth re-consent dialog, Test connection per-category rows, Issues-list category chip, and bench Transition-hidden / Assign-disabled state. Fix any zero-serious-violations gaps. (4) Telemetry: per-category fetch counters, warning surface emission count by cause string (no PII), OAuth re-consent invocation counter — surfaced in observability per the architecture addendum.",
     "acceptance_criteria": [
-      "Performance harness fixture covers 5 sources \u00d7 200 items with all categories on; p95 < 8000ms over 30 warm runs",
+      "Performance harness fixture covers 5 sources × 200 items with all categories on; p95 < 8000ms over 30 warm runs",
       "Issues-only baseline run records p95; alerts-disabled p95 is within 10% of baseline",
       "Scale harness (100 warm pulls) demonstrates >= 90% 304 short-circuit hit rate on unchanged endpoints",
       "axe-core scan of the addendum surfaces reports zero serious violations",
@@ -912,16 +1399,1332 @@
       "OAuth re-consent invocation counter ticks once per successful re-consent",
       "Test coverage TC-098, TC-099, TC-107 passes"
     ],
-    "linked_requirement_ids": ["NFR-013", "NFR-014"],
+    "linked_requirement_ids": [
+      "NFR-013",
+      "NFR-014"
+    ],
     "linked_user_story_ids": [],
-    "linked_test_ids": ["TC-098", "TC-099", "TC-107"],
+    "linked_test_ids": [
+      "TC-098",
+      "TC-099",
+      "TC-107"
+    ],
     "estimate": "M",
-    "depends_on": ["WU-031", "WU-032", "WU-033", "WU-034", "WU-035"],
+    "depends_on": [
+      "WU-031",
+      "WU-032",
+      "WU-033",
+      "WU-034",
+      "WU-035"
+    ],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/112",
       "id": 112,
-      "blocked_by": [108, 107, 109, 110, 111]
+      "blocked_by": [
+        108,
+        107,
+        109,
+        110,
+        111
+      ]
+    }
+  },
+  {
+    "id": "WU-037",
+    "title": "Per-source alert booleans on github.com / GHE plugin manifests",
+    "description": "Extend the github.com and GHE bundled plugin manifests and source-config schemas to include three optional per-source booleans: `includeCodeQLAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. All default to `false`. Schema validation enforces the boolean type. Roubo.yaml round-tripping preserves the booleans without loss.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Both plugin manifests declare the three booleans on the source config schema with default false",
+      "shared/config-schema.ts updates pass typecheck",
+      "A source-config object with all three set is parsed identically by both plugins",
+      "TC-091 through TC-095 pass (existing alerts-config tests)",
+      "No host-API bump needed for this unit"
+    ],
+    "linked_requirement_ids": [
+      "FR-040",
+      "FR-074"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-012",
+      "US-024"
+    ],
+    "linked_test_ids": [
+      "TC-091",
+      "TC-092",
+      "TC-093",
+      "TC-094",
+      "TC-145"
+    ],
+    "estimate": 3,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/128",
+      "id": 128,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-038",
+    "title": "Alert listing API: extend listIssues for CodeQL / Secret scanning / Dependabot",
+    "description": "In the bundled github.com and GHE plugins, extend the existing listIssues implementation to also fetch alerts for any source where the matching boolean is enabled. Use the GitHub REST endpoints `/repos/{owner}/{repo}/code-scanning/alerts`, `/secret-scanning/alerts`, and `/dependabot/alerts`. Normalize each alert as a `NormalizedIssue` with issueType set to `codeql` / `secret-scanning` / `dependabot`, currentState mapped from the alert state, allowedTransitions empty (read-only), severity/CVE/package in raw.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "listIssues interleaves alerts from each enabled category with regular issues",
+      "Each alert NormalizedIssue has the correct issueType chip identifier",
+      "allowedTransitions on alert NormalizedIssues is the empty array",
+      "When a category boolean is false, no requests fire to that endpoint",
+      "TC-146 (alerts in cut list with distinct chip) passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-041",
+      "FR-075"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-012",
+      "US-024"
+    ],
+    "linked_test_ids": [
+      "TC-097",
+      "TC-146"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-037"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/129",
+      "id": 129,
+      "blocked_by": [
+        "#128 (WU-037)"
+      ]
+    }
+  },
+  {
+    "id": "WU-039",
+    "title": "Inline OAuth re-consent affordance for alert categories (github.com)",
+    "description": "In the per-source Configure block, when the user toggles an alert category on for a github.com source that lacks `security_events` scope, surface an inline action chip reading \"Sign in again to grant security_events access\". Clicking re-runs the OAuth flow with extended scope. Existing OAuth callback handling stores the new token in the existing keyring slot.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Affordance only renders when scope is missing for the toggled category",
+      "OAuth re-run uses the existing roubo://oauth/github/callback handler",
+      "Successful re-consent immediately hides the affordance and the cut list refreshes",
+      "TC-147 (inline OAuth re-consent) passes",
+      "TC-103 (existing inline-action chip behavior) still passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-045",
+      "FR-076"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-024"
+    ],
+    "linked_test_ids": [
+      "TC-103",
+      "TC-147"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-037"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/130",
+      "id": 130,
+      "blocked_by": [
+        "#128 (WU-037)"
+      ]
+    }
+  },
+  {
+    "id": "WU-040",
+    "title": "PAT scope reminder for alert categories (GHE)",
+    "description": "For GHE PAT users, when the user toggles an alert category on, surface an inline reminder string in place of the OAuth re-consent affordance: \"Verify your PAT has security_events scope.\" No OAuth flow is triggered; the reminder links to the GHE PAT settings docs.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Reminder renders only for GHE plugin with PAT auth",
+      "No OAuth callback is triggered when the user clicks the reminder",
+      "TC-147 (GHE PAT branch) passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-046",
+      "FR-076"
+    ],
+    "linked_user_story_ids": [
+      "US-012",
+      "US-024"
+    ],
+    "linked_test_ids": [
+      "TC-147"
+    ],
+    "estimate": 2,
+    "depends_on": [
+      "WU-037"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/131",
+      "id": 131,
+      "blocked_by": [
+        "#128 (WU-037)"
+      ]
+    }
+  },
+  {
+    "id": "WU-041",
+    "title": "Test Connection per-category status strip (alerts)",
+    "description": "Extend the Test Connection result strip in the Configure modal to report each alert category separately: Issues (always), CodeQL, Secret scanning, Dependabot. Each row shows ok / scope-missing / error / not-enabled. Reuses the existing strip component shape.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Result strip rows appear for each enabled category plus Issues",
+      "Disabled categories do not appear (not \"not-enabled\" placeholders)",
+      "TC-105 (per-category status) passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-047"
+    ],
+    "linked_user_story_ids": [
+      "US-013"
+    ],
+    "linked_test_ids": [
+      "TC-105"
+    ],
+    "estimate": 3,
+    "depends_on": [
+      "WU-038"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/132",
+      "id": 132,
+      "blocked_by": [
+        "#129 (WU-038)"
+      ]
+    }
+  },
+  {
+    "id": "WU-042",
+    "title": "Alert chip rendering and read-only row behavior in cut list",
+    "description": "Render alerts in the cut list with the appropriate issue-type chip (CodeQL shield, Secret key, Dependabot package). Suppress transition and assign affordances on alert rows since their allowedTransitions is empty. Severity surfaces as a tooltip on the chip from raw fields.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Cut-list rows for alerts render the correct chip variant per category",
+      "Right-click / row-action menu on alert rows hides transition and assign actions",
+      "Bench creation from an alert row works the same as from a regular issue",
+      "TC-098, TC-099 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-043",
+      "FR-075"
+    ],
+    "linked_user_story_ids": [
+      "US-011",
+      "US-012",
+      "US-024"
+    ],
+    "linked_test_ids": [
+      "TC-098",
+      "TC-099",
+      "TC-146"
+    ],
+    "estimate": 3,
+    "depends_on": [
+      "WU-038"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/133",
+      "id": 133,
+      "blocked_by": [
+        "#129 (WU-038)"
+      ]
+    }
+  },
+  {
+    "id": "WU-043",
+    "title": "Host-API 1.1.0 contract: getConnectionStatus, filterFacets, facetValues",
+    "description": "Bump host-API from 1.0.0 to 1.1.0. Add two optional plugin RPC methods (`getConnectionStatus`, `filterFacets`) and an optional `facetValues` field on `NormalizedIssue`. Update zod schemas in `shared/` and `plugin-sdk/src/types.ts`. Document the new methods in SDK author docs. Ensure existing 1.0.0 plugins continue to load and operate via existing `MethodNotFound` tolerance in `plugin-manager.ts`.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "host-API version constant equals \"1.1.0\" everywhere it is exported",
+      "plugin-sdk/src/types.ts exports ConnectionStatus and FilterFacet types",
+      "NormalizedIssue zod schema accepts optional facetValues field",
+      "1.0.0 plugins continue to load without errors when host runs at 1.1.0",
+      "TC-113, TC-127 (host-API + facetValues) pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-067"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-020",
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-113",
+      "TC-127"
+    ],
+    "estimate": 5,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/134",
+      "id": 134,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-044",
+    "title": "getConnectionStatus RPC: plugin manager wiring + MethodNotFound fallback",
+    "description": "In `server/services/plugin-manager.ts`, add a public `getConnectionStatus(pluginId)` that calls the plugin RPC, caches the result per plugin, and de-dups concurrent in-flight calls. On `MethodNotFound`, fall back to invoking `validateConfig` and inferring `connected` (success) vs `auth-problem` (401-like failure) vs `errored` (anything else). Cache TTL: 30 seconds (matches existing server-side cache pattern).",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Concurrent calls for same plugin within 50ms produce one RPC invocation",
+      "MethodNotFound triggers validateConfig fallback path",
+      "Cache TTL 30 seconds; subsequent calls within TTL return cached value",
+      "TC-112, TC-113, TC-178 (re-check de-dup) pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-054",
+      "FR-055"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ],
+    "linked_test_ids": [
+      "TC-112",
+      "TC-113",
+      "TC-178"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-043"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/135",
+      "id": 135,
+      "blocked_by": [
+        "#134 (WU-043)"
+      ]
+    }
+  },
+  {
+    "id": "WU-045",
+    "title": "filterFacets RPC + getFacetOptions (hybrid eager + lazy)",
+    "description": "Implement plugin host code for `filterFacets()` (eager descriptor) and `getFacetOptions(facetId, params?)` (lazy options for `enum-async`). github.com plugin returns a Milestone facet of type `enum-async`; Jira plugin returns an Epic facet of type `enum-async`. Both implement `getFacetOptions` to fetch values on demand. Fallback when plugin omits `filterFacets`: host returns fixed common-facet set `[Status, Label, Assignee, Type]`.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "github.com plugin returns Milestone facet from filterFacets()",
+      "getFacetOptions(\"milestone\") returns repo milestones",
+      "Plugin omitting filterFacets falls back to common-facet set without surfacing MethodNotFound to UI",
+      "TC-126, TC-127, TC-181 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-065",
+      "FR-066"
+    ],
+    "linked_user_story_ids": [
+      "US-020"
+    ],
+    "linked_test_ids": [
+      "TC-126",
+      "TC-127",
+      "TC-180",
+      "TC-181"
+    ],
+    "estimate": 8,
+    "depends_on": [
+      "WU-043"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/136",
+      "id": 136,
+      "blocked_by": [
+        "#134 (WU-043)"
+      ]
+    }
+  },
+  {
+    "id": "WU-046",
+    "title": "plugins-state.json: persistent plugin enable state",
+    "description": "Create `~/.roubo/plugins-state.json` storing `{ <pluginId>: <boolean> }`. New service `server/services/plugin-state-store.ts` reads/writes the file. `plugin-manager.ts` enable/disable RPCs update both in-memory state AND the persisted file. On corruption, back up as `plugins-state.json.broken-<ts>` and recover to safe defaults (existing install: last-known per server-side cache; greenfield: all bundled plugins disabled). Excluded from any state-snapshot endpoint and telemetry.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Enable/disable persists across server restart (TC-117)",
+      "Greenfield install (no state.json version marker) lands all bundled plugins disabled (TC-115)",
+      "Existing install (state.json with prior version) preserves previous enable state (TC-116)",
+      "Corruption path backs up and recovers safely (TC-179)",
+      "No state.json or telemetry payload references plugins-state contents (TC-138)"
+    ],
+    "linked_requirement_ids": [
+      "FR-059",
+      "FR-060"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ],
+    "linked_test_ids": [
+      "TC-115",
+      "TC-116",
+      "TC-117",
+      "TC-138",
+      "TC-179"
+    ],
+    "estimate": 5,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/137",
+      "id": 137,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-047",
+    "title": "Greenfield detection rule in migrate.ts",
+    "description": "In `server/services/migrate.ts`, detect a fresh install by absence of a `version` marker in `~/.roubo/state.json`. On greenfield, seed `plugins-state.json` with all bundled plugins set to `false`. On existing install, leave plugins-state unchanged. Idempotent on subsequent runs.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Greenfield detection returns true only when state.json has no version marker",
+      "Idempotent: running migration twice does not flip already-set plugin states",
+      "TC-115, TC-116 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-059"
+    ],
+    "linked_user_story_ids": [
+      "US-016"
+    ],
+    "linked_test_ids": [
+      "TC-115",
+      "TC-116"
+    ],
+    "estimate": 2,
+    "depends_on": [
+      "WU-046"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/138",
+      "id": 138,
+      "blocked_by": [
+        "#137 (WU-046)"
+      ]
+    }
+  },
+  {
+    "id": "WU-048",
+    "title": "excludedStatuses three-layer merge + per-source post-merge pass",
+    "description": "In `server/services/integration-overrides.ts`, extend the deep-merge walker to apply `excludedStatuses` at plugin-global, per-project, and per-source layers. Per-source overrides under `sources[<id>]` are applied via a new post-merge pass since the existing walker does not traverse into source entries. The pass is idempotent. Ship bundled-plugin defaults (Closed, Done, Resolved, In review, PR open, Waiting on reviewer) per provider state-string mapping.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Effective excludedStatuses for a source equals the merged result across the three layers",
+      "Post-merge pass is idempotent (running twice yields identical result)",
+      "Default exclusions ship correctly mapped for github.com, GHE, and Jira",
+      "TC-118, TC-119, TC-120, TC-176 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-062",
+      "FR-063",
+      "FR-064"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019"
+    ],
+    "linked_test_ids": [
+      "TC-118",
+      "TC-119",
+      "TC-120",
+      "TC-176"
+    ],
+    "estimate": 5,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/139",
+      "id": 139,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-049",
+    "title": "Connection-status chip component + five-variant taxonomy",
+    "description": "Build (or extend existing `StatusPill.tsx` to) `ConnectionStatusPill` rendering five variants: connected, disconnected, auth-problem, errored, disabled. Each variant combines a distinct colour AND a non-colour signal (icon + shape). Renders cached value synchronously; transitions to a \"rechecking...\" pulse when an opportunistic re-check fires. Tooltip for auth-problem and errored variants surfaces detail. WCAG AA contrast and colour-blind-safe.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "All five variants render per the prototype/mockups.md section 21 spec",
+      "Greyscale and protanopia simulation keep variants distinguishable (TC-136)",
+      "axe-core run produces zero contrast violations (TC-134)",
+      "Tooltip surfaces detail on auth-problem and errored (TC-109, TC-184)",
+      "TC-108, TC-109, TC-110, TC-111 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-051",
+      "FR-052",
+      "FR-053",
+      "NFR-016"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-021"
+    ],
+    "linked_test_ids": [
+      "TC-108",
+      "TC-109",
+      "TC-110",
+      "TC-111",
+      "TC-134",
+      "TC-136"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-044"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/140",
+      "id": 140,
+      "blocked_by": [
+        "#135 (WU-044)"
+      ]
+    }
+  },
+  {
+    "id": "WU-050",
+    "title": "Opportunistic status re-check wiring via react-query",
+    "description": "Wire opportunistic re-check into react-query invalidation: open of Settings > Plugins tab, open of Configure modal, and load of cut list each invalidate the connection-status query for every enabled plugin. Per-plugin in-flight de-dup is enforced via the plugin-manager singleton (WU-044). No background polling timer.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Tab open fires getConnectionStatus for each enabled plugin once",
+      "Disabled plugins are not invalidated",
+      "No setInterval / setTimeout-based background polling",
+      "TC-111, TC-178 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-054"
+    ],
+    "linked_user_story_ids": [
+      "US-014"
+    ],
+    "linked_test_ids": [
+      "TC-111",
+      "TC-178"
+    ],
+    "estimate": 3,
+    "depends_on": [
+      "WU-044"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/141",
+      "id": 141,
+      "blocked_by": [
+        "#135 (WU-044)"
+      ]
+    }
+  },
+  {
+    "id": "WU-051",
+    "title": "Settings full-width wrapper + plugin grid auto-fit",
+    "description": "Change Settings page wrapper from `max-w-*` constrained to `w-full` across every tab. Replace plugin vertical stack with `grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4`. No JS-driven breakpoint logic.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Settings wrapper uses w-full on every tab",
+      "Computed grid-template-columns equals repeat(auto-fit, minmax(360px, 1fr))",
+      "Tiles wrap 1/2/3+ columns based on viewport without media queries",
+      "TC-114, TC-122 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-056",
+      "FR-058"
+    ],
+    "linked_user_story_ids": [
+      "US-015"
+    ],
+    "linked_test_ids": [
+      "TC-114",
+      "TC-122",
+      "TC-141"
+    ],
+    "estimate": 3,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/142",
+      "id": 142,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-052",
+    "title": "Plugin tile content + enable Switch + context-aware action button",
+    "description": "Update `PluginsTab.tsx` tile component to render: header (icon, name, status chip), description, footer (React Aria Switch for enable, primary action button). Primary action button is context-aware: label `Connect` when no credentials, `Configure` when configured, `Sign in again` on auth-problem. Disabled bundled tiles show `Connect` and on click both enable AND open the Configure modal.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Tile content matches prototype/mockups.md section 22",
+      "Connect-click on a disabled bundled plugin enables it AND opens the modal",
+      "Tab order keyboard navigation walks tiles in DOM order (TC-135)",
+      "TC-121, TC-135, TC-186 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-057",
+      "FR-072"
+    ],
+    "linked_user_story_ids": [
+      "US-015",
+      "US-023"
+    ],
+    "linked_test_ids": [
+      "TC-121",
+      "TC-135",
+      "TC-186"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-049",
+      "WU-051",
+      "WU-046"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/143",
+      "id": 143,
+      "blocked_by": [
+        "#140 (WU-049)",
+        "#142 (WU-051)",
+        "#137 (WU-046)"
+      ]
+    }
+  },
+  {
+    "id": "WU-053",
+    "title": "Enable-plugin prompt modal on project load",
+    "description": "When the user opens a project whose `roubo.yaml` references a disabled bundled plugin, surface a React Aria Dialog asking \"Enable [plugin name] to load this project?\". Buttons: Cancel, Enable and load project (primary). Initial focus on primary. Focus-trapped. Esc cancels, Enter confirms on focused primary. On failure path (plugin refuses to start), display inline error and keep plugin disabled.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Modal opens for the bundled-disabled case (TC-123)",
+      "Cancel returns to project list with no state mutation (TC-124)",
+      "Focus is trapped; Esc cancels; Enter confirms (TC-185)",
+      "Failure path: plugin start error displayed inline; plugin stays disabled (TC-187)",
+      "Distinguishes bundled-disabled from missing-plugin (TC-189)"
+    ],
+    "linked_requirement_ids": [
+      "FR-061",
+      "NFR-022",
+      "NFR-024"
+    ],
+    "linked_user_story_ids": [
+      "US-017"
+    ],
+    "linked_test_ids": [
+      "TC-123",
+      "TC-124",
+      "TC-185",
+      "TC-187",
+      "TC-189"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-046"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/144",
+      "id": 144,
+      "blocked_by": [
+        "#137 (WU-046)"
+      ]
+    }
+  },
+  {
+    "id": "WU-054",
+    "title": "Cut-list filter row: plugin-declared facets + status exclusion UI",
+    "description": "Update `client/src/lib/cut-list-filters.ts` and the filter row component to render plugin-declared facets returned by `filterFacets()`. For `enum-async` facets, lazy-fetch options via `getFacetOptions(facetId)` on dropdown open. Status filter dropdown shows hidden-by-default statuses with a \"Hidden by default\" tag and a session-scoped toggle to include them in the current view. Recompute is client-side only; no extra server fetch.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Milestone (github.com) and Epic (Jira) facets appear in the filter row",
+      "enum-async dropdown fetches options lazily on first open (TC-181)",
+      "Default-excluded statuses appear with \"Hidden by default\" tag and session toggle (TC-118)",
+      "Recompute p95 < 50ms for 500 issues (TC-139)",
+      "TC-125, TC-126, TC-127, TC-181 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-065",
+      "FR-066",
+      "NFR-021"
+    ],
+    "linked_user_story_ids": [
+      "US-018",
+      "US-019",
+      "US-020"
+    ],
+    "linked_test_ids": [
+      "TC-118",
+      "TC-125",
+      "TC-126",
+      "TC-127",
+      "TC-139",
+      "TC-181"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-045",
+      "WU-048"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/145",
+      "id": 145,
+      "blocked_by": [
+        "#136 (WU-045)",
+        "#139 (WU-048)"
+      ]
+    }
+  },
+  {
+    "id": "WU-055",
+    "title": "Cut-list chip taxonomy refresh (four buckets, shape + colour)",
+    "description": "Refresh cut-list chip rendering to four distinct visual buckets: Status (pill, emerald family), Label (rounded-sm, border-only cyan), Issue type (pill with leading icon, violet), Metadata (pill with key icon, stone). Greyscale-safe; colour-blind-safe via shape + icon signals. Truncation rule: Status > Issue type > Metadata > Label.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "All four categories render distinctly per prototype/mockups.md section 28",
+      "Greyscale + protanopia + deuteranopia keep categories distinguishable (TC-136)",
+      "Truncation produces \"+N more\" chip in metadata bucket when row overflows",
+      "TC-128, TC-136 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-068",
+      "NFR-016"
+    ],
+    "linked_user_story_ids": [
+      "US-021"
+    ],
+    "linked_test_ids": [
+      "TC-128",
+      "TC-136"
+    ],
+    "estimate": 3,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/146",
+      "id": 146,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-056",
+    "title": "Per-project Settings: plugin-driven tab title + activeIntegrationDisplayName",
+    "description": "Add `server/services/active-plugin.ts` deriving `activeIntegrationDisplayName` from the project state. Add client hook `useProjectIntegration`. Update tab list in `ProjectSettings.tsx` to read the tab title from the hook (falls back to `Source` when no integration configured). Propagate to sidebar and breadcrumb.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Tab title equals active plugin display name (TC-129)",
+      "Sidebar and breadcrumb reflect the same name (TC-174)",
+      "Switching the active integration updates all three render sites in lock-step",
+      "No-integration fallback shows \"Source\" (TC-129)"
+    ],
+    "linked_requirement_ids": [
+      "FR-069"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ],
+    "linked_test_ids": [
+      "TC-129",
+      "TC-174"
+    ],
+    "estimate": 5,
+    "depends_on": [],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/147",
+      "id": 147,
+      "blocked_by": null
+    }
+  },
+  {
+    "id": "WU-057",
+    "title": "Move repo / linked Project / submodules into plugin Configure modal",
+    "description": "Move Repository path, Linked GitHub Project, and Meta-repo submodule list from Project Settings > Identity into the per-project plugin-driven tab and its Configure modal. Server routes for these fields now resolve through the active plugin's integration block. Identity tab keeps project name, default branch, and Roubo-managed paths only.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Identity tab no longer renders Repository, GitHub project, or submodules",
+      "Plugin tab renders all three; reads/writes through plugin integration block",
+      "Legacy GET/PUT routes for Identity-resident fields shim or forward correctly during the migration window",
+      "TC-130, TC-131, TC-182 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-070",
+      "FR-071"
+    ],
+    "linked_user_story_ids": [
+      "US-022"
+    ],
+    "linked_test_ids": [
+      "TC-130",
+      "TC-131",
+      "TC-182"
+    ],
+    "estimate": 8,
+    "depends_on": [
+      "WU-056"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/148",
+      "id": 148,
+      "blocked_by": [
+        "#147 (WU-056)"
+      ]
+    }
+  },
+  {
+    "id": "WU-058",
+    "title": "Configure / Choose-sources collapse to single context-aware button",
+    "description": "Remove the `Choose sources` button entirely. Replace with a single context-aware primary action button on the per-project plugin tab. Label: `Connect` (no credentials), `Configure` (connected), `Sign in again` (auth-problem). Opens the same modal in all cases; modal opens focused on the most relevant field for the state.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Choose-sources button removed from IssueSourceTile and ProjectSettings",
+      "Single button label flips per connection state (TC-132)",
+      "GHE plugin renders identical button behaviour (TC-133)",
+      "Tab labelling preserved on plugin disable (TC-190)",
+      "TC-132, TC-133, TC-190 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-072",
+      "FR-073"
+    ],
+    "linked_user_story_ids": [
+      "US-022",
+      "US-023"
+    ],
+    "linked_test_ids": [
+      "TC-132",
+      "TC-133",
+      "TC-190"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-056",
+      "WU-057",
+      "WU-052"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/149",
+      "id": 149,
+      "blocked_by": [
+        "#147 (WU-056)",
+        "#148 (WU-057)",
+        "#143 (WU-052)"
+      ]
+    }
+  },
+  {
+    "id": "WU-059",
+    "title": "String-key sweep for new user-facing copy",
+    "description": "Replace all inline English strings introduced by this scope (status chip labels, Enable prompt copy, Connect/Configure button labels, alert category names, error strings) with keys from the existing string-key pattern. Ensure no hardcoded English remains in new components. Document the key pattern for plugin authors.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Grep across new components produces zero inline English strings (TC-144)",
+      "Keys follow the existing pattern",
+      "No em-dashes in any new copy (project lint enforces)"
+    ],
+    "linked_requirement_ids": [
+      "NFR-025"
+    ],
+    "linked_user_story_ids": [
+      "US-014",
+      "US-015",
+      "US-017",
+      "US-022",
+      "US-023"
+    ],
+    "linked_test_ids": [
+      "TC-144"
+    ],
+    "estimate": 3,
+    "depends_on": [
+      "WU-049",
+      "WU-051",
+      "WU-052",
+      "WU-053",
+      "WU-057"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/150",
+      "id": 150,
+      "blocked_by": [
+        "#140 (WU-049)",
+        "#142 (WU-051)",
+        "#143 (WU-052)",
+        "#144 (WU-053)",
+        "#148 (WU-057)"
+      ]
+    }
+  },
+  {
+    "id": "WU-060",
+    "title": "E2E harness foundation: stubbed plugin process + scenario engine",
+    "description": "Build the deterministic stubbed plugin process at `e2e/fixtures/stubbed-plugin/`. Implements the full plugin RPC contract (lifecycle, validateConfig, listSources, listIssues, transitionIssue, assignIssue, unassignIssue, getConnectionStatus, filterFacets, getFacetOptions). Accepts `--scenario=<name>` (loads scenario JSON from `scenarios/`) and `--now=<ISO>` (pins time). Byte-deterministic output across runs given the same args.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "Stub binary exposes all RPC methods listed in the plugin contract",
+      "Same --scenario + --now yields byte-identical responses across runs (TC-176)",
+      "Scenarios directory has at least the default pack referenced by every e2e spec",
+      "TC-176, TC-194 pass"
+    ],
+    "linked_requirement_ids": [
+      "FR-078",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-176",
+      "TC-194"
+    ],
+    "estimate": 8,
+    "depends_on": [
+      "WU-043"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/151",
+      "id": 151,
+      "blocked_by": [
+        "#134 (WU-043)"
+      ]
+    }
+  },
+  {
+    "id": "WU-061",
+    "title": "E2E harness: /test/__reset env-gated route",
+    "description": "Add `server/routes/test.ts` exposing `POST /test/__reset`. Gated by `process.env.ROUBO_E2E === \"1\"`; returns 404 otherwise. Resets: plugin-manager (shutdown + reinit), connection-status cache, project-registry, migrate singleton, integration-overrides caches, OAuth pendingStates. Unit test asserts 404 in non-ROUBO_E2E production builds.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "POST returns 404 when ROUBO_E2E is unset (TC-177)",
+      "POST returns 200 and resets all listed singletons when ROUBO_E2E=1 (TC-183)",
+      "Unit test pinned in route file asserts the production-disabled behaviour"
+    ],
+    "linked_requirement_ids": [
+      "FR-079"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-177",
+      "TC-183"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-060"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/152",
+      "id": 152,
+      "blocked_by": [
+        "#151 (WU-060)"
+      ]
+    }
+  },
+  {
+    "id": "WU-062",
+    "title": "E2E harness: Playwright config + CI integration",
+    "description": "Extend `playwright.config.ts` to point at the new spec set under `e2e/` with retries=0 and fullyParallel=false. Add an `e2e` job to the `pr-check` GitHub Actions workflow that runs `npx playwright test` against the built Roubo app with `ROUBO_E2E=1`. Headless, deterministic, no real network.",
+    "category": "feature",
+    "acceptance_criteria": [
+      "CI job e2e exists and runs on every PR",
+      "retries=0 enforced; flakes fail the PR",
+      "Job runtime is bounded (target < 10 min wall clock)",
+      "TC-175 (config inspection) passes"
+    ],
+    "linked_requirement_ids": [
+      "FR-077"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-175"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-060",
+      "WU-061"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/153",
+      "id": 153,
+      "blocked_by": [
+        "#151 (WU-060)",
+        "#152 (WU-061)"
+      ]
+    }
+  },
+  {
+    "id": "WU-063",
+    "title": "E2E automation: existing-scope flows (US-001..US-013)",
+    "description": "Automate Playwright specs for 2026-05-21 baseline + 2026-05-24 alerts user stories: source config (github.com + Jira), migration, community plugin install, missing-plugin prompt, integration switch, transitions/assign, crash/restart, log viewer, project Issue source tile, alerts enable + GHE PAT branch + Test Connection per-category. Each spec runs against the stubbed plugin with its dedicated scenario pack.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/e2e-flow/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-148",
+      "TC-149",
+      "TC-150",
+      "TC-151",
+      "TC-152",
+      "TC-153",
+      "TC-154",
+      "TC-155",
+      "TC-156",
+      "TC-157",
+      "TC-158",
+      "TC-159",
+      "TC-160"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/154",
+      "id": 154,
+      "blocked_by": [
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-064",
+    "title": "E2E automation: connection-status surfacing + auth-problem flip",
+    "description": "Automate the three-placement status surfacing case and the token-expires flip case. Includes asserting the observability log entry was written.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/connection-status/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-161",
+      "TC-162"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-049",
+      "WU-050",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/155",
+      "id": 155,
+      "blocked_by": [
+        "#140 (WU-049)",
+        "#141 (WU-050)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-065",
+    "title": "E2E automation: plugin grid responsive layout",
+    "description": "Automate the viewport-resize test that asserts 1 / 2 / 3 / 4 column wrap behaviour and full-width Settings container at every width.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/plugin-grid/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-163"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-051",
+      "WU-052",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/156",
+      "id": 156,
+      "blocked_by": [
+        "#142 (WU-051)",
+        "#143 (WU-052)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-066",
+    "title": "E2E automation: greenfield + Enable prompt + Cancel + failure paths",
+    "description": "Automate the greenfield-then-enable case, the Cancel case, and the plugin-refuses-to-start failure case. Covers focus management assertions (NFR-022).",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/project-load/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-164",
+      "TC-165"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-053",
+      "WU-046",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/157",
+      "id": 157,
+      "blocked_by": [
+        "#144 (WU-053)",
+        "#137 (WU-046)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-067",
+    "title": "E2E automation: cut-list filtering, facets, chip taxonomy",
+    "description": "Automate default-exclusions + per-source override case, Milestone facet via filterFacets RPC, common-facet fallback for 1.0.0 plugins, and chip taxonomy visual snapshot across default + greyscale + colour-blind palettes.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/cut-list-ui/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-166",
+      "TC-167",
+      "TC-168",
+      "TC-169"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-054",
+      "WU-055",
+      "WU-048",
+      "WU-045",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/158",
+      "id": 158,
+      "blocked_by": [
+        "#145 (WU-054)",
+        "#146 (WU-055)",
+        "#139 (WU-048)",
+        "#136 (WU-045)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-068",
+    "title": "E2E automation: GitHub tab consolidation + Connect/Configure button + GHE parity + tab propagation",
+    "description": "Automate the tab rename + field moves case, the Connect/Configure single-button state-machine case, the GHE parity case, and the sidebar/breadcrumb propagation case.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/project-settings/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-170",
+      "TC-171",
+      "TC-172",
+      "TC-174",
+      "TC-178",
+      "TC-179",
+      "TC-182"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-056",
+      "WU-057",
+      "WU-058",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/159",
+      "id": 159,
+      "blocked_by": [
+        "#147 (WU-056)",
+        "#148 (WU-057)",
+        "#149 (WU-058)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-069",
+    "title": "E2E automation: Dependabot alerts enable + re-consent + cut-list rendering",
+    "description": "Automate the Dependabot end-to-end case: toggle on a github.com source, observe inline re-consent affordance, complete OAuth re-run, observe Dependabot rows in cut list with correct chip and no transition/assign actions.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/alerts/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-173",
+      "TC-180"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-039",
+      "WU-040",
+      "WU-042",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/160",
+      "id": 160,
+      "blocked_by": [
+        "#130 (WU-039)",
+        "#131 (WU-040)",
+        "#133 (WU-042)",
+        "#153 (WU-062)"
+      ]
+    }
+  },
+  {
+    "id": "WU-070",
+    "title": "E2E automation: meta self-test (harness determinism + reset gating)",
+    "description": "Automate the harness self-test: 10 consecutive runs zero-flake, /test/__reset returns 404 outside ROUBO_E2E, stub --now produces byte-identical output.",
+    "category": "e2e_automation",
+    "acceptance_criteria": [
+      "All listed test cases automated as Playwright specs",
+      "Specs pass 10 consecutive CI runs with zero retries (NFR-018)",
+      "Stubbed plugin scenarios pinned per spec with --scenario and --now args",
+      "Spec file lives under e2e/e2e-harness/"
+    ],
+    "linked_requirement_ids": [
+      "FR-077",
+      "FR-078",
+      "FR-080",
+      "NFR-018"
+    ],
+    "linked_user_story_ids": [
+      "US-025"
+    ],
+    "linked_test_ids": [
+      "TC-175",
+      "TC-176",
+      "TC-177",
+      "TC-181"
+    ],
+    "estimate": 5,
+    "depends_on": [
+      "WU-060",
+      "WU-061",
+      "WU-062"
+    ],
+    "issue": {
+      "system": "github",
+      "url": "https://github.com/davidpoxon/roubo/issues/161",
+      "id": 161,
+      "blocked_by": [
+        "#151 (WU-060)",
+        "#152 (WU-061)",
+        "#153 (WU-062)"
+      ]
     }
   }
 ]

@@ -545,3 +545,263 @@ The new copy strings introduced by the addendum:
 - The `<K> existing benches still show alerts from this category.` muted help text - period.
 
 Same enforcement rule as the broader feature.
+
+---
+
+# Re-interview mockups - 2026-05-25 (UI/UX polish, GitHub settings consolidation, e2e harness)
+
+Plain-language descriptions of every new surface introduced by US-014..US-025. Same conventions as sections 1..20 above: React Aria primitives (Button, Dialog, ToggleButton, Switch, Listbox, ComboBox, ColumnGroup, Tooltip), Tailwind for layout, Inter for UI text, JetBrains Mono for code/technical values. Design language follows `docs/brand.md`.
+
+## 21. Status chip - taxonomy and surfaces _(supports US-014, FR-051..FR-055, NFR-016, NFR-017)_
+
+### Layout
+A `StatusChip` component with five canonical variants. Each variant combines colour AND a non-colour signal (icon prefix + shape) so it remains distinguishable in greyscale and under colour-blind palettes (NFR-016). Pill shape, height 22px, padding 6px horizontal, font size 12px, font weight 500 (Inter). Icon size 12px, sits 4px left of the label.
+
+| Variant | Colour token | Icon | Copy | Notes |
+|---|---|---|---|---|
+| `connected` | `emerald-500` background, `emerald-50` text | dot (filled circle) | "Connected" | Resting healthy state. |
+| `disconnected` | `stone-300` background, `stone-700` text | slash (-) | "Not connected" | Plugin enabled but no credentials. |
+| `auth-problem` | `amber-500` background, `amber-900` text | key (key outline) | "Sign in again" | Token expired or 401. |
+| `errored` | `red-500` background, `red-50` text | alert-triangle | "Error" | Rate-limit, unreachable, crash, or never-checked. Detail in tooltip. |
+| `disabled` | `stone-200` background, `stone-500` text | dash (em-rule alternative drawn as a 6px horizontal bar) | "Disabled" | Bundled plugin not yet enabled. Never reflects connectivity. |
+
+The chip text label is followed by a tiny "as of HH:MM" suffix in `text-stone-400 text-[10px] ml-2`, except for the `disabled` variant which never carries a timestamp.
+
+### Three placement surfaces
+
+**Surface A - Plugin card on Settings > Plugins.** Chip sits in the top-right corner of the tile, opposite the plugin name. See section 22 for the full tile layout.
+
+**Surface B - Configure modal header.** When the user opens the Configure dialog for a plugin, the dialog header contains: plugin icon (24x24), plugin name (Inter 16px / weight 600), the status chip flush right. The chip in the header is identical to the tile chip; same component, same data source.
+
+**Surface C - Per-project integration tab tile.** The active integration plugin's tile inside the per-project Settings page (the renamed tab from section 26) shows the same chip in the tile header.
+
+### Tooltip on hover
+For `auth-problem` and `errored` variants, hovering the chip surfaces a Tooltip (React Aria Tooltip) with a one-line explanation and the last-error detail. Example: `auth-problem` -> "Token expired 2 hours ago. Click Configure to sign in again." `errored` -> "Rate-limited until 14:42 UTC. Cut list shows last-known data."
+
+### Behaviour
+- The chip renders synchronously from the cached value (NFR-017: <50ms render).
+- On UI events that trigger an opportunistic re-check (Settings > Plugins tab open, Configure modal open, cut-list load), the chip enters a transient "rechecking" state where the timestamp text reads "rechecking..." with a 12px subtle pulse animation. When the re-check returns, the chip updates with no flash.
+- The `disabled` chip never enters the rechecking state.
+
+## 22. Settings > Plugins - grid layout _(supports US-015, FR-056, FR-057, FR-058, NFR-016)_
+
+### Layout
+The Settings page wrapper changes from `max-w-4xl` (constrained) to `w-full` with a left/right padding of 32px (`px-8`). Every tab benefits from the wider container.
+
+Inside the Plugins tab, the plugin list is now a CSS Grid: `grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4`. Tiles wrap responsively without explicit breakpoints. 1 column at narrow widths (<760px), 2 at default (~1100px), 3+ on wide displays.
+
+### Tile content (top to bottom)
+1. **Header row**: plugin icon (32x32, left), plugin name (Inter 14px / weight 600), status chip (right-aligned). Header padding: 16px top/horizontal.
+2. **Description row**: one-line plugin description (Inter 13px / weight 400, `text-stone-600`). Truncated to two lines with ellipsis.
+3. **Spacer**: 16px.
+4. **Footer row**: React Aria Switch (`ToggleButton` styled as a switch) labelled "Enabled" / "Disabled" on the left; primary action button on the right (label `Connect` if no credentials, `Configure` once connected). Footer padding: 16px bottom/horizontal.
+
+Tile background: `bg-stone-50`. Border: `border border-stone-200 rounded-lg`. Hover state: `border-amber-500/40`, `shadow-sm` transition over 200ms.
+
+### Empty state
+If the user has installed no plugins beyond the bundled three and the bundled three are all disabled, the grid renders the three bundled tiles with the `Disabled` chip. There is no separate empty state.
+
+### Keyboard navigation (NFR-016)
+Tab order moves through tiles in DOM order: tile 1 enable toggle, tile 1 primary action, tile 2 enable toggle, tile 2 primary action, etc. Inside a tile, Enter on the primary action opens the Configure dialog; Space on the toggle flips enable state.
+
+## 23. Bundled plugin - disabled state on a fresh install _(supports US-016, FR-059, FR-060)_
+
+### Layout
+On a fresh install (no state file version marker, see FR-059), the user's first visit to Settings > Plugins shows three bundled plugin tiles (github.com, GitHub Enterprise, Jira) each with:
+
+- Enabled toggle in the OFF position.
+- `Disabled` chip in the header.
+- Primary action button reading `Connect` (since the plugin has no credentials AND is disabled). Clicking `Connect` performs two actions in one click: enables the plugin AND opens the Configure modal pre-focused on the credentials field. The user is shown a small inline "Plugin enabled" toast after the modal opens.
+
+### Copy
+- Description for github.com: "Pull issues from github.com repositories. Sign in with GitHub."
+- Description for GitHub Enterprise: "Pull issues from your company's GitHub Enterprise instance."
+- Description for Jira: "Pull issues from self-hosted Jira Data Center 8.14 or later."
+
+### Migration semantics for existing installs
+Existing installs (state file already carries a `version` marker) bypass FR-059's default-disabled logic entirely. The tiles render whatever enable state the install already had. No migration banner is shown for this change; users notice no difference unless they install fresh.
+
+## 24. Project-load - "Enable plugin" prompt _(supports US-017, FR-061, NFR-022, NFR-024)_
+
+### Layout
+A React Aria `Dialog` opens centred over the project list view when the user clicks a project whose `roubo.yaml` references a disabled bundled plugin. The dialog is 480px wide, padding 24px.
+
+Dialog content:
+- **Title** (Inter 16px / weight 600): "Enable [plugin name] to load this project?"
+- **Body** (Inter 14px / weight 400, `text-stone-600`): "This project's `roubo.yaml` specifies `[plugin name]` as its issue source. The plugin is currently disabled. Enabling it will let Roubo pull issues from this project."
+- **Footer buttons** (right-aligned, 12px gap): `Cancel` (secondary), `Enable and load project` (primary amber).
+
+### Focus management (NFR-022)
+On open: focus moves to the primary `Enable and load project` button. Tab cycles inside the dialog. Esc cancels (returns to project list with no state change). Enter on the focused button activates it.
+
+### Failure path (NFR-024)
+If the Enable click fails because the plugin process refuses to start (manifest error, host-API mismatch), the dialog displays an inline error block above the buttons (red border, alert-triangle icon, error text). The plugin remains disabled; the project does not load. The user can dismiss the modal or try Configure to fix the underlying problem.
+
+### Telemetry
+NFR-019: the dialog Enable click is logged as a structured event with `pluginId` only; no enable-state payload leaves the device.
+
+## 25. Cut-list filters - status exclusion + plugin-declared facets _(supports US-018, US-019, US-020, FR-062..FR-067, NFR-021)_
+
+### Layout
+The cut-list page already has a filter row above the issue table (existing component). This stage extends that row.
+
+New filter dropdowns, left to right after the existing Status filter:
+1. **Status** (existing) - multi-select. When the user opens this dropdown, the items already excluded by the resolved `excludedStatuses` config (FR-062) are shown with a subtle "Hidden by default" tag and a checkbox state of OFF. The user can toggle them back ON for the current cut-list view (session-scoped toggle, does not persist to config).
+2. **Plugin-declared facets** (new) - rendered from `filterFacets()` (FR-065). For github.com / GHE this includes `Milestone` (multi-select enum). For Jira this includes `Epic` (multi-select enum-async). Each facet is a separate dropdown.
+
+Filter chips below the row show active filters. The session-scoped "show hidden statuses" toggle renders as an `Including hidden: Closed, Done` chip with an X to remove.
+
+### Per-source override surface (US-019)
+Inside the Configure modal for a plugin, each source row has an `Advanced` disclosure. Inside that disclosure: an `Excluded statuses` chips input pre-populated with the resolved per-source value (merged from plugin-global + per-project + per-source). The user can add or remove statuses; the change is per-source and persists into `roubo.yaml`'s `sources[<id>]` block.
+
+### Default-exclusions transparency
+At the top of the Status filter dropdown, a single line of body copy reads: "By default, Closed, Done, Resolved, In review, PR open, and Waiting on reviewer are hidden. Toggle them above to include." Users can also navigate to the plugin Configure dialog to change the default at the plugin-global layer, or to the per-project Settings to change it at the project layer.
+
+### Performance (NFR-021)
+Toggling a facet or status filter triggers a client-side recompute only (no server fetch). Recompute and re-render complete within 50ms p95 for up to 500 issues. A subtle skeleton on the row count (`72 issues -> 14 issues`) animates the change.
+
+## 26. Per-project Settings - plugin-driven tab _(supports US-022, US-023, FR-069..FR-073)_
+
+### Layout
+The per-project Settings page is a tabbed surface. Today's tabs: `Overview`, `Identity`, `Project setup`, `Issue source`, others. After this scope:
+
+- The `Identity` tab keeps project name, default branch, Roubo-managed paths.
+- The `Issue source` tab is renamed to the active integration plugin's display name: `GitHub`, `GitHub Enterprise`, `Jira`. When no integration is configured, the tab is named `Source`.
+- Repository path, linked GitHub Project, and meta-repo submodule list move OUT of `Identity` and INTO the renamed tab.
+
+### Renamed-tab content (top to bottom)
+1. **Header row**: plugin icon + plugin display name (Inter 16px / 600), status chip (right-aligned). Same component as the global plugin tile header.
+2. **Connection block**:
+   - Primary action button. Label is `Connect` if no credentials are configured, `Configure` if connected (FR-072). Clicking opens the same modal in both cases (the Configure modal already mocked in sections 4 and 4 extended).
+   - The legacy `Choose sources` button is gone (FR-072).
+3. **Identity fields block** (moved from `Identity` tab):
+   - Repository path / GitHub repo URL field (read-only when not configured; editable inside the modal).
+   - Linked GitHub Project (Project v2 board) field. Includes a `Browse projects` action that opens a picker.
+   - Meta-repo submodule list. Rendered as a read-only table of submodule name + path. The submodules block is only visible when the repo is a meta-repo.
+4. **Source picker block**: the existing multi-list (github.com / GHE) or categorized-multi-list (Jira) picker, unchanged.
+5. **Advanced disclosure**: per-source overrides (excluded statuses, see section 25). Closed by default.
+
+### GHE parity (FR-073)
+GitHub Enterprise plugin renders the same tab layout with one extra read-only line: `Instance: https://github.acme.com`. The single Connect/Configure button switches label identically.
+
+### Tab title fallback
+When the project has no `roubo.yaml` integration block (newly-created project that hasn't picked an integration yet), the tab is titled `Source`. Inside the tab, a CTA reads "Pick an integration to track issues for this project." with a `Choose integration` button that opens a small dialog listing enabled plugins.
+
+### Sidebar / breadcrumb
+The renamed tab title also appears in the project sidebar (current tab list) and in the breadcrumb. Open question from PRD resolved: yes, the rename propagates to both. Implementation note: the tab list is currently hardcoded in `ProjectSettings.tsx`; this stage requires it to read the active integration's display name from the project state.
+
+## 27. Connect / Configure button - context-aware single button _(supports US-023, FR-072, FR-073)_
+
+### Layout
+A single button slot in the integration tab's connection block. Component is a React Aria `Button` with the primary action style (amber-500 background, white text, 10px padding, rounded-md).
+
+### State machine
+- **State A - No credentials configured**: button label `Connect`. Tooltip: "Set up [plugin name] for this project."
+- **State B - Credentials configured, connected**: button label `Configure`. Tooltip: "Edit [plugin name] settings."
+- **State C - Credentials configured, auth-problem**: button label `Sign in again`. Tooltip: "Token expired. Click to refresh."
+- **State D - Credentials configured, errored**: button label `Configure`. The error chip in the header carries the actionable text.
+
+Clicking opens the same Configure modal (sections 4 / 4 extended) in every state. The modal opens focused on the most relevant field for the state (credentials for A and C, sources for B).
+
+### No "Choose sources" button
+The `Choose sources` button is removed from the project Settings page entirely. Source selection happens only inside the Configure modal.
+
+## 28. Cut-list chip taxonomy _(supports US-021, FR-068, NFR-016)_
+
+### Categories and visual treatment
+Each chip category combines a distinct colour with a distinct non-colour signal:
+
+| Category | Colour | Shape / icon | Example labels |
+|---|---|---|---|
+| Status | `emerald-500` family (open=emerald, in-progress=amber, blocked=red, done=stone) | Pill (rounded-full) | Open, In progress, Blocked, Done |
+| Label | `cyan-500` family, opacity-tinted | Square corners (rounded-sm), border-only style | bug, feature, good-first-issue |
+| Issue type | `violet-500` family | Pill with leading icon (icon varies by type: bug=bug, feature=spark, chore=wrench) | Bug, Feature, Chore, Task, CodeQL, Secret scanning, Dependabot |
+| Metadata cluster | `stone-500` family | Pill with leading key icon (key varies: milestone=flag, priority=arrow-up, assignee=user, security=shield) | Milestone v1.2, P1, @alice, Critical |
+
+### Greyscale fallback
+When the user's system is in high-contrast or colour-blind palette, the chips fall back to the shape / icon signal only. The chips remain distinguishable by border style and icon prefix.
+
+### Density
+Cut-list rows can show up to ~6 chips before truncation. Truncation rule: prioritise Status > Issue type > Metadata > Label. The truncated count renders as a `+N more` chip in the metadata bucket.
+
+## 29. Playwright e2e harness - developer-facing surface _(supports US-025, FR-077..FR-080, NFR-018)_
+
+### What the user sees
+None - this is a maintainer-facing surface. There is no UI for the harness itself.
+
+### Files added under repo root
+- `e2e/` directory containing `*.spec.ts` files. Each spec exercises one or more flows from FR-080.
+- `e2e/fixtures/stubbed-plugin/` - the deterministic fake plugin process (FR-078). Implements the full plugin RPC contract.
+- `playwright.config.ts` - existing file already in repo at `/Users/david.poxon/Developer/roubo/playwright.config.ts` per feasibility findings, extended to point at the new spec set.
+- `server/routes/test.ts` - new env-gated route file. Exposes `POST /test/__reset` (FR-079). Disabled when `process.env.ROUBO_E2E !== '1'`.
+
+### Stubbed-plugin determinism (NFR-018)
+The stubbed plugin process accepts a startup arg `--scenario=<name>` that selects from a fixture pack. Each scenario is a JSON file under `e2e/fixtures/stubbed-plugin/scenarios/` describing the deterministic responses to every RPC call. Time is pinned via a `--now=<ISO-8601>` arg; the stub uses that as its clock for `checkedAt` and any other timestamp.
+
+### CI integration
+Existing `pr-check` workflow gets a new job `e2e` that runs `npx playwright test` against the built Roubo app. The job has its own retry budget of 0 (NFR-018: 10/10 zero-flake). If any spec fails on the first run, the job fails the PR.
+
+## 30. Alerts addition - cut-list chip + Configure block _(supports US-024, FR-074..FR-076)_
+
+This was previously sketched in sections 18 and 4-extended above. This re-prototype confirms that with the new chip taxonomy from section 28, alerts integrate cleanly:
+
+- CodeQL / Secret scanning / Dependabot chips render with the `Issue type` category (violet, with their respective icons: shield for CodeQL, key for Secret, package for Dependabot).
+- The per-source `Include CodeQL alerts` / `Include Secret scanning alerts` / `Include Dependabot alerts` Checkboxes from section 4-extended remain inside the Configure modal's per-source row (Advanced disclosure).
+- Inline OAuth re-consent affordance (section 19) renders inside the per-source warning chip when the user toggles a category ON for a github.com source. For GHE (PAT), the same affordance renders an inline reminder string instead of the OAuth button.
+
+## State transitions overview (2026-05-25 addendum)
+
+```
+[fresh install]
+  -> bundled plugins all disabled, Disabled chip on each tile
+  -> user clicks Connect on github.com tile
+       -> plugin enabled (toast)
+       -> Configure modal opens focused on credentials
+       -> user completes OAuth
+       -> chip flips to Connected
+
+[existing install]
+  -> bundled plugins retain prior enable state, no change
+
+[user opens project that needs disabled bundled plugin]
+  -> Enable prompt modal opens
+  -> user clicks Enable
+       -> plugin enabled (persistent state updated)
+       -> project loads
+  -> user clicks Cancel
+       -> returns to project list, no state change
+
+[cut-list opens]
+  -> opportunistic re-check fires for each enabled plugin
+       -> chip enters "rechecking" state on each tile
+       -> on response, chip updates (no flash)
+
+[token expires]
+  -> next re-check returns auth-problem
+       -> chip flips to amber "Sign in again"
+       -> single button label changes from Configure to Sign in again
+       -> tooltip surfaces "Token expired N hours ago"
+```
+
+## Copy that must NOT contain em dashes (2026-05-25 addendum copy)
+
+- "Enable [plugin name] to load this project?"
+- "This project's roubo.yaml specifies [plugin name] as its issue source."
+- "Plugin enabled"
+- "Sign in again"
+- "Token expired. Click to refresh."
+- "Token expired N hours ago."
+- "By default, Closed, Done, Resolved, In review, PR open, and Waiting on reviewer are hidden."
+- "Pick an integration to track issues for this project."
+- "Set up [plugin name] for this project."
+- "Edit [plugin name] settings."
+- "Cut list shows last-known data."
+- "Rate-limited until HH:MM UTC."
+
+## Open questions for the architecture stage
+
+- **`pluginEnableState` storage location.** Extend `~/.roubo/state.json` with a new `pluginEnableState: Record<pluginId, boolean>` field, or create a separate `~/.roubo/plugins-state.json`? The state.json extension keeps one file; a separate file isolates plugin concerns and avoids schema-version drift on the existing state. Architecture picks one.
+- **`filterFacets()` value population.** Should plugins return facet `options` eagerly (one batch on `filterFacets()` call) or lazily (the host calls a `getFacetOptions(facetId)` on demand when the dropdown opens)? Eager is simpler but slow for large enums (e.g. all assignees in a giant repo). Lazy is more complex but scales. Architecture picks one.
+- **Status chip rechecking concurrency.** When the cut-list opens, opportunistic re-check fires for all enabled plugins simultaneously. Should the host throttle to N concurrent (and which N)? Or run all in parallel? Per-plugin in-flight de-dup is non-negotiable; concurrency policy is open.
+- **`/test/__reset` blast radius.** Should the route reset only the plugin-manager singleton, or all server-side caches (project-registry, state cache, OAuth tokens)? Wider blast radius makes specs more isolated but slower. Architecture picks the boundary.
+- **Sidebar / breadcrumb integration.** Confirmed in this stage that the renamed tab title propagates to sidebar and breadcrumb. Architecture must specify whether the project state model carries a derived `activeIntegrationDisplayName` or whether each consumer derives it from the project's integration block.

@@ -85,3 +85,50 @@ Extends the existing prototype with the UI surfaces needed for the per-source se
 - **External-id format collision check.** The required format is `<owner>/<repo>#<category>-<alert_number>` (FR-044). Architecture must confirm no existing dedup logic in `BenchManager` chokes on the new format (e.g. assumes external ids are integer-parseable from after the `#`).
 - **GHE Advanced Security gating signal.** GHE returns 451 or 404 depending on the gating state and the endpoint. Architecture must specify the precise mapping from HTTP code to warning chip cause string for each category. Some signals (e.g. user is not a repo admin for Dependabot) require careful copy.
 - **Per-category category-chip color tokens.** The mockups use muted slate / amber / blue-gray. Architecture must confirm these map to existing Roubo design tokens or formally add three new tokens to the design system.
+
+---
+
+## Re-interview prototype notes - 2026-05-25
+
+Sections 21..30 in `mockups.md` cover the 2026-05-25 scope (US-014..US-025). Same low-fi plain-language convention; no runnable Vite app added.
+
+### Design decisions made during this stage
+
+- **Status chip taxonomy fixed.** Five canonical variants (Connected / Disconnected / Auth problem / Errored / Disabled), each with a distinct colour token AND a distinct non-colour signal (icon + shape). Greyscale fallback decided on the spot to satisfy NFR-016 colour-blind safety. Variant copy is `Connected`, `Not connected`, `Sign in again`, `Error`, `Disabled`.
+- **Auth-problem chip copy.** Chose "Sign in again" over "Reconnect" / "Token expired" because the user's action is sign-in; this also matches the single-button label state C.
+- **Errored chip catch-all.** Collapsed rate-limited / unreachable / crash / never-checked into one `Errored` chip with tooltip detail. Avoids chip proliferation; aligns with cluster 1 answer "Errored / unreachable (covers rate-limited, crashed, unknown)".
+- **Grid tile minimum width 360px.** Picked to fit name + chip + description + toggle + button comfortably on a single line per row internally. Anything narrower starts wrapping the footer.
+- **Footer toggle uses React Aria Switch.** Not a checkbox. The state semantic is "enabled vs disabled", not "selected vs unselected".
+- **`Connect` doubles as "enable and configure".** On a fresh install, the bundled tiles show `Connect` (not the toggle ON action). Clicking `Connect` enables the plugin AND opens the modal. This sidesteps a two-click "enable, then connect" flow on first use without breaking the separately-toggleable enable affordance for power users.
+- **Enable prompt is a Dialog, not a banner.** A modal interrupt is the right intensity: the user explicitly chose to load a project, so blocking until they confirm is acceptable. A banner could be missed.
+- **Per-source overrides hidden behind Advanced disclosure.** Most users never touch them; keep the Configure modal simple by default.
+- **Default-exclusion transparency inline in the filter dropdown.** Rather than a separate Settings page section explaining which statuses are hidden, we surface the rule inside the Status filter dropdown where users will be confused. One sentence; minimal cost; high discoverability.
+- **Chip category taxonomy maps to four buckets.** Status / Label / Issue type / Metadata. Putting Milestone/Epic/Priority/Assignee/Security into one Metadata bucket reduces colour count and keeps the visual language scannable.
+- **`Issue type` includes alert categories.** CodeQL / Secret scanning / Dependabot ride the type chip slot, with distinct icons. This is the only place the alerts addition is user-visible alongside regular issues; it must read as "an issue with a type".
+- **Renamed tab also propagates to sidebar and breadcrumb.** Open question from context.md resolved: yes. The project's active integration plugin name drives the tab in every place the tab name appears.
+- **`/test/__reset` blast radius left open.** Architecture decides whether to reset just plugin-manager singletons or wider server state. Both are defensible; this is not a prototype-stage call.
+
+### Surfaces newly mocked (sections 21..30)
+
+| # | Surface | User story |
+|---|---|---|
+| 21 | Status chip taxonomy + three placements | US-014 |
+| 22 | Settings > Plugins grid layout | US-015 |
+| 23 | Bundled plugin disabled state on fresh install | US-016 |
+| 24 | Enable prompt modal on project load | US-017 |
+| 25 | Cut-list filters: status exclusion + plugin-declared facets | US-018, US-019, US-020 |
+| 26 | Per-project Settings: plugin-driven tab + moved fields | US-022, US-023 |
+| 27 | Connect / Configure single button state machine | US-023 |
+| 28 | Cut-list chip taxonomy (four categories with shape + colour) | US-021 |
+| 29 | Playwright e2e harness developer-facing surface | US-025 |
+| 30 | Alerts addition in cut list + Configure | US-024 |
+
+US-025 has no end-user UI; only the maintainer-facing harness surface is mocked.
+
+### Open questions handed to architecture
+
+1. **`pluginEnableState` storage location**: extend `~/.roubo/state.json` with a new field, or create a new `~/.roubo/plugins-state.json` alongside? Both work; architecture picks.
+2. **`filterFacets()` value population**: eager (one batch on `filterFacets()` call, options included) or lazy (host calls `getFacetOptions(facetId)` when dropdown opens)? Trade-off is initial cost vs latency on dropdown open.
+3. **Status re-check concurrency**: throttle to N parallel re-checks, or fire all enabled plugins in parallel? Per-plugin in-flight de-dup is required regardless.
+4. **`/test/__reset` blast radius**: reset only plugin-manager singletons, or wider server-side caches?
+5. **Project state model**: derived `activeIntegrationDisplayName` on the project state object, or each consumer (tab list, sidebar, breadcrumb) derives from the integration block independently?

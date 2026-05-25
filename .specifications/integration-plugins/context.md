@@ -299,3 +299,113 @@ User can mix and match. No "include all security & quality" master switch; the t
 - **OAuth re-consent placement.** Resolved during the PRD stage: inline action inside the per-source warning chip (decisions-log.md 2026-05-24; FR-045). Replaces the top-level-banner and dedicated-section alternatives that were on the table at re-interview time.
 - **Migration of pre-existing bench `assignedIssue` snapshots when a category is later disabled.** Resolved during the PRD stage: bench snapshot is frozen at create-time, list pull simply stops returning new alerts in that category, existing benches keep functioning (FR-050; decisions-log.md 2026-05-24). The architecture addendum confirms the BenchManager read path tolerates the frozen value.
 - **Type-chip UI presence for regular Issues.** Resolved during the prototype stage: regular Issues do NOT receive a type chip. Chips render only for the three security categories (CodeQL / Secret / Dependabot). See screen 18 in prototype/mockups.md.
+
+---
+
+## Re-interview - 2026-05-25 - UI/UX polish, GitHub settings consolidation, e2e tests
+
+> Scope expansion captured 2026-05-25. Eight UI/UX paper-cuts plus an explicit ask to define e2e coverage for the entire integration-plugins feature (not only the new bullets). Verbatim Q&A in `qa-log.md` under the matching header.
+
+### Problem (incremental)
+
+The integration-plugins runtime and three bundled plugins shipped, but a cluster of UI/UX paper-cuts and one structural settings inconsistency have surfaced through use. Separately, no end-to-end test coverage has been defined for the feature - all current automated coverage is unit/integration level. This re-interview captures both: the polish/structural changes, and the systematic e2e definition needed across the whole feature.
+
+### Affected users
+
+Existing Roubo users on installations that already have the plugin runtime. No new user cohort introduced.
+
+### Goal
+
+A user opens Settings, sees a grid of plugins with their connection state at a glance, enables the ones they need (bundled plugins now default disabled), and configures each with a single context-aware button. The Configure modal shows status without requiring Test Connection. The renamed plugin tab (driven by active-plugin name) holds all GitHub-shaped project settings - the project Identity tab keeps only Roubo-native concerns. The cut list excludes done / in-review work by default, supports plugin-declared filter facets (e.g. Milestone for github.com, Epic for Jira), and renders categorical chips that are visually distinct (status vs label vs type vs label/milestone/priority/assignee/security). Every user-facing flow has Playwright e2e coverage running against a stubbed plugin process; CI runs the suite deterministically.
+
+### Scope
+
+#### In scope
+
+**Connection-status surfacing (bullet 1).**
+- Status appears in three places: the plugin card on Settings > Plugins, the Configure modal header, and the project Issue Source tile.
+- States: Connected, Disconnected / never configured, Auth problem (token expired / 401 - covers OAuth re-consent needed), Errored / unreachable (covers rate-limited, plugin crashed, never checked - detail on hover / in tooltip).
+- Disabled plugins show a distinct "Disabled" chip; no status check runs on disabled plugins.
+- Freshness model: cached last-known value (rendered as "as of HH:MM") with opportunistic background re-check on UI events (Settings tab open, Configure modal open, cut-list load). UI updates when the re-check returns. No constant polling.
+
+**Plugin grid + Settings page width (bullet 2).**
+- Settings > Plugins switches from vertical stack to a responsive auto-fit CSS grid (target tile width ~360px). 1 column on narrow viewports, 2 at default app width, 3+ on wide displays. No fixed breakpoints.
+- Settings page container width changes from constrained to full container width for the entire Settings surface (all tabs).
+- Each plugin tile shows: plugin name + short description, status chip (from cluster 1), enabled/disabled toggle, Configure button.
+
+**Bundled plugins default-disabled + migration (bullet 3).**
+- Greenfield installs: all bundled plugins land disabled. User opts in.
+- Existing installations: untouched. Already-enabled plugins stay enabled. No surprise disabling on upgrade.
+- When a project's active integration references a disabled bundled plugin, project load surfaces a friendly prompt: "Enable github.com plugin to load this project?" with one-click Enable. No silent state mutation.
+- Disabled bundled plugins surface in Settings > Plugins with a "Disabled" chip; the connection-status freshness loop does not run for them.
+
+**Cut-list filtering & visual chips (bullets 4, 5, 6).**
+- Exclusion config (which statuses NOT to show in the cut list) is three-layer: plugin-global default + per-project override + per-source override, deep-merged. Matches the existing config-merge pattern.
+- Default exclusions: Closed / Done / Resolved AND In-review / PR-open / waiting-on-reviewer. Both excluded by default; user opts back in if desired.
+- Filter facets are plugin-declared via a new `filterFacets()` RPC. Each plugin returns a descriptor list (id, label, type ('enum' / 'enum-async' / 'multi-enum'), options). Core renders generic filter UI from the descriptor. github.com plugin declares Milestone; Jira plugin declares Epic. Future plugins can add facets without core changes.
+- Chip visual taxonomy: distinct treatment for Status, Label, Issue type, Milestone/Epic, Priority, Assignee, Security-alert category. Status vs Label collision the user originally flagged is the most acute case but all categories get distinct visual buckets (colour + optional icon prefix). Specific design tokens deferred to the prototype stage.
+
+**GitHub settings consolidation (bullets 7, 8).**
+- Fields that move from Project Settings > Identity into the GitHub.com / GHE plugin Configure modal: Repository path (repo URL), Linked GitHub Project (Project v2 board), Meta-repo submodule list.
+- Default branch STAYS at the project level - it's a git concept, not a GitHub concept, and Roubo uses it independently of which integration plugin is active.
+- Nothing else GitHub-shaped remains at the project level. Project Settings > Identity keeps only Roubo-native fields (project name, default branch, Roubo-managed paths).
+- "Issue Source" tab is renamed: the active integration plugin owns the tab title. github.com plugin -> "GitHub". GHE plugin -> "GitHub Enterprise". Jira plugin -> "Jira". Self-describing per project.
+- Configure / Choose-sources buttons collapse to ONE context-dependent button: label is "Connect" when no credentials are configured, "Configure" once connected. Source selection lives inside the (renamed) Configure modal. Choose-sources button retired.
+
+**GHE parity (bullets 7, 8 follow-up).**
+- GitHub Enterprise plugin consolidates identically to github.com: same fields, same modal layout, same Connect/Configure button collapse. Maximum parity, one mental model.
+
+**E2E test coverage (bullet 9, expanded per user clarification 2026-05-25).**
+- Scope is the **entire integration-plugins feature**, not only the 2026-05-25 polish work and not only the 2026-05-24 alerts addition. No e2e exists yet; this stage defines e2e systematically.
+- Harness: Playwright UI tests against the running Roubo app (real client, real server, stubbed plugin process). Vitest integration tests already cover plugin-RPC contracts at the unit level - they stay.
+- Plugin target in CI and locally: a stubbed plugin process implementing the plugin RPC contract deterministically. No real GitHub.com / GHE / Jira network calls in e2e runs. No rate-limit risk, no flaky-network failures, CI-friendly.
+- Coverage surface (to be enumerated in the tests stage): plugin install / enable / disable / uninstall flows, Configure + Connect / Test Connection flows for all three bundled plugins, source picker (multi-list and categorized-multi-list shapes), cut-list filtering and chip rendering (incl. new default exclusions and plugin-declared facets), migration of legacy github.com user, security-and-quality alerts re-consent flow (from 2026-05-24 scope), new connection-status surfacing across all three placements, GitHub settings consolidation flow, bench creation from each source type, write-back ops (status transition + assign/unassign), permission gate at host (network host allowlist, credential slot, fs path, child-process spawn), plugin crash + auto-restart.
+
+#### Out of scope (this re-interview)
+
+- Migration of existing installations to default-disabled bundled plugins. Greenfield only; existing installs keep their state.
+- Auto-enable on demand for disabled bundled plugins (i.e. silent enable when a project needs one). Explicit prompt only.
+- Project-level read-only display of GitHub repo URL "for discoverability". Once moved, repo URL lives only in the plugin Configure modal.
+- Keeping the Choose-sources button as a fast path. Retired entirely; sources live inside Configure.
+- Real-account smoke runs in CI. Stub only. Real-account smoke may be a local-developer step pre-release but is not a CI gate this slug.
+- Per-source filterable facet declarations (each source declaring different facets). Facets are plugin-level, not source-level, this slug.
+- Custom chip themes / user-configurable chip colours. Visual taxonomy is fixed by design tokens; users do not configure colours.
+
+### Constraints (incremental)
+
+- Plugin-level `filterFacets()` RPC: the existing plugin host-API is at 1.0.0 frozen; adding `filterFacets()` is an additive change so it does NOT break the freeze, but the SDK and host-API minor version bumps in step (1.1.0). Plugins built against 1.0.0 continue to work; absent `filterFacets()`, core falls back to a fixed common-facet set.
+- Connection-status freshness must NOT introduce a background polling timer. Re-check fires only on UI events. Hard constraint from the original interview's "polling on-demand only" rule.
+- Playwright suite must run headless and deterministic in CI under the standard `pr-check` workflow. No real network, no real OAuth flow. The stubbed plugin process implements the credential dance locally.
+- Default branch stays project-level - any architecture work consolidating GitHub settings must NOT touch it.
+- "Plugin-declared facets" need a host-API contract that is stable across the three bundled plugins on day one and forward-compatible with the AI-agent and project-component plugin kinds anticipated in the original interview's forward-compat sketch.
+
+### Adjacent / dependent work
+
+- The 2026-05-24 security-and-quality alerts re-interview (per-source booleans, OAuth re-consent) has NOT yet been broken down into work units. Its downstream stages (feasibility, PRD, prototype, architecture, tests, work-breakdown, align) were left "pending rerun" per `flow-state.json`. This re-interview's downstream stages MUST address both scope expansions together: the 2026-05-24 alerts addition and the 2026-05-25 polish + e2e work are picked up in the same feasibility / PRD / etc. pass.
+- E2E coverage on connection status (cluster 1) depends on the new `getConnectionStatus()` RPC the plugin host gains; the harness needs to be able to provoke each of the four states from the stub.
+- E2E coverage on cut-list facets (cluster 4) depends on the `filterFacets()` RPC and the new exclusion-config three-layer merge.
+
+### Non-functional requirements (raised this re-interview)
+
+- **Accessibility.** Plugin grid must remain navigable by keyboard (Tab order through tiles, Enter to open Configure, Space to toggle enable/disable). Chip colour discrimination must NOT rely on colour alone - each chip category gets a distinct shape or icon prefix so colour-blind users can distinguish status vs label vs type at a glance. Status chips meet WCAG AA contrast against the tile background.
+- **Performance.** Opportunistic status re-check must not block UI render. Cached value renders synchronously; re-check runs async and updates via the existing react-query invalidation pattern. Re-check must respect the network-host allowlist already enforced by the host (no surprise hosts).
+- **Reliability.** Stubbed plugin in e2e must be byte-deterministic given the same test inputs - no clock-dependent or randomness-dependent output. The harness pins time via vitest-style fake timers in the Playwright fixture.
+
+### Success indicators
+
+**Leading.**
+- Every e2e suite defined in the tests stage runs green in CI under `pr-check` against a stubbed plugin process.
+- Plugin grid renders at 1 / 2 / 3 columns at the three breakpoint widths defined in the prototype.
+- Status chips render the correct state for all four states across all three placements (cards, Configure header, project Issue Source tile).
+
+**Lagging.**
+- Zero "I had to click Test Connection to see if I was still connected" support reports after rollout.
+- Zero project-load failures attributable to a disabled bundled plugin (the prompt-and-enable flow catches them).
+- A new plugin author can add a filter facet to a community plugin without core code changes (proven by adding one to the existing self-hosted Jira bundled plugin in the same slug as a dogfooding step).
+
+### Open questions (flagged for refinement)
+
+- **Exact chip colour tokens / icon prefixes for each chip category.** Deferred to the prototype stage. Constraint: WCAG AA contrast and colour-blind safe palette.
+- **Bench creation cardinality in e2e.** Should the suite cover bench creation against every source-shape combination (github.com multi-list with milestone filter, Jira categorized-multi-list with epic filter, GHE multi-list, etc.) or a representative subset? Deferred to the tests stage where the e2e matrix is enumerated.
+- **Whether `filterFacets()` is a single RPC or a manifest-declared static field.** Functional preference is RPC (async / late-bound options like assignee enumerations), but for plugins with purely static facets a manifest field is cheaper. Deferred to the architecture stage.
+- **Whether the renamed plugin tab title appears in the project sidebar / breadcrumb in addition to the tab itself.** Cosmetic / UX detail. Deferred to the prototype stage.
