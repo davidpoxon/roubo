@@ -1,4 +1,4 @@
-import type { SourceSelection } from "@roubo/shared";
+import type { SourceSelection, SourceEntry } from "@roubo/shared";
 
 /**
  * The shape every integration plugin expects under `config.sources`: a flat
@@ -46,11 +46,17 @@ export interface TranslateSourcesOptions {
  */
 /**
  * The schema for IntegrationConfig.sources allows numeric externalIds (e.g.
- * `Project: [1, 2]`) for plugins that use numeric ids natively, but the
- * declared `SourceSelection` type only mentions strings. Accept the looser
- * shape and stringify numbers so callers can pass either through verbatim.
+ * `Project: [1, 2]`) for plugins that use numeric ids natively, and (per
+ * FR-062/FR-063) object entries that carry per-source overrides like
+ * `excludedStatuses`. The declared `SourceSelection` type only mentions
+ * strings; accept the looser shape and stringify/unwrap as needed.
  */
-type LooseSourceSelection = Record<string, ReadonlyArray<string | number>>;
+type LooseSourceSelection = Record<string, ReadonlyArray<SourceEntry>>;
+
+function entryToExternalId(entry: SourceEntry): string {
+  const raw = typeof entry === "object" ? entry.externalId : entry;
+  return typeof raw === "string" ? raw : String(raw);
+}
 
 export function translateSources(
   selection: SourceSelection | LooseSourceSelection | null | undefined,
@@ -58,17 +64,14 @@ export function translateSources(
 ): PluginSourceEntry[] {
   if (!selection) return [];
   const out: PluginSourceEntry[] = [];
-  for (const [category, externalIds] of Object.entries(selection)) {
+  for (const [category, entries] of Object.entries(selection)) {
     const kind = CATEGORY_TO_KIND[category];
     if (!kind) {
-      options.onUnknownCategory?.(
-        category,
-        externalIds.map((id) => String(id)),
-      );
+      options.onUnknownCategory?.(category, entries.map(entryToExternalId));
       continue;
     }
-    for (const externalId of externalIds) {
-      const asString = typeof externalId === "string" ? externalId : String(externalId);
+    for (const entry of entries) {
+      const asString = entryToExternalId(entry);
       if (asString.length > 0) {
         out.push({ kind, externalId: asString });
       }

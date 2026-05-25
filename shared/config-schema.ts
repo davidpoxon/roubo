@@ -213,16 +213,37 @@ export const CapturedUserIdSchema = z
   .strict();
 export type CapturedUserId = z.infer<typeof CapturedUserIdSchema>;
 
+// Per-source entries accept either the legacy primitive form (`"owner/repo"`
+// or `42`) or an object form that carries Roubo-core-reserved per-source
+// fields like `excludedStatuses` (FR-062, FR-063). Plugins MUST NOT use
+// `excludedStatuses` as a per-source key in their own configSchema.
+export const SourceEntrySchema = z.union([
+  z.string(),
+  z.number(),
+  z
+    .object({
+      externalId: z.union([z.string(), z.number()]),
+      excludedStatuses: z.array(z.string().min(1)).optional(),
+    })
+    .strict(),
+]);
+export type SourceEntry = z.infer<typeof SourceEntrySchema>;
+
 export const IntegrationConfigSchema = z
   .object({
     plugin: z.string().optional(),
     instance: z.string().optional(),
-    sources: z.record(z.string(), z.array(z.union([z.string(), z.number()]))).optional(),
+    sources: z.record(z.string(), z.array(SourceEntrySchema)).optional(),
     advanced: IntegrationAdvancedSchema.optional(),
     pluginSource: z.string().optional(),
     // Page size forwarded to the plugin's listIssues call. Default 50 (FR-022, NFR-005).
     pageSize: z.number().int().positive().optional(),
     capturedUserId: CapturedUserIdSchema.optional(),
+    // Per-project layer of the three-layer excludedStatuses merge (FR-062).
+    // Plugin-global defaults live in plugin manifests; per-source overrides
+    // ride alongside `sources[<cat>][<i>]` object entries and are resolved
+    // by `applyPerSourceExcludedStatuses`.
+    excludedStatuses: z.array(z.string().min(1)).optional(),
   })
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;

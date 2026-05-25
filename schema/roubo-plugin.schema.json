@@ -44,6 +44,18 @@
         }
       }
     },
+    "defaultIntegrationConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Plugin-global defaults seeded into the three-layer effective-config merge. Per-project and per-source layers override these.",
+      "properties": {
+        "excludedStatuses": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Default issue statuses to hide from the cut list. Mapped to the provider's native state strings."
+        }
+      }
+    },
     "permissions": {
       "type": "object",
       "description": "Manifest-declared permissions. Additional categories may appear in future host versions and are accepted without error.",

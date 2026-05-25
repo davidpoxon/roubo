@@ -8,6 +8,7 @@ import {
   type IntegrationConfig,
   type IntegrationOverride,
   type ConfigFieldError,
+  type SourceEntry,
 } from "@roubo/shared";
 import { atomicWrite, getRouboDir } from "./state.js";
 
@@ -205,4 +206,69 @@ export function getEffectiveWithGlobal(
     }
   }
   return getEffectiveIntegrationConfig(committed, globalOverride, projectOverride);
+}
+
+// Per-source post-merge pass for `excludedStatuses` (FR-063). The root-level
+// deep-merge walker does not descend into `sources[<cat>][<i>]` entries, so
+// this pass walks them after the merge and normalises each entry to the
+// object form `{ externalId, excludedStatuses }`, where the resolved list is
+// `sourceLevel ?? rootLevel ?? pluginGlobalDefault`. When no layer specifies
+// a value the entry is left untouched (primitive entries stay primitive) so
+// "no exclusions" is distinguishable from "no opinion."
+//
+// Idempotent: applying twice produces a deep-equal result. Pure: takes its
+// plugin-global default as a parameter rather than loading manifests, so
+// this module stays free of plugin-manager knowledge.
+export function applyPerSourceExcludedStatuses(
+  effective: IntegrationConfig,
+  pluginGlobalDefault: readonly string[] | undefined,
+): IntegrationConfig {
+  if (!effective.sources) return effective;
+  const rootLevel = effective.excludedStatuses;
+  const fallback = rootLevel ?? pluginGlobalDefault;
+
+  const nextSources: Record<string, SourceEntry[]> = {};
+  for (const [category, entries] of Object.entries(effective.sources)) {
+    nextSources[category] = entries.map((entry) => normaliseEntry(entry, fallback));
+  }
+  return { ...effective, sources: nextSources };
+}
+
+// Read the resolved excludedStatuses for one source by externalId. Searches
+// every category in `effective.sources` and returns the first match, with
+// the same fallback ladder as the post-merge pass. Returns `undefined` when
+// the source has no opinion at any layer (caller decides what that means).
+export function sourceExcludedStatuses(
+  effective: IntegrationConfig,
+  sourceExternalId: string | number,
+  pluginGlobalDefault: readonly string[] | undefined,
+): string[] | undefined {
+  const rootLevel = effective.excludedStatuses;
+  if (!effective.sources)
+    return rootLevel ? [...rootLevel] : pluginGlobalDefault ? [...pluginGlobalDefault] : undefined;
+
+  for (const entries of Object.values(effective.sources)) {
+    for (const entry of entries) {
+      if (entryExternalId(entry) === sourceExternalId) {
+        if (typeof entry === "object" && entry.excludedStatuses) return [...entry.excludedStatuses];
+        if (rootLevel) return [...rootLevel];
+        return pluginGlobalDefault ? [...pluginGlobalDefault] : undefined;
+      }
+    }
+  }
+  return rootLevel ? [...rootLevel] : pluginGlobalDefault ? [...pluginGlobalDefault] : undefined;
+}
+
+function entryExternalId(entry: SourceEntry): string | number {
+  return typeof entry === "object" ? entry.externalId : entry;
+}
+
+function normaliseEntry(entry: SourceEntry, fallback: readonly string[] | undefined): SourceEntry {
+  if (typeof entry === "object") {
+    if (entry.excludedStatuses) return entry;
+    if (!fallback) return entry;
+    return { ...entry, excludedStatuses: [...fallback] };
+  }
+  if (!fallback) return entry;
+  return { externalId: entry, excludedStatuses: [...fallback] };
 }

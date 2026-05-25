@@ -252,6 +252,49 @@ describe("PluginManifestSchema: forward-compat passthrough", () => {
   });
 });
 
+describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064)", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pluginsDir = resolve(here, "..", "plugins");
+
+  async function loadManifest(pluginId: string): Promise<PluginManifest> {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const file = resolve(pluginsDir, pluginId, "roubo-plugin.yaml");
+    const result = parseManifest(readFileSync(file, "utf-8"), file);
+    if (!result.ok) throw new Error(`Failed to parse ${file}: ${JSON.stringify(result)}`);
+    return result.manifest;
+  }
+
+  it("github.com plugin ships the canonical default set mapped to native state strings", async () => {
+    const manifest = await loadManifest("github-com");
+    expect(manifest.defaultIntegrationConfig?.excludedStatuses).toEqual([
+      "Closed",
+      "Done",
+      "Resolved",
+      "In review",
+      "PR open",
+      "Waiting on reviewer",
+    ]);
+  });
+
+  it("GHE plugin ships the same default set as github.com", async () => {
+    const gh = await loadManifest("github-com");
+    const ghe = await loadManifest("ghe");
+    expect(ghe.defaultIntegrationConfig?.excludedStatuses).toEqual(
+      gh.defaultIntegrationConfig?.excludedStatuses,
+    );
+  });
+
+  it("Jira plugin ships defaults using Jira-native state strings", async () => {
+    const manifest = await loadManifest("jira-self-hosted");
+    expect(manifest.defaultIntegrationConfig?.excludedStatuses).toEqual([
+      "Closed",
+      "Done",
+      "Resolved",
+      "In Review",
+    ]);
+  });
+});
+
 describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const jsonSchemaPath = resolve(here, "..", "schema", "roubo-plugin.schema.json");

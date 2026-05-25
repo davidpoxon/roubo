@@ -31,6 +31,7 @@ export type {
   CapturedUserId,
   ConfigFieldError,
   JigSettings,
+  SourceEntry,
 } from "./config-schema.js";
 
 export {
@@ -47,6 +48,7 @@ export {
   IntegrationAdvancedSchema,
   IntegrationOverrideSchema,
   CapturedUserIdSchema,
+  SourceEntrySchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
 } from "./config-schema.js";
@@ -64,6 +66,7 @@ export {
   ProcessesPermissionSchema,
   PluginPermissionsSchema,
   PluginCapabilitiesSchema,
+  PluginDefaultIntegrationConfigSchema,
 } from "./plugin-manifest-schema.js";
 
 export type {
@@ -75,6 +78,7 @@ export type {
   ProcessesPermission,
   PluginPermissions,
   PluginCapabilities,
+  PluginDefaultIntegrationConfig,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
