@@ -881,6 +881,9 @@ export interface NormalizedIssue {
   blockedBy: string[];
   updatedAt: string;
   raw: unknown;
+  // Keys match facet ids returned by `filterFacets` (host-API 1.1.0+). Plugins
+  // built against 1.0.0 omit this; core treats absence as an empty map.
+  facetValues?: Record<string, string | string[]>;
 }
 
 /**

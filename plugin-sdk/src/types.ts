@@ -21,6 +21,35 @@ export interface NormalizedIssue {
   blockedBy: string[];
   updatedAt: string;
   raw: unknown;
+  // Keys match facet ids returned by `filterFacets`; core uses this map to
+  // filter the cut list. Plugins built against host-API 1.0.0 omit this and
+  // core treats absence as an empty map.
+  facetValues?: Record<string, string | string[]>;
+}
+
+/**
+ * Self-reported connectivity for a plugin (host-API 1.1.0+). Plugins that omit
+ * `getConnectionStatus` are tolerated; the host falls back to `validateConfig`
+ * and infers `connected` vs `auth-problem` from the result.
+ */
+export interface ConnectionStatus {
+  state: "connected" | "disconnected" | "auth-problem" | "errored";
+  detail?: string;
+  /** ISO-8601 timestamp; the plugin (or host fallback) sets this at observation. */
+  checkedAt: string;
+}
+
+/**
+ * One descriptor returned by `filterFacets`. Core renders generic filter UI
+ * from these; for `enum-async` the host requests options lazily on dropdown
+ * open. Plugins built against host-API 1.0.0 omit `filterFacets` and core
+ * falls back to a fixed common-facet set.
+ */
+export interface FilterFacet {
+  id: string;
+  label: string;
+  type: "enum" | "enum-async" | "multi-enum";
+  options?: string[];
 }
 
 export interface NormalizedComment {
@@ -157,6 +186,8 @@ export interface PluginContract {
   getAvailableTransitions?: (params: { externalId: string }) => Promise<string[]> | string[];
   listIssueTypes?: (params: ListIssueTypesParams) => Promise<IssueTypeOption[]> | IssueTypeOption[];
   listLabels?: (params: ListLabelsParams) => Promise<string[]> | string[];
+  getConnectionStatus?: () => Promise<ConnectionStatus> | ConnectionStatus;
+  filterFacets?: () => Promise<FilterFacet[]> | FilterFacet[];
 }
 
 export type ContractMethodName = keyof PluginContract;

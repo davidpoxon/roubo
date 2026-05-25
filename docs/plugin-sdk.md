@@ -148,6 +148,87 @@ Optional. Returns the issue types defined on the external system for the given `
 
 Optional. Returns the labels available on the external system for the given `sources` (see [ConfiguredSource](#configuredsource)).
 
+### `getConnectionStatus(): Promise<ConnectionStatus>` (host-API 1.1.0+)
+
+Optional. Returns the plugin's self-reported connectivity. The host calls this to render the Settings > Plugins status chip without paying a full `listIssues` round-trip.
+
+```ts
+type ConnectionStatus = {
+  state: "connected" | "disconnected" | "auth-problem" | "errored";
+  detail?: string;
+  checkedAt: string; // ISO-8601
+};
+```
+
+```js
+async getConnectionStatus() {
+  const token = await host.credentials.get("api-token");
+  if (!token) {
+    return { state: "auth-problem", detail: "No token stored", checkedAt: new Date().toISOString() };
+  }
+  const res = await host.fetch("https://api.example.com/me", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    return { state: "auth-problem", detail: "Token rejected", checkedAt: new Date().toISOString() };
+  }
+  if (res.status >= 500) {
+    return { state: "errored", detail: `Upstream ${res.status}`, checkedAt: new Date().toISOString() };
+  }
+  return { state: "connected", checkedAt: new Date().toISOString() };
+}
+```
+
+If you omit this method, the host catches the resulting `MethodNotFound` and falls back to calling `validateConfig`, inferring `connected` vs `auth-problem` from its result. Plugins built against host-API 1.0.0 keep working without changes.
+
+### `filterFacets(): Promise<FilterFacet[]>` (host-API 1.1.0+)
+
+Optional. Declares the filter facets the core cut-list UI should render for this plugin. Core renders generic filter controls from the descriptors; you populate the per-issue values via the new `facetValues` field on `NormalizedIssue`.
+
+```ts
+type FilterFacet = {
+  id: string;
+  label: string;
+  type: "enum" | "enum-async" | "multi-enum";
+  options?: string[];
+};
+```
+
+- `enum` — small fixed set; provide `options` inline.
+- `enum-async` — set is large or remote; omit `options` and the host requests them lazily on dropdown open via a separate RPC (to be specified).
+- `multi-enum` — multi-select variant of `enum`.
+
+```js
+async filterFacets() {
+  return [
+    { id: "milestone", label: "Milestone", type: "enum-async" },
+  ];
+}
+```
+
+If you omit this method, the host falls back to a fixed common-facet set (Status, Label, Assignee, Type). Plugins built against host-API 1.0.0 keep working without changes.
+
+### Per-issue facet values (host-API 1.1.0+)
+
+`NormalizedIssue` gains an optional `facetValues?: Record<string, string | string[]>` field. When you declare facets via `filterFacets`, populate this map on each issue with values keyed by the facet `id`. Core filters the cut list on these values.
+
+```js
+async listIssues({ sources, cursor, pageSize }) {
+  // ... fetch a page from your API ...
+  return {
+    items: page.items.map((upstream) => ({
+      // ... other NormalizedIssue fields ...
+      facetValues: {
+        milestone: upstream.milestone?.title ?? "",
+      },
+    })),
+    nextCursor: page.nextCursor ?? null,
+  };
+}
+```
+
+Plugins built against host-API 1.0.0 omit this field; core treats absence as an empty map.
+
 ## Source-bound calls
 
 `listIssues`, `listIssueTypes`, and `listLabels` are source-bound: the host passes the per-project source selections on every call, so the plugin process never holds per-project state.
