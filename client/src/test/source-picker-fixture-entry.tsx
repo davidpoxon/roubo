@@ -7,7 +7,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import SourcePicker from "../components/SourcePicker";
 import type { SourceCandidatesResponse, SourceSelection } from "@roubo/shared";
-import "../index.css";
+import "../globals.css";
 
 const MULTI_LIST: SourceCandidatesResponse = {
   shape: "multi-list",
