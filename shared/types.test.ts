@@ -88,7 +88,7 @@ describe("NormalizedIssue contract", () => {
   // at compile time: the Record<keyof, true> errors if a contract key is removed,
   // and the never-mapped object errors if a deprecated key sneaks back in.
 
-  it("carries the 14 contract fields and no deprecated fields", () => {
+  it("carries the 15 contract fields and no deprecated fields", () => {
     const fields: Record<keyof NormalizedIssue, true> = {
       integrationId: true,
       externalId: true,
@@ -104,6 +104,7 @@ describe("NormalizedIssue contract", () => {
       blockedBy: true,
       updatedAt: true,
       raw: true,
+      facetValues: true,
     };
     expect(Object.keys(fields).sort()).toEqual(
       [
@@ -121,6 +122,7 @@ describe("NormalizedIssue contract", () => {
         "blockedBy",
         "updatedAt",
         "raw",
+        "facetValues",
       ].sort(),
     );
 

@@ -27,6 +27,8 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "getAvailableTransitions",
   "listIssueTypes",
   "listLabels",
+  "getConnectionStatus",
+  "filterFacets",
 ] as const;
 
 /**

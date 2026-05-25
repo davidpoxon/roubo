@@ -24,7 +24,7 @@ import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
 import type { PluginEnableState } from "@roubo/shared";
 
-export const HOST_API_VERSION = "1.0.0";
+export const HOST_API_VERSION = "1.1.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;

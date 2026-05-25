@@ -8,7 +8,7 @@ import {
 } from "vscode-jsonrpc/node.js";
 import { definePlugin } from "./define-plugin.js";
 import { host } from "./host-client.js";
-import type { PluginHandle } from "./types.js";
+import type { ConnectionStatus, FilterFacet, ListIssuesResult, PluginHandle } from "./types.js";
 
 /**
  * Build a paired in-memory JSON-RPC connection: one half is the SDK
@@ -243,5 +243,136 @@ describe("definePlugin (TC-035)", () => {
     await expect(host.credentials.get("anything")).rejects.toThrow(
       /host\.\* called before definePlugin/,
     );
+  });
+
+  it("round-trips getConnectionStatus shape (host-API 1.1.0)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    const checkedAt = "2026-05-25T12:00:00.000Z";
+    handles.push(
+      definePlugin(
+        {
+          async getConnectionStatus() {
+            return { state: "connected", checkedAt };
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const status = await hostConnection.sendRequest<ConnectionStatus>(
+      "getConnectionStatus",
+      undefined,
+    );
+    expect(status).toEqual({ state: "connected", checkedAt });
+  });
+
+  it("returns MethodNotFound when getConnectionStatus is omitted (TC-113 contract level)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(definePlugin({}, { streams: pluginStreams }));
+
+    await expect(
+      hostConnection.sendRequest("getConnectionStatus", undefined),
+    ).rejects.toMatchObject({ code: -32601 });
+  });
+
+  it("round-trips filterFacets descriptors (host-API 1.1.0)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(
+      definePlugin(
+        {
+          async filterFacets() {
+            return [
+              { id: "status", label: "Status", type: "enum", options: ["open", "closed"] },
+              { id: "milestone", label: "Milestone", type: "enum-async" },
+            ];
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const facets = await hostConnection.sendRequest<FilterFacet[]>("filterFacets", undefined);
+    expect(facets).toEqual([
+      { id: "status", label: "Status", type: "enum", options: ["open", "closed"] },
+      { id: "milestone", label: "Milestone", type: "enum-async" },
+    ]);
+  });
+
+  it("returns MethodNotFound when filterFacets is omitted", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(definePlugin({}, { streams: pluginStreams }));
+
+    await expect(hostConnection.sendRequest("filterFacets", undefined)).rejects.toMatchObject({
+      code: -32601,
+    });
+  });
+
+  it("preserves NormalizedIssue.facetValues across the RPC boundary (TC-127)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(
+      definePlugin(
+        {
+          async listIssues() {
+            return {
+              items: [
+                {
+                  integrationId: "example",
+                  externalId: "1",
+                  externalUrl: "https://example.com/1",
+                  title: "with facets",
+                  body: null,
+                  currentState: "open",
+                  allowedTransitions: [],
+                  assignees: [],
+                  labels: [],
+                  issueType: null,
+                  blocks: [],
+                  blockedBy: [],
+                  updatedAt: "2026-05-25T00:00:00.000Z",
+                  raw: null,
+                  facetValues: { milestone: "v1.2", labels: ["bug", "p0"] },
+                },
+                {
+                  integrationId: "example",
+                  externalId: "2",
+                  externalUrl: "https://example.com/2",
+                  title: "without facets",
+                  body: null,
+                  currentState: "open",
+                  allowedTransitions: [],
+                  assignees: [],
+                  labels: [],
+                  issueType: null,
+                  blocks: [],
+                  blockedBy: [],
+                  updatedAt: "2026-05-25T00:00:00.000Z",
+                  raw: null,
+                },
+              ],
+              nextCursor: null,
+            };
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const page = await hostConnection.sendRequest<ListIssuesResult>("listIssues", {
+      sources: [],
+      cursor: null,
+      pageSize: 10,
+    });
+    expect(page.items[0].facetValues).toEqual({ milestone: "v1.2", labels: ["bug", "p0"] });
+    expect(page.items[1].facetValues).toBeUndefined();
   });
 });

@@ -2,11 +2,13 @@ export { definePlugin } from "./define-plugin.js";
 export { host } from "./host-client.js";
 export type {
   ConfiguredSource,
+  ConnectionStatus,
   ContractMethodName,
   CurrentUser,
   DefinePluginOptions,
   FetchInit,
   FetchResult,
+  FilterFacet,
   HostClient,
   IssueTypeOption,
   ListIssueTypesParams,

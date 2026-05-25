@@ -128,6 +128,12 @@ afterEach(async () => {
   }
 });
 
+describe("host-API version", () => {
+  it("reports host-API 1.1.0 (FR-067, TC-128)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.1.0");
+  });
+});
+
 describe("discovery", () => {
   it("discovers manifests from both bundled and user roots", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"], user: ["incompatible"] });

@@ -4,7 +4,7 @@ import request from "supertest";
 import type { PluginRecord } from "@roubo/shared";
 
 vi.mock("../services/plugin-manager.js", () => ({
-  HOST_API_VERSION: "1.0.0",
+  HOST_API_VERSION: "1.1.0",
   listInstalled: vi.fn(),
   enable: vi.fn(),
   disable: vi.fn(),
@@ -88,7 +88,7 @@ describe("GET /", () => {
 
     const res = await request(app).get("/");
     expect(res.status).toBe(200);
-    expect(res.body.hostApiVersion).toBe("1.0.0");
+    expect(res.body.hostApiVersion).toBe("1.1.0");
     expect(res.body.plugins).toHaveLength(2);
     expect(res.body.plugins[0].id).toBe("github-com");
   });
