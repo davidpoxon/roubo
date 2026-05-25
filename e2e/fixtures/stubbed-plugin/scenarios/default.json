@@ -1,0 +1,133 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "stubbed",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      },
+      {
+        "externalId": "acme/gadgets",
+        "label": "acme/gadgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#1",
+      "externalUrl": "https://stub.example/acme/widgets/issues/1",
+      "title": "First widget bug",
+      "body": "Steps to reproduce: open the app.",
+      "currentState": "Open",
+      "allowedTransitions": ["Close", "In progress"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug", "p1"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open", "priority": "p1" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#2",
+      "externalUrl": "https://stub.example/acme/widgets/issues/2",
+      "title": "Add a knob",
+      "body": null,
+      "currentState": "In progress",
+      "allowedTransitions": ["Close", "Open"],
+      "assignees": [],
+      "labels": ["enhancement"],
+      "issueType": "Feature",
+      "blocks": [],
+      "blockedBy": ["acme/widgets#1"],
+      "updatedAt": "2026-01-02T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "In progress", "priority": "p2" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/gadgets#7",
+      "externalUrl": "https://stub.example/acme/gadgets/issues/7",
+      "title": "Gadget docs are stale",
+      "body": "The README references a removed flag.",
+      "currentState": "Open",
+      "allowedTransitions": ["Close"],
+      "assignees": [{ "externalId": "carol", "displayName": "Carol Stub" }],
+      "labels": ["docs"],
+      "issueType": "Chore",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-03T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open", "priority": "p3" }
+    }
+  ],
+  "commentsByExternalId": {
+    "acme/widgets#1": [
+      {
+        "externalId": "acme/widgets#1/c1",
+        "author": { "externalId": "bob", "displayName": "Bob Stub" },
+        "body": "Confirmed on my machine.",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Chore", "name": "Chore" },
+    { "id": "Feature", "name": "Feature" }
+  ],
+  "labels": ["bug", "docs", "enhancement", "p1", "p2", "p3"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "In progress", "label": "In progress" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    },
+    {
+      "id": "priority",
+      "label": "Priority",
+      "type": "multi-enum",
+      "options": [
+        { "value": "p1", "label": "P1" },
+        { "value": "p2", "label": "P2" },
+        { "value": "p3", "label": "P3" }
+      ]
+    },
+    {
+      "id": "assignee",
+      "label": "Assignee",
+      "type": "enum-async"
+    }
+  ],
+  "facetOptions": {
+    "assignee": [
+      { "value": "alice", "label": "Alice Stub" },
+      { "value": "bob", "label": "Bob Stub" },
+      { "value": "carol", "label": "Carol Stub" }
+    ]
+  }
+}

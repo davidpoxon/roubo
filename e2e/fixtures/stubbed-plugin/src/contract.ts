@@ -1,0 +1,144 @@
+import type {
+  ConnectionStatus,
+  CurrentUser,
+  FilterFacet,
+  FilterFacetOption,
+  GetFacetOptionsParams,
+  IssueTypeOption,
+  ListIssueTypesParams,
+  ListIssuesParams,
+  ListIssuesResult,
+  ListLabelsParams,
+  NormalizedComment,
+  NormalizedIssue,
+  PluginContract,
+  SetActiveConfigResult,
+  SourceCandidatesResponse,
+  ValidateConfigResult,
+} from "@roubo/plugin-sdk";
+import type { Clock } from "./clock.js";
+import type { Journal } from "./journal.js";
+import type { Scenario } from "./scenario.js";
+
+interface BuildContractDeps {
+  scenario: Scenario;
+  clock: Clock;
+  journal: Journal;
+}
+
+function projectIssue(issue: NormalizedIssue, journal: Journal): NormalizedIssue {
+  const { added, removed } = journal.assigneesFor(issue.externalId);
+  const transition = journal.transitionFor(issue.externalId);
+
+  const assignees = [
+    ...issue.assignees.filter((a) => !removed.includes(a.externalId)),
+    ...added
+      .filter((id) => !issue.assignees.some((a) => a.externalId === id))
+      .map((id) => ({ externalId: id, displayName: id })),
+  ].sort((a, b) => a.externalId.localeCompare(b.externalId));
+
+  return {
+    ...issue,
+    assignees,
+    currentState: transition ?? issue.currentState,
+  };
+}
+
+function findIssue(scenario: Scenario, externalId: string): NormalizedIssue {
+  const issue = scenario.issues.find((i) => i.externalId === externalId);
+  if (!issue) {
+    throw new Error(`Unknown externalId "${externalId}" in scenario "${scenario.pluginId}".`);
+  }
+  return issue;
+}
+
+export function buildContract({ scenario, clock, journal }: BuildContractDeps): PluginContract {
+  const listSourceCandidates = (): SourceCandidatesResponse => scenario.sourceCandidates;
+
+  const listIssues = (_params: ListIssuesParams): ListIssuesResult => ({
+    items: scenario.issues.map((issue) => projectIssue(issue, journal)),
+    nextCursor: null,
+  });
+
+  const getIssue = (params: { externalId: string }): NormalizedIssue =>
+    projectIssue(findIssue(scenario, params.externalId), journal);
+
+  const getComments = (params: { externalId: string }): NormalizedComment[] => {
+    findIssue(scenario, params.externalId);
+    return scenario.commentsByExternalId[params.externalId] ?? [];
+  };
+
+  const getCurrentUser = (): CurrentUser => scenario.currentUser;
+
+  const validateConfig = (params: { config: Record<string, unknown> }): ValidateConfigResult => {
+    if (!params.config || typeof params.config !== "object") {
+      return { ok: false, errors: [{ message: "config must be an object" }] };
+    }
+    return { ok: true };
+  };
+
+  const setActiveConfig = (_params: {
+    config: Record<string, unknown>;
+  }): SetActiveConfigResult => ({ ok: true });
+
+  const applyTransition = (params: { externalId: string; transition: string }): void => {
+    const issue = findIssue(scenario, params.externalId);
+    if (!issue.allowedTransitions.includes(params.transition)) {
+      throw new Error(`Transition "${params.transition}" not allowed on "${params.externalId}".`);
+    }
+    journal.recordTransition(params.externalId, params.transition);
+  };
+
+  const getAvailableTransitions = (params: { externalId: string }): string[] =>
+    [...findIssue(scenario, params.externalId).allowedTransitions].sort();
+
+  const assignIssue = (params: { externalId: string; assigneeExternalId: string }): void => {
+    findIssue(scenario, params.externalId);
+    journal.recordAssign(params.externalId, params.assigneeExternalId);
+  };
+
+  const unassignIssue = (params: { externalId: string; assigneeExternalId: string }): void => {
+    findIssue(scenario, params.externalId);
+    journal.recordUnassign(params.externalId, params.assigneeExternalId);
+  };
+
+  const listIssueTypes = (_params: ListIssueTypesParams): IssueTypeOption[] =>
+    [...scenario.issueTypes].sort((a, b) => a.id.localeCompare(b.id));
+
+  const listLabels = (_params: ListLabelsParams): string[] => [...scenario.labels].sort();
+
+  const getConnectionStatus = (): ConnectionStatus => ({
+    ...scenario.connectionStatus,
+    checkedAt: clock.nowIso(),
+  });
+
+  const filterFacets = (): FilterFacet[] => scenario.facets;
+
+  const getFacetOptions = (params: GetFacetOptionsParams): FilterFacetOption[] => {
+    const options = scenario.facetOptions[params.facetId] ?? [];
+    if (!params.search) return options;
+    const needle = params.search.toLowerCase();
+    return options.filter(
+      (o) => o.label.toLowerCase().includes(needle) || o.value.toLowerCase().includes(needle),
+    );
+  };
+
+  return {
+    listSourceCandidates,
+    listIssues,
+    getIssue,
+    getComments,
+    getCurrentUser,
+    validateConfig,
+    setActiveConfig,
+    applyTransition,
+    getAvailableTransitions,
+    assignIssue,
+    unassignIssue,
+    listIssueTypes,
+    listLabels,
+    getConnectionStatus,
+    filterFacets,
+    getFacetOptions,
+  };
+}
