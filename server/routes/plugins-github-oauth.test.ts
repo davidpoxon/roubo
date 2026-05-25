@@ -2,18 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
-const { githubOauthMocks, githubMocks } = vi.hoisted(() => ({
+const { githubOauthMocks, githubMocks, pluginManagerMocks } = vi.hoisted(() => ({
   githubOauthMocks: {
     buildAuthorizationUrl: vi.fn(),
     exchangeCodeForToken: vi.fn(),
     fetchGitHubUsername: vi.fn(),
     saveToken: vi.fn(),
     validateState: vi.fn(),
+    GITHUB_PLUGIN_ID: "github-com",
+    GITHUB_TOKEN_SLOT: "github-token",
   },
   githubMocks: { refreshAuth: vi.fn() },
+  pluginManagerMocks: { invalidateConnectionStatus: vi.fn() },
 }));
 vi.mock("../services/github-oauth.js", () => githubOauthMocks);
 vi.mock("../services/github.js", () => githubMocks);
+vi.mock("../services/plugin-manager.js", () => pluginManagerMocks);
 
 import router from "./plugins-github-oauth.js";
 
@@ -22,8 +26,11 @@ app.use(express.json());
 app.use("/", router);
 
 beforeEach(() => {
-  for (const fn of Object.values(githubOauthMocks)) fn.mockReset();
+  for (const fn of Object.values(githubOauthMocks)) {
+    if (typeof fn === "function" && "mockReset" in fn) fn.mockReset();
+  }
   githubMocks.refreshAuth.mockReset();
+  pluginManagerMocks.invalidateConnectionStatus.mockReset();
 });
 
 describe("POST /authorize", () => {
@@ -82,6 +89,9 @@ describe("POST /exchange", () => {
     expect(res.body).toEqual({ ok: true, username: "octocat" });
     expect(githubOauthMocks.saveToken).toHaveBeenCalledWith("ghp_secret");
     expect(githubMocks.refreshAuth).toHaveBeenCalled();
+    // WU-031: invalidate the cached connection-status so the next UI poll
+    // re-probes under the freshly-saved token (incl. any newly granted scopes).
+    expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
   });
 
   it("returns 500 when the GitHub exchange fails", async () => {
@@ -94,6 +104,7 @@ describe("POST /exchange", () => {
     expect(res.body).toEqual({ error: "upstream 502" });
     expect(githubOauthMocks.saveToken).not.toHaveBeenCalled();
     expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
+    expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();
   });
 });
 

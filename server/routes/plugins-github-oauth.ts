@@ -4,10 +4,12 @@ import {
   buildAuthorizationUrl,
   exchangeCodeForToken,
   fetchGitHubUsername,
+  GITHUB_PLUGIN_ID,
   saveToken,
   validateState,
 } from "../services/github-oauth.js";
 import { refreshAuth } from "../services/github.js";
+import { invalidateConnectionStatus } from "../services/plugin-manager.js";
 
 const router = Router();
 
@@ -53,6 +55,9 @@ router.post("/exchange", async (req, res) => {
     const username = await fetchGitHubUsername(token);
     await saveToken(token);
     await refreshAuth();
+    // WU-031: drop the cached connection-status for github-com so the next UI
+    // poll re-probes under the freshly-saved token (incl. its new scopes).
+    invalidateConnectionStatus(GITHUB_PLUGIN_ID);
     res.json({ ok: true, username });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

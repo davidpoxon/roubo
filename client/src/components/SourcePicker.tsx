@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -37,6 +37,7 @@ import type {
   SourceSelectionEntry,
 } from "@roubo/shared";
 import IssueChip from "./IssueChip";
+import OAuthReconsentDialog from "./OAuthReconsentDialog";
 import {
   applyIdSelection,
   entriesFor,
@@ -231,14 +232,50 @@ function findWarning(
   return warnings.find((w) => w.sourceExternalId === sourceExternalId && w.category === category);
 }
 
+// WU-031: a warning is "OAuth re-consent recoverable" when GitHub responded
+// 401 to one of the three security-alert categories. The cause string itself
+// is human-readable copy that may evolve; we match on structured fields so the
+// trigger stays stable across copy edits in plugins/_shared-github/src/alerts.
+const OAUTH_RECONSENT_CATEGORIES = new Set<ListIssuesWarning["category"]>([
+  "code-scanning",
+  "secret-scanning",
+  "dependabot",
+]);
+
+function isOAuthReconsentWarning(warning: ListIssuesWarning): boolean {
+  return warning.detail?.status === 401 && OAUTH_RECONSENT_CATEGORIES.has(warning.category);
+}
+
 interface AlertCheckboxRowProps {
   category: AlertCategoryDef;
   selected: boolean;
   onChange: (next: boolean) => void;
   warning?: ListIssuesWarning;
+  // WU-031: triggers the shared OAuth re-consent dialog when the user clicks
+  // the warning chip. Only invoked for OAuth-recoverable warnings.
+  onReconsent?: () => void;
+  // Render the small "Retry" affordance inside the chip after a previous
+  // attempt was cancelled or failed.
+  showRetry?: boolean;
 }
 
-function AlertCheckboxRow({ category, selected, onChange, warning }: AlertCheckboxRowProps) {
+function AlertCheckboxRow({
+  category,
+  selected,
+  onChange,
+  warning,
+  onReconsent,
+  showRetry,
+}: AlertCheckboxRowProps) {
+  const isOauthRecoverable = warning ? isOAuthReconsentWarning(warning) : false;
+  const chipOnPress = isOauthRecoverable ? onReconsent : undefined;
+  const actionSuffix =
+    isOauthRecoverable && showRetry ? (
+      <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
+        Retry
+      </span>
+    ) : undefined;
+
   return (
     <div className="flex items-center gap-2">
       <Checkbox
@@ -269,6 +306,8 @@ function AlertCheckboxRow({ category, selected, onChange, warning }: AlertCheckb
           tone="warning"
           icon={AlertTriangle}
           ariaDescription={warning.cause}
+          onPress={chipOnPress}
+          actionSuffix={actionSuffix}
         >
           Unavailable
         </IssueChip>
@@ -283,6 +322,8 @@ interface SecurityAlertsDisclosureProps {
   entry: SourceSelectionEntry;
   warnings: ListIssuesWarning[] | undefined;
   onFlagChange: (flag: AlertFlagKey, value: boolean) => void;
+  onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
+  retryHints?: ReadonlySet<string>;
 }
 
 function SecurityAlertsDisclosure({
@@ -291,6 +332,8 @@ function SecurityAlertsDisclosure({
   entry,
   warnings,
   onFlagChange,
+  onReconsent,
+  retryHints,
 }: SecurityAlertsDisclosureProps) {
   const enabled = ALERT_CATEGORIES.filter((c) => entryFlag(entry, c.flag));
   const enabledCount = enabled.length;
@@ -330,15 +373,25 @@ function SecurityAlertsDisclosure({
             </Button>
           </Heading>
           <DisclosurePanel className="flex flex-col gap-2 pt-2 pl-5">
-            {ALERT_CATEGORIES.map((category) => (
-              <AlertCheckboxRow
-                key={category.flag}
-                category={category}
-                selected={entryFlag(entry, category.flag)}
-                onChange={(next) => onFlagChange(category.flag, next)}
-                warning={findWarning(warnings, sourceExternalId, category.warningCategory)}
-              />
-            ))}
+            {ALERT_CATEGORIES.map((category) => {
+              const warning = findWarning(warnings, sourceExternalId, category.warningCategory);
+              const retryKey = retryHintKey(sourceExternalId, category.warningCategory);
+              return (
+                <AlertCheckboxRow
+                  key={category.flag}
+                  category={category}
+                  selected={entryFlag(entry, category.flag)}
+                  onChange={(next) => onFlagChange(category.flag, next)}
+                  warning={warning}
+                  onReconsent={
+                    onReconsent
+                      ? () => onReconsent(sourceExternalId, category.warningCategory)
+                      : undefined
+                  }
+                  showRetry={retryHints?.has(retryKey) ?? false}
+                />
+              );
+            })}
           </DisclosurePanel>
         </>
       )}
@@ -354,6 +407,8 @@ interface PerSourceConfigListProps {
   /** Set true to show the security disclosure (github-com/GHE). Other plugins hide it. */
   showSecurityAlerts: boolean;
   onFlagChange: (externalId: string, flag: AlertFlagKey, value: boolean) => void;
+  onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
+  retryHints?: ReadonlySet<string>;
 }
 
 function PerSourceConfigList({
@@ -363,6 +418,8 @@ function PerSourceConfigList({
   warnings,
   showSecurityAlerts,
   onFlagChange,
+  onReconsent,
+  retryHints,
 }: PerSourceConfigListProps) {
   if (!showSecurityAlerts || entries.length === 0) return null;
   const byId = new Map(items.map((i) => [i.externalId, i]));
@@ -390,6 +447,8 @@ function PerSourceConfigList({
               entry={entry}
               warnings={warnings}
               onFlagChange={(flag, value) => onFlagChange(id, flag, value)}
+              onReconsent={onReconsent}
+              retryHints={retryHints}
             />
           </div>
         );
@@ -404,9 +463,13 @@ function MultiListVariant({
   onChange,
   warnings,
   showSecurityAlerts,
+  onReconsent,
+  retryHints,
 }: SourcePickerProps & {
   response: SourceCandidatesResponse & { items: SourceCandidateItem[] };
   showSecurityAlerts: boolean;
+  onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
+  retryHints?: ReadonlySet<string>;
 }) {
   const items = useMemo(() => response.items ?? [], [response.items]);
   const selectedIds = useMemo(() => new Set(idsFor(value, MULTI_LIST_KEY)), [value]);
@@ -456,6 +519,8 @@ function MultiListVariant({
         warnings={warnings}
         showSecurityAlerts={showSecurityAlerts}
         onFlagChange={handleFlagChange}
+        onReconsent={onReconsent}
+        retryHints={retryHints}
       />
     </div>
   );
@@ -467,9 +532,13 @@ function CategorizedVariant({
   onChange,
   warnings,
   showSecurityAlerts,
+  onReconsent,
+  retryHints,
 }: SourcePickerProps & {
   response: SourceCandidatesResponse & { categories: SourceCandidateCategory[] };
   showSecurityAlerts: boolean;
+  onReconsent?: (sourceExternalId: string, category: ListIssuesWarning["category"]) => void;
+  retryHints?: ReadonlySet<string>;
 }) {
   const categories = useMemo(() => response.categories ?? [], [response.categories]);
   const [activeId, setActiveId] = useState<string>(() => categories[0]?.id ?? "");
@@ -530,6 +599,8 @@ function CategorizedVariant({
                 onFlagChange={(externalId, flag, val) =>
                   onChange(setFlagForEntry(value, cat.id, externalId, flag, val))
                 }
+                onReconsent={onReconsent}
+                retryHints={retryHints}
               />
             </TabPanel>
           );
@@ -630,26 +701,78 @@ export default function SourcePicker({ response, value, onChange, warnings }: So
     return items.some((it) => it.icon === "repo" || it.icon === "project");
   }, [response]);
 
-  if (response.shape === "multi-list") {
-    const items = response.items ?? [];
-    return (
+  // WU-031: single OAuth re-consent dialog instance shared across every
+  // chip-as-button in this picker. One GitHub OAuth grant clears 401s for all
+  // sources at once, so one dialog is enough; we just remember which row
+  // surfaced the click so post-cancel we can mark only that row with Retry.
+  const [reconsentOpen, setReconsentOpen] = useState(false);
+  const [retryHints, setRetryHints] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const lastTriggerRef = useRef<string | null>(null);
+
+  const handleReconsent = (sourceExternalId: string, category: ListIssuesWarning["category"]) => {
+    lastTriggerRef.current = retryHintKey(sourceExternalId, category);
+    // Clear any prior "Retry" hint for this row when the user opens the
+    // dialog again, so the chip resets to its baseline label.
+    if (retryHints.has(lastTriggerRef.current)) {
+      const next = new Set(retryHints);
+      next.delete(lastTriggerRef.current);
+      setRetryHints(next);
+    }
+    setReconsentOpen(true);
+  };
+
+  const handleSuccess = () => {
+    // A fresh token clears every per-row hint; the warnings themselves will
+    // disappear on the next listIssues pull (already invalidated by the dialog).
+    setRetryHints(new Set());
+  };
+
+  const handleCancelled = () => {
+    if (!lastTriggerRef.current) return;
+    const next = new Set(retryHints);
+    next.add(lastTriggerRef.current);
+    setRetryHints(next);
+  };
+
+  const variantPropsExtras = {
+    onReconsent: handleReconsent,
+    retryHints,
+  } as const;
+
+  const body =
+    response.shape === "multi-list" ? (
       <MultiListVariant
-        response={{ ...response, items }}
+        response={{ ...response, items: response.items ?? [] }}
         value={value}
         onChange={onChange}
         warnings={warnings}
         showSecurityAlerts={showSecurityAlerts}
+        {...variantPropsExtras}
+      />
+    ) : (
+      <CategorizedVariant
+        response={{ ...response, categories: response.categories ?? [] }}
+        value={value}
+        onChange={onChange}
+        warnings={warnings}
+        showSecurityAlerts={showSecurityAlerts}
+        {...variantPropsExtras}
       />
     );
-  }
-  const categories = response.categories ?? [];
+
   return (
-    <CategorizedVariant
-      response={{ ...response, categories }}
-      value={value}
-      onChange={onChange}
-      warnings={warnings}
-      showSecurityAlerts={showSecurityAlerts}
-    />
+    <>
+      {body}
+      <OAuthReconsentDialog
+        isOpen={reconsentOpen}
+        onOpenChange={setReconsentOpen}
+        onSuccess={handleSuccess}
+        onCancelled={handleCancelled}
+      />
+    </>
   );
+}
+
+function retryHintKey(sourceExternalId: string, category: ListIssuesWarning["category"]): string {
+  return `${sourceExternalId}:${category}`;
 }

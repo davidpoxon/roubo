@@ -1134,4 +1134,37 @@ describe("getConnectionStatus (WU-044)", () => {
 
     expect(invokerMock).toHaveBeenCalledTimes(2);
   });
+
+  describe("invalidateConnectionStatus (WU-031)", () => {
+    it("drops the cached value so the next call re-probes the plugin", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ state: "auth-problem", checkedAt: FROZEN_TIME.toISOString() })
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      pluginManager.invalidateConnectionStatus(PLUGIN_ID);
+      const fresh = await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+      expect(fresh.state).toBe("connected");
+      expect(invokerMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("only invalidates the named plugin, leaving other caches intact", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ state: "auth-problem", checkedAt: FROZEN_TIME.toISOString() })
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      await pluginManager.getConnectionStatus("ghe", CONFIG);
+      pluginManager.invalidateConnectionStatus(PLUGIN_ID);
+
+      const ghe = await pluginManager.getConnectionStatus("ghe", CONFIG);
+      expect(ghe.state).toBe("connected");
+      expect(invokerMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("is a no-op when called with an unknown pluginId", () => {
+      expect(() => pluginManager.invalidateConnectionStatus("does-not-exist")).not.toThrow();
+    });
+  });
 });

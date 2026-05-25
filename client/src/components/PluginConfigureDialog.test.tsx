@@ -40,6 +40,14 @@ vi.mock("../hooks/useGlobalPluginIntegration", () => ({
   useGlobalPluginIntegration: vi.fn(),
 }));
 
+const { useIssueListWarningsMock } = vi.hoisted(() => ({
+  useIssueListWarningsMock: vi.fn() as unknown as ReturnType<
+    typeof vi.fn<(projectId: string | undefined) => import("@roubo/shared").ListIssuesWarning[]>
+  >,
+}));
+useIssueListWarningsMock.mockReturnValue([]);
+vi.mock("../hooks/useIssues", () => ({ useIssueListWarnings: useIssueListWarningsMock }));
+
 const { mockStartGithubPluginOauth } = vi.hoisted(() => ({
   mockStartGithubPluginOauth: vi.fn(),
 }));
@@ -476,6 +484,63 @@ describe("PluginConfigureDialog", () => {
       await user.click(screen.getByTestId("save-config"));
       await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
       expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1"] });
+    });
+  });
+
+  describe("OAuth re-consent inline action (WU-031)", () => {
+    const candidates: SourceCandidatesResponse = {
+      shape: "multi-list",
+      items: [
+        { externalId: "repo-1", label: "acme/api", icon: "repo" },
+        { externalId: "repo-2", label: "acme/web", icon: "repo" },
+      ],
+    };
+
+    it("renders the chip-as-button inside the Security Alerts disclosure when listIssues returns a 401, and opening the dialog leaves Configure mounted", async () => {
+      useIssueListWarningsMock.mockReturnValue([
+        {
+          category: "code-scanning",
+          sourceExternalId: "repo-1",
+          cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
+          detail: { status: 401 },
+        },
+      ]);
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane Doe" },
+      });
+      installMocks({
+        test,
+        save: vi.fn().mockResolvedValue({}),
+        candidates: { data: candidates },
+      });
+
+      renderDialog({
+        plugin: makePlugin({ name: "GitHub" }),
+        effective: {
+          plugin: "ghe",
+          instance: "https://github.com",
+          sources: { items: [{ externalId: "repo-1", includeCodeQLAlerts: true }] },
+        },
+      });
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
+
+      await user.click(
+        screen.getByRole("button", { name: /Security & quality alerts for acme\/api/i }),
+      );
+
+      // The chip is now a button (interactive re-consent affordance).
+      const chip = await screen.findByRole("button", { name: /unavailable/i });
+      expect(chip.tagName).toBe("BUTTON");
+
+      await user.click(chip);
+
+      // OAuth re-consent dialog opens AND the Configure dialog is still mounted.
+      expect(screen.getByTestId("oauth-reconsent-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("save-config")).toBeInTheDocument();
     });
   });
 });

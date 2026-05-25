@@ -1039,6 +1039,17 @@ export async function getConnectionStatus(
   return promise;
 }
 
+/**
+ * Drop the cached `getConnectionStatus` value for a single plugin. Call this
+ * the moment the host changes credentials for a plugin (e.g. after the
+ * github-com OAuth exchange writes a new token to the keyring) so the next
+ * UI poll skips the 30-second cache and re-probes under the new credential.
+ */
+export function invalidateConnectionStatus(pluginId: string): void {
+  connectionStatusCache.delete(pluginId);
+  inFlightConnectionStatusRequests.delete(pluginId);
+}
+
 async function fetchConnectionStatus(
   pluginId: string,
   config: Record<string, unknown>,

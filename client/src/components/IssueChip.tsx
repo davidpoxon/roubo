@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { Button } from "react-aria-components";
 import type { StatusTone } from "../lib/chip-mapping";
 
 export type IssueChipVariant = "status" | "label" | "issue-type" | "metadata";
@@ -10,6 +11,12 @@ interface IssueChipProps {
   icon?: LucideIcon;
   tone?: StatusTone;
   ariaDescription?: string;
+  // WU-031: when provided, the chip renders as an interactive React Aria
+  // Button so it can act as a re-consent trigger. Visual styling is identical.
+  onPress?: () => void;
+  // Optional suffix rendered inside the chip after `children`. Used to attach
+  // a small "Retry" affordance after a cancelled OAuth re-consent attempt.
+  actionSuffix?: ReactNode;
 }
 
 const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
@@ -23,6 +30,8 @@ const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
 
 const BASE_CLASSES =
   "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium leading-none";
+const INTERACTIVE_CLASSES =
+  "cursor-pointer outline-none transition-colors hover:brightness-110 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950";
 
 export default function IssueChip({
   variant,
@@ -30,11 +39,39 @@ export default function IssueChip({
   icon: Icon,
   tone = "neutral",
   ariaDescription,
+  onPress,
+  actionSuffix,
 }: IssueChipProps) {
   const variantClasses = classesForVariant(variant, tone);
   const showIcon = Icon !== undefined && variant !== "label";
   const generatedId = useId();
   const describedById = ariaDescription ? `chip-desc-${generatedId}` : undefined;
+
+  const inner = (
+    <>
+      {showIcon && Icon ? <Icon size={9} aria-hidden="true" /> : null}
+      <span className="truncate">{children}</span>
+      {actionSuffix}
+      {ariaDescription ? (
+        <span id={describedById} className="sr-only">
+          {ariaDescription}
+        </span>
+      ) : null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Button
+        onPress={onPress}
+        className={`${BASE_CLASSES} ${variantClasses} ${INTERACTIVE_CLASSES}`}
+        data-chip-category={variant}
+        aria-describedby={describedById}
+      >
+        {inner}
+      </Button>
+    );
+  }
 
   return (
     <span
@@ -42,13 +79,7 @@ export default function IssueChip({
       data-chip-category={variant}
       aria-describedby={describedById}
     >
-      {showIcon && Icon ? <Icon size={9} aria-hidden="true" /> : null}
-      <span className="truncate">{children}</span>
-      {ariaDescription ? (
-        <span id={describedById} className="sr-only">
-          {ariaDescription}
-        </span>
-      ) : null}
+      {inner}
     </span>
   );
 }
