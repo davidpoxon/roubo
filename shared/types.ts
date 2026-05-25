@@ -233,6 +233,36 @@ export type IntegrationTestResult =
   | { ok: false; error: IntegrationTestErrorPayload };
 
 /**
+ * Discrete states a plugin's connection can be in. Drives the
+ * `ConnectionStatusPill` taxonomy (mockups §21) and will back the
+ * `getConnectionStatus()` plugin RPC (FR-055) when that lands in a later WU.
+ *
+ * - `connected`: healthy, last check succeeded
+ * - `disconnected`: plugin is enabled but no credentials are configured
+ * - `auth-problem`: token expired / 401 / re-auth needed
+ * - `errored`: rate-limited, unreachable, crashed, or never-checked
+ * - `disabled`: plugin not enabled; never reflects connectivity
+ */
+export type ConnectionState =
+  | "connected"
+  | "disconnected"
+  | "auth-problem"
+  | "errored"
+  | "disabled";
+
+/**
+ * Cached connection-status snapshot for a plugin. `detail` is surfaced in the
+ * pill's tooltip on `auth-problem` and `errored`. `checkedAt` is an ISO
+ * timestamp the pill renders as an "as of HH:MM" suffix; omit for the
+ * `disabled` variant (which never carries a timestamp).
+ */
+export interface ConnectionStatus {
+  state: ConnectionState;
+  detail?: string;
+  checkedAt?: string;
+}
+
+/**
  * Body shape for `PUT /api/projects/:projectId/integration/config`. Every key
  * is optional; provided keys replace their counterpart in the existing
  * override (per FR-023's "arrays REPLACE" rule, which extends to objects
