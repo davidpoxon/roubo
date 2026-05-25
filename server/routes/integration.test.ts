@@ -15,6 +15,7 @@ vi.mock("../services/plugin-activation.js", () => ({
   ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
   forgetProjectActivation: vi.fn(),
   forgetPluginActivation: vi.fn(),
+  resolveSources: vi.fn().mockReturnValue([]),
 }));
 vi.mock("../services/integration-overrides.js", async () => {
   const actual = await vi.importActual<typeof import("../services/integration-overrides.js")>(
@@ -784,5 +785,149 @@ describe("PUT /:projectId/integration/sources", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("schema busted");
     expect(res.body.code).toBe("SCHEMA");
+  });
+});
+
+describe("GET /:projectId/integration/filter-facets", () => {
+  function methodNotFound(method: string): Error & { code: string } {
+    const err = new Error(`Method not found: ${method}`) as Error & { code: string };
+    err.code = "MethodNotFound";
+    return err;
+  }
+
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/missing/integration/filter-facets");
+
+    expect(res.status).toBe(404);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when no active plugin is set", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).get("/demo/integration/filter-facets");
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no active/i);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns the plugin's facet descriptors verbatim", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockResolvedValue([
+      { id: "milestone", label: "Milestone", type: "enum-async" },
+    ]);
+
+    const res = await request(app).get("/demo/integration/filter-facets");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ id: "milestone", label: "Milestone", type: "enum-async" }]);
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "github-com",
+      "filterFacets",
+      undefined,
+      expect.objectContaining({ timeoutMs: 5_000 }),
+    );
+  });
+
+  it("returns the fixed common-facet fallback when the plugin omits filterFacets (TC-126)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue(methodNotFound("filterFacets"));
+
+    const res = await request(app).get("/demo/integration/filter-facets");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { id: "status", label: "Status", type: "enum" },
+      { id: "label", label: "Label", type: "enum" },
+      { id: "assignee", label: "Assignee", type: "enum" },
+      { id: "type", label: "Type", type: "enum" },
+    ]);
+  });
+
+  it("returns 502 when the plugin throws a non-MethodNotFound error", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("timed out"));
+
+    const res = await request(app).get("/demo/integration/filter-facets");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/timed out/);
+  });
+});
+
+describe("GET /:projectId/integration/facet-options", () => {
+  function methodNotFound(method: string): Error & { code: string } {
+    const err = new Error(`Method not found: ${method}`) as Error & { code: string };
+    err.code = "MethodNotFound";
+    return err;
+  }
+
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/missing/integration/facet-options?facetId=milestone");
+
+    expect(res.status).toBe(404);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when facetId is missing", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+
+    const res = await request(app).get("/demo/integration/facet-options");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/facetId/);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when no active plugin is set", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).get("/demo/integration/facet-options?facetId=milestone");
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no active/i);
+  });
+
+  it("forwards facetId, resolved sources, and search to the plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockResolvedValue([{ value: "v1.0", label: "v1.0" }]);
+
+    const res = await request(app).get(
+      "/demo/integration/facet-options?facetId=milestone&search=v1",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ value: "v1.0", label: "v1.0" }]);
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "github-com",
+      "getFacetOptions",
+      { facetId: "milestone", sources: [], search: "v1" },
+      expect.objectContaining({ timeoutMs: 5_000 }),
+    );
+  });
+
+  it("returns [] when the plugin omits getFacetOptions", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue(methodNotFound("getFacetOptions"));
+
+    const res = await request(app).get("/demo/integration/facet-options?facetId=milestone");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns 502 when the plugin throws a non-MethodNotFound error", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("rate limited"));
+
+    const res = await request(app).get("/demo/integration/facet-options?facetId=milestone");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/rate limited/);
   });
 });

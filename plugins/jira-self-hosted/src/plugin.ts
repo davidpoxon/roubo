@@ -1,6 +1,9 @@
 import { host } from "@roubo/plugin-sdk";
 import type {
   CurrentUser,
+  FilterFacet,
+  FilterFacetOption,
+  GetFacetOptionsParams,
   ListIssuesParams,
   ListIssuesResult,
   NormalizedComment,
@@ -17,7 +20,7 @@ import {
   type JiraCommentResponse,
   type JiraIssueResponse,
 } from "./normalize.js";
-import { listSourceCandidates } from "./source-picker.js";
+import { fetchEpicIssues, listSourceCandidates } from "./source-picker.js";
 import { applyTransition as runApplyTransition } from "./transitions.js";
 import { assignIssue as runAssignIssue, unassignIssue as runUnassignIssue } from "./assignment.js";
 import { getLastPoll, setLastPoll, _resetCacheForTests } from "./state-store.js";
@@ -294,6 +297,28 @@ export function createPluginContract(): PluginContract {
             typeof t.name === "string" && t.name.length > 0,
         )
         .map((t) => ({ id: String(t.id), name: t.name }));
+    },
+
+    filterFacets(): FilterFacet[] {
+      return [{ id: "epic", label: "Epic", type: "enum-async" }];
+    },
+
+    async getFacetOptions(
+      params: GetFacetOptionsParams & { config?: Record<string, unknown> },
+    ): Promise<FilterFacetOption[]> {
+      if (params.facetId !== "epic") return [];
+      const config = await adoptOrRecallConfig(params);
+      const ctx = await ctxFor(config);
+      const issues = await fetchEpicIssues(ctx);
+      const options: FilterFacetOption[] = issues.map((issue) => ({
+        value: issue.key,
+        label: issue.fields?.summary ?? issue.key,
+      }));
+      if (!params.search) return options;
+      const needle = params.search.toLowerCase();
+      return options.filter(
+        (o) => o.label.toLowerCase().includes(needle) || o.value.toLowerCase().includes(needle),
+      );
     },
   };
   return contract as unknown as PluginContract;

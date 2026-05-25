@@ -9,6 +9,8 @@ export type {
   FetchInit,
   FetchResult,
   FilterFacet,
+  FilterFacetOption,
+  GetFacetOptionsParams,
   HostClient,
   IssueTypeOption,
   ListIssueTypesParams,

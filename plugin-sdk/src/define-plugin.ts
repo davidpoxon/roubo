@@ -29,6 +29,7 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "listLabels",
   "getConnectionStatus",
   "filterFacets",
+  "getFacetOptions",
 ] as const;
 
 /**

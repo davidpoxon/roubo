@@ -134,6 +134,16 @@ export async function fetchLabels(repoFullName: string): Promise<string[]> {
   return result.data.map((l) => l.name);
 }
 
+export async function fetchMilestones(repoFullName: string): Promise<string[]> {
+  const { owner, repo } = parseRepo(repoFullName);
+  const result = await githubRequest<Array<{ title: string }>>({
+    kind: "rest",
+    route: "GET /repos/{owner}/{repo}/milestones",
+    params: { owner, repo, per_page: 100, state: "all" },
+  });
+  return result.data.map((m) => m.title);
+}
+
 // ── Blocking relationships ──
 
 const BLOCKING_BATCH_SIZE = 20;

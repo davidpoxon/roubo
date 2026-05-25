@@ -104,6 +104,23 @@ async function resolveBoardFilterId(
 }
 
 async function fetchEpics(ctx: JiraRequestContext): Promise<SourceCandidateItem[]> {
+  const raw = await fetchEpicIssues(ctx);
+  return raw.map((issue) => ({
+    externalId: issue.key,
+    label: issue.fields?.summary ?? issue.key,
+    sublabel: issue.key,
+    icon: "epic" as const,
+  }));
+}
+
+/**
+ * Shared fetcher for unresolved Epics. Used by both the source picker
+ * (mapping into category items) and `getFacetOptions("epic")` (mapping
+ * into `FilterFacetOption[]`). Returns [] on transport / auth failure.
+ */
+export async function fetchEpicIssues(
+  ctx: JiraRequestContext,
+): Promise<Array<{ key: string; fields?: { summary?: string } }>> {
   try {
     const data = await jiraFetch<IssueSearchResponse>(ctx, "/rest/api/2/search", {
       query: {
@@ -113,17 +130,10 @@ async function fetchEpics(ctx: JiraRequestContext): Promise<SourceCandidateItem[
       },
     });
     const issues = data.issues ?? [];
-    return issues
-      .filter(
-        (issue): issue is { key: string; fields?: { summary?: string } } =>
-          typeof issue.key === "string",
-      )
-      .map((issue) => ({
-        externalId: issue.key,
-        label: issue.fields?.summary ?? issue.key,
-        sublabel: issue.key,
-        icon: "epic" as const,
-      }));
+    return issues.filter(
+      (issue): issue is { key: string; fields?: { summary?: string } } =>
+        typeof issue.key === "string",
+    );
   } catch {
     return [];
   }
