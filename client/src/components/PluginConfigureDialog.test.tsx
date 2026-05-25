@@ -16,6 +16,8 @@ import {
 } from "../hooks/useProjectIntegration";
 import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
+import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
+import { useGitHubProjects } from "../hooks/useSetup";
 import {
   useTestGlobalPluginIntegration,
   useSaveGlobalPluginIntegration,
@@ -32,6 +34,15 @@ vi.mock("../hooks/useSourceCandidates", () => ({
 
 vi.mock("../hooks/useSaveProjectSources", () => ({
   useSaveProjectSources: vi.fn(),
+}));
+
+vi.mock("../hooks/useIntegrationFields", () => ({
+  useIntegrationFields: vi.fn(),
+  useSaveIntegrationFields: vi.fn(),
+}));
+
+vi.mock("../hooks/useSetup", () => ({
+  useGitHubProjects: vi.fn(),
 }));
 
 vi.mock("../hooks/useGlobalPluginIntegration", () => ({
@@ -60,6 +71,9 @@ const mockedUseTest = vi.mocked(useTestIntegrationConnection);
 const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
 const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
 const mockedUseSaveSources = vi.mocked(useSaveProjectSources);
+const mockedUseFields = vi.mocked(useIntegrationFields);
+const mockedUseSaveFields = vi.mocked(useSaveIntegrationFields);
+const mockedUseGitHubProjects = vi.mocked(useGitHubProjects);
 
 function inputIn(testId: string): HTMLInputElement {
   const wrapper = screen.getByTestId(testId);
@@ -157,6 +171,20 @@ function installMocks(opts: {
     isError: opts.candidates?.isError ?? false,
     error: opts.candidates?.error ?? null,
   } as unknown as ReturnType<typeof useSourceCandidates>);
+  mockedUseFields.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+  } as unknown as ReturnType<typeof useIntegrationFields>);
+  mockedUseSaveFields.mockReturnValue({
+    mutateAsync: vi.fn().mockResolvedValue({}),
+    isPending: false,
+  } as unknown as ReturnType<typeof useSaveIntegrationFields>);
+  mockedUseGitHubProjects.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useGitHubProjects>);
 }
 
 beforeEach(() => {
@@ -620,6 +648,129 @@ describe("PluginConfigureDialog", () => {
       // OAuth re-consent dialog opens AND the Configure dialog is still mounted.
       expect(screen.getByTestId("oauth-reconsent-dialog")).toBeInTheDocument();
       expect(screen.getByTestId("save-config")).toBeInTheDocument();
+    });
+  });
+
+  // FR-070 (WU-057): the github-com Configure modal hosts the Identity-resident
+  // fields (Repository / Linked GitHub Project / Submodules).
+  describe("integration fields section (WU-057)", () => {
+    function githubPlugin(): Plugin {
+      return {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: {
+          name: "GitHub",
+          configSchema: { type: "object", properties: {} },
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
+      };
+    }
+
+    it("renders Repository and GitHub project for the github-com plugin", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "acme/demo", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const section = screen.getByTestId("integration-fields-section");
+      expect(section).toBeInTheDocument();
+      expect(section.querySelector("input[placeholder='org/repo-name']")).toBeInTheDocument();
+      expect(section.textContent).toMatch(/GitHub project/i);
+      // single-repo: Submodules editor is hidden (no Submodules label rendered).
+      expect(section.textContent).not.toMatch(/Submodules/);
+    });
+
+    it("renders the Submodules editor only when the layout is meta-repo", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: { layoutType: "meta-repo", submodules: { backend: "apps/backend" } },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const section = screen.getByTestId("integration-fields-section");
+      expect(section.textContent).toMatch(/Submodules/);
+      // Existing alias/dir surface as inputs in the editor.
+      expect(screen.getByDisplayValue("backend")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("apps/backend")).toBeInTheDocument();
+    });
+
+    it("persists changed fields through useSaveIntegrationFields on Save", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane" },
+      });
+      const save = vi.fn().mockResolvedValue({});
+      const saveFields = vi.fn().mockResolvedValue({});
+      installMocks({ test, save });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "acme/old", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      mockedUseSaveFields.mockReturnValue({
+        mutateAsync: saveFields,
+        isPending: false,
+      } as unknown as ReturnType<typeof useSaveIntegrationFields>);
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const repoInput = screen.getByPlaceholderText("org/repo-name");
+      await user.clear(repoInput);
+      await user.type(repoInput, "acme/new");
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(test).toHaveBeenCalled());
+
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(saveFields).toHaveBeenCalledTimes(1));
+      expect(saveFields.mock.calls[0][0]).toEqual({ repo: "acme/new" });
+    });
+
+    it("skips the save mutation when no field changed", async () => {
+      const user = userEvent.setup();
+      const test = vi.fn().mockResolvedValue({
+        ok: true,
+        identity: { externalId: "u-1", displayName: "Jane" },
+      });
+      const saveFields = vi.fn().mockResolvedValue({});
+      installMocks({ test, save: vi.fn().mockResolvedValue({}) });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "acme/demo", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      mockedUseSaveFields.mockReturnValue({
+        mutateAsync: saveFields,
+        isPending: false,
+      } as unknown as ReturnType<typeof useSaveIntegrationFields>);
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      await user.click(screen.getByTestId("test-connection"));
+      await waitFor(() => expect(test).toHaveBeenCalled());
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(screen.queryByTestId("save-config")).not.toBeInTheDocument(), {
+        timeout: 500,
+      }).catch(() => {});
+      expect(saveFields).not.toHaveBeenCalled();
+    });
+
+    it("is hidden for non-github plugins", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      renderDialog();
+      expect(screen.queryByTestId("integration-fields-section")).not.toBeInTheDocument();
     });
   });
 });

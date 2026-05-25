@@ -327,6 +327,31 @@ export interface IntegrationConfigUpdate {
 }
 
 /**
+ * Project-scoped fields owned by the active integration plugin (FR-070).
+ * Returned by `GET /api/projects/:projectId/integration/fields`. Stored
+ * canonically in roubo.yaml; the plugin's Configure modal is the edit
+ * surface and the legacy config/raw PUT shims forward into the setter.
+ */
+export interface IntegrationFields {
+  repo?: string;
+  githubProject?: number;
+  submodules?: Record<string, string>;
+  /** Echoed so the client can hide meta-repo-only controls without a second fetch. */
+  layoutType?: "meta-repo" | "monorepo" | "single-repo";
+}
+
+/**
+ * Body shape for `PUT /api/projects/:projectId/integration/fields`. Each key
+ * is optional; provided keys overwrite their counterpart, `undefined` keys
+ * are left alone, and an explicit `null` clears the field in roubo.yaml.
+ */
+export interface IntegrationFieldsUpdate {
+  repo?: string | null;
+  githubProject?: number | null;
+  submodules?: Record<string, string> | null;
+}
+
+/**
  * Serializable subset of `PluginRecord` returned by `GET /api/plugins`. Drives
  * the radio list inside the Switch integration dialog.
  */

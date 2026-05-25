@@ -338,7 +338,10 @@ describe("SectionReview", () => {
     expect(screen.getByText("NODE_ENV")).toBeDefined();
   });
 
-  it("renders meta-repo layout with submodules", () => {
+  // FR-070 (WU-057): submodules moved to the plugin Configure modal, so the
+  // Review surface only confirms the meta-repo layout type. The alias list
+  // is no longer rendered here.
+  it("renders meta-repo layout type without inlining the submodule list", () => {
     renderReview(makeStatus(), vi.fn(), {
       config: {
         ...baseConfig,
@@ -348,7 +351,8 @@ describe("SectionReview", () => {
         },
       },
     });
-    expect(screen.getByText("api")).toBeDefined();
-    expect(screen.getByText("backend")).toBeDefined();
+    expect(screen.getByText("meta-repo")).toBeDefined();
+    expect(screen.queryByText("api")).toBeNull();
+    expect(screen.queryByText("backend")).toBeNull();
   });
 });

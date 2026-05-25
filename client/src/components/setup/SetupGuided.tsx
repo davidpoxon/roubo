@@ -222,7 +222,6 @@ export default function SetupGuided({
                     scanResult={state.scanResult}
                     projectId={projectId}
                     dispatch={dispatch}
-                    layoutInvalid={state.sectionStatus.layout === "invalid"}
                   />
                 </section>
               </SectionCard>

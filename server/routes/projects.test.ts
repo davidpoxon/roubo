@@ -789,3 +789,150 @@ describe("PUT /:projectId/config/raw", () => {
     expect(res.body.error).toBe("disk full");
   });
 });
+
+// WU-057: the three fields move to the plugin tab. These tests cover the
+// new GET/PUT /integration/fields routes plus the deprecation-warning shim
+// on the legacy /config/raw PUT.
+describe("GET /:projectId/integration/fields", () => {
+  it("returns the three fields plus layoutType", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "test",
+      repoPath: "/repo",
+      config: {
+        project: {
+          name: "x",
+          displayName: "X",
+          type: "web",
+          repo: "acme/x",
+          github: { project: 9 },
+        },
+        layout: { type: "meta-repo", submodules: { a: "apps/a" } },
+        components: {},
+        benches: { max: 5 },
+      },
+      configValid: true,
+      settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
+    } as any);
+    const res = await request(app).get("/test/integration/fields");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      repo: "acme/x",
+      githubProject: 9,
+      submodules: { a: "apps/a" },
+      layoutType: "meta-repo",
+    });
+  });
+
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    const res = await request(app).get("/missing/integration/fields");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PUT /:projectId/integration/fields", () => {
+  beforeEach(() => {
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => ({}) as any);
+    vi.mocked(validateConfigObject).mockReturnValue({ valid: true } as any);
+  });
+
+  it("persists field updates and returns the new shape", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "test",
+      repoPath: "/repo",
+      config: {
+        project: { name: "x", displayName: "X", type: "web", repo: "acme/old" },
+        layout: { type: "single-repo" },
+        components: {},
+        benches: { max: 5 },
+      },
+      configValid: true,
+      settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
+    } as any);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "github-com",
+      integrationId: "github-com",
+      pageSize: 50,
+    });
+
+    const res = await request(app).put("/test/integration/fields").send({ repo: "acme/new" });
+    expect(res.status).toBe(200);
+    expect(atomicWrite).toHaveBeenCalled();
+  });
+
+  it("returns 409 when there is no active plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "test",
+      repoPath: "/repo",
+      config: {
+        project: { name: "x", displayName: "X", type: "web" },
+        layout: { type: "single-repo" },
+        components: {},
+        benches: { max: 5 },
+      },
+      configValid: true,
+      settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
+    } as any);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+    const res = await request(app).put("/test/integration/fields").send({ repo: "acme/new" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("NO_ACTIVE_PLUGIN");
+  });
+
+  it("rejects malformed payloads with 400", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "test",
+      repoPath: "/repo",
+      config: {
+        project: { name: "x", displayName: "X", type: "web" },
+        layout: { type: "single-repo" },
+        components: {},
+        benches: { max: 5 },
+      },
+      configValid: true,
+      settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
+    } as any);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "github-com",
+      integrationId: "github-com",
+      pageSize: 50,
+    });
+    const res = await request(app)
+      .put("/test/integration/fields")
+      .send({ githubProject: "not-a-number" } as any);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_FIELD");
+  });
+});
+
+describe("PUT /:projectId/config/raw deprecation shim (WU-057)", () => {
+  const PLUGIN_FIELDS_YAML = [
+    "project:",
+    '  name: "x"',
+    '  displayName: "X"',
+    '  type: "web"',
+    '  repo: "acme/x"',
+    "layout:",
+    '  type: "single-repo"',
+    "benches:",
+    "  max: 5",
+    "components: {}",
+    "",
+  ].join("\n");
+
+  it("logs a deprecation warning when the legacy PUT writes plugin-owned fields", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({ repoPath: "/repo" } as any);
+    vi.mocked(validateConfigObject).mockReturnValue({ valid: true, config: {} } as any);
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => ({}) as any);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const res = await request(app).put("/test/config/raw").send({ yaml: PLUGIN_FIELDS_YAML });
+    expect(res.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/deprecated.*plugin-owned/));
+    warn.mockRestore();
+  });
+});

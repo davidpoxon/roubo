@@ -17,7 +17,10 @@ export const ProjectConfigSchema = z
       .regex(/^[a-z0-9-]+$/, "Must contain only lowercase letters, numbers, and hyphens"),
     displayName: z.string().min(1, "Required"),
     type: z.enum(["web", "native", "api-only"]),
-    repo: z.string().min(1, "Required"),
+    // FR-070 (WU-057): repo and github.project moved to the plugin Configure
+    // modal. Optional here so a fresh project saves cleanly with name + type
+    // only; the user fills these in from the active plugin's tab afterwards.
+    repo: z.string().min(1, "Required").optional(),
     github: z.object({ project: z.int() }).strict().optional(),
     jigSettings: JigSettingsSchema.optional(),
   })

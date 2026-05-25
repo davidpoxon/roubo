@@ -42,6 +42,8 @@ import type {
   ProjectIntegrationState,
   GlobalPluginIntegrationState,
   IntegrationConfigUpdate,
+  IntegrationFields,
+  IntegrationFieldsUpdate,
   IntegrationTestResult,
   SourceCandidatesResponse,
   SourceSelection,
@@ -802,6 +804,20 @@ export function saveIntegrationConfig(
   update: IntegrationConfigUpdate,
 ): Promise<ProjectIntegrationState> {
   return request(`/projects/${projectId}/integration/config`, {
+    method: "PUT",
+    body: JSON.stringify(update),
+  });
+}
+
+export function fetchIntegrationFields(projectId: string): Promise<IntegrationFields> {
+  return request(`/projects/${projectId}/integration/fields`);
+}
+
+export function saveIntegrationFields(
+  projectId: string,
+  update: IntegrationFieldsUpdate,
+): Promise<IntegrationFields> {
+  return request(`/projects/${projectId}/integration/fields`, {
     method: "PUT",
     body: JSON.stringify(update),
   });
