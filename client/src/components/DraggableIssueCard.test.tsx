@@ -107,22 +107,82 @@ describe("DraggableIssueCard", () => {
     expect(typeChip.querySelector("svg")).not.toBeNull();
   });
 
-  it("renders CodeQL and Dependabot issue-types with their distinguishing icons (TC-136)", () => {
-    const { container: codeqlContainer } = render(
-      <DraggableIssueCard issue={makeIssue({ issueType: "CodeQL" })} />,
+  it("renders CodeQL, Secret scanning, and Dependabot alert rows with friendly labels (FR-075)", () => {
+    const { container: codeqlContainer, getByText: getCodeQLText } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "security-code-scanning",
+          raw: { rule: { security_severity_level: "high" } },
+        })}
+      />,
     );
     const codeqlChip = codeqlContainer.querySelector(
       '[data-chip-category="issue-type"]',
     ) as HTMLElement;
     expect(codeqlChip.querySelector("svg")).not.toBeNull();
     expect(codeqlChip.className).toMatch(/violet-/);
+    expect(getCodeQLText("CodeQL")).toBeInTheDocument();
+    // Tooltip provided => keyboard-focusable Button wrapper.
+    expect(codeqlChip.tagName).toBe("BUTTON");
 
-    const { container: depContainer } = render(
-      <DraggableIssueCard issue={makeIssue({ issueType: "dependabot" })} />,
+    const { container: depContainer, getByText: getDepText } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "security-dependabot",
+          raw: { security_advisory: { severity: "critical" } },
+        })}
+      />,
     );
     const depChip = depContainer.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
     expect(depChip.querySelector("svg")).not.toBeNull();
-    expect(depChip.className).toMatch(/violet-/);
+    expect(getDepText("Dependabot")).toBeInTheDocument();
+    expect(depChip.tagName).toBe("BUTTON");
+
+    const { container: secretContainer, getByText: getSecretText } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "security-secret-scanning",
+          raw: { secret_type_display_name: "AWS access key" },
+        })}
+      />,
+    );
+    const secretChip = secretContainer.querySelector(
+      '[data-chip-category="issue-type"]',
+    ) as HTMLElement;
+    expect(secretChip.querySelector("svg")).not.toBeNull();
+    expect(getSecretText("Secret scanning")).toBeInTheDocument();
+    expect(secretChip.tagName).toBe("BUTTON");
+  });
+
+  it("renders alert rows with no transition or assign affordance (FR-075)", () => {
+    const { container, queryByRole } = render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "security-code-scanning",
+          allowedTransitions: [],
+          raw: { rule: { security_severity_level: "high" } },
+        })}
+      />,
+    );
+    const buttons = container.querySelectorAll("button");
+    const labels = Array.from(buttons).map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(queryByRole("combobox")).toBeNull();
+    expect(queryByRole("listbox")).toBeNull();
+    expect(labels.some((l) => /assign/i.test(l ?? ""))).toBe(false);
+    expect(labels.some((l) => /transition|state|status change/i.test(l ?? ""))).toBe(false);
+  });
+
+  it("keeps the drag handle enabled for alert rows so bench creation still works", () => {
+    render(
+      <DraggableIssueCard
+        issue={makeIssue({
+          issueType: "security-code-scanning",
+          allowedTransitions: [],
+          raw: { rule: { security_severity_level: "high" } },
+        })}
+      />,
+    );
+    expect(mockUseDraggable).toHaveBeenCalledWith(expect.objectContaining({ disabled: false }));
   });
 
   it("renders labels as cyan border-only chips with rounded-sm shape", () => {

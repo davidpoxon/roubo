@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { Bug, CheckSquare, KeyRound, Package, Shield, Sparkles, Tag, Wrench } from "lucide-react";
-import { issueTypeChip, statusTone, truncateChips, type ChipItem } from "./chip-mapping";
+import type { NormalizedIssue } from "@roubo/shared";
+import {
+  alertSeverityTooltip,
+  issueTypeChip,
+  statusTone,
+  truncateChips,
+  type ChipItem,
+} from "./chip-mapping";
 
 describe("statusTone", () => {
   it.each([
@@ -41,22 +48,101 @@ describe("issueTypeChip", () => {
     ["enhancement", Sparkles],
     ["chore", Wrench],
     ["task", CheckSquare],
-    ["CodeQL", Shield],
-    ["secret-scanning", KeyRound],
-    ["secret_scanning", KeyRound],
-    ["Secret Scanning", KeyRound],
-    ["dependabot", Package],
-  ])("maps %p to the expected icon", (input, expectedIcon) => {
-    const chip = issueTypeChip(input);
-    expect(chip).not.toBeNull();
-    expect(chip?.icon).toBe(expectedIcon);
-    expect(chip?.label).toBe(input.trim());
-  });
+  ])(
+    "maps known non-alert type %p to its icon and preserves the raw label",
+    (input, expectedIcon) => {
+      const chip = issueTypeChip(input);
+      expect(chip).not.toBeNull();
+      expect(chip?.icon).toBe(expectedIcon);
+      expect(chip?.label).toBe(input.trim());
+    },
+  );
+
+  it.each([
+    ["security-code-scanning", Shield, "CodeQL"],
+    ["security-secret-scanning", KeyRound, "Secret scanning"],
+    ["security-dependabot", Package, "Dependabot"],
+    ["security_code_scanning", Shield, "CodeQL"],
+    ["Security Secret Scanning", KeyRound, "Secret scanning"],
+  ])(
+    "maps alert issueType %p to the friendly chip (%p, %p)",
+    (input, expectedIcon, expectedLabel) => {
+      const chip = issueTypeChip(input);
+      expect(chip).not.toBeNull();
+      expect(chip?.icon).toBe(expectedIcon);
+      expect(chip?.label).toBe(expectedLabel);
+    },
+  );
 
   it("falls back to Tag icon for unknown types", () => {
     const chip = issueTypeChip("Unknown");
     expect(chip?.icon).toBe(Tag);
     expect(chip?.label).toBe("Unknown");
+  });
+});
+
+describe("alertSeverityTooltip", () => {
+  function alertIssue(issueType: NormalizedIssue["issueType"], raw: unknown): NormalizedIssue {
+    return {
+      integrationId: "github-com:test",
+      externalId: "owner/repo#code-scanning-1",
+      externalUrl: "https://example.test",
+      title: "fixture",
+      body: null,
+      issueType,
+      currentState: "open",
+      allowedTransitions: [],
+      assignees: [],
+      labels: [],
+      blocks: [],
+      blockedBy: [],
+      updatedAt: "2026-01-01T00:00:00Z",
+      raw,
+    };
+  }
+
+  it("prefers security_severity_level for code-scanning alerts", () => {
+    const issue = alertIssue("security-code-scanning", {
+      rule: { security_severity_level: "high", severity: "error" },
+    });
+    expect(alertSeverityTooltip(issue)).toBe("Severity: High");
+  });
+
+  it("falls back to rule.severity when security_severity_level is missing", () => {
+    const issue = alertIssue("security-code-scanning", {
+      rule: { severity: "warning" },
+    });
+    expect(alertSeverityTooltip(issue)).toBe("Severity: Warning");
+  });
+
+  it("reads security_advisory.severity for dependabot alerts", () => {
+    const issue = alertIssue("security-dependabot", {
+      security_advisory: { severity: "critical" },
+    });
+    expect(alertSeverityTooltip(issue)).toBe("Severity: Critical");
+  });
+
+  it("uses secret_type_display_name for secret-scanning alerts (no severity field)", () => {
+    const issue = alertIssue("security-secret-scanning", {
+      secret_type_display_name: "AWS access key",
+    });
+    expect(alertSeverityTooltip(issue)).toBe("AWS access key");
+  });
+
+  it("returns null for non-alert issues", () => {
+    const issue = alertIssue("bug", { rule: { severity: "warning" } });
+    expect(alertSeverityTooltip(issue)).toBeNull();
+  });
+
+  it("returns null when raw is missing or malformed", () => {
+    expect(alertSeverityTooltip(alertIssue("security-code-scanning", null))).toBeNull();
+    expect(alertSeverityTooltip(alertIssue("security-code-scanning", "not-an-object"))).toBeNull();
+    expect(alertSeverityTooltip(alertIssue("security-code-scanning", { rule: null }))).toBeNull();
+    expect(
+      alertSeverityTooltip(alertIssue("security-code-scanning", { rule: { severity: "   " } })),
+    ).toBeNull();
+    expect(alertSeverityTooltip(alertIssue("security-dependabot", {}))).toBeNull();
+    expect(alertSeverityTooltip(alertIssue("security-secret-scanning", {}))).toBeNull();
   });
 });
 

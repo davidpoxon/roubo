@@ -5,6 +5,7 @@ import type { NormalizedIssue } from "@roubo/shared";
 import IssueChip from "./IssueChip";
 import {
   METADATA_ICONS,
+  alertSeverityTooltip,
   issueTypeChip,
   statusTone,
   truncateChips,
@@ -51,11 +52,13 @@ export default function DraggableIssueCard({
   });
 
   if (typeChip) {
+    const tooltip = alertSeverityTooltip(issue) ?? undefined;
     chips.push({
       category: "issue-type",
       key: "issue-type",
       label: typeChip.label,
       icon: typeChip.icon,
+      tooltip,
     });
   }
 
@@ -134,6 +137,7 @@ export default function DraggableIssueCard({
                 icon={chip.icon}
                 tone={chip.tone}
                 ariaDescription={chip.ariaDescription}
+                tooltip={chip.tooltip}
               >
                 {chip.label}
               </IssueChip>
