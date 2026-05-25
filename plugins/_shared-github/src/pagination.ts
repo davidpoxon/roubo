@@ -5,14 +5,29 @@ import type { FetchTransport } from "./transport.js";
  * every paginated REST endpoint (e.g. `Link: <https://api.github.com/...?page=2>; rel="next", <...>; rel="last"`).
  * Accepts the `string | string[]` shape that `host.fetch` may surface for
  * repeated headers; arrays are joined with commas so the same parser walks them.
+ *
+ * Uses linear string indexing rather than a regex with `\s*` quantifiers, to
+ * avoid polynomial backtracking on adversarial inputs (CodeQL js/polynomial-redos).
  */
 export function parseLinkHeader(value: string | string[] | undefined): Record<string, string> {
   if (!value) return {};
   const joined = Array.isArray(value) ? value.join(", ") : value;
   const out: Record<string, string> = {};
-  for (const part of joined.split(",")) {
-    const m = /<([^>]+)>\s*;\s*rel="([^"]+)"/.exec(part.trim());
-    if (m) out[m[2]] = m[1];
+  for (const rawPart of joined.split(",")) {
+    const part = rawPart.trim();
+    // Expect "<url>; rel=\"name\"" (possibly with additional ;-separated params).
+    if (part.charCodeAt(0) !== 0x3c /* '<' */) continue;
+    const urlEnd = part.indexOf(">", 1);
+    if (urlEnd < 0) continue;
+    const url = part.slice(1, urlEnd);
+    // Search the remainder for a `rel="..."` param. indexOf is linear, no backtracking.
+    const relKey = part.indexOf('rel="', urlEnd + 1);
+    if (relKey < 0) continue;
+    const relStart = relKey + 'rel="'.length;
+    const relEnd = part.indexOf('"', relStart);
+    if (relEnd < 0) continue;
+    const rel = part.slice(relStart, relEnd);
+    if (rel.length > 0) out[rel] = url;
   }
   return out;
 }
