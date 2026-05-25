@@ -23,16 +23,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-002",
-      "FR-016",
-      "FR-033"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-001", "FR-002", "FR-016", "FR-033"],
     "linked_user_story_ids": []
   },
   {
@@ -58,15 +50,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-033",
-      "NFR-008"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-001", "FR-033", "NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -75,9 +60,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A plugin declares roubo: ^2.0.0; current hostApiVersion is 1.0.0"
-    ],
+    "preconditions": ["A plugin declares roubo: ^2.0.0; current hostApiVersion is 1.0.0"],
     "steps": [
       {
         "action": "Open the Plugins page"
@@ -91,12 +74,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-005"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-005"],
     "linked_user_story_ids": []
   },
   {
@@ -105,9 +84,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A bundled plugin is enabled"
-    ],
+    "preconditions": ["A bundled plugin is enabled"],
     "steps": [
       {
         "action": "Inspect the host process tree",
@@ -118,12 +95,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-003"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-003"],
     "linked_user_story_ids": []
   },
   {
@@ -132,9 +105,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A plugin is enabled"
-    ],
+    "preconditions": ["A plugin is enabled"],
     "steps": [
       {
         "action": "Call a plugin method via the host RPC layer (e.g. listSourceCandidates)"
@@ -148,12 +119,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-004"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-004"],
     "linked_user_story_ids": []
   },
   {
@@ -177,12 +144,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-006"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-006"],
     "linked_user_story_ids": []
   },
   {
@@ -191,16 +154,11 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Roubo is running",
-      "User opens the Install plugin dialog"
-    ],
+    "preconditions": ["Roubo is running", "User opens the Install plugin dialog"],
     "steps": [
       {
         "action": "Paste a valid Git URL pointing at a plugin repository",
-        "expected": [
-          "Host clones the repo into ~/.roubo/plugins/<id>/"
-        ]
+        "expected": ["Host clones the repo into ~/.roubo/plugins/<id>/"]
       },
       {
         "action": "Wait for the permissions dialog",
@@ -212,18 +170,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-007",
-      "FR-017",
-      "NFR-003"
-    ],
-    "linked_user_story_ids": [
-      "US-007"
-    ]
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-007", "FR-017", "NFR-003"],
+    "linked_user_story_ids": ["US-007"]
   },
   {
     "id": "TC-008",
@@ -231,10 +180,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "A plugin declares network.hosts: ['api.github.com']",
-      "Plugin is enabled"
-    ],
+    "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
     "steps": [
       {
         "action": "Plugin calls host.fetch('https://example.com/secret')",
@@ -245,14 +191,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-008",
-      "NFR-001"
-    ],
+    "tags": ["security", "automated"],
+    "linked_requirement_ids": ["FR-008", "NFR-001"],
     "linked_user_story_ids": []
   },
   {
@@ -261,10 +201,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "performance",
-    "preconditions": [
-      "A plugin declares network.hosts: ['api.github.com']",
-      "Plugin is enabled"
-    ],
+    "preconditions": ["A plugin declares network.hosts: ['api.github.com']", "Plugin is enabled"],
     "steps": [
       {
         "action": "Plugin calls host.fetch against an endpoint that returns ETag and Retry-After",
@@ -275,14 +212,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-008",
-      "NFR-006",
-      "FR-039"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-008", "NFR-006", "FR-039"],
     "linked_user_story_ids": []
   },
   {
@@ -291,9 +222,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "A fresh plugin install with no prior config"
-    ],
+    "preconditions": ["A fresh plugin install with no prior config"],
     "steps": [
       {
         "action": "Open the plugin configure dialog",
@@ -304,9 +233,7 @@
       },
       {
         "action": "Toggle the checkbox on",
-        "expected": [
-          "A warning is shown explaining the risk"
-        ]
+        "expected": ["A warning is shown explaining the risk"]
       },
       {
         "action": "Save the configuration",
@@ -316,13 +243,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-009"
-    ],
+    "tags": ["security", "automated"],
+    "linked_requirement_ids": ["FR-009"],
     "linked_user_story_ids": []
   },
   {
@@ -331,10 +253,7 @@
     "area": "credential-store",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "Running on macOS",
-      "Keychain accessible"
-    ],
+    "preconditions": ["Running on macOS", "Keychain accessible"],
     "steps": [
       {
         "action": "Plugin calls host.credentials.set('jira-token', 'secret-value')"
@@ -348,15 +267,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "macos",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-010",
-      "NFR-002"
-    ],
+    "tags": ["security", "macos", "automated"],
+    "linked_requirement_ids": ["FR-010", "NFR-002"],
     "linked_user_story_ids": []
   },
   {
@@ -381,15 +293,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "linux",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-010",
-      "NFR-002"
-    ],
+    "tags": ["security", "linux", "automated"],
+    "linked_requirement_ids": ["FR-010", "NFR-002"],
     "linked_user_story_ids": []
   },
   {
@@ -398,9 +303,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "An enabled plugin"
-    ],
+    "preconditions": ["An enabled plugin"],
     "steps": [
       {
         "action": "Click Disable on the plugin card",
@@ -412,20 +315,11 @@
       },
       {
         "action": "Click Enable on the plugin card",
-        "expected": [
-          "A fresh plugin child process is spawned",
-          "Status pill changes to Enabled"
-        ]
+        "expected": ["A fresh plugin child process is spawned", "Status pill changes to Enabled"]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-011",
-      "FR-016"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-011", "FR-016"],
     "linked_user_story_ids": []
   },
   {
@@ -434,9 +328,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A fixture plugin that hangs on listIssues"
-    ],
+    "preconditions": ["A fixture plugin that hangs on listIssues"],
     "steps": [
       {
         "action": "Host calls listIssues with default timeout (30s)"
@@ -450,12 +342,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-012"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-012"],
     "linked_user_story_ids": []
   },
   {
@@ -464,9 +352,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A fixture plugin that exits immediately on every start"
-    ],
+    "preconditions": ["A fixture plugin that exits immediately on every start"],
     "steps": [
       {
         "action": "Enable the plugin"
@@ -480,13 +366,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-013",
-      "NFR-008"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-013", "NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -512,16 +393,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-014",
-      "NFR-008"
-    ],
-    "linked_user_story_ids": [
-      "US-009"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-014", "NFR-008"],
+    "linked_user_story_ids": ["US-009"]
   },
   {
     "id": "TC-017",
@@ -529,18 +403,14 @@
     "area": "observability",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "An enabled plugin that emits stdout and stderr output"
-    ],
+    "preconditions": ["An enabled plugin that emits stdout and stderr output"],
     "steps": [
       {
         "action": "Cause the plugin to emit log output via host.logger.info / warn / error"
       },
       {
         "action": "Check the filesystem",
-        "expected": [
-          "~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"
-        ]
+        "expected": ["~/.roubo/plugins/<id>/logs/current.log exists and contains the entries"]
       },
       {
         "action": "Open the View logs dialog from the Plugins page",
@@ -550,16 +420,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-015",
-      "NFR-010"
-    ],
-    "linked_user_story_ids": [
-      "US-009"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-015", "NFR-010"],
+    "linked_user_story_ids": ["US-009"]
   },
   {
     "id": "TC-018",
@@ -580,13 +443,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-016"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-016"],
     "linked_user_story_ids": []
   },
   {
@@ -595,9 +453,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A local directory at /tmp/my-plugin with a valid roubo-plugin.yaml"
-    ],
+    "preconditions": ["A local directory at /tmp/my-plugin with a valid roubo-plugin.yaml"],
     "steps": [
       {
         "action": "Open Install plugin, switch to 'From local directory' tab, enter /tmp/my-plugin"
@@ -610,15 +466,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-017"
-    ],
-    "linked_user_story_ids": [
-      "US-004"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-017"],
+    "linked_user_story_ids": ["US-004"]
   },
   {
     "id": "TC-020",
@@ -626,9 +476,7 @@
     "area": "project-config",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A project with the github-com plugin selected"
-    ],
+    "preconditions": ["A project with the github-com plugin selected"],
     "steps": [
       {
         "action": "Open the Issue source tile and click Switch integration"
@@ -642,15 +490,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-018"
-    ],
-    "linked_user_story_ids": [
-      "US-006"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-018"],
+    "linked_user_story_ids": ["US-006"]
   },
   {
     "id": "TC-021",
@@ -658,9 +500,7 @@
     "area": "source-picker",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Active integration is github-com or ghe"
-    ],
+    "preconditions": ["Active integration is github-com or ghe"],
     "steps": [
       {
         "action": "Open Configure sources"
@@ -674,16 +514,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-019"
-    ],
-    "linked_user_story_ids": [
-      "US-001",
-      "US-008"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-019"],
+    "linked_user_story_ids": ["US-001", "US-008"]
   },
   {
     "id": "TC-022",
@@ -691,9 +524,7 @@
     "area": "source-picker",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Active integration is jira-self-hosted"
-    ],
+    "preconditions": ["Active integration is jira-self-hosted"],
     "steps": [
       {
         "action": "Open Configure sources"
@@ -707,15 +538,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-019"
-    ],
-    "linked_user_story_ids": [
-      "US-002"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-019"],
+    "linked_user_story_ids": ["US-002"]
   },
   {
     "id": "TC-023",
@@ -738,12 +563,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-020"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-020"],
     "linked_user_story_ids": []
   },
   {
@@ -752,9 +573,7 @@
     "area": "issue-list",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A plugin returns an issue from listIssues"
-    ],
+    "preconditions": ["A plugin returns an issue from listIssues"],
     "steps": [
       {
         "action": "Inspect the issue object received by the host",
@@ -764,12 +583,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-021"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-021"],
     "linked_user_story_ids": []
   },
   {
@@ -795,14 +610,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-022",
-      "NFR-005"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-022", "NFR-005"],
     "linked_user_story_ids": []
   },
   {
@@ -828,16 +637,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ]
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-023"],
+    "linked_user_story_ids": ["US-010"]
   },
   {
     "id": "TC-027",
@@ -861,15 +663,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-023"],
+    "linked_user_story_ids": ["US-010"]
   },
   {
     "id": "TC-028",
@@ -895,22 +691,12 @@
       },
       {
         "action": "Click Install and accept permissions",
-        "expected": [
-          "Plugin installs",
-          "Project loads normally"
-        ]
+        "expected": ["Plugin installs", "Project loads normally"]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-024"
-    ],
-    "linked_user_story_ids": [
-      "US-005"
-    ]
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-024"],
+    "linked_user_story_ids": ["US-005"]
   },
   {
     "id": "TC-029",
@@ -935,12 +721,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-025"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-025"],
     "linked_user_story_ids": []
   },
   {
@@ -949,9 +731,7 @@
     "area": "jira-plugin",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Plugin has a stored last-poll timestamp for a source"
-    ],
+    "preconditions": ["Plugin has a stored last-poll timestamp for a source"],
     "steps": [
       {
         "action": "Trigger a poll"
@@ -964,12 +744,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-026"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-026"],
     "linked_user_story_ids": []
   },
   {
@@ -998,19 +774,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "migration",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-027",
-      "FR-028",
-      "NFR-009"
-    ],
-    "linked_user_story_ids": [
-      "US-003"
-    ]
+    "tags": ["smoke", "migration", "automated"],
+    "linked_requirement_ids": ["FR-027", "FR-028", "NFR-009"],
+    "linked_user_story_ids": ["US-003"]
   },
   {
     "id": "TC-032",
@@ -1018,9 +784,7 @@
     "area": "bench-snapshot",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A migrated bench from a pre-plugin Roubo"
-    ],
+    "preconditions": ["A migrated bench from a pre-plugin Roubo"],
     "steps": [
       {
         "action": "Inspect the bench's assignedIssue",
@@ -1031,21 +795,12 @@
       },
       {
         "action": "Create a new bench against a new integration",
-        "expected": [
-          "integrationId reflects the new active integration"
-        ]
+        "expected": ["integrationId reflects the new active integration"]
       }
     ],
-    "tags": [
-      "automated",
-      "migration"
-    ],
-    "linked_requirement_ids": [
-      "FR-028"
-    ],
-    "linked_user_story_ids": [
-      "US-003"
-    ]
+    "tags": ["automated", "migration"],
+    "linked_requirement_ids": ["FR-028"],
+    "linked_user_story_ids": ["US-003"]
   },
   {
     "id": "TC-033",
@@ -1065,12 +820,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-029"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-029"],
     "linked_user_story_ids": []
   },
   {
@@ -1079,10 +830,7 @@
     "area": "bench-creation",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Issue PROJ-200 has blockedBy: ['PROJ-100']",
-      "PROJ-100 is open"
-    ],
+    "preconditions": ["Issue PROJ-200 has blockedBy: ['PROJ-100']", "PROJ-100 is open"],
     "steps": [
       {
         "action": "Open the Issue Picker on PROJ-200"
@@ -1096,19 +844,11 @@
       },
       {
         "action": "Click Create bench",
-        "expected": [
-          "Bench is created successfully",
-          "No hard-block error is thrown"
-        ]
+        "expected": ["Bench is created successfully", "No hard-block error is thrown"]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-030"
-    ],
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-030"],
     "linked_user_story_ids": []
   },
   {
@@ -1117,9 +857,7 @@
     "area": "sdk",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "@roubo/plugin-sdk is published or available as a local package"
-    ],
+    "preconditions": ["@roubo/plugin-sdk is published or available as a local package"],
     "steps": [
       {
         "action": "Author imports definePlugin and calls it with a contract object"
@@ -1132,15 +870,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-031"
-    ],
-    "linked_user_story_ids": [
-      "US-004"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-031"],
+    "linked_user_story_ids": ["US-004"]
   },
   {
     "id": "TC-036",
@@ -1148,9 +880,7 @@
     "area": "manifest-schema",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "A built Roubo distribution"
-    ],
+    "preconditions": ["A built Roubo distribution"],
     "steps": [
       {
         "action": "Inspect schema/roubo-plugin.schema.json",
@@ -1161,12 +891,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-032"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-032"],
     "linked_user_story_ids": []
   },
   {
@@ -1175,9 +901,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "GHE plugin configure dialog is open with instance URL and PAT entered"
-    ],
+    "preconditions": ["GHE plugin configure dialog is open with instance URL and PAT entered"],
     "steps": [
       {
         "action": "Click Test connection"
@@ -1192,18 +916,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-034",
-      "FR-035"
-    ],
-    "linked_user_story_ids": [
-      "US-001",
-      "US-002"
-    ]
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-034", "FR-035"],
+    "linked_user_story_ids": ["US-001", "US-002"]
   },
   {
     "id": "TC-038",
@@ -1211,9 +926,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Test connection has succeeded with a valid PAT"
-    ],
+    "preconditions": ["Test connection has succeeded with a valid PAT"],
     "steps": [
       {
         "action": "Save the configuration"
@@ -1226,12 +939,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-035"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-035"],
     "linked_user_story_ids": []
   },
   {
@@ -1255,16 +964,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-036"
-    ],
-    "linked_user_story_ids": [
-      "US-008"
-    ]
+    "tags": ["smoke", "automated"],
+    "linked_requirement_ids": ["FR-036"],
+    "linked_user_story_ids": ["US-008"]
   },
   {
     "id": "TC-040",
@@ -1288,12 +990,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-037"
-    ],
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-037"],
     "linked_user_story_ids": []
   },
   {
@@ -1302,9 +1000,7 @@
     "area": "forward-compat",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "The slug folder contains the paper sketch"
-    ],
+    "preconditions": ["The slug folder contains the paper sketch"],
     "steps": [
       {
         "action": "Verify the sketch exists under .specifications/integration-plugins/ and is referenced from architecture.md"
@@ -1318,14 +1014,8 @@
         ]
       }
     ],
-    "tags": [
-      "manual",
-      "review-gate"
-    ],
-    "linked_requirement_ids": [
-      "FR-038",
-      "NFR-011"
-    ],
+    "tags": ["manual", "review-gate"],
+    "linked_requirement_ids": ["FR-038", "NFR-011"],
     "linked_user_story_ids": []
   },
   {
@@ -1351,13 +1041,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "github-parity"
-    ],
-    "linked_requirement_ids": [
-      "FR-039"
-    ],
+    "tags": ["automated", "github-parity"],
+    "linked_requirement_ids": ["FR-039"],
     "linked_user_story_ids": []
   },
   {
@@ -1382,13 +1067,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "github-parity"
-    ],
-    "linked_requirement_ids": [
-      "FR-039"
-    ],
+    "tags": ["automated", "github-parity"],
+    "linked_requirement_ids": ["FR-039"],
     "linked_user_story_ids": []
   },
   {
@@ -1397,9 +1077,7 @@
     "area": "observability",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "A plugin attempts an out-of-allowlist host.fetch"
-    ],
+    "preconditions": ["A plugin attempts an out-of-allowlist host.fetch"],
     "steps": [
       {
         "action": "Trigger the denial"
@@ -1412,14 +1090,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "security"
-    ],
-    "linked_requirement_ids": [
-      "NFR-001",
-      "NFR-010"
-    ],
+    "tags": ["automated", "security"],
+    "linked_requirement_ids": ["NFR-001", "NFR-010"],
     "linked_user_story_ids": []
   },
   {
@@ -1428,36 +1100,25 @@
     "area": "security",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "A plugin returns a normalized issue with a populated 'raw' field"
-    ],
+    "preconditions": ["A plugin returns a normalized issue with a populated 'raw' field"],
     "steps": [
       {
         "action": "Assign the issue to a bench"
       },
       {
         "action": "Inspect ~/.roubo/state.json",
-        "expected": [
-          "The active bench's assignedIssue.raw is present"
-        ]
+        "expected": ["The active bench's assignedIssue.raw is present"]
       },
       {
         "action": "Clear the bench"
       },
       {
         "action": "Re-inspect ~/.roubo/state.json",
-        "expected": [
-          "No 'raw' field remains anywhere in state.json after the bench is cleared"
-        ]
+        "expected": ["No 'raw' field remains anywhere in state.json after the bench is cleared"]
       }
     ],
-    "tags": [
-      "automated",
-      "security"
-    ],
-    "linked_requirement_ids": [
-      "NFR-004"
-    ],
+    "tags": ["automated", "security"],
+    "linked_requirement_ids": ["NFR-004"],
     "linked_user_story_ids": []
   },
   {
@@ -1466,9 +1127,7 @@
     "area": "plugins-ui",
     "level": 1,
     "type": "accessibility",
-    "preconditions": [
-      "Plugins page is open"
-    ],
+    "preconditions": ["Plugins page is open"],
     "steps": [
       {
         "action": "Press Tab repeatedly through the page",
@@ -1479,19 +1138,11 @@
       },
       {
         "action": "Open the Install dialog and press Escape",
-        "expected": [
-          "Dialog closes",
-          "Focus returns to the Install plugin button"
-        ]
+        "expected": ["Dialog closes", "Focus returns to the Install plugin button"]
       }
     ],
-    "tags": [
-      "accessibility",
-      "manual"
-    ],
-    "linked_requirement_ids": [
-      "NFR-007"
-    ],
+    "tags": ["accessibility", "manual"],
+    "linked_requirement_ids": ["NFR-007"],
     "linked_user_story_ids": []
   },
   {
@@ -1500,10 +1151,7 @@
     "area": "ghe-plugin",
     "level": 2,
     "type": "functional",
-    "preconditions": [
-      "GHE plugin is bundled",
-      "User has a valid GHE PAT and instance URL"
-    ],
+    "preconditions": ["GHE plugin is bundled", "User has a valid GHE PAT and instance URL"],
     "steps": [
       {
         "action": "Open Plugins page, enable GHE plugin"
@@ -1516,44 +1164,26 @@
       },
       {
         "action": "Click Test connection",
-        "expected": [
-          "Returns 'Connected as <user>' inline"
-        ]
+        "expected": ["Returns 'Connected as <user>' inline"]
       },
       {
         "action": "Click Save"
       },
       {
         "action": "Open Configure sources",
-        "expected": [
-          "multi-list picker shows the user's repos and Projects"
-        ]
+        "expected": ["multi-list picker shows the user's repos and Projects"]
       },
       {
         "action": "Select at least one repo and one Project, click Select"
       },
       {
         "action": "Open the issue queue",
-        "expected": [
-          "Issues from the selected sources appear",
-          "Cross-source dedup applies"
-        ]
+        "expected": ["Issues from the selected sources appear", "Cross-source dedup applies"]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-018",
-      "FR-019",
-      "FR-022",
-      "FR-034",
-      "FR-035"
-    ],
-    "linked_user_story_ids": [
-      "US-001"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-018", "FR-019", "FR-022", "FR-034", "FR-035"],
+    "linked_user_story_ids": ["US-001"]
   },
   {
     "id": "TC-048",
@@ -1574,9 +1204,7 @@
       },
       {
         "action": "Click Test connection",
-        "expected": [
-          "Returns 'Connected as <displayName>' inline"
-        ]
+        "expected": ["Returns 'Connected as <displayName>' inline"]
       },
       {
         "action": "Save"
@@ -1592,10 +1220,7 @@
         ]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
+    "tags": ["journey", "automated"],
     "linked_requirement_ids": [
       "FR-018",
       "FR-019",
@@ -1607,9 +1232,7 @@
       "FR-034",
       "FR-035"
     ],
-    "linked_user_story_ids": [
-      "US-002"
-    ]
+    "linked_user_story_ids": ["US-002"]
   },
   {
     "id": "TC-049",
@@ -1626,9 +1249,7 @@
       },
       {
         "action": "Observe migration banner",
-        "expected": [
-          "Single one-time success banner"
-        ]
+        "expected": ["Single one-time success banner"]
       },
       {
         "action": "Open both pre-existing projects",
@@ -1647,21 +1268,9 @@
         ]
       }
     ],
-    "tags": [
-      "journey",
-      "migration",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-010",
-      "FR-027",
-      "FR-028",
-      "NFR-002",
-      "NFR-009"
-    ],
-    "linked_user_story_ids": [
-      "US-003"
-    ]
+    "tags": ["journey", "migration", "automated"],
+    "linked_requirement_ids": ["FR-010", "FR-027", "FR-028", "NFR-002", "NFR-009"],
+    "linked_user_story_ids": ["US-003"]
   },
   {
     "id": "TC-050",
@@ -1687,25 +1296,12 @@
       },
       {
         "action": "Observe issue queue",
-        "expected": [
-          "Linear issues appear in the normalized shape"
-        ]
+        "expected": ["Linear issues appear in the normalized shape"]
       }
     ],
-    "tags": [
-      "journey",
-      "manual"
-    ],
-    "linked_requirement_ids": [
-      "FR-007",
-      "FR-017",
-      "FR-018",
-      "FR-021",
-      "FR-031"
-    ],
-    "linked_user_story_ids": [
-      "US-004"
-    ]
+    "tags": ["journey", "manual"],
+    "linked_requirement_ids": ["FR-007", "FR-017", "FR-018", "FR-021", "FR-031"],
+    "linked_user_story_ids": ["US-004"]
   },
   {
     "id": "TC-051",
@@ -1723,9 +1319,7 @@
       },
       {
         "action": "Missing-plugin prompt appears",
-        "expected": [
-          "One-click Install button is shown using the pluginSource"
-        ]
+        "expected": ["One-click Install button is shown using the pluginSource"]
       },
       {
         "action": "Click Install and accept permissions"
@@ -1735,23 +1329,12 @@
       },
       {
         "action": "Open the issue queue",
-        "expected": [
-          "Teammate sees their own slice of issues per the merged effective config"
-        ]
+        "expected": ["Teammate sees their own slice of issues per the merged effective config"]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-017",
-      "FR-023",
-      "FR-024"
-    ],
-    "linked_user_story_ids": [
-      "US-005"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-017", "FR-023", "FR-024"],
+    "linked_user_story_ids": ["US-005"]
   },
   {
     "id": "TC-052",
@@ -1759,9 +1342,7 @@
     "area": "project-config",
     "level": 2,
     "type": "functional",
-    "preconditions": [
-      "A project on github-com with two active benches against GitHub issues"
-    ],
+    "preconditions": ["A project on github-com with two active benches against GitHub issues"],
     "steps": [
       {
         "action": "Open Switch integration, pick jira-self-hosted, confirm"
@@ -1781,17 +1362,9 @@
         ]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-018",
-      "FR-028"
-    ],
-    "linked_user_story_ids": [
-      "US-006"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-018", "FR-028"],
+    "linked_user_story_ids": ["US-006"]
   },
   {
     "id": "TC-053",
@@ -1799,18 +1372,14 @@
     "area": "plugins-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": [
-      "A reachable Git URL hosting a valid plugin"
-    ],
+    "preconditions": ["A reachable Git URL hosting a valid plugin"],
     "steps": [
       {
         "action": "Open Install plugin, From Git URL tab, paste the URL"
       },
       {
         "action": "Click Install",
-        "expected": [
-          "Host clones into ~/.roubo/plugins/<id>/"
-        ]
+        "expected": ["Host clones into ~/.roubo/plugins/<id>/"]
       },
       {
         "action": "Accept permissions dialog"
@@ -1822,17 +1391,9 @@
         "action": "Confirm plugin is enabled and reachable from a project's Issue source tile"
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-007",
-      "FR-017"
-    ],
-    "linked_user_story_ids": [
-      "US-007"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-007", "FR-017"],
+    "linked_user_story_ids": ["US-007"]
   },
   {
     "id": "TC-054",
@@ -1840,9 +1401,7 @@
     "area": "bench-view",
     "level": 2,
     "type": "functional",
-    "preconditions": [
-      "A bench against an issue whose allowedTransitions = ['In Review', 'Done']"
-    ],
+    "preconditions": ["A bench against an issue whose allowedTransitions = ['In Review', 'Done']"],
     "steps": [
       {
         "action": "Open the Transition control"
@@ -1856,16 +1415,9 @@
         ]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-036"
-    ],
-    "linked_user_story_ids": [
-      "US-008"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-036"],
+    "linked_user_story_ids": ["US-008"]
   },
   {
     "id": "TC-055",
@@ -1879,37 +1431,20 @@
     "steps": [
       {
         "action": "Observe Plugins page",
-        "expected": [
-          "Plugin status is errored after the 3rd crash"
-        ]
+        "expected": ["Plugin status is errored after the 3rd crash"]
       },
       {
         "action": "Open a project that uses this plugin",
-        "expected": [
-          "Last-good snapshot is served with a global banner"
-        ]
+        "expected": ["Last-good snapshot is served with a global banner"]
       },
       {
         "action": "Click Restart on the errored card",
-        "expected": [
-          "Restart counter clears",
-          "Plugin starts; status becomes Enabled"
-        ]
+        "expected": ["Restart counter clears", "Plugin starts; status becomes Enabled"]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-013",
-      "FR-014",
-      "FR-015",
-      "FR-016"
-    ],
-    "linked_user_story_ids": [
-      "US-009"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-013", "FR-014", "FR-015", "FR-016"],
+    "linked_user_story_ids": ["US-009"]
   },
   {
     "id": "TC-056",
@@ -1935,21 +1470,12 @@
       },
       {
         "action": "Inspect git status",
-        "expected": [
-          "No changes to roubo.yaml (override is per-user, not committed)"
-        ]
+        "expected": ["No changes to roubo.yaml (override is per-user, not committed)"]
       }
     ],
-    "tags": [
-      "journey",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ]
+    "tags": ["journey", "automated"],
+    "linked_requirement_ids": ["FR-023"],
+    "linked_user_story_ids": ["US-010"]
   },
   {
     "id": "TC-057",
@@ -1957,10 +1483,7 @@
     "area": "issue-list",
     "level": 2,
     "type": "performance",
-    "preconditions": [
-      "A source with exactly 500 issues",
-      "Page size = 50"
-    ],
+    "preconditions": ["A source with exactly 500 issues", "Page size = 50"],
     "steps": [
       {
         "action": "Open the issue picker and scroll to the bottom"
@@ -1974,15 +1497,8 @@
         ]
       }
     ],
-    "tags": [
-      "performance",
-      "automated",
-      "slow"
-    ],
-    "linked_requirement_ids": [
-      "FR-022",
-      "NFR-005"
-    ],
+    "tags": ["performance", "automated", "slow"],
+    "linked_requirement_ids": ["FR-022", "NFR-005"],
     "linked_user_story_ids": []
   },
   {
@@ -1991,9 +1507,7 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "Install dialog open"
-    ],
+    "preconditions": ["Install dialog open"],
     "steps": [
       {
         "action": "Paste https://github.com/this-repo/does-not-exist.git"
@@ -2007,13 +1521,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-017"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-017"],
     "linked_user_story_ids": []
   },
   {
@@ -2022,9 +1531,7 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "Install dialog open"
-    ],
+    "preconditions": ["Install dialog open"],
     "steps": [
       {
         "action": "Paste a local directory path that has no roubo-plugin.yaml"
@@ -2037,13 +1544,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-017"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-017"],
     "linked_user_story_ids": []
   },
   {
@@ -2052,9 +1554,7 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "GHE configure dialog open with a valid instance URL but a junk PAT"
-    ],
+    "preconditions": ["GHE configure dialog open with a valid instance URL but a junk PAT"],
     "steps": [
       {
         "action": "Click Test connection",
@@ -2065,13 +1565,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-034"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-034"],
     "linked_user_story_ids": []
   },
   {
@@ -2080,9 +1575,7 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "Jira configure dialog with a non-resolving instance URL"
-    ],
+    "preconditions": ["Jira configure dialog with a non-resolving instance URL"],
     "steps": [
       {
         "action": "Click Test connection",
@@ -2092,13 +1585,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-034"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-034"],
     "linked_user_story_ids": []
   },
   {
@@ -2127,14 +1615,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-009",
-      "FR-034"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-009", "FR-034"],
     "linked_user_story_ids": []
   },
   {
@@ -2158,13 +1640,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-036"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-036"],
     "linked_user_story_ids": []
   },
   {
@@ -2173,9 +1650,7 @@
     "area": "bench-view",
     "level": 3,
     "type": "edge_case",
-    "preconditions": [
-      "A bench is created against an issue in state 'To Do'"
-    ],
+    "preconditions": ["A bench is created against an issue in state 'To Do'"],
     "steps": [
       {
         "action": "Create the bench"
@@ -2197,13 +1672,8 @@
         ]
       }
     ],
-    "tags": [
-      "edge_case",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-036"
-    ],
+    "tags": ["edge_case", "automated"],
+    "linked_requirement_ids": ["FR-036"],
     "linked_user_story_ids": []
   },
   {
@@ -2228,13 +1698,8 @@
         ]
       }
     ],
-    "tags": [
-      "edge_case",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-023"
-    ],
+    "tags": ["edge_case", "automated"],
+    "linked_requirement_ids": ["FR-023"],
     "linked_user_story_ids": []
   },
   {
@@ -2260,13 +1725,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-024"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-024"],
     "linked_user_story_ids": []
   },
   {
@@ -2275,9 +1735,7 @@
     "area": "project-config",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "roubo.yaml: integration: { plugin: 'jira-self-hosted', bogus_field: true }"
-    ],
+    "preconditions": ["roubo.yaml: integration: { plugin: 'jira-self-hosted', bogus_field: true }"],
     "steps": [
       {
         "action": "Parse roubo.yaml",
@@ -2288,13 +1746,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-023"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-023"],
     "linked_user_story_ids": []
   },
   {
@@ -2303,9 +1756,7 @@
     "area": "migration",
     "level": 3,
     "type": "edge_case",
-    "preconditions": [
-      "Migration has already completed once; schemaVersion is bumped"
-    ],
+    "preconditions": ["Migration has already completed once; schemaVersion is bumped"],
     "steps": [
       {
         "action": "Restart Roubo"
@@ -2319,15 +1770,8 @@
         ]
       }
     ],
-    "tags": [
-      "edge_case",
-      "automated",
-      "migration"
-    ],
-    "linked_requirement_ids": [
-      "FR-027",
-      "NFR-009"
-    ],
+    "tags": ["edge_case", "automated", "migration"],
+    "linked_requirement_ids": ["FR-027", "NFR-009"],
     "linked_user_story_ids": []
   },
   {
@@ -2336,9 +1780,7 @@
     "area": "migration",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "Migration is run with the OS keyring temporarily unavailable"
-    ],
+    "preconditions": ["Migration is run with the OS keyring temporarily unavailable"],
     "steps": [
       {
         "action": "Start Roubo"
@@ -2356,15 +1798,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated",
-      "migration"
-    ],
-    "linked_requirement_ids": [
-      "FR-027",
-      "NFR-009"
-    ],
+    "tags": ["negative", "automated", "migration"],
+    "linked_requirement_ids": ["FR-027", "NFR-009"],
     "linked_user_story_ids": []
   },
   {
@@ -2390,15 +1825,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-006",
-      "FR-010",
-      "NFR-001"
-    ],
+    "tags": ["security", "automated"],
+    "linked_requirement_ids": ["FR-006", "FR-010", "NFR-001"],
     "linked_user_story_ids": []
   },
   {
@@ -2423,14 +1851,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-020",
-      "FR-022"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-020", "FR-022"],
     "linked_user_story_ids": []
   },
   {
@@ -2446,18 +1868,11 @@
     "steps": [
       {
         "action": "Plugin normalises a linked issue",
-        "expected": [
-          "The custom-named link is correctly mapped to blocks / blockedBy"
-        ]
+        "expected": ["The custom-named link is correctly mapped to blocks / blockedBy"]
       }
     ],
-    "tags": [
-      "edge_case",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-025"
-    ],
+    "tags": ["edge_case", "automated"],
+    "linked_requirement_ids": ["FR-025"],
     "linked_user_story_ids": []
   },
   {
@@ -2466,9 +1881,7 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "negative",
-    "preconditions": [
-      "A fixture plugin that emits a chunk of non-JSON to stdout"
-    ],
+    "preconditions": ["A fixture plugin that emits a chunk of non-JSON to stdout"],
     "steps": [
       {
         "action": "Host receives the malformed message"
@@ -2482,14 +1895,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-004",
-      "NFR-008"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-004", "NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -2498,9 +1905,7 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "performance",
-    "preconditions": [
-      "A fixture plugin that returns a 10MB+ payload for listIssues"
-    ],
+    "preconditions": ["A fixture plugin that returns a 10MB+ payload for listIssues"],
     "steps": [
       {
         "action": "Host receives the payload"
@@ -2514,15 +1919,8 @@
         ]
       }
     ],
-    "tags": [
-      "performance",
-      "automated",
-      "slow"
-    ],
-    "linked_requirement_ids": [
-      "FR-004",
-      "NFR-008"
-    ],
+    "tags": ["performance", "automated", "slow"],
+    "linked_requirement_ids": ["FR-004", "NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -2531,9 +1929,7 @@
     "area": "plugins-ui",
     "level": 3,
     "type": "accessibility",
-    "preconditions": [
-      "A screen reader (VoiceOver on macOS or Orca on Linux) is running"
-    ],
+    "preconditions": ["A screen reader (VoiceOver on macOS or Orca on Linux) is running"],
     "steps": [
       {
         "action": "Trigger the install permissions dialog"
@@ -2548,14 +1944,8 @@
         ]
       }
     ],
-    "tags": [
-      "accessibility",
-      "manual"
-    ],
-    "linked_requirement_ids": [
-      "NFR-003",
-      "NFR-007"
-    ],
+    "tags": ["accessibility", "manual"],
+    "linked_requirement_ids": ["NFR-003", "NFR-007"],
     "linked_user_story_ids": []
   },
   {
@@ -2564,9 +1954,7 @@
     "area": "source-picker",
     "level": 3,
     "type": "accessibility",
-    "preconditions": [
-      "categorized-multi-list source picker is open"
-    ],
+    "preconditions": ["categorized-multi-list source picker is open"],
     "steps": [
       {
         "action": "Tab through tabs and items",
@@ -2577,18 +1965,11 @@
       },
       {
         "action": "Use Space / Enter to select",
-        "expected": [
-          "Selection state updates and is announced"
-        ]
+        "expected": ["Selection state updates and is announced"]
       }
     ],
-    "tags": [
-      "accessibility",
-      "manual"
-    ],
-    "linked_requirement_ids": [
-      "NFR-007"
-    ],
+    "tags": ["accessibility", "manual"],
+    "linked_requirement_ids": ["NFR-007"],
     "linked_user_story_ids": []
   },
   {
@@ -2597,9 +1978,7 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "edge_case",
-    "preconditions": [
-      "Two plugins are running"
-    ],
+    "preconditions": ["Two plugins are running"],
     "steps": [
       {
         "action": "Send SIGTERM to the host"
@@ -2613,13 +1992,8 @@
         ]
       }
     ],
-    "tags": [
-      "reliability",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "NFR-008"
-    ],
+    "tags": ["reliability", "automated"],
+    "linked_requirement_ids": ["NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -2644,13 +2018,8 @@
         ]
       }
     ],
-    "tags": [
-      "reliability",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "NFR-008"
-    ],
+    "tags": ["reliability", "automated"],
+    "linked_requirement_ids": ["NFR-008"],
     "linked_user_story_ids": []
   },
   {
@@ -2675,14 +2044,8 @@
         ]
       }
     ],
-    "tags": [
-      "negative",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-022",
-      "NFR-005"
-    ],
+    "tags": ["negative", "automated"],
+    "linked_requirement_ids": ["FR-022", "NFR-005"],
     "linked_user_story_ids": []
   },
   {
@@ -2691,9 +2054,7 @@
     "area": "plugin-runtime",
     "level": 3,
     "type": "security",
-    "preconditions": [
-      "Plugin manifest declares no filesystem permission beyond its plugin dir"
-    ],
+    "preconditions": ["Plugin manifest declares no filesystem permission beyond its plugin dir"],
     "steps": [
       {
         "action": "Plugin attempts to write to /tmp/exfiltrate.txt",
@@ -2703,15 +2064,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "manual",
-      "review-gate"
-    ],
-    "linked_requirement_ids": [
-      "FR-006",
-      "NFR-001"
-    ],
+    "tags": ["security", "manual", "review-gate"],
+    "linked_requirement_ids": ["FR-006", "NFR-001"],
     "linked_user_story_ids": []
   },
   {
@@ -2720,9 +2074,7 @@
     "area": "source-picker",
     "level": 4,
     "type": "performance",
-    "preconditions": [
-      "A Jira instance with 300+ filters visible to the user"
-    ],
+    "preconditions": ["A Jira instance with 300+ filters visible to the user"],
     "steps": [
       {
         "action": "Open the source picker, Filters tab"
@@ -2736,15 +2088,8 @@
         ]
       }
     ],
-    "tags": [
-      "performance",
-      "manual",
-      "exploratory",
-      "slow"
-    ],
-    "linked_requirement_ids": [
-      "FR-019"
-    ],
+    "tags": ["performance", "manual", "exploratory", "slow"],
+    "linked_requirement_ids": ["FR-019"],
     "linked_user_story_ids": []
   },
   {
@@ -2753,9 +2098,7 @@
     "area": "plugins-ui",
     "level": 4,
     "type": "edge_case",
-    "preconditions": [
-      "A community plugin whose configSchema includes nested objects and arrays"
-    ],
+    "preconditions": ["A community plugin whose configSchema includes nested objects and arrays"],
     "steps": [
       {
         "action": "Open the plugin configure dialog"
@@ -2769,13 +2112,8 @@
         ]
       }
     ],
-    "tags": [
-      "exploratory",
-      "manual"
-    ],
-    "linked_requirement_ids": [
-      "FR-034"
-    ],
+    "tags": ["exploratory", "manual"],
+    "linked_requirement_ids": ["FR-034"],
     "linked_user_story_ids": []
   },
   {
@@ -2800,16 +2138,8 @@
         ]
       }
     ],
-    "tags": [
-      "exploratory",
-      "manual",
-      "linux",
-      "headless"
-    ],
-    "linked_requirement_ids": [
-      "FR-010",
-      "NFR-002"
-    ],
+    "tags": ["exploratory", "manual", "linux", "headless"],
+    "linked_requirement_ids": ["FR-010", "NFR-002"],
     "linked_user_story_ids": []
   },
   {
@@ -2818,9 +2148,7 @@
     "area": "forward-compat",
     "level": 4,
     "type": "integration",
-    "preconditions": [
-      "Slug for AI-agent plugins is in interview / feasibility"
-    ],
+    "preconditions": ["Slug for AI-agent plugins is in interview / feasibility"],
     "steps": [
       {
         "action": "Compare the AI-agent slug's manifest and method-set proposal to the paper sketch"
@@ -2834,15 +2162,8 @@
         ]
       }
     ],
-    "tags": [
-      "exploratory",
-      "manual",
-      "future-slug"
-    ],
-    "linked_requirement_ids": [
-      "FR-038",
-      "NFR-011"
-    ],
+    "tags": ["exploratory", "manual", "future-slug"],
+    "linked_requirement_ids": ["FR-038", "NFR-011"],
     "linked_user_story_ids": []
   },
   {
@@ -2870,17 +2191,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-040"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-040"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-086",
@@ -2908,19 +2221,9 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-041",
-      "FR-043",
-      "FR-044"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-041", "FR-043", "FR-044"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-087",
@@ -2945,14 +2248,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-042"
-    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-042"],
     "linked_user_story_ids": []
   },
   {
@@ -2978,15 +2275,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-043",
-      "NFR-012"
-    ],
+    "tags": ["security", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-043", "NFR-012"],
     "linked_user_story_ids": []
   },
   {
@@ -3012,15 +2302,8 @@
         ]
       }
     ],
-    "tags": [
-      "security",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-043",
-      "NFR-012"
-    ],
+    "tags": ["security", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-043", "NFR-012"],
     "linked_user_story_ids": []
   },
   {
@@ -3047,15 +2330,8 @@
         ]
       }
     ],
-    "tags": [
-      "smoke",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-044",
-      "FR-020"
-    ],
+    "tags": ["smoke", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-044", "FR-020"],
     "linked_user_story_ids": []
   },
   {
@@ -3083,17 +2359,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-045"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-092",
@@ -3118,14 +2386,8 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-045"
-    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045"],
     "linked_user_story_ids": []
   },
   {
@@ -3152,17 +2414,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-046"
-    ],
-    "linked_user_story_ids": [
-      "US-012"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
   },
   {
     "id": "TC-094",
@@ -3190,17 +2444,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-047"
-    ],
-    "linked_user_story_ids": [
-      "US-013"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-047"],
+    "linked_user_story_ids": ["US-013"]
   },
   {
     "id": "TC-095",
@@ -3227,14 +2473,8 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-048"
-    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-048"],
     "linked_user_story_ids": []
   },
   {
@@ -3261,14 +2501,8 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-049"
-    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-049"],
     "linked_user_story_ids": []
   },
   {
@@ -3295,14 +2529,8 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-050"
-    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-050"],
     "linked_user_story_ids": []
   },
   {
@@ -3329,14 +2557,8 @@
         ]
       }
     ],
-    "tags": [
-      "performance",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "NFR-013"
-    ],
+    "tags": ["performance", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-013"],
     "linked_user_story_ids": []
   },
   {
@@ -3363,14 +2585,8 @@
         ]
       }
     ],
-    "tags": [
-      "accessibility",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "NFR-014"
-    ],
+    "tags": ["accessibility", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-014"],
     "linked_user_story_ids": []
   },
   {
@@ -3396,15 +2612,8 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "NFR-015",
-      "FR-046"
-    ],
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-015", "FR-046"],
     "linked_user_story_ids": []
   },
   {
@@ -3431,17 +2640,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-046"
-    ],
-    "linked_user_story_ids": [
-      "US-012"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
   },
   {
     "id": "TC-102",
@@ -3467,17 +2668,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-046"
-    ],
-    "linked_user_story_ids": [
-      "US-012"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046"],
+    "linked_user_story_ids": ["US-012"]
   },
   {
     "id": "TC-103",
@@ -3504,17 +2697,9 @@
         ]
       }
     ],
-    "tags": [
-      "functional",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-047"
-    ],
-    "linked_user_story_ids": [
-      "US-013"
-    ]
+    "tags": ["functional", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-047"],
+    "linked_user_story_ids": ["US-013"]
   },
   {
     "id": "TC-104",
@@ -3540,15 +2725,8 @@
         ]
       }
     ],
-    "tags": [
-      "reliability",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-046",
-      "FR-041"
-    ],
+    "tags": ["reliability", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-046", "FR-041"],
     "linked_user_story_ids": []
   },
   {
@@ -3586,19 +2764,9 @@
         ]
       }
     ],
-    "tags": [
-      "integration",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-045",
-      "FR-041",
-      "FR-046"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["integration", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-045", "FR-041", "FR-046"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-106",
@@ -3625,19 +2793,9 @@
         ]
       }
     ],
-    "tags": [
-      "integration",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "FR-049",
-      "FR-048",
-      "FR-044"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["integration", "automated", "addendum"],
+    "linked_requirement_ids": ["FR-049", "FR-048", "FR-044"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-107",
@@ -3662,15 +2820,8 @@
         ]
       }
     ],
-    "tags": [
-      "scale",
-      "automated",
-      "addendum"
-    ],
-    "linked_requirement_ids": [
-      "NFR-013",
-      "FR-041"
-    ],
+    "tags": ["scale", "automated", "addendum"],
+    "linked_requirement_ids": ["NFR-013", "FR-041"],
     "linked_user_story_ids": []
   },
   {
@@ -3698,15 +2849,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-051"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-051"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-109",
@@ -3714,9 +2859,7 @@
     "area": "connection-status",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "github.com plugin has cached connected status"
-    ],
+    "preconditions": ["github.com plugin has cached connected status"],
     "steps": [
       {
         "action": "Click Configure on the github.com tile"
@@ -3729,15 +2872,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-052"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-052"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-110",
@@ -3759,15 +2896,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-053"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-053"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-111",
@@ -3775,10 +2906,7 @@
     "area": "connection-status",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Two enabled plugins with cached status",
-      "No prior re-check in flight"
-    ],
+    "preconditions": ["Two enabled plugins with cached status", "No prior re-check in flight"],
     "steps": [
       {
         "action": "Open the Settings > Plugins tab"
@@ -3793,15 +2921,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-054"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-054"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-112",
@@ -3809,9 +2931,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Plugin built against host-API 1.1.0 implements getConnectionStatus"
-    ],
+    "preconditions": ["Plugin built against host-API 1.1.0 implements getConnectionStatus"],
     "steps": [
       {
         "action": "Call getConnectionStatus on the plugin process"
@@ -3825,15 +2945,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-113",
@@ -3841,9 +2955,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "negative",
-    "preconditions": [
-      "Plugin built against host-API 1.0.0 does NOT implement getConnectionStatus"
-    ],
+    "preconditions": ["Plugin built against host-API 1.0.0 does NOT implement getConnectionStatus"],
     "steps": [
       {
         "action": "Host invokes getConnectionStatus"
@@ -3857,18 +2969,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "fallback"
-    ],
-    "linked_requirement_ids": [
-      "FR-055",
-      "FR-067"
-    ],
-    "linked_user_story_ids": [
-      "US-014",
-      "US-025"
-    ]
+    "tags": ["automated", "fallback"],
+    "linked_requirement_ids": ["FR-055", "FR-067"],
+    "linked_user_story_ids": ["US-014", "US-025"]
   },
   {
     "id": "TC-114",
@@ -3876,9 +2979,7 @@
     "area": "settings-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Five plugins installed and enabled"
-    ],
+    "preconditions": ["Five plugins installed and enabled"],
     "steps": [
       {
         "action": "Open Settings > Plugins at default viewport width"
@@ -3891,15 +2992,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-056"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-056"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-115",
@@ -3907,9 +3002,7 @@
     "area": "settings-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "github.com plugin connected"
-    ],
+    "preconditions": ["github.com plugin connected"],
     "steps": [
       {
         "action": "Observe a plugin tile",
@@ -3921,15 +3014,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-057"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-057"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-116",
@@ -3937,9 +3024,7 @@
     "area": "settings-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "App at default viewport width"
-    ],
+    "preconditions": ["App at default viewport width"],
     "steps": [
       {
         "action": "Navigate to Settings > Plugins, then Settings > Project setup, then Settings > Identity"
@@ -3952,15 +3037,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-058"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-058"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-117",
@@ -3968,9 +3047,7 @@
     "area": "migration",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Fresh ~/.roubo/ directory with no state.json"
-    ],
+    "preconditions": ["Fresh ~/.roubo/ directory with no state.json"],
     "steps": [
       {
         "action": "Start Roubo for the first time"
@@ -3983,16 +3060,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-059",
-      "FR-060"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-059", "FR-060"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-118",
@@ -4016,16 +3086,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-059",
-      "FR-060"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-059", "FR-060"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-119",
@@ -4033,9 +3096,7 @@
     "area": "persistence",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Server running, all bundled plugins disabled"
-    ],
+    "preconditions": ["Server running, all bundled plugins disabled"],
     "steps": [
       {
         "action": "Enable github.com plugin via the Switch in the tile"
@@ -4051,15 +3112,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-060"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-060"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-120",
@@ -4085,15 +3140,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-061"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-121",
@@ -4101,9 +3150,7 @@
     "area": "project-load",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Enable prompt is open"
-    ],
+    "preconditions": ["Enable prompt is open"],
     "steps": [
       {
         "action": "Click Cancel"
@@ -4118,15 +3165,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-061"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-122",
@@ -4151,16 +3192,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-062"
-    ],
-    "linked_user_story_ids": [
-      "US-018",
-      "US-019"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-062"],
+    "linked_user_story_ids": ["US-018", "US-019"]
   },
   {
     "id": "TC-123",
@@ -4184,16 +3218,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-063"
-    ],
-    "linked_user_story_ids": [
-      "US-018",
-      "US-019"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-063"],
+    "linked_user_story_ids": ["US-018", "US-019"]
   },
   {
     "id": "TC-124",
@@ -4201,9 +3228,7 @@
     "area": "plugin-defaults",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Fresh install"
-    ],
+    "preconditions": ["Fresh install"],
     "steps": [
       {
         "action": "Read github.com plugin manifest defaultSettings.excludedStatuses"
@@ -4217,15 +3242,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-064"
-    ],
-    "linked_user_story_ids": [
-      "US-018"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-064"],
+    "linked_user_story_ids": ["US-018"]
   },
   {
     "id": "TC-125",
@@ -4233,9 +3252,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "github.com plugin built against host-API 1.1.0"
-    ],
+    "preconditions": ["github.com plugin built against host-API 1.1.0"],
     "steps": [
       {
         "action": "Call filterFacets on the plugin"
@@ -4250,15 +3267,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-065"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-065"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-126",
@@ -4266,9 +3277,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "negative",
-    "preconditions": [
-      "Plugin built against host-API 1.0.0 omits filterFacets"
-    ],
+    "preconditions": ["Plugin built against host-API 1.0.0 omits filterFacets"],
     "steps": [
       {
         "action": "Host invokes filterFacets"
@@ -4282,18 +3291,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "fallback"
-    ],
-    "linked_requirement_ids": [
-      "FR-065",
-      "FR-067"
-    ],
-    "linked_user_story_ids": [
-      "US-020",
-      "US-025"
-    ]
+    "tags": ["automated", "fallback"],
+    "linked_requirement_ids": ["FR-065", "FR-067"],
+    "linked_user_story_ids": ["US-020", "US-025"]
   },
   {
     "id": "TC-127",
@@ -4301,9 +3301,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "github.com plugin returns issues with milestone metadata"
-    ],
+    "preconditions": ["github.com plugin returns issues with milestone metadata"],
     "steps": [
       {
         "action": "Call listIssues"
@@ -4317,15 +3315,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-066"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-066"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-128",
@@ -4333,29 +3325,19 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Fresh install of this Roubo build"
-    ],
+    "preconditions": ["Fresh install of this Roubo build"],
     "steps": [
       {
         "action": "Call host.getHostApiVersion via plugin SDK"
       },
       {
         "action": "Observe",
-        "expected": [
-          "Version string is \"1.1.0\""
-        ]
+        "expected": ["Version string is \"1.1.0\""]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-067"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-067"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-129",
@@ -4380,15 +3362,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-068"
-    ],
-    "linked_user_story_ids": [
-      "US-021"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-068"],
+    "linked_user_story_ids": ["US-021"]
   },
   {
     "id": "TC-130",
@@ -4396,9 +3372,7 @@
     "area": "project-settings",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Project configured with github.com integration"
-    ],
+    "preconditions": ["Project configured with github.com integration"],
     "steps": [
       {
         "action": "Open the project Settings page"
@@ -4413,15 +3387,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-069"
-    ],
-    "linked_user_story_ids": [
-      "US-022"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-069"],
+    "linked_user_story_ids": ["US-022"]
   },
   {
     "id": "TC-131",
@@ -4429,9 +3397,7 @@
     "area": "project-settings",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Project configured with github.com integration; project is a meta-repo"
-    ],
+    "preconditions": ["Project configured with github.com integration; project is a meta-repo"],
     "steps": [
       {
         "action": "Open the project Settings page"
@@ -4452,16 +3418,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-070",
-      "FR-071"
-    ],
-    "linked_user_story_ids": [
-      "US-022"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-070", "FR-071"],
+    "linked_user_story_ids": ["US-022"]
   },
   {
     "id": "TC-132",
@@ -4469,9 +3428,7 @@
     "area": "project-settings",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Project configured with github.com integration"
-    ],
+    "preconditions": ["Project configured with github.com integration"],
     "steps": [
       {
         "action": "Open project Settings > Identity"
@@ -4484,15 +3441,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-071"
-    ],
-    "linked_user_story_ids": [
-      "US-022"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-071"],
+    "linked_user_story_ids": ["US-022"]
   },
   {
     "id": "TC-133",
@@ -4509,30 +3460,19 @@
       },
       {
         "action": "Observe button",
-        "expected": [
-          "Button label is Connect"
-        ]
+        "expected": ["Button label is Connect"]
       },
       {
         "action": "Complete OAuth flow to add credentials"
       },
       {
         "action": "Observe button",
-        "expected": [
-          "Button label flips to Configure",
-          "Choose sources button is not present"
-        ]
+        "expected": ["Button label flips to Configure", "Choose sources button is not present"]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-072"
-    ],
-    "linked_user_story_ids": [
-      "US-023"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-072"],
+    "linked_user_story_ids": ["US-023"]
   },
   {
     "id": "TC-134",
@@ -4540,9 +3480,7 @@
     "area": "project-settings",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Project configured with GHE integration"
-    ],
+    "preconditions": ["Project configured with GHE integration"],
     "steps": [
       {
         "action": "Open project Settings > GitHub Enterprise tab"
@@ -4556,16 +3494,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-073"
-    ],
-    "linked_user_story_ids": [
-      "US-022",
-      "US-023"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-073"],
+    "linked_user_story_ids": ["US-022", "US-023"]
   },
   {
     "id": "TC-135",
@@ -4573,9 +3504,7 @@
     "area": "alerts",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Fresh github.com plugin source configuration"
-    ],
+    "preconditions": ["Fresh github.com plugin source configuration"],
     "steps": [
       {
         "action": "Inspect source config defaults"
@@ -4589,15 +3518,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-074"
-    ],
-    "linked_user_story_ids": [
-      "US-024"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-074"],
+    "linked_user_story_ids": ["US-024"]
   },
   {
     "id": "TC-136",
@@ -4622,15 +3545,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-075"
-    ],
-    "linked_user_story_ids": [
-      "US-024"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-075"],
+    "linked_user_story_ids": ["US-024"]
   },
   {
     "id": "TC-137",
@@ -4660,15 +3577,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-076"
-    ],
-    "linked_user_story_ids": [
-      "US-024"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-076"],
+    "linked_user_story_ids": ["US-024"]
   },
   {
     "id": "TC-138",
@@ -4676,9 +3587,7 @@
     "area": "e2e-harness",
     "level": 1,
     "type": "structural",
-    "preconditions": [
-      "playwright.config.ts exists at repo root"
-    ],
+    "preconditions": ["playwright.config.ts exists at repo root"],
     "steps": [
       {
         "action": "Inspect playwright.config.ts"
@@ -4693,15 +3602,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-077"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-077"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-139",
@@ -4709,9 +3612,7 @@
     "area": "e2e-harness",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Stubbed plugin built at e2e/fixtures/stubbed-plugin/"
-    ],
+    "preconditions": ["Stubbed plugin built at e2e/fixtures/stubbed-plugin/"],
     "steps": [
       {
         "action": "Spawn the stub with --scenario=default --now=2026-05-25T00:00:00Z"
@@ -4725,16 +3626,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-078",
-      "NFR-018"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-078", "NFR-018"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-140",
@@ -4742,19 +3636,14 @@
     "area": "e2e-harness",
     "level": 1,
     "type": "security",
-    "preconditions": [
-      "Server built with ROUBO_E2E unset"
-    ],
+    "preconditions": ["Server built with ROUBO_E2E unset"],
     "steps": [
       {
         "action": "POST /test/__reset"
       },
       {
         "action": "Observe",
-        "expected": [
-          "Response is 404 Not Found",
-          "No internal state mutated"
-        ]
+        "expected": ["Response is 404 Not Found", "No internal state mutated"]
       },
       {
         "action": "Restart server with ROUBO_E2E=1 and POST /test/__reset"
@@ -4767,15 +3656,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-079"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-079"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-141",
@@ -4783,9 +3666,7 @@
     "area": "e2e-harness",
     "level": 1,
     "type": "structural",
-    "preconditions": [
-      "e2e/ directory present"
-    ],
+    "preconditions": ["e2e/ directory present"],
     "steps": [
       {
         "action": "Inspect spec files"
@@ -4797,15 +3678,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-080"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-080"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-142",
@@ -4813,9 +3688,7 @@
     "area": "accessibility",
     "level": 2,
     "type": "accessibility",
-    "preconditions": [
-      "All five chip variants visible in the grid"
-    ],
+    "preconditions": ["All five chip variants visible in the grid"],
     "steps": [
       {
         "action": "Run axe-core against Settings > Plugins"
@@ -4828,19 +3701,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "accessibility"
-    ],
-    "linked_requirement_ids": [
-      "NFR-016",
-      "FR-051"
-    ],
-    "linked_user_story_ids": [
-      "US-014",
-      "US-015",
-      "US-021"
-    ]
+    "tags": ["automated", "accessibility"],
+    "linked_requirement_ids": ["NFR-016", "FR-051"],
+    "linked_user_story_ids": ["US-014", "US-015", "US-021"]
   },
   {
     "id": "TC-143",
@@ -4848,9 +3711,7 @@
     "area": "accessibility",
     "level": 2,
     "type": "accessibility",
-    "preconditions": [
-      "Three tiles in the grid"
-    ],
+    "preconditions": ["Three tiles in the grid"],
     "steps": [
       {
         "action": "Tab from outside the grid"
@@ -4864,19 +3725,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "accessibility",
-      "keyboard"
-    ],
-    "linked_requirement_ids": [
-      "NFR-016",
-      "FR-056",
-      "FR-057"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["automated", "accessibility", "keyboard"],
+    "linked_requirement_ids": ["NFR-016", "FR-056", "FR-057"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-144",
@@ -4884,9 +3735,7 @@
     "area": "accessibility",
     "level": 2,
     "type": "accessibility",
-    "preconditions": [
-      "Cut list with all four chip categories visible"
-    ],
+    "preconditions": ["Cut list with all four chip categories visible"],
     "steps": [
       {
         "action": "Apply greyscale filter to the page"
@@ -4902,23 +3751,12 @@
       },
       {
         "action": "Observe",
-        "expected": [
-          "Categories remain distinguishable via shape and icon signals"
-        ]
+        "expected": ["Categories remain distinguishable via shape and icon signals"]
       }
     ],
-    "tags": [
-      "accessibility",
-      "manual",
-      "visual"
-    ],
-    "linked_requirement_ids": [
-      "NFR-016",
-      "FR-068"
-    ],
-    "linked_user_story_ids": [
-      "US-021"
-    ]
+    "tags": ["accessibility", "manual", "visual"],
+    "linked_requirement_ids": ["NFR-016", "FR-068"],
+    "linked_user_story_ids": ["US-021"]
   },
   {
     "id": "TC-145",
@@ -4926,32 +3764,19 @@
     "area": "performance",
     "level": 2,
     "type": "performance",
-    "preconditions": [
-      "Plugin manager has cached ConnectionStatus values"
-    ],
+    "preconditions": ["Plugin manager has cached ConnectionStatus values"],
     "steps": [
       {
         "action": "Mount Settings > Plugins 100 times in a perf harness"
       },
       {
         "action": "Measure render time",
-        "expected": [
-          "p95 < 50ms from mount to first paint of the status chip"
-        ]
+        "expected": ["p95 < 50ms from mount to first paint of the status chip"]
       }
     ],
-    "tags": [
-      "automated",
-      "performance"
-    ],
-    "linked_requirement_ids": [
-      "NFR-017",
-      "FR-051",
-      "FR-054"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated", "performance"],
+    "linked_requirement_ids": ["NFR-017", "FR-051", "FR-054"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-146",
@@ -4959,32 +3784,19 @@
     "area": "performance",
     "level": 2,
     "type": "performance",
-    "preconditions": [
-      "Three healthy plugins enabled",
-      "Network conditions normal"
-    ],
+    "preconditions": ["Three healthy plugins enabled", "Network conditions normal"],
     "steps": [
       {
         "action": "Trigger UI event that fires re-check"
       },
       {
         "action": "Measure round-trip",
-        "expected": [
-          "p95 latency from event to chip update < 2 seconds across 50 iterations"
-        ]
+        "expected": ["p95 latency from event to chip update < 2 seconds across 50 iterations"]
       }
     ],
-    "tags": [
-      "automated",
-      "performance"
-    ],
-    "linked_requirement_ids": [
-      "NFR-017",
-      "FR-054"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated", "performance"],
+    "linked_requirement_ids": ["NFR-017", "FR-054"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-147",
@@ -4992,31 +3804,19 @@
     "area": "performance",
     "level": 2,
     "type": "performance",
-    "preconditions": [
-      "Five plugins installed"
-    ],
+    "preconditions": ["Five plugins installed"],
     "steps": [
       {
         "action": "Navigate to Settings > Plugins"
       },
       {
         "action": "Measure",
-        "expected": [
-          "First contentful paint of the grid < 100ms"
-        ]
+        "expected": ["First contentful paint of the grid < 100ms"]
       }
     ],
-    "tags": [
-      "automated",
-      "performance"
-    ],
-    "linked_requirement_ids": [
-      "NFR-017",
-      "FR-056"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["automated", "performance"],
+    "linked_requirement_ids": ["NFR-017", "FR-056"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-148",
@@ -5024,9 +3824,7 @@
     "area": "e2e-harness",
     "level": 2,
     "type": "reliability",
-    "preconditions": [
-      "Full e2e suite in place"
-    ],
+    "preconditions": ["Full e2e suite in place"],
     "steps": [
       {
         "action": "Run \"npx playwright test\" 10 times in CI"
@@ -5040,19 +3838,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "reliability",
-      "slow"
-    ],
-    "linked_requirement_ids": [
-      "NFR-018",
-      "FR-077",
-      "FR-078"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated", "reliability", "slow"],
+    "linked_requirement_ids": ["NFR-018", "FR-077", "FR-078"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-149",
@@ -5060,9 +3848,7 @@
     "area": "security",
     "level": 2,
     "type": "security",
-    "preconditions": [
-      "Telemetry pipeline mocked to capture all emitted events"
-    ],
+    "preconditions": ["Telemetry pipeline mocked to capture all emitted events"],
     "steps": [
       {
         "action": "Enable and disable plugins via the UI"
@@ -5076,17 +3862,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "security"
-    ],
-    "linked_requirement_ids": [
-      "NFR-019",
-      "FR-060"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated", "security"],
+    "linked_requirement_ids": ["NFR-019", "FR-060"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-150",
@@ -5111,17 +3889,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "security"
-    ],
-    "linked_requirement_ids": [
-      "NFR-020",
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated", "security"],
+    "linked_requirement_ids": ["NFR-020", "FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-151",
@@ -5129,9 +3899,7 @@
     "area": "performance",
     "level": 2,
     "type": "performance",
-    "preconditions": [
-      "Cut list loaded with 500 issues"
-    ],
+    "preconditions": ["Cut list loaded with 500 issues"],
     "steps": [
       {
         "action": "Toggle a filter facet 50 times"
@@ -5144,19 +3912,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "performance"
-    ],
-    "linked_requirement_ids": [
-      "NFR-021",
-      "FR-065"
-    ],
-    "linked_user_story_ids": [
-      "US-018",
-      "US-019",
-      "US-020"
-    ]
+    "tags": ["automated", "performance"],
+    "linked_requirement_ids": ["NFR-021", "FR-065"],
+    "linked_user_story_ids": ["US-018", "US-019", "US-020"]
   },
   {
     "id": "TC-152",
@@ -5164,51 +3922,33 @@
     "area": "accessibility",
     "level": 2,
     "type": "accessibility",
-    "preconditions": [
-      "Enable prompt is open"
-    ],
+    "preconditions": ["Enable prompt is open"],
     "steps": [
       {
         "action": "Tab through focusable elements"
       },
       {
         "action": "Observe",
-        "expected": [
-          "Focus stays within the modal"
-        ]
+        "expected": ["Focus stays within the modal"]
       },
       {
         "action": "Press Esc"
       },
       {
         "action": "Observe",
-        "expected": [
-          "Modal closes",
-          "Focus restores to triggering element"
-        ]
+        "expected": ["Modal closes", "Focus restores to triggering element"]
       },
       {
         "action": "Re-open modal, focus the Enable button, press Enter"
       },
       {
         "action": "Observe",
-        "expected": [
-          "Enable action fires"
-        ]
+        "expected": ["Enable action fires"]
       }
     ],
-    "tags": [
-      "automated",
-      "accessibility",
-      "keyboard"
-    ],
-    "linked_requirement_ids": [
-      "NFR-022",
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["automated", "accessibility", "keyboard"],
+    "linked_requirement_ids": ["NFR-022", "FR-061"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-153",
@@ -5216,9 +3956,7 @@
     "area": "observability",
     "level": 1,
     "type": "functional",
-    "preconditions": [
-      "Plugin in connected state"
-    ],
+    "preconditions": ["Plugin in connected state"],
     "steps": [
       {
         "action": "Cause plugin to transition to auth-problem (e.g. invalidate token)"
@@ -5231,16 +3969,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "observability"
-    ],
-    "linked_requirement_ids": [
-      "NFR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated", "observability"],
+    "linked_requirement_ids": ["NFR-023"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-154",
@@ -5270,17 +4001,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated",
-      "reliability"
-    ],
-    "linked_requirement_ids": [
-      "NFR-024",
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["automated", "reliability"],
+    "linked_requirement_ids": ["NFR-024", "FR-061"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-155",
@@ -5288,9 +4011,7 @@
     "area": "localization",
     "level": 1,
     "type": "structural",
-    "preconditions": [
-      "Source files for new components present"
-    ],
+    "preconditions": ["Source files for new components present"],
     "steps": [
       {
         "action": "Grep new components for inline English strings"
@@ -5303,19 +4024,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "NFR-025"
-    ],
-    "linked_user_story_ids": [
-      "US-014",
-      "US-015",
-      "US-017",
-      "US-022",
-      "US-023"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["NFR-025"],
+    "linked_user_story_ids": ["US-014", "US-015", "US-017", "US-022", "US-023"]
   },
   {
     "id": "TC-156",
@@ -5337,22 +4048,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-005",
-      "FR-019",
-      "FR-021",
-      "FR-034",
-      "FR-039"
-    ],
-    "linked_user_story_ids": [
-      "US-001"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-001", "FR-005", "FR-019", "FR-021", "FR-034", "FR-039"],
+    "linked_user_story_ids": ["US-001"]
   },
   {
     "id": "TC-157",
@@ -5374,22 +4072,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-005",
-      "FR-020",
-      "FR-021",
-      "FR-022",
-      "FR-034",
-      "FR-039"
-    ],
-    "linked_user_story_ids": [
-      "US-002"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-005", "FR-020", "FR-021", "FR-022", "FR-034", "FR-039"],
+    "linked_user_story_ids": ["US-002"]
   },
   {
     "id": "TC-158",
@@ -5411,19 +4096,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-026",
-      "FR-027",
-      "FR-028"
-    ],
-    "linked_user_story_ids": [
-      "US-003"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-026", "FR-027", "FR-028"],
+    "linked_user_story_ids": ["US-003"]
   },
   {
     "id": "TC-159",
@@ -5445,22 +4120,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-004",
-      "FR-008",
-      "FR-009",
-      "FR-010",
-      "FR-016"
-    ],
-    "linked_user_story_ids": [
-      "US-004",
-      "US-007"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-004", "FR-008", "FR-009", "FR-010", "FR-016"],
+    "linked_user_story_ids": ["US-004", "US-007"]
   },
   {
     "id": "TC-160",
@@ -5482,18 +4144,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-024",
-      "FR-025"
-    ],
-    "linked_user_story_ids": [
-      "US-005"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-024", "FR-025"],
+    "linked_user_story_ids": ["US-005"]
   },
   {
     "id": "TC-161",
@@ -5515,18 +4168,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-028",
-      "FR-029"
-    ],
-    "linked_user_story_ids": [
-      "US-006"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-028", "FR-029"],
+    "linked_user_story_ids": ["US-006"]
   },
   {
     "id": "TC-162",
@@ -5548,19 +4192,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-035",
-      "FR-036",
-      "FR-037"
-    ],
-    "linked_user_story_ids": [
-      "US-008"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-035", "FR-036", "FR-037"],
+    "linked_user_story_ids": ["US-008"]
   },
   {
     "id": "TC-163",
@@ -5582,19 +4216,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-013",
-      "FR-014",
-      "FR-015"
-    ],
-    "linked_user_story_ids": [
-      "US-009"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-013", "FR-014", "FR-015"],
+    "linked_user_story_ids": ["US-009"]
   },
   {
     "id": "TC-164",
@@ -5616,18 +4240,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-018",
-      "FR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-018", "FR-023"],
+    "linked_user_story_ids": ["US-010"]
   },
   {
     "id": "TC-165",
@@ -5649,20 +4264,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-040",
-      "FR-041",
-      "FR-043",
-      "FR-045"
-    ],
-    "linked_user_story_ids": [
-      "US-011"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-040", "FR-041", "FR-043", "FR-045"],
+    "linked_user_story_ids": ["US-011"]
   },
   {
     "id": "TC-166",
@@ -5684,19 +4288,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-040",
-      "FR-046",
-      "FR-048"
-    ],
-    "linked_user_story_ids": [
-      "US-012"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-040", "FR-046", "FR-048"],
+    "linked_user_story_ids": ["US-012"]
   },
   {
     "id": "TC-167",
@@ -5718,17 +4312,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-047"
-    ],
-    "linked_user_story_ids": [
-      "US-013"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-047"],
+    "linked_user_story_ids": ["US-013"]
   },
   {
     "id": "TC-168",
@@ -5750,21 +4336,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-051",
-      "FR-052",
-      "FR-053",
-      "FR-054",
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-051", "FR-052", "FR-053", "FR-054", "FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-169",
@@ -5786,20 +4360,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-054",
-      "FR-055",
-      "NFR-017",
-      "NFR-023"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-054", "FR-055", "NFR-017", "NFR-023"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-170",
@@ -5821,19 +4384,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-056",
-      "FR-057",
-      "FR-058"
-    ],
-    "linked_user_story_ids": [
-      "US-015"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-056", "FR-057", "FR-058"],
+    "linked_user_story_ids": ["US-015"]
   },
   {
     "id": "TC-171",
@@ -5855,20 +4408,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-059",
-      "FR-060",
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-016",
-      "US-017"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-059", "FR-060", "FR-061"],
+    "linked_user_story_ids": ["US-016", "US-017"]
   },
   {
     "id": "TC-172",
@@ -5890,19 +4432,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-061",
-      "NFR-022",
-      "NFR-024"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-061", "NFR-022", "NFR-024"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-173",
@@ -5924,20 +4456,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-062",
-      "FR-063",
-      "FR-064"
-    ],
-    "linked_user_story_ids": [
-      "US-018",
-      "US-019"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-062", "FR-063", "FR-064"],
+    "linked_user_story_ids": ["US-018", "US-019"]
   },
   {
     "id": "TC-174",
@@ -5959,19 +4480,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-065",
-      "FR-066",
-      "FR-067"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-065", "FR-066", "FR-067"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-175",
@@ -5993,17 +4504,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-067"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-067"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-176",
@@ -6025,18 +4528,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-068",
-      "NFR-016"
-    ],
-    "linked_user_story_ids": [
-      "US-021"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-068", "NFR-016"],
+    "linked_user_story_ids": ["US-021"]
   },
   {
     "id": "TC-177",
@@ -6058,19 +4552,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-069",
-      "FR-070",
-      "FR-071"
-    ],
-    "linked_user_story_ids": [
-      "US-022"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-069", "FR-070", "FR-071"],
+    "linked_user_story_ids": ["US-022"]
   },
   {
     "id": "TC-178",
@@ -6092,18 +4576,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-072",
-      "FR-073"
-    ],
-    "linked_user_story_ids": [
-      "US-023"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-072", "FR-073"],
+    "linked_user_story_ids": ["US-023"]
   },
   {
     "id": "TC-179",
@@ -6125,17 +4600,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-073"
-    ],
-    "linked_user_story_ids": [
-      "US-023"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-073"],
+    "linked_user_story_ids": ["US-023"]
   },
   {
     "id": "TC-180",
@@ -6157,19 +4624,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-074",
-      "FR-075",
-      "FR-076"
-    ],
-    "linked_user_story_ids": [
-      "US-024"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-074", "FR-075", "FR-076"],
+    "linked_user_story_ids": ["US-024"]
   },
   {
     "id": "TC-181",
@@ -6191,21 +4648,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-077",
-      "FR-078",
-      "FR-079",
-      "FR-080",
-      "NFR-018"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-077", "FR-078", "FR-079", "FR-080", "NFR-018"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-182",
@@ -6227,19 +4672,9 @@
         ]
       }
     ],
-    "tags": [
-      "e2e",
-      "playwright",
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-053",
-      "FR-069"
-    ],
-    "linked_user_story_ids": [
-      "US-014",
-      "US-022"
-    ]
+    "tags": ["e2e", "playwright", "automated"],
+    "linked_requirement_ids": ["FR-053", "FR-069"],
+    "linked_user_story_ids": ["US-014", "US-022"]
   },
   {
     "id": "TC-183",
@@ -6265,18 +4700,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-062",
-      "FR-063",
-      "FR-064"
-    ],
-    "linked_user_story_ids": [
-      "US-018",
-      "US-019"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-062", "FR-063", "FR-064"],
+    "linked_user_story_ids": ["US-018", "US-019"]
   },
   {
     "id": "TC-184",
@@ -6284,9 +4710,7 @@
     "area": "connection-status",
     "level": 3,
     "type": "integration",
-    "preconditions": [
-      "Plugin manager with no in-flight check"
-    ],
+    "preconditions": ["Plugin manager with no in-flight check"],
     "steps": [
       {
         "action": "Fire three UI events that each trigger re-check for plugin X within 50ms"
@@ -6300,16 +4724,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-054",
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-054", "FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-185",
@@ -6317,9 +4734,7 @@
     "area": "persistence",
     "level": 3,
     "type": "reliability",
-    "preconditions": [
-      "plugins-state.json corrupted (invalid JSON)"
-    ],
+    "preconditions": ["plugins-state.json corrupted (invalid JSON)"],
     "steps": [
       {
         "action": "Start the server"
@@ -6334,16 +4749,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-060",
-      "NFR-024"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-060", "NFR-024"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-186",
@@ -6351,19 +4759,14 @@
     "area": "plugin-contract",
     "level": 3,
     "type": "integration",
-    "preconditions": [
-      "github.com plugin declares Milestone as enum-async"
-    ],
+    "preconditions": ["github.com plugin declares Milestone as enum-async"],
     "steps": [
       {
         "action": "Open cut list"
       },
       {
         "action": "Observe",
-        "expected": [
-          "filterFacets is called once",
-          "No getFacetOptions call yet"
-        ]
+        "expected": ["filterFacets is called once", "No getFacetOptions call yet"]
       },
       {
         "action": "Open Milestone dropdown"
@@ -6376,16 +4779,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-065",
-      "FR-066"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-065", "FR-066"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-187",
@@ -6393,9 +4789,7 @@
     "area": "project-settings",
     "level": 3,
     "type": "integration",
-    "preconditions": [
-      "Project with existing Identity fields"
-    ],
+    "preconditions": ["Project with existing Identity fields"],
     "steps": [
       {
         "action": "Migrate the project via the upgrade path"
@@ -6409,16 +4803,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-069",
-      "FR-070"
-    ],
-    "linked_user_story_ids": [
-      "US-022"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-069", "FR-070"],
+    "linked_user_story_ids": ["US-022"]
   },
   {
     "id": "TC-188",
@@ -6426,9 +4813,7 @@
     "area": "e2e-harness",
     "level": 3,
     "type": "integration",
-    "preconditions": [
-      "ROUBO_E2E=1; populated server state"
-    ],
+    "preconditions": ["ROUBO_E2E=1; populated server state"],
     "steps": [
       {
         "action": "Confirm state: enabled plugin, project loaded, OAuth flow in pending state"
@@ -6449,15 +4834,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-079"
-    ],
-    "linked_user_story_ids": [
-      "US-025"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-079"],
+    "linked_user_story_ids": ["US-025"]
   },
   {
     "id": "TC-189",
@@ -6465,9 +4844,7 @@
     "area": "plugin-runtime",
     "level": 1,
     "type": "negative",
-    "preconditions": [
-      "Stubbed plugin with broken manifest"
-    ],
+    "preconditions": ["Stubbed plugin with broken manifest"],
     "steps": [
       {
         "action": "Toggle the enable switch in the tile"
@@ -6482,16 +4859,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-060",
-      "NFR-024"
-    ],
-    "linked_user_story_ids": [
-      "US-016"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-060", "NFR-024"],
+    "linked_user_story_ids": ["US-016"]
   },
   {
     "id": "TC-190",
@@ -6499,9 +4869,7 @@
     "area": "plugin-contract",
     "level": 1,
     "type": "negative",
-    "preconditions": [
-      "Stubbed plugin returns { id: \"x\" } missing label and type"
-    ],
+    "preconditions": ["Stubbed plugin returns { id: \"x\" } missing label and type"],
     "steps": [
       {
         "action": "Open cut list"
@@ -6516,15 +4884,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-065"
-    ],
-    "linked_user_story_ids": [
-      "US-020"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-065"],
+    "linked_user_story_ids": ["US-020"]
   },
   {
     "id": "TC-191",
@@ -6532,9 +4894,7 @@
     "area": "connection-status",
     "level": 1,
     "type": "edge_case",
-    "preconditions": [
-      "First re-check in-flight for plugin X"
-    ],
+    "preconditions": ["First re-check in-flight for plugin X"],
     "steps": [
       {
         "action": "Trigger second UI event for plugin X"
@@ -6548,16 +4908,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-054",
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-054", "FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-192",
@@ -6581,15 +4934,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-061"
-    ],
-    "linked_user_story_ids": [
-      "US-017"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-061"],
+    "linked_user_story_ids": ["US-017"]
   },
   {
     "id": "TC-193",
@@ -6597,9 +4944,7 @@
     "area": "connection-status",
     "level": 1,
     "type": "negative",
-    "preconditions": [
-      "GHE plugin enabled, user enters wrong instance URL"
-    ],
+    "preconditions": ["GHE plugin enabled, user enters wrong instance URL"],
     "steps": [
       {
         "action": "Click Test Connection in Configure modal"
@@ -6613,15 +4958,9 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-055"
-    ],
-    "linked_user_story_ids": [
-      "US-014"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-055"],
+    "linked_user_story_ids": ["US-014"]
   },
   {
     "id": "TC-194",
@@ -6645,16 +4984,8 @@
         ]
       }
     ],
-    "tags": [
-      "automated"
-    ],
-    "linked_requirement_ids": [
-      "FR-069",
-      "FR-072"
-    ],
-    "linked_user_story_ids": [
-      "US-022",
-      "US-023"
-    ]
+    "tags": ["automated"],
+    "linked_requirement_ids": ["FR-069", "FR-072"],
+    "linked_user_story_ids": ["US-022", "US-023"]
   }
 ]

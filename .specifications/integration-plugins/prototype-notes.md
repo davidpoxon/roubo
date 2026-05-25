@@ -110,18 +110,18 @@ Sections 21..30 in `mockups.md` cover the 2026-05-25 scope (US-014..US-025). Sam
 
 ### Surfaces newly mocked (sections 21..30)
 
-| # | Surface | User story |
-|---|---|---|
-| 21 | Status chip taxonomy + three placements | US-014 |
-| 22 | Settings > Plugins grid layout | US-015 |
-| 23 | Bundled plugin disabled state on fresh install | US-016 |
-| 24 | Enable prompt modal on project load | US-017 |
-| 25 | Cut-list filters: status exclusion + plugin-declared facets | US-018, US-019, US-020 |
-| 26 | Per-project Settings: plugin-driven tab + moved fields | US-022, US-023 |
-| 27 | Connect / Configure single button state machine | US-023 |
-| 28 | Cut-list chip taxonomy (four categories with shape + colour) | US-021 |
-| 29 | Playwright e2e harness developer-facing surface | US-025 |
-| 30 | Alerts addition in cut list + Configure | US-024 |
+| #   | Surface                                                      | User story             |
+| --- | ------------------------------------------------------------ | ---------------------- |
+| 21  | Status chip taxonomy + three placements                      | US-014                 |
+| 22  | Settings > Plugins grid layout                               | US-015                 |
+| 23  | Bundled plugin disabled state on fresh install               | US-016                 |
+| 24  | Enable prompt modal on project load                          | US-017                 |
+| 25  | Cut-list filters: status exclusion + plugin-declared facets  | US-018, US-019, US-020 |
+| 26  | Per-project Settings: plugin-driven tab + moved fields       | US-022, US-023         |
+| 27  | Connect / Configure single button state machine              | US-023                 |
+| 28  | Cut-list chip taxonomy (four categories with shape + colour) | US-021                 |
+| 29  | Playwright e2e harness developer-facing surface              | US-025                 |
+| 30  | Alerts addition in cut list + Configure                      | US-024                 |
 
 US-025 has no end-user UI; only the maintainer-facing harness surface is mocked.
 
