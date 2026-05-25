@@ -45,6 +45,8 @@ import type {
   IntegrationTestResult,
   SourceCandidatesResponse,
   SourceSelection,
+  FilterFacet,
+  FilterFacetOption,
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
@@ -807,6 +809,20 @@ export function saveIntegrationConfig(
 
 export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
   return request(`/projects/${projectId}/integration/sources`);
+}
+
+export function fetchFilterFacets(projectId: string): Promise<FilterFacet[]> {
+  return request(`/projects/${projectId}/integration/filter-facets`);
+}
+
+export function fetchFacetOptions(
+  projectId: string,
+  facetId: string,
+  search?: string,
+): Promise<FilterFacetOption[]> {
+  const params = new URLSearchParams({ facetId });
+  if (search && search.length > 0) params.set("search", search);
+  return request(`/projects/${projectId}/integration/facet-options?${params.toString()}`);
 }
 
 export function saveProjectSources(
