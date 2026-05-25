@@ -432,9 +432,10 @@ router.put("/:id/integration/config", (req, res) => {
 
 // WU-050: opportunistic re-check endpoint. Called from PluginsTab,
 // PluginConfigureDialog, and IssueQueuePanel via react-query whenever those
-// surfaces mount. The handler bypasses the plugin-manager's 30s cache so the
-// returned status reflects a fresh RPC; per-plugin in-flight dedup in
-// plugin-manager coalesces concurrent calls.
+// surfaces mount. Passes `{ force: true }` so the handler bypasses the
+// plugin-manager's 30s value cache but still participates in the per-plugin
+// in-flight dedup that coalesces concurrent calls. (Invalidating the cache
+// here would also drop the in-flight entry and defeat that dedup.)
 router.get("/:id/connection-status", async (req, res) => {
   const id = req.params.id;
   if (badId(id)) {
@@ -452,10 +453,10 @@ router.get("/:id/connection-status", async (req, res) => {
   }
   const state = buildGlobalState(id);
   const config = state?.effective ?? { plugin: id };
-  pluginManager.invalidateConnectionStatus(id);
   const status = await pluginManager.getConnectionStatus(
     id,
     config as unknown as Record<string, unknown>,
+    { force: true },
   );
   res.json(status);
 });

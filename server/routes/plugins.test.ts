@@ -658,7 +658,7 @@ describe("GET /:id/connection-status (WU-050)", () => {
     expect(pluginManager.invalidateConnectionStatus).not.toHaveBeenCalled();
   });
 
-  it("invalidates the cache then returns the fresh ConnectionStatus for an enabled plugin", async () => {
+  it("forces a fresh probe (bypassing the value cache) and returns the ConnectionStatus for an enabled plugin", async () => {
     vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ status: "enabled" })]);
     const status = {
       state: "connected" as const,
@@ -669,15 +669,17 @@ describe("GET /:id/connection-status (WU-050)", () => {
     const res = await request(app).get("/github-com/connection-status");
     expect(res.status).toBe(200);
     expect(res.body).toEqual(status);
-    expect(pluginManager.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
+    // The route must NOT call `invalidateConnectionStatus`: doing so would
+    // drop any in-flight RPC and defeat the per-plugin dedup that
+    // `getConnectionStatus` relies on. Instead it passes `{ force: true }`
+    // to skip only the value cache.
+    expect(pluginManager.invalidateConnectionStatus).not.toHaveBeenCalled();
     expect(pluginManager.getConnectionStatus).toHaveBeenCalledTimes(1);
     expect(pluginManager.getConnectionStatus).toHaveBeenCalledWith(
       "github-com",
       expect.objectContaining({ plugin: "github-com" }),
+      { force: true },
     );
-    expect(
-      vi.mocked(pluginManager.invalidateConnectionStatus).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(pluginManager.getConnectionStatus).mock.invocationCallOrder[0]);
   });
 
   it("returns the errored state surfaced by getConnectionStatus", async () => {

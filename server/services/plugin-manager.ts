@@ -1014,12 +1014,19 @@ function parseLogLine(raw: string): LogLine {
 export async function getConnectionStatus(
   pluginId: string,
   config: Record<string, unknown>,
+  options: { force?: boolean } = {},
 ): Promise<ConnectionStatus> {
-  const cached = connectionStatusCache.get(pluginId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value;
+  if (!options.force) {
+    const cached = connectionStatusCache.get(pluginId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
   }
 
+  // Always consult the in-flight map, even when `force` is set: this is what
+  // gives the WU-050 opportunistic re-check its per-plugin dedup. Two
+  // concurrent forced calls share one RPC; a forced call piggy-backs on an
+  // in-flight non-forced call (and vice versa).
   const inFlight = inFlightConnectionStatusRequests.get(pluginId);
   if (inFlight) return inFlight;
 
