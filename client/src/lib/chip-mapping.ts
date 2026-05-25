@@ -11,6 +11,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import type { NormalizedIssue } from "@roubo/shared";
 
 export type StatusTone = "open" | "in-progress" | "blocked" | "done" | "neutral" | "warning";
 
@@ -23,6 +24,7 @@ export interface ChipItem {
   icon?: LucideIcon;
   tone?: StatusTone;
   ariaDescription?: string;
+  tooltip?: string;
 }
 
 const IN_PROGRESS_STATES = new Set(["in progress", "in-progress", "in_progress", "doing"]);
@@ -57,20 +59,70 @@ export function issueTypeChip(type: string | null | undefined): IssueTypeChip | 
   const trimmed = type.trim();
   if (!trimmed) return null;
   const normalized = trimmed.toLowerCase().replace(/[_\s]+/g, "-");
-  const icon = ISSUE_TYPE_ICONS[normalized] ?? Tag;
-  return { label: trimmed, icon };
+  const entry = ISSUE_TYPE_ENTRIES[normalized];
+  const icon = entry?.icon ?? Tag;
+  const label = entry?.label ?? trimmed;
+  return { label, icon };
 }
 
-const ISSUE_TYPE_ICONS: Record<string, LucideIcon> = {
-  bug: Bug,
-  feature: Sparkles,
-  enhancement: Sparkles,
-  chore: Wrench,
-  task: CheckSquare,
-  codeql: Shield,
-  "secret-scanning": KeyRound,
-  dependabot: Package,
+interface IssueTypeEntry {
+  icon: LucideIcon;
+  label?: string;
+}
+
+// FR-075: alerts render with the friendly chip labels "CodeQL",
+// "Secret scanning", and "Dependabot". The github plugin mapper emits the
+// `security-*` keys (plugins/_shared-github/src/mapper.ts).
+const ISSUE_TYPE_ENTRIES: Record<string, IssueTypeEntry> = {
+  bug: { icon: Bug },
+  feature: { icon: Sparkles },
+  enhancement: { icon: Sparkles },
+  chore: { icon: Wrench },
+  task: { icon: CheckSquare },
+  "security-code-scanning": { icon: Shield, label: "CodeQL" },
+  "security-secret-scanning": { icon: KeyRound, label: "Secret scanning" },
+  "security-dependabot": { icon: Package, label: "Dependabot" },
 };
+
+// FR-043: alert severity (and the closest secret-scanning analogue) lives on
+// the opaque plugin `raw` payload. Narrow defensively rather than importing
+// the plugin types across the client/plugin boundary.
+export function alertSeverityTooltip(issue: NormalizedIssue): string | null {
+  const raw = issue.raw;
+  if (!isRecord(raw)) return null;
+
+  switch (issue.issueType) {
+    case "security-code-scanning": {
+      const rule = isRecord(raw.rule) ? raw.rule : null;
+      const value = stringFrom(rule?.security_severity_level) ?? stringFrom(rule?.severity);
+      return value ? `Severity: ${titleCase(value)}` : null;
+    }
+    case "security-dependabot": {
+      const advisory = isRecord(raw.security_advisory) ? raw.security_advisory : null;
+      const value = stringFrom(advisory?.severity);
+      return value ? `Severity: ${titleCase(value)}` : null;
+    }
+    case "security-secret-scanning": {
+      return stringFrom(raw.secret_type_display_name);
+    }
+    default:
+      return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringFrom(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 export const METADATA_ICONS = {
   assignee: User,

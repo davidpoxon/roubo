@@ -181,4 +181,29 @@ describe("IssueChip", () => {
       expect(desc.className).toContain("sr-only");
     });
   });
+
+  describe("tooltip mode (WU-042)", () => {
+    it("renders a keyboard-focusable Button when a tooltip is provided", () => {
+      const { container } = render(
+        <IssueChip variant="issue-type" icon={Bug} tooltip="Severity: High">
+          CodeQL
+        </IssueChip>,
+      );
+      const chip = container.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
+      expect(chip).not.toBeNull();
+      expect(chip.tagName).toBe("BUTTON");
+      expect(chip.className).toMatch(/focus-visible:ring-amber-500/);
+      expect(chip.textContent).toContain("CodeQL");
+    });
+
+    it("renders a plain span when no tooltip is provided", () => {
+      const { container } = render(
+        <IssueChip variant="issue-type" icon={Bug}>
+          Bug
+        </IssueChip>,
+      );
+      const chip = container.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
+      expect(chip.tagName).toBe("SPAN");
+    });
+  });
 });

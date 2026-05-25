@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "react-aria-components";
+import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { StatusTone } from "../lib/chip-mapping";
 
 export type IssueChipVariant = "status" | "label" | "issue-type" | "metadata";
@@ -18,6 +18,9 @@ interface IssueChipProps {
   // a small "Retry" affordance after a cancelled OAuth re-consent attempt.
   actionSuffix?: ReactNode;
   "data-testid"?: string;
+  // WU-042: when provided, the chip wraps in a TooltipTrigger and exposes the
+  // text on hover/focus. Used to surface alert severity from the cut list.
+  tooltip?: string;
 }
 
 const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
@@ -34,6 +37,9 @@ const BASE_CLASSES =
 const INTERACTIVE_CLASSES =
   "cursor-pointer outline-none transition-colors hover:brightness-110 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950";
 
+const FOCUS_RING_CLASSES =
+  "outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950";
+
 export default function IssueChip({
   variant,
   children,
@@ -43,6 +49,7 @@ export default function IssueChip({
   onPress,
   actionSuffix,
   "data-testid": dataTestid,
+  tooltip,
 }: IssueChipProps) {
   const variantClasses = classesForVariant(variant, tone);
   const showIcon = Icon !== undefined && variant !== "label";
@@ -73,6 +80,24 @@ export default function IssueChip({
       >
         {inner}
       </Button>
+    );
+  }
+
+  if (tooltip) {
+    return (
+      <TooltipTrigger delay={500}>
+        <Button
+          className={`${BASE_CLASSES} ${variantClasses} ${FOCUS_RING_CLASSES}`}
+          data-chip-category={variant}
+          aria-describedby={describedById}
+          data-testid={dataTestid}
+        >
+          {inner}
+        </Button>
+        <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+          {tooltip}
+        </Tooltip>
+      </TooltipTrigger>
     );
   }
 
