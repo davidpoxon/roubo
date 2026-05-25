@@ -8,6 +8,10 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   sourcemap: true,
-  dts: false,
+  // The bundled plugins consume this as a workspace package; their `tsc --noEmit`
+  // run resolves types from `dist/index.d.ts`. tsup hands the DTS generation
+  // off to `rollup-plugin-dts`, which is fine because the public surface is
+  // small and self-contained.
+  dts: true,
   noExternal: ["@roubo/plugin-sdk"],
 });

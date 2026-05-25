@@ -2,6 +2,7 @@ import { definePlugin, host } from "@roubo/plugin-sdk";
 import { bindHost } from "./host-binding.js";
 import { getAvailableTransitions } from "./methods/get-available-transitions.js";
 import { getComments } from "./methods/get-comments.js";
+import { getConnectionStatus } from "./methods/get-connection-status.js";
 import { getCurrentUser } from "./methods/get-current-user.js";
 import { getIssue } from "./methods/get-issue.js";
 import { listIssueTypes } from "./methods/list-issue-types.js";
@@ -24,4 +25,5 @@ definePlugin({
   getAvailableTransitions,
   listIssueTypes,
   listLabels,
+  getConnectionStatus,
 });
