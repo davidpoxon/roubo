@@ -76,7 +76,7 @@ function PluginList({
         {bundled.length === 0 ? (
           <p className="text-xs text-stone-500 dark:text-stone-400">No bundled plugins found.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
             {bundled.map((p) => (
               <PluginCard key={p.id} plugin={p} hostApiVersion={hostApiVersion} />
             ))}
@@ -99,7 +99,7 @@ function PluginList({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
             {user.map((p) => (
               <PluginCard key={p.id} plugin={p} hostApiVersion={hostApiVersion} />
             ))}

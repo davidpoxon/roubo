@@ -508,7 +508,7 @@ export default function ProjectSettings() {
     hash.startsWith("#") && HASH_TAB_IDS.has(hash.slice(1)) ? hash.slice(1) : undefined;
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 w-full">
       <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 mb-6">Settings</h2>
 
       <FirstNSessionsBanner routeKey="global-settings" sessionCount={5} label="Settings overview">
