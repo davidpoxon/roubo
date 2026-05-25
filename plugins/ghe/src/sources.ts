@@ -1,8 +1,9 @@
 import type { ConfiguredSource } from "@roubo/plugin-sdk";
 
 // Optional per-source alert-category opt-ins (FR-074). Absent ⇒ false at the
-// host layer; not yet surfaced across the plugin SDK boundary (`ConfiguredSource`
-// is unchanged), so they appear only on entries returned by `parseSourcesConfig`.
+// host layer. `ConfiguredSource` carries these fields across the plugin SDK
+// boundary, and `listIssues` consumes them via alerts-runtime to dispatch the
+// matching GHAS endpoints.
 export interface GheSourceAlertFlags {
   includeCodeQLAlerts?: boolean;
   includeSecretScanningAlerts?: boolean;
