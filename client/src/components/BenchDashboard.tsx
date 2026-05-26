@@ -1,5 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useParams, Outlet, NavLink, useMatch, useLocation, useNavigate } from "react-router-dom";
+import {
+  useParams,
+  Outlet,
+  NavLink,
+  Link,
+  useMatch,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { Button } from "react-aria-components";
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Plus, PanelLeft } from "lucide-react";
@@ -425,10 +433,30 @@ export default function BenchDashboard() {
   }
 
   // Single-project layout: tab strip + Outlet (Cut List lives inside BenchesTab)
+  const integrationName = integration?.plugin?.manifest?.name ?? "Source";
+  const projectName = currentProject?.config?.project?.displayName ?? currentProject?.id;
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
-        <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-6">
+        <nav
+          aria-label="Breadcrumb"
+          className="px-8 pt-5 text-[12px] text-stone-500 dark:text-stone-500"
+        >
+          <Link to="/" className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors">
+            All Projects
+          </Link>
+          <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
+            /
+          </span>
+          <span className="text-stone-700 dark:text-stone-300">{projectName}</span>
+          <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
+            /
+          </span>
+          <span aria-current="page" className="text-stone-700 dark:text-stone-300">
+            {integrationName}
+          </span>
+        </nav>
+        <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-3">
           <nav aria-label="Project tabs" className="flex items-center gap-1">
             {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button

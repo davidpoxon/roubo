@@ -1309,4 +1309,83 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
   });
+
+  describe("breadcrumb (#179)", () => {
+    const githubIntegration: ProjectIntegrationState = {
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    };
+
+    function getBreadcrumb() {
+      return screen.getByRole("navigation", { name: "Breadcrumb" });
+    }
+
+    it("renders All Projects, project name, and integration display name on the single-project layout", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: githubIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      const crumb = getBreadcrumb();
+      expect(crumb).toHaveTextContent("All Projects");
+      expect(crumb).toHaveTextContent("My Project");
+      expect(crumb).toHaveTextContent("GitHub.com");
+    });
+
+    it("marks the integration crumb as the current page", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: githubIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByText("GitHub.com")).toHaveAttribute("aria-current", "page");
+    });
+
+    it('renders "Source" as the trailing crumb when no integration is active', () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          effective: {},
+          committed: null,
+          override: null,
+          plugin: null,
+          captionKey: "none",
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(getBreadcrumb()).toHaveTextContent("Source");
+    });
+
+    it('falls back to "Source" when the manifest name is missing', () => {
+      const plugin = githubIntegration.plugin;
+      if (!plugin) throw new Error("expected fixture plugin");
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: {
+          ...githubIntegration,
+          plugin: { ...plugin, manifest: null },
+        },
+      });
+      renderDashboard("/projects/proj-1");
+      expect(getBreadcrumb()).toHaveTextContent("Source");
+    });
+
+    it("is not rendered on the multi-project landing layout", () => {
+      stubDefaults({ projects: [makeProject()], benches: [] });
+      renderDashboard();
+      expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    });
+  });
 });
