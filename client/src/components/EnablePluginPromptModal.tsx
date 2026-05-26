@@ -5,6 +5,19 @@ import { AlertTriangle, Power } from "lucide-react";
 import { ApiError } from "../lib/api";
 import { useEnablePlugin } from "../hooks/usePlugins";
 
+const STRINGS = {
+  title: (pluginName: string) => `Enable ${pluginName} to load this project?`,
+  descriptionPrefix: "This project's ",
+  descriptionRoubo: "roubo.yaml",
+  descriptionReferences: " references the ",
+  descriptionPluginSuffix:
+    " plugin, which is currently disabled. Roubo will start it and continue loading the project. You can disable it again from Settings → Plugins.",
+  errorFallback: (pluginName: string) => `Couldn't start ${pluginName}.`,
+  cancel: "Cancel",
+  enabling: "Enabling…",
+  enableAndLoad: "Enable and load project",
+};
+
 interface Props {
   projectId: string;
   pluginId: string;
@@ -45,7 +58,7 @@ export default function EnablePluginPromptModal({
         onEnabled();
       },
       onError: (err) => {
-        setError(errorMessage(err, `Couldn't start ${pluginName}.`));
+        setError(errorMessage(err, STRINGS.errorFallback(pluginName)));
       },
     });
   }
@@ -70,13 +83,14 @@ export default function EnablePluginPromptModal({
               slot="title"
               className="text-sm font-semibold text-stone-900 dark:text-stone-100"
             >
-              Enable {pluginName} to load this project?
+              {STRINGS.title(pluginName)}
             </Heading>
             <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              This project's <span className="font-mono">roubo.yaml</span> references the{" "}
-              <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>{" "}
-              plugin, which is currently disabled. Roubo will start it and continue loading the
-              project. You can disable it again from Settings → Plugins.
+              {STRINGS.descriptionPrefix}
+              <span className="font-mono">{STRINGS.descriptionRoubo}</span>
+              {STRINGS.descriptionReferences}
+              <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+              {STRINGS.descriptionPluginSuffix}
             </p>
           </div>
 
@@ -100,7 +114,7 @@ export default function EnablePluginPromptModal({
               data-testid="enable-plugin-cancel"
               className="px-3 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
-              Cancel
+              {STRINGS.cancel}
             </Button>
             <Button
               autoFocus
@@ -110,7 +124,7 @@ export default function EnablePluginPromptModal({
               className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <Power size={13} />
-              {isPending ? "Enabling…" : "Enable and load project"}
+              {isPending ? STRINGS.enabling : STRINGS.enableAndLoad}
             </Button>
           </div>
         </Dialog>

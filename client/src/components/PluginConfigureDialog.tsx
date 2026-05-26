@@ -58,6 +58,31 @@ import { INPUT } from "./setup/styles";
 // surface the controls elsewhere (or not at all) until their own WU lands.
 const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com"]);
 
+const STRINGS = {
+  titlePrefix: "Configure ",
+  globalSuffix: "(global defaults)",
+  sourcesHeading: "Sources",
+  loadingSources: "Loading sources…",
+  integrationFieldsHeading: "Repository & metadata",
+  repositoryLabel: "Repository",
+  repositoryPlaceholder: "org/repo-name",
+  testConnection: "Test connection",
+  cancel: "Cancel",
+  save: "Save",
+  saving: "Saving…",
+  testing: "Testing connection…",
+  connectedAs: (displayName: string) => `Connected as ${displayName}.`,
+  enableSelfSignedTls: "Enable self-signed TLS and retry",
+  githubAccountHeading: "GitHub account",
+  connectedAsPrefix: "Connected as ",
+  connectPrompt: "Connect your GitHub account to authorize Roubo to read issues and projects.",
+  reconnect: "Reconnect",
+  connectGithub: "Connect GitHub",
+  postOauthHintPrefix: "After authorizing in the browser, click ",
+  postOauthHintCta: "Test connection",
+  postOauthHintSuffix: " to verify the credential.",
+};
+
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
 
 type Props =
@@ -530,10 +555,11 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
         <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-          Configure {manifest?.name ?? plugin.id}
+          {STRINGS.titlePrefix}
+          {manifest?.name ?? plugin.id}
           {mode === "global" && (
             <span className="ml-2 text-[11px] font-normal text-stone-400 dark:text-stone-500">
-              (global defaults)
+              {STRINGS.globalSuffix}
             </span>
           )}
         </Heading>
@@ -559,12 +585,12 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         {showSourcesSection && (
           <div className="flex flex-col gap-2" data-testid="sources-section">
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-              Sources
+              {STRINGS.sourcesHeading}
             </span>
             {sourceCandidatesQuery.isLoading ? (
               <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
                 <Spinner />
-                Loading sources…
+                {STRINGS.loadingSources}
               </div>
             ) : sourceCandidatesQuery.data ? (
               <SourcePicker
@@ -613,14 +639,16 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         {showIntegrationFields && (
           <div className="flex flex-col gap-4" data-testid="integration-fields-section">
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-              Repository &amp; metadata
+              {STRINGS.integrationFieldsHeading}
             </span>
             <TextField
               value={fields.repo ?? ""}
               onChange={(v) => setFields({ ...fields, repo: v })}
             >
-              <Label className="block text-xs text-stone-500 mb-1.5">Repository</Label>
-              <Input placeholder="org/repo-name" className={INPUT} />
+              <Label className="block text-xs text-stone-500 mb-1.5">
+                {STRINGS.repositoryLabel}
+              </Label>
+              <Input placeholder={STRINGS.repositoryPlaceholder} className={INPUT} />
             </TextField>
             <GitHubProjectField
               repo={fields.repo}
@@ -650,7 +678,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           data-testid="test-connection"
           className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
-          Test connection
+          {STRINGS.testConnection}
         </Button>
         <div className="flex items-center gap-2">
           <Button
@@ -658,7 +686,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             onPress={close}
             className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
-            Cancel
+            {STRINGS.cancel}
           </Button>
           <Button
             isDisabled={!hasTestedSuccessfully || isBusy}
@@ -666,7 +694,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending || saveSourcesPending || saveFieldsPending ? "Saving…" : "Save"}
+            {saveMutation.isPending || saveSourcesPending || saveFieldsPending
+              ? STRINGS.saving
+              : STRINGS.save}
           </Button>
         </div>
       </div>
@@ -776,7 +806,7 @@ function ResultStrip({
         className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
       >
         <Loader2 size={14} className="animate-spin text-stone-500" />
-        <p className="text-[12px] text-stone-600 dark:text-stone-400">Testing connection…</p>
+        <p className="text-[12px] text-stone-600 dark:text-stone-400">{STRINGS.testing}</p>
       </div>
     );
   }
@@ -793,7 +823,7 @@ function ResultStrip({
         >
           <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
           <p className="text-[12px] text-green-800 dark:text-green-300">
-            Connected as {result.identity.displayName}.
+            {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
       );
@@ -808,7 +838,7 @@ function ResultStrip({
         <div className="flex items-center gap-2.5">
           <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
           <p className="text-[12px] text-green-800 dark:text-green-300">
-            Connected as {result.identity.displayName}.
+            {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
         <ul className="mt-2 flex flex-col gap-1.5">
@@ -838,7 +868,7 @@ function ResultStrip({
             data-testid="enable-self-signed-tls"
             className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
-            Enable self-signed TLS and retry
+            {STRINGS.enableSelfSignedTls}
           </Button>
         )}
       </div>
@@ -873,16 +903,16 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-500">
-            GitHub account
+            {STRINGS.githubAccountHeading}
           </p>
           {connected ? (
             <p className="text-[12px] text-stone-700 dark:text-stone-300 mt-1">
-              Connected as{" "}
+              {STRINGS.connectedAsPrefix}
               <span className="font-mono text-stone-900 dark:text-stone-100">{username}</span>
             </p>
           ) : (
             <p className="text-[12px] text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
-              Connect your GitHub account to authorize Roubo to read issues and projects.
+              {STRINGS.connectPrompt}
             </p>
           )}
         </div>
@@ -897,7 +927,7 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
           ) : (
             <ExternalLink size={12} aria-hidden />
           )}
-          {connected ? "Reconnect" : "Connect GitHub"}
+          {connected ? STRINGS.reconnect : STRINGS.connectGithub}
         </Button>
       </div>
       {error && (
@@ -907,8 +937,9 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
       )}
       {!connected && (
         <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
-          After authorizing in the browser, click{" "}
-          <span className="font-medium">Test connection</span> to verify the credential.
+          {STRINGS.postOauthHintPrefix}
+          <span className="font-medium">{STRINGS.postOauthHintCta}</span>
+          {STRINGS.postOauthHintSuffix}
         </p>
       )}
     </div>

@@ -1,6 +1,13 @@
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
 import { AlertTriangle } from "lucide-react";
 
+const STRINGS = {
+  title: (pluginName: string) => `Uninstall ${pluginName}?`,
+  body: "This will stop the plugin and remove its files from disk. Any per-project integration referencing it must be cleared first. This action cannot be undone.",
+  cancel: "Cancel",
+  uninstall: "Uninstall",
+};
+
 interface Props {
   pluginName: string;
   onConfirm: () => void;
@@ -23,17 +30,14 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
                   slot="title"
                   className="text-sm font-semibold text-stone-900 dark:text-stone-100"
                 >
-                  Uninstall {pluginName}?
+                  {STRINGS.title(pluginName)}
                 </Heading>
               </div>
 
               <div className="px-5 py-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-stone-700 dark:text-stone-300">
-                    This will stop the plugin and remove its files from disk. Any per-project
-                    integration referencing it must be cleared first. This action cannot be undone.
-                  </p>
+                  <p className="text-sm text-stone-700 dark:text-stone-300">{STRINGS.body}</p>
                 </div>
               </div>
 
@@ -43,7 +47,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
                   onPress={close}
                   className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                 >
-                  Cancel
+                  {STRINGS.cancel}
                 </Button>
                 <Button
                   isDisabled={isPending}
@@ -53,7 +57,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
                   }}
                   className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
-                  Uninstall
+                  {STRINGS.uninstall}
                 </Button>
               </div>
             </>

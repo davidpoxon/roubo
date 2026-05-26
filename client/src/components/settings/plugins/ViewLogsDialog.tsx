@@ -13,6 +13,20 @@ import { RefreshCw, X } from "lucide-react";
 import type { LogLine } from "@roubo/shared";
 import { usePluginLogs } from "../../../hooks/usePlugins";
 
+const STRINGS = {
+  logsAriaLabel: (pluginName: string) => `${pluginName} logs`,
+  title: (pluginName: string) => `${pluginName} logs`,
+  closeAriaLabel: "Close",
+  refreshAriaLabel: "Refresh logs",
+  filterAriaLabel: "Filter log lines",
+  filterLabel: "Filter",
+  filterPlaceholder: "Filter...",
+  logFileSuffix: ".log",
+  loading: "Loading...",
+  noEntries: "No log entries yet.",
+  emptyTimestamp: "-",
+};
+
 type LogFile = "current" | "previous";
 
 interface Props {
@@ -47,7 +61,7 @@ const TIMESTAMP_FORMAT = new Intl.DateTimeFormat(undefined, {
 });
 
 function formatTimestamp(ts: string): string {
-  if (!ts) return "—";
+  if (!ts) return STRINGS.emptyTimestamp;
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
   return TIMESTAMP_FORMAT.format(d);
@@ -76,7 +90,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
     >
       <Modal className="w-full max-w-3xl mx-4">
         <Dialog
-          aria-label={`${pluginName} logs`}
+          aria-label={STRINGS.logsAriaLabel(pluginName)}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
         >
           <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between gap-3">
@@ -84,11 +98,11 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               slot="title"
               className="text-sm font-semibold text-stone-900 dark:text-stone-100"
             >
-              {pluginName} logs
+              {STRINGS.title(pluginName)}
             </Heading>
             <Button
               onPress={onClose}
-              aria-label="Close"
+              aria-label={STRINGS.closeAriaLabel}
               className="p-1 rounded text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <X size={16} />
@@ -110,7 +124,8 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
                       : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200",
                   ].join(" ")}
                 >
-                  {f}.log
+                  {f}
+                  {STRINGS.logFileSuffix}
                 </Button>
               ))}
             </div>
@@ -119,12 +134,12 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               autoFocus
               value={search}
               onChange={setSearch}
-              aria-label="Filter log lines"
+              aria-label={STRINGS.filterAriaLabel}
               className="flex-1"
             >
-              <Label className="sr-only">Filter</Label>
+              <Label className="sr-only">{STRINGS.filterLabel}</Label>
               <Input
-                placeholder="Filter..."
+                placeholder={STRINGS.filterPlaceholder}
                 className="w-full px-2.5 py-1 text-xs rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               />
             </TextField>
@@ -132,7 +147,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             <Button
               onPress={() => logs.refetch()}
               isDisabled={logs.isFetching}
-              aria-label="Refresh logs"
+              aria-label={STRINGS.refreshAriaLabel}
               className="p-1.5 rounded text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <RefreshCw size={14} className={logs.isFetching ? "animate-spin" : ""} />
@@ -144,10 +159,10 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             className="max-h-[480px] overflow-y-auto px-2 py-2 font-mono text-[11px] leading-relaxed bg-stone-50 dark:bg-stone-950"
           >
             {logs.isLoading && (
-              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">Loading...</p>
+              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">{STRINGS.loading}</p>
             )}
             {!logs.isLoading && filtered.length === 0 && (
-              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">No log entries yet.</p>
+              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">{STRINGS.noEntries}</p>
             )}
             {filtered.map((line, idx) => (
               <div key={idx} className={`flex gap-2 px-2 py-0.5 rounded ${lineClass(line)}`}>

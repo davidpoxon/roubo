@@ -12,6 +12,13 @@ import { initialSourceStep, type PermissionsStep, type SourceStep } from "./inst
 
 type State = SourceStep | PermissionsStep;
 
+const STRINGS = {
+  emptyGitInput: "Enter the Git URL of a plugin repository.",
+  emptyLocalInput: "Enter the absolute path to a local plugin directory.",
+  installFailedFallback: "Install failed.",
+  installedToast: (name: string) => `Installed ${name}.`,
+};
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
@@ -108,10 +115,7 @@ function InstallFlow({
     if (value.length === 0) {
       setState({
         ...state,
-        error:
-          state.tab === "git"
-            ? "Enter the Git URL of a plugin repository."
-            : "Enter the absolute path to a local plugin directory.",
+        error: state.tab === "git" ? STRINGS.emptyGitInput : STRINGS.emptyLocalInput,
       });
       return;
     }
@@ -123,7 +127,7 @@ function InstallFlow({
           setState({ step: "permissions", preview, error: null });
         },
         onError: (err) => {
-          setState({ ...state, error: errorMessage(err, "Install failed.") });
+          setState({ ...state, error: errorMessage(err, STRINGS.installFailedFallback) });
         },
       },
     );
@@ -134,7 +138,7 @@ function InstallFlow({
     confirmMutation.mutate(state.preview.stagingToken, {
       onSuccess: (result) => {
         const name = result.plugin.manifest?.name ?? result.plugin.id;
-        addToast(`Installed ${name}.`);
+        addToast(STRINGS.installedToast(name));
         confirmedRef.current = true;
         close();
       },

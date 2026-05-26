@@ -2,6 +2,14 @@ import type { ConnectionState, IntegrationConfig, PluginStatus } from "@roubo/sh
 
 export type PrimaryActionLabel = "Connect" | "Configure" | "Sign in again";
 
+const PRIMARY_ACTION_LABELS: Record<ConnectionState, PrimaryActionLabel> = {
+  connected: "Configure",
+  errored: "Configure",
+  disconnected: "Connect",
+  disabled: "Connect",
+  "auth-problem": "Sign in again",
+};
+
 /**
  * Derives the `ConnectionStatusPill` state from data already on the client
  * (the plugin's lifecycle `status` and, when fetched, the effective
@@ -35,17 +43,7 @@ export function derivePluginConnectionState(
 }
 
 export function primaryActionLabelFor(state: ConnectionState): PrimaryActionLabel {
-  switch (state) {
-    case "disconnected":
-    case "disabled":
-      return "Connect";
-    case "auth-problem":
-      return "Sign in again";
-    case "connected":
-    case "errored":
-    default:
-      return "Configure";
-  }
+  return PRIMARY_ACTION_LABELS[state];
 }
 
 function hasCredentials(effective: IntegrationConfig | undefined): boolean {

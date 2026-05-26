@@ -14,22 +14,55 @@ import { Loader2, Plus } from "lucide-react";
 import type { PluginManifest } from "@roubo/shared";
 import type { PermissionsStep, SourceStep, SourceTab } from "./install-screens-state";
 
-export function SourceScreen({
-  state,
-  onChange,
-  onCancel,
-  onSubmit,
-  submitting,
-  title = "Install plugin",
-  subtitle = (
+const STRINGS = {
+  defaultTitle: "Install plugin",
+  defaultCancelLabel: "Cancel",
+  defaultSubmitLabel: "Install",
+  tabAriaLabel: "Install source",
+  tabGit: "Git URL",
+  tabLocal: "Local directory",
+  repoUrlLabel: "Repository URL",
+  repoUrlPlaceholder: "https://github.com/owner/plugin.git",
+  repoUrlHelp: "Public https or ssh URLs only. Authentication uses your existing git config.",
+  localPathLabel: "Absolute path",
+  localPathPlaceholder: "/Users/you/dev/my-plugin",
+  localPathHelpPrefix: "The directory must contain a ",
+  localPathHelpSuffix: " manifest.",
+  inspecting: "Inspecting...",
+  installTitle: (name: string, version: string) => `Install ${name} ${version}?`,
+  reviewPrompt:
+    "This plugin is requesting the following permissions. Review them carefully before continuing.",
+  sourceLabelGit: "Git URL",
+  sourceLabelLocal: "Local path",
+  cancel: "Cancel",
+  installing: "Installing...",
+  installAndEnable: "Install and enable",
+  noneRequested: "None requested.",
+  notRequested: "Not requested.",
+  networkHostsHeading: "Network hosts",
+  credentialsHeading: "Credentials",
+  filesystemHeading: "Filesystem paths",
+  childProcessesHeading: "Child processes",
+  manifestFilename: "roubo-plugin.yaml",
+  defaultSubtitle: (
     <>
       Install an integration plugin from a Git repository or a local directory. The plugin will be
       cloned into <span className="font-mono">~/.roubo/plugins/</span> after you review its
       requested permissions.
     </>
   ),
-  cancelLabel = "Cancel",
-  submitLabel = "Install",
+};
+
+export function SourceScreen({
+  state,
+  onChange,
+  onCancel,
+  onSubmit,
+  submitting,
+  title = STRINGS.defaultTitle,
+  subtitle = STRINGS.defaultSubtitle,
+  cancelLabel = STRINGS.defaultCancelLabel,
+  submitLabel = STRINGS.defaultSubmitLabel,
 }: {
   state: SourceStep;
   onChange: (next: SourceStep) => void;
@@ -56,7 +89,7 @@ export function SourceScreen({
           onSelectionChange={(key) => onChange({ ...state, tab: key as SourceTab, error: null })}
         >
           <TabList
-            aria-label="Install source"
+            aria-label={STRINGS.tabAriaLabel}
             className="flex gap-0 border-b border-stone-200 dark:border-stone-800"
           >
             {(["git", "local"] as const).map((id) => (
@@ -75,7 +108,7 @@ export function SourceScreen({
                   ].join(" ")
                 }
               >
-                {id === "git" ? "Git URL" : "Local directory"}
+                {id === "git" ? STRINGS.tabGit : STRINGS.tabLocal}
               </Tab>
             ))}
           </TabList>
@@ -87,15 +120,15 @@ export function SourceScreen({
               isDisabled={submitting}
             >
               <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
-                Repository URL
+                {STRINGS.repoUrlLabel}
               </Label>
               <Input
                 data-testid="install-plugin-git-url"
-                placeholder="https://github.com/owner/plugin.git"
+                placeholder={STRINGS.repoUrlPlaceholder}
                 className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
               <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
-                Public https or ssh URLs only. Authentication uses your existing git config.
+                {STRINGS.repoUrlHelp}
               </p>
             </TextField>
           </TabPanel>
@@ -107,16 +140,17 @@ export function SourceScreen({
               isDisabled={submitting}
             >
               <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
-                Absolute path
+                {STRINGS.localPathLabel}
               </Label>
               <Input
                 data-testid="install-plugin-local-path"
-                placeholder="/Users/you/dev/my-plugin"
+                placeholder={STRINGS.localPathPlaceholder}
                 className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
               <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
-                The directory must contain a <span className="font-mono">roubo-plugin.yaml</span>{" "}
-                manifest.
+                {STRINGS.localPathHelpPrefix}
+                <span className="font-mono">{STRINGS.manifestFilename}</span>
+                {STRINGS.localPathHelpSuffix}
               </p>
             </TextField>
           </TabPanel>
@@ -150,7 +184,7 @@ export function SourceScreen({
           {submitting ? (
             <>
               <Loader2 size={13} className="animate-spin" />
-              Inspecting...
+              {STRINGS.inspecting}
             </>
           ) : (
             <>
@@ -180,17 +214,14 @@ export function PermissionsScreen({
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
         <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-          Install {manifest.name} {manifest.version}?
+          {STRINGS.installTitle(manifest.name, manifest.version)}
         </Heading>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-          This plugin is requesting the following permissions. Review them carefully before
-          continuing.
-        </p>
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{STRINGS.reviewPrompt}</p>
       </div>
 
       <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
         <SourceRow
-          label={source.type === "git" ? "Git URL" : "Local path"}
+          label={source.type === "git" ? STRINGS.sourceLabelGit : STRINGS.sourceLabelLocal}
           value={source.type === "git" ? source.url : source.path}
         />
 
@@ -214,7 +245,7 @@ export function PermissionsScreen({
           data-testid="install-plugin-permissions-cancel"
           className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
-          Cancel
+          {STRINGS.cancel}
         </Button>
         <Button
           onPress={onConfirm}
@@ -225,10 +256,10 @@ export function PermissionsScreen({
           {confirming ? (
             <>
               <Loader2 size={13} className="animate-spin" />
-              Installing...
+              {STRINGS.installing}
             </>
           ) : (
-            "Install and enable"
+            STRINGS.installAndEnable
           )}
         </Button>
       </div>
@@ -279,9 +310,9 @@ function NetworkSection({ hosts }: { hosts: string[] }) {
   const id = useId();
   return (
     <section aria-labelledby={id}>
-      <CategoryHeading id={id}>Network hosts</CategoryHeading>
+      <CategoryHeading id={id}>{STRINGS.networkHostsHeading}</CategoryHeading>
       {hosts.length === 0 ? (
-        <EmptyHint>None requested.</EmptyHint>
+        <EmptyHint>{STRINGS.noneRequested}</EmptyHint>
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {hosts.map((host) => (
@@ -303,9 +334,9 @@ function CredentialsSection({
   const id = useId();
   return (
     <section aria-labelledby={id}>
-      <CategoryHeading id={id}>Credentials</CategoryHeading>
+      <CategoryHeading id={id}>{STRINGS.credentialsHeading}</CategoryHeading>
       {slots.length === 0 ? (
-        <EmptyHint>None requested.</EmptyHint>
+        <EmptyHint>{STRINGS.noneRequested}</EmptyHint>
       ) : (
         <ul className="mt-1.5 space-y-1.5">
           {slots.map((slot) => (
@@ -327,9 +358,9 @@ function FilesystemSection({ paths }: { paths: string[] }) {
   const id = useId();
   return (
     <section aria-labelledby={id}>
-      <CategoryHeading id={id}>Filesystem paths</CategoryHeading>
+      <CategoryHeading id={id}>{STRINGS.filesystemHeading}</CategoryHeading>
       {paths.length === 0 ? (
-        <EmptyHint>None requested.</EmptyHint>
+        <EmptyHint>{STRINGS.noneRequested}</EmptyHint>
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {paths.map((p) => (
@@ -351,9 +382,9 @@ function ProcessesSection({
   const id = useId();
   return (
     <section aria-labelledby={id}>
-      <CategoryHeading id={id}>Child processes</CategoryHeading>
+      <CategoryHeading id={id}>{STRINGS.childProcessesHeading}</CategoryHeading>
       {processes === false ? (
-        <EmptyHint>Not requested.</EmptyHint>
+        <EmptyHint>{STRINGS.notRequested}</EmptyHint>
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {processes.executables.map((exe) => (
