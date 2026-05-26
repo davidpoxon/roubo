@@ -77,6 +77,19 @@ describe("translateSources", () => {
     ]);
   });
 
+  it("maps Jira filters / epics / boards into plugin-internal kinds", () => {
+    const result = translateSources({
+      filters: ["456"],
+      epics: ["PROJ-100"],
+      boards: ["789"],
+    });
+    expect(result).toEqual([
+      { kind: "filter", externalId: "456" },
+      { kind: "epic", externalId: "PROJ-100" },
+      { kind: "filter", externalId: "789" },
+    ]);
+  });
+
   it("omits absent alert booleans rather than emitting undefined fields", () => {
     const result = translateSources({
       Repository: [{ externalId: "foo/bar", includeCodeQLAlerts: true }],

@@ -2,14 +2,16 @@
  * Plugin config plumbing.
  *
  * Two call shapes:
- * - `validateConfig({ config })`: the host passes the raw Configure-dialog
- *   form values: `{ instance, pat, blocksLinkTypeName, isBlockedByLinkTypeName }`.
- * - `listSourceCandidates({ config })`: the host passes the project's
- *   IntegrationConfig: `{ plugin, instance, advanced: { blocksLinkTypeName, ... } }`.
+ * - Flat: `validateConfig({ config })` and `setActiveConfig({ config })`
+ *   both receive a flattened payload `{ instance, [pat], blocksLinkTypeName,
+ *   isBlockedByLinkTypeName }`. validateConfig sees the raw Configure-dialog
+ *   form values; setActiveConfig sees the host's `buildPluginConfig` output,
+ *   which flattens IntegrationConfig.advanced.* onto the top level.
+ * - Nested: `listSourceCandidates({ config })` receives the project's
+ *   IntegrationConfig wrapper: `{ plugin, instance, advanced: { blocksLinkTypeName, ... } }`.
  *
- * `parseFormConfig` handles the flat form shape; `parseIntegrationConfig`
- * pulls fields out of the IntegrationConfig wrapper (since the host
- * routes everything past validateConfig through that wrapper).
+ * `parseFormConfig` handles the flat shape; `parseIntegrationConfig`
+ * pulls fields out of the IntegrationConfig wrapper.
  *
  * Methods like `listIssues`, `getIssue`, `applyTransition` etc. don't
  * receive config at all; they read from the in-process cache populated

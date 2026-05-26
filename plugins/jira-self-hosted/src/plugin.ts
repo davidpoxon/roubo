@@ -1,5 +1,6 @@
 import { host } from "@roubo/plugin-sdk";
 import type {
+  ConfiguredSource,
   CurrentUser,
   FilterFacet,
   FilterFacetOption,
@@ -9,6 +10,7 @@ import type {
   NormalizedComment,
   NormalizedIssue,
   PluginContract,
+  SetActiveConfigResult,
   ValidateConfigResult,
 } from "@roubo/plugin-sdk";
 import { parseFormConfig, parseIntegrationConfig, type JiraPluginConfig } from "./config.js";
@@ -36,12 +38,19 @@ import { getLastPoll, setLastPoll, _resetCacheForTests } from "./state-store.js"
  * no-arg. We cast through `unknown` at the return site so we can accept
  * `params: unknown` at runtime; remove the cast once the SDK type is
  * widened (tracked separately).
+ *
+ * Source selection for `listIssues` arrives inline on `params.sources`
+ * (a flat `ConfiguredSource[]`), matching the `github-com` / `ghe`
+ * pattern. The in-process cache only holds plugin-wide config (instance
+ * URL, link-type names), which the host primes via `setActiveConfig`
+ * before each source-bound call.
  */
 export function createPluginContract(): PluginContract {
-  // The host doesn't pass config on every call (only validateConfig and
-  // listSourceCandidates), so we cache the last-known config here. The
-  // cache is repopulated whenever a method does receive config, and read
-  // by methods that don't.
+  // Plugin-wide config (instance URL, link-type names) cached so the host
+  // doesn't have to round-trip `setActiveConfig` on every call.
+  // `setActiveConfig` is the canonical writer; `validateConfig` and
+  // `listSourceCandidates` also populate it because the host already has
+  // the config in those code paths.
   let cachedConfig: JiraPluginConfig | null = null;
 
   async function ctxFor(config: JiraPluginConfig): Promise<JiraRequestContext> {
@@ -109,6 +118,28 @@ export function createPluginContract(): PluginContract {
       }
     },
 
+    /**
+     * Receive the plugin-wide config (instance URL, link-type names) from
+     * the host. Called before every source-bound RPC by
+     * `server/services/plugin-activation.ts#ensurePluginActivated`, so the
+     * cache survives plugin process restarts without the user having to
+     * re-open Configure.
+     *
+     * The host sends a flat shape here: `buildPluginConfig` flattens the
+     * IntegrationConfig's `advanced.*` onto the top level before invoking
+     * setActiveConfig, so we parse with `parseFormConfig` (top-level
+     * lookup), not `parseIntegrationConfig` (which expects `advanced.*`).
+     *
+     * Per-project source selection is supplied per-call on
+     * `ListIssuesParams.sources` and is never stored here.
+     */
+    setActiveConfig({ config }: { config: Record<string, unknown> }): SetActiveConfigResult {
+      const parsed = parseFormConfig(config);
+      if (!parsed.ok) return { ok: false, errors: parsed.errors };
+      cachedConfig = parsed.config;
+      return { ok: true };
+    },
+
     async getCurrentUser(params: unknown): Promise<CurrentUser> {
       const config = await adoptOrRecallConfig(params);
       const ctx = await ctxFor(config);
@@ -130,14 +161,11 @@ export function createPluginContract(): PluginContract {
       return listSourceCandidates(ctx);
     },
 
-    async listIssues(
-      params: ListIssuesParams & { config?: Record<string, unknown> },
-    ): Promise<ListIssuesResult> {
+    async listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {
       const config = await adoptOrRecallConfig(params);
       const ctx = await ctxFor(config);
 
-      const integration = isRecord(params.config) ? params.config : {};
-      const sources = readSources(integration);
+      const sources = toSourceClauses(params.sources);
       const sourceKey = sourcesCacheKey(sources);
       const lastPoll = await getLastPoll(sourceKey);
       const jql = buildIssueListJql({ sources, lastPollIso: lastPoll });
@@ -329,29 +357,28 @@ export function _resetForTests(): void {
   _resetCacheForTests();
 }
 
-interface SourcesShape {
-  filters?: string[];
-  epics?: string[];
-  boards?: string[];
-}
-
-function readSources(integration: Record<string, unknown>): SourceClause[] {
-  const sources = integration.sources;
-  if (!sources || typeof sources !== "object" || Array.isArray(sources)) return [];
-  const typed = sources as SourcesShape;
+/**
+ * Narrow the host's flat `ConfiguredSource[]` (which carries an opaque
+ * `kind` string) to Jira-understood `SourceClause`s. Entries whose `kind`
+ * is anything other than `"filter"` or `"epic"` are dropped silently; the
+ * host already logged a warning for unknown categories upstream in
+ * `server/services/plugin-source-translation.ts`.
+ */
+function toSourceClauses(sources: ConfiguredSource[] | undefined): SourceClause[] {
+  if (!Array.isArray(sources)) return [];
   const clauses: SourceClause[] = [];
-  pushAll(clauses, typed.filters, "filter");
-  pushAll(clauses, typed.boards, "filter"); // boards resolve to filter ids in listSourceCandidates
-  pushAll(clauses, typed.epics, "epic");
+  for (const source of sources) {
+    if (!source || typeof source.externalId !== "string" || source.externalId.length === 0) {
+      continue;
+    }
+    if (!isJiraSourceKind(source.kind)) continue;
+    clauses.push({ kind: source.kind, externalId: source.externalId });
+  }
   return clauses;
 }
 
-function pushAll(out: SourceClause[], ids: string[] | undefined, kind: SourceKind): void {
-  if (!Array.isArray(ids)) return;
-  for (const id of ids) {
-    if (typeof id !== "string" || id.length === 0) continue;
-    out.push({ kind, externalId: id });
-  }
+function isJiraSourceKind(kind: unknown): kind is SourceKind {
+  return kind === "filter" || kind === "epic";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
