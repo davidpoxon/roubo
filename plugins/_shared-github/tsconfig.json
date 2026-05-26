@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "composite": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "NodeNext",
@@ -8,6 +9,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "emitDeclarationOnly": true,
+    "isolatedModules": true,
     "types": ["node"],
     "resolveJsonModule": true
   },
