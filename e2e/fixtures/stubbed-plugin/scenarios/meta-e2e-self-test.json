@@ -1,0 +1,22 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "meta self-test stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": []
+  },
+  "issues": [],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {}
+}
