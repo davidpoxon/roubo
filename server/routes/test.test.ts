@@ -59,6 +59,10 @@ vi.mock("../services/github-oauth.js", () => ({
   },
 }));
 
+vi.mock("../services/plugin-enable-state.js", () => ({
+  setPluginEnabled: vi.fn(),
+}));
+
 vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
@@ -75,7 +79,9 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
+import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
+import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 
 const app = express();
 app.use(express.json());
@@ -202,6 +208,12 @@ describe("POST /test/__reset", () => {
       scenario: null,
       now: null,
     });
+    // WU-068 (#159): every bundled plugin id is force-enabled on reset so
+    // the project-settings specs can drive the overlay slots.
+    expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(BUNDLED_PLUGIN_IDS.length);
+    for (const id of BUNDLED_PLUGIN_IDS) {
+      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
+    }
 
     const order = [
       vi.mocked(migrate.__test.reset).mock.invocationCallOrder[0],
@@ -212,6 +224,7 @@ describe("POST /test/__reset", () => {
       vi.mocked(projectRegistry.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.initialize).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.__test.setE2EConfig).mock.invocationCallOrder[0],
+      vi.mocked(pluginEnableState.setPluginEnabled).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.initialize).mock.invocationCallOrder[0],
     ];
     const sorted = [...order].sort((a, b) => a - b);

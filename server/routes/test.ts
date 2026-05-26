@@ -3,11 +3,13 @@ import rateLimit from "express-rate-limit";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
+import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 
 const router: Router = Router();
@@ -183,6 +185,20 @@ function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string
   return { scenario, now };
 }
 
+// WU-068 (#159): mark every bundled plugin id (`github-com`, `ghe`,
+// `jira-self-hosted`) as enabled in `~/.roubo/plugins-state.json`. The first
+// `migrate.run()` on a greenfield install seeds these as "disabled" so the
+// migration banner can prompt the user to opt-in; the e2e harness needs them
+// running so the bundled-overlay slots (e2e/fixtures/bundled-overlays/) can
+// surface stub scenario data. Called from `__reset` only, behind the
+// ROUBO_E2E gate.
+function ensureBundledPluginsEnabled(): void {
+  for (const id of BUNDLED_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, true);
+  }
+}
+
+
 // POST /test/__reset (FR-079): wipe module-level singletons so Playwright
 // specs can start from a clean state without restarting the server. Gated by
 // ROUBO_E2E so production builds return 404 for this URL. The e2e harness
@@ -240,6 +256,15 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // initialize: initialize() is what spawns the plugin processes, and the
     // pinning must be in place at spawn time so spawnPlugin sees it.
     pluginManager.__test.setE2EConfig(parsed);
+    // WU-068 (#159): force-enable the bundled plugin ids before initialize()
+    // runs. The migrate seed (greenfield install path) writes them as
+    // "disabled" by default, which suppresses spawn under ROUBO_E2E too, so
+    // /api/plugins/github-com/connection-status would otherwise return
+    // { state: "disabled" } and the project-settings specs that target the
+    // bundled-overlay slot (github-com / ghe / jira-self-hosted) could never
+    // observe a connected state. Doing this in __reset keeps the override
+    // scoped to the e2e gate.
+    ensureBundledPluginsEnabled();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });
   } catch (err) {
