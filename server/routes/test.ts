@@ -120,8 +120,24 @@ interface ParsedResetConfig {
 // WU-069: helper for the /__reset path; safely truncates the on-disk state
 // files the route owns and removes any per-project integration overrides
 // dropped by a previous spec. Missing files / dirs are treated as success.
+// Refuses to run when ROUBO_PRODUCTION is set, and also refuses if the
+// resolved roubo dir does not look like a dev path (state.ts:resolveRouboDir
+// returns `~/.roubo-dev/<bench>` in dev and `~/.roubo` in production). The
+// path-shape check is defence-in-depth: `resolveRouboDir` runs once at
+// module-load and caches the path, so by the time this function runs the
+// env var may have been cleared by a caller while the cached path still
+// points at the real `~/.roubo`. The /__reset route is also gated on
+// ROUBO_E2E=1 (returns 404 otherwise), but the env vars are independent and
+// the destructive op keeps its own guard rather than trusting only the
+// caller.
 function wipePersistedTestState(): void {
+  if (process.env.ROUBO_PRODUCTION) {
+    throw new Error("wipePersistedTestState refuses to run when ROUBO_PRODUCTION is set");
+  }
   const rouboDir = state.getRouboDir();
+  if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
+    throw new Error(`wipePersistedTestState refuses to wipe a non-dev roubo dir: ${rouboDir}`);
+  }
   for (const name of ["projects.json", "state.json"]) {
     const file = path.join(rouboDir, name);
     try {
