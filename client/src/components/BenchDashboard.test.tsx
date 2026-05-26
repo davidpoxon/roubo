@@ -1224,7 +1224,7 @@ describe("BenchDashboard", () => {
       captionKey: "yaml-only",
     };
 
-    it("renders EnablePluginPromptModal when integration plugin is installed-but-disabled (TC-123)", () => {
+    it("renders EnablePluginPromptModal when integration plugin is installed-but-disabled (TC-120)", () => {
       stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1279,7 +1279,7 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
 
-    it("renders MissingPluginDialog (not EnablePluginPromptModal) when plugin is not installed (TC-189)", () => {
+    it("renders MissingPluginDialog (not EnablePluginPromptModal) when plugin is not installed (TC-192)", () => {
       stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1296,7 +1296,7 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
 
-    it("dismisses the prompt after Cancel and stays dismissed for the session (TC-124)", async () => {
+    it("dismisses the prompt after Cancel and stays dismissed for the session (TC-121)", async () => {
       const user = userEvent.setup();
       stubDefaults({
         projects: [makeProject()],
