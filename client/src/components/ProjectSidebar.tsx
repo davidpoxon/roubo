@@ -4,10 +4,11 @@ import { Button } from "react-aria-components";
 import { Layers, Settings, Plus } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
+import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import NotificationIndicator from "./NotificationIndicator";
 import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import { collectActionNeeded } from "../lib/notifications";
-import type { BenchStatus } from "@roubo/shared";
+import type { Bench, BenchStatus, RegisteredProject } from "@roubo/shared";
 
 const statusDotColor: Record<BenchStatus, string> = {
   active: "bg-green-500",
@@ -79,49 +80,18 @@ export default function ProjectSidebar() {
               </Button>
             </div>
             <div className="space-y-0.5">
-              {projects?.map((project) => {
-                const projectBenches = benchesByProject.get(project.id) ?? [];
-                return (
-                  <div key={project.id}>
-                    <Button
-                      onPress={() => navigate(`/projects/${project.id}`)}
-                      className={navItemClass(isProjectActive(project.id), "justify-between")}
-                    >
-                      <span className="truncate">
-                        {project.config?.project?.displayName ?? project.id}
-                      </span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <NotificationIndicator
-                          notifications={collectActionNeeded(projectBenches)}
-                        />
-                        {projectBenches.length > 0 && (
-                          <span className="text-[10px] font-medium text-stone-500 dark:text-stone-600 bg-stone-200 dark:bg-stone-800/80 rounded-full px-1.5 py-px min-w-[18px] text-center">
-                            {projectBenches.length}
-                          </span>
-                        )}
-                      </div>
-                    </Button>
-                    {projectBenches.map((bench) => {
-                      const active = isBenchActive(project.id, bench.id);
-                      return (
-                        <Button
-                          key={bench.id}
-                          onPress={() => navigate(`/projects/${project.id}/benches/${bench.id}`)}
-                          className={benchItemClass(active)}
-                        >
-                          <span
-                            role="img"
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDotColor[bench.status]}`}
-                            aria-label={bench.status}
-                          />
-                          <span className="font-mono text-[11px] truncate">{bench.branch}</span>
-                          {!active && <NotificationIndicator notifications={bench.notifications} />}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+              {projects?.map((project) => (
+                <ProjectSidebarRow
+                  key={project.id}
+                  project={project}
+                  projectBenches={benchesByProject.get(project.id) ?? []}
+                  isProjectActive={isProjectActive(project.id)}
+                  navItemClass={navItemClass}
+                  benchItemClass={benchItemClass}
+                  isBenchActive={isBenchActive}
+                  navigate={navigate}
+                />
+              ))}
             </div>
             <Button
               onPress={openRegisterModal}
@@ -144,5 +114,65 @@ export default function ProjectSidebar() {
         </Button>
       </div>
     </aside>
+  );
+}
+
+function ProjectSidebarRow({
+  project,
+  projectBenches,
+  isProjectActive,
+  navItemClass,
+  benchItemClass,
+  isBenchActive,
+  navigate,
+}: {
+  project: RegisteredProject;
+  projectBenches: Bench[];
+  isProjectActive: boolean;
+  navItemClass: (active: boolean, layout?: string) => string;
+  benchItemClass: (active: boolean) => string;
+  isBenchActive: (projectId: string, benchId: number) => boolean;
+  navigate: (path: string) => void;
+}) {
+  const { data: integration } = useProjectIntegration(project.id);
+  const integrationName = integration?.plugin?.manifest?.name ?? "Source";
+  return (
+    <div>
+      <Button
+        onPress={() => navigate(`/projects/${project.id}`)}
+        className={navItemClass(isProjectActive, "justify-between")}
+      >
+        <span className="truncate">{project.config?.project?.displayName ?? project.id}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <NotificationIndicator notifications={collectActionNeeded(projectBenches)} />
+          {projectBenches.length > 0 && (
+            <span className="text-[10px] font-medium text-stone-500 dark:text-stone-600 bg-stone-200 dark:bg-stone-800/80 rounded-full px-1.5 py-px min-w-[18px] text-center">
+              {projectBenches.length}
+            </span>
+          )}
+        </div>
+      </Button>
+      <p className="pl-3 pr-3 pb-1 text-[11px] text-stone-500 dark:text-stone-600 truncate">
+        {integrationName}
+      </p>
+      {projectBenches.map((bench) => {
+        const active = isBenchActive(project.id, bench.id);
+        return (
+          <Button
+            key={bench.id}
+            onPress={() => navigate(`/projects/${project.id}/benches/${bench.id}`)}
+            className={benchItemClass(active)}
+          >
+            <span
+              role="img"
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDotColor[bench.status]}`}
+              aria-label={bench.status}
+            />
+            <span className="font-mono text-[11px] truncate">{bench.branch}</span>
+            {!active && <NotificationIndicator notifications={bench.notifications} />}
+          </Button>
+        );
+      })}
+    </div>
   );
 }
