@@ -348,6 +348,35 @@ Errors are also written to the plugin's log with a stable identifier of the form
 
 Contract method errors thrown from your code propagate as JSON-RPC errors with whatever message you threw. The host surfaces them to the UI and writes them to the log.
 
+## User-facing strings
+
+Every user-facing string a plugin or first-party component renders, status labels, button copy, modal headings, error fallbacks, alert category names, lives in a typed key map at the top of the consuming module. The host has no `t(key)` runtime; the pattern is convention, not framework. It exists so a future localization pass can swap copy without touching JSX (NFR-025).
+
+The convention, taken directly from `client/src/components/settings/plugins/ConnectionStatusPill.tsx`:
+
+```ts
+const LABELS: Record<ConnectionState, string> = {
+  connected: "Connected",
+  disconnected: "Not connected",
+  "auth-problem": "Sign in again",
+  errored: "Error",
+  disabled: "Disabled",
+};
+
+// ...
+<span>{LABELS[state]}</span>
+```
+
+Rules of thumb:
+
+- Declare a module-scope constant (`LABELS`, `STRINGS`, `BUTTON_LABELS`, name it for the role). One constant per role keeps the file scannable.
+- Type it `Record<KeyUnion, string>` when keys map to an enum (reuse the union from `@roubo/shared` where one exists), or `Record<string, string>` for free-form copy slots.
+- For strings that splice in runtime values (plugin name, count, timestamp), expose a small format function on the same constant, mirroring `formatTimestamp` in `ConnectionStatusPill.tsx`. The templating tokens stay inside the constant; the JSX calls the function.
+- Treat error-fallback strings (`errorMessage(err, fallback)`) as user-visible. Put the fallback in the same map.
+- No em-dashes (`—`) in any user-facing copy. The project lint enforces it. En-dashes (`–`) are fine for numeric ranges only.
+
+The structural test for this rule lives at TC-155 (`.specifications/integration-plugins/test-cases.json`): grep new components for inline English in JSX and `aria-label` / `title`; expect none.
+
 ## Trust boundaries
 
 The plugin host model is cooperative, not adversarial. A plugin runs as a Node child process with the same OS permissions as Roubo itself; the SDK helpers enforce the manifest declarations, but a plugin that ignores the SDK and reaches for Node APIs directly is not blocked.

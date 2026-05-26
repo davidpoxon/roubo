@@ -14,6 +14,27 @@ import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
 import { useSwitchProjectIntegration } from "../hooks/useProjectIntegration";
 import { ApiError } from "../lib/api";
 
+const STRINGS = {
+  titleChoose: "Choose integration",
+  titleSwitch: "Switch integration",
+  loadingPlugins: "Loading plugins…",
+  noPlugins: "No integration plugins are installed. Install a plugin from the Plugins page first.",
+  installedAriaLabel: "Installed integrations",
+  staleBenchesWarning:
+    'Active benches will keep working against their stored issue snapshot. They will show an "Issue from previous integration" badge and their source-sync controls will be disabled. New benches will use the new integration.',
+  switchFailedFallback: "Switch failed",
+  cancel: "Cancel",
+  switching: "Switching…",
+};
+
+const PLUGIN_STATUS_LABELS: Record<InstalledPluginSummary["status"], string> = {
+  enabled: "enabled",
+  disabled: "disabled",
+  errored: "errored",
+  incompatible: "incompatible",
+  invalid: "invalid",
+};
+
 interface Props {
   projectId: string;
   currentPluginId: string | null;
@@ -81,7 +102,7 @@ function SwitchFlow({
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Switch failed",
+            : STRINGS.switchFailedFallback,
       );
     }
   };
@@ -90,20 +111,18 @@ function SwitchFlow({
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
         <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-          {isChoosing ? "Choose integration" : "Switch integration"}
+          {isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Heading>
       </div>
 
       <div className="px-5 py-4 space-y-4">
         {isLoading ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400">Loading plugins…</p>
+          <p className="text-sm text-stone-500 dark:text-stone-400">{STRINGS.loadingPlugins}</p>
         ) : (plugins ?? []).length === 0 ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400">
-            No integration plugins are installed. Install a plugin from the Plugins page first.
-          </p>
+          <p className="text-sm text-stone-500 dark:text-stone-400">{STRINGS.noPlugins}</p>
         ) : (
           <RadioGroup
-            aria-label="Installed integrations"
+            aria-label={STRINGS.installedAriaLabel}
             value={selected ?? ""}
             onChange={(v) => setSelected(v)}
             className="flex flex-col gap-2"
@@ -155,7 +174,7 @@ function SwitchFlow({
                               : "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
                           ].join(" ")}
                         >
-                          {p.status}
+                          {PLUGIN_STATUS_LABELS[p.status]}
                         </span>
                       )}
                     </div>
@@ -170,9 +189,7 @@ function SwitchFlow({
           <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
             <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
-              Active benches will keep working against their stored issue snapshot. They will show
-              an "Issue from previous integration" badge and their source-sync controls will be
-              disabled. New benches will use the new integration.
+              {STRINGS.staleBenchesWarning}
             </p>
           </div>
         )}
@@ -190,7 +207,7 @@ function SwitchFlow({
           onPress={close}
           className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
-          Cancel
+          {STRINGS.cancel}
         </Button>
         <Button
           isDisabled={!canConfirm || usable.length === 0}
@@ -198,10 +215,10 @@ function SwitchFlow({
           className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           {switchMutation.isPending
-            ? "Switching…"
+            ? STRINGS.switching
             : isChoosing
-              ? "Choose integration"
-              : "Switch integration"}
+              ? STRINGS.titleChoose
+              : STRINGS.titleSwitch}
         </Button>
       </div>
     </>

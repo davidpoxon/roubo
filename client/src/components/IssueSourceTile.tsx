@@ -21,6 +21,22 @@ const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
   none: "",
 };
 
+const STRINGS = {
+  defaultTitle: "Source",
+  secondary: "The integration that supplies this project's issues",
+  loading: "Loading…",
+  loadFailedPrefix: "Failed to load integration: ",
+  unknownError: "unknown error",
+  noSources: "No sources selected yet.",
+  switchIntegration: "Switch integration",
+  noIssueSource: "No issue source configured yet.",
+  noIssueSourceHint: "Choose an installed integration to start pulling issues into this project.",
+  chooseIntegration: "Choose integration",
+  missingPluginPrefix: "The plugin ",
+  missingPluginSuffix: " is referenced by this project but isn't installed locally.",
+  installPlugin: "Install plugin",
+};
+
 const TRIGGER_BUTTON_CLASS =
   "px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
@@ -64,7 +80,7 @@ function ConfiguredBody({
       </div>
 
       {Object.keys(sources).length === 0 ? (
-        <p className="text-xs text-stone-400 dark:text-stone-600">No sources selected yet.</p>
+        <p className="text-xs text-stone-400 dark:text-stone-600">{STRINGS.noSources}</p>
       ) : (
         <dl className="space-y-2">
           {Object.entries(sources).map(([key, values]) => (
@@ -93,7 +109,7 @@ function ConfiguredBody({
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <DialogTrigger isOpen={switchOpen} onOpenChange={setSwitchOpen}>
-          <Button className={TRIGGER_BUTTON_CLASS}>Switch integration</Button>
+          <Button className={TRIGGER_BUTTON_CLASS}>{STRINGS.switchIntegration}</Button>
           <SwitchIntegrationDialog projectId={projectId} currentPluginId={plugin.id} />
         </DialogTrigger>
         {plugin.manifest && (
@@ -116,15 +132,15 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-stone-600 dark:text-stone-400">No issue source configured yet.</p>
+      <p className="text-sm text-stone-600 dark:text-stone-400">{STRINGS.noIssueSource}</p>
       <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
-        Choose an installed integration to start pulling issues into this project.
+        {STRINGS.noIssueSourceHint}
       </p>
       <div>
         <DialogTrigger isOpen={open} onOpenChange={setOpen}>
           <Button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950">
             <Plug size={12} />
-            Choose integration
+            {STRINGS.chooseIntegration}
           </Button>
           <SwitchIntegrationDialog projectId={projectId} currentPluginId={null} />
         </DialogTrigger>
@@ -139,9 +155,9 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
         <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
-          The plugin{" "}
-          <span className="font-mono text-stone-900 dark:text-stone-100">{pluginId}</span> is
-          referenced by this project but isn't installed locally.
+          {STRINGS.missingPluginPrefix}
+          <span className="font-mono text-stone-900 dark:text-stone-100">{pluginId}</span>
+          {STRINGS.missingPluginSuffix}
         </p>
       </div>
       <Link
@@ -149,7 +165,7 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
       >
         <Download size={12} />
-        Install plugin
+        {STRINGS.installPlugin}
       </Link>
     </div>
   );
@@ -157,7 +173,7 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
 
 export default function IssueSourceTile({
   projectId,
-  title = "Source",
+  title = STRINGS.defaultTitle,
 }: {
   projectId: string;
   title?: string;
@@ -175,19 +191,20 @@ export default function IssueSourceTile({
     <Tile
       icon={<Plug size={13} aria-hidden />}
       title={title}
-      secondary="The integration that supplies this project's issues"
+      secondary={STRINGS.secondary}
       data-testid="issue-source-tile"
     >
       {isLoading && (
         <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
           <Spinner />
-          Loading…
+          {STRINGS.loading}
         </div>
       )}
 
       {isError && (
         <p role="alert" className="text-sm text-red-400">
-          Failed to load integration: {error instanceof Error ? error.message : "unknown error"}
+          {STRINGS.loadFailedPrefix}
+          {error instanceof Error ? error.message : STRINGS.unknownError}
         </p>
       )}
 

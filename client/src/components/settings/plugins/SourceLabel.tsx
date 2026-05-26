@@ -1,5 +1,10 @@
 import type { PluginSource } from "@roubo/shared";
 
+const STRINGS = {
+  bundled: "Bundled",
+  userPath: (pluginId: string) => `~/.roubo/plugins/${pluginId}/`,
+};
+
 interface Props {
   source: PluginSource;
   pluginId: string;
@@ -13,7 +18,7 @@ export default function SourceLabel({ source, pluginId }: Props) {
         data-source="bundled"
         className="text-[11px] text-stone-500 dark:text-stone-400"
       >
-        Bundled
+        {STRINGS.bundled}
       </span>
     );
   }
@@ -23,7 +28,7 @@ export default function SourceLabel({ source, pluginId }: Props) {
       data-source="user"
       className="font-mono text-[11px] text-stone-500 dark:text-stone-400"
     >
-      ~/.roubo/plugins/{pluginId}/
+      {STRINGS.userPath(pluginId)}
     </span>
   );
 }

@@ -47,13 +47,13 @@ describe("ViewLogsDialog (TC-017)", () => {
     expect(screen.getByText("error")).toBeTruthy();
   });
 
-  it("renders an em-dash for entries with an empty timestamp (legacy malformed line)", () => {
+  it("renders a placeholder for entries with an empty timestamp (legacy malformed line)", () => {
     setLogsReturn([{ ts: "", source: "host", text: "legacy line without prefix" }]);
     render(
       <ViewLogsDialog pluginId="github-com" pluginName="GitHub.com" isOpen onClose={() => {}} />,
     );
     expect(screen.getByText("legacy line without prefix")).toBeTruthy();
-    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("-")).toBeTruthy();
   });
 
   it("switches to previous.log when the previous tab is pressed", async () => {

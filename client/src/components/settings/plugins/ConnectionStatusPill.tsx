@@ -11,6 +11,15 @@ const LABELS: Record<ConnectionState, string> = {
   disabled: "Disabled",
 };
 
+const TIMESTAMP_STRINGS = {
+  rechecking: "rechecking...",
+  asOf: (hh: string, mm: string) => `as of ${hh}:${mm}`,
+};
+
+const ARIA_LABELS = {
+  withDetail: (label: string, detail: string) => `${label}: ${detail}`,
+};
+
 type IconProps = { size?: number; "aria-hidden"?: boolean; fill?: string };
 
 const ICONS: Record<ConnectionState, ComponentType<IconProps>> = {
@@ -37,7 +46,7 @@ function formatTimestamp(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const hh = d.getHours().toString().padStart(2, "0");
   const mm = d.getMinutes().toString().padStart(2, "0");
-  return `as of ${hh}:${mm}`;
+  return TIMESTAMP_STRINGS.asOf(hh, mm);
 }
 
 function PillBody({
@@ -53,7 +62,11 @@ function PillBody({
   const showTimestamp = state !== "disabled";
   // The `connected` dot is a filled circle; other variants render outline glyphs.
   const iconExtra = state === "connected" ? { fill: "currentColor" } : {};
-  const timestampText = rechecking ? "rechecking..." : checkedAt ? formatTimestamp(checkedAt) : "";
+  const timestampText = rechecking
+    ? TIMESTAMP_STRINGS.rechecking
+    : checkedAt
+      ? formatTimestamp(checkedAt)
+      : "";
   return (
     <>
       <Icon size={12} aria-hidden {...iconExtra} />
@@ -101,7 +114,7 @@ export default function ConnectionStatusPill({
         <Button
           data-testid="connection-status-pill"
           data-state={state}
-          aria-label={`${LABELS[state]}: ${detail}`}
+          aria-label={ARIA_LABELS.withDetail(LABELS[state], detail)}
           className={`${className} outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950`}
         >
           <PillBody state={state} checkedAt={checkedAt} rechecking={effectiveRechecking} />

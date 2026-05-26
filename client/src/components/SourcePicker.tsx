@@ -98,6 +98,42 @@ interface SourcePickerProps {
 
 const MULTI_LIST_KEY = "items";
 
+const STRINGS = {
+  searchPrefix: "Search ",
+  searchPlaceholder: "Search…",
+  clearSearch: "Clear search",
+  noCandidates: "No candidates returned.",
+  noMatches: "No matches for that search.",
+  removePrefix: "Remove ",
+  alertSuffix: " alerts",
+  securityAlertsHeading: "Security & quality alerts",
+  securityAlertsAriaPrefix: "Security & quality alerts for ",
+  enabledCountSuffix: " enabled",
+  selectedCountSuffix: " selected",
+  benchSingular: "1 existing bench still shows alerts from this category.",
+  benchPlural: (k: number) => `${k} existing benches still show alerts from this category.`,
+  verifyPatPrefix: "Verify your PAT has ",
+  verifyPatSuffix: " scope",
+  verifyPatAriaPrefix: "Verify your PAT has the security_events scope. Opens token settings on ",
+  verifyPatAriaSuffix:
+    " so you can regenerate the token with that scope and paste it back into the Personal access token field.",
+  verifyPatTitlePrefix: "Verify your PAT has the security_events scope. Opens token settings on ",
+  verifyPatTitleSuffix: ".",
+  reconnectGitHub: "Reconnect GitHub",
+  reconnectAriaDescription:
+    "Reconnect GitHub. The OAuth token is missing the security_events scope; re-authenticate to grant it.",
+  retry: "Retry",
+  verifyToken: "Verify token",
+  unavailable: "Unavailable",
+  sourceCandidatesAriaLabel: "Source candidates",
+  sourceCategoriesAriaLabel: "Source categories",
+  categoryCandidatesSuffix: " candidates",
+  selectedHeading: (n: number) => `Selected (${n})`,
+  selectedLabel: "Selected",
+  nothingSelected: "Nothing selected yet.",
+  securityEventsScope: "security_events",
+};
+
 interface AlertCategoryDef {
   flag: AlertFlagKey;
   label: string;
@@ -180,7 +216,7 @@ function CandidateList({ items, selected, onSelectionChange, ariaLabel }: Candid
   return (
     <div className="flex flex-col gap-2">
       <TextField
-        aria-label={`Search ${ariaLabel}`}
+        aria-label={`${STRINGS.searchPrefix}${ariaLabel}`}
         value={search}
         onChange={setSearch}
         className="w-full"
@@ -192,13 +228,13 @@ function CandidateList({ items, selected, onSelectionChange, ariaLabel }: Candid
           />
           <Input
             type="search"
-            placeholder="Search…"
+            placeholder={STRINGS.searchPlaceholder}
             className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md bg-stone-100 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/50 text-stone-700 dark:text-stone-300 placeholder:text-stone-400 dark:placeholder:text-stone-600 outline-none focus:border-amber-500 dark:focus:border-amber-500 focus:bg-white dark:focus:bg-stone-800 transition-colors"
           />
           {search && (
             <Button
               onPress={() => setSearch("")}
-              aria-label="Clear search"
+              aria-label={STRINGS.clearSearch}
               className="absolute right-1.5 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
             >
               <X size={11} />
@@ -216,7 +252,7 @@ function CandidateList({ items, selected, onSelectionChange, ariaLabel }: Candid
         className="outline-none max-h-64 overflow-y-auto rounded-md border border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-900/40"
         renderEmptyState={() => (
           <p className="text-xs text-stone-400 dark:text-stone-600 px-3 py-4 text-center">
-            {items.length === 0 ? "No candidates returned." : "No matches for that search."}
+            {items.length === 0 ? STRINGS.noCandidates : STRINGS.noMatches}
           </p>
         )}
       >
@@ -267,7 +303,7 @@ function Chip({ label, onRemove }: ChipProps) {
       <span className="truncate max-w-[200px]">{label}</span>
       <Button
         onPress={onRemove}
-        aria-label={`Remove ${label}`}
+        aria-label={`${STRINGS.removePrefix}${label}`}
         className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500 rounded"
       >
         <X size={11} />
@@ -342,13 +378,15 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`Verify your PAT has the security_events scope. Opens token settings on ${chipContext.gheInstanceUrl} so you can regenerate the token with that scope and paste it back into the Personal access token field.`}
-        title={`Verify your PAT has the security_events scope. Opens token settings on ${chipContext.gheInstanceUrl}.`}
+        aria-label={`${STRINGS.verifyPatAriaPrefix}${chipContext.gheInstanceUrl}${STRINGS.verifyPatAriaSuffix}`}
+        title={`${STRINGS.verifyPatTitlePrefix}${chipContext.gheInstanceUrl}${STRINGS.verifyPatTitleSuffix}`}
         className="inline-flex outline-none rounded focus-visible:ring-2 focus-visible:ring-amber-500/40"
         data-testid="alert-chip-missing-scope-ghe"
       >
         <IssueChip variant="status" tone="warning" icon={ExternalLink}>
-          Verify your PAT has <code className="font-mono">security_events</code> scope
+          {STRINGS.verifyPatPrefix}
+          <code className="font-mono">{STRINGS.securityEventsScope}</code>
+          {STRINGS.verifyPatSuffix}
         </IssueChip>
       </a>
     );
@@ -362,7 +400,7 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
     if (handler) {
       const actionSuffix = showRetry ? (
         <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
-          Retry
+          {STRINGS.retry}
         </span>
       ) : undefined;
       return (
@@ -370,12 +408,12 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
           variant="status"
           tone="warning"
           icon={RefreshCw}
-          ariaDescription="Reconnect GitHub. The OAuth token is missing the security_events scope; re-authenticate to grant it."
+          ariaDescription={STRINGS.reconnectAriaDescription}
           onPress={handler}
           actionSuffix={actionSuffix}
           data-testid="alert-chip-missing-scope-github-com"
         >
-          Reconnect GitHub
+          {STRINGS.reconnectGitHub}
         </IssueChip>
       );
     }
@@ -390,7 +428,7 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
         ariaDescription={warning.cause}
         data-testid="alert-chip-scope-unverifiable"
       >
-        Verify token
+        {STRINGS.verifyToken}
       </IssueChip>
     );
   }
@@ -413,14 +451,14 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
         onPress={onReconsent}
         actionSuffix={actionSuffix}
       >
-        Unavailable
+        {STRINGS.unavailable}
       </IssueChip>
     );
   }
 
   return (
     <IssueChip variant="status" tone="warning" icon={AlertTriangle} ariaDescription={warning.cause}>
-      Unavailable
+      {STRINGS.unavailable}
     </IssueChip>
   );
 }
@@ -491,9 +529,7 @@ function AlertCheckboxRow({
           className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed pl-6"
           data-testid={`alert-existing-benches-${category.flag}`}
         >
-          {k === 1
-            ? "1 existing bench still shows alerts from this category."
-            : `${k} existing benches still show alerts from this category.`}
+          {k === 1 ? STRINGS.benchSingular : STRINGS.benchPlural(k)}
         </p>
       )}
     </div>
@@ -526,7 +562,9 @@ function SecurityAlertsDisclosure({
   const enabled = ALERT_CATEGORIES.filter((c) => entryFlag(entry, c.flag));
   const enabledCount = enabled.length;
   const summary =
-    enabledCount > 0 ? `(${enabled.map((c) => c.label.replace(/ alerts$/, "")).join(", ")})` : null;
+    enabledCount > 0
+      ? `(${enabled.map((c) => c.label.replace(new RegExp(`${STRINGS.alertSuffix}$`), "")).join(", ")})`
+      : null;
 
   return (
     <Disclosure
@@ -539,20 +577,20 @@ function SecurityAlertsDisclosure({
             <Button
               slot="trigger"
               className="w-full flex items-center gap-2 px-1 py-1 text-left text-[12px] text-stone-600 dark:text-stone-400 outline-none rounded transition-colors hover:text-stone-800 dark:hover:text-stone-200 focus-visible:ring-2 focus-visible:ring-amber-500/40"
-              aria-label={`Security & quality alerts for ${sourceLabel}`}
+              aria-label={`${STRINGS.securityAlertsAriaPrefix}${sourceLabel}`}
             >
               <ChevronRight
                 size={12}
                 className={`shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
                 aria-hidden
               />
-              <span className="font-medium">Security & quality alerts</span>
+              <span className="font-medium">{STRINGS.securityAlertsHeading}</span>
               {summary && (
                 <span className="text-stone-500 dark:text-stone-500 truncate">{summary}</span>
               )}
               {enabledCount > 0 && (
                 <span
-                  aria-label={`${enabledCount} enabled`}
+                  aria-label={`${enabledCount}${STRINGS.enabledCountSuffix}`}
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
                 >
                   {enabledCount}
@@ -696,10 +734,10 @@ function MultiListVariant({
         items={items}
         selected={selectedIds}
         onSelectionChange={handleChange}
-        ariaLabel="Source candidates"
+        ariaLabel={STRINGS.sourceCandidatesAriaLabel}
       />
       <ChipStrip
-        title={`Selected (${selectedList.length})`}
+        title={STRINGS.selectedHeading(selectedList.length)}
         chips={selectedList.map((it) => ({
           id: it.externalId,
           label: it.label,
@@ -761,7 +799,7 @@ function CategorizedVariant({
         className="flex flex-col gap-3"
       >
         <TabList
-          aria-label="Source categories"
+          aria-label={STRINGS.sourceCategoriesAriaLabel}
           className="flex items-center gap-1 border-b border-stone-200 dark:border-stone-800"
         >
           {categories.map((cat) => (
@@ -773,7 +811,7 @@ function CategorizedVariant({
               <span>{cat.label}</span>
               {counts[cat.id] > 0 && (
                 <span
-                  aria-label={`${counts[cat.id]} selected`}
+                  aria-label={`${counts[cat.id]}${STRINGS.selectedCountSuffix}`}
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
                 >
                   {counts[cat.id]}
@@ -790,7 +828,7 @@ function CategorizedVariant({
                 items={cat.items}
                 selected={catIds}
                 onSelectionChange={(next) => onChange(applyIdSelection(value, cat.id, next))}
-                ariaLabel={`${cat.label} candidates`}
+                ariaLabel={`${cat.label}${STRINGS.categoryCandidatesSuffix}`}
               />
               <PerSourceConfigList
                 category={cat.id}
@@ -828,7 +866,7 @@ function ChipStrip({ title, chips }: ChipStripProps) {
         {title}
       </span>
       {chips.length === 0 ? (
-        <p className="text-xs text-stone-400 dark:text-stone-600">Nothing selected yet.</p>
+        <p className="text-xs text-stone-400 dark:text-stone-600">{STRINGS.nothingSelected}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {chips.map((chip) => (
@@ -861,13 +899,13 @@ function GroupedChipStrip({
     .filter((g) => g.chips.length > 0);
 
   if (groups.length === 0) {
-    return <ChipStrip title="Selected (0)" chips={[]} />;
+    return <ChipStrip title={STRINGS.selectedHeading(0)} chips={[]} />;
   }
 
   return (
     <div className="flex flex-col gap-3" aria-live="polite" aria-atomic="true">
       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-        Selected
+        {STRINGS.selectedLabel}
       </span>
       {groups.map(({ cat, chips }) => (
         <div key={cat.id} className="flex flex-col gap-1.5">

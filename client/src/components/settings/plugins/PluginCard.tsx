@@ -21,6 +21,20 @@ const SECONDARY_BUTTON_CLASS =
 const PRIMARY_BUTTON_CLASS =
   "px-3 py-1 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
+const STRINGS = {
+  viewLogs: "View logs",
+  uninstall: "Uninstall",
+  uninstalling: "Uninstalling...",
+  enabled: "Enabled",
+  disabled: "Disabled",
+  versionPrefix: "v",
+  loadingConfig: "Loading plugin configuration…",
+  configLoadFailed: "Couldn't load plugin configuration",
+  configLoadFallback: "Failed to load plugin configuration",
+  close: "Close",
+  retry: "Retry",
+};
+
 interface Props {
   plugin: PluginRecord;
   hostApiVersion: string;
@@ -83,7 +97,8 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             </h3>
             {version && (
               <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
-                v{version}
+                {STRINGS.versionPrefix}
+                {version}
               </span>
             )}
           </div>
@@ -127,13 +142,13 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
 
         <div className="flex items-center gap-1">
           <Button onPress={() => setLogsOpen(true)} className={SECONDARY_BUTTON_CLASS}>
-            View logs
+            {STRINGS.viewLogs}
           </Button>
 
           {isUser && (
             <DialogTrigger isOpen={uninstallOpen} onOpenChange={setUninstallOpen}>
               <Button isDisabled={uninstall.isPending} className={SECONDARY_BUTTON_CLASS}>
-                {uninstall.isPending ? "Uninstalling..." : "Uninstall"}
+                {uninstall.isPending ? STRINGS.uninstalling : STRINGS.uninstall}
               </Button>
               <UninstallPluginDialog
                 pluginName={displayName}
@@ -250,7 +265,7 @@ function EnableSwitch({
             />
           </div>
           <span className="text-xs font-medium text-stone-700 dark:text-stone-200">
-            {isEnabled ? "Enabled" : "Disabled"}
+            {isEnabled ? STRINGS.enabled : STRINGS.disabled}
           </span>
         </>
       )}
@@ -268,7 +283,7 @@ function ConfigureLoadingDialog() {
             className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400"
           >
             <Spinner />
-            Loading plugin configuration…
+            {STRINGS.loadingConfig}
           </div>
         </Dialog>
       </Modal>
@@ -277,7 +292,7 @@ function ConfigureLoadingDialog() {
 }
 
 function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const message = error instanceof Error ? error.message : "Failed to load plugin configuration";
+  const message = error instanceof Error ? error.message : STRINGS.configLoadFallback;
   return (
     <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <Modal className="w-full max-w-sm mx-4">
@@ -289,7 +304,7 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
             <div className="flex flex-col gap-4">
               <div>
                 <h2 className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                  Couldn't load plugin configuration
+                  {STRINGS.configLoadFailed}
                 </h2>
                 <p className="mt-2 text-xs text-stone-600 dark:text-stone-400 break-words">
                   {message}
@@ -297,10 +312,10 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
               </div>
               <div className="flex items-center justify-end gap-2">
                 <Button onPress={close} className={SECONDARY_BUTTON_CLASS}>
-                  Close
+                  {STRINGS.close}
                 </Button>
                 <Button onPress={onRetry} className={SECONDARY_BUTTON_CLASS}>
-                  Retry
+                  {STRINGS.retry}
                 </Button>
               </div>
             </div>

@@ -1,5 +1,11 @@
 import { AlertTriangle } from "lucide-react";
 
+const STRINGS = {
+  declares: "This plugin declares Roubo host API ",
+  provides: "; your Roubo provides ",
+  resolution: ". Update the plugin or use a newer Roubo.",
+};
+
 interface Props {
   pluginRange: string;
   hostApiVersion: string;
@@ -14,9 +20,11 @@ export default function IncompatibleBanner({ pluginRange, hostApiVersion }: Prop
     >
       <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" aria-hidden />
       <p className="text-[13px] text-amber-800 dark:text-amber-300 leading-relaxed">
-        This plugin declares Roubo host API <span className="font-mono">{pluginRange}</span>; your
-        Roubo provides <span className="font-mono">{hostApiVersion}</span>. Update the plugin or use
-        a newer Roubo.
+        {STRINGS.declares}
+        <span className="font-mono">{pluginRange}</span>
+        {STRINGS.provides}
+        <span className="font-mono">{hostApiVersion}</span>
+        {STRINGS.resolution}
       </p>
     </div>
   );
