@@ -1,0 +1,16 @@
+id: host-fetch-caller
+name: Host Fetch Caller Fixture
+version: 0.0.0
+description: Test fixture that proxies calls to host.fetch and returns the result or error
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts:
+      - api.github.com
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
