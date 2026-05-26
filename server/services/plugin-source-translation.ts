@@ -20,17 +20,25 @@ export interface PluginSourceEntry {
 
 /**
  * Map from a `SourceSelection` category id (as returned by the plugin's
- * `listSourceCandidates`, e.g. `"Repository"`, `"Project"`) to the `kind`
- * string the plugin expects under `config.sources[*].kind` (e.g. `"repo"`,
- * `"project"`).
+ * `listSourceCandidates`, e.g. `"Repository"`, `"Project"`, `"boards"`)
+ * to the `kind` string the plugin expects under each `ConfiguredSource.kind`
+ * (e.g. `"repo"`, `"project"`, `"filter"`).
  *
- * Currently hard-coded for GitHub-shaped plugins. When non-GitHub plugins
- * grow per-call activation this should move into the plugin manifest so
- * each plugin advertises its own mapping; see #120.
+ * Still hard-coded centrally; the longer-term direction is to let each
+ * plugin advertise its own mapping in `roubo-plugin.yaml`. Until then,
+ * adding a new plugin family means adding its categories here.
+ *
+ * Jira: the source picker returns `boards`, `epics`, and `filters`
+ * categories; boards are resolved to backing filter ids before they reach
+ * the host (see `plugins/jira-self-hosted/src/source-picker.ts`), so both
+ * `boards` and `filters` map to plugin-internal kind `"filter"`.
  */
 const CATEGORY_TO_KIND: Record<string, string> = {
   Repository: "repo",
   Project: "project",
+  boards: "filter",
+  epics: "epic",
+  filters: "filter",
 };
 
 export interface TranslateSourcesOptions {
