@@ -16,7 +16,7 @@ vi.mock("./integration-overrides.js", async (importOriginal) => {
     })),
   };
 });
-vi.mock("./plugin-manager.js", () => ({ invoke: vi.fn() }));
+vi.mock("./plugin-manager.js", () => ({ invoke: vi.fn(), listInstalled: vi.fn(() => []) }));
 
 import {
   clearActivationCache,
@@ -32,6 +32,45 @@ import * as pluginManager from "./plugin-manager.js";
 const PROJECT_ID = "proj-1";
 const GITHUB_PLUGIN = "github-com";
 const GHE_PLUGIN = "ghe";
+
+// Manifest stubs matching what `pluginManager.listInstalled()` returns at
+// runtime. The filter at plugin-config-filter.ts reads
+// `manifest.configSchema.properties` to decide which `advanced.*` keys are
+// legal, so the tests must provide enough of the manifest for that lookup.
+const GHE_MANIFEST = {
+  id: GHE_PLUGIN,
+  configSchema: {
+    type: "object",
+    properties: {
+      instance: { type: "string" },
+      allowSelfSignedTls: { type: "boolean" },
+    },
+  },
+};
+const GITHUB_MANIFEST = {
+  id: GITHUB_PLUGIN,
+  configSchema: {
+    type: "object",
+    properties: {
+      sources: { type: "array" },
+    },
+  },
+};
+const OTHER_MANIFEST = {
+  id: "other",
+  configSchema: {
+    type: "object",
+    properties: { instance: { type: "string" } },
+  },
+};
+
+function mockInstalledPlugins(): void {
+  vi.mocked(pluginManager.listInstalled).mockReturnValue([
+    { id: GHE_PLUGIN, manifest: GHE_MANIFEST },
+    { id: GITHUB_PLUGIN, manifest: GITHUB_MANIFEST },
+    { id: "other", manifest: OTHER_MANIFEST },
+  ] as never);
+}
 
 function mockGithubProject(sources: Record<string, string[]> | undefined): void {
   vi.mocked(projectRegistry.getProject).mockReturnValue({
@@ -64,6 +103,7 @@ describe("ensurePluginActivated", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearActivationCache();
+    mockInstalledPlugins();
   });
 
   it("is a no-op for a plugin with no plugin-wide config (e.g. github-com)", async () => {
@@ -160,13 +200,13 @@ describe("ensurePluginActivated", () => {
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 
-  it("swallows MethodNotFound when the plugin has no setActiveConfig handler and caches the snapshot", async () => {
+  it("filters stale advanced keys (issue #125) so no RPC is sent when nothing legitimate remains", async () => {
     // Reproduces the production state where ~/.roubo/integrations/_global/
-    // github-com.yaml carries a stale `advanced` field from before
-    // commit 23ea55b. github-com no longer registers `setActiveConfig`, so
-    // vscode-jsonrpc replies with -32601 (mapped to "MethodNotFound" by
-    // plugin-manager.invoke). The host must treat this as a no-op so the
-    // cut list keeps loading.
+    // github-com.yaml carries a stale `advanced.sources: ""` from before
+    // commit 23ea55b. github-com's manifest declares `sources` only at the
+    // top level, so the filter strips it from `advanced` and the resulting
+    // plugin-wide payload is empty. `ensurePluginActivated` early-returns
+    // without paying any JSON-RPC round-trip.
     vi.mocked(projectRegistry.getProject).mockReturnValue({
       config: {
         integration: {
@@ -176,19 +216,31 @@ describe("ensurePluginActivated", () => {
       },
     } as never);
     vi.mocked(loadOverride).mockReturnValue(null);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
+    await expect(ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN)).resolves.toBeUndefined();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`${GITHUB_PLUGIN}: dropping stale advanced keys`),
+    );
+  });
+
+  it("swallows MethodNotFound when the plugin has plugin-wide config but no setActiveConfig handler, and caches the snapshot", async () => {
+    // Even with #125 fixed there is still a legitimate scenario for the
+    // MethodNotFound swallow: a plugin that has real plugin-wide config the
+    // host can push (e.g. an `instance`) but doesn't register a handler. The
+    // host should not page the user; treat it as a no-op and cache.
+    mockGheProject({ instance: "https://ghe.example.com" });
     const notFound = Object.assign(new Error("Unhandled method setActiveConfig"), {
       code: "MethodNotFound",
     });
     vi.mocked(pluginManager.invoke).mockRejectedValueOnce(notFound);
 
-    await expect(ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN)).resolves.toBeUndefined();
+    await expect(ensurePluginActivated(PROJECT_ID, GHE_PLUGIN)).resolves.toBeUndefined();
     expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
 
-    // Subsequent calls must not retry: the snapshot was cached on the
-    // swallowed MethodNotFound so we don't pay the JSON-RPC round-trip
-    // (and noisy plugin log line) on every source-bound RPC.
-    await ensurePluginActivated(PROJECT_ID, GITHUB_PLUGIN);
+    // Cached: the second call must not retry.
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
     expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
   });
 

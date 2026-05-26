@@ -25,6 +25,7 @@ import {
   runIntegrationTest,
 } from "../services/integration-test.js";
 import { forgetProjectActivation, resolveSources } from "../services/plugin-activation.js";
+import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 import { getPluginFacetOptions, getPluginFilterFacets } from "../services/plugin-filter-facets.js";
 
 const router = Router();
@@ -354,7 +355,28 @@ router.put("/:projectId/integration/config", (req, res) => {
     const nextIntegration: IntegrationConfig = { ...existing.integration };
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
     if (update.sources !== undefined) nextIntegration.sources = update.sources;
-    if (update.advanced !== undefined) nextIntegration.advanced = update.advanced;
+    if (update.advanced !== undefined) {
+      // Issue #125: strip any keys not in the active plugin's manifest schema
+      // before writing, so stale leftovers from earlier schema versions
+      // don't keep round-tripping through the per-project override file.
+      const activePluginId = existing.integration.plugin;
+      const manifest = activePluginId
+        ? (pluginManager.listInstalled().find((r) => r.id === activePluginId)?.manifest ?? null)
+        : null;
+      const cleaned = activePluginId
+        ? filterAdvancedAgainstManifest(
+            activePluginId,
+            update.advanced,
+            manifest,
+            "persist-project",
+          )
+        : undefined;
+      if (cleaned) {
+        nextIntegration.advanced = cleaned;
+      } else {
+        delete nextIntegration.advanced;
+      }
+    }
     if (update.capturedUserId !== undefined) {
       nextIntegration.capturedUserId = update.capturedUserId;
     }

@@ -70,6 +70,7 @@ function makePlugin(
   id: string,
   name = id,
   status: PluginRecord["status"] = "enabled",
+  configSchema?: Record<string, unknown>,
 ): PluginRecord {
   return {
     id,
@@ -87,6 +88,7 @@ function makePlugin(
         filesystem: { paths: [] },
         processes: false,
       },
+      ...(configSchema ? { configSchema } : {}),
     },
     manifestPath: "/tmp/manifest.yaml",
     pluginDir: "/tmp/plugin",
@@ -712,7 +714,12 @@ describe("PUT /:projectId/integration/config", () => {
       schemaVersion: 1,
       integration: { plugin: "ghe", sources: { repos: ["org/a"] } },
     });
-    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "ghe", "enabled", {
+        type: "object",
+        properties: { allowSelfSignedTls: { type: "boolean" } },
+      }),
+    ]);
     vi.mocked(integrationOverrides.saveOverride).mockImplementation((_id, next) => {
       vi.mocked(integrationOverrides.loadOverride).mockReturnValue(next);
     });
@@ -734,6 +741,53 @@ describe("PUT /:projectId/integration/config", () => {
       advanced: { allowSelfSignedTls: true },
       capturedUserId: { externalId: "u-1", displayName: "Jane Doe" },
     });
+  });
+
+  it("strips stale advanced keys not in the active plugin's manifest schema before saving (issue #125)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "ghe" }));
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe" },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "ghe", "enabled", {
+        type: "object",
+        properties: { allowSelfSignedTls: { type: "boolean" } },
+      }),
+    ]);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await request(app)
+      .put("/demo/integration/config")
+      .send({ advanced: { allowSelfSignedTls: true, legacyToggle: "x" } });
+
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.advanced).toEqual({ allowSelfSignedTls: true });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("advanced.legacyToggle"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("source=persist-project"));
+  });
+
+  it("drops the advanced block entirely when every supplied key is stale (issue #125)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "github-com", advanced: { allowSelfSignedTls: true } },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("github-com", "github-com", "enabled", {
+        type: "object",
+        properties: { sources: { type: "array" } },
+      }),
+    ]);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await request(app)
+      .put("/demo/integration/config")
+      .send({ advanced: { sources: "" } });
+
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.advanced).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("advanced.sources"));
   });
 
   it("replaces sources arrays wholesale (FR-023)", async () => {
