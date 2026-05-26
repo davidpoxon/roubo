@@ -1301,15 +1301,15 @@
     "description": "When the user opens a project whose `roubo.yaml` references a disabled bundled plugin, surface a React Aria Dialog asking \"Enable [plugin name] to load this project?\". Buttons: Cancel, Enable and load project (primary). Initial focus on primary. Focus-trapped. Esc cancels, Enter confirms on focused primary. On failure path (plugin refuses to start), display inline error and keep plugin disabled.",
     "category": "feature",
     "acceptance_criteria": [
-      "Modal opens for the bundled-disabled case (TC-123)",
-      "Cancel returns to project list with no state mutation (TC-124)",
-      "Focus is trapped; Esc cancels; Enter confirms (TC-185)",
-      "Failure path: plugin start error displayed inline; plugin stays disabled (TC-187)",
-      "Distinguishes bundled-disabled from missing-plugin (TC-189)"
+      "Modal opens for the bundled-disabled case (TC-120)",
+      "Cancel returns to project list with no state mutation (TC-121)",
+      "Focus is trapped; Esc cancels; Enter confirms (TC-152)",
+      "Failure path: plugin start error displayed inline; plugin stays disabled (TC-154)",
+      "Distinguishes bundled-disabled from missing-plugin (TC-192)"
     ],
     "linked_requirement_ids": ["FR-061", "NFR-022", "NFR-024"],
     "linked_user_story_ids": ["US-017"],
-    "linked_test_ids": ["TC-123", "TC-124", "TC-185", "TC-187", "TC-189"],
+    "linked_test_ids": ["TC-120", "TC-121", "TC-152", "TC-154", "TC-192"],
     "estimate": 5,
     "depends_on": ["WU-046"],
     "issue": {
@@ -1628,13 +1628,13 @@
     ],
     "linked_requirement_ids": ["FR-077", "FR-078", "FR-080", "NFR-018"],
     "linked_user_story_ids": ["US-025"],
-    "linked_test_ids": ["TC-164", "TC-165"],
+    "linked_test_ids": ["TC-171", "TC-172"],
     "estimate": 5,
     "depends_on": ["WU-053", "WU-046", "WU-062"],
     "issue": {
       "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/157",
-      "id": 157,
+      "url": "https://github.com/davidpoxon/roubo/issues/230",
+      "id": 230,
       "blocked_by": ["#144 (WU-053)", "#137 (WU-046)", "#153 (WU-062)"]
     }
   },
