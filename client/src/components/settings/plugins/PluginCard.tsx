@@ -49,7 +49,10 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
     plugin.status === "enabled" || plugin.status === "disabled" || plugin.status === "errored";
   const togglePending = enable.isPending || disable.isPending;
 
-  const connectionState = derivePluginConnectionState(plugin, integrationQuery.data ?? undefined);
+  const connectionState = derivePluginConnectionState(
+    plugin.status,
+    integrationQuery.data?.effective,
+  );
   const primaryLabel = primaryActionLabelFor(connectionState);
   // Acceptance criterion 2: pressing Connect on a disabled bundled plugin
   // both enables it and opens the Configure modal in the same gesture.

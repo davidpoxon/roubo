@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import type { ProjectIntegrationState } from "@roubo/shared";
@@ -8,7 +8,6 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import IssueSourceTile from "./IssueSourceTile";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
-import { useSourceCandidates } from "../hooks/useSourceCandidates";
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(),
@@ -246,10 +245,36 @@ describe("IssueSourceTile", () => {
     ).toBeInTheDocument();
   });
 
-  it("enables the Configure button on the configured variant and opens the plugin config dialog", async () => {
+  it('shows "Connect" as the primary action when the plugin has no credentials yet (FR-072, TC-133)', () => {
+    withData({
+      // Plugin selected, but no capturedUserId and no instance: derives to
+      // disconnected and the single primary button reads "Connect".
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTile();
+
+    expect(screen.getByRole("button", { name: /^Connect$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Configure$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Choose sources$/ })).not.toBeInTheDocument();
+  });
+
+  it('flips the primary action to "Configure" once credentials are captured and opens the same modal (FR-072, TC-133)', async () => {
     const user = userEvent.setup();
     withData({
-      effective: { plugin: "github-com" },
+      effective: {
+        plugin: "github-com",
+        capturedUserId: { externalId: "42", displayName: "Octocat" },
+      },
       committed: { plugin: "github-com" },
       override: null,
       plugin: {
@@ -274,45 +299,31 @@ describe("IssueSourceTile", () => {
 
     const configure = screen.getByRole("button", { name: /^Configure$/ });
     expect(configure).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Choose sources$/ })).not.toBeInTheDocument();
     await user.click(configure);
 
     expect(screen.getByRole("dialog", { name: /Configure GitHub\.com/ })).toBeInTheDocument();
   });
 
-  it("Choose sources opens the source picker dialog", async () => {
-    const user = userEvent.setup();
+  it("GHE plugin renders the same single context-aware button behaviour (FR-073, TC-133)", () => {
     withData({
-      effective: { plugin: "github-com" },
-      committed: { plugin: "github-com" },
+      // GHE: instance saved counts as "connected" via the helper's optimistic
+      // instance-presence heuristic, mirroring github.com's connected branch.
+      effective: { plugin: "ghe", instance: "https://ghe.example" },
+      committed: { plugin: "ghe" },
       override: null,
       plugin: {
-        id: "github-com",
+        id: "ghe",
         installed: true,
         status: "enabled",
-        manifest: {
-          name: "GitHub.com",
-          configSchema: { type: "object", properties: { instance: { type: "string" } } },
-          permissions: {
-            network: { hosts: [] },
-            credentials: { slots: [] },
-            filesystem: { paths: [] },
-            processes: false,
-          },
-        },
+        manifest: { name: "GitHub Enterprise" },
       },
       captionKey: "yaml-only",
     });
 
     renderTile();
 
-    const chooseSources = screen.getByRole("button", { name: /^Choose sources$/ });
-    expect(chooseSources).toBeEnabled();
-
-    await user.click(chooseSources);
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog", { name: /Configure sources/i })).toBeInTheDocument();
-    });
-    expect(vi.mocked(useSourceCandidates)).toHaveBeenCalledWith("demo", "github-com");
+    expect(screen.getByRole("button", { name: /^Configure$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Choose sources$/ })).not.toBeInTheDocument();
   });
 });
