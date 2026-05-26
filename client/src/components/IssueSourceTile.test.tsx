@@ -45,12 +45,14 @@ vi.mock("../hooks/useSaveProjectSources", () => ({
 // WU-050: PluginConfigureDialog renders useOpportunisticRecheckOnMount, which
 // would otherwise issue a real fetch when the dialog mounts in this jsdom
 // suite (no MSW; api.ts uses relative URLs with no base). Mock the hook so
-// the dialog stays inert here.
+// the dialog stays inert here. Issue #204 wires `useConnectionStatus` into
+// the tile itself; mock that one too to keep this suite hermetic.
 vi.mock("../hooks/usePlugins", async () => {
   const actual = await vi.importActual<typeof import("../hooks/usePlugins")>("../hooks/usePlugins");
   return {
     ...actual,
     useOpportunisticRecheckOnMount: vi.fn(),
+    useConnectionStatus: vi.fn(() => ({ data: undefined, isFetching: false })),
   };
 });
 

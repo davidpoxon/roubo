@@ -29,6 +29,7 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
   }),
 }));
 import {
+  useConnectionStatus as _useConnectionStatus,
   useDisablePlugin as _useDisable,
   useEnablePlugin as _useEnable,
   useRestartPlugin as _useRestart,
@@ -44,6 +45,7 @@ const mockedRestart = vi.mocked(_useRestart);
 const mockedUninstall = vi.mocked(_useUninstall);
 const mockedLogs = vi.mocked(_usePluginLogs);
 const mockedGlobalIntegration = vi.mocked(_useGlobalIntegration);
+const mockedConnectionStatus = vi.mocked(_useConnectionStatus);
 
 function manifest(over: Partial<PluginManifest> = {}): PluginManifest {
   return {
@@ -120,6 +122,10 @@ beforeEach(() => {
     isError: false,
     error: null,
   } as unknown as ReturnType<typeof _useGlobalIntegration>);
+  mockedConnectionStatus.mockReturnValue({
+    data: undefined,
+    isFetching: false,
+  } as unknown as ReturnType<typeof _useConnectionStatus>);
 });
 
 describe("PluginCard: header content (TC-001, TC-013, FR-057)", () => {
@@ -432,6 +438,69 @@ describe("PluginCard: lifecycle banners", () => {
     render(<PluginCard plugin={r} hostApiVersion="1.0.0" />);
     const banner = screen.getByTestId("plugin-invalid-banner");
     expect(banner.textContent).toContain("Missing required field: entry");
+  });
+});
+
+describe("PluginCard: auth-problem branch (issue #204)", () => {
+  it('labels the primary button "Sign in again" when live status is auth-problem', () => {
+    mockedConnectionStatus.mockReturnValue({
+      data: { state: "auth-problem", detail: "Token expired" },
+      isFetching: false,
+    } as unknown as ReturnType<typeof _useConnectionStatus>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeTruthy();
+    expect(screen.getByTestId("connection-status-pill").dataset.state).toBe("auth-problem");
+  });
+
+  it("prefers live auth-problem over a captured-user derive-from-config connected", () => {
+    mockedGlobalIntegration.mockReturnValue({
+      data: integrationState({
+        capturedUserId: { externalId: "42", displayName: "Octocat" },
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof _useGlobalIntegration>);
+    mockedConnectionStatus.mockReturnValue({
+      data: { state: "auth-problem" },
+      isFetching: false,
+    } as unknown as ReturnType<typeof _useConnectionStatus>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(screen.getByTestId("connection-status-pill").dataset.state).toBe("auth-problem");
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeTruthy();
+  });
+
+  it("skips the connection-status query for disabled plugins", () => {
+    render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
+    expect(mockedConnectionStatus).toHaveBeenCalledWith("github-com", false);
+  });
+
+  it("enables the connection-status query for enabled plugins", () => {
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(mockedConnectionStatus).toHaveBeenCalledWith("github-com", true);
+  });
+});
+
+describe("PluginCard: rechecking lifecycle (issue #204)", () => {
+  it('shows a pulsing "rechecking..." on the pill while the connection-status query is in flight', () => {
+    mockedConnectionStatus.mockReturnValue({
+      data: { state: "connected", checkedAt: "2026-05-26T09:00:00.000Z" },
+      isFetching: true,
+    } as unknown as ReturnType<typeof _useConnectionStatus>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    const timestamp = screen.getByTestId("connection-status-pill-timestamp");
+    expect(timestamp).toHaveTextContent("rechecking...");
+    expect(timestamp.className).toContain("animate-pulse");
+  });
+
+  it('does NOT pulse "rechecking..." once the query has settled', () => {
+    mockedConnectionStatus.mockReturnValue({
+      data: { state: "connected", checkedAt: "2026-05-26T09:00:00.000Z" },
+      isFetching: false,
+    } as unknown as ReturnType<typeof _useConnectionStatus>);
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    const timestamp = screen.getByTestId("connection-status-pill-timestamp");
+    expect(timestamp.textContent).not.toMatch(/rechecking/);
   });
 });
 
