@@ -7,6 +7,7 @@ import type {
   FilterFacet,
   FilterFacetOption,
   IssueTypeOption,
+  ListIssuesWarning,
   NormalizedComment,
   NormalizedIssue,
   SourceCandidatesResponse,
@@ -27,6 +28,17 @@ export interface Scenario {
   connectionStatusSequence?: ConnectionStatus[];
   sourceCandidates: SourceCandidatesResponse;
   issues: NormalizedIssue[];
+  // WU-069: per-call warnings returned alongside the static `issues` page.
+  // When `listIssuesSequence` is set, this field is ignored.
+  listIssuesWarnings?: ListIssuesWarning[];
+  // WU-069: when present, each `listIssues` call walks the i-th entry and
+  // clamps at the last. Mirrors the connection-status pattern so TC-180 can
+  // model "401 warning on first pull, Dependabot rows on the next" without
+  // restarting the stub process.
+  listIssuesSequence?: Array<{
+    items: NormalizedIssue[];
+    warnings?: ListIssuesWarning[];
+  }>;
   commentsByExternalId: Record<string, NormalizedComment[]>;
   issueTypes: IssueTypeOption[];
   labels: string[];

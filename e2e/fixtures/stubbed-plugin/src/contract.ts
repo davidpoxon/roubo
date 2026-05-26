@@ -55,10 +55,31 @@ function findIssue(scenario: Scenario, externalId: string): NormalizedIssue {
 export function buildContract({ scenario, clock, journal }: BuildContractDeps): PluginContract {
   const listSourceCandidates = (): SourceCandidatesResponse => scenario.sourceCandidates;
 
-  const listIssues = (_params: ListIssuesParams): ListIssuesResult => ({
-    items: scenario.issues.map((issue) => projectIssue(issue, journal)),
-    nextCursor: null,
-  });
+  // WU-069: TC-180 needs listIssues to surface a 401 warning on the first
+  // pull, then return Dependabot alert rows on the next. Mirror the
+  // connection-status sequence walk below (clamp at the final entry) so a
+  // single scenario can model that transition without restarting the stub.
+  const listIssuesSeq = scenario.listIssuesSequence;
+  let listIssuesIndex = 0;
+  const listIssues = (_params: ListIssuesParams): ListIssuesResult => {
+    if (listIssuesSeq && listIssuesSeq.length > 0) {
+      const index = Math.min(listIssuesIndex, listIssuesSeq.length - 1);
+      listIssuesIndex += 1;
+      const step = listIssuesSeq[index];
+      return {
+        items: step.items.map((issue) => projectIssue(issue, journal)),
+        nextCursor: null,
+        ...(step.warnings && step.warnings.length > 0 ? { warnings: step.warnings } : {}),
+      };
+    }
+    return {
+      items: scenario.issues.map((issue) => projectIssue(issue, journal)),
+      nextCursor: null,
+      ...(scenario.listIssuesWarnings && scenario.listIssuesWarnings.length > 0
+        ? { warnings: scenario.listIssuesWarnings }
+        : {}),
+    };
+  };
 
   const getIssue = (params: { externalId: string }): NormalizedIssue =>
     projectIssue(findIssue(scenario, params.externalId), journal);

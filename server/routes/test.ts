@@ -117,6 +117,52 @@ interface ParsedResetConfig {
 // the stubbed plugin to a specific scenario pack and frozen-now ISO. Returns
 // the parsed config on success; returns an error message on validation failure
 // so the caller can respond with 400.
+// WU-069: helper for the /__reset path; safely truncates the on-disk state
+// files the route owns and removes any per-project integration overrides
+// dropped by a previous spec. Missing files / dirs are treated as success.
+// Refuses to run when ROUBO_PRODUCTION is set, and also refuses if the
+// resolved roubo dir does not look like a dev path (state.ts:resolveRouboDir
+// returns `~/.roubo-dev/<bench>` in dev and `~/.roubo` in production). The
+// path-shape check is defence-in-depth: `resolveRouboDir` runs once at
+// module-load and caches the path, so by the time this function runs the
+// env var may have been cleared by a caller while the cached path still
+// points at the real `~/.roubo`. The /__reset route is also gated on
+// ROUBO_E2E=1 (returns 404 otherwise), but the env vars are independent and
+// the destructive op keeps its own guard rather than trusting only the
+// caller.
+function wipePersistedTestState(): void {
+  if (process.env.ROUBO_PRODUCTION) {
+    throw new Error("wipePersistedTestState refuses to run when ROUBO_PRODUCTION is set");
+  }
+  const rouboDir = state.getRouboDir();
+  if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
+    throw new Error(`wipePersistedTestState refuses to wipe a non-dev roubo dir: ${rouboDir}`);
+  }
+  for (const name of ["projects.json", "state.json"]) {
+    const file = path.join(rouboDir, name);
+    try {
+      fs.rmSync(file, { force: true });
+    } catch {
+      // Best-effort: tolerate a missing file or a transient unlink failure.
+    }
+  }
+  const integrationsDir = path.join(rouboDir, "integrations");
+  try {
+    const entries = fs.readdirSync(integrationsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      // Preserve the `_global` defaults subdirectory (per-plugin globals),
+      // which is not tied to any project and may have been seeded outside the
+      // spec's setup.
+      if (entry.name === "_global") continue;
+      fs.rmSync(path.join(integrationsDir, entry.name), { recursive: true, force: true });
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
+}
+
 function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string {
   const scenarioRaw = body?.scenario;
   const nowRaw = body?.now;
@@ -175,6 +221,17 @@ router.post("/__reset", async (req: Request, res: Response) => {
       cleanupFixtureProject(entry);
     }
     fixtureProjects.clear();
+    // WU-069: also wipe persisted project + bench + integration-override state
+    // on disk before initialize() re-reads it. This covers anything a
+    // Playwright spec registered directly via /api/projects (i.e. without
+    // going through /test/__register-fixture-project, which fixtureProjects
+    // already tracks). The in-memory project-registry reset clears the Map,
+    // but initialize() rehydrates from projects.json, so without this an
+    // earlier spec's registration survives the reset and breaks 10x
+    // determinism (NFR-018). Safe because the route is ROUBO_E2E-gated and
+    // the helper itself refuses to run unless ROUBO_PRODUCTION is unset and
+    // the resolved roubo dir lives under `.roubo-dev/`.
+    wipePersistedTestState();
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
     projectRegistry.__test.reset();

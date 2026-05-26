@@ -3,6 +3,24 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } 
 import express from "express";
 import request from "supertest";
 
+// Redirect getRouboDir() away from the user's real `~/.roubo` (or
+// `~/.roubo-dev/<bench>`) so wipePersistedTestState() targets a throwaway
+// tmp directory. resolveRouboDir() caches its result at module-load time;
+// without this mock, the suite would wipe real state on any developer
+// machine whose shell exports ROUBO_PRODUCTION=1. The tmp dir is placed
+// under a `.roubo-dev` segment so the route's path-shape guard accepts it
+// as a dev path. The path is computed without `fs`/`os`/`path` so it can run
+// inside vi.hoisted before the regular import bindings have been initialised.
+const { TEST_TMP_ROOT, TEST_ROUBO_DIR } = vi.hoisted(() => {
+  const sep = process.platform === "win32" ? "\\" : "/";
+  const tmpRoot = `${process.env.TMPDIR ?? process.env.TEMP ?? "/tmp"}${sep}roubo-test-route-${process.pid}-${Date.now()}`;
+  const rouboDir = `${tmpRoot}${sep}.roubo-dev${sep}test-bench`;
+  return { TEST_TMP_ROOT: tmpRoot, TEST_ROUBO_DIR: rouboDir };
+});
+// Ensure the tmp dir exists once the regular imports have run. The mock
+// factory only needs the path string, so a deferred mkdir is fine.
+fs.mkdirSync(TEST_ROUBO_DIR, { recursive: true });
+
 vi.mock("../services/plugin-manager.js", () => ({
   shutdown: vi.fn().mockResolvedValue(undefined),
   initialize: vi.fn().mockResolvedValue(undefined),
@@ -43,6 +61,7 @@ vi.mock("../services/github-oauth.js", () => ({
 
 vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
+  getRouboDir: () => TEST_ROUBO_DIR,
 }));
 
 vi.mock("../services/integration-overrides.js", () => ({
@@ -63,9 +82,15 @@ app.use(express.json());
 app.use("/test", router);
 
 const originalRouboE2E = process.env.ROUBO_E2E;
+const originalRouboProduction = process.env.ROUBO_PRODUCTION;
 
 beforeAll(() => {
   delete process.env.ROUBO_E2E;
+  // wipePersistedTestState refuses to run when ROUBO_PRODUCTION is set; the
+  // route returns 500 instead of 200 in that case. Roubo dev shells often
+  // export ROUBO_PRODUCTION=1, so explicitly clear it for the duration of
+  // this suite and restore afterwards.
+  delete process.env.ROUBO_PRODUCTION;
 });
 
 afterAll(() => {
@@ -74,6 +99,12 @@ afterAll(() => {
   } else {
     process.env.ROUBO_E2E = originalRouboE2E;
   }
+  if (originalRouboProduction === undefined) {
+    delete process.env.ROUBO_PRODUCTION;
+  } else {
+    process.env.ROUBO_PRODUCTION = originalRouboProduction;
+  }
+  fs.rmSync(TEST_TMP_ROOT, { recursive: true, force: true });
 });
 
 function installDefaultRegisterProjectMock(): void {
@@ -88,6 +119,7 @@ function installDefaultRegisterProjectMock(): void {
 
 beforeEach(async () => {
   delete process.env.ROUBO_E2E;
+  delete process.env.ROUBO_PRODUCTION;
   vi.clearAllMocks();
   installDefaultRegisterProjectMock();
 
@@ -196,6 +228,23 @@ describe("POST /test/__reset", () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: "boom" });
     expect(consoleSpy).toHaveBeenCalledWith("/test/__reset failed:", "boom");
+  });
+
+  // Safety: even though the route is gated on ROUBO_E2E=1, the destructive
+  // wipe helper has its own ROUBO_PRODUCTION guard so a deployment that
+  // exports both env vars cannot blow away the real `~/.roubo` directory.
+  it("returns 500 and does not re-initialize when both ROUBO_E2E and ROUBO_PRODUCTION are set", async () => {
+    process.env.ROUBO_E2E = "1";
+    process.env.ROUBO_PRODUCTION = "1";
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/ROUBO_PRODUCTION/);
+    expect(consoleSpy).toHaveBeenCalled();
+    expect(projectRegistry.initialize).not.toHaveBeenCalled();
+    expect(pluginManager.initialize).not.toHaveBeenCalled();
   });
 
   // WU-063: optional { scenario, now } body pins the stubbed plugin for the
