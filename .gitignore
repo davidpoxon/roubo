@@ -11,6 +11,10 @@ plugins/*/dist
 plugins/*/node_modules
 e2e/fixtures/stubbed-plugin/dist
 e2e/fixtures/stubbed-plugin/node_modules
+# Runtime log dir created by the plugin-manager when the e2e harness points
+# ROUBO_USER_PLUGINS_DIR at e2e/fixtures/ (WU-063): logs end up at
+# e2e/fixtures/<pluginId>/logs/. Pure runtime artefact, never committed.
+e2e/fixtures/e2e-stub/
 electron/out
 electron/node_modules
 **/.DS_Store

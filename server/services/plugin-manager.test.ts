@@ -1217,3 +1217,65 @@ describe("getConnectionStatus (WU-044)", () => {
     });
   });
 });
+
+// WU-063: when the Playwright harness pins a scenario + frozen-now via
+// __test.setE2EConfig under ROUBO_E2E=1, the spawned plugin must receive the
+// values as --scenario / --now argv. The echo fixture exposes process.argv
+// over RPC so we can assert on the child's actual argv.
+describe("e2e config argv propagation (WU-063)", () => {
+  const originalRouboE2E = process.env.ROUBO_E2E;
+
+  afterEach(() => {
+    if (originalRouboE2E === undefined) {
+      delete process.env.ROUBO_E2E;
+    } else {
+      process.env.ROUBO_E2E = originalRouboE2E;
+    }
+  });
+
+  it("appends --scenario / --now when set and ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    mgr.__test.setE2EConfig({
+      scenario: "github-com-multi-list",
+      now: "2026-05-21T12:00:00.000Z",
+    });
+    await mgr.initialize();
+    const argv = await mgr.invoke<string[]>("echo", "argv", {});
+    expect(argv).toContain("--scenario=github-com-multi-list");
+    expect(argv).toContain("--now=2026-05-21T12:00:00.000Z");
+  });
+
+  it("omits both flags when no e2e config is set", async () => {
+    process.env.ROUBO_E2E = "1";
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const argv = await mgr.invoke<string[]>("echo", "argv", {});
+    expect(argv.some((a) => a.startsWith("--scenario"))).toBe(false);
+    expect(argv.some((a) => a.startsWith("--now"))).toBe(false);
+  });
+
+  it("omits both flags when ROUBO_E2E is not '1', even if config is set", async () => {
+    delete process.env.ROUBO_E2E;
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    mgr.__test.setE2EConfig({ scenario: "any", now: "2026-01-01T00:00:00.000Z" });
+    await mgr.initialize();
+    const argv = await mgr.invoke<string[]>("echo", "argv", {});
+    expect(argv.some((a) => a.startsWith("--scenario"))).toBe(false);
+    expect(argv.some((a) => a.startsWith("--now"))).toBe(false);
+  });
+
+  it("__test.reset clears any pinned e2e config", async () => {
+    mgr = await loadManager();
+    mgr.__test.setE2EConfig({ scenario: "x", now: "2026-01-01T00:00:00.000Z" });
+    expect(mgr.__test.getE2EConfig()).toEqual({
+      scenario: "x",
+      now: "2026-01-01T00:00:00.000Z",
+    });
+    mgr.__test.reset();
+    expect(mgr.__test.getE2EConfig()).toEqual({ scenario: null, now: null });
+  });
+});

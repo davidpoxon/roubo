@@ -15,4 +15,7 @@ connection.onRequest("listIssueTypes", () => [
 
 connection.onRequest("ping", () => "pong");
 
+// Exposes the child's process.argv so the host can verify spawn args (WU-063).
+connection.onRequest("argv", () => process.argv);
+
 connection.listen();

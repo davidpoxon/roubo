@@ -1,0 +1,57 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "community plugin stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "community-source-1",
+        "label": "Community source 1",
+        "sublabel": "Source",
+        "icon": "package"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "community-source-1#1",
+      "externalUrl": "https://stub.example/community/issues/1",
+      "title": "Community-plugin issue",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Close"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "Task",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-24T10:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [{ "id": "Task", "name": "Task" }],
+  "labels": [],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}

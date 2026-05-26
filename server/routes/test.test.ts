@@ -7,6 +7,7 @@ vi.mock("../services/plugin-manager.js", () => ({
   initialize: vi.fn().mockResolvedValue(undefined),
   __test: {
     resetConnectionStatusCache: vi.fn(),
+    setE2EConfig: vi.fn(),
   },
 }));
 
@@ -55,6 +56,7 @@ afterAll(() => {
 
 beforeEach(() => {
   delete process.env.ROUBO_E2E;
+  vi.clearAllMocks();
 });
 
 describe("POST /test/__reset", () => {
@@ -102,6 +104,12 @@ describe("POST /test/__reset", () => {
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
+    // No body: setE2EConfig still fires with null/null so any prior pinning is
+    // cleared on a plain reset.
+    expect(pluginManager.__test.setE2EConfig).toHaveBeenCalledWith({
+      scenario: null,
+      now: null,
+    });
 
     const order = [
       vi.mocked(migrate.__test.reset).mock.invocationCallOrder[0],
@@ -110,6 +118,7 @@ describe("POST /test/__reset", () => {
       vi.mocked(pluginManager.shutdown).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.initialize).mock.invocationCallOrder[0],
+      vi.mocked(pluginManager.__test.setE2EConfig).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.initialize).mock.invocationCallOrder[0],
     ];
     const sorted = [...order].sort((a, b) => a - b);
@@ -126,5 +135,62 @@ describe("POST /test/__reset", () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: "boom" });
     expect(consoleSpy).toHaveBeenCalledWith("/test/__reset failed:", "boom");
+  });
+
+  // WU-063: optional { scenario, now } body pins the stubbed plugin for the
+  // next spawn. Validate the happy path, then the validation guards.
+  it("forwards a valid { scenario, now } body to plugin-manager.setE2EConfig", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__reset")
+      .send({ scenario: "github-com-multi-list", now: "2026-05-21T12:00:00.000Z" });
+
+    expect(res.status).toBe(200);
+    expect(pluginManager.__test.setE2EConfig).toHaveBeenCalledWith({
+      scenario: "github-com-multi-list",
+      now: "2026-05-21T12:00:00.000Z",
+    });
+  });
+
+  it("returns 400 when scenario is not kebab-case", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset").send({ scenario: "Bad_Name" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/kebab-case/);
+    expect(pluginManager.shutdown).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when scenario is not a string", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset").send({ scenario: 123 });
+
+    expect(res.status).toBe(400);
+    expect(pluginManager.shutdown).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when now is not a parseable ISO string", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset").send({ now: "not-a-date" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/ISO-8601/);
+    expect(pluginManager.shutdown).not.toHaveBeenCalled();
+  });
+
+  it("accepts a body with only scenario or only now", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset").send({ scenario: "only-scenario" });
+
+    expect(res.status).toBe(200);
+    expect(pluginManager.__test.setE2EConfig).toHaveBeenCalledWith({
+      scenario: "only-scenario",
+      now: null,
+    });
   });
 });
