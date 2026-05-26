@@ -32,6 +32,11 @@ export interface Scenario {
   labels: string[];
   facets: FilterFacet[];
   facetOptions: ScenarioFacetOptions;
+  // WU-067 (TC-175): when true, the contract omits `filterFacets` and
+  // `getFacetOptions` so the host's RPC layer rejects with MethodNotFound,
+  // which `plugin-filter-facets.ts` maps to `COMMON_FACET_FALLBACK`. Models a
+  // plugin built against host-API 1.0.0.
+  omitFilterFacets?: boolean;
 }
 
 const SCENARIOS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "scenarios");

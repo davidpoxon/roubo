@@ -1,0 +1,110 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "chip-taxonomy",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#100",
+      "externalUrl": "https://stub.example/acme/widgets/issues/100",
+      "title": "Standard bug with label",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-04-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#101",
+      "externalUrl": "https://stub.example/acme/widgets/issues/101",
+      "title": "CodeQL alert",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "security-code-scanning",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-04-02T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#102",
+      "externalUrl": "https://stub.example/acme/widgets/issues/102",
+      "title": "Secret scanning alert",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "security-secret-scanning",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-04-03T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#103",
+      "externalUrl": "https://stub.example/acme/widgets/issues/103",
+      "title": "Dependabot alert",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "security-dependabot",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-04-04T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "security-code-scanning", "name": "CodeQL" },
+    { "id": "security-secret-scanning", "name": "Secret scanning" },
+    { "id": "security-dependabot", "name": "Dependabot" }
+  ],
+  "labels": ["bug"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [{ "value": "Open", "label": "Open" }]
+    }
+  ],
+  "facetOptions": {}
+}

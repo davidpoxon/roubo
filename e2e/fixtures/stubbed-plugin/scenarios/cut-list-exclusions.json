@@ -1,0 +1,114 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "cut-list-exclusions",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#1",
+      "externalUrl": "https://stub.example/acme/widgets/issues/1",
+      "title": "Open work item",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#2",
+      "externalUrl": "https://stub.example/acme/widgets/issues/2",
+      "title": "In progress item",
+      "body": null,
+      "currentState": "In progress",
+      "allowedTransitions": ["Closed", "Open"],
+      "assignees": [],
+      "labels": ["enhancement"],
+      "issueType": "Feature",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-02T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "In progress" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#3",
+      "externalUrl": "https://stub.example/acme/widgets/issues/3",
+      "title": "Awaiting review item",
+      "body": null,
+      "currentState": "In review",
+      "allowedTransitions": ["Closed", "Open"],
+      "assignees": [],
+      "labels": ["chore"],
+      "issueType": "Chore",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-03T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "In review" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#4",
+      "externalUrl": "https://stub.example/acme/widgets/issues/4",
+      "title": "Closed item",
+      "body": null,
+      "currentState": "Closed",
+      "allowedTransitions": ["Open"],
+      "assignees": [],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-01-04T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Closed" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Chore", "name": "Chore" },
+    { "id": "Feature", "name": "Feature" }
+  ],
+  "labels": ["bug", "chore", "enhancement"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "In progress", "label": "In progress" },
+        { "value": "In review", "label": "In review" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}
