@@ -34,7 +34,7 @@ test("the single primary action flips Connect → Configure → Sign in again wi
   await expect(primary).toHaveText("Connect");
 
   // FR-073: the legacy "Choose sources" button is gone. Same modal opens
-  // for every label — clicking the primary action mounts
+  // for every label. Clicking the primary action mounts
   // PluginConfigureDialog regardless of state.
   await expect(page.getByRole("button", { name: "Choose sources" })).toHaveCount(0);
 
@@ -60,7 +60,7 @@ test("clicking the primary action opens the same Configure modal across states",
   });
 
   await page.goto(`/projects/${projectId}/settings`);
-  // First state, whatever the sequence says — assert the modal opens cleanly.
+  // First state, whatever the sequence says: assert the modal opens cleanly.
   await page.getByTestId("issue-source-primary-action").click();
   await expect(page.getByTestId("plugin-configure-dialog-header")).toBeVisible();
 });

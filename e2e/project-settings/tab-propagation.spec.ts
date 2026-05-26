@@ -3,7 +3,7 @@ import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, setIntegrationPlugin } from "./_support/test-project.js";
 
 // TC-182 (US-014/022, FR-053/FR-069): the plugin-driven name flows to three
-// surfaces — the Source section title on the per-project Settings page, the
+// surfaces: the Source section title on the per-project Settings page, the
 // project sidebar entry, and the page breadcrumb. Switching the active plugin
 // updates all three in lockstep on the next render.
 
