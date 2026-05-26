@@ -307,6 +307,48 @@ describe("IssueSourceTile", () => {
     expect(screen.getByRole("dialog", { name: /Configure GitHub\.com/ })).toBeInTheDocument();
   });
 
+  it("renders the connection-status chip in the configured variant header (WU-064, TC-168)", () => {
+    withData({
+      effective: {
+        plugin: "github-com",
+        capturedUserId: { externalId: "42", displayName: "Octocat" },
+        sources: { repos: ["org/a"] },
+      },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTile();
+
+    const pill = screen.getByTestId("connection-status-pill");
+    expect(pill).toBeInTheDocument();
+    // capturedUserId present → derive-from-config falls to "connected" until
+    // the live query resolves. The mock returns `data: undefined` so the
+    // derive path is what gets rendered.
+    expect(pill).toHaveAttribute("data-state", "connected");
+  });
+
+  it("does not render the connection-status chip in the unconfigured variant", () => {
+    withData({
+      effective: {},
+      committed: null,
+      override: null,
+      plugin: null,
+      captionKey: "none",
+    });
+
+    renderTile();
+
+    expect(screen.queryByTestId("connection-status-pill")).not.toBeInTheDocument();
+  });
+
   it("GHE plugin renders the same single context-aware button behaviour (FR-073, TC-133)", () => {
     withData({
       // GHE: instance saved counts as "connected" via the helper's optimistic

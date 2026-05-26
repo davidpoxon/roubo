@@ -473,7 +473,7 @@ router.get("/:id/connection-status", async (req, res) => {
   const status = await pluginManager.getConnectionStatus(
     id,
     config as unknown as Record<string, unknown>,
-    { force: true },
+    { force: true, trigger: "ui-recheck" },
   );
   res.json(status);
 });

@@ -24,6 +24,8 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 //     plugin fixtures (e2e-stub-2..e2e-stub-5) being present alongside the
 //     canonical e2e-stub under e2e/fixtures/ so the Settings > Plugins grid
 //     renders the five cards the spec asserts column wrap against.
+//   - connection-status: same built-app surface, holds the WU-064 specs
+//     (TC-168 three-placement surfacing, TC-169 auth-problem flip).
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
 const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 3336);
 const DEV_BASE_URL = `http://localhost:${DEV_PORT}`;
@@ -63,6 +65,11 @@ export default defineConfig({
     {
       name: "e2e-plugin-grid",
       testMatch: ["plugin-grid/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "connection-status",
+      testMatch: ["connection-status/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],

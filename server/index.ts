@@ -118,7 +118,12 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use(express.static(clientDist));
   app.get("/{*path}", (_req, res, next) => {
     if (_req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(clientDist, "index.html"), (err) => {
+    // `dotfiles: "allow"` is required because the absolute server path may
+    // contain components that start with a dot (e.g. a workspace under
+    // `~/.roubo/...`). The `send` library defaults to `ignore`, which makes
+    // it 404 any sendFile whose path passes through a dot-prefixed segment,
+    // breaking the SPA fallback for every non-root URL.
+    res.sendFile(path.join(clientDist, "index.html"), { dotfiles: "allow" }, (err) => {
       if (err) next();
     });
   });

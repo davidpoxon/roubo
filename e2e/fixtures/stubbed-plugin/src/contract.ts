@@ -107,10 +107,25 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
 
   const listLabels = (_params: ListLabelsParams): string[] => [...scenario.labels].sort();
 
-  const getConnectionStatus = (): ConnectionStatus => ({
-    ...scenario.connectionStatus,
-    checkedAt: clock.nowIso(),
-  });
+  // WU-064: if the scenario declares a sequence, walk through it on each
+  // call (clamping at the final entry) so TC-169 can model a token expiring
+  // mid-session. Otherwise fall back to the single static `connectionStatus`.
+  const sequence = scenario.connectionStatusSequence;
+  let sequenceIndex = 0;
+  const getConnectionStatus = (): ConnectionStatus => {
+    if (sequence && sequence.length > 0) {
+      const index = Math.min(sequenceIndex, sequence.length - 1);
+      sequenceIndex += 1;
+      return {
+        ...sequence[index],
+        checkedAt: clock.nowIso(),
+      };
+    }
+    return {
+      ...scenario.connectionStatus,
+      checkedAt: clock.nowIso(),
+    };
+  };
 
   const filterFacets = (): FilterFacet[] => scenario.facets;
 

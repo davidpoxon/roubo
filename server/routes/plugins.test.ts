@@ -735,7 +735,7 @@ describe("GET /:id/connection-status (WU-050)", () => {
     expect(pluginManager.getConnectionStatus).toHaveBeenCalledWith(
       "github-com",
       expect.objectContaining({ plugin: "github-com" }),
-      { force: true },
+      { force: true, trigger: "ui-recheck" },
     );
   });
 

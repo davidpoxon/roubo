@@ -1220,6 +1220,91 @@ describe("getConnectionStatus (WU-044)", () => {
       expect(() => pluginManager.invalidateConnectionStatus("does-not-exist")).not.toThrow();
     });
   });
+
+  // WU-064: stand-in journal for the e2e harness. Replace these tests when
+  // #221 (TC-153) lands and the journal is swapped for durable logging.
+  describe("connection-state transition journal (WU-064)", () => {
+    it("records a null→state entry on the first observation", async () => {
+      invokerMock.mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { trigger: "ui-recheck" });
+
+      const entries = pluginManager.__test.getConnectionStateLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        pluginId: PLUGIN_ID,
+        previousState: null,
+        newState: "connected",
+        trigger: "ui-recheck",
+      });
+      expect(Number.isNaN(Date.parse(entries[0].at))).toBe(false);
+    });
+
+    it("records a transition when the state changes between calls", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
+        .mockResolvedValueOnce({
+          state: "auth-problem",
+          detail: "Token expired",
+          checkedAt: FROZEN_TIME.toISOString(),
+        });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { trigger: "ui-recheck" });
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, {
+        force: true,
+        trigger: "ui-recheck",
+      });
+
+      const entries = pluginManager.__test.getConnectionStateLog();
+      expect(entries).toHaveLength(2);
+      expect(entries[1]).toMatchObject({
+        pluginId: PLUGIN_ID,
+        previousState: "connected",
+        newState: "auth-problem",
+        trigger: "ui-recheck",
+      });
+    });
+
+    it("does not record an entry when the state is unchanged", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
+
+      const entries = pluginManager.__test.getConnectionStateLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0].newState).toBe("connected");
+    });
+
+    it("defaults the trigger to opportunistic-recheck when not provided", async () => {
+      invokerMock.mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+
+      const entries = pluginManager.__test.getConnectionStateLog();
+      expect(entries[0].trigger).toBe("opportunistic-recheck");
+    });
+
+    it("resetConnectionStateLog clears the journal", async () => {
+      invokerMock.mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
+      expect(pluginManager.__test.getConnectionStateLog()).toHaveLength(1);
+
+      pluginManager.__test.resetConnectionStateLog();
+      expect(pluginManager.__test.getConnectionStateLog()).toEqual([]);
+    });
+  });
 });
 
 // WU-063: when the Playwright harness pins a scenario + frozen-now via

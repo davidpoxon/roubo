@@ -1,0 +1,61 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "auth-problem-flip stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "connectionStatusSequence": [
+    { "state": "connected", "detail": "auth-problem-flip stub" },
+    { "state": "auth-problem", "detail": "Token expired" }
+  ],
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#1",
+      "externalUrl": "https://stub.example/acme/widgets/issues/1",
+      "title": "Connected baseline issue",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Close"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-21T10:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [{ "id": "Bug", "name": "Bug" }],
+  "labels": [],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}
