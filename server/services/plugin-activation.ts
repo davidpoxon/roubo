@@ -6,6 +6,7 @@ import {
   IntegrationOverrideError,
 } from "./integration-overrides.js";
 import * as pluginManager from "./plugin-manager.js";
+import { filterAdvancedAgainstManifest } from "./plugin-config-filter.js";
 import { translateSources } from "./plugin-source-translation.js";
 
 interface ActivationResult {
@@ -55,9 +56,19 @@ function buildPluginConfig(projectId: string): Record<string, unknown> | null {
     config.instance = effective.instance;
   }
 
-  const advanced = effective.advanced;
-  if (advanced && typeof advanced === "object") {
-    for (const [k, v] of Object.entries(advanced)) {
+  // Drop any `advanced.*` keys the active plugin's manifest doesn't declare,
+  // so leftovers from earlier schema versions (e.g. issue #125's
+  // `advanced.sources: ""` in `~/.roubo/integrations/_global/github-com.yaml`)
+  // never reach the `setActiveConfig` payload.
+  const pluginId = effective.plugin;
+  const manifest = pluginId
+    ? (pluginManager.listInstalled().find((r) => r.id === pluginId)?.manifest ?? null)
+    : null;
+  const cleanedAdvanced = pluginId
+    ? filterAdvancedAgainstManifest(pluginId, effective.advanced, manifest, "activation")
+    : undefined;
+  if (cleanedAdvanced) {
+    for (const [k, v] of Object.entries(cleanedAdvanced)) {
       if (v !== undefined && config[k] === undefined) {
         config[k] = v;
       }

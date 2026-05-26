@@ -427,7 +427,15 @@ describe("POST /install/:token/cancel", () => {
   });
 });
 
-function stubManifest() {
+function stubManifest(
+  configSchema: Record<string, unknown> | undefined = {
+    type: "object",
+    properties: {
+      instance: { type: "string" },
+      allowSelfSignedTls: { type: "boolean" },
+    },
+  },
+) {
   return {
     id: "echo",
     name: "Echo",
@@ -442,6 +450,7 @@ function stubManifest() {
       filesystem: { paths: [] },
       processes: false,
     },
+    ...(configSchema ? { configSchema } : {}),
   };
 }
 
@@ -603,7 +612,7 @@ describe("PUT /:id/integration/config", () => {
       .put("/github-com/integration/config")
       .send({
         instance: "https://example",
-        advanced: { token: "t" },
+        advanced: { allowSelfSignedTls: true },
         capturedUserId: { displayName: "alice", externalId: "1" },
       });
     expect(res.status).toBe(200);
@@ -614,11 +623,59 @@ describe("PUT /:id/integration/config", () => {
         integration: expect.objectContaining({
           plugin: "github-com",
           instance: "https://example",
-          advanced: { token: "t" },
+          advanced: { allowSelfSignedTls: true },
           capturedUserId: { displayName: "alice", externalId: "1" },
         }),
       }),
     );
+  });
+
+  it("strips stale advanced keys not in the manifest schema before saving (issue #125)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app)
+      .put("/github-com/integration/config")
+      .send({
+        instance: "https://example",
+        advanced: { allowSelfSignedTls: true, legacyToggle: "x" },
+      });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveGlobalOverride).mock.calls[0]?.[1];
+    expect(saved?.integration.advanced).toEqual({ allowSelfSignedTls: true });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("advanced.legacyToggle"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("source=persist-global"));
+  });
+
+  it("drops the advanced block entirely when every supplied key is stale (issue #125)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Pre-existing override carries an advanced block; the new save should
+    // canonicalise the file by removing it.
+    vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "github-com", advanced: { allowSelfSignedTls: true } },
+    });
+    // Re-register with a manifest that has *no* legitimate advanced keys
+    // (github-com in reality), so even `allowSelfSignedTls` from the
+    // incoming payload is stale.
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({
+        id: "github-com",
+        manifest: stubManifest({
+          type: "object",
+          properties: { sources: { type: "array" } },
+        }),
+      }),
+    ]);
+
+    const res = await request(app)
+      .put("/github-com/integration/config")
+      .send({ advanced: { sources: "" } });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveGlobalOverride).mock.calls[0]?.[1];
+    expect(saved?.integration.advanced).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("advanced.sources"));
   });
 
   it("returns 404 for an unknown plugin", async () => {

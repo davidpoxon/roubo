@@ -21,6 +21,7 @@ import {
   runIntegrationTest,
 } from "../services/integration-test.js";
 import { forgetPluginActivation } from "../services/plugin-activation.js";
+import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 
 const router = Router();
 
@@ -404,7 +405,23 @@ router.put("/:id/integration/config", (req, res) => {
     // of truth for the merge layer.
     nextIntegration.plugin = id;
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
-    if (update.advanced !== undefined) nextIntegration.advanced = update.advanced;
+    if (update.advanced !== undefined) {
+      // Issue #125: strip any keys not in the manifest schema before writing,
+      // so a save touching this plugin canonicalises stale leftovers like
+      // `advanced.sources: ""` out of the on-disk YAML.
+      const manifest = pluginManager.listInstalled().find((r) => r.id === id)?.manifest ?? null;
+      const cleaned = filterAdvancedAgainstManifest(
+        id,
+        update.advanced,
+        manifest,
+        "persist-global",
+      );
+      if (cleaned) {
+        nextIntegration.advanced = cleaned;
+      } else {
+        delete nextIntegration.advanced;
+      }
+    }
     if (update.capturedUserId !== undefined) {
       nextIntegration.capturedUserId = update.capturedUserId;
     }
