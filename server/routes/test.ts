@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +11,22 @@ import * as state from "../services/state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 
 const router: Router = Router();
+
+// Defence-in-depth rate limit on the e2e harness surface. These routes only
+// respond when ROUBO_E2E=1 (production builds 404 them), but they touch the
+// filesystem and the projects.json store, so we cap requests per minute per IP
+// to prevent runaway specs or a misbehaving caller from saturating disk I/O.
+// Mirrors the pattern in plugins-github-oauth.ts. Also satisfies CodeQL
+// `js/missing-rate-limiting` on the file-system access in
+// /__register-fixture-project.
+const testRouteRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.use(testRouteRateLimiter);
 
 const SCENARIO_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
