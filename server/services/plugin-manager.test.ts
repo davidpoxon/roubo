@@ -355,6 +355,10 @@ describe("lifecycle", () => {
       const user = await mgr.invoke<{ externalId: string }>("sdk-reference", "getCurrentUser", {});
       expect(typeof user.externalId).toBe("string");
 
+      // host.logger.* are fire-and-forget JSON-RPC notifications; drain pending
+      // writeLog promises before reading so the info line is visible under CI load.
+      await mgr.__test.flushLogs();
+
       // host.logger.* lines from the contract methods reach the per-plugin log.
       const logs = await mgr.readLogs("sdk-reference", "current", 500);
       expect(
