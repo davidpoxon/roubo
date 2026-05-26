@@ -114,6 +114,57 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     expect(capturedJql).toContain('"Epic Link" = "PROJ-100"');
   });
 
+  it("setActiveConfig carries link-type overrides from the host's flat payload into normalized issues", async () => {
+    // Regression: `buildPluginConfig` on the host flattens
+    // IntegrationConfig.advanced.* onto the top level of the setActiveConfig
+    // payload, so the plugin must parse the flat shape. If link-type names
+    // are read from a nested `advanced.*` wrapper they silently fall back to
+    // the "blocks" / "is blocked by" defaults and renamed Jira instances
+    // produce empty blocks/blockedBy arrays on normalized issues.
+    const result = await harness.hostConnection.sendRequest<{ ok: boolean }>("setActiveConfig", {
+      config: {
+        instance: "https://jira.acme.example",
+        blocksLinkTypeName: "depends on",
+        isBlockedByLinkTypeName: "is depended on by",
+      },
+    });
+    expect(result).toEqual({ ok: true });
+
+    harness.fetchStub.on("/rest/api/2/search", () => ({
+      issues: [
+        {
+          key: "PROJ-1",
+          fields: {
+            summary: "renamed-link parent",
+            status: { name: "Open" },
+            updated: "2026-04-05T00:00:00Z",
+            issuelinks: [
+              {
+                type: { name: "depends on" },
+                outwardIssue: { key: "PROJ-2" },
+              },
+            ],
+          },
+        },
+      ],
+      total: 1,
+    }));
+
+    const listResult = await harness.hostConnection.sendRequest<{
+      items: Array<{ externalId: string; blocks: string[]; blockedBy: string[] }>;
+    }>("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [{ kind: "filter", externalId: "456" }],
+    });
+
+    expect(listResult.items[0]).toMatchObject({
+      externalId: "PROJ-1",
+      blocks: ["PROJ-2"],
+      blockedBy: [],
+    });
+  });
+
   it("setActiveConfig returns a structured error for an invalid instance URL", async () => {
     const result = await harness.hostConnection.sendRequest<{
       ok: boolean;
@@ -140,7 +191,7 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
       pageSize: 50,
       sources: [
         { kind: "filter", externalId: "456" },
-        { kind: "repo", externalId: "foo/bar" }, // not a Jira kind — dropped.
+        { kind: "repo", externalId: "foo/bar" }, // not a Jira kind; dropped.
       ],
     });
 

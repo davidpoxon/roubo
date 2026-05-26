@@ -125,11 +125,16 @@ export function createPluginContract(): PluginContract {
      * cache survives plugin process restarts without the user having to
      * re-open Configure.
      *
+     * The host sends a flat shape here: `buildPluginConfig` flattens the
+     * IntegrationConfig's `advanced.*` onto the top level before invoking
+     * setActiveConfig, so we parse with `parseFormConfig` (top-level
+     * lookup), not `parseIntegrationConfig` (which expects `advanced.*`).
+     *
      * Per-project source selection is supplied per-call on
      * `ListIssuesParams.sources` and is never stored here.
      */
     setActiveConfig({ config }: { config: Record<string, unknown> }): SetActiveConfigResult {
-      const parsed = parseIntegrationConfig(config);
+      const parsed = parseFormConfig(config);
       if (!parsed.ok) return { ok: false, errors: parsed.errors };
       cachedConfig = parsed.config;
       return { ok: true };
