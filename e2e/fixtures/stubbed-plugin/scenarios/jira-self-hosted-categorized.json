@@ -1,0 +1,91 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "jira self-hosted stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "categorized-multi-list",
+    "categories": [
+      {
+        "id": "projects",
+        "label": "Projects",
+        "items": [
+          {
+            "externalId": "PROJ-A",
+            "label": "Alpha",
+            "sublabel": "Project",
+            "icon": "folder"
+          },
+          {
+            "externalId": "PROJ-B",
+            "label": "Beta",
+            "sublabel": "Project",
+            "icon": "folder"
+          }
+        ]
+      },
+      {
+        "id": "filters",
+        "label": "Filters",
+        "items": [
+          {
+            "externalId": "filter-1",
+            "label": "My open bugs",
+            "sublabel": "Filter",
+            "icon": "filter"
+          },
+          {
+            "externalId": "filter-2",
+            "label": "Team backlog",
+            "sublabel": "Filter",
+            "icon": "filter"
+          }
+        ]
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "PROJ-A-101",
+      "externalUrl": "https://jira.stub.example/browse/PROJ-A-101",
+      "title": "Alpha onboarding flow regression",
+      "body": "Repro: drop the onboarding cookie.",
+      "currentState": "To Do",
+      "allowedTransitions": ["In Progress", "Done"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-21T10:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "To Do" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Task", "name": "Task" }
+  ],
+  "labels": ["bug", "task"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "To Do", "label": "To Do" },
+        { "value": "In Progress", "label": "In Progress" },
+        { "value": "Done", "label": "Done" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}

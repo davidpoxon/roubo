@@ -79,6 +79,13 @@ let connectionStatusInvoker: ConnectionStatusInvoker = (pluginId, method, params
 // plugin is treated as implicitly "enabled" per architecture.md:1097.
 let enableStateCache: PluginEnableState | null = null;
 
+// WU-063: when ROUBO_E2E=1, Playwright specs can pin the stubbed plugin to a
+// specific scenario pack and frozen-now ISO. POST /test/__reset writes these
+// via __test.setE2EConfig; spawnPlugin appends them to argv. Outside the e2e
+// harness they are always null and the spawn argv is unchanged.
+let e2eScenario: string | null = null;
+let e2eNow: string | null = null;
+
 function isPluginEnabled(pluginId: string): boolean {
   if (!enableStateCache) return true; // legacy install: preserve existing behaviour
   const value = enableStateCache.plugins[pluginId];
@@ -514,9 +521,15 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     return;
   }
 
+  const spawnArgs: string[] = [entryPath];
+  if (process.env.ROUBO_E2E === "1") {
+    if (e2eScenario !== null) spawnArgs.push(`--scenario=${e2eScenario}`);
+    if (e2eNow !== null) spawnArgs.push(`--now=${e2eNow}`);
+  }
+
   let proc: ChildProcess;
   try {
-    proc = spawn(process.execPath, [entryPath], {
+    proc = spawn(process.execPath, spawnArgs, {
       cwd: entry.record.pluginDir,
       env: {
         ...cleanEnv(),
@@ -1150,6 +1163,15 @@ export const __test = {
     connectionStatusInvoker = (pluginId, method, params, opts) =>
       invoke(pluginId, method, params, opts);
     LOG_ROTATION_BYTES = 5 * 1024 * 1024;
+    e2eScenario = null;
+    e2eNow = null;
+  },
+  setE2EConfig(config: { scenario: string | null; now: string | null }): void {
+    e2eScenario = config.scenario;
+    e2eNow = config.now;
+  },
+  getE2EConfig(): { scenario: string | null; now: string | null } {
+    return { scenario: e2eScenario, now: e2eNow };
   },
   resetConnectionStatusCache(): void {
     connectionStatusCache.clear();
