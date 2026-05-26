@@ -708,7 +708,7 @@ const STATUS_TEXT: Record<IntegrationCategoryStatus, string> = {
   error: "error",
 };
 
-function CategoryRow({ category }: { category: IntegrationCategoryReport }) {
+export function CategoryRow({ category }: { category: IntegrationCategoryReport }) {
   const testId = `test-result-category-${category.category}-${category.status}`;
   const iconClass = "shrink-0";
   let Icon: typeof CheckCircle2;

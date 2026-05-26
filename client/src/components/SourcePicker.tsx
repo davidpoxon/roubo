@@ -332,7 +332,7 @@ interface WarningChipProps {
  *  - any other warning: the generic "Unavailable" chip, surfacing
  *    `warning.cause` verbatim.
  */
-function WarningChip({ warning, chipContext, onReconsent, showRetry }: WarningChipProps) {
+export function WarningChip({ warning, chipContext, onReconsent, showRetry }: WarningChipProps) {
   const pluginId = chipContext?.pluginId;
 
   if (warning.code === "missing-scope" && pluginId === "ghe" && chipContext?.gheInstanceUrl) {

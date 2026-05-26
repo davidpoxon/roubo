@@ -5,6 +5,7 @@ import {
   exchangeCodeForToken,
   fetchGitHubUsername,
   GITHUB_PLUGIN_ID,
+  REQUIRED_SCOPES,
   saveToken,
   validateState,
 } from "../services/github-oauth.js";
@@ -26,9 +27,24 @@ const oauthRateLimiter = rateLimit({
 
 router.use(oauthRateLimiter);
 
+// WU-036: maps the granted `security_events` scope back to the alert
+// categories it unlocks. The host emits this on /exchange success so a
+// "Connection upgraded" UI flip can be correlated with a structured log line
+// (architecture addendum line 952).
+const SECURITY_EVENTS_CATEGORIES = ["code-scanning", "secret-scanning", "dependabot"] as const;
+
 router.post("/authorize", (_req, res) => {
   try {
     const result = buildAuthorizationUrl();
+    // WU-036: surface the scope set without logging the authorize URL itself.
+    // The URL embeds a single-use `state` nonce and must not appear in any
+    // host log surface (github-oauth.ts:34–36).
+    console.info(
+      JSON.stringify({
+        kind: "oauth-authorize",
+        scopesRequested: REQUIRED_SCOPES,
+      }),
+    );
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -51,13 +67,27 @@ router.post("/exchange", async (req, res) => {
   }
 
   try {
-    const { token } = await exchangeCodeForToken(code);
+    const { token, scopes } = await exchangeCodeForToken(code);
     const username = await fetchGitHubUsername(token);
     await saveToken(token);
     await refreshAuth();
     // WU-031: drop the cached connection-status for github-com so the next UI
     // poll re-probes under the freshly-saved token (incl. its new scopes).
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
+    // WU-036: architecture addendum line 952. Emit the granted scopes and
+    // the alert categories this re-consent unlocks (empty when the user did
+    // not grant `security_events`, so a connection that never enabled any
+    // category produces a zero-category line rather than no line at all).
+    const reconsentForCategories = scopes.includes("security_events")
+      ? [...SECURITY_EVENTS_CATEGORIES]
+      : [];
+    console.info(
+      JSON.stringify({
+        kind: "oauth-exchange",
+        scopesGranted: scopes,
+        reconsentForCategories,
+      }),
+    );
     res.json({ ok: true, username });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

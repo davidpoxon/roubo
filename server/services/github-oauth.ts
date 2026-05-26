@@ -12,7 +12,9 @@ const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID ?? "Ov23li8FytWzZPHmc7fm";
 const GITHUB_CLIENT_SECRET =
   process.env.GITHUB_CLIENT_SECRET ?? "fea51c04671e04a4c813875bcd437a05c8181d72";
 const REDIRECT_URI = process.env.GITHUB_REDIRECT_URI ?? "roubo://oauth/github/callback";
-const REQUIRED_SCOPES = ["repo", "read:org", "read:project", "security_events"];
+// WU-036: exported so the host route can log `scopesRequested` on
+// /authorize without duplicating the scope set. Architecture addendum line 952.
+export const REQUIRED_SCOPES = ["repo", "read:org", "read:project", "security_events"] as const;
 const SCOPES = REQUIRED_SCOPES.join(" ");
 
 export const STATE_TTL_MS = 10 * 60 * 1000;
