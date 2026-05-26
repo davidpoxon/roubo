@@ -1605,7 +1605,7 @@
     ],
     "linked_requirement_ids": ["FR-077", "FR-078", "FR-080", "NFR-018"],
     "linked_user_story_ids": ["US-025"],
-    "linked_test_ids": ["TC-163"],
+    "linked_test_ids": ["TC-170"],
     "estimate": 5,
     "depends_on": ["WU-051", "WU-052", "WU-062"],
     "issue": {

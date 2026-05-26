@@ -1,0 +1,32 @@
+id: e2e-stub-3
+name: Roubo E2E Stub 3
+version: 0.1.0
+description: Sibling of e2e-stub used by the plugin-grid responsive layout test (WU-065) to surface five plugin cards. Not for production.
+kind: integration
+roubo: ^1.0.0
+entry: ./index.mjs
+configSchema:
+  type: object
+  required:
+    - sources
+  properties:
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

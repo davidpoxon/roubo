@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // register it as the `e2e-stub` plugin alongside the real bundled ones.
 const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 
-// Three surfaces share one config:
+// Four surfaces share one config:
 //   - dev-fixture: drives the Vite-served `client/source-picker-fixture.html`
 //     for component-shape coverage (TC-021/022/076). Dev-mode only.
 //   - e2e-harness: drives the BUILT Roubo app (server serving the built client
@@ -19,6 +19,11 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 //   - e2e-flow: same built-app surface, holds the WU-063 user-flow specs
 //     (TC-156..TC-160). Each spec pins the stubbed plugin to a dedicated
 //     scenario + frozen-now via /test/__reset.
+//   - e2e-plugin-grid: same built-app surface, holds the WU-065 plugin-grid
+//     responsive-layout spec (TC-170). Relies on the four sibling stubbed
+//     plugin fixtures (e2e-stub-2..e2e-stub-5) being present alongside the
+//     canonical e2e-stub under e2e/fixtures/ so the Settings > Plugins grid
+//     renders the five cards the spec asserts column wrap against.
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
 const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 3336);
 const DEV_BASE_URL = `http://localhost:${DEV_PORT}`;
@@ -53,6 +58,11 @@ export default defineConfig({
     {
       name: "e2e-flow",
       testMatch: ["e2e-flow/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "e2e-plugin-grid",
+      testMatch: ["plugin-grid/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],

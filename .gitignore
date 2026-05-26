@@ -11,10 +11,16 @@ plugins/*/dist
 plugins/*/node_modules
 e2e/fixtures/stubbed-plugin/dist
 e2e/fixtures/stubbed-plugin/node_modules
-# Runtime log dir created by the plugin-manager when the e2e harness points
+# Runtime log dirs created by the plugin-manager when the e2e harness points
 # ROUBO_USER_PLUGINS_DIR at e2e/fixtures/ (WU-063): logs end up at
 # e2e/fixtures/<pluginId>/logs/. Pure runtime artefact, never committed.
+# Covers e2e-stub, the WU-065 siblings (e2e-stub-2..5), and bundled plugins
+# (github-com, ghe, jira-self-hosted) that also drop logs under this root.
 e2e/fixtures/e2e-stub/
+e2e/fixtures/e2e-stub-[2-9]/
+e2e/fixtures/github-com/
+e2e/fixtures/ghe/
+e2e/fixtures/jira-self-hosted/
 electron/out
 electron/node_modules
 **/.DS_Store
