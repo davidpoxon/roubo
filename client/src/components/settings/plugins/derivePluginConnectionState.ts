@@ -1,16 +1,13 @@
-import type {
-  ConnectionState,
-  GlobalPluginIntegrationState,
-  IntegrationConfig,
-  PluginRecord,
-} from "@roubo/shared";
+import type { ConnectionState, IntegrationConfig, PluginStatus } from "@roubo/shared";
 
 export type PrimaryActionLabel = "Connect" | "Configure" | "Sign in again";
 
 /**
  * Derives the `ConnectionStatusPill` state from data already on the client
- * (the lifecycle `PluginRecord.status` and, when fetched, the effective
- * `IntegrationConfig` returned by `useGlobalPluginIntegration`).
+ * (the plugin's lifecycle `status` and, when fetched, the effective
+ * `IntegrationConfig`). Accepts a bare `PluginStatus | null` so the global
+ * `PluginCard` (`PluginRecord.status`) and the per-project `IssueSourceTile`
+ * (`ProjectIntegrationState["plugin"].status`) can share one helper.
  *
  * The `auth-problem` branch is intentionally unreachable here: surfacing it
  * needs a live `getConnectionStatus()` round-trip the client cannot make
@@ -19,20 +16,22 @@ export type PrimaryActionLabel = "Connect" | "Configure" | "Sign in again";
  * so this helper can prefer live data over the derive-from-config fallback.
  */
 export function derivePluginConnectionState(
-  plugin: PluginRecord,
-  integration?: GlobalPluginIntegrationState | undefined,
+  status: PluginStatus | null,
+  effective?: IntegrationConfig | undefined,
 ): ConnectionState {
-  if (plugin.status === "disabled") return "disabled";
-  if (plugin.status === "errored") return "errored";
+  if (status === "disabled") return "disabled";
+  if (status === "errored") return "errored";
   // Lifecycle errors (manifest invalid, host-API mismatch) get their own
   // dedicated banners on the tile; the chip falls back to `errored` so the
   // header still carries a non-green signal.
-  if (plugin.status === "incompatible" || plugin.status === "invalid") return "errored";
+  if (status === "incompatible" || status === "invalid") return "errored";
 
-  // status === "enabled": treat the plugin as connected if we have evidence
-  // of a successful credential exchange. Until the live status query lands
-  // (issue #204), absence-of-effective-config implies "not yet connected".
-  return hasCredentials(integration?.effective) ? "connected" : "disconnected";
+  // status === "enabled" (or null, which only occurs for not-yet-loaded
+  // installed plugins on the project tile): treat as connected if we have
+  // evidence of a successful credential exchange. Until the live status
+  // query lands (issue #204), absence-of-effective-config implies
+  // "not yet connected".
+  return hasCredentials(effective) ? "connected" : "disconnected";
 }
 
 export function primaryActionLabelFor(state: ConnectionState): PrimaryActionLabel {

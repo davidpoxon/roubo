@@ -2,16 +2,15 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, DialogTrigger } from "react-aria-components";
 import { Plug, AlertTriangle, Download } from "lucide-react";
-import type {
-  IntegrationCaptionKey,
-  ProjectIntegrationState,
-  SourceSelection,
-} from "@roubo/shared";
+import type { IntegrationCaptionKey, ProjectIntegrationState } from "@roubo/shared";
 import Tile from "./settings/Tile";
 import Spinner from "./Spinner";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
 import PluginConfigureDialog from "./PluginConfigureDialog";
-import SourcePickerDialog from "./SourcePickerDialog";
+import {
+  derivePluginConnectionState,
+  primaryActionLabelFor,
+} from "./settings/plugins/derivePluginConnectionState";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { titleCase } from "../lib/title-case";
 
@@ -24,20 +23,6 @@ const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
 
 const TRIGGER_BUTTON_CLASS =
   "px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
-
-// `effective.sources` is plugin-defined and typed `unknown` in @roubo/shared.
-// Narrow defensively into the `Record<string, string[]>` shape the picker
-// expects; drop entries that don't conform rather than throwing.
-function narrowSources(raw: unknown): SourceSelection {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out: SourceSelection = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
-      out[key] = value as string[];
-    }
-  }
-  return out;
-}
 
 function ConfiguredBody({
   projectId,
@@ -56,7 +41,13 @@ function ConfiguredBody({
 
   const [switchOpen, setSwitchOpen] = useState(false);
   const [configureOpen, setConfigureOpen] = useState(false);
-  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
+
+  // WU-058 (FR-072): the per-project tile shows one context-aware primary
+  // action that flips Connect / Configure / Sign in again with the plugin's
+  // connection state. The same modal opens in every case; source selection
+  // lives inside it, so the legacy "Choose sources" button is gone.
+  const connectionState = derivePluginConnectionState(plugin.status, state.effective);
+  const primaryLabel = primaryActionLabelFor(connectionState);
 
   return (
     <div className="space-y-4">
@@ -105,9 +96,9 @@ function ConfiguredBody({
           <Button className={TRIGGER_BUTTON_CLASS}>Switch integration</Button>
           <SwitchIntegrationDialog projectId={projectId} currentPluginId={plugin.id} />
         </DialogTrigger>
-        {plugin.installed && plugin.manifest && (
+        {plugin.manifest && (
           <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
-            <Button className={TRIGGER_BUTTON_CLASS}>Configure</Button>
+            <Button className={TRIGGER_BUTTON_CLASS}>{primaryLabel}</Button>
             <PluginConfigureDialog
               scope="project"
               projectId={projectId}
@@ -116,15 +107,6 @@ function ConfiguredBody({
             />
           </DialogTrigger>
         )}
-        <DialogTrigger isOpen={sourceDialogOpen} onOpenChange={setSourceDialogOpen}>
-          <Button className={TRIGGER_BUTTON_CLASS}>Choose sources</Button>
-          <SourcePickerDialog
-            projectId={projectId}
-            pluginId={plugin.id}
-            pluginLabel={plugin.manifest?.name ?? plugin.id}
-            initialValue={narrowSources(state.effective.sources)}
-          />
-        </DialogTrigger>
       </div>
     </div>
   );
