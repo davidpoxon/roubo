@@ -450,6 +450,7 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
         ariaDescription={warning.cause}
         onPress={onReconsent}
         actionSuffix={actionSuffix}
+        data-testid="alert-chip-oauth-recoverable"
       >
         {STRINGS.unavailable}
       </IssueChip>

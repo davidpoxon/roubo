@@ -1,0 +1,22 @@
+project:
+  name: alerts-e2e
+  displayName: Alerts E2E
+  type: web
+  repo: stub/alerts-e2e
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: echo noop
+ports:
+  app:
+    base: 4900
+benches:
+  max: 3
+integration:
+  plugin: e2e-stub
+  sources:
+    Repository:
+      - externalId: acme/widgets
+        includeDependabotAlerts: true

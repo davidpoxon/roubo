@@ -29,6 +29,8 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 //   - cut-list-ui: same built-app surface, holds the WU-067 specs
 //     (TC-173..TC-176 cut-list filtering, facets, chip taxonomy). Each spec
 //     pins the stubbed plugin to a dedicated scenario + frozen-now.
+//   - e2e-alerts: same built-app surface, holds the WU-069 spec
+//     (TC-180 Dependabot alerts toggle + re-consent + cut-list rendering).
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
 const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 3336);
 const DEV_BASE_URL = `http://localhost:${DEV_PORT}`;
@@ -78,6 +80,11 @@ export default defineConfig({
     {
       name: "cut-list-ui",
       testMatch: ["cut-list-ui/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "e2e-alerts",
+      testMatch: ["alerts/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],
