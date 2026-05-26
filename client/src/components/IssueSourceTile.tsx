@@ -11,6 +11,7 @@ import {
   derivePluginConnectionState,
   primaryActionLabelFor,
 } from "./settings/plugins/derivePluginConnectionState";
+import { useConnectionStatus } from "../hooks/usePlugins";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { titleCase } from "../lib/title-case";
 
@@ -62,7 +63,12 @@ function ConfiguredBody({
   // action that flips Connect / Configure / Sign in again with the plugin's
   // connection state. The same modal opens in every case; source selection
   // lives inside it, so the legacy "Choose sources" button is gone.
-  const connectionState = derivePluginConnectionState(plugin.status, state.effective);
+  const connectionQuery = useConnectionStatus(plugin.id, plugin.status === "enabled");
+  const connectionState = derivePluginConnectionState(
+    plugin.status,
+    state.effective,
+    connectionQuery.data,
+  );
   const primaryLabel = primaryActionLabelFor(connectionState);
 
   return (

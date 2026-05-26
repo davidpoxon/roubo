@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Button, Dialog, DialogTrigger, Modal, ModalOverlay, Switch } from "react-aria-components";
 import { Plug, Puzzle } from "lucide-react";
-import type { PluginRecord } from "@roubo/shared";
-import { useDisablePlugin, useEnablePlugin, useUninstallPlugin } from "../../../hooks/usePlugins";
+import type { ConnectionStatus, PluginRecord } from "@roubo/shared";
+import {
+  useConnectionStatus,
+  useDisablePlugin,
+  useEnablePlugin,
+  useUninstallPlugin,
+} from "../../../hooks/usePlugins";
 import { useGlobalPluginIntegration } from "../../../hooks/useGlobalPluginIntegration";
 import PluginConfigureDialog from "../../PluginConfigureDialog";
 import Spinner from "../../Spinner";
@@ -54,6 +59,10 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   // also re-runs while the Configure dialog is open (existing dialog needs
   // the same data).
   const integrationQuery = useGlobalPluginIntegration(plugin.id, isEnabled || configureOpen);
+  // Live connection-status probe. Disabled plugins skip the fetch (the server
+  // short-circuits to `{ state: "disabled" }` anyway). Opportunistic prefetches
+  // from `PluginsTab` / `PluginConfigureDialog` populate the same query key.
+  const connectionQuery = useConnectionStatus(plugin.id, isEnabled);
 
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
@@ -66,8 +75,14 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const connectionState = derivePluginConnectionState(
     plugin.status,
     integrationQuery.data?.effective,
+    connectionQuery.data,
   );
   const primaryLabel = primaryActionLabelFor(connectionState);
+  const pillStatus: ConnectionStatus = {
+    state: connectionState,
+    detail: connectionQuery.data?.detail,
+    checkedAt: connectionQuery.data?.checkedAt,
+  };
   // Acceptance criterion 2: pressing Connect on a disabled bundled plugin
   // both enables it and opens the Configure modal in the same gesture.
   // DialogTrigger handles the open; we only own the side effect.
@@ -106,7 +121,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             <SourceLabel source={plugin.source} pluginId={plugin.id} />
           </div>
         </div>
-        <ConnectionStatusPill status={{ state: connectionState }} />
+        <ConnectionStatusPill status={pillStatus} rechecking={connectionQuery.isFetching} />
       </header>
 
       {description && (
@@ -198,9 +213,8 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
 
 function PluginIcon({ plugin }: { plugin: PluginRecord }) {
   const icon = plugin.manifest?.icon;
-  // Path-based icons aren't served by the host today; issue #204 (or a
-  // dedicated WU) can add `GET /api/plugins/:id/icon` if a third-party
-  // plugin needs them. Bundled plugins ship `data:` URIs.
+  // Bundled plugins ship `data:` URIs; path-based icons aren't served by the
+  // host today.
   const usable = typeof icon === "string" && icon.startsWith("data:");
   if (usable) {
     return (

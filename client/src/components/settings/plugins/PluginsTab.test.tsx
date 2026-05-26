@@ -25,6 +25,7 @@ import {
   useInstallPluginConfirm as _useInstallPluginConfirm,
   useInstallPluginCancel as _useInstallPluginCancel,
   useOpportunisticRecheckOnMount as _useOpportunisticRecheckOnMount,
+  useConnectionStatus as _useConnectionStatus,
 } from "../../../hooks/usePlugins";
 import PluginsTab from "./PluginsTab";
 
@@ -38,6 +39,7 @@ const mockedInstallPreview = vi.mocked(_useInstallPluginPreview);
 const mockedInstallConfirm = vi.mocked(_useInstallPluginConfirm);
 const mockedInstallCancel = vi.mocked(_useInstallPluginCancel);
 const mockedRecheck = vi.mocked(_useOpportunisticRecheckOnMount);
+const mockedConnectionStatus = vi.mocked(_useConnectionStatus);
 
 function record(over: Partial<PluginRecord> = {}): PluginRecord {
   return {
@@ -104,6 +106,10 @@ beforeEach(() => {
     isPending: false,
   } as unknown as ReturnType<typeof _useInstallPluginCancel>);
   mockedRecheck.mockClear();
+  mockedConnectionStatus.mockReturnValue({
+    data: undefined,
+    isFetching: false,
+  } as unknown as ReturnType<typeof _useConnectionStatus>);
 });
 
 describe("PluginsTab (TC-001, TC-018)", () => {
