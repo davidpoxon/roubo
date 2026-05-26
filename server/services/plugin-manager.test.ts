@@ -292,6 +292,45 @@ describe("lifecycle", () => {
     ).toBe(true);
   });
 
+  it("rejects off-allowlist host.fetch before any network I/O (TC-150)", async () => {
+    sandbox = await makeSandbox({ bundled: ["host-fetch-caller"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const denied = await mgr.invoke<{
+      ok: false;
+      error: {
+        message: string;
+        code: number;
+        data: {
+          code: string;
+          category: string;
+          host: string;
+          url: string;
+          reason: string;
+        };
+      };
+    }>("host-fetch-caller", "fetch", { url: "https://malicious.example.com/anything" });
+
+    expect(denied.ok).toBe(false);
+    expect(denied.error.data).toMatchObject({
+      code: "network-denied",
+      category: "network",
+      host: "malicious.example.com",
+      url: "https://malicious.example.com/anything",
+    });
+
+    const logs = await mgr.readLogs("host-fetch-caller", "current", 200);
+    expect(
+      logs.some(
+        (line) =>
+          line.source === "host" &&
+          line.text.includes("host-fetch-caller.host.fetch denied") &&
+          line.text.includes('host="malicious.example.com"'),
+      ),
+    ).toBe(true);
+  });
+
   it("runs the @roubo/plugin-sdk reference fixture end-to-end (TC-035)", async () => {
     const { createServer } = await import("node:http");
     const issuePayload = {
