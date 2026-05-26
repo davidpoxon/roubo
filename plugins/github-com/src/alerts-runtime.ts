@@ -18,12 +18,19 @@ import {
   mapDependabotAlertToNormalizedIssue,
   mapSecretScanningAlertToNormalizedIssue,
   safeFetchAlerts,
+  type AlertFetchCategory,
   type FetchTransport,
+  type SafeFetchResult,
 } from "@roubo/shared-github";
 import { getHost } from "./host-binding.js";
 import { INTEGRATION_ID } from "./normalize.js";
 
 const GITHUB_API_BASE = "https://api.github.com";
+
+// WU-036: per-category alert fetches share the upstream default page size.
+// Surfaced in the `alert-fetch` log line so a histogram of duration-per-item
+// can be computed by log scraping (architecture addendum line 949).
+const ALERT_PER_PAGE = 50;
 
 /**
  * NFR-015 graceful copy for fine-grained PATs / GitHub App installation
@@ -90,6 +97,49 @@ export function resetAlertsRuntime(): void {
   cachedScopeProbe = null;
 }
 
+/**
+ * WU-036: per-category fetch timer + observability hook.
+ *
+ * Wraps `safeFetchAlerts` so each category dispatch emits exactly one
+ * `alert-fetch` info log line with duration and item count. Architecture
+ * addendum line 949 fixes the payload shape; treat it as a structured
+ * contract that downstream log scrapers depend on.
+ */
+async function timedSafeFetchAlerts<T>(
+  category: AlertFetchCategory,
+  repoFullName: string,
+  runner: () => Promise<T[]>,
+): Promise<SafeFetchResult<T>> {
+  const start = performance.now();
+  const result = await safeFetchAlerts(category, runner);
+  const durationMs = performance.now() - start;
+  const base = {
+    kind: "alert-fetch" as const,
+    category,
+    repoFullName,
+    page: 1,
+    perPage: ALERT_PER_PAGE,
+    durationMs,
+  };
+  if (result.ok) {
+    getHost().logger.info({
+      message: "alert-fetch",
+      data: { ...base, status: "ok", itemCount: result.items.length },
+    });
+  } else {
+    getHost().logger.info({
+      message: "alert-fetch",
+      data: {
+        ...base,
+        status: "warning",
+        warningCode: result.code,
+        itemCount: 0,
+      },
+    });
+  }
+  return result;
+}
+
 function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } | null {
   const slash = repoFullName.indexOf("/");
   if (slash <= 0 || slash === repoFullName.length - 1) return null;
@@ -101,10 +151,15 @@ function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } |
  * fetchers run in parallel; a per-category failure becomes a warning and
  * does not affect the others (AC #8). Returns mapped NormalizedIssues
  * concatenated in fixed order: code-scanning, secret-scanning, dependabot.
+ *
+ * `sourceExternalId` is the configured source id (e.g. `owner/repo` or
+ * `owner/#42`) and is included verbatim in any `warning-emitted` log line
+ * for this dispatch. WU-036 (architecture addendum line 950).
  */
 export async function fetchRepoAlerts(
   repoFullName: string,
   flags: AlertFlags,
+  sourceExternalId: string,
 ): Promise<FetchRepoAlertsResult> {
   const enabled =
     flags.includeCodeQLAlerts === true ||
@@ -125,13 +180,19 @@ export async function fetchRepoAlerts(
 
   const [codeRes, secretRes, depRes] = await Promise.all([
     flags.includeCodeQLAlerts === true
-      ? safeFetchAlerts("code-scanning", () => fetchCodeScanningAlerts(transport, fetchArgs))
+      ? timedSafeFetchAlerts("code-scanning", repoFullName, () =>
+          fetchCodeScanningAlerts(transport, fetchArgs),
+        )
       : Promise.resolve(null),
     flags.includeSecretScanningAlerts === true
-      ? safeFetchAlerts("secret-scanning", () => fetchSecretScanningAlerts(transport, fetchArgs))
+      ? timedSafeFetchAlerts("secret-scanning", repoFullName, () =>
+          fetchSecretScanningAlerts(transport, fetchArgs),
+        )
       : Promise.resolve(null),
     flags.includeDependabotAlerts === true
-      ? safeFetchAlerts("dependabot", () => fetchDependabotAlerts(transport, fetchArgs))
+      ? timedSafeFetchAlerts("dependabot", repoFullName, () =>
+          fetchDependabotAlerts(transport, fetchArgs),
+        )
       : Promise.resolve(null),
   ]);
 
@@ -145,11 +206,19 @@ export async function fetchRepoAlerts(
     const detail: NonNullable<ListIssuesWarning["detail"]> = {};
     if (res.status !== undefined) detail.status = res.status;
     if (res.missingScope !== undefined) detail.missingScope = res.missingScope;
+    const code = res.code as FetchRepoAlertsResult["warnings"][number]["code"];
     warnings.push({
       category,
       cause: res.cause,
-      code: res.code as FetchRepoAlertsResult["warnings"][number]["code"],
+      code,
       ...(Object.keys(detail).length > 0 ? { detail } : {}),
+    });
+    // WU-036: architecture addendum line 950. `cause` is intentionally NOT
+    // emitted here (it is a UI rendering string and may carry repo-derived
+    // text). `sourceExternalId` is the stable id the user configured.
+    getHost().logger.warn({
+      message: "warning-emitted",
+      data: { kind: "warning-emitted", sourceExternalId, category, code },
     });
   };
 

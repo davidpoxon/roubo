@@ -99,7 +99,11 @@ async function listFromRepo(
   // Alerts are only fetched on page 1; paginateAlerts walks all alert pages
   // internally so subsequent issue pages would surface duplicates.
   if (page === 1) {
-    const alertResult = await fetchRepoAlerts(repoFullName, alertFlagsOf(source));
+    const alertResult = await fetchRepoAlerts(
+      repoFullName,
+      alertFlagsOf(source),
+      source.externalId,
+    );
     if (alertResult.items.length > 0) {
       result_.items = [...items, ...alertResult.items];
     }
@@ -198,7 +202,7 @@ async function listFromProject(
       reposForAlerts.add(content.repository?.nameWithOwner ?? `${owner}/unknown`);
     }
     const perRepo = await Promise.all(
-      Array.from(reposForAlerts).map((r) => fetchRepoAlerts(r, alertFlags)),
+      Array.from(reposForAlerts).map((r) => fetchRepoAlerts(r, alertFlags, source.externalId)),
     );
 
     const alertItems: NormalizedIssue[] = [];
