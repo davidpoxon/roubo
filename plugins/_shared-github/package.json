@@ -7,9 +7,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc --noEmit && tsup"
+    "build": "tsup && tsc --build"
   },
   "dependencies": {
     "@roubo/plugin-sdk": "*"
