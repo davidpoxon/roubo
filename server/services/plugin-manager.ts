@@ -8,6 +8,7 @@ import semver from "semver";
 import treeKill from "tree-kill";
 import {
   parseManifest,
+  type ConnectionState,
   type LogLine,
   type PluginError,
   type PluginManifest,
@@ -85,6 +86,23 @@ let enableStateCache: PluginEnableState | null = null;
 // harness they are always null and the spawn argv is unchanged.
 let e2eScenario: string | null = null;
 let e2eNow: string | null = null;
+
+// WU-064: stand-in journal so e2e specs (TC-169) can assert that a
+// connection-status state transition was observed. Each entry records the
+// previous and new state together with the trigger that caused the recheck.
+// This is intentionally minimal; replace it with the durable observability
+// logging delivered by #221 (TC-153) when that lands, and remove the journal,
+// `GET /test/__connection-state-log`, and the related __test accessors at the
+// same time.
+export interface ConnectionStateLogEntry {
+  pluginId: string;
+  previousState: ConnectionState | null;
+  newState: ConnectionState;
+  trigger: string;
+  at: string;
+}
+const CONNECTION_STATE_LOG_MAX = 200;
+const connectionStateLog: ConnectionStateLogEntry[] = [];
 
 function isPluginEnabled(pluginId: string): boolean {
   if (!enableStateCache) return true; // legacy install: preserve existing behaviour
@@ -1027,7 +1045,7 @@ function parseLogLine(raw: string): LogLine {
 export async function getConnectionStatus(
   pluginId: string,
   config: Record<string, unknown>,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; trigger?: string } = {},
 ): Promise<ConnectionStatus> {
   if (!options.force) {
     const cached = connectionStatusCache.get(pluginId);
@@ -1043,12 +1061,22 @@ export async function getConnectionStatus(
   const inFlight = inFlightConnectionStatusRequests.get(pluginId);
   if (inFlight) return inFlight;
 
+  // Snapshot the previously-cached state (if any) before issuing the RPC so
+  // the state-transition journal can compare against it once the new value
+  // arrives. `null` means we have never observed a value for this plugin.
+  const previousState: ConnectionState | null =
+    connectionStatusCache.get(pluginId)?.value.state ?? null;
+  const trigger = options.trigger ?? "opportunistic-recheck";
+
   const promise = fetchConnectionStatus(pluginId, config)
     .then((value) => {
       connectionStatusCache.set(pluginId, {
         value,
         expiresAt: Date.now() + CONNECTION_STATUS_TTL_MS,
       });
+      if (previousState !== value.state) {
+        recordConnectionStateTransition(pluginId, previousState, value.state, trigger);
+      }
       return value;
     })
     .finally(() => {
@@ -1057,6 +1085,24 @@ export async function getConnectionStatus(
 
   inFlightConnectionStatusRequests.set(pluginId, promise);
   return promise;
+}
+
+function recordConnectionStateTransition(
+  pluginId: string,
+  previousState: ConnectionState | null,
+  newState: ConnectionState,
+  trigger: string,
+): void {
+  connectionStateLog.push({
+    pluginId,
+    previousState,
+    newState,
+    trigger,
+    at: nowIso(),
+  });
+  if (connectionStateLog.length > CONNECTION_STATE_LOG_MAX) {
+    connectionStateLog.splice(0, connectionStateLog.length - CONNECTION_STATE_LOG_MAX);
+  }
 }
 
 /**
@@ -1165,6 +1211,7 @@ export const __test = {
     LOG_ROTATION_BYTES = 5 * 1024 * 1024;
     e2eScenario = null;
     e2eNow = null;
+    connectionStateLog.length = 0;
   },
   setE2EConfig(config: { scenario: string | null; now: string | null }): void {
     e2eScenario = config.scenario;
@@ -1176,6 +1223,14 @@ export const __test = {
   resetConnectionStatusCache(): void {
     connectionStatusCache.clear();
     inFlightConnectionStatusRequests.clear();
+  },
+  // WU-064: stand-in journal accessors for the e2e harness (see the
+  // declaration of `connectionStateLog` for the planned removal in #221).
+  resetConnectionStateLog(): void {
+    connectionStateLog.length = 0;
+  },
+  getConnectionStateLog(): ConnectionStateLogEntry[] {
+    return connectionStateLog.slice();
   },
   setConnectionStatusInvoker(fn: ConnectionStatusInvoker | null): void {
     connectionStatusInvoker =

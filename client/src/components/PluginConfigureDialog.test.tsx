@@ -51,14 +51,27 @@ vi.mock("../hooks/useGlobalPluginIntegration", () => ({
   useGlobalPluginIntegration: vi.fn(),
 }));
 
-const { useOpportunisticRecheckOnMountMock } = vi.hoisted(() => ({
-  useOpportunisticRecheckOnMountMock: vi.fn(),
-}));
+const { useOpportunisticRecheckOnMountMock, useConnectionStatusMock } = vi.hoisted(() => {
+  // The real hook returns a react-query UseQueryResult, but the dialog only
+  // reads `.data` and `.isFetching`. Default the mock to "no data, idle" and
+  // let individual tests override via mockReturnValueOnce.
+  type UseConnectionStatusReturn = ReturnType<
+    typeof import("../hooks/usePlugins").useConnectionStatus
+  >;
+  const useConnectionStatusMock = vi.fn<() => UseConnectionStatusReturn>(
+    () => ({ data: undefined, isFetching: false }) as unknown as UseConnectionStatusReturn,
+  );
+  return {
+    useOpportunisticRecheckOnMountMock: vi.fn(),
+    useConnectionStatusMock,
+  };
+});
 vi.mock("../hooks/usePlugins", async () => {
   const actual = await vi.importActual<typeof import("../hooks/usePlugins")>("../hooks/usePlugins");
   return {
     ...actual,
     useOpportunisticRecheckOnMount: useOpportunisticRecheckOnMountMock,
+    useConnectionStatus: useConnectionStatusMock,
   };
 });
 
@@ -203,6 +216,38 @@ beforeEach(() => {
 });
 
 describe("PluginConfigureDialog", () => {
+  it("renders the connection-status chip in the dialog header (WU-064, TC-168)", () => {
+    type UseConnectionStatusReturn = ReturnType<
+      typeof import("../hooks/usePlugins").useConnectionStatus
+    >;
+    installMocks({ test: vi.fn(), save: vi.fn() });
+    useConnectionStatusMock.mockReturnValue({
+      data: {
+        state: "connected",
+        detail: "stubbed",
+        checkedAt: "2026-05-22T09:00:00.000Z",
+      },
+      isFetching: false,
+    } as unknown as UseConnectionStatusReturn);
+
+    try {
+      renderDialog();
+
+      const header = screen.getByTestId("plugin-configure-dialog-header");
+      expect(header).toBeInTheDocument();
+      const pill = screen.getByTestId("connection-status-pill");
+      expect(pill).toHaveAttribute("data-state", "connected");
+    } finally {
+      // `mockReturnValue` persists across tests (clearAllMocks only clears
+      // call history). Reset and reinstall the hoisted default so sibling
+      // tests start from "no live data".
+      useConnectionStatusMock.mockReset();
+      useConnectionStatusMock.mockImplementation(
+        () => ({ data: undefined, isFetching: false }) as unknown as UseConnectionStatusReturn,
+      );
+    }
+  });
+
   it("disables Save before any test has run, and enables it after a successful test (TC-037)", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({

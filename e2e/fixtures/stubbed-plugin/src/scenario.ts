@@ -20,6 +20,11 @@ export interface Scenario {
   pluginId: string;
   currentUser: CurrentUser;
   connectionStatus: ConnectionStatus;
+  // WU-064: when present, `getConnectionStatus` returns the i-th entry on the
+  // i-th call (and clamps to the last entry thereafter). Lets TC-169 model
+  // "connected on first call, auth-problem on next call" without restarting
+  // the stub process.
+  connectionStatusSequence?: ConnectionStatus[];
   sourceCandidates: SourceCandidatesResponse;
   issues: NormalizedIssue[];
   commentsByExternalId: Record<string, NormalizedComment[]>;

@@ -29,3 +29,23 @@ describe("WU-063 scenario packs", () => {
     });
   }
 });
+
+// WU-064: two new scenario packs back the connection-status surfacing and
+// auth-problem-flip specs. The flip pack also exercises the new
+// `connectionStatusSequence` field; keep the loader assertion here so a
+// missing or mistyped pack fails before Playwright spins up.
+describe("WU-064 scenario packs", () => {
+  it("status-surfacing-three-placements loads with a connected baseline", () => {
+    const scenario = loadScenario("status-surfacing-three-placements");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.connectionStatusSequence).toBeUndefined();
+  });
+
+  it("status-auth-problem-flip loads with a connected→auth-problem sequence", () => {
+    const scenario = loadScenario("status-auth-problem-flip");
+    expect(scenario.connectionStatusSequence).toBeDefined();
+    expect(scenario.connectionStatusSequence?.[0].state).toBe("connected");
+    expect(scenario.connectionStatusSequence?.[1].state).toBe("auth-problem");
+    expect(scenario.connectionStatusSequence?.[1].detail).toBe("Token expired");
+  });
+});

@@ -7,6 +7,7 @@ import Tile from "./settings/Tile";
 import Spinner from "./Spinner";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
 import PluginConfigureDialog from "./PluginConfigureDialog";
+import ConnectionStatusPill from "./settings/plugins/ConnectionStatusPill";
 import {
   derivePluginConnectionState,
   primaryActionLabelFor,
@@ -83,6 +84,14 @@ function ConfiguredBody({
             {instance}
           </span>
         )}
+        <ConnectionStatusPill
+          status={{
+            state: connectionState,
+            detail: connectionQuery.data?.detail,
+            checkedAt: connectionQuery.data?.checkedAt,
+          }}
+          rechecking={connectionQuery.isFetching}
+        />
       </div>
 
       {Object.keys(sources).length === 0 ? (

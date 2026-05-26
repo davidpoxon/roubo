@@ -110,6 +110,39 @@ describe("stubbed plugin contract coverage", () => {
   });
 });
 
+describe("connectionStatusSequence", () => {
+  it("advances through the sequence on successive calls and clamps at the last entry", () => {
+    const baseScenario = loadScenario("status-auth-problem-flip");
+    const clock = createClock(new Date("2026-05-22T09:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario: baseScenario, clock, journal });
+
+    const first = contract.getConnectionStatus(undefined as never);
+    expect(first.state).toBe("connected");
+    expect(first.detail).toBe("auth-problem-flip stub");
+
+    const second = contract.getConnectionStatus(undefined as never);
+    expect(second.state).toBe("auth-problem");
+    expect(second.detail).toBe("Token expired");
+
+    // Clamp behaviour: every subsequent call sees the final entry.
+    const third = contract.getConnectionStatus(undefined as never);
+    expect(third.state).toBe("auth-problem");
+  });
+
+  it("falls back to the static connectionStatus when no sequence is set", () => {
+    const scenario = loadScenario("default");
+    const clock = createClock(new Date("2026-05-22T09:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario, clock, journal });
+
+    const first = contract.getConnectionStatus(undefined as never);
+    const second = contract.getConnectionStatus(undefined as never);
+    expect(first.state).toBe(scenario.connectionStatus.state);
+    expect(second.state).toBe(scenario.connectionStatus.state);
+  });
+});
+
 describe("argv parsing", () => {
   it("defaults to scenario=default and a pinned ISO date when no flags given", () => {
     const { scenario, now } = parseArgs([]);

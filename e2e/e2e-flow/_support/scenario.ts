@@ -1,4 +1,17 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+
+// WU-064: shape of one entry in the in-memory connection-state transition
+// journal exposed by `GET /test/__connection-state-log`. Kept in lock-step
+// with `ConnectionStateLogEntry` in server/services/plugin-manager.ts. Both
+// live behind the journal that #221 (TC-153) will replace with durable
+// logging; remove this type at the same time.
+export interface ConnectionStateLogEntry {
+  pluginId: string;
+  previousState: string | null;
+  newState: string;
+  trigger: string;
+  at: string;
+}
 
 /**
  * Reset server singletons and pin the stubbed plugin to a scenario + frozen
@@ -42,4 +55,35 @@ export async function loadAppShell(page: Page): Promise<void> {
   const res = await page.goto("/");
   expect(res?.status()).toBe(200);
   await expect(page.locator("#root")).toBeAttached();
+}
+
+/**
+ * Assert that, inside `scope`, the `ConnectionStatusPill` is visible and is
+ * carrying the expected `data-state` value. WU-064 (TC-168/TC-169): the pill
+ * is the testable surface for connection-status placement assertions; callers
+ * pass a Locator that scopes the query to one of the three placements
+ * (PluginCard, Configure modal header, project Issue Source tile).
+ */
+export async function expectConnectionStatePillState(
+  scope: Locator,
+  expectedState: string,
+): Promise<void> {
+  const pill = scope.getByTestId("connection-status-pill");
+  await expect(pill).toBeVisible();
+  await expect(pill).toHaveAttribute("data-state", expectedState);
+}
+
+/**
+ * Read the in-memory connection-state transition journal exposed by
+ * `GET /test/__connection-state-log`. WU-064 (TC-169) asserts that a recheck
+ * appended an entry. Stand-in for the durable logging tracked by #221
+ * (TC-153); remove this helper together with the route when that lands.
+ */
+export async function fetchConnectionStateLog(
+  request: APIRequestContext,
+): Promise<ConnectionStateLogEntry[]> {
+  const res = await request.get("/test/__connection-state-log");
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as { entries: ConnectionStateLogEntry[] };
+  return body.entries;
 }

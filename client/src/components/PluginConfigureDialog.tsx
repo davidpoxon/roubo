@@ -43,7 +43,7 @@ import { useSourceCandidates } from "../hooks/useSourceCandidates";
 import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import { useIssueListWarnings } from "../hooks/useIssues";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
-import { useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
+import { useConnectionStatus, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import { useProjectBenches } from "../hooks/useBenches";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import SourcePicker from "./SourcePicker";
@@ -52,6 +52,8 @@ import GitHubProjectField from "./project-settings/GitHubProjectField";
 import SubmodulesEditor from "./project-settings/SubmodulesEditor";
 import { passwordFieldKeys } from "./config-schema-utils";
 import { INPUT } from "./setup/styles";
+import ConnectionStatusPill from "./settings/plugins/ConnectionStatusPill";
+import { derivePluginConnectionState } from "./settings/plugins/derivePluginConnectionState";
 
 // FR-070 (WU-057): plugins listed here host the Repository / GitHub Project /
 // Submodules controls inside their Configure modal. Other plugins continue to
@@ -359,6 +361,18 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     [plugin.status, plugin.id],
   );
   useOpportunisticRecheckOnMount(recheckIds);
+
+  // WU-064 (FR-052): surface the same connection-status chip the
+  // PluginCard renders, in the modal header. The header is one of the
+  // three placements TC-168 asserts on.
+  const connectionQuery = useConnectionStatus(plugin.id, plugin.status === "enabled");
+  const pillState = derivePluginConnectionState(plugin.status, effective, connectionQuery.data);
+  const pillStatus = {
+    state: pillState,
+    detail: connectionQuery.data?.detail,
+    checkedAt: connectionQuery.data?.checkedAt,
+  };
+
   const initialValues = useMemo(
     () => seedInitialValues(manifest?.configSchema, effective),
     [manifest?.configSchema, effective],
@@ -553,8 +567,14 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
   return (
     <>
-      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+      <div
+        data-testid="plugin-configure-dialog-header"
+        className="flex items-start gap-3 px-5 py-4 border-b border-stone-200 dark:border-stone-800/60"
+      >
+        <Heading
+          slot="title"
+          className="flex-1 min-w-0 text-sm font-semibold text-stone-900 dark:text-stone-100"
+        >
           {STRINGS.titlePrefix}
           {manifest?.name ?? plugin.id}
           {mode === "global" && (
@@ -563,6 +583,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             </span>
           )}
         </Heading>
+        <ConnectionStatusPill status={pillStatus} rechecking={connectionQuery.isFetching} />
       </div>
 
       <div className="px-5 py-4 space-y-4">

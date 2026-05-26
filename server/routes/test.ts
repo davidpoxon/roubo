@@ -67,6 +67,10 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // clears `plugins` and `enableStateCache` but leaves the status maps
     // populated, which would otherwise survive the reset.
     pluginManager.__test.resetConnectionStatusCache();
+    // WU-064: also clear the state-transition journal so TC-169 starts from
+    // an empty log. Remove this when #221 (TC-153) lands and the journal +
+    // /test/__connection-state-log route are replaced by durable logging.
+    pluginManager.__test.resetConnectionStateLog();
     await pluginManager.shutdown();
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
@@ -83,6 +87,17 @@ router.post("/__reset", async (req: Request, res: Response) => {
     console.error("/test/__reset failed:", message);
     res.status(500).json({ error: message });
   }
+});
+
+// WU-064: read the in-memory connection-state transition journal. Gated by
+// ROUBO_E2E so production builds return 404 for this URL. This is a stand-in
+// for the production-grade observability logging tracked by #221 (TC-153);
+// remove the route and the journal together when that lands.
+router.get("/__connection-state-log", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  res.status(200).json({ entries: pluginManager.__test.getConnectionStateLog() });
 });
 
 export default router;

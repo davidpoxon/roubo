@@ -7,6 +7,8 @@ vi.mock("../services/plugin-manager.js", () => ({
   initialize: vi.fn().mockResolvedValue(undefined),
   __test: {
     resetConnectionStatusCache: vi.fn(),
+    resetConnectionStateLog: vi.fn(),
+    getConnectionStateLog: vi.fn(() => []),
     setE2EConfig: vi.fn(),
   },
 }));
@@ -100,6 +102,7 @@ describe("POST /test/__reset", () => {
     expect(migrate.__test.reset).toHaveBeenCalledTimes(1);
     expect(githubOauth.__test.reset).toHaveBeenCalledTimes(1);
     expect(pluginManager.__test.resetConnectionStatusCache).toHaveBeenCalledTimes(1);
+    expect(pluginManager.__test.resetConnectionStateLog).toHaveBeenCalledTimes(1);
     expect(pluginManager.shutdown).toHaveBeenCalledTimes(1);
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
@@ -115,6 +118,7 @@ describe("POST /test/__reset", () => {
       vi.mocked(migrate.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(githubOauth.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.__test.resetConnectionStatusCache).mock.invocationCallOrder[0],
+      vi.mocked(pluginManager.__test.resetConnectionStateLog).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.shutdown).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.initialize).mock.invocationCallOrder[0],
@@ -192,5 +196,33 @@ describe("POST /test/__reset", () => {
       scenario: "only-scenario",
       now: null,
     });
+  });
+});
+
+// WU-064: stand-in journal endpoint, removed when #221 (TC-153) ships the
+// durable observability logging.
+describe("GET /test/__connection-state-log", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__connection-state-log");
+
+    expect(res.status).toBe(404);
+    expect(pluginManager.__test.getConnectionStateLog).not.toHaveBeenCalled();
+  });
+
+  it("returns the journal payload when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    const entry = {
+      pluginId: "e2e-stub",
+      previousState: "connected" as const,
+      newState: "auth-problem" as const,
+      trigger: "ui-recheck",
+      at: "2026-05-22T09:00:00.000Z",
+    };
+    vi.mocked(pluginManager.__test.getConnectionStateLog).mockReturnValueOnce([entry]);
+
+    const res = await request(app).get("/test/__connection-state-log");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ entries: [entry] });
   });
 });
