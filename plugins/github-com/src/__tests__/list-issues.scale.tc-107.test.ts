@@ -1,5 +1,5 @@
 /**
- * TC-107 — Scale harness for 100 sequential warm `listIssues` pulls.
+ * TC-107: Scale harness for 100 sequential warm `listIssues` pulls.
  *
  * Spec (`.specifications/integration-plugins/test-cases.json`):
  *   - 5 sources x 3 alert categories, ETag store warm
@@ -11,7 +11,7 @@
  *   - The 304 hit rate is measured across the ETag-eligible REST endpoints
  *     reached through `githubRequest` (which sends `If-None-Match` and
  *     short-circuits on Octokit's 304 throw). The alerts endpoints flow
- *     through `paginateAlerts`, which does not yet wire ETag handling — those
+ *     through `paginateAlerts`, which does not yet wire ETag handling. Those
  *     are excluded from the hit-rate calculation. See WU-036 plan notes; ETag
  *     coverage for alert endpoints is a separate optimization, not a hardening
  *     gate.

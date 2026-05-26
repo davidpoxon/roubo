@@ -46,7 +46,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("OAuthReconsentDialog — axe-core (WU-036)", () => {
+describe("OAuthReconsentDialog: axe-core (WU-036)", () => {
   it("has no axe violations in the initial idle state", async () => {
     const { baseElement } = renderWithClient(
       <OAuthReconsentDialog

@@ -1,5 +1,5 @@
 /**
- * TC-098 — Performance harness for warm `listIssues` pulls.
+ * TC-098: Performance harness for warm `listIssues` pulls.
  *
  * Spec (`.specifications/integration-plugins/test-cases.json`):
  *   - 5 sources x ~200 items, all three alert categories enabled

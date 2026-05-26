@@ -39,7 +39,7 @@ const STATUSES: { status: IntegrationCategoryStatus; detail?: string }[] = [
   { status: "error", detail: "GitHub returned HTTP 502." },
 ];
 
-describe("PluginConfigureDialog CategoryRow — axe-core (WU-036)", () => {
+describe("PluginConfigureDialog CategoryRow: axe-core (WU-036)", () => {
   for (const { category, label } of CATEGORIES) {
     for (const { status, detail } of STATUSES) {
       it(`has no axe violations for ${category} / ${status}`, async () => {

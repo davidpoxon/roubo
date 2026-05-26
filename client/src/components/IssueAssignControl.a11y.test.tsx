@@ -40,7 +40,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("IssueAssignControl — axe-core (WU-036)", () => {
+describe("IssueAssignControl: axe-core (WU-036)", () => {
   it("has no axe violations in the enabled state", async () => {
     const { container } = renderWithClient(
       <IssueAssignControl

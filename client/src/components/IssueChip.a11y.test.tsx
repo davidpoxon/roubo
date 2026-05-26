@@ -24,7 +24,7 @@ const CATEGORIES: { value: SecurityCategory; label: string }[] = [
   { value: "dependabot", label: "Dependabot" },
 ];
 
-describe("IssueChip security-category — axe-core (WU-036)", () => {
+describe("IssueChip security-category: axe-core (WU-036)", () => {
   for (const { value, label } of CATEGORIES) {
     it(`has no axe violations on the ${value} variant`, async () => {
       const { container } = render(

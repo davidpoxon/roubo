@@ -33,7 +33,7 @@ function warning(overrides: Partial<ListIssuesWarning> = {}): ListIssuesWarning 
   };
 }
 
-describe("SourcePicker WarningChip — axe-core (WU-036)", () => {
+describe("SourcePicker WarningChip: axe-core (WU-036)", () => {
   it("has no axe violations on the github.com missing-scope chip", async () => {
     const { container } = render(
       <WarningChip
