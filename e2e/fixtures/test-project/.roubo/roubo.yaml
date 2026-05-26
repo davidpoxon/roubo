@@ -1,0 +1,24 @@
+project:
+  name: e2e-cut-list-project
+  displayName: E2E Cut-List Project
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4910
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  sources:
+    Repository:
+      - "acme/widgets"
+  excludedStatuses:
+    - "Closed"
+    - "In review"

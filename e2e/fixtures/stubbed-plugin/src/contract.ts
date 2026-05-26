@@ -138,7 +138,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     );
   };
 
-  return {
+  const contract: PluginContract = {
     listSourceCandidates,
     listIssues,
     getIssue,
@@ -153,7 +153,16 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     listIssueTypes,
     listLabels,
     getConnectionStatus,
-    filterFacets,
-    getFacetOptions,
   };
+
+  // WU-067 (TC-175): when the scenario sets `omitFilterFacets`, leave both
+  // methods off the contract so the host RPC layer rejects with
+  // MethodNotFound. `plugin-filter-facets.ts` already maps that to the fixed
+  // `COMMON_FACET_FALLBACK` set. Models a plugin built against host-API 1.0.0.
+  if (!scenario.omitFilterFacets) {
+    contract.filterFacets = filterFacets;
+    contract.getFacetOptions = getFacetOptions;
+  }
+
+  return contract;
 }

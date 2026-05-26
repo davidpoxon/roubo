@@ -26,6 +26,9 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 //     renders the five cards the spec asserts column wrap against.
 //   - connection-status: same built-app surface, holds the WU-064 specs
 //     (TC-168 three-placement surfacing, TC-169 auth-problem flip).
+//   - cut-list-ui: same built-app surface, holds the WU-067 specs
+//     (TC-173..TC-176 cut-list filtering, facets, chip taxonomy). Each spec
+//     pins the stubbed plugin to a dedicated scenario + frozen-now.
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
 const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 3336);
 const DEV_BASE_URL = `http://localhost:${DEV_PORT}`;
@@ -70,6 +73,11 @@ export default defineConfig({
     {
       name: "connection-status",
       testMatch: ["connection-status/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "cut-list-ui",
+      testMatch: ["cut-list-ui/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],

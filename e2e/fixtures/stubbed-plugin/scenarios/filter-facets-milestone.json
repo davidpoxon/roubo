@@ -1,0 +1,105 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "filter-facets-milestone",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#10",
+      "externalUrl": "https://stub.example/acme/widgets/issues/10",
+      "title": "Milestone v1.2 bug",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open", "milestone": "v1.2" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#11",
+      "externalUrl": "https://stub.example/acme/widgets/issues/11",
+      "title": "Milestone v1.2 chore",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": ["chore"],
+      "issueType": "Chore",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-02-02T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open", "milestone": "v1.2" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#12",
+      "externalUrl": "https://stub.example/acme/widgets/issues/12",
+      "title": "Milestone v1.3 feature",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": ["enhancement"],
+      "issueType": "Feature",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-02-03T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open", "milestone": "v1.3" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Chore", "name": "Chore" },
+    { "id": "Feature", "name": "Feature" }
+  ],
+  "labels": ["bug", "chore", "enhancement"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    },
+    {
+      "id": "milestone",
+      "label": "Milestone",
+      "type": "enum-async"
+    }
+  ],
+  "facetOptions": {
+    "milestone": [
+      { "value": "v1.2", "label": "v1.2" },
+      { "value": "v1.3", "label": "v1.3" }
+    ]
+  }
+}

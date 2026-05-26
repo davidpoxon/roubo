@@ -1,0 +1,48 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "filter-facets-fallback",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#20",
+      "externalUrl": "https://stub.example/acme/widgets/issues/20",
+      "title": "Issue with status + label + assignee + type",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug", "p1"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-03-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [{ "id": "Bug", "name": "Bug" }],
+  "labels": ["bug", "p1"],
+  "facets": [],
+  "facetOptions": {},
+  "omitFilterFacets": true
+}
