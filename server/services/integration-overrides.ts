@@ -113,6 +113,16 @@ export function loadOverride(projectId: string): IntegrationOverride | null {
   return result.data;
 }
 
+// Best-effort delete of the per-project override file. Resolves through the
+// same path guard as saveOverride / loadOverride so a malformed projectId
+// can never reach into another directory. Missing files are not an error:
+// callers want "after this, no override exists", and the test-only fixture
+// cleanup uses it without first checking existence.
+export function removeOverride(projectId: string): void {
+  const filePath = resolveOverridePath(projectId);
+  fs.rmSync(filePath, { force: true });
+}
+
 export function saveOverride(projectId: string, override: IntegrationOverride): void {
   const result = IntegrationOverrideSchema.safeParse(override);
   if (!result.success) {

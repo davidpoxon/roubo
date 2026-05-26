@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   expectConnectionStatePillState,
+  registerFixtureProject,
   resetWithScenario,
 } from "../e2e-flow/_support/scenario.js";
 
@@ -10,15 +11,10 @@ import {
 //   1. Settings > Plugins tile (rendered by PluginCard).
 //   2. The Configure modal header (rendered by PluginConfigureDialog).
 //   3. The project Issue Source tile header (rendered by IssueSourceTile).
-//
-// Placement 3 needs a registered project whose integration is the e2e-stub,
-// which the harness does not yet provide. The plumbing for that fixture is
-// tracked separately by #232; the third assertion is `test.fixme`'d until
-// that lands so this spec passes deterministically (NFR-018) against the
-// surfaces that exist today.
 
 const SCENARIO = "status-surfacing-three-placements";
 const NOW = "2026-05-22T09:00:00.000Z";
+const FIXTURE_PROJECT_ID = "e2e-stub-fixture";
 
 test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
@@ -43,14 +39,24 @@ test("connected chip surfaces on the plugin card and the Configure modal header"
   const header = page.getByTestId("plugin-configure-dialog-header");
   await expect(header).toBeVisible();
   await expectConnectionStatePillState(header, "connected");
-
-  // Placement 3 (project Issue Source tile) deferred to #232.
 });
 
-test.fixme("connected chip surfaces on the project Issue Source tile header (#232)", async () => {
-  // Pending #232: register a project pointing at e2e-stub so
-  // `IssueSourceTile`'s `configured` variant renders. When that lands:
-  //   await page.goto(`/projects/${projectId}/settings`);
-  //   const tile = page.getByTestId("issue-source-tile");
-  //   await expectConnectionStatePillState(tile, "connected");
+test("connected chip surfaces on the project Issue Source tile header", async ({
+  page,
+  request,
+}) => {
+  // Placement 3 needs a registered project whose active integration is the
+  // e2e-stub plugin so `IssueSourceTile` renders its `configured` variant
+  // (IssueSourceTile.tsx:198-203). The fixture (#232) registers the project
+  // and pins the override; /test/__reset in `beforeEach` tears it down.
+  const { projectId } = await registerFixtureProject(request, {
+    projectId: FIXTURE_PROJECT_ID,
+    plugin: "e2e-stub",
+  });
+
+  await page.goto(`/projects/${projectId}/settings`);
+
+  const tile = page.getByTestId("issue-source-tile");
+  await expect(tile).toBeVisible();
+  await expectConnectionStatePillState(tile, "connected");
 });

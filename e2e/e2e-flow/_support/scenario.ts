@@ -74,6 +74,22 @@ export async function expectConnectionStatePillState(
 }
 
 /**
+ * Register a throwaway project for the duration of one spec, pinned to the
+ * requested plugin via an integration override. The fixture is torn down by
+ * the next `/test/__reset` call (see #232), so specs that need a registered
+ * project can compose this with `resetWithScenario` in `beforeEach`. The
+ * returned `projectId` is suitable for `page.goto(`/projects/${id}/settings`)`.
+ */
+export async function registerFixtureProject(
+  request: APIRequestContext,
+  opts: { projectId: string; plugin: string },
+): Promise<{ projectId: string; repoPath: string }> {
+  const res = await request.post("/test/__register-fixture-project", { data: opts });
+  expect(res.status()).toBe(200);
+  return (await res.json()) as { projectId: string; repoPath: string };
+}
+
+/**
  * Read the in-memory connection-state transition journal exposed by
  * `GET /test/__connection-state-log`. WU-064 (TC-169) asserts that a recheck
  * appended an entry. Stand-in for the durable logging tracked by #221

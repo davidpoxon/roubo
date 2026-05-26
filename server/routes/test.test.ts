@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import fs from "node:fs";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
@@ -15,6 +16,14 @@ vi.mock("../services/plugin-manager.js", () => ({
 
 vi.mock("../services/project-registry.js", () => ({
   initialize: vi.fn(),
+  registerProject: vi.fn((repoPath: string) => ({
+    id: "ignored",
+    repoPath,
+    config: undefined,
+    configValid: true,
+    settings: {},
+  })),
+  unregisterProject: vi.fn(),
   __test: {
     reset: vi.fn(),
   },
@@ -32,11 +41,22 @@ vi.mock("../services/github-oauth.js", () => ({
   },
 }));
 
+vi.mock("../services/state.js", () => ({
+  removeProject: vi.fn(),
+}));
+
+vi.mock("../services/integration-overrides.js", () => ({
+  saveOverride: vi.fn(),
+  removeOverride: vi.fn(),
+}));
+
 import router from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
+import * as state from "../services/state.js";
+import * as integrationOverrides from "../services/integration-overrides.js";
 
 const app = express();
 app.use(express.json());
@@ -56,9 +76,46 @@ afterAll(() => {
   }
 });
 
-beforeEach(() => {
+function installDefaultRegisterProjectMock(): void {
+  vi.mocked(projectRegistry.registerProject).mockImplementation((repoPath: string) => ({
+    id: "ignored",
+    repoPath,
+    config: undefined,
+    configValid: true,
+    settings: {} as never,
+  }));
+}
+
+beforeEach(async () => {
   delete process.env.ROUBO_E2E;
   vi.clearAllMocks();
+  installDefaultRegisterProjectMock();
+
+  // Wipe the module-level fixtureProjects Map between tests via the same
+  // path real callers use. Mocks are cleared again after so assertions see
+  // a zero call count.
+  process.env.ROUBO_E2E = "1";
+  await request(app).post("/test/__reset");
+  delete process.env.ROUBO_E2E;
+  vi.clearAllMocks();
+  installDefaultRegisterProjectMock();
+});
+
+// Track tmpdirs the register-fixture route may have created so a failed test
+// doesn't leak directories under os.tmpdir(). Populated by the register test
+// from the response body, cleared in afterEach.
+const createdTmpdirs: string[] = [];
+afterEach(() => {
+  while (createdTmpdirs.length > 0) {
+    const dir = createdTmpdirs.pop();
+    if (dir) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // best-effort
+      }
+    }
+  }
 });
 
 describe("POST /test/__reset", () => {
@@ -196,6 +253,162 @@ describe("POST /test/__reset", () => {
       scenario: "only-scenario",
       now: null,
     });
+  });
+});
+
+// #232: register a fixture project for one spec, with cleanup folded into
+// the existing /test/__reset so successive specs start clean.
+describe("POST /test/__register-fixture-project", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when projectId is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__register-fixture-project").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/projectId/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when projectId is not kebab-case", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "Bad_Name", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/kebab-case/);
+  });
+
+  it("returns 400 when plugin is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/plugin/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  // Happy path: a real tmpdir is created, the route hands the path to the
+  // mocked registerProject + saveOverride, and returns both to the caller.
+  it("returns 200 with { projectId, repoPath } on success", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe("fixture-a");
+    expect(typeof res.body.repoPath).toBe("string");
+    createdTmpdirs.push(res.body.repoPath);
+
+    // The route wrote a .roubo/roubo.yaml into the tmpdir before calling
+    // registerProject; verify the file exists since downstream specs depend
+    // on this contract.
+    expect(fs.existsSync(`${res.body.repoPath}/.roubo/roubo.yaml`)).toBe(true);
+
+    expect(projectRegistry.registerProject).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(projectRegistry.registerProject).mock.calls[0][0]).toBe(res.body.repoPath);
+
+    expect(integrationOverrides.saveOverride).toHaveBeenCalledTimes(1);
+    expect(integrationOverrides.saveOverride).toHaveBeenCalledWith("fixture-a", {
+      schemaVersion: 1,
+      integration: { plugin: "e2e-stub" },
+    });
+  });
+
+  it("returns 409 when the same projectId is registered twice without a reset", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const first = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+    expect(first.status).toBe(200);
+    createdTmpdirs.push(first.body.repoPath);
+
+    const second = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+
+    expect(second.status).toBe(409);
+    expect(second.body.error).toMatch(/already/);
+  });
+
+  // Failure roll-back: when registerProject throws (e.g. invalid roubo.yaml
+  // or port conflict), the tmpdir, override, and registry entry are all
+  // unwound so a retry can succeed.
+  it("rolls back on failure: removes tmpdir + override + registry entry", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(projectRegistry.registerProject).mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("boom");
+    expect(projectRegistry.unregisterProject).toHaveBeenCalledWith("fixture-a", { force: true });
+    expect(integrationOverrides.removeOverride).toHaveBeenCalledWith("fixture-a");
+    expect(consoleSpy).toHaveBeenCalledWith("/test/__register-fixture-project failed:", "boom");
+
+    // saveOverride should not have been invoked because registerProject
+    // failed before it could run.
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+});
+
+// #232: /test/__reset cleans up any fixture projects that were registered
+// via __register-fixture-project, so the next spec sees a fresh registry.
+describe("POST /test/__reset (fixture cleanup)", () => {
+  it("removes integration override + persisted project + tmpdir for each fixture", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const registered = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub" });
+    expect(registered.status).toBe(200);
+    const tmpdir = registered.body.repoPath as string;
+    createdTmpdirs.push(tmpdir);
+    expect(fs.existsSync(tmpdir)).toBe(true);
+
+    // Saved during the register call — clear so we can assert the reset
+    // cleanup separately.
+    vi.mocked(integrationOverrides.saveOverride).mockClear();
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(200);
+    expect(integrationOverrides.removeOverride).toHaveBeenCalledWith("fixture-a");
+    expect(state.removeProject).toHaveBeenCalledWith("fixture-a");
+    expect(fs.existsSync(tmpdir)).toBe(false);
+  });
+
+  it("does not call fixture cleanup when no fixture projects are registered", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(200);
+    expect(integrationOverrides.removeOverride).not.toHaveBeenCalled();
+    expect(state.removeProject).not.toHaveBeenCalled();
   });
 });
 
