@@ -137,7 +137,7 @@ function ProjectSidebarRow({
   const { data: integration } = useProjectIntegration(project.id);
   const integrationName = integration?.plugin?.manifest?.name ?? "Source";
   return (
-    <div>
+    <div data-project-id={project.id}>
       <Button
         onPress={() => navigate(`/projects/${project.id}`)}
         className={navItemClass(isProjectActive, "justify-between")}
@@ -152,7 +152,10 @@ function ProjectSidebarRow({
           )}
         </div>
       </Button>
-      <p className="pl-3 pr-3 pb-1 text-[11px] text-stone-500 dark:text-stone-600 truncate">
+      <p
+        data-testid="project-sidebar-integration-name"
+        className="pl-3 pr-3 pb-1 text-[11px] text-stone-500 dark:text-stone-600 truncate"
+      >
         {integrationName}
       </p>
       {projectBenches.map((bench) => {
