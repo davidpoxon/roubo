@@ -1,0 +1,105 @@
+name: e2e-reliability
+
+# TC-148 / NFR-018: assert the Playwright suite passes 10 consecutive runs
+# in CI with no retries and a total-duration variance budget under 10%.
+#
+# This workflow calls the reusable `e2e.yml` workflow ten times sequentially
+# (max-parallel: 1, fail-fast: true). A final `analyze` job downloads every
+# run's duration artifact, computes the relative range
+# `(max - min) / mean`, and fails the workflow if the spread exceeds 10%.
+#
+# Variance formula: relative range (max minus min, divided by mean). Chosen
+# over coefficient of variation because it maps directly onto the
+# plain-English spec wording ("variance < 10%") and is easier to interpret
+# in a CI summary. Tightening to CoV later is a one-line script change.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 09:00 UTC. Off-peak start, weekly cadence keeps CI cost
+    # bounded (around 100 min/week) while still catching flakiness drift
+    # between manual runs.
+    - cron: '0 9 * * 1'
+
+jobs:
+  run:
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        run_index: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+    uses: ./.github/workflows/e2e.yml
+    with:
+      run_index: ${{ matrix.run_index }}
+    permissions:
+      contents: read
+      packages: read
+
+  analyze:
+    needs: run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Download duration artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: durations
+          pattern: playwright-duration-*
+          merge-multiple: true
+      - name: Assert variance budget
+        shell: bash
+        run: |
+          node <<'NODE_SCRIPT'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const dir = 'durations';
+          const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+          if (files.length !== 10) {
+            console.error(`Expected 10 duration files, found ${files.length}: ${files.join(', ')}`);
+            process.exit(1);
+          }
+
+          const runs = files
+            .map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))
+            .sort((a, b) => Number(a.run_index) - Number(b.run_index));
+
+          const durations = runs.map((r) => r.duration_seconds);
+          const min = Math.min(...durations);
+          const max = Math.max(...durations);
+          const mean = durations.reduce((s, d) => s + d, 0) / durations.length;
+          const range = mean === 0 ? 0 : (max - min) / mean;
+          const budget = 0.10;
+
+          const lines = [
+            '## Playwright e2e reliability (TC-148)',
+            '',
+            '| Run | Duration (s) |',
+            '| --- | --- |',
+            ...runs.map((r) => `| ${r.run_index} | ${r.duration_seconds} |`),
+            '',
+            `- Min: ${min}s`,
+            `- Max: ${max}s`,
+            `- Mean: ${mean.toFixed(2)}s`,
+            `- Relative range \`(max - min) / mean\`: ${(range * 100).toFixed(2)}%`,
+            `- Budget: < ${(budget * 100).toFixed(0)}%`,
+            '',
+          ];
+
+          const summary = process.env.GITHUB_STEP_SUMMARY;
+          if (summary) {
+            fs.appendFileSync(summary, lines.join('\n'));
+          }
+          console.log(lines.join('\n'));
+
+          if (range >= budget) {
+            console.error(`Variance budget exceeded: ${(range * 100).toFixed(2)}% >= ${(budget * 100).toFixed(0)}%.`);
+            process.exit(1);
+          }
+          NODE_SCRIPT
