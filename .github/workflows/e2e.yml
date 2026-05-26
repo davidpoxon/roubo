@@ -1,0 +1,63 @@
+name: e2e
+
+# Reusable workflow: runs the Playwright e2e suite once and publishes the
+# wall-clock duration of `npx playwright test` as both a job output and a
+# named artifact. Called by:
+#   - pr-check.yml (single call per PR)
+#   - e2e-reliability.yml (ten calls per run, aggregated for TC-148 / NFR-018)
+#
+# Each caller passes a unique `run_index` so artifact names don't collide
+# when the reliability workflow uploads ten of them in one run.
+
+on:
+  workflow_call:
+    inputs:
+      run_index:
+        description: "Identifier used to namespace the duration artifact. Free-form string."
+        required: true
+        type: string
+    outputs:
+      duration_seconds:
+        description: "Wall-clock seconds for the `npx playwright test` step. Excludes checkout, install, and build."
+        value: ${{ jobs.e2e.outputs.duration_seconds }}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROUBO_E2E: '1'
+    outputs:
+      duration_seconds: ${{ steps.run-playwright.outputs.duration_seconds }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Run Playwright suite (timed)
+        id: run-playwright
+        run: |
+          set -e
+          start=$(date +%s)
+          npx playwright test
+          end=$(date +%s)
+          duration=$((end - start))
+          echo "Playwright suite ran in ${duration}s"
+          echo "duration_seconds=${duration}" >> "$GITHUB_OUTPUT"
+          mkdir -p e2e-duration
+          printf '{"duration_seconds": %d, "run_index": "%s"}\n' \
+            "$duration" "${{ inputs.run_index }}" \
+            > "e2e-duration/e2e-duration-${{ inputs.run_index }}.json"
+      - name: Upload duration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-duration-${{ inputs.run_index }}
+          path: e2e-duration/e2e-duration-${{ inputs.run_index }}.json
+          retention-days: 1
