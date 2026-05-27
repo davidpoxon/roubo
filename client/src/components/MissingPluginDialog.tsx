@@ -18,6 +18,29 @@ import {
   type SourceTab,
 } from "./settings/plugins/install-screens-state";
 
+const STRINGS = {
+  title: "Plugin needed for this project",
+  descriptionPrefix: "This project's ",
+  descriptionRoubo: "roubo.yaml",
+  descriptionReferences: " references plugin ",
+  promptDescriptionSuffix:
+    ", which isn't installed locally. Install it to load issues, or skip for now and load the project without it.",
+  sourceDescriptionSuffix:
+    ", which isn't installed locally. Provide a Git URL or local directory to install it, or skip for now.",
+  suggestedSourceHeading: "Suggested source",
+  skipForNow: "Skip for now",
+  useDifferentSource: "Use a different source",
+  chooseASource: "Choose a source",
+  inspecting: "Inspecting...",
+  installFromPrefix: "Install from ",
+  install: "Install",
+  installFailedFallback: "Install failed.",
+  installFromSourceFallback: "Couldn't install from that source.",
+  enterGitUrl: "Enter the Git URL of a plugin repository.",
+  enterLocalPath: "Enter the absolute path to a local plugin directory.",
+  installedToast: (name: string) => `Installed ${name}.`,
+};
+
 interface PromptStep {
   step: "prompt";
   error: string | null;
@@ -119,7 +142,7 @@ function MissingPluginDialogContent({
         onError: (err) => {
           setState({
             step: "prompt",
-            error: errorMessage(err, "Couldn't install from that source."),
+            error: errorMessage(err, STRINGS.installFromSourceFallback),
           });
         },
       },
@@ -136,10 +159,7 @@ function MissingPluginDialogContent({
     if (value.length === 0) {
       setState({
         ...state,
-        error:
-          state.tab === "git"
-            ? "Enter the Git URL of a plugin repository."
-            : "Enter the absolute path to a local plugin directory.",
+        error: state.tab === "git" ? STRINGS.enterGitUrl : STRINGS.enterLocalPath,
       });
       return;
     }
@@ -149,7 +169,7 @@ function MissingPluginDialogContent({
       {
         onSuccess: onPreviewSuccess,
         onError: (err) => {
-          setState({ ...state, error: errorMessage(err, "Install failed.") });
+          setState({ ...state, error: errorMessage(err, STRINGS.installFailedFallback) });
         },
       },
     );
@@ -160,12 +180,12 @@ function MissingPluginDialogContent({
     confirmMutation.mutate(state.preview.stagingToken, {
       onSuccess: (result) => {
         const name = result.plugin.manifest?.name ?? result.plugin.id;
-        addToast(`Installed ${name}.`);
+        addToast(STRINGS.installedToast(name));
         void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
         onClose();
       },
       onError: (err) => {
-        setState({ ...state, error: errorMessage(err, "Install failed.") });
+        setState({ ...state, error: errorMessage(err, STRINGS.installFailedFallback) });
       },
     });
   }
@@ -200,17 +220,18 @@ function MissingPluginDialogContent({
               onCancel={handleSkip}
               onSubmit={handleSubmitSource}
               submitting={previewMutation.isPending}
-              title="Plugin needed for this project"
+              title={STRINGS.title}
               subtitle={
                 <>
-                  This project's <span className="font-mono">roubo.yaml</span> references plugin{" "}
-                  <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>,
-                  which isn't installed locally. Provide a Git URL or local directory to install it,
-                  or skip for now.
+                  {STRINGS.descriptionPrefix}
+                  <span className="font-mono">{STRINGS.descriptionRoubo}</span>
+                  {STRINGS.descriptionReferences}
+                  <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+                  {STRINGS.sourceDescriptionSuffix}
                 </>
               }
-              cancelLabel="Skip for now"
-              submitLabel="Install"
+              cancelLabel={STRINGS.skipForNow}
+              submitLabel={STRINGS.install}
             />
           )}
           {state.step === "permissions" && (
@@ -248,13 +269,14 @@ function PromptScreen({
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
         <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-          Plugin needed for this project
+          {STRINGS.title}
         </Heading>
         <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-          This project's <span className="font-mono">roubo.yaml</span> references plugin{" "}
-          <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>, which
-          isn't installed locally. Install it to load issues, or skip for now and load the project
-          without it.
+          {STRINGS.descriptionPrefix}
+          <span className="font-mono">{STRINGS.descriptionRoubo}</span>
+          {STRINGS.descriptionReferences}
+          <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+          {STRINGS.promptDescriptionSuffix}
         </p>
       </div>
 
@@ -262,7 +284,7 @@ function PromptScreen({
         {pluginSource && (
           <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40 px-3 py-3">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
-              Suggested source
+              {STRINGS.suggestedSourceHeading}
             </div>
             <div
               className="mt-1 text-[13px] font-mono text-stone-800 dark:text-stone-200 break-all"
@@ -292,7 +314,7 @@ function PromptScreen({
           data-testid="missing-plugin-skip"
           className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
-          Skip for now
+          {STRINGS.skipForNow}
         </Button>
         <div className="flex items-center gap-2">
           <Button
@@ -301,7 +323,7 @@ function PromptScreen({
             data-testid="missing-plugin-use-different-source"
             className="px-3 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
-            {pluginSource ? "Use a different source" : "Choose a source"}
+            {pluginSource ? STRINGS.useDifferentSource : STRINGS.chooseASource}
           </Button>
           {pluginSource && (
             <Button
@@ -311,7 +333,9 @@ function PromptScreen({
               className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <Download size={13} />
-              {installing ? "Inspecting..." : `Install from ${truncateSource(pluginSource)}`}
+              {installing
+                ? STRINGS.inspecting
+                : `${STRINGS.installFromPrefix}${truncateSource(pluginSource)}`}
             </Button>
           )}
         </div>
