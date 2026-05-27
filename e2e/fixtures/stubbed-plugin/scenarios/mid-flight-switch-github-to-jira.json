@@ -1,0 +1,77 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "mid-flight switch github-to-jira stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "jira-self-hosted",
+      "externalId": "PROJ-A-201",
+      "externalUrl": "https://jira.stub.example/browse/PROJ-A-201",
+      "title": "Onboarding regression after switch",
+      "body": "Repro: drop the onboarding cookie.",
+      "currentState": "To Do",
+      "allowedTransitions": ["In Progress", "Done"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-27T08:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "To Do" }
+    },
+    {
+      "integrationId": "jira-self-hosted",
+      "externalId": "PROJ-A-202",
+      "externalUrl": "https://jira.stub.example/browse/PROJ-A-202",
+      "title": "Cut list filter empty state",
+      "body": "Filters render but no rows ever match.",
+      "currentState": "In Progress",
+      "allowedTransitions": ["Done"],
+      "assignees": [],
+      "labels": ["bug", "frontend"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-27T08:15:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "In Progress" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Task", "name": "Task" }
+  ],
+  "labels": ["bug", "frontend", "task"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "To Do", "label": "To Do" },
+        { "value": "In Progress", "label": "In Progress" },
+        { "value": "Done", "label": "Done" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}

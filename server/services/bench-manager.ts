@@ -1810,3 +1810,17 @@ export class BenchError extends Error {
     this.name = "BenchError";
   }
 }
+
+// Test-only surface. `reloadFromState` drops the in-memory `benches` Map and
+// re-hydrates it from `state.json` using the same logic as `initialize()`.
+// The e2e harness route `POST /test/__register-fixture-project` calls it
+// after `state.addBench(...)` so seeded benches become visible to
+// `getBenches` without a server restart. `initialize()` on its own would
+// append duplicates if called twice with the same projectId+id, so this
+// helper clears first.
+export const __test = {
+  reloadFromState(): void {
+    benches.clear();
+    initialize();
+  },
+};

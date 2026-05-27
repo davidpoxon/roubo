@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import type { AssignedIssue } from "@roubo/shared";
 
 // TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
 // `GET /test/__connection-state-log`. The tap mirrors the structured log
@@ -91,6 +92,14 @@ export async function registerFixtureProject(
     // `plugin`. Specs use this to drive surfaces (e.g. Source-tile instance
     // line) that only render when the override carries the matching value.
     integrationConfig?: Record<string, unknown>;
+    // TC-161: optional list of benches to seed against the fixture project,
+    // each pinned with its own `assignedIssue`. The server route persists
+    // them onto fresh tmpdir-backed PersistedBench rows and reloads
+    // bench-manager so subsequent GET /api/projects/:id/benches surfaces
+    // them. Use this when a spec needs benches that pre-date a later
+    // mutation (e.g. an integration switch) without paying the cost of the
+    // real bench-provisioning flow.
+    seedBenches?: Array<{ assignedIssue: AssignedIssue }>;
   },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });

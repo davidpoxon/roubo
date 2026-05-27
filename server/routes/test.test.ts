@@ -70,6 +70,7 @@ vi.mock("../services/plugin-enable-state.js", () => ({
 
 vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
+  addBench: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
 }));
 
@@ -78,9 +79,16 @@ vi.mock("../services/integration-overrides.js", () => ({
   removeOverride: vi.fn(),
 }));
 
+vi.mock("../services/bench-manager.js", () => ({
+  __test: {
+    reloadFromState: vi.fn(),
+  },
+}));
+
 import router from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
+import * as benchManager from "../services/bench-manager.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
@@ -520,6 +528,175 @@ describe("POST /test/__register-fixture-project", () => {
     // failed before it could run.
     expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
   });
+
+  // TC-161: optional seedBenches input persists PersistedBench rows alongside
+  // the fixture project so specs can drive surfaces that depend on a bench
+  // pre-dating a later mutation (e.g. the "Issue from previous integration"
+  // badge after an integration switch).
+  describe("seedBenches option (TC-161)", () => {
+    it("persists each seeded bench via state.addBench and reloads bench-manager", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({
+          projectId: "tc-161",
+          plugin: "github-com",
+          seedBenches: [
+            {
+              assignedIssue: {
+                number: 101,
+                integrationId: "github-com",
+                externalId: "acme/widgets#101",
+                title: "Pre-switch bench 1",
+              },
+            },
+            {
+              assignedIssue: {
+                number: 102,
+                integrationId: "github-com",
+                externalId: "acme/widgets#102",
+                title: "Pre-switch bench 2",
+              },
+            },
+          ],
+        });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+
+      expect(state.addBench).toHaveBeenCalledTimes(2);
+      const firstCall = vi.mocked(state.addBench).mock.calls[0][0];
+      const secondCall = vi.mocked(state.addBench).mock.calls[1][0];
+      expect(firstCall.id).toBe(1);
+      expect(firstCall.projectId).toBe("tc-161");
+      expect(firstCall.assignedIssue?.integrationId).toBe("github-com");
+      expect(firstCall.assignedIssue?.number).toBe(101);
+      // Each bench gets its own tmpdir-backed workspacePath so the seeded
+      // bench is not flagged as missing by reconcile.
+      expect(typeof firstCall.workspacePath).toBe("string");
+      expect(firstCall.workspacePath.length).toBeGreaterThan(0);
+      expect(secondCall.id).toBe(2);
+      expect(secondCall.workspacePath).not.toBe(firstCall.workspacePath);
+      expect(fs.existsSync(firstCall.workspacePath)).toBe(true);
+      expect(fs.existsSync(secondCall.workspacePath)).toBe(true);
+      createdTmpdirs.push(firstCall.workspacePath, secondCall.workspacePath);
+
+      expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not call bench-manager.reloadFromState when seedBenches is empty", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "fixture-no-seeds", plugin: "e2e-stub", seedBenches: [] });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+      expect(state.addBench).not.toHaveBeenCalled();
+      expect(benchManager.__test.reloadFromState).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when seedBenches is not an array", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "fixture-a", plugin: "e2e-stub", seedBenches: "nope" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/seedBenches/);
+      expect(state.addBench).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when a seedBenches entry omits assignedIssue.integrationId", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({
+          projectId: "fixture-a",
+          plugin: "e2e-stub",
+          seedBenches: [
+            {
+              assignedIssue: {
+                number: 1,
+                externalId: "acme/widgets#1",
+                title: "Missing integrationId",
+              },
+            },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/integrationId/);
+      expect(state.addBench).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when a seedBenches entry has a non-integer number", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({
+          projectId: "fixture-a",
+          plugin: "e2e-stub",
+          seedBenches: [
+            {
+              assignedIssue: {
+                number: 1.5,
+                integrationId: "github-com",
+                externalId: "acme/widgets#1",
+                title: "Bad number",
+              },
+            },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/integer/);
+      expect(state.addBench).not.toHaveBeenCalled();
+    });
+
+    it("rolls back seeded workspace tmpdirs when a later step throws", async () => {
+      process.env.ROUBO_E2E = "1";
+      // Capture the tmpdir paths the route mints before the throw so we can
+      // assert they were rm'd.
+      const seededPaths: string[] = [];
+      vi.mocked(state.addBench).mockImplementation((bench) => {
+        seededPaths.push(bench.workspacePath);
+      });
+      vi.mocked(benchManager.__test.reloadFromState).mockImplementationOnce(() => {
+        throw new Error("reload-boom");
+      });
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({
+          projectId: "fixture-rollback",
+          plugin: "e2e-stub",
+          seedBenches: [
+            {
+              assignedIssue: {
+                number: 1,
+                integrationId: "github-com",
+                externalId: "x#1",
+                title: "x",
+              },
+            },
+          ],
+        });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe("reload-boom");
+      expect(seededPaths.length).toBe(1);
+      // The rollback path rm'd the seeded workspace tmpdir.
+      expect(fs.existsSync(seededPaths[0])).toBe(false);
+      consoleSpy.mockRestore();
+    });
+  });
 });
 
 // #232: /test/__reset cleans up any fixture projects that were registered
@@ -556,6 +733,44 @@ describe("POST /test/__reset (fixture cleanup)", () => {
     expect(res.status).toBe(200);
     expect(integrationOverrides.removeOverride).not.toHaveBeenCalled();
     expect(state.removeProject).not.toHaveBeenCalled();
+  });
+
+  // TC-161: /__reset also rms the per-bench workspace tmpdirs that
+  // `seedBenches` minted. wipePersistedTestState() truncates state.json so
+  // bench rows themselves are gone after reset, but the on-disk tmpdir would
+  // otherwise survive between specs and leak into os.tmpdir() over a run.
+  it("removes seeded workspace tmpdirs alongside the fixture repoPath", async () => {
+    process.env.ROUBO_E2E = "1";
+    const seededPaths: string[] = [];
+    vi.mocked(state.addBench).mockImplementation((bench) => {
+      seededPaths.push(bench.workspacePath);
+    });
+
+    const registered = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-with-seeds",
+        plugin: "e2e-stub",
+        seedBenches: [
+          {
+            assignedIssue: {
+              number: 1,
+              integrationId: "github-com",
+              externalId: "acme/widgets#1",
+              title: "seed",
+            },
+          },
+        ],
+      });
+    expect(registered.status).toBe(200);
+    createdTmpdirs.push(registered.body.repoPath);
+    expect(seededPaths.length).toBe(1);
+    expect(fs.existsSync(seededPaths[0])).toBe(true);
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(200);
+    expect(fs.existsSync(seededPaths[0])).toBe(false);
   });
 });
 
