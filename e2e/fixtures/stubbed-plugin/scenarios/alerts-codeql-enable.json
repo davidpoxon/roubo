@@ -1,0 +1,208 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "alerts-codeql-enable stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "categorized-multi-list",
+    "categories": [
+      {
+        "id": "Repository",
+        "label": "Repositories",
+        "items": [
+          {
+            "externalId": "acme/widgets",
+            "label": "acme/widgets",
+            "sublabel": "Repository",
+            "icon": "repo"
+          }
+        ]
+      }
+    ]
+  },
+  "issues": [],
+  "listIssuesSequence": [
+    {
+      "items": [
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets#101",
+          "externalUrl": "https://stub.example/acme/widgets/issues/101",
+          "title": "Widget login fails after refresh",
+          "body": null,
+          "currentState": "Open",
+          "allowedTransitions": ["Close"],
+          "assignees": [],
+          "labels": ["bug"],
+          "issueType": "Bug",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-21T10:00:00.000Z",
+          "raw": null,
+          "facetValues": { "status": "Open" }
+        }
+      ],
+      "warnings": [
+        {
+          "category": "code-scanning",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets#101",
+          "externalUrl": "https://stub.example/acme/widgets/issues/101",
+          "title": "Widget login fails after refresh",
+          "body": null,
+          "currentState": "Open",
+          "allowedTransitions": ["Close"],
+          "assignees": [],
+          "labels": ["bug"],
+          "issueType": "Bug",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-21T10:00:00.000Z",
+          "raw": null,
+          "facetValues": { "status": "Open" }
+        }
+      ],
+      "warnings": [
+        {
+          "category": "code-scanning",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets#101",
+          "externalUrl": "https://stub.example/acme/widgets/issues/101",
+          "title": "Widget login fails after refresh",
+          "body": null,
+          "currentState": "Open",
+          "allowedTransitions": ["Close"],
+          "assignees": [],
+          "labels": ["bug"],
+          "issueType": "Bug",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-21T10:00:00.000Z",
+          "raw": null,
+          "facetValues": { "status": "Open" }
+        }
+      ],
+      "warnings": [
+        {
+          "category": "code-scanning",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets#101",
+          "externalUrl": "https://stub.example/acme/widgets/issues/101",
+          "title": "Widget login fails after refresh",
+          "body": null,
+          "currentState": "Open",
+          "allowedTransitions": ["Close"],
+          "assignees": [],
+          "labels": ["bug"],
+          "issueType": "Bug",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-21T10:00:00.000Z",
+          "raw": null,
+          "facetValues": { "status": "Open" }
+        }
+      ],
+      "warnings": [
+        {
+          "category": "code-scanning",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets#101",
+          "externalUrl": "https://stub.example/acme/widgets/issues/101",
+          "title": "Widget login fails after refresh",
+          "body": null,
+          "currentState": "Open",
+          "allowedTransitions": ["Close"],
+          "assignees": [],
+          "labels": ["bug"],
+          "issueType": "Bug",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-21T10:00:00.000Z",
+          "raw": null,
+          "facetValues": { "status": "Open" }
+        },
+        {
+          "integrationId": "e2e-stub",
+          "externalId": "acme/widgets:code-scanning:7",
+          "externalUrl": "https://stub.example/acme/widgets/security/code-scanning/7",
+          "title": "SQL injection in WidgetController.search",
+          "body": null,
+          "currentState": "open",
+          "allowedTransitions": [],
+          "assignees": [],
+          "labels": [],
+          "issueType": "security-code-scanning",
+          "blocks": [],
+          "blockedBy": [],
+          "updatedAt": "2026-05-22T12:00:00.000Z",
+          "raw": null,
+          "facetValues": {}
+        }
+      ]
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "security-code-scanning", "name": "Code Scanning" }
+  ],
+  "labels": ["bug"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}
