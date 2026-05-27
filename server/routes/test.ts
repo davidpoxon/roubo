@@ -564,6 +564,33 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   }
 });
 
+// TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
+// an unexpected exit and runs the real auto-restart / restart-budget path in
+// plugin-manager. The Playwright spec calls this three times across the 5-min
+// window to drive the plugin into `errored` deterministically. Production
+// builds 404 the URL via the ROUBO_E2E gate; the handler itself also asserts
+// the env var before SIGKILLing. Body: { pluginId: string }.
+router.post("/__crash-plugin", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { pluginId?: unknown };
+  if (typeof body.pluginId !== "string" || !FIXTURE_PROJECT_ID_RE.test(body.pluginId)) {
+    return res
+      .status(400)
+      .json({ error: "pluginId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  try {
+    const { pid } = pluginManager.__test.crashRunningPlugin(body.pluginId);
+    res.status(200).json({ ok: true, pid });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // "Unknown plugin" / "not running" both fall in here; 409 mirrors the
+    // "no live process to crash" semantics rather than 500-ing on user error.
+    res.status(409).json({ error: message });
+  }
+});
+
 // TC-153 e2e tap reader. Returns the ROUBO_E2E=1-only buffer that mirrors
 // every structured connection-state log line emitted by
 // `recordConnectionStateTransition`. Gated by ROUBO_E2E so production builds

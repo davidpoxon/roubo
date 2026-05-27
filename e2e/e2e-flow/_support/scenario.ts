@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import type { AssignedIssue } from "@roubo/shared";
+import type { AssignedIssue, PluginRecord } from "@roubo/shared";
 
 // TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
 // `GET /test/__connection-state-log`. The tap mirrors the structured log
@@ -133,6 +133,59 @@ export async function fetchConnectionStateLog(
   expect(res.status()).toBe(200);
   const body = (await res.json()) as { entries: ConnectionStateLogEntry[] };
   return body.entries;
+}
+
+/**
+ * Fetch a single plugin's record by id from `GET /api/plugins`. The endpoint
+ * returns the full installed list; TC-163 (#240) keeps the helper focused so
+ * specs don't repeat the find-by-id boilerplate.
+ */
+export async function fetchPluginRecord(
+  request: APIRequestContext,
+  pluginId: string,
+): Promise<PluginRecord | undefined> {
+  const res = await request.get("/api/plugins");
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as { plugins: PluginRecord[] };
+  return body.plugins.find((p) => p.id === pluginId);
+}
+
+/**
+ * TC-163 (#240): SIGKILL the named plugin's live child via the
+ * `/test/__crash-plugin` ROUBO_E2E-gated endpoint so the supervisor sees an
+ * unexpected exit. The endpoint returns 409 when the plugin is not running;
+ * callers should `waitForPluginRestart` before chaining additional crashes.
+ */
+export async function crashStubPlugin(request: APIRequestContext, pluginId: string): Promise<void> {
+  const res = await request.post("/test/__crash-plugin", { data: { pluginId } });
+  expect(res.status()).toBe(200);
+}
+
+/**
+ * TC-163 (#240): poll `GET /api/plugins` until the named plugin's record
+ * matches the supplied predicate. Used to observe restart-budget transitions
+ * (history grew, respawned with a new pid, transitioned to errored) without
+ * tying the spec to backoff timing. Total timeout matches the
+ * `BACKOFF_SCHEDULE_MS` ceiling (500ms + 1000ms + 2000ms ≈ 3.5s) with
+ * generous headroom for CI variance.
+ */
+export async function waitForPluginRecord(
+  request: APIRequestContext,
+  pluginId: string,
+  predicate: (record: PluginRecord) => boolean,
+  opts: { timeoutMs?: number } = {},
+): Promise<PluginRecord> {
+  const timeoutMs = opts.timeoutMs ?? 8_000;
+  const deadline = Date.now() + timeoutMs;
+  let last: PluginRecord | undefined;
+  while (Date.now() < deadline) {
+    last = await fetchPluginRecord(request, pluginId);
+    if (last && predicate(last)) return last;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(
+    `waitForPluginRecord(${pluginId}) timed out after ${timeoutMs}ms; last record: ${JSON.stringify(last)}`,
+  );
 }
 
 /**

@@ -1120,6 +1120,11 @@ export interface ListIssuesParams {
  * `stalled` is set by the host when the plugin paginator misbehaves
  * (TC-071): in that case `nextCursor` is forced to `null` so the
  * client stops fetching, and the UI surfaces a note.
+ *
+ * FR-014: when the active plugin is `errored` or `disabled` and a prior
+ * first-page response was cached, the host serves that snapshot with
+ * `stale: true` and `snapshotCapturedAt` set to the ISO timestamp of the
+ * captured response. The matching cut-list banner is tracked in #263.
  */
 export interface PaginatedIssues {
   items: NormalizedIssue[];
@@ -1127,6 +1132,10 @@ export interface PaginatedIssues {
   stalled?: boolean;
   /** Per-source per-category non-fatal warnings from the underlying plugin call. */
   warnings?: ListIssuesWarning[];
+  /** True when this response is a cached snapshot served because the plugin is unavailable. */
+  stale?: boolean;
+  /** ISO timestamp of the cached response, present iff `stale` is true. */
+  snapshotCapturedAt?: string;
 }
 
 /** Server response to `GET /api/projects/:projectId/issue-types` (WU-016). */

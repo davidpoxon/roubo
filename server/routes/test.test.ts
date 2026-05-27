@@ -29,6 +29,7 @@ vi.mock("../services/plugin-manager.js", () => ({
     resetE2EConnectionStateLogTap: vi.fn(),
     getE2EConnectionStateLogTap: vi.fn(() => []),
     setE2EConfig: vi.fn(),
+    crashRunningPlugin: vi.fn(() => ({ pid: 12345 })),
   },
 }));
 
@@ -898,5 +899,48 @@ describe("GET /test/__plugin-enable-state", () => {
     expect(res.body).toEqual({
       plugins: { "github-com": "enabled", "broken-plugin": "disabled" },
     });
+  });
+});
+
+describe("POST /test/__crash-plugin (TC-163, #240)", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "e2e-stub" });
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(pluginManager.__test.crashRunningPlugin).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when pluginId is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).post("/test/__crash-plugin").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/kebab-case/);
+    expect(pluginManager.__test.crashRunningPlugin).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when pluginId is not kebab-case", async () => {
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "Not_Kebab" });
+    expect(res.status).toBe(400);
+    expect(pluginManager.__test.crashRunningPlugin).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 and the SIGKILLed pid on success", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(pluginManager.__test.crashRunningPlugin).mockReturnValueOnce({ pid: 4242 });
+    const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "e2e-stub" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, pid: 4242 });
+    expect(pluginManager.__test.crashRunningPlugin).toHaveBeenCalledWith("e2e-stub");
+  });
+
+  it("returns 409 when the plugin is not running", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(pluginManager.__test.crashRunningPlugin).mockImplementationOnce(() => {
+      throw new Error('Plugin "e2e-stub" is not running (status=disabled)');
+    });
+    const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "e2e-stub" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/not running/);
   });
 });
