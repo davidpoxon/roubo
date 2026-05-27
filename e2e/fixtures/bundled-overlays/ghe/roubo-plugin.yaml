@@ -18,7 +18,16 @@ configSchema:
     token:
       type: string
       title: Personal access token
-      format: password
+      # Intentionally NOT format: password. The Configure dialog's test
+      # endpoint persists every `format: password` field to the OS keyring
+      # before validateConfig runs (server/services/integration-test.ts:46-51),
+      # and headless Ubuntu CI runners ship without `secret-tool`. Treating
+      # the e2e overlay's token as a plain string keeps the field visible
+      # in the dialog (ConfigSchemaForm renders all string properties) and
+      # lets the GHE PAT-regeneration spec type into it without tripping
+      # `credential-store-failed` on the second test-connection. The stub
+      # plugin does not consult the token value, so the credential-store
+      # bypass has no functional consequence for the spec.
       description: PAT (e2e stub, value is not consulted by the stub plugin).
     sources:
       type: array

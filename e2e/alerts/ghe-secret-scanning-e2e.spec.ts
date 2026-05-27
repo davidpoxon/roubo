@@ -126,38 +126,18 @@ test("GHE PAT user: missing-scope chip → simulated PAT regen → cut list upda
   // Simulate the PAT regeneration: the user has hit the GHE settings page,
   // generated a new PAT with `security_events`, and pasted it back into
   // the Configure dialog's token field. The stub does not consult the
-  // token value, so any non-empty string is fine.
-  //
-  // CI sequencing notes: setValues batches three state resets and unmounts
-  // the SourcePicker sub-tree on each keystroke (PluginConfigureDialog.tsx:
-  // 483-491). Typing the PAT value via pressSequentially with a small
-  // per-keystroke delay lets React 19's concurrent renderer commit each
-  // batch before the next one queues, which is the difference between
-  // "the click fires and onPress reads the new `values` closure" and
-  // "the click is swallowed against a button mid-rerender on a loaded CI
-  // runner". `fill` collapses the input update into one synchronous burst
-  // and produced a flake where the second test-connection click never
-  // reached the test endpoint.
+  // token value, so any non-empty string is fine. The overlay schema
+  // deliberately renders this as a plain string (not format: password)
+  // so the test endpoint does not try to persist into the OS keyring on
+  // headless Ubuntu CI runners; see bundled-overlays/ghe/roubo-plugin.yaml.
   const tokenField = dialog.getByTestId("config-field-token");
-  const tokenInput = tokenField.locator("input");
-  await tokenInput.click();
-  await tokenInput.pressSequentially("ghp_e2e_new_pat_value", { delay: 20 });
-  await expect(tokenInput).toHaveValue("ghp_e2e_new_pat_value");
+  await tokenField.locator("input").fill("ghp_e2e_new_pat_value");
 
   // Re-running Test connection invalidates the connection query and (on
   // Save) the issue + warnings queries. The stub still succeeds; this is
-  // the "scope-verification succeeds" beat of AC #3. Tying the visibility
-  // assertion to the actual POST /integration/test surfaces a missed
-  // click as a wait-for-request timeout instead of a generic visibility
-  // miss, and the 15s element timeout absorbs slow-CI render latency on
-  // the happy path.
-  const testRequest = page.waitForRequest(
-    (req) => req.method() === "POST" && req.url().includes("/integration/test"),
-    { timeout: 15_000 },
-  );
+  // the "scope-verification succeeds" beat of AC #3.
   await dialog.getByTestId("test-connection").click();
-  await testRequest;
-  await expect(dialog.getByTestId("test-result-success")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.getByTestId("test-result-success")).toBeVisible();
 
   // Commit the new PAT. Save invalidates the issue and warnings queries;
   // the next listIssues lands on the final sequence step (no warnings,
