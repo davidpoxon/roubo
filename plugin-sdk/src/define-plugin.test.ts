@@ -326,6 +326,53 @@ describe("definePlugin (TC-035)", () => {
     ]);
   });
 
+  it("registers probeAlertCategories so the host can drive the Test-connection per-category strip", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(
+      definePlugin(
+        {
+          async probeAlertCategories({ enabledCategories }) {
+            return {
+              reports: enabledCategories.map((category) => ({
+                category,
+                status: "ok" as const,
+                httpStatus: 200,
+              })),
+            };
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const result = await hostConnection.sendRequest<{
+      reports: Array<{ category: string; status: string }>;
+    }>("probeAlertCategories", {
+      sources: [{ kind: "repo", externalId: "owner/repo" }],
+      enabledCategories: ["dependabot", "code-scanning"],
+    });
+    expect(result.reports).toEqual([
+      { category: "dependabot", status: "ok", httpStatus: 200 },
+      { category: "code-scanning", status: "ok", httpStatus: 200 },
+    ]);
+  });
+
+  it("returns MethodNotFound when probeAlertCategories is omitted", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(definePlugin({}, { streams: pluginStreams }));
+
+    await expect(
+      hostConnection.sendRequest("probeAlertCategories", {
+        sources: [],
+        enabledCategories: ["dependabot"],
+      }),
+    ).rejects.toMatchObject({ code: -32601 });
+  });
+
   it("returns MethodNotFound when filterFacets is omitted", async () => {
     const { pluginStreams, hostConnection, dispose } = pairedConnection();
     disposes.push(dispose);

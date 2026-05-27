@@ -73,6 +73,10 @@ const CANNED_SEQUENCE: RpcCall[] = [
     params: { facetId: "assignee", sources: [], search: "ali" },
   },
   { method: "getConnectionStatus" },
+  {
+    method: "probeAlertCategories",
+    params: { sources: [], enabledCategories: ["dependabot"] },
+  },
   { method: "listIssues", params: { sources: [], cursor: null, pageSize: 25 } },
   { method: "getIssue", params: { externalId: "acme/widgets#1" } },
   { method: "getComments", params: { externalId: "acme/widgets#1" } },

@@ -10,6 +10,7 @@ import type {
   ListIssuesWarning,
   NormalizedComment,
   NormalizedIssue,
+  ProbeAlertCategoriesResult,
   SourceCandidatesResponse,
 } from "@roubo/plugin-sdk";
 
@@ -39,6 +40,13 @@ export interface Scenario {
     items: NormalizedIssue[];
     warnings?: ListIssuesWarning[];
   }>;
+  // TC-167: each `probeAlertCategories` call walks the i-th entry and clamps
+  // at the last. Mirrors the listIssues / connection-status pattern so a
+  // single scenario can model "scope-missing on first Test connection, ok on
+  // the next" without restarting the stub. When omitted, the stub returns an
+  // empty `reports` array so the host's "missing report for an enabled
+  // category" branch surfaces a deterministic error row.
+  probeAlertCategoriesSequence?: ProbeAlertCategoriesResult[];
   commentsByExternalId: Record<string, NormalizedComment[]>;
   issueTypes: IssueTypeOption[];
   labels: string[];

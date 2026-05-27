@@ -1,0 +1,85 @@
+{
+  "pluginId": "github-com",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "alerts-test-connection-scope-missing stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "categorized-multi-list",
+    "categories": [
+      {
+        "id": "Repository",
+        "label": "Repositories",
+        "items": [
+          {
+            "externalId": "acme/widgets",
+            "label": "acme/widgets",
+            "sublabel": "Repository",
+            "icon": "repo"
+          }
+        ]
+      }
+    ]
+  },
+  "issues": [],
+  "listIssuesSequence": [
+    {
+      "items": [],
+      "warnings": [
+        {
+          "category": "dependabot",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": [],
+      "warnings": [
+        {
+          "category": "dependabot",
+          "sourceExternalId": "acme/widgets",
+          "cause": "Missing security_events scope on the OAuth token.",
+          "code": "missing-scope",
+          "detail": { "status": 401, "missingScope": "security_events" }
+        }
+      ]
+    },
+    {
+      "items": []
+    }
+  ],
+  "probeAlertCategoriesSequence": [
+    {
+      "reports": [
+        {
+          "category": "dependabot",
+          "status": "scope-missing",
+          "httpStatus": 401,
+          "detail": "Token missing the `security_events` scope."
+        }
+      ]
+    },
+    {
+      "reports": [
+        {
+          "category": "dependabot",
+          "status": "ok",
+          "httpStatus": 200
+        }
+      ]
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {}
+}
