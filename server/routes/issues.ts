@@ -112,7 +112,7 @@ router.get("/:projectId/issues", async (req, res) => {
     // arbitrarily-stale tail page that no longer matches the first page.
     const record = pluginManager.getRecord(active.pluginId);
     if (isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
-      const cached = getSnapshot(active.pluginId);
+      const cached = getSnapshot(active.pluginId, req.params.projectId, params);
       if (cached) {
         const stale: PaginatedIssues = {
           ...cached.response,
@@ -156,7 +156,7 @@ router.get("/:projectId/issues", async (req, res) => {
   // clean.
   if (isFirstPage) {
     const pluginName = pluginManager.getRecord(active.pluginId)?.manifest?.name ?? active.pluginId;
-    recordSnapshot(active.pluginId, body, pluginName, true);
+    recordSnapshot(active.pluginId, req.params.projectId, params, body, pluginName, true);
   }
   res.json(body);
 });

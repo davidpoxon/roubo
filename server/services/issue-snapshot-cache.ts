@@ -1,4 +1,4 @@
-import type { PaginatedIssues } from "@roubo/shared";
+import type { ListIssuesParams, PaginatedIssues } from "@roubo/shared";
 
 // FR-014: when a plugin is `errored` or `disabled` and the host can't reach it,
 // the routes layer falls back to the last successful first-page `listIssues`
@@ -20,6 +20,19 @@ export interface IssueSnapshot {
   pluginName: string;
 }
 
+// Composite key: pluginId + projectId + signature of (sources, filters).
+// Without projectId, two projects sharing the same plugin would cross-pollute
+// (project B's first-page response would be served as project A's stale
+// snapshot on plugin crash). Without (sources, filters), a filtered request
+// would pollute the snapshot served to an unfiltered fallback read.
+function makeKey(pluginId: string, projectId: string, params: ListIssuesParams): string {
+  const signature = JSON.stringify({
+    sources: params.sources,
+    filters: params.filters ?? null,
+  });
+  return `${pluginId}::${projectId}::${signature}`;
+}
+
 const snapshots = new Map<string, IssueSnapshot>();
 
 /**
@@ -29,6 +42,8 @@ const snapshots = new Map<string, IssueSnapshot>();
  */
 export function recordSnapshot(
   pluginId: string,
+  projectId: string,
+  params: ListIssuesParams,
   response: PaginatedIssues,
   pluginName: string,
   isFirstPage: boolean,
@@ -41,19 +56,30 @@ export function recordSnapshot(
   // doesn't double-stamp them when we serve from the cache.
   delete cloned.stale;
   delete cloned.snapshotCapturedAt;
-  snapshots.set(pluginId, {
+  snapshots.set(makeKey(pluginId, projectId, params), {
     response: cloned,
     capturedAt: new Date().toISOString(),
     pluginName,
   });
 }
 
-export function getSnapshot(pluginId: string): IssueSnapshot | undefined {
-  return snapshots.get(pluginId);
+export function getSnapshot(
+  pluginId: string,
+  projectId: string,
+  params: ListIssuesParams,
+): IssueSnapshot | undefined {
+  return snapshots.get(makeKey(pluginId, projectId, params));
 }
 
+// Drops every cached snapshot for `pluginId` regardless of project / params.
+// Called on plugin uninstall: a re-installed plugin id is a different
+// deployment and must not inherit the prior install's cached issues for any
+// project that referenced it.
 export function clearSnapshot(pluginId: string): void {
-  snapshots.delete(pluginId);
+  const prefix = `${pluginId}::`;
+  for (const key of snapshots.keys()) {
+    if (key.startsWith(prefix)) snapshots.delete(key);
+  }
 }
 
 export function clearAll(): void {

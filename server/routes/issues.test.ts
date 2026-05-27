@@ -222,6 +222,10 @@ describe("GET /:projectId/issues", () => {
       await request(app).get("/p1/issues");
       expect(issueSnapshotCache.recordSnapshot).toHaveBeenCalledWith(
         "github-com",
+        "p1",
+        expect.objectContaining({
+          sources: [{ kind: "repo", externalId: "foo/bar" }],
+        }),
         expect.objectContaining({
           items: expect.arrayContaining([expect.objectContaining({ externalId: "1" })]),
         }),
