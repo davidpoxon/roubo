@@ -28,6 +28,7 @@ const ALL_METHODS: readonly ContractMethodName[] = [
   "listIssueTypes",
   "listLabels",
   "getConnectionStatus",
+  "probeAlertCategories",
   "filterFacets",
   "getFacetOptions",
 ];
@@ -47,6 +48,7 @@ const PARAMS_FOR: Record<ContractMethodName, Record<string, unknown> | undefined
   listIssueTypes: { sources: [] },
   listLabels: { sources: [] },
   getConnectionStatus: undefined,
+  probeAlertCategories: { sources: [], enabledCategories: ["dependabot"] },
   filterFacets: undefined,
   getFacetOptions: { facetId: "assignee", sources: [] },
 };
@@ -140,6 +142,57 @@ describe("connectionStatusSequence", () => {
     const second = contract.getConnectionStatus(undefined as never);
     expect(first.state).toBe(scenario.connectionStatus.state);
     expect(second.state).toBe(scenario.connectionStatus.state);
+  });
+});
+
+describe("probeAlertCategoriesSequence (TC-167)", () => {
+  const PROBE_PARAMS = { sources: [], enabledCategories: ["dependabot"] as const };
+
+  it("advances through the sequence on successive calls and clamps at the last entry", () => {
+    const scenario = loadScenario("alerts-test-connection-scope-missing");
+    const clock = createClock(new Date("2026-05-27T10:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario, clock, journal });
+    const probe = contract.probeAlertCategories;
+    if (typeof probe !== "function") throw new Error("stub did not register probeAlertCategories");
+
+    const first = probe({
+      ...PROBE_PARAMS,
+      enabledCategories: [...PROBE_PARAMS.enabledCategories],
+    });
+    if (!("reports" in first)) throw new Error("expected probe result to carry reports");
+    expect(first.reports).toHaveLength(1);
+    expect(first.reports[0]).toMatchObject({ category: "dependabot", status: "scope-missing" });
+
+    const second = probe({
+      ...PROBE_PARAMS,
+      enabledCategories: [...PROBE_PARAMS.enabledCategories],
+    });
+    if (!("reports" in second)) throw new Error("expected probe result to carry reports");
+    expect(second.reports[0]).toMatchObject({ category: "dependabot", status: "ok" });
+
+    const third = probe({
+      ...PROBE_PARAMS,
+      enabledCategories: [...PROBE_PARAMS.enabledCategories],
+    });
+    if (!("reports" in third)) throw new Error("expected probe result to carry reports");
+    expect(third.reports[0]).toMatchObject({ category: "dependabot", status: "ok" });
+  });
+
+  it("returns an empty reports array when no sequence is declared", () => {
+    const scenario = loadScenario("default");
+    const clock = createClock(new Date("2026-05-27T10:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario, clock, journal });
+    const probe = contract.probeAlertCategories;
+    if (typeof probe !== "function") throw new Error("stub did not register probeAlertCategories");
+
+    const result = probe({
+      ...PROBE_PARAMS,
+      enabledCategories: [...PROBE_PARAMS.enabledCategories],
+    });
+    if (!("reports" in result)) throw new Error("expected probe result to carry reports");
+    expect(result.reports).toEqual([]);
   });
 });
 

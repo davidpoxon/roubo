@@ -28,6 +28,7 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "listIssueTypes",
   "listLabels",
   "getConnectionStatus",
+  "probeAlertCategories",
   "filterFacets",
   "getFacetOptions",
 ] as const;

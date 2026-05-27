@@ -68,6 +68,32 @@ describe("WU-066 scenario packs", () => {
   });
 });
 
+// TC-167: the alerts-test-connection-scope-missing pack drives the e2e spec
+// for the per-category Test connection strip. The scenario must declare a
+// `probeAlertCategoriesSequence` (scope-missing → ok) and a `listIssuesSequence`
+// that surfaces the matching missing-scope warning so the Re-consent chip
+// renders in the alerts checkbox row alongside the strip.
+describe("TC-167 scenario pack", () => {
+  it("alerts-test-connection-scope-missing carries the probe sequence and matching warning", () => {
+    const scenario = loadScenario("alerts-test-connection-scope-missing");
+    expect(scenario.probeAlertCategoriesSequence).toBeDefined();
+    expect(scenario.probeAlertCategoriesSequence?.length).toBe(2);
+    expect(scenario.probeAlertCategoriesSequence?.[0].reports[0]).toMatchObject({
+      category: "dependabot",
+      status: "scope-missing",
+    });
+    expect(scenario.probeAlertCategoriesSequence?.[1].reports[0]).toMatchObject({
+      category: "dependabot",
+      status: "ok",
+    });
+    expect(scenario.listIssuesSequence).toBeDefined();
+    expect(scenario.listIssuesSequence?.[0].warnings?.[0]).toMatchObject({
+      category: "dependabot",
+      code: "missing-scope",
+    });
+  });
+});
+
 // WU-068: four scenario packs back the per-project Settings specs that drive
 // the github-com/ghe/jira-self-hosted overlay stubs (TC-177, TC-178, TC-179,
 // TC-182). Each is shaped by the per-spec assertions; the loader sanity

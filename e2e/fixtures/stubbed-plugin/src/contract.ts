@@ -12,6 +12,7 @@ import type {
   NormalizedComment,
   NormalizedIssue,
   PluginContract,
+  ProbeAlertCategoriesResult,
   SetActiveConfigResult,
   SourceCandidatesResponse,
   ValidateConfigResult,
@@ -157,6 +158,24 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     };
   };
 
+  // TC-167: walk `probeAlertCategoriesSequence` on each call (clamp at the
+  // last entry) so a single scenario can model the Test-connection strip
+  // surfacing scope-missing on the first probe and ok after OAuth re-consent
+  // refreshes the token. When no sequence is declared, return an empty
+  // `reports` array — the host's `runCategoryProbes` then surfaces a
+  // deterministic error row for any enabled category, which is loud enough to
+  // catch a scenario that forgot to set the sequence.
+  const probeSequence = scenario.probeAlertCategoriesSequence;
+  let probeIndex = 0;
+  const probeAlertCategories = (): ProbeAlertCategoriesResult => {
+    if (probeSequence && probeSequence.length > 0) {
+      const index = Math.min(probeIndex, probeSequence.length - 1);
+      probeIndex += 1;
+      return probeSequence[index];
+    }
+    return { reports: [] };
+  };
+
   const filterFacets = (): FilterFacet[] => scenario.facets;
 
   const getFacetOptions = (params: GetFacetOptionsParams): FilterFacetOption[] => {
@@ -183,6 +202,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     listIssueTypes,
     listLabels,
     getConnectionStatus,
+    probeAlertCategories,
   };
 
   // WU-067 (TC-175): when the scenario sets `omitFilterFacets`, leave both
