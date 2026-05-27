@@ -11,6 +11,7 @@ import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
+import { IntegrationConfigSchema, type IntegrationConfig } from "@roubo/shared";
 
 const router: Router = Router();
 
@@ -286,11 +287,17 @@ router.post("/__reset", async (req: Request, res: Response) => {
 interface RegisterFixtureBody {
   projectId?: unknown;
   plugin?: unknown;
+  // WU-068: optional extra integration fields (instance, sources,
+  // capturedUserId, etc.) merged into the saved override after `plugin`.
+  // `plugin` on this nested object is rejected so the top-level field
+  // remains the single source of truth for which plugin is pinned.
+  integrationConfig?: unknown;
 }
 
 interface ParsedRegisterFixture {
   projectId: string;
   plugin: string;
+  integrationConfig?: IntegrationConfig;
 }
 
 function parseRegisterFixtureBody(
@@ -304,7 +311,28 @@ function parseRegisterFixtureBody(
   if (typeof pluginRaw !== "string" || pluginRaw.length === 0) {
     return "plugin must be a non-empty string";
   }
-  return { projectId: projectIdRaw, plugin: pluginRaw };
+  let integrationConfig: IntegrationConfig | undefined;
+  if (body?.integrationConfig !== undefined) {
+    if (
+      body.integrationConfig === null ||
+      typeof body.integrationConfig !== "object" ||
+      Array.isArray(body.integrationConfig)
+    ) {
+      return "integrationConfig must be an object";
+    }
+    if ("plugin" in (body.integrationConfig as Record<string, unknown>)) {
+      return "integrationConfig must not include `plugin`; use the top-level field";
+    }
+    const parsed = IntegrationConfigSchema.safeParse(body.integrationConfig);
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .join("; ");
+      return `integrationConfig failed validation: ${issues}`;
+    }
+    integrationConfig = parsed.data;
+  }
+  return { projectId: projectIdRaw, plugin: pluginRaw, integrationConfig };
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -316,7 +344,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin } = parsed;
+  const { projectId, plugin, integrationConfig } = parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -333,7 +361,10 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   try {
     writeFixtureRouboYaml(repoPath, projectId);
     projectRegistry.registerProject(repoPath);
-    saveOverride(projectId, { schemaVersion: 1, integration: { plugin } });
+    saveOverride(projectId, {
+      schemaVersion: 1,
+      integration: { ...(integrationConfig ?? {}), plugin },
+    });
     fixtureProjects.set(projectId, { projectId, repoPath });
     res.status(200).json({ projectId, repoPath });
   } catch (err) {

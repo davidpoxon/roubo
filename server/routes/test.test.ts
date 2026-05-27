@@ -394,6 +394,78 @@ describe("POST /test/__register-fixture-project", () => {
     });
   });
 
+  it("merges optional integrationConfig into the saved override alongside plugin", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-with-instance",
+        plugin: "ghe",
+        integrationConfig: {
+          instance: "https://ghe.example.com",
+          sources: { repo: [{ externalId: "acme/widgets" }] },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    expect(integrationOverrides.saveOverride).toHaveBeenCalledWith("fixture-with-instance", {
+      schemaVersion: 1,
+      integration: {
+        instance: "https://ghe.example.com",
+        sources: { repo: [{ externalId: "acme/widgets" }] },
+        plugin: "ghe",
+      },
+    });
+  });
+
+  it("returns 400 when integrationConfig is not an object", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub", integrationConfig: "nope" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/integrationConfig/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when integrationConfig nests `plugin`", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-a",
+        plugin: "e2e-stub",
+        integrationConfig: { plugin: "ghe" },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/plugin/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when integrationConfig fails schema validation", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-a",
+        plugin: "e2e-stub",
+        // pageSize must be a positive integer; -1 fails the schema.
+        integrationConfig: { pageSize: -1 },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/integrationConfig failed validation/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
   it("returns 409 when the same projectId is registered twice without a reset", async () => {
     process.env.ROUBO_E2E = "1";
 

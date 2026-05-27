@@ -1,5 +1,7 @@
 import { expect, type APIRequestContext } from "@playwright/test";
 
+import type { IntegrationConfig } from "@roubo/shared";
+
 import { registerFixtureProject } from "../../e2e-flow/_support/scenario.js";
 
 export interface RegisterTestProjectOptions {
@@ -13,6 +15,13 @@ export interface RegisterTestProjectOptions {
   // this as `pluginId`; both spellings are accepted.
   pluginId?: string;
   plugin?: string;
+  // Optional extra integration fields (instance, sources, capturedUserId,
+  // etc.) merged into the saved override after `plugin`. WU-068 specs use
+  // this to drive surfaces (e.g. the Source tile instance line, the
+  // configured-sources list) that only render when the override carries the
+  // matching value. The route rejects a nested `plugin` here; pass it via
+  // the top-level `plugin` / `pluginId` field instead.
+  integrationConfig?: Omit<Partial<IntegrationConfig>, "plugin">;
 }
 
 export interface RegisterTestProjectResult {
@@ -25,11 +34,11 @@ export interface RegisterTestProjectResult {
  * `e2e-flow/_support/scenario.ts` (which posts to
  * `/test/__register-fixture-project`, see #232). Kept here so the WU-068
  * project-settings specs can use a stable import path while the older API
- * shape (`projectName`, `pluginId`, optional `integrationConfig`) is migrated
- * to main's `{ projectId, plugin }` contract. The `integrationConfig` field
- * the older callers passed is no longer applied — the canonical fixture
- * route only writes `{ plugin }`, which is sufficient for the IssueSourceTile
- * to render the configured variant against the stubbed plugin scenario data.
+ * shape (`projectName`, `pluginId`) is migrated to main's
+ * `{ projectId, plugin }` contract. The `integrationConfig` field is
+ * forwarded to the route, which merges it into the persisted override
+ * alongside `plugin` so specs can pin `instance`, `sources`, and other
+ * Source-tile-driven fields.
  */
 export async function registerTestProject(
   request: APIRequestContext,
@@ -42,7 +51,11 @@ export async function registerTestProject(
       "registerTestProject requires projectId (or projectName) and plugin (or pluginId)",
     );
   }
-  return await registerFixtureProject(request, { projectId, plugin });
+  return await registerFixtureProject(request, {
+    projectId,
+    plugin,
+    integrationConfig: opts.integrationConfig as Record<string, unknown> | undefined,
+  });
 }
 
 /**
