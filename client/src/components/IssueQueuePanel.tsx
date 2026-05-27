@@ -17,6 +17,7 @@ import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-li
 import type { GroupingState } from "../lib/cut-list-groups";
 import GitHubErrorState from "./GitHubErrorState";
 import PluginConfigureDialog from "./PluginConfigureDialog";
+import StaleSnapshotBanner from "./StaleSnapshotBanner";
 
 export default function IssueQueuePanel({
   projectId,
@@ -47,6 +48,7 @@ export default function IssueQueuePanel({
     isFetchingNextPage,
     fetchNextPage,
     stalled,
+    stale,
   } = useIssues(projectId);
   const refreshItems = useRefreshIssues();
   const integrationQuery = useProjectIntegration(projectId);
@@ -60,6 +62,10 @@ export default function IssueQueuePanel({
   );
   useOpportunisticRecheckOnMount(enabledPluginIds);
   const activePluginId = integrationQuery.data?.plugin?.id ?? null;
+  // Display name for the FR-014 stale-snapshot banner. Sourced from the plugin
+  // manifest the integration endpoint already returns; if unavailable we skip
+  // the banner rather than render "from undefined".
+  const activePluginName = integrationQuery.data?.plugin?.manifest?.name ?? null;
   const excludedStatuses = useMemo(
     () => integrationQuery.data?.effective?.excludedStatuses ?? [],
     [integrationQuery.data],
@@ -249,6 +255,8 @@ export default function IssueQueuePanel({
           )}
         </div>
       )}
+
+      {stale && activePluginName && <StaleSnapshotBanner pluginName={activePluginName} />}
 
       {stalled && (
         <div

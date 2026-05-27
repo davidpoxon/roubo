@@ -16,6 +16,14 @@ export interface UseIssuesResult {
   error: Error | null;
   /** True when any retrieved page reported `stalled` (TC-071). */
   stalled: boolean;
+  /**
+   * True when the response was served from the issue-snapshot cache because
+   * the active plugin is `errored` or `disabled` (FR-014 / TC-016). Surface
+   * the cut-list stale banner whenever this is true.
+   */
+  stale: boolean;
+  /** ISO timestamp of the cached snapshot when `stale` is true, else null. */
+  snapshotCapturedAt: string | null;
 }
 
 /**
@@ -47,6 +55,12 @@ export function useIssues(
   const pages = query.data?.pages ?? [];
   const issues = pages.flatMap((p) => p.items);
   const stalled = pages.some((p) => p.stalled === true);
+  // The cache only ever serves the first page, so the stale marker (if present)
+  // lives on pages[0]. Iterating defensively in case the server ever extends
+  // the contract to mark additional pages.
+  const stalePage = pages.find((p) => p.stale === true);
+  const stale = stalePage !== undefined;
+  const snapshotCapturedAt = stalePage?.snapshotCapturedAt ?? null;
 
   return {
     issues,
@@ -58,6 +72,8 @@ export function useIssues(
     },
     error: query.error,
     stalled,
+    stale,
+    snapshotCapturedAt,
   };
 }
 

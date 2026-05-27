@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { renderWithProviders } from "../test/renderWithProviders";
 import IssueQueuePanel from "./IssueQueuePanel";
 import { ApiError } from "../lib/api";
@@ -84,8 +85,27 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     fetchNextPage: vi.fn(),
     error: null,
     stalled: false,
+    stale: false,
+    snapshotCapturedAt: null,
     ...overrides,
   };
+}
+
+function integrationWithPlugin(pluginName = "GitHub.com") {
+  return {
+    data: {
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: null,
+        manifest: { name: pluginName, configSchema: { properties: {} } },
+      },
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      captionKey: "yaml-only",
+    },
+  } as unknown as ReturnType<typeof useProjectIntegration>;
 }
 
 function makeIssue(externalId: string, overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
@@ -208,6 +228,44 @@ describe("IssueQueuePanel", () => {
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
     );
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
+  });
+
+  describe("FR-014 / TC-016: stale-snapshot banner", () => {
+    it("renders the banner with the plugin name when useIssues returns stale: true", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ stale: true }));
+      mockedUseProjectIntegration.mockReturnValue(integrationWithPlugin("GitHub.com"));
+      renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      const banner = screen.getByTestId("stale-snapshot-banner");
+      expect(banner.textContent).toContain(
+        "Showing the last successful issue snapshot from GitHub.com. The plugin is currently unavailable.",
+      );
+    });
+
+    it("does not render the banner when stale is false", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ stale: false }));
+      mockedUseProjectIntegration.mockReturnValue(integrationWithPlugin("GitHub.com"));
+      renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId("stale-snapshot-banner")).toBeNull();
+    });
+
+    it("skips the banner when stale is true but no plugin manifest is available", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ stale: true }));
+      // integration query returns undefined data, so no manifest name is known
+      renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId("stale-snapshot-banner")).toBeNull();
+    });
   });
 
   it("renders the filter bar in loaded state", () => {
