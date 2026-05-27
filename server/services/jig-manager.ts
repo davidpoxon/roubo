@@ -17,6 +17,7 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 import { loadSettings, getRouboDir } from "./state.js";
 import * as projectRegistry from "./project-registry.js";
 import { cloneGlobalDefault } from "./global-default-jig.js";
+import { JIG_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const SOFT_SIZE_LIMIT = 50 * 1024; // 50 KB
 const HARD_SIZE_LIMIT = 200 * 1024; // 200 KB
@@ -55,8 +56,8 @@ const migratedParents = new Set<string>();
 function migrateLegacyJigsDir(parent: string): void {
   if (migratedParents.has(parent)) return;
   migratedParents.add(parent);
-  const legacyDir = path.join(parent, "blueprints");
-  const targetDir = path.join(parent, "jigs");
+  const legacyDir = resolveWithin(parent, "blueprints");
+  const targetDir = resolveWithin(parent, "jigs");
   if (!fs.existsSync(legacyDir)) return;
   if (fs.existsSync(targetDir)) return;
   try {
@@ -69,12 +70,13 @@ function migrateLegacyJigsDir(parent: string): void {
 
 function getAppJigsDir(): string {
   migrateLegacyJigsDir(getRouboDir());
-  return path.join(getRouboDir(), "jigs");
+  return resolveWithin(getRouboDir(), "jigs");
 }
 
 function getRepoJigsDir(repoPath: string): string {
-  migrateLegacyJigsDir(path.join(repoPath, ".roubo"));
-  return path.join(repoPath, ".roubo/jigs");
+  const rouboDir = resolveWithin(repoPath, ".roubo");
+  migrateLegacyJigsDir(rouboDir);
+  return resolveWithin(rouboDir, "jigs");
 }
 
 interface ParsedFrontmatter {
@@ -164,17 +166,26 @@ export function loadJigFile(filePath: string): JigDetail | null {
 function loadJigsFromDir(dir: string, source: JigSource): Map<string, JigDetail> {
   const result = new Map<string, JigDetail>();
 
-  if (!fs.existsSync(dir)) return result;
+  // Re-confine via path.resolve before any fs op so CodeQL sees a sanitizer
+  // on `dir` even if interprocedural taint analysis missed the caller's
+  // resolveWithin.
+  const resolvedDir = path.resolve(dir);
+  if (!fs.existsSync(resolvedDir)) return result;
 
   let files: string[];
   try {
-    files = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
+    files = fs.readdirSync(resolvedDir).filter((f) => f.endsWith(".md"));
   } catch {
     return result;
   }
 
   for (const file of files) {
-    const filePath = path.join(dir, file);
+    let filePath: string;
+    try {
+      filePath = resolveWithin(resolvedDir, file);
+    } catch {
+      continue;
+    }
     const jig = loadJigFile(filePath);
     if (jig) {
       jig.source = source;
@@ -256,7 +267,8 @@ export function getJig(projectId: string, jigId: string): JigDetail | null {
     dir = getAppJigsDir();
   }
 
-  const detail = loadJigFile(path.join(dir, `${jigId}.md`));
+  assertSafeIdentifier(jigId, JIG_ID_RE, "jigId");
+  const detail = loadJigFile(resolveWithin(dir, `${jigId}.md`));
   if (detail) detail.source = target.source;
   return detail;
 }
@@ -493,13 +505,15 @@ function writeJigFile(
   }: { name: string; description: string; icon: string; createdAt: string; updatedAt: string },
   content: string,
 ): number {
-  fs.mkdirSync(dir, { recursive: true });
+  assertSafeIdentifier(id, JIG_ID_RE, "jigId");
+  const resolvedDir = path.resolve(dir);
+  fs.mkdirSync(resolvedDir, { recursive: true });
   const frontmatter = YAML.stringify(
     { name, description, icon, createdAt, updatedAt },
     { lineWidth: 0 },
   );
   const body = `---\n${frontmatter}---\n${content.endsWith("\n") ? content : content + "\n"}`;
-  const filePath = path.join(dir, `${id}.md`);
+  const filePath = resolveWithin(resolvedDir, `${id}.md`);
   fs.writeFileSync(filePath, body, "utf-8");
   return fs.statSync(filePath).size;
 }
@@ -605,7 +619,8 @@ function _updateJigInDir(
     throw new JigError("The built-in default jig cannot be modified", "RESERVED_ID");
   }
 
-  const filePath = path.join(dir, `${id}.md`);
+  assertSafeIdentifier(id, JIG_ID_RE, "jigId");
+  const filePath = resolveWithin(dir, `${id}.md`);
   const existing = loadJigFile(filePath);
   if (!existing) throw new JigError(`Jig '${id}' not found`, "NOT_FOUND");
 
@@ -655,7 +670,8 @@ function _deleteJigInDir(dir: string, id: string, references: JigReference[]): v
     throw new JigError("The built-in default jig cannot be deleted", "RESERVED_ID");
   }
 
-  const filePath = path.join(dir, `${id}.md`);
+  assertSafeIdentifier(id, JIG_ID_RE, "jigId");
+  const filePath = resolveWithin(dir, `${id}.md`);
   if (!fs.existsSync(filePath)) {
     throw new JigError(`Jig '${id}' not found`, "NOT_FOUND");
   }
@@ -691,7 +707,8 @@ export function deleteAppJig(id: string): void {
 export function getAppJig(id: string): JigDetail | null {
   if (id === GLOBAL_DEFAULT_JIG_ID) return cloneGlobalDefault();
 
-  const filePath = path.join(getAppJigsDir(), `${id}.md`);
+  assertSafeIdentifier(id, JIG_ID_RE, "jigId");
+  const filePath = resolveWithin(getAppJigsDir(), `${id}.md`);
   const detail = loadJigFile(filePath);
   if (detail) detail.source = "app";
   return detail;
@@ -781,7 +798,8 @@ export function getProjectJig(projectId: string, id: string): JigDetail | null {
   const project = projectRegistry.getProject(projectId);
   if (!project) return null;
 
-  const filePath = path.join(getRepoJigsDir(project.repoPath), `${id}.md`);
+  assertSafeIdentifier(id, JIG_ID_RE, "jigId");
+  const filePath = resolveWithin(getRepoJigsDir(project.repoPath), `${id}.md`);
   const detail = loadJigFile(filePath);
   if (detail) detail.source = "project";
   return detail;

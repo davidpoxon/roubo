@@ -10,6 +10,7 @@ import type {
   ComponentType,
 } from "@roubo/shared";
 import { parseConfig } from "./config-parser.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "bin", "obj", "dist", "build", ".roubo"]);
 const SCAN_TIMEOUT = 5000;
@@ -44,13 +45,13 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
     suggestedTools: [],
   };
 
-  detected.hasGit = fs.existsSync(path.join(resolved, ".git"));
+  detected.hasGit = fs.existsSync(resolveWithin(resolved, ".git"));
 
   if (detected.hasGit) {
     detected.suggestedRepo = await detectRepo(resolved);
   }
 
-  const gitmodulesPath = path.join(resolved, ".gitmodules");
+  const gitmodulesPath = resolveWithin(resolved, ".gitmodules");
   if (fs.existsSync(gitmodulesPath)) {
     detected.submodules = parseGitmodules(fs.readFileSync(gitmodulesPath, "utf-8"));
   }
@@ -58,7 +59,7 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   if (Object.keys(detected.submodules).length > 0) {
     detected.structureType = "meta-repo";
   } else {
-    const rootPkgPath = path.join(resolved, "package.json");
+    const rootPkgPath = resolveWithin(resolved, "package.json");
     if (fs.existsSync(rootPkgPath)) {
       try {
         const pkg = JSON.parse(fs.readFileSync(rootPkgPath, "utf-8"));
@@ -94,7 +95,12 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   const suggestedComponents: SuggestedComponent[] = [];
 
   for (const composeFile of detected.dockerComposeFiles) {
-    const abs = path.resolve(resolved, composeFile);
+    let abs: string;
+    try {
+      abs = resolveWithin(resolved, composeFile);
+    } catch {
+      continue;
+    }
     const { suggestions, allServiceNames, portVars, composeVars } =
       await parseDockerComposeServices(abs, composeFile);
     suggestedComponents.push(...suggestions);
@@ -135,22 +141,28 @@ async function walk(
 ): Promise<void> {
   if (depth > MAX_DEPTH || signal.aborted) return;
 
+  const resolvedDir = path.resolve(dir);
   let entries;
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    entries = await readdir(resolvedDir, { withFileTypes: true });
   } catch {
     return;
   }
 
   for (const entry of entries) {
     if (signal.aborted) return;
-    const fullPath = path.join(dir, entry.name);
+    let fullPath: string;
+    try {
+      fullPath = resolveWithin(resolvedDir, entry.name);
+    } catch {
+      continue;
+    }
 
     if (entry.isFile()) {
       if (entry.name === "docker-compose.yml" || entry.name === "docker-compose.yaml") {
         detected.dockerComposeFiles.push(fullPath);
       } else if (entry.name.endsWith(".csproj")) {
-        if (await isRunnableProject(dir)) {
+        if (await isRunnableProject(resolvedDir)) {
           detected.dotnetProjects.push(fullPath);
         }
       } else if (entry.name.endsWith(".sln")) {
@@ -164,7 +176,7 @@ async function walk(
       }
     } else if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
       if (entry.name !== "." && entry.name !== "..") {
-        const pkgPath = path.join(fullPath, "package.json");
+        const pkgPath = resolveWithin(fullPath, "package.json");
         try {
           await access(pkgPath);
           const pkgContent = await readFile(pkgPath, "utf-8");
@@ -279,9 +291,10 @@ function suggestName(repoPath: string): string {
 }
 
 async function isRunnableProject(projectDir: string): Promise<boolean> {
+  const resolvedDir = path.resolve(projectDir);
   let entries;
   try {
-    entries = await readdir(projectDir, { withFileTypes: true });
+    entries = await readdir(resolvedDir, { withFileTypes: true });
   } catch {
     return false;
   }
@@ -290,20 +303,26 @@ async function isRunnableProject(projectDir: string): Promise<boolean> {
     .filter((e) => e.isFile() && e.name.endsWith(".cs"))
     .map((e) => e.name)
     .sort((a, b) => {
-      // Check Program.cs first — most common entry point location
+      // Check Program.cs first; most common entry point location.
       const aIsProg = a.toLowerCase() === "program.cs" ? 0 : 1;
       const bIsProg = b.toLowerCase() === "program.cs" ? 0 : 1;
       return aIsProg - bIsProg;
     });
 
   for (const name of csFiles) {
+    let file: string;
     try {
-      const content = await readFile(path.join(projectDir, name), "utf-8");
+      file = resolveWithin(resolvedDir, name);
+    } catch {
+      continue;
+    }
+    try {
+      const content = await readFile(file, "utf-8");
       if (hasTopLevelStatements(content) || hasProgramMain(content)) {
         return true;
       }
     } catch {
-      // unreadable — skip
+      // unreadable; skip
     }
   }
 

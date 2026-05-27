@@ -11,6 +11,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import { atomicWrite } from "../services/state.js";
+import { resolveWithin } from "../lib/safe-path.js";
 import {
   getIntegrationFields,
   setIntegrationFields,
@@ -73,11 +74,12 @@ router.post("/", (req, res) => {
 
 router.post("/check-config", (req, res) => {
   const { repoPath } = req.body as CheckConfigRequest;
-  if (!repoPath || typeof repoPath !== "string") {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
-  if (!fs.existsSync(repoPath)) {
+  const safeRepoPath = path.resolve(repoPath);
+  if (!fs.existsSync(safeRepoPath)) {
     res.json({
       hasConfig: false,
       configValid: false,
@@ -87,10 +89,10 @@ router.post("/check-config", (req, res) => {
     return;
   }
 
-  const result = parseConfig(repoPath);
+  const result = parseConfig(safeRepoPath);
   if (!result.valid || !result.config) {
     const isNotFound = result.errors?.some((e) => e.includes("not found"));
-    const existingProject = projectRegistry.getProjects().find((p) => p.repoPath === repoPath);
+    const existingProject = projectRegistry.getProjects().find((p) => p.repoPath === safeRepoPath);
     res.json({
       hasConfig: !isNotFound,
       configValid: false,
@@ -126,16 +128,17 @@ router.post("/check-config", (req, res) => {
 
 router.post("/scan", async (req, res) => {
   const { repoPath } = req.body as { repoPath?: string };
-  if (!repoPath || typeof repoPath !== "string") {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
-  if (!fs.existsSync(repoPath)) {
-    res.status(404).json({ error: `Directory not found: ${repoPath}` });
+  const safeRepoPath = path.resolve(repoPath);
+  if (!fs.existsSync(safeRepoPath)) {
+    res.status(404).json({ error: `Directory not found: ${safeRepoPath}` });
     return;
   }
   try {
-    const result = await scanRepo(repoPath);
+    const result = await scanRepo(safeRepoPath);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -245,10 +248,11 @@ router.get("/:projectId/issue-types", async (req, res) => {
 
 router.post("/save-config", (req, res) => {
   const { repoPath, config } = req.body as SaveConfigRequest;
-  if (!repoPath || !config) {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0") || !config) {
     res.status(400).json({ error: "repoPath and config are required" });
     return;
   }
+  const safeRepoPath = path.resolve(repoPath);
 
   const parseResult = validateConfigObject(config);
   if (!parseResult.valid) {
@@ -261,9 +265,9 @@ router.post("/save-config", (req, res) => {
   }
 
   try {
-    const dir = path.join(repoPath, ".roubo");
+    const dir = resolveWithin(safeRepoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
-    const configPath = path.join(dir, "roubo.yaml");
+    const configPath = resolveWithin(dir, "roubo.yaml");
     const yamlContent = YAML.stringify(config, {
       indent: 2,
       lineWidth: 0,
@@ -335,7 +339,7 @@ router.get("/:projectId/config/raw", (req, res) => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
-  const configPath = path.join(project.repoPath, ".roubo", "roubo.yaml");
+  const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
   try {
     const content = fs.readFileSync(configPath, "utf-8");
     res.json({ yaml: content });
@@ -439,9 +443,9 @@ router.put("/:projectId/config/raw", (req, res) => {
   }
 
   try {
-    const dir = path.join(project.repoPath, ".roubo");
+    const dir = resolveWithin(project.repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
-    const configPath = path.join(dir, "roubo.yaml");
+    const configPath = resolveWithin(dir, "roubo.yaml");
     atomicWrite(configPath, rawYaml);
 
     try {

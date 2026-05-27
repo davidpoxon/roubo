@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import * as YAML from "yaml";
 import {
   RouboConfigSchema,
@@ -8,6 +7,7 @@ import {
 } from "@roubo/shared";
 import type { RouboConfig, AssignedContainer } from "@roubo/shared";
 import { allocatePorts } from "./port-allocator.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 export interface ParseResult {
   valid: boolean;
@@ -26,7 +26,7 @@ function toParseResult(zodResult: ReturnType<typeof RouboConfigSchema.safeParse>
 }
 
 export function parseConfig(repoPath: string): ParseResult {
-  const configPath = path.join(repoPath, ".roubo", "roubo.yaml");
+  const configPath = resolveWithin(repoPath, ".roubo", "roubo.yaml");
 
   if (!fs.existsSync(configPath)) {
     return { valid: false, errors: [`roubo.yaml not found at ${configPath}`] };

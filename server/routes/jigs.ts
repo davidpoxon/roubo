@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import * as YAML from "yaml";
 import { Router } from "express";
 import * as projectRegistry from "../services/project-registry.js";
@@ -10,6 +9,7 @@ import { buildTemplateContext, applyContainerOverrides } from "../services/confi
 import { fetchIssueContext, type IssueContext } from "../services/issue-formatting.js";
 import { loadSettings, atomicWrite } from "../services/state.js";
 import { parseIntParam, VALID_JIG_ID, handleJigError } from "./helpers.js";
+import { resolveWithin } from "../lib/safe-path.js";
 import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 import type {
   InjectJigRequest,
@@ -69,7 +69,7 @@ router.put("/:projectId/jigs/default", (req, res) => {
   }
 
   try {
-    const configPath = path.join(project.repoPath, ".roubo", "roubo.yaml");
+    const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
     let config: Record<string, unknown> = {};
     try {
       const raw = fs.readFileSync(configPath, "utf-8");
@@ -93,7 +93,7 @@ router.put("/:projectId/jigs/default", (req, res) => {
       };
     }
 
-    const dir = path.join(project.repoPath, ".roubo");
+    const dir = resolveWithin(project.repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
     const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
     atomicWrite(configPath, yamlContent);
@@ -164,7 +164,7 @@ router.put("/:projectId/jigs/issue-type-mappings", (req, res) => {
   }
 
   try {
-    const configPath = path.join(project.repoPath, ".roubo", "roubo.yaml");
+    const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
     let config: Record<string, unknown> = {};
     try {
       const raw = fs.readFileSync(configPath, "utf-8");
@@ -188,7 +188,7 @@ router.put("/:projectId/jigs/issue-type-mappings", (req, res) => {
       };
     }
 
-    const dir = path.join(project.repoPath, ".roubo");
+    const dir = resolveWithin(project.repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
     const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
     atomicWrite(configPath, yamlContent);

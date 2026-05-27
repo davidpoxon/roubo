@@ -3,13 +3,63 @@ import { readdir, access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { DirectoryEntry, BrowseDirectoryResponse } from "@roubo/shared";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const router = Router();
+
+const MAX_PATH_LENGTH = 4096;
+
+// Allowed browsing roots: always the user's home directory, plus any absolute
+// paths supplied via the ROUBO_FILESYSTEM_ROOTS env var (comma-separated). The
+// endpoint refuses to list anything that resolves outside these roots so the
+// project-registration UI cannot be tricked into reading arbitrary locations.
+function allowedRoots(): string[] {
+  const extra = (process.env.ROUBO_FILESYSTEM_ROOTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .filter((s) => path.isAbsolute(s))
+    .map((s) => path.resolve(s));
+  const home = path.resolve(homedir());
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const r of [home, ...extra]) {
+    if (!seen.has(r)) {
+      seen.add(r);
+      result.push(r);
+    }
+  }
+  return result;
+}
+
+// Returns the matching root if `candidate` is `root` or strictly inside one of
+// the allowed roots, null otherwise. Uses path.relative + startsWith("..") so
+// CodeQL's default js/path-injection suite recognises the containment check.
+function containingRoot(candidate: string): string | null {
+  for (const root of allowedRoots()) {
+    const rel = path.relative(root, candidate);
+    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+      return root;
+    }
+  }
+  return null;
+}
 
 router.get("/", async (req, res) => {
   const rawPath = (req.query.path as string) || homedir();
   const showHidden = req.query.showHidden === "true";
+
+  if (typeof rawPath !== "string" || rawPath.includes("\0") || rawPath.length > MAX_PATH_LENGTH) {
+    res.status(400).json({ error: "Invalid path" });
+    return;
+  }
+
   const resolved = path.resolve(rawPath);
+  const root = containingRoot(resolved);
+  if (!root) {
+    res.status(403).json({ error: `Path is outside the allowed roots: ${resolved}` });
+    return;
+  }
 
   let dirents;
   try {
@@ -36,10 +86,15 @@ router.get("/", async (req, res) => {
 
   const entries: DirectoryEntry[] = await Promise.all(
     dirs.map(async (d) => {
-      const fullPath = path.join(resolved, d.name);
+      let fullPath: string;
+      try {
+        fullPath = resolveWithin(resolved, d.name);
+      } catch {
+        return { name: d.name, path: path.join(resolved, d.name), hasGit: false };
+      }
       let hasGit = false;
       try {
-        await access(path.join(fullPath, ".git"));
+        await access(resolveWithin(fullPath, ".git"));
         hasGit = true;
       } catch {
         // no .git

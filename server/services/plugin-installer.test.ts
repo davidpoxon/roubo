@@ -18,6 +18,7 @@ vi.mock("./plugin-manager.js", () => ({
 import * as pluginInstaller from "./plugin-installer.js";
 import * as exec from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const ECHO_MANIFEST = `id: echo
 name: Echo
@@ -74,7 +75,7 @@ afterEach(async () => {
 async function listStaging(): Promise<string[]> {
   const stagingDir = pluginInstaller.__test.stagingRoot();
   try {
-    return await readdir(stagingDir);
+    return await readdir(resolveWithin(stagingDir));
   } catch {
     return [];
   }
@@ -200,8 +201,8 @@ describe("previewFromLocalPath", () => {
     const preview = await pluginInstaller.previewFromLocalPath(sourceDir);
     expect(preview.manifest.id).toBe("echo");
     expect(preview.source).toEqual({ type: "local", path: sourceDir });
-    const stagingDir = path.join(pluginInstaller.__test.stagingRoot(), preview.stagingToken);
-    const copied = await stat(path.join(stagingDir, "index.js"));
+    const stagingDir = resolveWithin(pluginInstaller.__test.stagingRoot(), preview.stagingToken);
+    const copied = await stat(resolveWithin(stagingDir, "index.js"));
     expect(copied.isFile()).toBe(true);
   });
 

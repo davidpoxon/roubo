@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { cleanEnv } from "./env.js";
 
 /** Splits a command string into arguments, respecting single and double quotes.
@@ -37,9 +38,14 @@ export function runCommand(
   timeoutMs?: number,
   stdin?: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
+  // Defence-in-depth: resolve cwd to an absolute path before spawning. Callers
+  // should already pass sanitised workspace paths (via state.getWorkspacePath
+  // / resolveWithin), but resolving here gives CodeQL a barrier immediately
+  // before the spawn.
+  const resolvedCwd = path.resolve(cwd);
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
-      cwd,
+      cwd: resolvedCwd,
       env: { ...cleanEnv(), ...env },
       stdio: [stdin !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
     });

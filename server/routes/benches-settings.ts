@@ -1,9 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
 import * as YAML from "yaml";
 import { Router } from "express";
 import * as projectRegistry from "../services/project-registry.js";
 import { atomicWrite } from "../services/state.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.put("/:projectId/benches/overrides", (req, res) => {
   }
 
   try {
-    const configPath = path.join(project.repoPath, ".roubo", "roubo.yaml");
+    const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
     let config: Record<string, unknown> = {};
     try {
       const raw = fs.readFileSync(configPath, "utf-8");
@@ -98,7 +98,7 @@ router.put("/:projectId/benches/overrides", (req, res) => {
 
     config.benches = benchesSection;
 
-    const dir = path.join(project.repoPath, ".roubo");
+    const dir = resolveWithin(project.repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
     const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
     atomicWrite(configPath, yamlContent);
