@@ -15,6 +15,11 @@ configSchema:
       type: string
       title: GHE instance URL
       format: uri
+    token:
+      type: string
+      title: Personal access token
+      format: password
+      description: PAT (e2e stub, value is not consulted by the stub plugin).
     sources:
       type: array
       items:
