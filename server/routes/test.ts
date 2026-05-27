@@ -48,7 +48,7 @@ interface FixtureProjectEntry {
   projectId: string;
   repoPath: string;
   // TC-161: workspace tmpdirs created for `seedBenches` entries. Tracked here
-  // so /__reset can rm them alongside `repoPath` — `wipePersistedTestState`
+  // so /__reset can rm them alongside `repoPath`. `wipePersistedTestState`
   // truncates `state.json` (dropping the bench row), but the tmpdir on disk
   // would otherwise survive between specs.
   seededWorkspacePaths: string[];

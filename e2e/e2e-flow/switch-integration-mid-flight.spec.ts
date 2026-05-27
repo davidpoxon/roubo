@@ -16,7 +16,7 @@ import { registerFixtureProject, resetWithScenario } from "./_support/scenario.j
 //
 // Post-switch Jira configuration (instance + sources) is written via
 // `PUT /api/projects/:id/integration/config` because the Switch dialog only
-// owns the plugin-id flip — the Configure dialog would normally collect
+// owns the plugin-id flip; the Configure dialog would normally collect
 // instance / sources next, and exercising that second dialog is out of scope
 // for TC-161 (covered by TC-157, `jira-self-hosted-source-config.spec.ts`).
 
