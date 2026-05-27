@@ -439,7 +439,7 @@ export function WarningChip({ warning, chipContext, onReconsent, showRetry }: Wa
   if (isOAuthReconsentWarning(warning) && onReconsent) {
     const actionSuffix = showRetry ? (
       <span className="ml-1 underline" data-testid="oauth-reconsent-retry-hint">
-        Retry
+        {STRINGS.retry}
       </span>
     ) : undefined;
     return (

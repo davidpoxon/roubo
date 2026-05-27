@@ -11,6 +11,7 @@ const STRINGS = {
   descriptionPrefix:
     "Integrations that fetch issues into Roubo. Bundled plugins ship with the app; third-party plugins live under ",
   descriptionSuffix: ".",
+  pluginsDir: "~/.roubo/plugins/",
   installCta: "Install plugin",
   loadingPlugins: "Loading plugins...",
   loadFailedPrefix: "Failed to load plugins: ",
@@ -52,7 +53,7 @@ export default function PluginsTab() {
           </h3>
           <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
             {STRINGS.descriptionPrefix}
-            <span className="font-mono">~/.roubo/plugins/</span>
+            <span className="font-mono">{STRINGS.pluginsDir}</span>
             {STRINGS.descriptionSuffix}
           </p>
         </div>
