@@ -478,10 +478,13 @@ function formatLogLine(
   return `${ts} ${source}${lvl} ${escapeLogText(text)}\n`;
 }
 
-// Tracks every in-flight writeLog promise so `__test.flushLogs()` can await them all and
-// guarantee the test's `afterEach` doesn't unset ROUBO_USER_PLUGINS_DIR while a write is still
-// in the queue. (Without tracking, the env-var clear could race with logDirFor() and leak into
-// the real ~/.roubo dir.)
+// Tracks every in-flight writeLog promise. Two consumers drain this:
+//   1. `readLogs()` snapshots and awaits it before reading the file so callers observe
+//      writes enqueued just before this tick (denial logs from plugin-host-api.ts,
+//      host-logger notifications, stdout/stderr fan-out). Without this, the file-read
+//      can beat the write-callback under CI load.
+//   2. `__test.flushLogs()` drains it in afterEach before clearing ROUBO_USER_PLUGINS_DIR,
+//      so a still-pending write can't race the env-var clear and leak into ~/.roubo.
 const pendingWrites = new Set<Promise<void>>();
 
 async function writeLog(
@@ -1085,6 +1088,16 @@ export async function readLogs(
   const rel = path.relative(root, filePath);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(`Invalid log path for plugin: ${pluginId}`);
+  }
+  // Host loggers (denial paths in plugin-host-api.ts, stdout/stderr from
+  // attachStdioLogging, RPC error handlers) add their writeLog promise to
+  // `pendingWrites` synchronously but settle asynchronously. Snapshot the
+  // set once and await it so this read observes every write that was
+  // enqueued before readLogs was called. Snapshot once, not a while-loop:
+  // under a chatty live plugin a `while (pendingWrites.size > 0)` would
+  // livelock as new stdout lines kept arriving.
+  if (pendingWrites.size > 0) {
+    await Promise.allSettled(Array.from(pendingWrites));
   }
   let text: string;
   try {
