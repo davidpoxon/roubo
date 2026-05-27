@@ -72,6 +72,10 @@ describe("SwitchIntegrationDialog", () => {
 
     expect(screen.getByRole("heading", { name: /Choose integration/i })).toBeInTheDocument();
     expect(screen.queryByText(/Active benches will keep working/i)).not.toBeInTheDocument();
+    // TC-164: the confirm button carries a stable testid so Playwright specs
+    // can target it without colliding with the page-level "Choose integration"
+    // trigger button, which shares the same accessible name.
+    expect(screen.getByTestId("switch-integration-confirm")).toBeInTheDocument();
   });
 
   it("primary button is disabled until a different plugin is selected", async () => {

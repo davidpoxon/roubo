@@ -158,7 +158,10 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
       </p>
       <div>
         <DialogTrigger isOpen={open} onOpenChange={setOpen}>
-          <Button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950">
+          <Button
+            data-testid="issue-source-choose-integration"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          >
             <Plug size={12} />
             {STRINGS.chooseIntegration}
           </Button>

@@ -106,6 +106,10 @@ describe("IssueSourceTile", () => {
 
     expect(screen.getByText(/No issue source configured/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Choose integration/i })).toBeInTheDocument();
+    // TC-164: the unconfigured CTA exposes a stable testid so the Playwright
+    // spec can disambiguate it from the SwitchIntegrationDialog's submit
+    // button, which carries the same accessible name.
+    expect(screen.getByTestId("issue-source-choose-integration")).toBeInTheDocument();
   });
 
   it('defaults the tile title to "Source" when no title prop is supplied (FR-069 fallback)', () => {
