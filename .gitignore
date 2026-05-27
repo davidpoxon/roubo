@@ -21,6 +21,7 @@ e2e/fixtures/e2e-stub-[2-9]/
 e2e/fixtures/github-com/
 e2e/fixtures/ghe/
 e2e/fixtures/jira-self-hosted/
+e2e/fixtures/broken-plugin/
 electron/out
 electron/node_modules
 **/.DS_Store

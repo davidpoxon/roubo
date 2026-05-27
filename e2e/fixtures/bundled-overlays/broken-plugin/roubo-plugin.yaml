@@ -1,0 +1,18 @@
+id: broken-plugin
+name: Broken Plugin (TC-154)
+version: 0.0.0
+description: Fixture for TC-154. Manifest is valid so the host reaches the spawn step; the entry script exits non-zero immediately so the spawn attempt fails. Not for production.
+kind: integration
+roubo: ^1.0.0
+entry: ./index.mjs
+configSchema:
+  type: object
+  properties: {}
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

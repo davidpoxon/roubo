@@ -113,3 +113,20 @@ export async function fetchConnectionStateLog(
   const body = (await res.json()) as { entries: ConnectionStateLogEntry[] };
   return body.entries;
 }
+
+/**
+ * Read the persisted plugin-enable-state file via the e2e harness endpoint.
+ * TC-154 (#222) asserts the NFR-024 invariant ("plugin remains in its
+ * previous disabled state on spawn failure") by snapshotting this map before
+ * and after the Enable click; the snapshot lets the spec verify that the
+ * on-disk file was not mutated, without poking the filesystem from the
+ * test process.
+ */
+export async function fetchPluginEnableState(
+  request: APIRequestContext,
+): Promise<Record<string, "enabled" | "disabled">> {
+  const res = await request.get("/test/__plugin-enable-state");
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as { plugins: Record<string, "enabled" | "disabled"> };
+  return body.plugins;
+}

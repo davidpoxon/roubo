@@ -800,6 +800,14 @@ export function listInstalled(): PluginRecord[] {
   }));
 }
 
+// TC-154 (NFR-024): how long enable() waits after spawnPlugin returns before
+// declaring the child "alive enough." Short enough that the happy-path UI
+// click stays snappy, long enough to catch entry scripts that crash on
+// first-line (Node's spawn() resolves before the child has had a chance to
+// exit; without this window the route would 204 then the plugin would
+// asynchronously flip to "errored" via the restart-budget path).
+const ENABLE_SPAWN_SETTLE_MS = 250;
+
 export async function enable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
@@ -809,13 +817,86 @@ export async function enable(pluginId: string): Promise<void> {
   if (entry.record.status === "incompatible") {
     throw new Error(`Plugin "${pluginId}" is incompatible with this host`);
   }
-  // WU-046: persist before mutating in-memory state so a write-through failure
-  // surfaces to the caller without leaving the runtime and disk out of sync.
-  enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
-  if (entry.process) return; // already running
-  entry.record.status = "disabled";
-  entry.record.lastError = null;
+  if (entry.process) {
+    // Already running. Record the user's intent and return; the on-disk file
+    // converges with the runtime here even if it had drifted (e.g. a prior
+    // crashed write).
+    enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
+    return;
+  }
+  entry.record.status = "disabled" as PluginStatus;
+  entry.record.lastError = null as PluginError | null;
   await spawnPlugin(entry);
+
+  // Synchronous spawn failures (path traversal, spawn throw, missing pid,
+  // RPC init failure) leave the record in status="errored". Surface them
+  // before touching plugins-state.json. The `as` casts above widen the
+  // literals so TS retains the full union after the mutation that
+  // spawnPlugin performs across the await boundary.
+  if (entry.record.status === "errored") {
+    const err = entry.record.lastError;
+    throw new Error(err ? err.message : `Plugin "${pluginId}" failed to start`);
+  }
+
+  // Async crash window: the child may exit just after spawn() resolves but
+  // before we'd write-through. Wait briefly for an exit event so we don't
+  // persist enabled state for a process that's about to die. The restart
+  // logic in handleChildExit also fires for this exit and would eventually
+  // mark the record as "errored" via restart-budget, but the UI needs the
+  // failure surfaced now.
+  const proc = entry.process as ChildProcess | null;
+  if (proc) {
+    const exitedEarly = await new Promise<boolean>((resolve) => {
+      if (proc.exitCode !== null || proc.signalCode !== null) {
+        resolve(true);
+        return;
+      }
+      const cleanup = () => {
+        clearTimeout(timer);
+        proc.off("exit", onExit);
+      };
+      const onExit = () => {
+        cleanup();
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, ENABLE_SPAWN_SETTLE_MS);
+      if (typeof timer.unref === "function") timer.unref();
+      proc.once("exit", onExit);
+    });
+    if (exitedEarly) {
+      // Roll the runtime back so plugins-state.json (still "disabled") and
+      // the in-memory record agree. Cancel any pending restart timer that
+      // handleChildExit may have scheduled and clear the restart history so
+      // a later manual retry starts from a clean budget.
+      if (entry.restartTimer) {
+        clearTimeout(entry.restartTimer);
+        entry.restartTimer = null;
+      }
+      const lastExit = entry.record.restartHistory.at(-1);
+      entry.record.restartHistory = [];
+      entry.record.status = "disabled";
+      entry.record.lastError = null;
+      const detail =
+        lastExit && lastExit.exitCode !== null
+          ? `exited with code ${lastExit.exitCode}`
+          : "process exited before host could connect";
+      throw new Error(`Plugin "${pluginId}" failed to start: ${detail}`);
+    }
+  }
+
+  try {
+    enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
+  } catch (err) {
+    // Disk-write failed after a successful spawn. Roll back the spawn so
+    // disk ("disabled") and runtime ("disabled") stay consistent. Preserves
+    // WU-046's original concern about FS-write failures.
+    await stopPluginProcess(entry);
+    entry.record.status = "disabled";
+    throw err;
+  }
 }
 
 export async function disable(pluginId: string): Promise<void> {

@@ -61,6 +61,11 @@ vi.mock("../services/github-oauth.js", () => ({
 
 vi.mock("../services/plugin-enable-state.js", () => ({
   setPluginEnabled: vi.fn(),
+  loadEnableState: vi.fn(() => ({
+    schemaVersion: 1,
+    plugins: {},
+    installInitialized: true,
+  })),
 }));
 
 vi.mock("../services/state.js", () => ({
@@ -210,9 +215,17 @@ describe("POST /test/__reset", () => {
     });
     // WU-068 (#159): every bundled plugin id is force-enabled on reset so
     // the project-settings specs can drive the overlay slots.
-    expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(BUNDLED_PLUGIN_IDS.length);
+    // TC-154 (#222): known fixture failure plugins (e.g. broken-plugin) are
+    // force-disabled so they don't auto-spawn and crash on every reset.
+    const FAILURE_FIXTURE_IDS = ["broken-plugin"];
+    expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
+      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length,
+    );
     for (const id of BUNDLED_PLUGIN_IDS) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
+    }
+    for (const id of FAILURE_FIXTURE_IDS) {
+      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
     }
 
     const order = [
@@ -573,5 +586,34 @@ describe("GET /test/__connection-state-log", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ entries: [entry] });
+  });
+});
+
+// TC-154 (#222): read-only mirror of plugins-state.json so a spec can assert
+// the NFR-024 invariant ("plugin remains in its previous disabled state on
+// spawn failure") without poking the filesystem from the test process.
+describe("GET /test/__plugin-enable-state", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__plugin-enable-state");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(pluginEnableState.loadEnableState).not.toHaveBeenCalled();
+  });
+
+  it("returns the persisted plugin map when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(pluginEnableState.loadEnableState).mockReturnValueOnce({
+      schemaVersion: 1,
+      plugins: { "github-com": "enabled", "broken-plugin": "disabled" },
+      installInitialized: true,
+    });
+
+    const res = await request(app).get("/test/__plugin-enable-state");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      plugins: { "github-com": "enabled", "broken-plugin": "disabled" },
+    });
   });
 });

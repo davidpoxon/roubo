@@ -939,7 +939,7 @@ describe("plugin-enable-state integration (WU-046)", () => {
     expect(echo.status).toBe("enabled");
   });
 
-  it("write-throughs enable() to setPluginEnabled before spawning", async () => {
+  it("write-throughs enable() to setPluginEnabled after a successful spawn (TC-154)", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({
       schemaVersion: 1,
       installInitialized: true,
@@ -955,6 +955,34 @@ describe("plugin-enable-state integration (WU-046)", () => {
     expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("echo", true);
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
   });
+
+  // TC-154 (#222): NFR-024 ("plugin remains in its previous disabled state"
+  // on spawn failure) is the invariant that broke when WU-046 ordered the
+  // plugins-state.json write before the spawn attempt. This test pins the
+  // corrected ordering: a plugin whose entry script crashes on launch must
+  // (a) leave plugins-state.json unchanged, (b) surface a thrown error so
+  // the route returns 4xx and EnablePluginPromptModal's onError fires, and
+  // (c) leave the in-memory record back in "disabled" (not "errored" mid-
+  // restart-cycle and not silently "enabled").
+  it("does not write-through enable() on spawn failure and surfaces the error (TC-154, NFR-024)", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { crashy: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["crashy"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "crashy").status).toBe("disabled");
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+
+    await expect(mgr.enable("crashy")).rejects.toThrow(/failed to start/i);
+
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+    const rec = findRecord(mgr.listInstalled(), "crashy");
+    expect(rec.status).toBe("disabled");
+    expect(rec.restartHistory).toHaveLength(0);
+  }, 15_000);
 
   it("write-throughs disable() to setPluginEnabled before stopping the process", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({
