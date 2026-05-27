@@ -50,6 +50,24 @@ describe("WU-064 scenario packs", () => {
   });
 });
 
+// WU-066: two scenario packs back the project-load Enable-plugin prompt
+// modal specs (TC-171, TC-172). The greenfield pack keeps the stub healthy
+// so the Enable click succeeds; the edges pack carries `failOnStart` so the
+// stub exits non-zero on the failure arm.
+describe("WU-066 scenario packs", () => {
+  it("greenfield-and-enable-prompt loads with a connected baseline and no failOnStart", () => {
+    const scenario = loadScenario("greenfield-and-enable-prompt");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.sourceCandidates.shape).toBe("multi-list");
+    expect(scenario.failOnStart).toBeFalsy();
+  });
+
+  it("enable-prompt-edges sets failOnStart: true so plugin-manager surfaces a spawn failure", () => {
+    const scenario = loadScenario("enable-prompt-edges");
+    expect(scenario.failOnStart).toBe(true);
+  });
+});
+
 // WU-068: four scenario packs back the per-project Settings specs that drive
 // the github-com/ghe/jira-self-hosted overlay stubs (TC-177, TC-178, TC-179,
 // TC-182). Each is shaped by the per-spec assertions; the loader sanity

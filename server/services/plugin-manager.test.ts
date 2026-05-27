@@ -217,6 +217,39 @@ describe("lifecycle", () => {
     ]);
   });
 
+  // WU-066 / FR-061 (TC-172): enable() must throw when the plugin dies during
+  // startup so the route handler can return 409 and the Enable-plugin prompt
+  // modal can render the inline error. spawnPlugin captures sync failures
+  // into entry.record without throwing, and a plugin that exits immediately
+  // dies AFTER spawnPlugin returns. The setImmediate yield inside enable()
+  // gives the exit handler a chance to fire so we can detect the death and
+  // throw before the route returns.
+  it("throws when a plugin exits during startup, leaving status=errored (WU-066)", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo", "crashy"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    // crashy auto-restarts up to the budget on initialize; wait for the
+    // budget exhaustion so we start from a deterministic errored baseline,
+    // then disable to drop the in-memory process state cleanly.
+    await waitFor(() => {
+      const rec = getManager()
+        .listInstalled()
+        .find((p) => p.id === "crashy");
+      return !!rec && rec.status === "errored";
+    }, 15_000);
+    await mgr.disable("crashy");
+
+    await expect(mgr.enable("crashy")).rejects.toThrow(/exit/i);
+
+    const rec = findRecord(mgr.listInstalled(), "crashy");
+    expect(rec.status).toBe("errored");
+    expect(rec.lastError).not.toBeNull();
+    // The persisted state was rolled back so the next boot doesn't keep
+    // respawning the broken plugin.
+    expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("crashy", false);
+  }, 30_000);
+
   it("disables and re-enables a plugin (TC-013)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();

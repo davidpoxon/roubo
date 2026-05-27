@@ -20,13 +20,23 @@ export interface ConnectionStateLogEntry {
  * clock for the duration of a single spec (WU-063). All e2e-flow specs go
  * through this helper so that the calling shape is uniform and the assertion
  * about the 200 response is centralised.
+ *
+ * WU-066 (TC-171/TC-172): pass `{ bundledPluginsDisabled: true }` to land the
+ * spec in a greenfield-like state (bundled plugin ids written as "disabled"
+ * in plugins-state.json) so the project-load Enable-plugin prompt fires. The
+ * default preserves the WU-068 behaviour of force-enabling bundled plugins.
  */
 export async function resetWithScenario(
   request: APIRequestContext,
   scenario: string,
   now: string,
+  opts: { bundledPluginsDisabled?: boolean } = {},
 ): Promise<void> {
-  const res = await request.post("/test/__reset", { data: { scenario, now } });
+  const data: Record<string, unknown> = { scenario, now };
+  if (opts.bundledPluginsDisabled) {
+    data.bundledPluginsDisabled = true;
+  }
+  const res = await request.post("/test/__reset", { data });
   expect(res.status()).toBe(200);
 }
 

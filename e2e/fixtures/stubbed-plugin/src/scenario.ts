@@ -49,6 +49,11 @@ export interface Scenario {
   // which `plugin-filter-facets.ts` maps to `COMMON_FACET_FALLBACK`. Models a
   // plugin built against host-API 1.0.0.
   omitFilterFacets?: boolean;
+  // WU-066 (TC-172): when true, the stub exits non-zero before opening the
+  // RPC channel so plugin-manager.spawnPlugin() surfaces an `rpc-init-failed`
+  // entry. Drives the "plugin refuses to start" arm of the Enable-prompt
+  // failure spec.
+  failOnStart?: boolean;
 }
 
 const SCENARIOS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "scenarios");
