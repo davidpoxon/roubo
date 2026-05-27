@@ -212,6 +212,7 @@ function SwitchFlow({
         <Button
           isDisabled={!canConfirm || usable.length === 0}
           onPress={handleConfirm}
+          data-testid="switch-integration-confirm"
           className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           {switchMutation.isPending

@@ -96,7 +96,9 @@ export async function registerFixtureProject(
   request: APIRequestContext,
   opts: {
     projectId: string;
-    plugin: string;
+    // TC-164: omit `plugin` to register a fixture project with no integration
+    // override so the IssueSourceTile renders its UnconfiguredBody variant.
+    plugin?: string;
     // WU-068: optional extra integration fields (instance, sources,
     // capturedUserId, etc.) merged into the saved override alongside
     // `plugin`. Specs use this to drive surfaces (e.g. Source-tile instance

@@ -46,11 +46,12 @@ export async function registerTestProject(
 ): Promise<RegisterTestProjectResult> {
   const projectId = opts.projectId ?? opts.projectName;
   const plugin = opts.plugin ?? opts.pluginId;
-  if (!projectId || !plugin) {
-    throw new Error(
-      "registerTestProject requires projectId (or projectName) and plugin (or pluginId)",
-    );
+  if (!projectId) {
+    throw new Error("registerTestProject requires projectId (or projectName)");
   }
+  // TC-164: `plugin` is optional. When omitted, the fixture project is
+  // registered without an integration override so the IssueSourceTile renders
+  // its UnconfiguredBody variant.
   return await registerFixtureProject(request, {
     projectId,
     plugin,

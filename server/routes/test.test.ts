@@ -408,16 +408,50 @@ describe("POST /test/__register-fixture-project", () => {
     expect(res.body.error).toMatch(/kebab-case/);
   });
 
-  it("returns 400 when plugin is missing", async () => {
+  // TC-164: omitting `plugin` registers the fixture project without writing an
+  // integration override so the IssueSourceTile renders its UnconfiguredBody
+  // variant. Used by the e2e spec that drives the SwitchIntegrationDialog UI
+  // to pin a plugin from a truly unconfigured starting state.
+  it("registers the fixture project without an override when plugin is omitted", async () => {
     process.env.ROUBO_E2E = "1";
 
     const res = await request(app)
       .post("/test/__register-fixture-project")
-      .send({ projectId: "fixture-a" });
+      .send({ projectId: "fixture-no-plugin" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe("fixture-no-plugin");
+    createdTmpdirs.push(res.body.repoPath);
+
+    expect(projectRegistry.registerProject).toHaveBeenCalledTimes(1);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when plugin is provided but empty", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/plugin/);
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when integrationConfig is provided without plugin", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-a",
+        integrationConfig: { instance: "https://ghe.example.com" },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/integrationConfig requires `plugin`/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
   });
 
   // Happy path: a real tmpdir is created, the route hands the path to the

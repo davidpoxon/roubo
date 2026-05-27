@@ -345,9 +345,13 @@ router.post("/__reset", async (req: Request, res: Response) => {
 // project Issue Source tile header in TC-168 placement C). The route writes
 // a minimum roubo.yaml into an os.tmpdir() tree, registers it with
 // project-registry, and saves an integration override pinning `plugin`.
+// TC-164: `plugin` is optional. When omitted, the route registers the project
+// without writing an override so the tile renders its UnconfiguredBody
+// variant; the spec then drives the SwitchIntegrationDialog UI to pin a
+// plugin from the unconfigured starting state.
 // Cleanup runs in /test/__reset so successive specs start clean (NFR-018).
 //
-// Body: { projectId: string (kebab-case), plugin: string }. Gated by
+// Body: { projectId: string (kebab-case), plugin?: string }. Gated by
 // ROUBO_E2E so production builds return 404.
 interface RegisterFixtureBody {
   projectId?: unknown;
@@ -371,7 +375,10 @@ interface SeedBenchInput {
 
 interface ParsedRegisterFixture {
   projectId: string;
-  plugin: string;
+  // Omitted when the spec wants the fixture project registered with no
+  // integration override, so `useProjectIntegration` returns `plugin: null`
+  // and the IssueSourceTile renders its UnconfiguredBody variant (TC-164).
+  plugin: string | null;
   integrationConfig?: IntegrationConfig;
   seedBenches: SeedBenchInput[];
 }
@@ -422,11 +429,21 @@ function parseRegisterFixtureBody(
   if (typeof projectIdRaw !== "string" || !FIXTURE_PROJECT_ID_RE.test(projectIdRaw)) {
     return "projectId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/";
   }
-  if (typeof pluginRaw !== "string" || pluginRaw.length === 0) {
-    return "plugin must be a non-empty string";
+  // TC-164: `plugin` is optional so a spec can register a fixture project with
+  // no integration override and exercise the IssueSourceTile UnconfiguredBody
+  // path. When present it still must be a non-empty string.
+  let plugin: string | null = null;
+  if (pluginRaw !== undefined) {
+    if (typeof pluginRaw !== "string" || pluginRaw.length === 0) {
+      return "plugin must be a non-empty string when provided";
+    }
+    plugin = pluginRaw;
   }
   let integrationConfig: IntegrationConfig | undefined;
   if (body?.integrationConfig !== undefined) {
+    if (plugin === null) {
+      return "integrationConfig requires `plugin` to be provided";
+    }
     if (
       body.integrationConfig === null ||
       typeof body.integrationConfig !== "object" ||
@@ -448,7 +465,7 @@ function parseRegisterFixtureBody(
   }
   const seedBenches = parseSeedBenches(body?.seedBenches);
   if (typeof seedBenches === "string") return seedBenches;
-  return { projectId: projectIdRaw, plugin: pluginRaw, integrationConfig, seedBenches };
+  return { projectId: projectIdRaw, plugin, integrationConfig, seedBenches };
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -478,10 +495,15 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   try {
     writeFixtureRouboYaml(repoPath, projectId);
     projectRegistry.registerProject(repoPath);
-    saveOverride(projectId, {
-      schemaVersion: 1,
-      integration: { ...(integrationConfig ?? {}), plugin },
-    });
+    // TC-164: when `plugin` is omitted we skip writing an override so the
+    // tile renders the UnconfiguredBody variant; the spec then drives the
+    // SwitchIntegrationDialog UI to pin a plugin.
+    if (plugin !== null) {
+      saveOverride(projectId, {
+        schemaVersion: 1,
+        integration: { ...(integrationConfig ?? {}), plugin },
+      });
+    }
     // TC-161: persist each seeded bench against the fixture project with a
     // real tmpdir workspacePath. The `assignedIssue` carries the
     // `integrationId` the spec needs to drive the previous-integration
