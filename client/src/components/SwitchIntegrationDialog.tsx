@@ -58,8 +58,8 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
       isKeyboardDismissDisabled={isSwitching}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-md mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+      <Modal className="w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
+        <Dialog className="flex flex-col w-full max-h-full overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
           {({ close }) => (
             <SwitchFlow
               currentPluginId={currentPluginId}
