@@ -105,6 +105,12 @@ describe("identifier regexes", () => {
 
   it("JIG_ID_RE", () => {
     expect(JIG_ID_RE.test("default-jig")).toBe(true);
+    expect(JIG_ID_RE.test("test-123")).toBe(true);
+    expect(JIG_ID_RE.test("1st-thing")).toBe(true);
+    expect(JIG_ID_RE.test("my_jig")).toBe(true);
     expect(JIG_ID_RE.test("Bad")).toBe(false);
+    expect(JIG_ID_RE.test("has space")).toBe(false);
+    expect(JIG_ID_RE.test("..")).toBe(false);
+    expect(JIG_ID_RE.test("")).toBe(false);
   });
 });

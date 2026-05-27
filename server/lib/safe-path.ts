@@ -50,5 +50,9 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 // digits, dot, underscore, hyphen. The negative lookahead rejects "." and ".."
 // outright so the value can never be a traversal segment.
 export const PROJECT_ID_RE = /^(?!\.{1,2}$)[A-Za-z0-9._-]+$/;
-// Jig IDs follow the same lowercase-kebab shape as plugin ids today.
-export const JIG_ID_RE = /^[a-z][a-z0-9-]*$/;
+// Jig IDs are validated at the HTTP boundary by VALID_JIG_ID in
+// server/routes/helpers.ts as /^[a-z0-9_-]+$/, and slugify() in
+// server/services/jig-manager.ts can produce digit-leading slugs like
+// "test-123". Keep this regex aligned with that public contract so the
+// sanitizer doesn't reject ids the rest of the system has already accepted.
+export const JIG_ID_RE = /^[a-z0-9_-]+$/;
