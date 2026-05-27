@@ -994,12 +994,18 @@ describe("getConnectionStatus (WU-044)", () => {
     vi.setSystemTime(FROZEN_TIME);
     invokerMock = vi.fn();
     pluginManager.__test.setConnectionStatusInvoker(invokerMock);
+    // TC-153 / NFR-023: every observed state transition is written to the
+    // host structured logger (console.info JSON line). Suppress here so the
+    // tests that don't care about the log do not leak it to stdout; the
+    // TC-153 sub-describe below reads the captured calls off this spy.
+    vi.spyOn(console, "info").mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.useRealTimers();
     pluginManager.__test.setConnectionStatusInvoker(null);
     pluginManager.__test.resetConnectionStatusCache();
+    vi.restoreAllMocks();
   });
 
   it("returns the plugin's reported status when getConnectionStatus is implemented", async () => {
@@ -1260,10 +1266,34 @@ describe("getConnectionStatus (WU-044)", () => {
     });
   });
 
-  // WU-064: stand-in journal for the e2e harness. Replace these tests when
-  // #221 (TC-153) lands and the journal is swapped for durable logging.
-  describe("connection-state transition journal (WU-064)", () => {
-    it("records a null→state entry on the first observation", async () => {
+  // TC-153 / NFR-023: every transition is written to the host's structured
+  // logger (console.info as a JSON line). Under ROUBO_E2E=1 the same entries
+  // are mirrored to an in-memory tap so Playwright specs (TC-169) can poll
+  // without scraping the server's stdout. These tests reuse the parent
+  // describe's `console.info` spy (installed in the outer beforeEach).
+  describe("connection-state structured logging (TC-153)", () => {
+    const originalRouboE2E = process.env.ROUBO_E2E;
+
+    afterEach(() => {
+      if (originalRouboE2E === undefined) {
+        delete process.env.ROUBO_E2E;
+      } else {
+        process.env.ROUBO_E2E = originalRouboE2E;
+      }
+    });
+
+    function decodeEmittedEntries(): unknown[] {
+      const spy = vi.mocked(console.info);
+      return spy.mock.calls.map((args) => {
+        const first = args[0];
+        if (typeof first !== "string") {
+          throw new Error("console.info expected a JSON string, got " + typeof first);
+        }
+        return JSON.parse(first) as unknown;
+      });
+    }
+
+    it("emits a JSON log line on the first observation (null → state)", async () => {
       invokerMock.mockResolvedValueOnce({
         state: "connected",
         checkedAt: FROZEN_TIME.toISOString(),
@@ -1271,18 +1301,20 @@ describe("getConnectionStatus (WU-044)", () => {
 
       await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { trigger: "ui-recheck" });
 
-      const entries = pluginManager.__test.getConnectionStateLog();
+      const entries = decodeEmittedEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0]).toMatchObject({
+        event: "plugin.connection-state.changed",
         pluginId: PLUGIN_ID,
         previousState: null,
         newState: "connected",
         trigger: "ui-recheck",
       });
-      expect(Number.isNaN(Date.parse(entries[0].at))).toBe(false);
+      const at = (entries[0] as { at: string }).at;
+      expect(Number.isNaN(Date.parse(at))).toBe(false);
     });
 
-    it("records a transition when the state changes between calls", async () => {
+    it("emits a second JSON log line when the state changes between calls", async () => {
       invokerMock
         .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
         .mockResolvedValueOnce({
@@ -1297,9 +1329,10 @@ describe("getConnectionStatus (WU-044)", () => {
         trigger: "ui-recheck",
       });
 
-      const entries = pluginManager.__test.getConnectionStateLog();
+      const entries = decodeEmittedEntries();
       expect(entries).toHaveLength(2);
       expect(entries[1]).toMatchObject({
+        event: "plugin.connection-state.changed",
         pluginId: PLUGIN_ID,
         previousState: "connected",
         newState: "auth-problem",
@@ -1307,7 +1340,7 @@ describe("getConnectionStatus (WU-044)", () => {
       });
     });
 
-    it("does not record an entry when the state is unchanged", async () => {
+    it("emits nothing when the state is unchanged between calls", async () => {
       invokerMock
         .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() })
         .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
@@ -1315,9 +1348,9 @@ describe("getConnectionStatus (WU-044)", () => {
       await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
       await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { force: true });
 
-      const entries = pluginManager.__test.getConnectionStateLog();
+      const entries = decodeEmittedEntries();
       expect(entries).toHaveLength(1);
-      expect(entries[0].newState).toBe("connected");
+      expect((entries[0] as { newState: string }).newState).toBe("connected");
     });
 
     it("defaults the trigger to opportunistic-recheck when not provided", async () => {
@@ -1328,20 +1361,54 @@ describe("getConnectionStatus (WU-044)", () => {
 
       await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
 
-      const entries = pluginManager.__test.getConnectionStateLog();
-      expect(entries[0].trigger).toBe("opportunistic-recheck");
+      const entries = decodeEmittedEntries();
+      expect((entries[0] as { trigger: string }).trigger).toBe("opportunistic-recheck");
     });
 
-    it("resetConnectionStateLog clears the journal", async () => {
+    it("mirrors emissions into the e2e tap only when ROUBO_E2E=1", async () => {
+      invokerMock.mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+
+      delete process.env.ROUBO_E2E;
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, { trigger: "ui-recheck" });
+      expect(pluginManager.__test.getE2EConnectionStateLogTap()).toEqual([]);
+
+      // Same plugin, force-reload to drive a second transition under the tap.
+      invokerMock.mockResolvedValueOnce({
+        state: "auth-problem",
+        detail: "Token expired",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+      process.env.ROUBO_E2E = "1";
+      await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG, {
+        force: true,
+        trigger: "ui-recheck",
+      });
+
+      const tap = pluginManager.__test.getE2EConnectionStateLogTap();
+      expect(tap).toHaveLength(1);
+      expect(tap[0]).toMatchObject({
+        event: "plugin.connection-state.changed",
+        pluginId: PLUGIN_ID,
+        previousState: "connected",
+        newState: "auth-problem",
+        trigger: "ui-recheck",
+      });
+    });
+
+    it("resetE2EConnectionStateLogTap clears the tap", async () => {
+      process.env.ROUBO_E2E = "1";
       invokerMock.mockResolvedValueOnce({
         state: "connected",
         checkedAt: FROZEN_TIME.toISOString(),
       });
       await pluginManager.getConnectionStatus(PLUGIN_ID, CONFIG);
-      expect(pluginManager.__test.getConnectionStateLog()).toHaveLength(1);
+      expect(pluginManager.__test.getE2EConnectionStateLogTap()).toHaveLength(1);
 
-      pluginManager.__test.resetConnectionStateLog();
-      expect(pluginManager.__test.getConnectionStateLog()).toEqual([]);
+      pluginManager.__test.resetE2EConnectionStateLogTap();
+      expect(pluginManager.__test.getE2EConnectionStateLogTap()).toEqual([]);
     });
   });
 });
