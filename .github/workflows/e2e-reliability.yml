@@ -47,7 +47,7 @@ jobs:
       actions: read
     steps:
       - name: Download duration artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: durations
           pattern: playwright-duration-*
