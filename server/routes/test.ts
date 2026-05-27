@@ -199,6 +199,20 @@ function ensureBundledPluginsEnabled(): void {
   }
 }
 
+// TC-154 (#222): fixture plugins under e2e/fixtures/bundled-overlays/ whose
+// entry script intentionally exits non-zero. Without an explicit "disabled"
+// entry these would auto-enable at boot (isPluginEnabled defaults missing
+// entries to enabled), crash on spawn, and land in `errored` status. The
+// EnablePluginPromptModal gate (BenchDashboard.tsx) requires `disabled`, so
+// the failure-path spec needs these to start disabled. Forcing them disabled
+// in /__reset also keeps unrelated specs free of spawn-failure noise.
+const FAILURE_FIXTURE_PLUGIN_IDS = ["broken-plugin"] as const;
+function disableFailureFixturePlugins(): void {
+  for (const id of FAILURE_FIXTURE_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, false);
+  }
+}
+
 // POST /test/__reset (FR-079): wipe module-level singletons so Playwright
 // specs can start from a clean state without restarting the server. Gated by
 // ROUBO_E2E so production builds return 404 for this URL. The e2e harness
@@ -265,6 +279,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // observe a connected state. Doing this in __reset keeps the override
     // scoped to the e2e gate.
     ensureBundledPluginsEnabled();
+    disableFailureFixturePlugins();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });
   } catch (err) {
@@ -404,6 +419,18 @@ router.get("/__connection-state-log", (_req: Request, res: Response) => {
     return res.status(404).end();
   }
   res.status(200).json({ entries: pluginManager.__test.getE2EConnectionStateLogTap() });
+});
+
+// TC-154 (#222): read the persisted plugin-enable-state file so a Playwright
+// spec can assert the NFR-024 invariant ("plugin remains in its previous
+// disabled state on spawn failure") without poking the filesystem from the
+// test process. Gated by ROUBO_E2E.
+router.get("/__plugin-enable-state", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const state = pluginEnableState.loadEnableState();
+  res.status(200).json({ plugins: state?.plugins ?? {} });
 });
 
 export default router;
