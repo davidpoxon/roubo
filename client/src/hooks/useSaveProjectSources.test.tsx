@@ -34,7 +34,7 @@ function fixtureState(): ProjectIntegrationState {
 }
 
 describe("useSaveProjectSources", () => {
-  it("posts the sources payload and invalidates project-integration on settle", async () => {
+  it("posts the sources payload and invalidates the dependent queries on settle", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateSpy = vi.spyOn(client, "invalidateQueries");
     mockedSave.mockResolvedValue(fixtureState());
@@ -50,10 +50,15 @@ describe("useSaveProjectSources", () => {
     });
 
     expect(mockedSave).toHaveBeenCalledWith("proj-1", { items: ["org/a"] });
+    // TC-165: the save mutation invalidates three query keys so the inline
+    // re-consent chip surfaces in the still-open Configure dialog after a
+    // user toggles an alert flag on.
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ["project-integration", "proj-1"],
       });
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["issues"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["integration-warnings"] });
   });
 });
