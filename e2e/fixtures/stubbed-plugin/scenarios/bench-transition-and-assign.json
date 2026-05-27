@@ -1,0 +1,60 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "bench-transition-and-assign stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#42",
+      "externalUrl": "https://stub.example/acme/widgets/issues/42",
+      "title": "TC-162 transition + assign target",
+      "body": null,
+      "currentState": "Open",
+      "allowedTransitions": ["In review", "Closed"],
+      "assignees": [],
+      "labels": [],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-27T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [{ "id": "Bug", "name": "Bug" }],
+  "labels": [],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "In review", "label": "In review" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {
+    "assignee": [{ "value": "alice", "label": "Alice Stub" }]
+  }
+}

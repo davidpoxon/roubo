@@ -102,12 +102,21 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     config: Record<string, unknown>;
   }): SetActiveConfigResult => ({ ok: true });
 
-  const applyTransition = (params: { externalId: string; transition: string }): void => {
+  const applyTransition = (params: {
+    externalId: string;
+    transition?: string;
+    transitionName?: string;
+  }): void => {
+    // The host's bench-view route (`POST /projects/:id/issues/:externalId/
+    // transitions`) sends `transitionName`; the SDK type exposes `transition`.
+    // Accept both for forward-compatibility, matching the real
+    // jira-self-hosted plugin (plugins/jira-self-hosted/src/plugin.ts:265-274).
+    const name = params.transition ?? params.transitionName;
     const issue = findIssue(scenario, params.externalId);
-    if (!issue.allowedTransitions.includes(params.transition)) {
-      throw new Error(`Transition "${params.transition}" not allowed on "${params.externalId}".`);
+    if (typeof name !== "string" || !issue.allowedTransitions.includes(name)) {
+      throw new Error(`Transition "${name}" not allowed on "${params.externalId}".`);
     }
-    journal.recordTransition(params.externalId, params.transition);
+    journal.recordTransition(params.externalId, name);
   };
 
   const getAvailableTransitions = (params: { externalId: string }): string[] =>
