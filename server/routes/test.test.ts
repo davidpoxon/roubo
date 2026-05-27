@@ -337,6 +337,40 @@ describe("POST /test/__reset", () => {
       now: null,
     });
   });
+
+  // WU-066 (TC-171/TC-172): when the caller passes `bundledPluginsDisabled:
+  // true` the reset writes every bundled plugin id as "disabled" instead of
+  // force-enabling them, so the project-load Enable-plugin prompt fires for
+  // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
+  // regardless of the bundledPluginsDisabled flag, so the call count includes
+  // those ids (broken-plugin) as well.
+  it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
+    process.env.ROUBO_E2E = "1";
+    const FAILURE_FIXTURE_IDS = ["broken-plugin"];
+
+    const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
+
+    expect(res.status).toBe(200);
+    expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
+      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length,
+    );
+    for (const id of BUNDLED_PLUGIN_IDS) {
+      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
+    }
+    for (const id of FAILURE_FIXTURE_IDS) {
+      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
+    }
+  });
+
+  it("returns 400 when bundledPluginsDisabled is not a boolean", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/bundledPluginsDisabled/);
+    expect(pluginManager.shutdown).not.toHaveBeenCalled();
+  });
 });
 
 // #232: register a fixture project for one spec, with cleanup folded into

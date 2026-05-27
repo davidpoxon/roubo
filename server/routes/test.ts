@@ -127,11 +127,16 @@ benches:
 interface ResetBody {
   scenario?: unknown;
   now?: unknown;
+  bundledPluginsDisabled?: unknown;
 }
 
 interface ParsedResetConfig {
   scenario: string | null;
   now: string | null;
+  // WU-066 (TC-171/TC-172): when true, the reset writes every bundled plugin
+  // id as "disabled" in plugins-state.json instead of force-enabling them, so
+  // the project-load Enable-plugin prompt fires for the next spec.
+  bundledPluginsDisabled: boolean;
 }
 
 // Parse the optional { scenario, now } body that Playwright specs pass to pin
@@ -187,8 +192,10 @@ function wipePersistedTestState(): void {
 function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string {
   const scenarioRaw = body?.scenario;
   const nowRaw = body?.now;
+  const bundledRaw = body?.bundledPluginsDisabled;
   let scenario: string | null = null;
   let now: string | null = null;
+  let bundledPluginsDisabled = false;
   if (scenarioRaw !== undefined && scenarioRaw !== null) {
     if (typeof scenarioRaw !== "string" || !SCENARIO_NAME_RE.test(scenarioRaw)) {
       return "scenario must be a kebab-case string matching /^[a-z][a-z0-9-]*$/";
@@ -201,7 +208,13 @@ function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string
     if (Number.isNaN(parsed.getTime())) return "now must be a parseable ISO-8601 string";
     now = nowRaw;
   }
-  return { scenario, now };
+  if (bundledRaw !== undefined && bundledRaw !== null) {
+    if (typeof bundledRaw !== "boolean") {
+      return "bundledPluginsDisabled must be a boolean";
+    }
+    bundledPluginsDisabled = bundledRaw;
+  }
+  return { scenario, now, bundledPluginsDisabled };
 }
 
 // WU-068 (#159): mark every bundled plugin id (`github-com`, `ghe`,
@@ -227,6 +240,18 @@ function ensureBundledPluginsEnabled(): void {
 const FAILURE_FIXTURE_PLUGIN_IDS = ["broken-plugin"] as const;
 function disableFailureFixturePlugins(): void {
   for (const id of FAILURE_FIXTURE_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, false);
+  }
+}
+
+// WU-066 (TC-171/TC-172): inverse of `ensureBundledPluginsEnabled`. Writes
+// every bundled plugin id as "disabled" so the project-load Enable-plugin
+// prompt fires when the next spec navigates to a project that references one
+// of those ids. Selected via the optional `{ bundledPluginsDisabled: true }`
+// body param on /__reset; the default (force-enabled) is preserved so
+// existing project-settings specs are unaffected.
+function ensureBundledPluginsDisabled(): void {
+  for (const id of BUNDLED_PLUGIN_IDS) {
     pluginEnableState.setPluginEnabled(id, false);
   }
 }
@@ -287,7 +312,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // Apply the pinning AFTER project-registry init and BEFORE plugin-manager
     // initialize: initialize() is what spawns the plugin processes, and the
     // pinning must be in place at spawn time so spawnPlugin sees it.
-    pluginManager.__test.setE2EConfig(parsed);
+    pluginManager.__test.setE2EConfig({ scenario: parsed.scenario, now: parsed.now });
     // WU-068 (#159): force-enable the bundled plugin ids before initialize()
     // runs. The migrate seed (greenfield install path) writes them as
     // "disabled" by default, which suppresses spawn under ROUBO_E2E too, so
@@ -296,7 +321,14 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // bundled-overlay slot (github-com / ghe / jira-self-hosted) could never
     // observe a connected state. Doing this in __reset keeps the override
     // scoped to the e2e gate.
-    ensureBundledPluginsEnabled();
+    // WU-066 (TC-171/TC-172): when the caller passes { bundledPluginsDisabled:
+    // true }, write the inverse instead: every bundled id is disabled so the
+    // project-load Enable-plugin prompt fires for the spec.
+    if (parsed.bundledPluginsDisabled) {
+      ensureBundledPluginsDisabled();
+    } else {
+      ensureBundledPluginsEnabled();
+    }
     disableFailureFixturePlugins();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });

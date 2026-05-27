@@ -1,0 +1,29 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "greenfield-and-enable-prompt stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {}
+}
