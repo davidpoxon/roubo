@@ -1,11 +1,12 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-// WU-064: shape of one entry in the in-memory connection-state transition
-// journal exposed by `GET /test/__connection-state-log`. Kept in lock-step
-// with `ConnectionStateLogEntry` in server/services/plugin-manager.ts. Both
-// live behind the journal that #221 (TC-153) will replace with durable
-// logging; remove this type at the same time.
+// TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
+// `GET /test/__connection-state-log`. The tap mirrors the structured log
+// lines emitted by `recordConnectionStateTransition` in
+// server/services/plugin-manager.ts; keep this type in lock-step with the
+// exported `ConnectionStateLogEntry` there.
 export interface ConnectionStateLogEntry {
+  event: "plugin.connection-state.changed";
   pluginId: string;
   previousState: string | null;
   newState: string;
@@ -98,10 +99,11 @@ export async function registerFixtureProject(
 }
 
 /**
- * Read the in-memory connection-state transition journal exposed by
- * `GET /test/__connection-state-log`. WU-064 (TC-169) asserts that a recheck
- * appended an entry. Stand-in for the durable logging tracked by #221
- * (TC-153); remove this helper together with the route when that lands.
+ * Read the ROUBO_E2E=1-only tap exposed by `GET /test/__connection-state-log`.
+ * The tap mirrors the structured log lines emitted by
+ * `recordConnectionStateTransition` (TC-153 / NFR-023). TC-169 uses it to
+ * assert that an opportunistic recheck observed a state transition without
+ * scraping the running server's stdout.
  */
 export async function fetchConnectionStateLog(
   request: APIRequestContext,

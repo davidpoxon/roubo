@@ -87,22 +87,27 @@ let enableStateCache: PluginEnableState | null = null;
 let e2eScenario: string | null = null;
 let e2eNow: string | null = null;
 
-// WU-064: stand-in journal so e2e specs (TC-169) can assert that a
-// connection-status state transition was observed. Each entry records the
-// previous and new state together with the trigger that caused the recheck.
-// This is intentionally minimal; replace it with the durable observability
-// logging delivered by #221 (TC-153) when that lands, and remove the journal,
-// `GET /test/__connection-state-log`, and the related __test accessors at the
-// same time.
+// TC-153 / NFR-023: every plugin connection-status transition is written to
+// the host's existing log destination (process stdout via console.info) as a
+// single JSON line tagged with `event: "plugin.connection-state.changed"`. No
+// new logging infrastructure is introduced; sister host-side log calls live
+// at `plugin-discovery (bundled)` / `(user)` warnings below.
+//
+// A second, ROUBO_E2E=1-only buffer mirrors emissions so the Playwright
+// harness (TC-169) can poll a deterministic surface instead of scraping the
+// running server's stdout. The buffer is empty in production builds because
+// nothing writes to it when ROUBO_E2E is unset.
+export const CONNECTION_STATE_CHANGED_EVENT = "plugin.connection-state.changed";
 export interface ConnectionStateLogEntry {
+  event: typeof CONNECTION_STATE_CHANGED_EVENT;
   pluginId: string;
   previousState: ConnectionState | null;
   newState: ConnectionState;
   trigger: string;
   at: string;
 }
-const CONNECTION_STATE_LOG_MAX = 200;
-const connectionStateLog: ConnectionStateLogEntry[] = [];
+const E2E_CONNECTION_STATE_LOG_TAP_MAX = 200;
+const e2eConnectionStateLogTap: ConnectionStateLogEntry[] = [];
 
 function isPluginEnabled(pluginId: string): boolean {
   if (!enableStateCache) return true; // legacy install: preserve existing behaviour
@@ -1093,15 +1098,26 @@ function recordConnectionStateTransition(
   newState: ConnectionState,
   trigger: string,
 ): void {
-  connectionStateLog.push({
+  const entry: ConnectionStateLogEntry = {
+    event: CONNECTION_STATE_CHANGED_EVENT,
     pluginId,
     previousState,
     newState,
     trigger,
     at: nowIso(),
-  });
-  if (connectionStateLog.length > CONNECTION_STATE_LOG_MAX) {
-    connectionStateLog.splice(0, connectionStateLog.length - CONNECTION_STATE_LOG_MAX);
+  };
+  // NFR-023: durable host-side structured log. Single JSON line on stdout via
+  // the existing log destination. The payload intentionally carries only
+  // pluginId + states + trigger + ISO timestamp; no detail / credentials / PII.
+  console.info(JSON.stringify(entry));
+  if (process.env.ROUBO_E2E === "1") {
+    e2eConnectionStateLogTap.push(entry);
+    if (e2eConnectionStateLogTap.length > E2E_CONNECTION_STATE_LOG_TAP_MAX) {
+      e2eConnectionStateLogTap.splice(
+        0,
+        e2eConnectionStateLogTap.length - E2E_CONNECTION_STATE_LOG_TAP_MAX,
+      );
+    }
   }
 }
 
@@ -1211,7 +1227,7 @@ export const __test = {
     LOG_ROTATION_BYTES = 5 * 1024 * 1024;
     e2eScenario = null;
     e2eNow = null;
-    connectionStateLog.length = 0;
+    e2eConnectionStateLogTap.length = 0;
   },
   setE2EConfig(config: { scenario: string | null; now: string | null }): void {
     e2eScenario = config.scenario;
@@ -1224,13 +1240,15 @@ export const __test = {
     connectionStatusCache.clear();
     inFlightConnectionStatusRequests.clear();
   },
-  // WU-064: stand-in journal accessors for the e2e harness (see the
-  // declaration of `connectionStateLog` for the planned removal in #221).
-  resetConnectionStateLog(): void {
-    connectionStateLog.length = 0;
+  // TC-153 e2e tap accessors. The tap is only populated when ROUBO_E2E=1
+  // (see `recordConnectionStateTransition`); in production both helpers return
+  // an empty buffer. These exist so the Playwright harness can poll a
+  // deterministic surface without scraping the running server's stdout.
+  resetE2EConnectionStateLogTap(): void {
+    e2eConnectionStateLogTap.length = 0;
   },
-  getConnectionStateLog(): ConnectionStateLogEntry[] {
-    return connectionStateLog.slice();
+  getE2EConnectionStateLogTap(): ConnectionStateLogEntry[] {
+    return e2eConnectionStateLogTap.slice();
   },
   setConnectionStatusInvoker(fn: ConnectionStatusInvoker | null): void {
     connectionStatusInvoker =

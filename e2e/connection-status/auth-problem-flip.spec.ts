@@ -19,9 +19,9 @@ import {
 // The "rechecking..." transient is part of the UX requirement but is too
 // timing-sensitive to assert deterministically under NFR-018's zero-retry
 // budget across 10 CI runs, so this spec asserts the *result* of the flip
-// (final pill state + the journal entry) rather than the intermediate text.
-// The journal is a stand-in for the durable logging tracked by #221 (TC-153);
-// migrate this assertion when that lands.
+// (final pill state + the tap entry) rather than the intermediate text. The
+// tap is the ROUBO_E2E=1-only mirror of the structured log emitted by
+// `recordConnectionStateTransition` (TC-153 / NFR-023).
 
 const SCENARIO = "status-auth-problem-flip";
 const NOW = "2026-05-22T09:00:00.000Z";

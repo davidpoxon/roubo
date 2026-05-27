@@ -224,10 +224,10 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // clears `plugins` and `enableStateCache` but leaves the status maps
     // populated, which would otherwise survive the reset.
     pluginManager.__test.resetConnectionStatusCache();
-    // WU-064: also clear the state-transition journal so TC-169 starts from
-    // an empty log. Remove this when #221 (TC-153) lands and the journal +
-    // /test/__connection-state-log route are replaced by durable logging.
-    pluginManager.__test.resetConnectionStateLog();
+    // Clear the TC-153 e2e log tap so each spec starts from an empty buffer.
+    // The tap is the ROUBO_E2E=1-only mirror of the production-grade
+    // structured log emitted by `recordConnectionStateTransition`.
+    pluginManager.__test.resetE2EConnectionStateLogTap();
     await pluginManager.shutdown();
     // Drop any fixture projects registered via /test/__register-fixture-project
     // BEFORE clearing the in-memory map. Removing the projects.json rows now
@@ -394,15 +394,16 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   }
 });
 
-// WU-064: read the in-memory connection-state transition journal. Gated by
-// ROUBO_E2E so production builds return 404 for this URL. This is a stand-in
-// for the production-grade observability logging tracked by #221 (TC-153);
-// remove the route and the journal together when that lands.
+// TC-153 e2e tap reader. Returns the ROUBO_E2E=1-only buffer that mirrors
+// every structured connection-state log line emitted by
+// `recordConnectionStateTransition`. Gated by ROUBO_E2E so production builds
+// return 404 for this URL. The Playwright harness (TC-169) uses this to
+// assert transitions without scraping the server's stdout.
 router.get("/__connection-state-log", (_req: Request, res: Response) => {
   if (process.env.ROUBO_E2E !== "1") {
     return res.status(404).end();
   }
-  res.status(200).json({ entries: pluginManager.__test.getConnectionStateLog() });
+  res.status(200).json({ entries: pluginManager.__test.getE2EConnectionStateLogTap() });
 });
 
 export default router;
