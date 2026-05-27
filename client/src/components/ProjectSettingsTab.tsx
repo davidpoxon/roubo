@@ -205,7 +205,10 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+            <h2
+              data-testid="project-settings-source-section-title"
+              className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500"
+            >
               {sourceSectionTitle}
             </h2>
           </div>

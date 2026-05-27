@@ -49,3 +49,34 @@ describe("WU-064 scenario packs", () => {
     expect(scenario.connectionStatusSequence?.[1].detail).toBe("Token expired");
   });
 });
+
+// WU-068: four scenario packs back the per-project Settings specs that drive
+// the github-com/ghe/jira-self-hosted overlay stubs (TC-177, TC-178, TC-179,
+// TC-182). Each is shaped by the per-spec assertions; the loader sanity
+// check here catches typos before Playwright spawns the server.
+describe("WU-068 scenario packs", () => {
+  it("github-tab-consolidation loads with a connected baseline", () => {
+    const scenario = loadScenario("github-tab-consolidation");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.sourceCandidates.shape).toBe("multi-list");
+  });
+
+  it("connect-configure-button loads with disconnected→connected→auth-problem", () => {
+    const scenario = loadScenario("connect-configure-button");
+    expect(scenario.connectionStatusSequence).toBeDefined();
+    expect(scenario.connectionStatusSequence?.length).toBe(3);
+    expect(scenario.connectionStatusSequence?.[0].state).toBe("disconnected");
+    expect(scenario.connectionStatusSequence?.[1].state).toBe("connected");
+    expect(scenario.connectionStatusSequence?.[2].state).toBe("auth-problem");
+  });
+
+  it("ghe-consolidation-parity loads with a connected baseline", () => {
+    const scenario = loadScenario("ghe-consolidation-parity");
+    expect(scenario.connectionStatus.state).toBe("connected");
+  });
+
+  it("tab-propagation loads with a connected baseline", () => {
+    const scenario = loadScenario("tab-propagation");
+    expect(scenario.connectionStatus.state).toBe("connected");
+  });
+});

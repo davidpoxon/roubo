@@ -82,7 +82,15 @@ export async function expectConnectionStatePillState(
  */
 export async function registerFixtureProject(
   request: APIRequestContext,
-  opts: { projectId: string; plugin: string },
+  opts: {
+    projectId: string;
+    plugin: string;
+    // WU-068: optional extra integration fields (instance, sources,
+    // capturedUserId, etc.) merged into the saved override alongside
+    // `plugin`. Specs use this to drive surfaces (e.g. Source-tile instance
+    // line) that only render when the override carries the matching value.
+    integrationConfig?: Record<string, unknown>;
+  },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });
   expect(res.status()).toBe(200);

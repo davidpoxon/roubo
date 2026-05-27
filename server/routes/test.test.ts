@@ -59,6 +59,10 @@ vi.mock("../services/github-oauth.js", () => ({
   },
 }));
 
+vi.mock("../services/plugin-enable-state.js", () => ({
+  setPluginEnabled: vi.fn(),
+}));
+
 vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
@@ -75,7 +79,9 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
+import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
+import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 
 const app = express();
 app.use(express.json());
@@ -202,6 +208,12 @@ describe("POST /test/__reset", () => {
       scenario: null,
       now: null,
     });
+    // WU-068 (#159): every bundled plugin id is force-enabled on reset so
+    // the project-settings specs can drive the overlay slots.
+    expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(BUNDLED_PLUGIN_IDS.length);
+    for (const id of BUNDLED_PLUGIN_IDS) {
+      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
+    }
 
     const order = [
       vi.mocked(migrate.__test.reset).mock.invocationCallOrder[0],
@@ -212,6 +224,7 @@ describe("POST /test/__reset", () => {
       vi.mocked(projectRegistry.__test.reset).mock.invocationCallOrder[0],
       vi.mocked(projectRegistry.initialize).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.__test.setE2EConfig).mock.invocationCallOrder[0],
+      vi.mocked(pluginEnableState.setPluginEnabled).mock.invocationCallOrder[0],
       vi.mocked(pluginManager.initialize).mock.invocationCallOrder[0],
     ];
     const sorted = [...order].sort((a, b) => a - b);
@@ -379,6 +392,78 @@ describe("POST /test/__register-fixture-project", () => {
       schemaVersion: 1,
       integration: { plugin: "e2e-stub" },
     });
+  });
+
+  it("merges optional integrationConfig into the saved override alongside plugin", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-with-instance",
+        plugin: "ghe",
+        integrationConfig: {
+          instance: "https://ghe.example.com",
+          sources: { repo: [{ externalId: "acme/widgets" }] },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    expect(integrationOverrides.saveOverride).toHaveBeenCalledWith("fixture-with-instance", {
+      schemaVersion: 1,
+      integration: {
+        instance: "https://ghe.example.com",
+        sources: { repo: [{ externalId: "acme/widgets" }] },
+        plugin: "ghe",
+      },
+    });
+  });
+
+  it("returns 400 when integrationConfig is not an object", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "e2e-stub", integrationConfig: "nope" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/integrationConfig/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when integrationConfig nests `plugin`", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-a",
+        plugin: "e2e-stub",
+        integrationConfig: { plugin: "ghe" },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/plugin/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when integrationConfig fails schema validation", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-a",
+        plugin: "e2e-stub",
+        // pageSize must be a positive integer; -1 fails the schema.
+        integrationConfig: { pageSize: -1 },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/integrationConfig failed validation/);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
   });
 
   it("returns 409 when the same projectId is registered twice without a reset", async () => {

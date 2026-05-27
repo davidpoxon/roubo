@@ -1,0 +1,35 @@
+id: github-com
+name: GitHub.com
+version: 0.1.0
+description: E2E overlay that takes the bundled github-com plugin's slot during Playwright runs. Delegates runtime behaviour to the e2e-stub plugin so scenarios drive responses. Not for production.
+kind: integration
+roubo: ^1.0.0
+entry: ./index.mjs
+configSchema:
+  type: object
+  required:
+    - sources
+  properties:
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+            enum:
+              - repo
+              - project
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

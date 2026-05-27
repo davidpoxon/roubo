@@ -1,0 +1,36 @@
+id: jira-self-hosted
+name: Self-hosted Jira
+version: 0.1.0
+description: E2E overlay that takes the bundled jira-self-hosted plugin's slot during Playwright runs. Delegates runtime behaviour to the e2e-stub plugin so scenarios drive responses. Not for production.
+kind: integration
+roubo: ^1.0.0
+entry: ./index.mjs
+configSchema:
+  type: object
+  required:
+    - instance
+  properties:
+    instance:
+      type: string
+      title: Jira instance URL
+      format: uri
+    sources:
+      type: array
+      items:
+        type: object
+        required:
+          - kind
+          - externalId
+        properties:
+          kind:
+            type: string
+          externalId:
+            type: string
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

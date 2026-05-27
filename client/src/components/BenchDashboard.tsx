@@ -452,7 +452,11 @@ export default function BenchDashboard() {
           <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
             /
           </span>
-          <span aria-current="page" className="text-stone-700 dark:text-stone-300">
+          <span
+            aria-current="page"
+            data-testid="breadcrumb-integration-name"
+            className="text-stone-700 dark:text-stone-300"
+          >
             {integrationName}
           </span>
         </nav>

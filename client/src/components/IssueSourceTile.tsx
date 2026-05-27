@@ -80,7 +80,10 @@ function ConfiguredBody({
           {integrationName}
         </span>
         {instance && (
-          <span className="text-[11px] font-mono text-stone-500 dark:text-stone-500 truncate max-w-full">
+          <span
+            data-testid="issue-source-instance"
+            className="text-[11px] font-mono text-stone-500 dark:text-stone-500 truncate max-w-full"
+          >
             {instance}
           </span>
         )}
@@ -129,7 +132,9 @@ function ConfiguredBody({
         </DialogTrigger>
         {plugin.manifest && (
           <DialogTrigger isOpen={configureOpen} onOpenChange={setConfigureOpen}>
-            <Button className={TRIGGER_BUTTON_CLASS}>{primaryLabel}</Button>
+            <Button data-testid="issue-source-primary-action" className={TRIGGER_BUTTON_CLASS}>
+              {primaryLabel}
+            </Button>
             <PluginConfigureDialog
               scope="project"
               projectId={projectId}

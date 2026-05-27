@@ -3,12 +3,15 @@ import rateLimit from "express-rate-limit";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
+import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
+import { IntegrationConfigSchema, type IntegrationConfig } from "@roubo/shared";
 
 const router: Router = Router();
 
@@ -183,6 +186,19 @@ function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string
   return { scenario, now };
 }
 
+// WU-068 (#159): mark every bundled plugin id (`github-com`, `ghe`,
+// `jira-self-hosted`) as enabled in `~/.roubo/plugins-state.json`. The first
+// `migrate.run()` on a greenfield install seeds these as "disabled" so the
+// migration banner can prompt the user to opt-in; the e2e harness needs them
+// running so the bundled-overlay slots (e2e/fixtures/bundled-overlays/) can
+// surface stub scenario data. Called from `__reset` only, behind the
+// ROUBO_E2E gate.
+function ensureBundledPluginsEnabled(): void {
+  for (const id of BUNDLED_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, true);
+  }
+}
+
 // POST /test/__reset (FR-079): wipe module-level singletons so Playwright
 // specs can start from a clean state without restarting the server. Gated by
 // ROUBO_E2E so production builds return 404 for this URL. The e2e harness
@@ -240,6 +256,15 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // initialize: initialize() is what spawns the plugin processes, and the
     // pinning must be in place at spawn time so spawnPlugin sees it.
     pluginManager.__test.setE2EConfig(parsed);
+    // WU-068 (#159): force-enable the bundled plugin ids before initialize()
+    // runs. The migrate seed (greenfield install path) writes them as
+    // "disabled" by default, which suppresses spawn under ROUBO_E2E too, so
+    // /api/plugins/github-com/connection-status would otherwise return
+    // { state: "disabled" } and the project-settings specs that target the
+    // bundled-overlay slot (github-com / ghe / jira-self-hosted) could never
+    // observe a connected state. Doing this in __reset keeps the override
+    // scoped to the e2e gate.
+    ensureBundledPluginsEnabled();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });
   } catch (err) {
@@ -262,11 +287,17 @@ router.post("/__reset", async (req: Request, res: Response) => {
 interface RegisterFixtureBody {
   projectId?: unknown;
   plugin?: unknown;
+  // WU-068: optional extra integration fields (instance, sources,
+  // capturedUserId, etc.) merged into the saved override after `plugin`.
+  // `plugin` on this nested object is rejected so the top-level field
+  // remains the single source of truth for which plugin is pinned.
+  integrationConfig?: unknown;
 }
 
 interface ParsedRegisterFixture {
   projectId: string;
   plugin: string;
+  integrationConfig?: IntegrationConfig;
 }
 
 function parseRegisterFixtureBody(
@@ -280,7 +311,28 @@ function parseRegisterFixtureBody(
   if (typeof pluginRaw !== "string" || pluginRaw.length === 0) {
     return "plugin must be a non-empty string";
   }
-  return { projectId: projectIdRaw, plugin: pluginRaw };
+  let integrationConfig: IntegrationConfig | undefined;
+  if (body?.integrationConfig !== undefined) {
+    if (
+      body.integrationConfig === null ||
+      typeof body.integrationConfig !== "object" ||
+      Array.isArray(body.integrationConfig)
+    ) {
+      return "integrationConfig must be an object";
+    }
+    if ("plugin" in (body.integrationConfig as Record<string, unknown>)) {
+      return "integrationConfig must not include `plugin`; use the top-level field";
+    }
+    const parsed = IntegrationConfigSchema.safeParse(body.integrationConfig);
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .join("; ");
+      return `integrationConfig failed validation: ${issues}`;
+    }
+    integrationConfig = parsed.data;
+  }
+  return { projectId: projectIdRaw, plugin: pluginRaw, integrationConfig };
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -292,7 +344,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin } = parsed;
+  const { projectId, plugin, integrationConfig } = parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -309,7 +361,10 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   try {
     writeFixtureRouboYaml(repoPath, projectId);
     projectRegistry.registerProject(repoPath);
-    saveOverride(projectId, { schemaVersion: 1, integration: { plugin } });
+    saveOverride(projectId, {
+      schemaVersion: 1,
+      integration: { ...(integrationConfig ?? {}), plugin },
+    });
     fixtureProjects.set(projectId, { projectId, repoPath });
     res.status(200).json({ projectId, repoPath });
   } catch (err) {
