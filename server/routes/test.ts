@@ -6,12 +6,13 @@ import path from "node:path";
 import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
+import * as benchManager from "../services/bench-manager.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
-import { IntegrationConfigSchema, type IntegrationConfig } from "@roubo/shared";
+import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
 
 const router: Router = Router();
 
@@ -46,6 +47,11 @@ const FIXTURE_PROJECT_ID_RE = /^[a-z][a-z0-9-]*$/;
 interface FixtureProjectEntry {
   projectId: string;
   repoPath: string;
+  // TC-161: workspace tmpdirs created for `seedBenches` entries. Tracked here
+  // so /__reset can rm them alongside `repoPath` — `wipePersistedTestState`
+  // truncates `state.json` (dropping the bench row), but the tmpdir on disk
+  // would otherwise survive between specs.
+  seededWorkspacePaths: string[];
 }
 const fixtureProjects = new Map<string, FixtureProjectEntry>();
 
@@ -77,13 +83,25 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
       err instanceof Error ? err.message : String(err),
     );
   }
+  for (const seededPath of entry.seededWorkspacePaths) {
+    try {
+      fs.rmSync(seededPath, { recursive: true, force: true });
+    } catch (err) {
+      console.error(
+        `/test/__reset: failed to rm seeded workspace ${seededPath}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
 }
 
 // Minimum roubo.yaml that satisfies RouboConfigSchema (project, layout,
 // components ≥1, ports ≥1, benches). The single port uses a high base to
 // keep collisions with a developer's pre-existing dev projects unlikely;
 // the component never actually runs because the fixture stops after
-// registerProject + saveOverride.
+// registerProject + saveOverride. `benches.max` is set to 5 (rather than 1)
+// so the `seedBenches` option below can pin multiple persisted benches
+// without violating the config cap.
 function writeFixtureRouboYaml(repoPath: string, projectId: string): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
@@ -101,7 +119,7 @@ ports:
   app:
     base: 39100
 benches:
-  max: 1
+  max: 5
 `;
   fs.writeFileSync(path.join(dotRoubo, "roubo.yaml"), yaml, "utf-8");
 }
@@ -307,12 +325,61 @@ interface RegisterFixtureBody {
   // `plugin` on this nested object is rejected so the top-level field
   // remains the single source of truth for which plugin is pinned.
   integrationConfig?: unknown;
+  // TC-161: optional list of benches to seed against the fixture project so
+  // specs can exercise post-switch surfaces (e.g. the "Issue from previous
+  // integration" badge on BenchCard) without driving the real
+  // bench-provisioning UI. Each entry's `assignedIssue` is persisted onto a
+  // freshly minted tmpdir-backed PersistedBench.
+  seedBenches?: unknown;
+}
+
+interface SeedBenchInput {
+  assignedIssue: AssignedIssue;
 }
 
 interface ParsedRegisterFixture {
   projectId: string;
   plugin: string;
   integrationConfig?: IntegrationConfig;
+  seedBenches: SeedBenchInput[];
+}
+
+function parseSeedBenches(raw: unknown): SeedBenchInput[] | string {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return "seedBenches must be an array";
+  const parsed: SeedBenchInput[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry = raw[i];
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      return `seedBenches[${i}] must be an object`;
+    }
+    const issueRaw = (entry as { assignedIssue?: unknown }).assignedIssue;
+    if (issueRaw === null || typeof issueRaw !== "object" || Array.isArray(issueRaw)) {
+      return `seedBenches[${i}].assignedIssue must be an object`;
+    }
+    const issue = issueRaw as Record<string, unknown>;
+    if (typeof issue.number !== "number" || !Number.isInteger(issue.number) || issue.number < 0) {
+      return `seedBenches[${i}].assignedIssue.number must be a non-negative integer`;
+    }
+    if (typeof issue.integrationId !== "string" || issue.integrationId.length === 0) {
+      return `seedBenches[${i}].assignedIssue.integrationId must be a non-empty string`;
+    }
+    if (typeof issue.externalId !== "string" || issue.externalId.length === 0) {
+      return `seedBenches[${i}].assignedIssue.externalId must be a non-empty string`;
+    }
+    if (typeof issue.title !== "string") {
+      return `seedBenches[${i}].assignedIssue.title must be a string`;
+    }
+    parsed.push({
+      assignedIssue: {
+        number: issue.number,
+        integrationId: issue.integrationId,
+        externalId: issue.externalId,
+        title: issue.title,
+      },
+    });
+  }
+  return parsed;
 }
 
 function parseRegisterFixtureBody(
@@ -347,7 +414,9 @@ function parseRegisterFixtureBody(
     }
     integrationConfig = parsed.data;
   }
-  return { projectId: projectIdRaw, plugin: pluginRaw, integrationConfig };
+  const seedBenches = parseSeedBenches(body?.seedBenches);
+  if (typeof seedBenches === "string") return seedBenches;
+  return { projectId: projectIdRaw, plugin: pluginRaw, integrationConfig, seedBenches };
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -359,7 +428,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin, integrationConfig } = parsed;
+  const { projectId, plugin, integrationConfig, seedBenches } = parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -373,6 +442,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     return res.status(500).json({ error: `Failed to create tmpdir: ${message}` });
   }
 
+  const seededWorkspacePaths: string[] = [];
   try {
     writeFixtureRouboYaml(repoPath, projectId);
     projectRegistry.registerProject(repoPath);
@@ -380,7 +450,31 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       schemaVersion: 1,
       integration: { ...(integrationConfig ?? {}), plugin },
     });
-    fixtureProjects.set(projectId, { projectId, repoPath });
+    // TC-161: persist each seeded bench against the fixture project with a
+    // real tmpdir workspacePath. The `assignedIssue` carries the
+    // `integrationId` the spec needs to drive the previous-integration
+    // badge on BenchCard. After all benches are written, reload bench-manager
+    // so the in-memory map picks them up without restarting the server.
+    const createdAt = new Date().toISOString();
+    for (let i = 0; i < seedBenches.length; i += 1) {
+      const seed = seedBenches[i];
+      const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-e2e-seeded-bench-"));
+      seededWorkspacePaths.push(workspacePath);
+      state.addBench({
+        id: i + 1,
+        projectId,
+        branch: `seed/${i + 1}`,
+        workspacePath,
+        ports: {},
+        createdAt,
+        assignedIssue: seed.assignedIssue,
+        componentSetupState: {},
+      });
+    }
+    if (seedBenches.length > 0) {
+      benchManager.__test.reloadFromState();
+    }
+    fixtureProjects.set(projectId, { projectId, repoPath, seededWorkspacePaths });
     res.status(200).json({ projectId, repoPath });
   } catch (err) {
     // Roll back everything we may have touched so a failed call leaves no
@@ -402,6 +496,13 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       fs.rmSync(repoPath, { recursive: true, force: true });
     } catch {
       // ditto
+    }
+    for (const seededPath of seededWorkspacePaths) {
+      try {
+        fs.rmSync(seededPath, { recursive: true, force: true });
+      } catch {
+        // ditto
+      }
     }
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__register-fixture-project failed:", message);
