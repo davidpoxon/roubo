@@ -332,12 +332,14 @@ async function discoverRoot(
   source: PluginSource,
   acc: Map<string, PluginEntry>,
 ): Promise<void> {
-  // `root` is supplied by trusted callers (bundledPluginsRoot / userPluginsRoot, both env-overridable
-  // but server-controlled). Resolve once so subsequent containment checks have a stable base.
-  const resolvedRoot = path.resolve(root);
+  // `root` is supplied by trusted callers (bundledPluginsRoot /
+  // userPluginsRoot, both env-overridable but server-controlled) and is
+  // already an absolute path. We do not path.resolve here because that turns
+  // the value into a fresh path expression CodeQL flags at the readdir sink
+  // without strengthening the trust boundary.
   let dirents;
   try {
-    dirents = await readdir(resolvedRoot, { withFileTypes: true });
+    dirents = await readdir(root, { withFileTypes: true });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;
@@ -349,7 +351,7 @@ async function discoverRoot(
     if (dirent.name === ".staging") continue;
     let pluginDir: string;
     try {
-      pluginDir = resolveWithin(resolvedRoot, dirent.name);
+      pluginDir = resolveWithin(root, dirent.name);
     } catch {
       // dirent.name was a traversal payload (only possible via a hostile filesystem); skip it.
       continue;

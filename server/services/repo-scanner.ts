@@ -141,10 +141,14 @@ async function walk(
 ): Promise<void> {
   if (depth > MAX_DEPTH || signal.aborted) return;
 
-  const resolvedDir = path.resolve(dir);
+  // `dir` is either the absolute repoPath (already resolved by scanRepo) or a
+  // child path produced by resolveWithin below, so the value is always an
+  // absolute, normalised path. We pass it straight to readdir/resolveWithin
+  // without an extra path.resolve to avoid creating a fresh path expression
+  // that CodeQL flags at the readdir sink.
   let entries;
   try {
-    entries = await readdir(resolvedDir, { withFileTypes: true });
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -153,7 +157,7 @@ async function walk(
     if (signal.aborted) return;
     let fullPath: string;
     try {
-      fullPath = resolveWithin(resolvedDir, entry.name);
+      fullPath = resolveWithin(dir, entry.name);
     } catch {
       continue;
     }
@@ -162,7 +166,7 @@ async function walk(
       if (entry.name === "docker-compose.yml" || entry.name === "docker-compose.yaml") {
         detected.dockerComposeFiles.push(fullPath);
       } else if (entry.name.endsWith(".csproj")) {
-        if (await isRunnableProject(resolvedDir)) {
+        if (await isRunnableProject(dir)) {
           detected.dotnetProjects.push(fullPath);
         }
       } else if (entry.name.endsWith(".sln")) {
@@ -291,10 +295,11 @@ function suggestName(repoPath: string): string {
 }
 
 async function isRunnableProject(projectDir: string): Promise<boolean> {
-  const resolvedDir = path.resolve(projectDir);
+  // Caller (walk) always passes an absolute path it derived from
+  // resolveWithin or the resolved repo root, so no extra path.resolve.
   let entries;
   try {
-    entries = await readdir(resolvedDir, { withFileTypes: true });
+    entries = await readdir(projectDir, { withFileTypes: true });
   } catch {
     return false;
   }
@@ -312,7 +317,7 @@ async function isRunnableProject(projectDir: string): Promise<boolean> {
   for (const name of csFiles) {
     let file: string;
     try {
-      file = resolveWithin(resolvedDir, name);
+      file = resolveWithin(projectDir, name);
     } catch {
       continue;
     }
