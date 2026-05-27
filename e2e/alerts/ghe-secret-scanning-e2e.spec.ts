@@ -127,22 +127,36 @@ test("GHE PAT user: missing-scope chip → simulated PAT regen → cut list upda
   // generated a new PAT with `security_events`, and pasted it back into
   // the Configure dialog's token field. The stub does not consult the
   // token value, so any non-empty string is fine.
+  //
+  // CI sequencing notes: setValues batches three state resets and unmounts
+  // the SourcePicker sub-tree on each keystroke (PluginConfigureDialog.tsx:
+  // 483-491). Typing the PAT value via pressSequentially with a small
+  // per-keystroke delay lets React 19's concurrent renderer commit each
+  // batch before the next one queues, which is the difference between
+  // "the click fires and onPress reads the new `values` closure" and
+  // "the click is swallowed against a button mid-rerender on a loaded CI
+  // runner". `fill` collapses the input update into one synchronous burst
+  // and produced a flake where the second test-connection click never
+  // reached the test endpoint.
   const tokenField = dialog.getByTestId("config-field-token");
-  await tokenField.locator("input").fill("ghp_e2e_new_pat_value");
+  const tokenInput = tokenField.locator("input");
+  await tokenInput.click();
+  await tokenInput.pressSequentially("ghp_e2e_new_pat_value", { delay: 20 });
+  await expect(tokenInput).toHaveValue("ghp_e2e_new_pat_value");
 
   // Re-running Test connection invalidates the connection query and (on
   // Save) the issue + warnings queries. The stub still succeeds; this is
-  // the "scope-verification succeeds" beat of AC #3.
-  //
-  // The default 5s timeout is tight here on a loaded CI runner: this is the
-  // second test-connection in the flow, so `runTest` chains testMutation,
-  // setTestResult, then an in-flight saveMutation that invalidates the
-  // project-integration query (PluginConfigureDialog.tsx:496-510). Local
-  // runs finish well inside 5s, but CI parallelism around this spec pushed
-  // the success-strip render past the default and produced a flake. Bumping
-  // to 15s keeps the contract (the strip must surface to gate Save) while
-  // absorbing the slow-CI latency without weakening the assertion.
+  // the "scope-verification succeeds" beat of AC #3. Tying the visibility
+  // assertion to the actual POST /integration/test surfaces a missed
+  // click as a wait-for-request timeout instead of a generic visibility
+  // miss, and the 15s element timeout absorbs slow-CI render latency on
+  // the happy path.
+  const testRequest = page.waitForRequest(
+    (req) => req.method() === "POST" && req.url().includes("/integration/test"),
+    { timeout: 15_000 },
+  );
   await dialog.getByTestId("test-connection").click();
+  await testRequest;
   await expect(dialog.getByTestId("test-result-success")).toBeVisible({ timeout: 15_000 });
 
   // Commit the new PAT. Save invalidates the issue and warnings queries;
