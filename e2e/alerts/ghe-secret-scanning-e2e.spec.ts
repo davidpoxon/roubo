@@ -133,8 +133,17 @@ test("GHE PAT user: missing-scope chip → simulated PAT regen → cut list upda
   // Re-running Test connection invalidates the connection query and (on
   // Save) the issue + warnings queries. The stub still succeeds; this is
   // the "scope-verification succeeds" beat of AC #3.
+  //
+  // The default 5s timeout is tight here on a loaded CI runner: this is the
+  // second test-connection in the flow, so `runTest` chains testMutation,
+  // setTestResult, then an in-flight saveMutation that invalidates the
+  // project-integration query (PluginConfigureDialog.tsx:496-510). Local
+  // runs finish well inside 5s, but CI parallelism around this spec pushed
+  // the success-strip render past the default and produced a flake. Bumping
+  // to 15s keeps the contract (the strip must surface to gate Save) while
+  // absorbing the slow-CI latency without weakening the assertion.
   await dialog.getByTestId("test-connection").click();
-  await expect(dialog.getByTestId("test-result-success")).toBeVisible();
+  await expect(dialog.getByTestId("test-result-success")).toBeVisible({ timeout: 15_000 });
 
   // Commit the new PAT. Save invalidates the issue and warnings queries;
   // the next listIssues lands on the final sequence step (no warnings,
