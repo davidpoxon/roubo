@@ -38,7 +38,9 @@ export async function registerTestProject(
   const projectId = opts.projectId ?? opts.projectName;
   const plugin = opts.plugin ?? opts.pluginId;
   if (!projectId || !plugin) {
-    throw new Error("registerTestProject requires projectId (or projectName) and plugin (or pluginId)");
+    throw new Error(
+      "registerTestProject requires projectId (or projectName) and plugin (or pluginId)",
+    );
   }
   return await registerFixtureProject(request, { projectId, plugin });
 }

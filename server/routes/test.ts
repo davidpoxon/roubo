@@ -198,7 +198,6 @@ function ensureBundledPluginsEnabled(): void {
   }
 }
 
-
 // POST /test/__reset (FR-079): wipe module-level singletons so Playwright
 // specs can start from a clean state without restarting the server. Gated by
 // ROUBO_E2E so production builds return 404 for this URL. The e2e harness

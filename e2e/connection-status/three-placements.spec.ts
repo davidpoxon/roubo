@@ -56,7 +56,6 @@ test("connected chip surfaces on the project Issue Source tile header", async ({
 
   await page.goto(`/projects/${projectId}/settings`);
 
-
   const tile = page.getByTestId("issue-source-tile");
   await expect(tile).toBeVisible();
   await expectConnectionStatePillState(tile, "connected");
