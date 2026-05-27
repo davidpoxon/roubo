@@ -68,7 +68,7 @@ export default defineConfig({
   projects: [
     {
       name: "dev-fixture",
-      testMatch: ["source-picker.spec.ts"],
+      testMatch: ["source-picker.spec.ts", "enable-plugin-prompt.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: DEV_BASE_URL },
     },
     {
