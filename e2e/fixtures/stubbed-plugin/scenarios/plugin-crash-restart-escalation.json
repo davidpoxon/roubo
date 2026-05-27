@@ -1,0 +1,64 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "plugin-crash-restart-escalation stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#501",
+      "externalUrl": "https://example.test/acme/widgets/501",
+      "title": "Cached snapshot row 1",
+      "body": "First row that the FR-014 cache should keep serving while the plugin is errored.",
+      "currentState": "open",
+      "allowedTransitions": ["closed"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-27T08:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#502",
+      "externalUrl": "https://example.test/acme/widgets/502",
+      "title": "Cached snapshot row 2",
+      "body": "Second row in the cached snapshot.",
+      "currentState": "open",
+      "allowedTransitions": ["closed"],
+      "assignees": [],
+      "labels": ["feature"],
+      "issueType": "Feature",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-27T08:15:00.000Z",
+      "raw": null
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Feature", "name": "Feature" }
+  ],
+  "labels": ["bug", "feature"],
+  "facets": [],
+  "facetOptions": {}
+}

@@ -12,6 +12,7 @@ import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugi
 import * as pluginManager from "../services/plugin-manager.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
+import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { parseIntParam } from "./helpers.js";
 import { ServiceError } from "../services/service-error.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
@@ -89,6 +90,7 @@ router.get("/:projectId/issues", async (req, res) => {
     filters: Object.keys(filters).length > 0 ? filters : undefined,
   };
 
+  const isFirstPage = requestCursor === null;
   let raw: {
     items: NormalizedIssue[];
     nextCursor: string | null;
@@ -101,6 +103,26 @@ router.get("/:projectId/issues", async (req, res) => {
       warnings?: ListIssuesWarning[];
     }>(active.pluginId, "listIssues", params);
   } catch (err) {
+    // FR-014: when the active plugin is `errored` or `disabled` and we have a
+    // first-page snapshot from a previous successful call, serve it so the
+    // cut-list keeps rendering instead of going blank. `stale: true` lets the
+    // client surface the matching banner (#263 tracks the UI work). We only
+    // bridge first-page requests because the snapshot captures only the first
+    // page; falling through on cursor > 0 keeps the client from looking up an
+    // arbitrarily-stale tail page that no longer matches the first page.
+    const record = pluginManager.getRecord(active.pluginId);
+    if (isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
+      const cached = getSnapshot(active.pluginId);
+      if (cached) {
+        const stale: PaginatedIssues = {
+          ...cached.response,
+          stale: true,
+          snapshotCapturedAt: cached.capturedAt,
+        };
+        res.json(stale);
+        return;
+      }
+    }
     sendPluginRpcError(res, err);
     return;
   }
@@ -127,6 +149,14 @@ router.get("/:projectId/issues", async (req, res) => {
   };
   if (raw.warnings && raw.warnings.length > 0) {
     body.warnings = raw.warnings;
+  }
+  // FR-014: capture every successful first-page response so the errored /
+  // disabled fallback above has something to serve. The cache normalizes the
+  // snapshot (strips any stale markers) on insert so subsequent reads start
+  // clean.
+  if (isFirstPage) {
+    const pluginName = pluginManager.getRecord(active.pluginId)?.manifest?.name ?? active.pluginId;
+    recordSnapshot(active.pluginId, body, pluginName, true);
   }
   res.json(body);
 });

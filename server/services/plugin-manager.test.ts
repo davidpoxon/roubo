@@ -557,6 +557,91 @@ describe("restart budget (TC-015)", () => {
     expect(rec.restartHistory.length).toBeGreaterThanOrEqual(3);
   }, 30_000);
 
+  // TC-163 (#240): the e2e harness uses `__test.crashRunningPlugin` to drive
+  // the supervisor through the same restart-budget arithmetic that TC-015
+  // exercises via a self-crashing fixture. This test pins the helper's
+  // contract independently: a healthy `echo` plugin SIGKILLed three times in
+  // quick succession should land in `errored` with `restart-budget-exhausted`
+  // and a `restartHistory` of length 3.
+  it("crashRunningPlugin (TC-163) drives a healthy plugin to errored after 3 crashes", async () => {
+    const originalE2E = process.env.ROUBO_E2E;
+    process.env.ROUBO_E2E = "1";
+    try {
+      sandbox = await makeSandbox({ bundled: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      await waitFor(() => {
+        const r = getManager()
+          .listInstalled()
+          .find((p) => p.id === "echo");
+        return !!r && r.status === "enabled" && r.pid !== null;
+      });
+      for (let i = 0; i < 3; i++) {
+        const expectedHistory = i + 1;
+        mgr.__test.crashRunningPlugin("echo");
+        // First wait for the SIGKILL to register through handleChildExit — the
+        // restartHistory entry is pushed synchronously on the child's `exit`
+        // event, so seeing history grow guards against the race where a fast
+        // `pid !== null` check passes before the kill has taken effect.
+        await waitFor(() => {
+          const r = getManager()
+            .listInstalled()
+            .find((p) => p.id === "echo");
+          return !!r && r.restartHistory.length >= expectedHistory;
+        }, 8_000);
+        // Then wait for the supervisor's next action: respawn on the first
+        // two crashes, transition to errored on the third.
+        await waitFor(() => {
+          const r = getManager()
+            .listInstalled()
+            .find((p) => p.id === "echo");
+          if (!r) return false;
+          if (i < 2) return r.status === "enabled" && r.pid !== null;
+          return r.status === "errored";
+        }, 8_000);
+      }
+      const rec = findRecord(mgr.listInstalled(), "echo");
+      expect(rec.status).toBe("errored");
+      expect(rec.lastError?.code).toBe("restart-budget-exhausted");
+      expect(rec.restartHistory.length).toBe(3);
+    } finally {
+      if (originalE2E === undefined) {
+        delete process.env.ROUBO_E2E;
+      } else {
+        process.env.ROUBO_E2E = originalE2E;
+      }
+    }
+  }, 30_000);
+
+  it("crashRunningPlugin refuses to run without ROUBO_E2E=1", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    delete process.env.ROUBO_E2E;
+    const m = need(mgr, "manager");
+    expect(() => m.__test.crashRunningPlugin("echo")).toThrow(/ROUBO_E2E=1/);
+  });
+
+  it("crashRunningPlugin throws when the plugin is unknown or not running", async () => {
+    const originalE2E = process.env.ROUBO_E2E;
+    process.env.ROUBO_E2E = "1";
+    try {
+      sandbox = await makeSandbox({ bundled: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      const m = need(mgr, "manager");
+      expect(() => m.__test.crashRunningPlugin("does-not-exist")).toThrow(/Unknown plugin/);
+      await mgr.disable("echo");
+      expect(() => m.__test.crashRunningPlugin("echo")).toThrow(/not running/);
+    } finally {
+      if (originalE2E === undefined) {
+        delete process.env.ROUBO_E2E;
+      } else {
+        process.env.ROUBO_E2E = originalE2E;
+      }
+    }
+  });
+
   it("manual restart clears the history and respawns a healthy plugin", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();

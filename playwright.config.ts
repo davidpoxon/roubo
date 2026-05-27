@@ -106,6 +106,11 @@ export default defineConfig({
       testMatch: ["project-settings/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
+    {
+      name: "plugin-lifecycle",
+      testMatch: ["plugin-lifecycle/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
   ],
   webServer: [
     {

@@ -6,6 +6,12 @@ import { ServiceError } from "../services/service-error.js";
 
 vi.mock("../services/plugin-manager.js", () => ({
   invoke: vi.fn(),
+  getRecord: vi.fn(),
+}));
+
+vi.mock("../services/issue-snapshot-cache.js", () => ({
+  getSnapshot: vi.fn(),
+  recordSnapshot: vi.fn(),
 }));
 
 vi.mock("../services/active-plugin.js", () => ({
@@ -29,6 +35,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
+import * as issueSnapshotCache from "../services/issue-snapshot-cache.js";
 
 const app = express();
 app.use(express.json());
@@ -202,6 +209,124 @@ describe("GET /:projectId/issues", () => {
       "listIssues",
       expect.objectContaining({ pageSize: 25 }),
     );
+  });
+
+  describe("FR-014: last-good snapshot fallback (TC-163, TC-016)", () => {
+    it("records the first page on success so a later errored fallback has something to serve", async () => {
+      const issues = [makeIssue({ externalId: "1" })];
+      vi.mocked(pluginManager.invoke).mockResolvedValue({ items: issues, nextCursor: null });
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        manifest: { name: "GitHub.com" },
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      await request(app).get("/p1/issues");
+      expect(issueSnapshotCache.recordSnapshot).toHaveBeenCalledWith(
+        "github-com",
+        expect.objectContaining({
+          items: expect.arrayContaining([expect.objectContaining({ externalId: "1" })]),
+        }),
+        "GitHub.com",
+        true,
+      );
+    });
+
+    it("does not record a snapshot for paginated requests (cursor != null)", async () => {
+      vi.mocked(pluginManager.invoke).mockResolvedValue({
+        items: [makeIssue({ externalId: "2" })],
+        nextCursor: null,
+      });
+      await request(app).get("/p1/issues?cursor=page-2");
+      expect(issueSnapshotCache.recordSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("serves the cached snapshot with stale: true when the plugin is errored and the first page is cached", async () => {
+      vi.mocked(pluginManager.invoke).mockRejectedValue(
+        Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "errored",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      const cachedItems = [makeIssue({ externalId: "cached-1", title: "from cache" })];
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue({
+        response: { items: cachedItems, nextCursor: null },
+        capturedAt: "2026-05-27T09:00:00.000Z",
+        pluginName: "GitHub.com",
+      });
+      const res = await request(app).get("/p1/issues");
+      expect(res.status).toBe(200);
+      expect(res.body.stale).toBe(true);
+      expect(res.body.snapshotCapturedAt).toBe("2026-05-27T09:00:00.000Z");
+      expect(res.body.items[0].externalId).toBe("cached-1");
+    });
+
+    it("also serves the cached snapshot while the plugin is disabled", async () => {
+      vi.mocked(pluginManager.invoke).mockRejectedValue(
+        Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "disabled",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue({
+        response: { items: [], nextCursor: null },
+        capturedAt: "2026-05-27T09:00:00.000Z",
+        pluginName: "GitHub.com",
+      });
+      const res = await request(app).get("/p1/issues");
+      expect(res.status).toBe(200);
+      expect(res.body.stale).toBe(true);
+    });
+
+    it("falls through to the existing 503 when the plugin is errored but no snapshot is cached", async () => {
+      vi.mocked(pluginManager.invoke).mockRejectedValue(
+        Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "errored",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue(undefined);
+      const res = await request(app).get("/p1/issues");
+      expect(res.status).toBe(503);
+      expect(res.body.error).toBe("plugin-not-enabled");
+    });
+
+    it("does not serve the cached snapshot on paginated requests (cursor > 0)", async () => {
+      vi.mocked(pluginManager.invoke).mockRejectedValue(
+        Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "errored",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue({
+        response: { items: [makeIssue({ externalId: "cached-1" })], nextCursor: null },
+        capturedAt: "2026-05-27T09:00:00.000Z",
+        pluginName: "GitHub.com",
+      });
+      const res = await request(app).get("/p1/issues?cursor=page-2");
+      expect(res.status).toBe(503);
+      expect(issueSnapshotCache.getSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("does not serve the snapshot when the plugin is enabled (real error should surface)", async () => {
+      vi.mocked(pluginManager.invoke).mockRejectedValue(
+        Object.assign(new Error("rpc broke"), { code: "rpc-error" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "enabled",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue({
+        response: { items: [makeIssue({ externalId: "cached-1" })], nextCursor: null },
+        capturedAt: "2026-05-27T09:00:00.000Z",
+        pluginName: "GitHub.com",
+      });
+      const res = await request(app).get("/p1/issues");
+      expect(res.status).toBe(502);
+      expect(issueSnapshotCache.getSnapshot).not.toHaveBeenCalled();
+    });
   });
 });
 

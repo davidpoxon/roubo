@@ -24,6 +24,7 @@ import { registerHostHandlers } from "./plugin-host-api.js";
 import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
+import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import type { PluginEnableState } from "@roubo/shared";
 
 export const HOST_API_VERSION = "1.1.0";
@@ -793,6 +794,9 @@ export async function shutdown(): Promise<void> {
   }
   plugins.clear();
   enableStateCache = null;
+  // FR-014: snapshots are in-process and tied to the running plugin set; drop
+  // them on shutdown so a subsequent initialize() starts from a clean cache.
+  issueSnapshotCache.clearAll();
   initialized = false;
 }
 
@@ -801,6 +805,20 @@ export function listInstalled(): PluginRecord[] {
     ...entry.record,
     restartHistory: [...entry.record.restartHistory],
   }));
+}
+
+/**
+ * Fetch a single installed plugin's record, or `undefined` if unknown. Returns
+ * a defensive copy so callers can't mutate the live entry. Useful for routes
+ * that need to branch on `status` without walking `listInstalled()`.
+ */
+export function getRecord(pluginId: string): PluginRecord | undefined {
+  const entry = plugins.get(pluginId);
+  if (!entry) return undefined;
+  return {
+    ...entry.record,
+    restartHistory: [...entry.record.restartHistory],
+  };
 }
 
 // TC-154 (NFR-024): how long enable() waits after spawnPlugin returns before
@@ -972,6 +990,11 @@ export async function uninstall(pluginId: string): Promise<void> {
   // WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
+  // FR-014: a re-installed plugin id is a different deployment; previously
+  // cached issues should not bleed across the uninstall boundary. Note that
+  // we deliberately do *not* clear the snapshot on disable() — FR-014 calls
+  // for serving the last-good snapshot while a plugin is `disabled`.
+  issueSnapshotCache.clearSnapshot(pluginId);
 }
 
 /**
@@ -1359,6 +1382,24 @@ export const __test = {
   },
   getEntry(pluginId: string): PluginEntry | undefined {
     return plugins.get(pluginId);
+  },
+  // TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
+  // a genuine `unexpected-exit` and runs the full restart-budget path in
+  // `handleChildExit`. Gated by ROUBO_E2E so production builds can't trigger
+  // it. We intentionally do not flip `intentionalStop` — the goal is to
+  // exercise the real auto-restart loop, not the clean-shutdown path.
+  crashRunningPlugin(pluginId: string): { pid: number } {
+    if (process.env.ROUBO_E2E !== "1") {
+      throw new Error("crashRunningPlugin requires ROUBO_E2E=1");
+    }
+    const entry = plugins.get(pluginId);
+    if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+    const pid = entry.process?.pid;
+    if (!pid) {
+      throw new Error(`Plugin "${pluginId}" is not running (status=${entry.record.status})`);
+    }
+    process.kill(pid, "SIGKILL");
+    return { pid };
   },
   async appendLog(
     pluginId: string,
