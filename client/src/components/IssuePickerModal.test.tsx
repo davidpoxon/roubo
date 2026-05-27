@@ -19,6 +19,8 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     fetchNextPage: vi.fn(),
     error: null,
     stalled: false,
+    stale: false,
+    snapshotCapturedAt: null,
     ...overrides,
   };
 }
