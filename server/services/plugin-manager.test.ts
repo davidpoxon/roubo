@@ -679,9 +679,9 @@ describe("logs", () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
-    await expect(mgr.readLogs("../etc", "current", 10)).rejects.toThrow(/Invalid plugin id/);
-    await expect(mgr.readLogs("a/b", "current", 10)).rejects.toThrow(/Invalid plugin id/);
-    await expect(mgr.readLogs("", "current", 10)).rejects.toThrow(/Invalid plugin id/);
+    await expect(mgr.readLogs("../etc", "current", 10)).rejects.toThrow(/Invalid pluginId/);
+    await expect(mgr.readLogs("a/b", "current", 10)).rejects.toThrow(/Invalid pluginId/);
+    await expect(mgr.readLogs("", "current", 10)).rejects.toThrow(/Invalid pluginId/);
   }, 15_000);
 
   it("rotates current.log to previous.log when threshold exceeded", async () => {

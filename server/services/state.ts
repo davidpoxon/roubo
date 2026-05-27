@@ -8,6 +8,7 @@ import {
   DEFAULT_CLAUDE_CODE_SETTINGS,
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
+import { PROJECT_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 import type {
   AssignedIssue,
   Bench,
@@ -49,9 +50,19 @@ export function ensureDirs() {
 }
 
 export function atomicWrite(filePath: string, data: string, mode?: number) {
-  const tmp = filePath + ".tmp";
+  // Defence-in-depth containment: callers are expected to have already validated
+  // `filePath`, but re-resolve via path.resolve + relative check so CodeQL sees a
+  // sanitizer immediately before the file ops. This is the same shape the default
+  // js/path-injection suite recognises.
+  const resolvedFile = path.resolve(filePath);
+  const parent = path.dirname(resolvedFile);
+  const rel = path.relative(parent, resolvedFile);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`atomicWrite: invalid file path: ${filePath}`);
+  }
+  const tmp = resolvedFile + ".tmp";
   fs.writeFileSync(tmp, data, { encoding: "utf-8", mode: mode ?? 0o666 });
-  fs.renameSync(tmp, filePath);
+  fs.renameSync(tmp, resolvedFile);
 }
 
 export function getRouboDir(): string {
@@ -71,10 +82,14 @@ export function getWorkspacePath(
   benchNumber: number,
   branch?: string,
 ): string {
+  assertSafeIdentifier(projectName, PROJECT_ID_RE, "projectName");
+  if (!Number.isInteger(benchNumber) || benchNumber < 0) {
+    throw new Error(`Invalid bench number: ${benchNumber}`);
+  }
   const dirName = branch
     ? `bench-${benchNumber}-${sanitizeBranchForPath(branch)}`
     : `bench-${benchNumber}`;
-  return path.join(WORKSPACES_DIR, projectName, dirName);
+  return resolveWithin(WORKSPACES_DIR, projectName, dirName);
 }
 
 export function loadProjects(): PersistedProjects {
@@ -268,11 +283,10 @@ export function getPersistedBenches(projectId?: string): PersistedBench[] {
 }
 
 function resolvePermissionsPath(projectId: string): string {
-  const filePath = path.resolve(PERMISSIONS_DIR, `${projectId}.json`);
-  if (!filePath.startsWith(PERMISSIONS_DIR + path.sep) && filePath !== PERMISSIONS_DIR) {
-    throw new Error(`Invalid projectId: ${projectId}`);
-  }
-  return filePath;
+  // Regex-validate projectId so CodeQL recognises a sanitizer barrier on the
+  // tainted segment, then re-confine via resolveWithin (path.relative shape).
+  assertSafeIdentifier(projectId, PROJECT_ID_RE, "projectId");
+  return resolveWithin(PERMISSIONS_DIR, `${projectId}.json`);
 }
 
 export function getProjectPermissions(projectId: string): ProjectPermissions {

@@ -12,9 +12,10 @@ import {
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const STAGING_DIR_NAME = ".staging";
-const STAGING_TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const STAGING_TOKEN_RE = UUID_RE;
 
 const GIT_CLONE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -41,7 +42,7 @@ export function isValidStagingToken(token: string): boolean {
 }
 
 function stagingRoot(): string {
-  return path.join(pluginManager.getUserPluginsRoot(), STAGING_DIR_NAME);
+  return resolveWithin(pluginManager.getUserPluginsRoot(), STAGING_DIR_NAME);
 }
 
 async function ensureStagingRoot(): Promise<string> {
@@ -60,7 +61,7 @@ async function rmStaging(stagingDir: string): Promise<void> {
 
 async function readStagingManifest(stagingDir: string): Promise<PluginManifest> {
   for (const filename of ["roubo-plugin.yaml", "roubo-plugin.yml"]) {
-    const candidate = path.join(stagingDir, filename);
+    const candidate = resolveWithin(stagingDir, filename);
     try {
       const text = await readFile(candidate, "utf8");
       const parsed = parseManifest(text, candidate);
@@ -184,7 +185,8 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
   const safeUrl = validateGitUrl(url);
   await ensureStagingRoot();
   const token = randomUUID();
-  const stagingDir = path.join(stagingRoot(), token);
+  assertSafeIdentifier(token, UUID_RE, "stagingToken");
+  const stagingDir = resolveWithin(stagingRoot(), token);
 
   try {
     // `--` terminates option parsing so `safeUrl` and `stagingDir` cannot be
@@ -256,7 +258,7 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
   // local path doesn't leave a half-copied staging directory behind.
   let sourceManifestPath: string | null = null;
   for (const filename of ["roubo-plugin.yaml", "roubo-plugin.yml"]) {
-    const candidate = path.join(safePath, filename);
+    const candidate = resolveWithin(safePath, filename);
     try {
       await stat(candidate);
       sourceManifestPath = candidate;
@@ -271,7 +273,8 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
 
   await ensureStagingRoot();
   const token = randomUUID();
-  const stagingDir = path.join(stagingRoot(), token);
+  assertSafeIdentifier(token, UUID_RE, "stagingToken");
+  const stagingDir = resolveWithin(stagingRoot(), token);
 
   try {
     await cp(safePath, stagingDir, { recursive: true, errorOnExist: true, force: false });
@@ -313,7 +316,8 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     );
   }
 
-  const target = path.join(pluginManager.getUserPluginsRoot(), entry.manifest.id);
+  assertSafeIdentifier(entry.manifest.id, PLUGIN_ID_RE, "pluginId");
+  const target = resolveWithin(pluginManager.getUserPluginsRoot(), entry.manifest.id);
   try {
     await stat(target);
     // Target already exists on disk (orphaned dir from a prior install attempt).

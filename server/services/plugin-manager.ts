@@ -26,6 +26,7 @@ import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import type { PluginEnableState } from "@roubo/shared";
+import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 export const HOST_API_VERSION = "1.1.0";
 export const RESTART_BUDGET = 3;
@@ -157,11 +158,16 @@ function logDirFor(pluginId: string): string {
         "(set ROUBO_USER_PLUGINS_DIR to an isolated tmp dir from your test setup)",
     );
   }
-  const root = userPluginsRoot();
+  // Regex-validate pluginId so CodeQL recognises a sanitizer on the tainted segment
+  // before it flows into path.resolve / path.relative below.
+  assertSafeIdentifier(pluginId, PLUGIN_ID_RE, "pluginId");
+  const root = path.resolve(userPluginsRoot());
   const resolved = path.resolve(root, pluginId, "logs");
-  // Prevent path traversal: a pluginId containing ".." or absolute segments (from a malformed
-  // manifest) must not escape the expected root directory.
-  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+  // Containment check uses path.relative + startsWith("..") because that is the shape
+  // CodeQL's default js/path-injection suite recognises as a sanitizer (mirrors
+  // `readLogs` below).
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(
       `plugin-manager: plugin id "${pluginId}" resolves outside the plugins root; rejecting`,
     );
@@ -205,7 +211,7 @@ function isValidEntryPath(entry: string): boolean {
 
 async function readManifestFile(dir: string): Promise<{ path: string; text: string } | null> {
   for (const filename of ["roubo-plugin.yaml", "roubo-plugin.yml"]) {
-    const candidate = path.join(dir, filename);
+    const candidate = resolveWithin(dir, filename);
     try {
       const text = await readFile(candidate, "utf8");
       return { path: candidate, text };
@@ -326,6 +332,11 @@ async function discoverRoot(
   source: PluginSource,
   acc: Map<string, PluginEntry>,
 ): Promise<void> {
+  // `root` is supplied by trusted callers (bundledPluginsRoot /
+  // userPluginsRoot, both env-overridable but server-controlled) and is
+  // already an absolute path. We do not path.resolve here because that turns
+  // the value into a fresh path expression CodeQL flags at the readdir sink
+  // without strengthening the trust boundary.
   let dirents;
   try {
     dirents = await readdir(root, { withFileTypes: true });
@@ -338,7 +349,13 @@ async function discoverRoot(
     if (!dirent.isDirectory() && !dirent.isSymbolicLink()) continue;
     // Skip the install-staging area used by plugin-installer.
     if (dirent.name === ".staging") continue;
-    const pluginDir = path.join(root, dirent.name);
+    let pluginDir: string;
+    try {
+      pluginDir = resolveWithin(root, dirent.name);
+    } catch {
+      // dirent.name was a traversal payload (only possible via a hostile filesystem); skip it.
+      continue;
+    }
     const built = await buildEntryFromDir(pluginDir, source, dirent.name);
     if (!built) continue;
 
@@ -387,7 +404,7 @@ async function rotateLegacyLogIfNeeded(pluginId: string): Promise<void> {
   // stays within userPluginsRoot(). Constructing the path here (rather than accepting a pre-built
   // dir string) keeps the sanitisation visible to CodeQL's interprocedural taint analysis.
   const dir = logDirFor(pluginId);
-  const current = path.join(dir, "current.log");
+  const current = resolveWithin(dir, "current.log");
   let text: string;
   try {
     text = await readFile(current, "utf8");
@@ -399,7 +416,7 @@ async function rotateLegacyLogIfNeeded(pluginId: string): Promise<void> {
   if (lines.length === 0) return;
   const hasLegacy = lines.some((l) => !LOG_RECORD_RE.test(l));
   if (!hasLegacy) return;
-  const previous = path.join(dir, "previous.log");
+  const previous = resolveWithin(dir, "previous.log");
   try {
     await unlink(previous);
   } catch {
@@ -421,7 +438,7 @@ async function openLogStream(entry: PluginEntry): Promise<void> {
       entry.legacyRotateChecked = true;
       await rotateLegacyLogIfNeeded(entry.record.id);
     }
-    const current = path.join(dir, "current.log");
+    const current = resolveWithin(dir, "current.log");
     let bytes = 0;
     if (existsSync(current)) {
       try {
@@ -449,8 +466,8 @@ async function rotateLogIfNeeded(entry: PluginEntry, addedBytes: number): Promis
   entry.logBytes = 0;
   await new Promise<void>((resolve) => stream.end(resolve));
   const dir = await ensureLogDir(entry.record.id);
-  const current = path.join(dir, "current.log");
-  const previous = path.join(dir, "previous.log");
+  const current = resolveWithin(dir, "current.log");
+  const previous = resolveWithin(dir, "previous.log");
   try {
     await rename(current, previous);
   } catch {
@@ -535,11 +552,12 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   if (!manifest) return;
   entry.intentionalStop = false;
 
-  const entryPath = path.join(entry.record.pluginDir, manifest.entry);
-  // Defensive: confirm resolved path is still inside the plugin dir.
   const resolvedDir = path.resolve(entry.record.pluginDir);
+  const entryPath = path.join(resolvedDir, manifest.entry);
+  // Defensive: confirm resolved path is still inside the plugin dir.
   const resolvedEntry = path.resolve(entryPath);
-  if (!resolvedEntry.startsWith(resolvedDir + path.sep) && resolvedEntry !== resolvedDir) {
+  const entryRel = path.relative(resolvedDir, resolvedEntry);
+  if (entryRel.startsWith("..") || path.isAbsolute(entryRel)) {
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "invalid-entry",
@@ -1087,7 +1105,6 @@ export async function invoke<T = unknown>(
 // Plugin IDs are validated by the manifest schema, but readLogs may be reached from HTTP
 // routes that take the id from a URL parameter. Re-check structurally so path traversal is
 // impossible regardless of caller assumptions, and so CodeQL can see the sanitization.
-const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const LOG_FILE_NAMES = new Set(["current", "previous"]);
 
 export async function readLogs(
@@ -1095,9 +1112,7 @@ export async function readLogs(
   file: "current" | "previous" = "current",
   lines = 500,
 ): Promise<LogLine[]> {
-  if (!PLUGIN_ID_PATTERN.test(pluginId)) {
-    throw new Error(`Invalid plugin id: ${pluginId}`);
-  }
+  assertSafeIdentifier(pluginId, PLUGIN_ID_RE, "pluginId");
   if (!LOG_FILE_NAMES.has(file)) {
     throw new Error(`Invalid log file: ${file}`);
   }

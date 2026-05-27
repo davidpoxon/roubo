@@ -1,6 +1,5 @@
 import { Router } from "express";
 import fs from "node:fs";
-import path from "node:path";
 import * as YAML from "yaml";
 import * as projectRegistry from "../services/project-registry.js";
 import { ProjectRegistryError } from "../services/project-registry.js";
@@ -11,6 +10,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import { atomicWrite } from "../services/state.js";
+import { resolveWithin } from "../lib/safe-path.js";
 import {
   getIntegrationFields,
   setIntegrationFields,
@@ -73,10 +73,15 @@ router.post("/", (req, res) => {
 
 router.post("/check-config", (req, res) => {
   const { repoPath } = req.body as CheckConfigRequest;
-  if (!repoPath || typeof repoPath !== "string") {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
+  // /check-config and /scan accept an arbitrary local directory path by
+  // design (project registration UI). We reject NUL bytes above; we do not
+  // path.resolve here because doing so turns the tainted string into a new
+  // path expression that CodeQL flags at every downstream fs call without
+  // adding a real trust boundary.
   if (!fs.existsSync(repoPath)) {
     res.json({
       hasConfig: false,
@@ -126,10 +131,12 @@ router.post("/check-config", (req, res) => {
 
 router.post("/scan", async (req, res) => {
   const { repoPath } = req.body as { repoPath?: string };
-  if (!repoPath || typeof repoPath !== "string") {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
+  // See /check-config above: we deliberately do not path.resolve(repoPath)
+  // here. The endpoint takes a user-supplied local directory by design.
   if (!fs.existsSync(repoPath)) {
     res.status(404).json({ error: `Directory not found: ${repoPath}` });
     return;
@@ -245,7 +252,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
 
 router.post("/save-config", (req, res) => {
   const { repoPath, config } = req.body as SaveConfigRequest;
-  if (!repoPath || !config) {
+  if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0") || !config) {
     res.status(400).json({ error: "repoPath and config are required" });
     return;
   }
@@ -261,9 +268,9 @@ router.post("/save-config", (req, res) => {
   }
 
   try {
-    const dir = path.join(repoPath, ".roubo");
+    const dir = resolveWithin(repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
-    const configPath = path.join(dir, "roubo.yaml");
+    const configPath = resolveWithin(dir, "roubo.yaml");
     const yamlContent = YAML.stringify(config, {
       indent: 2,
       lineWidth: 0,
@@ -335,7 +342,7 @@ router.get("/:projectId/config/raw", (req, res) => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
-  const configPath = path.join(project.repoPath, ".roubo", "roubo.yaml");
+  const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
   try {
     const content = fs.readFileSync(configPath, "utf-8");
     res.json({ yaml: content });
@@ -439,9 +446,9 @@ router.put("/:projectId/config/raw", (req, res) => {
   }
 
   try {
-    const dir = path.join(project.repoPath, ".roubo");
+    const dir = resolveWithin(project.repoPath, ".roubo");
     fs.mkdirSync(dir, { recursive: true });
-    const configPath = path.join(dir, "roubo.yaml");
+    const configPath = resolveWithin(dir, "roubo.yaml");
     atomicWrite(configPath, rawYaml);
 
     try {

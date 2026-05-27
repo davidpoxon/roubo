@@ -15,6 +15,7 @@ import { getClaudeBinary } from "./env.js";
 import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
+import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
 const FLUSH_DEBOUNCE_MS = 500;
@@ -96,7 +97,11 @@ function ensureSessionsDir() {
 }
 
 function sessionFilePath(id: string): string {
-  return path.join(SESSIONS_DIR, `${id}.json`);
+  // Terminal session ids are server-generated UUIDs (randomUUID), but they reach this
+  // module via WebSocket URLs too. Regex-validate so CodeQL recognises the sanitizer
+  // before the id flows into resolveWithin.
+  assertSafeIdentifier(id, UUID_RE, "sessionId");
+  return resolveWithin(SESSIONS_DIR, `${id}.json`);
 }
 
 function benchKey(projectId: string, benchId: number): string {

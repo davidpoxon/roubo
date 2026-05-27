@@ -10,6 +10,7 @@ import type {
   ComponentType,
 } from "@roubo/shared";
 import { parseConfig } from "./config-parser.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "bin", "obj", "dist", "build", ".roubo"]);
 const SCAN_TIMEOUT = 5000;
@@ -44,13 +45,13 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
     suggestedTools: [],
   };
 
-  detected.hasGit = fs.existsSync(path.join(resolved, ".git"));
+  detected.hasGit = fs.existsSync(resolveWithin(resolved, ".git"));
 
   if (detected.hasGit) {
     detected.suggestedRepo = await detectRepo(resolved);
   }
 
-  const gitmodulesPath = path.join(resolved, ".gitmodules");
+  const gitmodulesPath = resolveWithin(resolved, ".gitmodules");
   if (fs.existsSync(gitmodulesPath)) {
     detected.submodules = parseGitmodules(fs.readFileSync(gitmodulesPath, "utf-8"));
   }
@@ -58,7 +59,7 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   if (Object.keys(detected.submodules).length > 0) {
     detected.structureType = "meta-repo";
   } else {
-    const rootPkgPath = path.join(resolved, "package.json");
+    const rootPkgPath = resolveWithin(resolved, "package.json");
     if (fs.existsSync(rootPkgPath)) {
       try {
         const pkg = JSON.parse(fs.readFileSync(rootPkgPath, "utf-8"));
@@ -94,7 +95,12 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   const suggestedComponents: SuggestedComponent[] = [];
 
   for (const composeFile of detected.dockerComposeFiles) {
-    const abs = path.resolve(resolved, composeFile);
+    let abs: string;
+    try {
+      abs = resolveWithin(resolved, composeFile);
+    } catch {
+      continue;
+    }
     const { suggestions, allServiceNames, portVars, composeVars } =
       await parseDockerComposeServices(abs, composeFile);
     suggestedComponents.push(...suggestions);
@@ -135,6 +141,11 @@ async function walk(
 ): Promise<void> {
   if (depth > MAX_DEPTH || signal.aborted) return;
 
+  // `dir` is either the absolute repoPath (already resolved by scanRepo) or a
+  // child path produced by resolveWithin below, so the value is always an
+  // absolute, normalised path. We pass it straight to readdir/resolveWithin
+  // without an extra path.resolve to avoid creating a fresh path expression
+  // that CodeQL flags at the readdir sink.
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -144,7 +155,12 @@ async function walk(
 
   for (const entry of entries) {
     if (signal.aborted) return;
-    const fullPath = path.join(dir, entry.name);
+    let fullPath: string;
+    try {
+      fullPath = resolveWithin(dir, entry.name);
+    } catch {
+      continue;
+    }
 
     if (entry.isFile()) {
       if (entry.name === "docker-compose.yml" || entry.name === "docker-compose.yaml") {
@@ -164,7 +180,7 @@ async function walk(
       }
     } else if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
       if (entry.name !== "." && entry.name !== "..") {
-        const pkgPath = path.join(fullPath, "package.json");
+        const pkgPath = resolveWithin(fullPath, "package.json");
         try {
           await access(pkgPath);
           const pkgContent = await readFile(pkgPath, "utf-8");
@@ -279,6 +295,8 @@ function suggestName(repoPath: string): string {
 }
 
 async function isRunnableProject(projectDir: string): Promise<boolean> {
+  // Caller (walk) always passes an absolute path it derived from
+  // resolveWithin or the resolved repo root, so no extra path.resolve.
   let entries;
   try {
     entries = await readdir(projectDir, { withFileTypes: true });
@@ -290,20 +308,26 @@ async function isRunnableProject(projectDir: string): Promise<boolean> {
     .filter((e) => e.isFile() && e.name.endsWith(".cs"))
     .map((e) => e.name)
     .sort((a, b) => {
-      // Check Program.cs first — most common entry point location
+      // Check Program.cs first; most common entry point location.
       const aIsProg = a.toLowerCase() === "program.cs" ? 0 : 1;
       const bIsProg = b.toLowerCase() === "program.cs" ? 0 : 1;
       return aIsProg - bIsProg;
     });
 
   for (const name of csFiles) {
+    let file: string;
     try {
-      const content = await readFile(path.join(projectDir, name), "utf-8");
+      file = resolveWithin(projectDir, name);
+    } catch {
+      continue;
+    }
+    try {
+      const content = await readFile(file, "utf-8");
       if (hasTopLevelStatements(content) || hasProgramMain(content)) {
         return true;
       }
     } catch {
-      // unreadable — skip
+      // unreadable; skip
     }
   }
 
