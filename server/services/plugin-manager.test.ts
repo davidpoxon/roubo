@@ -242,9 +242,11 @@ describe("lifecycle", () => {
 
     await expect(mgr.enable("crashy")).rejects.toThrow(/exit/i);
 
+    // TC-154 (#222): enable() rolls the record back to "disabled" (not
+    // "errored") when the spawned process dies during startup, so the user
+    // can retry without a restart cycle and the UI reflects a clean state.
     const rec = findRecord(mgr.listInstalled(), "crashy");
-    expect(rec.status).toBe("errored");
-    expect(rec.lastError).not.toBeNull();
+    expect(rec.status).toBe("disabled");
     // The persisted state was rolled back so the next boot doesn't keep
     // respawning the broken plugin.
     expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("crashy", false);
