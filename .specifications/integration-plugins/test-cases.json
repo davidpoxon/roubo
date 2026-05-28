@@ -4228,13 +4228,13 @@
     "type": "e2e_flow",
     "preconditions": [
       "Playwright running against built Roubo app (real client + real server)",
-      "Stubbed plugin scenario loaded: --scenario=project-issue-source-tile",
+      "Stubbed plugin scenario loaded: --scenario=issue-source-tile-configure",
       "Server started with ROUBO_E2E=1 (enables /test/__reset)",
       "POST /test/__reset run at spec start to reset all server singletons"
     ],
     "steps": [
       {
-        "action": "User opens project page, sees Issue source tile (now: plugin-driven tab from FR-069), configures, picks sources, sees the tile reflect connected state.",
+        "action": "User opens project Settings, sees the Issue source tile in its unconfigured variant, chooses the github.com integration, and opens Configure. PR #278 replaced the manual source picker with server-side auto-derivation, so the user confirms the read-only derived-sources preview lists the project's repo rather than picking a source; saving leaves the tile in the connected state.",
         "expected": [
           "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
         ]
@@ -4252,19 +4252,17 @@
     "type": "e2e_flow",
     "preconditions": [
       "Playwright running against built Roubo app (real client + real server)",
-      "Stubbed plugin scenario loaded: --scenario=alerts-codeql-enable",
-      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
-      "POST /test/__reset run at spec start to reset all server singletons"
+      "Stubbed plugin scenario removed in #279 (was --scenario=alerts-codeql-enable)"
     ],
     "steps": [
       {
-        "action": "github.com connected via OAuth without security_events; user opens Configure, toggles includeCodeQLAlerts on for repo-a; inline re-consent affordance appears; user clicks Sign in again; OAuth re-runs with extended scope; cut list now interleaves CodeQL alerts with regular issues, each with CodeQL chip.",
+        "action": "RETIRED in #279. PR #278 removed the per-source security-alerts disclosure (the includeCodeQLAlerts toggle, the missing-scope warning chip, and the inline OAuth re-consent) from the Configure modal in favour of a read-only derived-sources preview, so the original toggle -> re-consent -> cut-list-interleave flow no longer has a UI surface.",
         "expected": [
-          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+          "No e2e flow. CodeQL alert interleaving and the read-only alert-row contract (no transitions/assignees) remain covered by unit tests (server list-issues + DraggableIssueCard)."
         ]
       }
     ],
-    "tags": ["e2e", "playwright", "automated"],
+    "tags": ["e2e", "playwright", "retired"],
     "linked_requirement_ids": ["FR-040", "FR-041", "FR-043", "FR-045"],
     "linked_user_story_ids": ["US-011"]
   },
@@ -4276,19 +4274,17 @@
     "type": "e2e_flow",
     "preconditions": [
       "Playwright running against built Roubo app (real client + real server)",
-      "Stubbed plugin scenario loaded: --scenario=alerts-secret-ghe",
-      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
-      "POST /test/__reset run at spec start to reset all server singletons"
+      "Stubbed plugin scenario removed in #279 (was --scenario=alerts-ghe-secret-scanning-enable)"
     ],
     "steps": [
       {
-        "action": "GHE PAT user with security_events scope; opens Configure, toggles includeSecretScanningAlerts on; no OAuth flow; inline reminder reads \"Verify PAT has security_events scope\"; cut list shows Secret scanning alerts with the right chip.",
+        "action": "RETIRED in #279. PR #278 removed the per-source security-alerts disclosure (the includeSecretScanningAlerts toggle, the missing-scope warning chip, and the PAT-regeneration prompt) from the Configure modal in favour of a read-only derived-sources preview, and that preview is github.com-only (it does not render for the ghe plugin), so the original toggle -> PAT-regen -> cut-list-interleave flow no longer has a UI surface.",
         "expected": [
-          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+          "No e2e flow. Secret-scanning alert interleaving and the read-only alert-row contract remain covered by unit tests (server list-issues + DraggableIssueCard)."
         ]
       }
     ],
-    "tags": ["e2e", "playwright", "automated"],
+    "tags": ["e2e", "playwright", "retired"],
     "linked_requirement_ids": ["FR-040", "FR-046", "FR-048"],
     "linked_user_story_ids": ["US-012"]
   },
@@ -4300,13 +4296,13 @@
     "type": "e2e_flow",
     "preconditions": [
       "Playwright running against built Roubo app (real client + real server)",
-      "Stubbed plugin scenario loaded: --scenario=alerts-test-connection",
+      "Stubbed plugin scenario loaded: --scenario=alerts-test-connection-scope-missing",
       "Server started with ROUBO_E2E=1 (enables /test/__reset)",
       "POST /test/__reset run at spec start to reset all server singletons"
     ],
     "steps": [
       {
-        "action": "github.com source with alerts enabled but security_events scope revoked; user clicks Test Connection in Configure; per-category result strip shows: Issues OK, Alerts: scope missing; clicking Re-consent fixes it.",
+        "action": "github.com source with alerts enabled but security_events scope revoked; user clicks Test connection in Configure; the per-category result strip shows Issues OK and Dependabot: scope missing. PR #278 removed the per-source inline Re-consent chip (the result strip itself is unchanged), so #279 dropped the chip -> OAuth re-consent -> re-test assertions.",
         "expected": [
           "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
         ]
@@ -4546,7 +4542,7 @@
     ],
     "steps": [
       {
-        "action": "Project configured with github.com; open project Settings; observe tab list shows \"GitHub\" not \"Issue source\"; Identity tab shows only project name + default branch + Roubo paths; GitHub tab shows Repository + Linked Project + Submodules + source picker + Configure button.",
+        "action": "Project configured with github.com; open project Settings; the source section title reads the plugin manifest name; opening Configure shows the integration-fields section with the Repository field and the read-only derived-sources preview. PR #278 removed the standalone \"GitHub project\" field and the manual source picker in favour of server-side auto-derivation, so #279 dropped the \"GitHub project\" label assertion.",
         "expected": [
           "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
         ]
@@ -4612,19 +4608,17 @@
     "type": "e2e_flow",
     "preconditions": [
       "Playwright running against built Roubo app (real client + real server)",
-      "Stubbed plugin scenario loaded: --scenario=alerts-dependabot-e2e",
-      "Server started with ROUBO_E2E=1 (enables /test/__reset)",
-      "POST /test/__reset run at spec start to reset all server singletons"
+      "Stubbed plugin scenario removed in #279 (was --scenario=alerts-dependabot-e2e)"
     ],
     "steps": [
       {
-        "action": "github.com OAuth user without security_events; open Configure > Advanced on a source; toggle includeDependabotAlerts on; warning chip surfaces with inline re-consent; click Sign in again; OAuth re-runs; cut list now shows Dependabot alerts interleaved with regular issues; alert rows have no transition/assign actions.",
+        "action": "RETIRED in #279. PR #278 removed the per-source security-alerts disclosure (the includeDependabotAlerts toggle, the missing-scope warning chip, and the inline OAuth re-consent) from the Configure modal in favour of a read-only derived-sources preview, so the original toggle -> re-consent -> cut-list-interleave flow no longer has a UI surface.",
         "expected": [
-          "Flow completes deterministically; spec passes 10/10 consecutive CI runs (NFR-018)"
+          "No e2e flow. Dependabot alert interleaving and the read-only alert-row contract (no transitions/assignees) remain covered by unit tests (server list-issues + DraggableIssueCard)."
         ]
       }
     ],
-    "tags": ["e2e", "playwright", "automated"],
+    "tags": ["e2e", "playwright", "retired"],
     "linked_requirement_ids": ["FR-074", "FR-075", "FR-076"],
     "linked_user_story_ids": ["US-024"]
   },
