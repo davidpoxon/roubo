@@ -6,6 +6,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as pluginManager from "./plugin-manager.js";
 import { atomicWrite } from "./state.js";
 import { validateConfigObject } from "./config-parser.js";
+import { resolveWithin } from "../lib/safe-path.js";
 
 const GITHUB_PLUGIN_ID = "github-com";
 const REPOSITORY_CATEGORY = "Repository";
@@ -64,7 +65,15 @@ export function collectDesiredRepos(config: RouboConfig, repoPath: string): stri
 
 function readGitmodulesUrls(repoPath: string): Map<string, string> {
   const out = new Map<string, string>();
-  const filePath = path.join(repoPath, ".gitmodules");
+  let filePath: string;
+  try {
+    // resolveWithin keeps CodeQL's js/path-injection suite happy by enforcing
+    // the same `path.relative + startsWith("..")` containment check the rest
+    // of server/services uses for caller-provided roots (see safe-path.ts).
+    filePath = resolveWithin(repoPath, ".gitmodules");
+  } catch {
+    return out;
+  }
   let content: string;
   try {
     content = fs.readFileSync(filePath, "utf-8");
@@ -199,8 +208,12 @@ export async function deriveAndPersistGithubSources(
   try {
     derived = await deriveGithubSources(projectId);
   } catch (err) {
+    // Use %s placeholders so CodeQL's js/tainted-format-string rule does not
+    // flag the user-derived projectId being interpolated into the format
+    // string itself.
     console.warn(
-      `[derive-github-sources] derivation failed for project ${projectId}:`,
+      "[derive-github-sources] derivation failed for project %s: %s",
+      projectId,
       (err as Error).message,
     );
     return null;
@@ -224,7 +237,8 @@ export async function deriveAndPersistGithubSources(
   const parseResult = validateConfigObject(next);
   if (!parseResult.valid) {
     console.warn(
-      `[derive-github-sources] derived sources failed validation for project ${projectId}:`,
+      "[derive-github-sources] derived sources failed validation for project %s: %s",
+      projectId,
       parseResult.fieldErrors?.[0]?.message,
     );
     return derived.preview;
@@ -240,7 +254,8 @@ export async function deriveAndPersistGithubSources(
     }
   } catch (err) {
     console.warn(
-      `[derive-github-sources] persisting derived sources failed for project ${projectId}:`,
+      "[derive-github-sources] persisting derived sources failed for project %s: %s",
+      projectId,
       (err as Error).message,
     );
   }
@@ -249,13 +264,11 @@ export async function deriveAndPersistGithubSources(
 }
 
 function writeConfig(repoPath: string, config: RouboConfig): void {
-  const repoRoot = path.resolve(repoPath);
-  const dir = path.resolve(repoRoot, ".roubo");
-  if (dir !== path.join(repoRoot, ".roubo")) {
-    throw new Error("Resolved config directory escaped the project root");
-  }
+  // resolveWithin enforces containment under repoPath (the project's repo
+  // root) using the path.relative shape CodeQL recognises as a sanitizer.
+  const configPath = resolveWithin(repoPath, ".roubo", "roubo.yaml");
+  const dir = path.dirname(configPath);
   fs.mkdirSync(dir, { recursive: true });
-  const configPath = path.join(dir, "roubo.yaml");
   const yamlContent = YAML.stringify(config, {
     indent: 2,
     lineWidth: 0,

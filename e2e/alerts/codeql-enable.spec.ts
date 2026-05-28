@@ -111,7 +111,12 @@ test.beforeEach(async ({ request, page }) => {
   expect(overrideRes.status()).toBe(200);
 });
 
-test("CodeQL alerts: toggle on → warning chip → OAuth re-consent → cut list interleaves", async ({
+// Skipped pending #279. PR #278 removed the SourcePicker tile (which owned
+// `sources-section` and the per-source security-alerts disclosure) in favour
+// of server-side sources auto-derivation, so the toggle-on / disclosure flow
+// this spec drives no longer has a UI surface. Re-author against the new
+// derived-sources preview once the design lands.
+test.skip("CodeQL alerts: toggle on -> warning chip -> OAuth re-consent -> cut list interleaves", async ({
   page,
   request,
 }) => {

@@ -22,7 +22,12 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("unconfigured tile -> choose integration -> configure -> pick source -> connected", async ({
+// Skipped pending #279. PR #278 removed the SourcePicker tile (which owned
+// `sources-section`) in favour of server-side sources auto-derivation, so the
+// "pick a source from a list" step this spec exercises no longer has a UI
+// surface. Re-author against the derived-sources preview once the new flow
+// is finalised.
+test.skip("unconfigured tile -> choose integration -> configure -> pick source -> connected", async ({
   page,
   request,
 }) => {

@@ -113,7 +113,11 @@ test.beforeEach(async ({ request, page }) => {
   expect(overrideRes.status()).toBe(200);
 });
 
-test("Dependabot alerts: warning chip → OAuth re-consent → cut list updates", async ({
+// Skipped pending #279. The Dependabot warning chip lived inside the per-source
+// security-alerts disclosure that PR #278 removed along with the SourcePicker;
+// the dialog no longer exposes a UI surface for this flow. Re-author against
+// the new derived-sources preview once the alerts surface is finalised.
+test.skip("Dependabot alerts: warning chip -> OAuth re-consent -> cut list updates", async ({
   page,
   request,
 }) => {
