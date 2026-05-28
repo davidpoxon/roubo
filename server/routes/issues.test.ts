@@ -184,7 +184,8 @@ describe("GET /:projectId/issues", () => {
     );
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(503);
-    expect(res.body.error).toBe("plugin-not-enabled");
+    expect(res.body.code).toBe("plugin-not-enabled");
+    expect(res.body.error).toBe("disabled");
   });
 
   it("maps timeout to 504", async () => {
@@ -293,7 +294,7 @@ describe("GET /:projectId/issues", () => {
       vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue(undefined);
       const res = await request(app).get("/p1/issues");
       expect(res.status).toBe(503);
-      expect(res.body.error).toBe("plugin-not-enabled");
+      expect(res.body.code).toBe("plugin-not-enabled");
     });
 
     it("does not serve the cached snapshot on paginated requests (cursor > 0)", async () => {
@@ -411,8 +412,9 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
       .send({ transitionName: "Done" });
     expect(res.status).toBe(502);
     expect(res.body).toEqual({
-      error: "rpc-error",
-      message: "Your token lacks permission to transition this workflow.",
+      error: "Your token lacks permission to transition this workflow.",
+      code: "rpc-error",
+      params: {},
     });
   });
 
@@ -480,8 +482,9 @@ describe("POST /:projectId/issues/:externalId/assign", () => {
       .send({ assigneeExternalId: "jane.doe@acme.com" });
     expect(res.status).toBe(502);
     expect(res.body).toEqual({
-      error: "rpc-error",
-      message: "Your token lacks permission to assign issues.",
+      error: "Your token lacks permission to assign issues.",
+      code: "rpc-error",
+      params: {},
     });
   });
 });
@@ -520,7 +523,11 @@ describe("DELETE /:projectId/issues/:externalId/assign", () => {
       .delete("/p1/issues/ROUBO-42/assign")
       .send({ assigneeExternalId: "jane.doe@acme.com" });
     expect(res.status).toBe(502);
-    expect(res.body).toEqual({ error: "rpc-error", message: "Plugin refused unassign" });
+    expect(res.body).toEqual({
+      error: "Plugin refused unassign",
+      code: "rpc-error",
+      params: {},
+    });
   });
 });
 

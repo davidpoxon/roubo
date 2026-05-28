@@ -22,12 +22,12 @@ import {
   deriveGithubSources,
 } from "../services/derive-github-sources.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
+import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import type {
   RegisterProjectRequest,
   SaveConfigRequest,
   ValidateConfigRequest,
   CheckConfigRequest,
-  PluginError,
   ProjectIssueTypesV2Response,
   IntegrationFieldsUpdate,
 } from "@roubo/shared";
@@ -241,16 +241,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
     const body: ProjectIssueTypesV2Response = { configured: true, types };
     res.json(body);
   } catch (err) {
-    const pluginErr = err as Partial<PluginError> & { message?: string };
-    const code = typeof pluginErr.code === "string" ? pluginErr.code : "rpc-error";
-    const message = pluginErr.message ?? "Plugin call failed";
-    const status =
-      code === "plugin-not-enabled" || code === "unknown-plugin"
-        ? 503
-        : code === "timeout"
-          ? 504
-          : 502;
-    res.status(status).json({ error: code, message });
+    sendPluginRpcError(res, err);
   }
 });
 

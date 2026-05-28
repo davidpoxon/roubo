@@ -719,7 +719,8 @@ describe("GET /:projectId/issue-types", () => {
     );
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(503);
-    expect(res.body.error).toBe("plugin-not-enabled");
+    expect(res.body.code).toBe("plugin-not-enabled");
+    expect(res.body.error).toBe("disabled");
   });
 
   it("returns 502 rpc-error when ensurePluginActivated rejects", async () => {
@@ -729,7 +730,7 @@ describe("GET /:projectId/issue-types", () => {
     vi.mocked(pluginManager.invoke).mockClear();
     const res = await request(app).get("/project/issue-types");
     expect(res.status).toBe(502);
-    expect(res.body).toEqual({ error: "rpc-error", message: "bad config" });
+    expect(res.body).toEqual({ error: "bad config", code: "rpc-error", params: {} });
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });

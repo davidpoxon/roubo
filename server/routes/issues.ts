@@ -6,7 +6,6 @@ import type {
   NormalizedComment,
   NormalizedIssue,
   PaginatedIssues,
-  PluginError,
 } from "@roubo/shared";
 import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
@@ -16,6 +15,7 @@ import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js
 import { parseIntParam } from "./helpers.js";
 import { ServiceError } from "../services/service-error.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
+import { sendPluginRpcError } from "./plugin-rpc-error.js";
 
 const router = Router();
 
@@ -44,19 +44,6 @@ async function getActivePluginOrRespond(
     return null;
   }
   return active;
-}
-
-function sendPluginRpcError(res: Response, err: unknown): void {
-  const pluginErr = err as Partial<PluginError> & { message?: string };
-  const code = typeof pluginErr.code === "string" ? pluginErr.code : "rpc-error";
-  const message = pluginErr.message ?? "Plugin call failed";
-  const status =
-    code === "plugin-not-enabled" || code === "unknown-plugin"
-      ? 503
-      : code === "timeout"
-        ? 504
-        : 502;
-  res.status(status).json({ error: code, message });
 }
 
 router.get("/:projectId/issues", async (req, res) => {
