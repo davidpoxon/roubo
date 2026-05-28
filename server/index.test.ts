@@ -12,6 +12,12 @@ vi.mock("./services/env.js", () => ({
 vi.mock("./services/project-registry.js", () => ({
   initialize: vi.fn(),
   getProjects: vi.fn(() => []),
+  getProject: vi.fn(),
+  onProjectConfigLoaded: vi.fn(),
+}));
+vi.mock("./services/integration-migrations.js", () => ({
+  initializeIntegrationMigrations: vi.fn(),
+  awaitPendingIntegrationSetup: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./services/bench-manager.js", () => ({
   initialize: vi.fn(),

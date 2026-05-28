@@ -10,6 +10,7 @@ import type {
 import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
+import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { parseIntParam } from "./helpers.js";
@@ -70,20 +71,21 @@ router.get("/:projectId/issues", async (req, res) => {
     filters.search = req.query.search;
   }
 
-  const params: ListIssuesParams = {
-    sources: resolveSources(req.params.projectId),
-    cursor: requestCursor,
-    pageSize,
-    filters: Object.keys(filters).length > 0 ? filters : undefined,
-  };
-
   const isFirstPage = requestCursor === null;
   let raw: {
     items: NormalizedIssue[];
     nextCursor: string | null;
     warnings?: ListIssuesWarning[];
   };
+  let params: ListIssuesParams | undefined;
   try {
+    await awaitPendingIntegrationSetup(req.params.projectId);
+    params = {
+      sources: resolveSources(req.params.projectId),
+      cursor: requestCursor,
+      pageSize,
+      filters: Object.keys(filters).length > 0 ? filters : undefined,
+    };
     raw = await pluginManager.invoke<{
       items: NormalizedIssue[];
       nextCursor: string | null;
@@ -98,7 +100,7 @@ router.get("/:projectId/issues", async (req, res) => {
     // page; falling through on cursor > 0 keeps the client from looking up an
     // arbitrarily-stale tail page that no longer matches the first page.
     const record = pluginManager.getRecord(active.pluginId);
-    if (isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
+    if (params && isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
       const cached = getSnapshot(active.pluginId, req.params.projectId, params);
       if (cached) {
         const stale: PaginatedIssues = {
@@ -250,6 +252,7 @@ router.get("/:projectId/labels", async (req, res) => {
   if (!active) return;
 
   try {
+    await awaitPendingIntegrationSetup(req.params.projectId);
     const labels = await pluginManager.invoke<string[]>(active.pluginId, "listLabels", {
       sources: resolveSources(req.params.projectId),
     });

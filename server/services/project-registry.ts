@@ -12,6 +12,24 @@ import * as state from "./state.js";
 
 const projects = new Map<string, RegisteredProject>();
 
+type ConfigLoadedListener = (project: RegisteredProject) => void;
+const configLoadedListeners: ConfigLoadedListener[] = [];
+
+export function onProjectConfigLoaded(cb: ConfigLoadedListener): void {
+  configLoadedListeners.push(cb);
+}
+
+function emitConfigLoaded(project: RegisteredProject): void {
+  if (!project.configValid) return;
+  for (const cb of configLoadedListeners) {
+    try {
+      cb(project);
+    } catch (err) {
+      console.warn("[project-registry] config-loaded listener threw: %s", (err as Error).message);
+    }
+  }
+}
+
 /**
  * Resolve `ProjectSettings` for a project loaded from `~/.roubo/projects.json`.
  *
@@ -37,24 +55,27 @@ export function initialize() {
   for (const entry of persisted.projects) {
     const settings = resolveSettings(entry);
     const result = parseConfig(entry.repoPath);
+    let project: RegisteredProject;
     if (result.valid && result.config) {
-      projects.set(entry.id, {
+      project = {
         id: entry.id,
         repoPath: entry.repoPath,
         config: result.config,
         configValid: true,
         settings,
-      });
+      };
     } else {
-      projects.set(entry.id, {
+      project = {
         id: entry.id,
         repoPath: entry.repoPath,
         config: undefined,
         configValid: false,
         configError: result.errors?.join("; "),
         settings,
-      });
+      };
     }
+    projects.set(entry.id, project);
+    emitConfigLoaded(project);
   }
 }
 
@@ -97,6 +118,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   projects.set(id, project);
   state.addProject({ id, repoPath, settings: project.settings });
 
+  emitConfigLoaded(project);
   return project;
 }
 
@@ -150,6 +172,7 @@ export function reloadConfig(projectId: string): RegisteredProject {
     project.configError = result.errors?.join("; ");
   }
 
+  emitConfigLoaded(project);
   return project;
 }
 
