@@ -9,6 +9,7 @@ import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
+import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { atomicWrite } from "../services/state.js";
 import { resolveWithin } from "../lib/safe-path.js";
 import {
@@ -221,6 +222,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
     // component that renders it) both use string names, so flatten on the way
     // out. Without this map the client renders `{id, name}` objects directly
     // as React children and crashes with React error #31.
+    await awaitPendingIntegrationSetup(req.params.projectId);
     const rawTypes = await pluginManager.invoke<Array<{ id: string; name: string }>>(
       active.pluginId,
       "listIssueTypes",

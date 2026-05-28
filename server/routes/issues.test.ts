@@ -25,6 +25,10 @@ vi.mock("../services/plugin-activation.js", () => ({
   resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
 }));
 
+vi.mock("../services/integration-migrations.js", () => ({
+  awaitPendingIntegrationSetup: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../services/issue-assignment.js", () => ({
   assignIssue: vi.fn(),
   unassignIssue: vi.fn(),
@@ -36,6 +40,7 @@ import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as issueSnapshotCache from "../services/issue-snapshot-cache.js";
+import * as integrationMigrations from "../services/integration-migrations.js";
 
 const app = express();
 app.use(express.json());
@@ -72,6 +77,7 @@ beforeEach(() => {
   vi.mocked(pluginActivation.resolveSources).mockReturnValue([
     { kind: "repo", externalId: "foo/bar" },
   ]);
+  vi.mocked(integrationMigrations.awaitPendingIntegrationSetup).mockResolvedValue(undefined);
 });
 
 describe("GET /:projectId/issues", () => {
@@ -104,6 +110,29 @@ describe("GET /:projectId/issues", () => {
       pageSize: 50,
       filters: { labels: ["bug", "feature"], search: "login" },
     });
+  });
+
+  it("awaits any pending integration setup before resolving sources for listIssues", async () => {
+    let releaseSetup!: () => void;
+    let invokedDuringWait = false;
+    vi.mocked(integrationMigrations.awaitPendingIntegrationSetup).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        releaseSetup = () => resolve();
+      }),
+    );
+    vi.mocked(pluginManager.invoke).mockImplementation(async () => {
+      invokedDuringWait = true;
+      return { items: [], nextCursor: null };
+    });
+
+    const pending = request(app).get("/p1/issues");
+    await new Promise((r) => setImmediate(r));
+    expect(invokedDuringWait).toBe(false);
+
+    releaseSetup();
+    await pending;
+    expect(invokedDuringWait).toBe(true);
+    expect(integrationMigrations.awaitPendingIntegrationSetup).toHaveBeenCalledWith("p1");
   });
 
   it("returns the paginated body with items and nextCursor", async () => {

@@ -10,6 +10,7 @@ import { loadEnvFile, resolveShellPath, resolveClaudeBinary } from "./services/e
 import { checkForUpdate } from "./services/version-check.js";
 import { detectClaudeAutoMode } from "./services/claude-version.js";
 import * as projectRegistry from "./services/project-registry.js";
+import { initializeIntegrationMigrations } from "./services/integration-migrations.js";
 import * as benchManager from "./services/bench-manager.js";
 import * as processManager from "./services/process-manager.js";
 import * as databaseService from "./services/database.js";
@@ -159,6 +160,12 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
+
+  // Run integration backfills after the plugin runtime is up: the github-com
+  // sources derivation issues a `listSourceCandidates` RPC, which needs a
+  // ready plugin manager. Subscribes for later registerProject/reloadConfig
+  // calls too.
+  initializeIntegrationMigrations();
 
   // Prime the legacy github service's in-memory token cache from the github-com
   // plugin's keychain slot. The cache backs the synchronous getOctokit() path

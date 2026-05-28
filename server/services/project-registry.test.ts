@@ -108,6 +108,91 @@ describe("initialize", () => {
   });
 });
 
+describe("onProjectConfigLoaded", () => {
+  it("fires on initialize for each project with a valid config", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [
+        { id: "valid", repoPath: "/repos/valid" },
+        { id: "broken", repoPath: "/repos/broken" },
+      ],
+    });
+    mockedParseConfig
+      .mockReturnValueOnce({ valid: true, config: makeConfig() })
+      .mockReturnValueOnce({ valid: false, errors: ["bad"] });
+
+    const listener = vi.fn();
+    registryModule.onProjectConfigLoaded(listener);
+    registryModule.initialize();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0]).toMatchObject({ id: "valid", configValid: true });
+  });
+
+  it("fires on registerProject after the project is saved", () => {
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const listener = vi.fn();
+    registryModule.onProjectConfigLoaded(listener);
+    const project = registryModule.registerProject("/repos/new-project");
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(project);
+  });
+
+  it("fires on reloadConfig when the new parse is valid", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+
+    const listener = vi.fn();
+    registryModule.onProjectConfigLoaded(listener);
+    registryModule.reloadConfig("p1");
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0]).toMatchObject({ id: "p1", configValid: true });
+  });
+
+  it("does not fire on reloadConfig when the new parse is invalid", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValueOnce({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+
+    const listener = vi.fn();
+    registryModule.onProjectConfigLoaded(listener);
+    mockedParseConfig.mockReturnValueOnce({ valid: false, errors: ["broke"] });
+    registryModule.reloadConfig("p1");
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("isolates listener errors with a console.warn and continues notifying the rest", () => {
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const throwing = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const after = vi.fn();
+    registryModule.onProjectConfigLoaded(throwing);
+    registryModule.onProjectConfigLoaded(after);
+    registryModule.registerProject("/repos/p1");
+
+    expect(throwing).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("config-loaded listener threw"),
+      "boom",
+    );
+    warn.mockRestore();
+  });
+});
+
 describe("registerProject", () => {
   it("succeeds and calls state.addProject", () => {
     const config = makeConfig();

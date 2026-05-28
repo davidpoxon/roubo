@@ -25,6 +25,7 @@ import {
   runIntegrationTest,
 } from "../services/integration-test.js";
 import { forgetProjectActivation, resolveSources } from "../services/plugin-activation.js";
+import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 import { getPluginFacetOptions, getPluginFilterFacets } from "../services/plugin-filter-facets.js";
 
@@ -478,6 +479,7 @@ router.get("/:projectId/integration/facet-options", async (req, res) => {
   }
 
   try {
+    await awaitPendingIntegrationSetup(req.params.projectId);
     const options = await getPluginFacetOptions(effective.plugin, {
       facetId,
       sources: resolveSources(req.params.projectId),
