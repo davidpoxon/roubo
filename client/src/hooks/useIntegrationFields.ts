@@ -22,6 +22,10 @@ export function useSaveIntegrationFields(projectId: string) {
       // re-fetch as well.
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
+      // Server re-derives github-com sources from the new repo/submodules in a
+      // best-effort hook, so the preview the Configure modal renders needs to
+      // re-fetch alongside the fields it was driven from.
+      void queryClient.invalidateQueries({ queryKey: ["github-derived-sources", projectId] });
     },
   });
 }

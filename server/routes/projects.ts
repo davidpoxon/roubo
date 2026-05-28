@@ -17,6 +17,10 @@ import {
   touchesIntegrationFields,
   IntegrationFieldsError,
 } from "../services/project-integration-fields.js";
+import {
+  deriveAndPersistGithubSources,
+  deriveGithubSources,
+} from "../services/derive-github-sources.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import type {
   RegisterProjectRequest,
@@ -366,7 +370,7 @@ router.get("/:projectId/integration/fields", (req, res) => {
   }
 });
 
-router.put("/:projectId/integration/fields", (req, res) => {
+router.put("/:projectId/integration/fields", async (req, res) => {
   const update = req.body as IntegrationFieldsUpdate;
   if (!update || typeof update !== "object" || Array.isArray(update)) {
     res.status(400).json({ error: "Request body must be an object" });
@@ -374,6 +378,10 @@ router.put("/:projectId/integration/fields", (req, res) => {
   }
   try {
     const fields = setIntegrationFields(req.params.projectId, update);
+    // Best-effort sources derivation: writing fields succeeded, so the response
+    // is shaped from `fields` regardless of whether derivation runs. Errors
+    // inside deriveAndPersistGithubSources are already logged and swallowed.
+    void deriveAndPersistGithubSources(req.params.projectId);
     res.json(fields);
   } catch (err) {
     if (err instanceof IntegrationFieldsError) {
@@ -389,6 +397,15 @@ router.put("/:projectId/integration/fields", (req, res) => {
     } else {
       res.status(500).json({ error: (err as Error).message });
     }
+  }
+});
+
+router.get("/:projectId/integration/derived-sources", async (req, res) => {
+  try {
+    const derived = await deriveGithubSources(req.params.projectId);
+    res.json(derived.preview);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

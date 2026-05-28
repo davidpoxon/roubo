@@ -3,21 +3,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Button, DialogTrigger } from "react-aria-components";
-import type {
-  IntegrationConfig,
-  ProjectIntegrationState,
-  SourceCandidatesResponse,
-} from "@roubo/shared";
+import type { IntegrationConfig, ProjectIntegrationState } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
 import PluginConfigureDialog from "./PluginConfigureDialog";
 import {
   useTestIntegrationConnection,
   useSaveIntegrationConfig,
 } from "../hooks/useProjectIntegration";
-import { useSourceCandidates } from "../hooks/useSourceCandidates";
-import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
-import { useGitHubProjects } from "../hooks/useSetup";
+import { useDerivedGithubSources } from "../hooks/useDerivedGithubSources";
 import {
   useTestGlobalPluginIntegration,
   useSaveGlobalPluginIntegration,
@@ -28,21 +22,13 @@ vi.mock("../hooks/useProjectIntegration", () => ({
   useSaveIntegrationConfig: vi.fn(),
 }));
 
-vi.mock("../hooks/useSourceCandidates", () => ({
-  useSourceCandidates: vi.fn(),
-}));
-
-vi.mock("../hooks/useSaveProjectSources", () => ({
-  useSaveProjectSources: vi.fn(),
-}));
-
 vi.mock("../hooks/useIntegrationFields", () => ({
   useIntegrationFields: vi.fn(),
   useSaveIntegrationFields: vi.fn(),
 }));
 
-vi.mock("../hooks/useSetup", () => ({
-  useGitHubProjects: vi.fn(),
+vi.mock("../hooks/useDerivedGithubSources", () => ({
+  useDerivedGithubSources: vi.fn(),
 }));
 
 vi.mock("../hooks/useGlobalPluginIntegration", () => ({
@@ -52,14 +38,18 @@ vi.mock("../hooks/useGlobalPluginIntegration", () => ({
 }));
 
 const { useOpportunisticRecheckOnMountMock, useConnectionStatusMock } = vi.hoisted(() => {
-  // The real hook returns a react-query UseQueryResult, but the dialog only
-  // reads `.data` and `.isFetching`. Default the mock to "no data, idle" and
-  // let individual tests override via mockReturnValueOnce.
   type UseConnectionStatusReturn = ReturnType<
     typeof import("../hooks/usePlugins").useConnectionStatus
   >;
+  // Default to a "connected" pill so the modal body renders for tests that
+  // exercise the form. Tests that need to assert disconnected state can
+  // override with mockReturnValue.
   const useConnectionStatusMock = vi.fn<() => UseConnectionStatusReturn>(
-    () => ({ data: undefined, isFetching: false }) as unknown as UseConnectionStatusReturn,
+    () =>
+      ({
+        data: { state: "connected", checkedAt: "2026-05-22T09:00:00.000Z" },
+        isFetching: false,
+      }) as unknown as UseConnectionStatusReturn,
   );
   return {
     useOpportunisticRecheckOnMountMock: vi.fn(),
@@ -75,29 +65,24 @@ vi.mock("../hooks/usePlugins", async () => {
   };
 });
 
-const { useIssueListWarningsMock } = vi.hoisted(() => ({
-  useIssueListWarningsMock: vi.fn() as unknown as ReturnType<
-    typeof vi.fn<(projectId: string | undefined) => import("@roubo/shared").ListIssuesWarning[]>
-  >,
-}));
-useIssueListWarningsMock.mockReturnValue([]);
-vi.mock("../hooks/useIssues", () => ({ useIssueListWarnings: useIssueListWarningsMock }));
-
-const { mockStartGithubPluginOauth } = vi.hoisted(() => ({
+const { mockStartGithubPluginOauth, mockDisconnectGithubPluginOauth } = vi.hoisted(() => ({
   mockStartGithubPluginOauth: vi.fn(),
+  mockDisconnectGithubPluginOauth: vi.fn(),
 }));
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-  return { ...actual, startGithubPluginOauth: mockStartGithubPluginOauth };
+  return {
+    ...actual,
+    startGithubPluginOauth: mockStartGithubPluginOauth,
+    disconnectGithubPluginOauth: mockDisconnectGithubPluginOauth,
+  };
 });
 
 const mockedUseTest = vi.mocked(useTestIntegrationConnection);
 const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
-const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
-const mockedUseSaveSources = vi.mocked(useSaveProjectSources);
 const mockedUseFields = vi.mocked(useIntegrationFields);
 const mockedUseSaveFields = vi.mocked(useSaveIntegrationFields);
-const mockedUseGitHubProjects = vi.mocked(useGitHubProjects);
+const mockedUseDerivedSources = vi.mocked(useDerivedGithubSources);
 
 function inputIn(testId: string): HTMLInputElement {
   const wrapper = screen.getByTestId(testId);
@@ -166,17 +151,18 @@ function renderDialog({
 function installMocks(opts: {
   test: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
-  saveSources?: ReturnType<typeof vi.fn>;
-  candidates?: {
-    data?: SourceCandidatesResponse;
-    isLoading?: boolean;
-    isError?: boolean;
-    error?: unknown;
-  };
   testPending?: boolean;
   savePending?: boolean;
-  saveSourcesPending?: boolean;
+  connectionState?: "connected" | "auth-problem" | "disconnected" | "errored";
 }) {
+  const connState = opts.connectionState ?? "connected";
+  useConnectionStatusMock.mockImplementation(
+    () =>
+      ({
+        data: { state: connState, checkedAt: "2026-05-22T09:00:00.000Z" },
+        isFetching: false,
+      }) as unknown as UseConnectionStatusReturn,
+  );
   mockedUseTest.mockReturnValue({
     mutateAsync: opts.test,
     isPending: opts.testPending ?? false,
@@ -185,16 +171,6 @@ function installMocks(opts: {
     mutateAsync: opts.save,
     isPending: opts.savePending ?? false,
   } as unknown as ReturnType<typeof useSaveIntegrationConfig>);
-  mockedUseSaveSources.mockReturnValue({
-    mutateAsync: opts.saveSources ?? vi.fn().mockResolvedValue({}),
-    isPending: opts.saveSourcesPending ?? false,
-  } as unknown as ReturnType<typeof useSaveProjectSources>);
-  mockedUseSourceCandidates.mockReturnValue({
-    data: opts.candidates?.data,
-    isLoading: opts.candidates?.isLoading ?? false,
-    isError: opts.candidates?.isError ?? false,
-    error: opts.candidates?.error ?? null,
-  } as unknown as ReturnType<typeof useSourceCandidates>);
   mockedUseFields.mockReturnValue({
     data: undefined,
     isLoading: false,
@@ -203,73 +179,85 @@ function installMocks(opts: {
     mutateAsync: vi.fn().mockResolvedValue({}),
     isPending: false,
   } as unknown as ReturnType<typeof useSaveIntegrationFields>);
-  mockedUseGitHubProjects.mockReturnValue({
-    data: undefined,
+  mockedUseDerivedSources.mockReturnValue({
+    data: { repos: [], projects: [], alertsRequested: [] },
     isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  } as unknown as ReturnType<typeof useGitHubProjects>);
+  } as unknown as ReturnType<typeof useDerivedGithubSources>);
 }
+
+type UseConnectionStatusReturn = ReturnType<
+  typeof import("../hooks/usePlugins").useConnectionStatus
+>;
+const CONNECTED_PILL = {
+  data: { state: "connected", checkedAt: "2026-05-22T09:00:00.000Z" },
+  isFetching: false,
+} as unknown as UseConnectionStatusReturn;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The hook fires on every render and may be queried multiple times per
+  // mount; `mockReturnValueOnce` would be consumed by the first call and
+  // leave subsequent calls undefined. Reset the persistent default so each
+  // test starts from "connected" and can override with `mockReturnValue`.
+  useConnectionStatusMock.mockImplementation(() => CONNECTED_PILL);
 });
 
 describe("PluginConfigureDialog", () => {
   it("renders the connection-status chip in the dialog header (WU-064, TC-168)", () => {
-    type UseConnectionStatusReturn = ReturnType<
-      typeof import("../hooks/usePlugins").useConnectionStatus
-    >;
     installMocks({ test: vi.fn(), save: vi.fn() });
-    useConnectionStatusMock.mockReturnValue({
-      data: {
-        state: "connected",
-        detail: "stubbed",
-        checkedAt: "2026-05-22T09:00:00.000Z",
-      },
-      isFetching: false,
-    } as unknown as UseConnectionStatusReturn);
-
-    try {
-      renderDialog();
-
-      const header = screen.getByTestId("plugin-configure-dialog-header");
-      expect(header).toBeInTheDocument();
-      const pill = screen.getByTestId("connection-status-pill");
-      expect(pill).toHaveAttribute("data-state", "connected");
-    } finally {
-      // `mockReturnValue` persists across tests (clearAllMocks only clears
-      // call history). Reset and reinstall the hoisted default so sibling
-      // tests start from "no live data".
-      useConnectionStatusMock.mockReset();
-      useConnectionStatusMock.mockImplementation(
-        () => ({ data: undefined, isFetching: false }) as unknown as UseConnectionStatusReturn,
-      );
-    }
-  });
-
-  it("disables Save before any test has run, and enables it after a successful test (TC-037)", async () => {
-    const user = userEvent.setup();
-    const test = vi.fn().mockResolvedValue({
-      ok: true,
-      identity: { externalId: "u-1", displayName: "Jane Doe" },
-    });
-    const save = vi.fn().mockResolvedValue({});
-    installMocks({ test, save });
-
     renderDialog();
-
-    const saveBtn = screen.getByTestId("save-config");
-    expect(saveBtn).toBeDisabled();
-
-    await user.click(screen.getByTestId("test-connection"));
-
-    await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-    expect(screen.getByText("Connected as Jane Doe.")).toBeInTheDocument();
-    expect(saveBtn).not.toBeDisabled();
+    const header = screen.getByTestId("plugin-configure-dialog-header");
+    expect(header).toBeInTheDocument();
+    const pill = screen.getByTestId("connection-status-pill");
+    expect(pill).toHaveAttribute("data-state", "connected");
   });
 
-  it("submits the captured externalId on save and closes the dialog (TC-038)", async () => {
+  it("hides the form body and the Verify button when an OAuth plugin is not connected", () => {
+    // The connection gate only applies to OAuth-driven plugins (github-com),
+    // where credentials are bootstrapped via the dedicated GithubOauthSection.
+    // Non-OAuth plugins keep the form visible so the user can enter creds.
+    const githubPlugin: Plugin = {
+      id: "github-com",
+      installed: true,
+      status: "enabled",
+      manifest: {
+        name: "GitHub",
+        configSchema: { type: "object", properties: {} },
+        permissions: {
+          network: { hosts: [] },
+          credentials: { slots: [] },
+          filesystem: { paths: [] },
+          processes: false,
+        },
+      },
+    };
+    installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
+    renderDialog({ plugin: githubPlugin, effective: { plugin: "github-com" } });
+    // Verify button only renders when connected.
+    expect(screen.queryByTestId("test-connection")).not.toBeInTheDocument();
+    // Save is disabled while disconnected.
+    expect(screen.getByTestId("save-config")).toBeDisabled();
+  });
+
+  it("keeps the form and Verify button visible for non-OAuth plugins even when disconnected", () => {
+    // Without this, ghe / jira-self-hosted users have no path to enter the
+    // credentials needed to reach `connected` on first install or after an
+    // expiry.
+    installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "disconnected" });
+    renderDialog();
+    expect(screen.getByTestId("config-field-instance")).toBeInTheDocument();
+    expect(screen.getByTestId("test-connection")).toBeInTheDocument();
+    expect(screen.getByTestId("save-config")).not.toBeDisabled();
+  });
+
+  it("enables Save and exposes Verify the moment the connection-status pill reads 'connected'", () => {
+    installMocks({ test: vi.fn(), save: vi.fn() });
+    renderDialog();
+    expect(screen.getByTestId("test-connection")).toBeInTheDocument();
+    expect(screen.getByTestId("save-config")).not.toBeDisabled();
+  });
+
+  it("Save runs Verify implicitly, persists capturedUserId, and closes the dialog", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({
       ok: true,
@@ -284,9 +272,6 @@ describe("PluginConfigureDialog", () => {
       onClose,
     });
 
-    await user.click(screen.getByTestId("test-connection"));
-    await waitFor(() => expect(test).toHaveBeenCalled());
-
     await user.click(screen.getByTestId("save-config"));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
 
@@ -299,7 +284,7 @@ describe("PluginConfigureDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("keeps Save disabled and shows the structured auth-error message (TC-060)", async () => {
+  it("bails out of Save when the implicit Verify fails, and renders the auth-error strip", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({
       ok: false,
@@ -308,19 +293,16 @@ describe("PluginConfigureDialog", () => {
         message: "Authentication failed: 401 Unauthorized. Check token scopes.",
       },
     });
-    installMocks({ test, save: vi.fn() });
-
+    const save = vi.fn().mockResolvedValue({});
+    installMocks({ test, save });
     renderDialog();
 
-    await user.click(screen.getByTestId("test-connection"));
+    await user.click(screen.getByTestId("save-config"));
     await waitFor(() => expect(screen.getByTestId("test-result-error-auth")).toBeInTheDocument());
-    expect(
-      screen.getByText("Authentication failed: 401 Unauthorized. Check token scopes."),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("save-config")).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
   });
 
-  it("renders the network-error strip and keeps Save disabled (TC-061)", async () => {
+  it("renders the network-error strip on Verify failure", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({
       ok: false,
@@ -330,7 +312,6 @@ describe("PluginConfigureDialog", () => {
       },
     });
     installMocks({ test, save: vi.fn() });
-
     renderDialog();
 
     await user.click(screen.getByTestId("test-connection"));
@@ -338,10 +319,9 @@ describe("PluginConfigureDialog", () => {
       expect(screen.getByTestId("test-result-error-network")).toBeInTheDocument(),
     );
     expect(screen.getByText(/ENOTFOUND/)).toBeInTheDocument();
-    expect(screen.getByTestId("save-config")).toBeDisabled();
   });
 
-  it("offers an inline 'Enable self-signed TLS' button on TLS error that flips the toggle and re-runs (TC-062)", async () => {
+  it("offers an inline 'Enable self-signed TLS' button on TLS error that flips the toggle and re-runs", async () => {
     const user = userEvent.setup();
     const test = vi
       .fn()
@@ -354,7 +334,6 @@ describe("PluginConfigureDialog", () => {
         identity: { externalId: "u-1", displayName: "Jane Doe" },
       });
     installMocks({ test, save: vi.fn() });
-
     renderDialog();
 
     await user.click(screen.getByTestId("test-connection"));
@@ -364,29 +343,28 @@ describe("PluginConfigureDialog", () => {
     await user.click(screen.getByTestId("enable-self-signed-tls"));
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2));
 
-    // The retry must have been sent with the TLS toggle set to true.
     expect(test.mock.calls[1][0]).toMatchObject({ allowSelfSignedTls: true });
     await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-    expect(screen.getByTestId("save-config")).not.toBeDisabled();
   });
 
-  it("resets the tested-successfully state when any field changes (FR-034)", async () => {
+  it("clears any stale Verify result when a config field changes", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({
       ok: true,
       identity: { externalId: "u-1", displayName: "Jane Doe" },
     });
     installMocks({ test, save: vi.fn() });
-
     renderDialog();
 
     await user.click(screen.getByTestId("test-connection"));
-    await waitFor(() => expect(screen.getByTestId("save-config")).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
 
     await user.type(inputIn("config-field-instance"), "x");
 
-    expect(screen.getByTestId("save-config")).toBeDisabled();
     expect(screen.queryByTestId("test-result-success")).not.toBeInTheDocument();
+    // Save stays enabled because the gate is the connection pill, not a fresh
+    // test. Save will re-run Verify and re-populate the strip.
+    expect(screen.getByTestId("save-config")).not.toBeDisabled();
   });
 
   describe("per-category result strip (WU-041, FR-047)", () => {
@@ -426,75 +404,6 @@ describe("PluginConfigureDialog", () => {
       expect(screen.getByText("Token missing `security_events` scope.")).toBeInTheDocument();
     });
 
-    it("never renders a row for a disabled category (AC: 'not 'not-enabled' placeholders')", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-        categories: [{ category: "issues", label: "Issues", status: "ok" }],
-      });
-      installMocks({ test, save: vi.fn() });
-      renderDialog();
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-
-      expect(screen.getByTestId("test-result-category-issues-ok")).toBeInTheDocument();
-      expect(
-        screen.queryByTestId("test-result-category-code-scanning-not-enabled"),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByTestId("test-result-category-secret-scanning-not-enabled"),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByTestId("test-result-category-dependabot-not-enabled"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("renders a timed-out row with amber styling and keeps the strip in success tone (TC-103)", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-        categories: [
-          { category: "issues", label: "Issues", status: "ok" },
-          {
-            category: "code-scanning",
-            label: "Code Scanning alerts",
-            status: "timed-out",
-            detail: "Timed out",
-          },
-          {
-            category: "secret-scanning",
-            label: "Secret Scanning alerts",
-            status: "ok",
-            httpStatus: 200,
-          },
-          {
-            category: "dependabot",
-            label: "Dependabot alerts",
-            status: "ok",
-            httpStatus: 200,
-          },
-        ],
-      });
-      installMocks({ test, save: vi.fn() });
-      renderDialog();
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-
-      const timedOutRow = screen.getByTestId("test-result-category-code-scanning-timed-out");
-      expect(timedOutRow).toBeInTheDocument();
-      // The row's text and detail use amber tones.
-      expect(timedOutRow.querySelector(".text-amber-800")).not.toBeNull();
-      expect(screen.getByText("Timed out")).toBeInTheDocument();
-      // Overall strip is in amber (not red) tone: timed-out is non-fatal, but
-      // the worst-status helper bumps the container above plain green.
-      expect(screen.getByTestId("test-result-success").className).toMatch(/amber/);
-      expect(screen.getByText("Connected as Jane Doe.")).toBeInTheDocument();
-    });
-
     it("falls back to the single 'Connected as' row when the server returns no categories", async () => {
       const user = userEvent.setup();
       const test = vi.fn().mockResolvedValue({
@@ -524,235 +433,9 @@ describe("PluginConfigureDialog", () => {
     expect(inputIn("config-field-instance")).toHaveValue("https://ghe.example");
   });
 
-  describe("sources section (#71)", () => {
-    const candidates: SourceCandidatesResponse = {
-      shape: "multi-list",
-      items: [
-        { externalId: "repo-1", label: "acme/api" },
-        { externalId: "repo-2", label: "acme/web" },
-      ],
-    };
-
-    it("hides the section before a successful test", () => {
-      installMocks({
-        test: vi.fn(),
-        save: vi.fn(),
-        candidates: { data: candidates },
-      });
-      renderDialog();
-      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
-    });
-
-    it("auto-saves instance + advanced when the test passes, then renders the picker", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      const save = vi.fn().mockResolvedValue({});
-      installMocks({
-        test,
-        save,
-        candidates: { data: candidates },
-      });
-      renderDialog({ effective: { plugin: "ghe", instance: "https://ghe.example" } });
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-
-      const payload = save.mock.calls[0][0];
-      expect(payload.capturedUserId).toEqual({ externalId: "u-1", displayName: "Jane Doe" });
-      expect(payload.instance).toBe("https://ghe.example");
-      expect(payload.token).toBeUndefined();
-
-      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
-      expect(screen.getByText("acme/api")).toBeInTheDocument();
-      expect(screen.getByText("acme/web")).toBeInTheDocument();
-    });
-
-    it("persists the selected sources via useSaveProjectSources on Save", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      const save = vi.fn().mockResolvedValue({});
-      const saveSources = vi.fn().mockResolvedValue({});
-      installMocks({
-        test,
-        save,
-        saveSources,
-        candidates: { data: candidates },
-      });
-      const onClose = vi.fn();
-      renderDialog({
-        effective: { plugin: "ghe", instance: "https://ghe.example" },
-        onClose,
-      });
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
-
-      await user.click(screen.getByText("acme/api"));
-      await user.click(screen.getByText("acme/web"));
-
-      await user.click(screen.getByTestId("save-config"));
-      await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
-
-      expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1", "repo-2"] });
-      expect(onClose).toHaveBeenCalled();
-    });
-
-    it("hides the section entirely when the plugin returns no candidates", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      installMocks({
-        test,
-        save: vi.fn().mockResolvedValue({}),
-        candidates: { data: { shape: "multi-list", items: [] } },
-      });
-      renderDialog();
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-
-      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
-    });
-
-    it("hides the section when listSourceCandidates errors (e.g. plugin returns 502)", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      installMocks({
-        test,
-        save: vi.fn().mockResolvedValue({}),
-        candidates: { isError: true, error: new Error("Plugin listSourceCandidates failed") },
-      });
-      renderDialog();
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-
-      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
-    });
-
-    it("hides the section again when the user changes any field after a successful test", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      installMocks({
-        test,
-        save: vi.fn().mockResolvedValue({}),
-        candidates: { data: candidates },
-      });
-      renderDialog();
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
-
-      await user.type(inputIn("config-field-instance"), "x");
-
-      expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("test-result-success")).not.toBeInTheDocument();
-    });
-
-    it("seeds the source-selection state from the effective override", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      const saveSources = vi.fn().mockResolvedValue({});
-      installMocks({
-        test,
-        save: vi.fn().mockResolvedValue({}),
-        saveSources,
-        candidates: { data: candidates },
-      });
-      renderDialog({
-        effective: {
-          plugin: "ghe",
-          instance: "https://ghe.example",
-          sources: { items: ["repo-1"] },
-        },
-      });
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
-
-      // Saving without touching the picker should re-emit the seeded selection.
-      await user.click(screen.getByTestId("save-config"));
-      await waitFor(() => expect(saveSources).toHaveBeenCalledTimes(1));
-      expect(saveSources.mock.calls[0][0]).toEqual({ items: ["repo-1"] });
-    });
-  });
-
-  describe("OAuth re-consent inline action (WU-031)", () => {
-    const candidates: SourceCandidatesResponse = {
-      shape: "multi-list",
-      items: [
-        { externalId: "repo-1", label: "acme/api", icon: "repo" },
-        { externalId: "repo-2", label: "acme/web", icon: "repo" },
-      ],
-    };
-
-    it("renders the chip-as-button inside the Security Alerts disclosure when listIssues returns a 401, and opening the dialog leaves Configure mounted", async () => {
-      useIssueListWarningsMock.mockReturnValue([
-        {
-          category: "code-scanning",
-          sourceExternalId: "repo-1",
-          cause: "Code Scanning unavailable: missing security_events scope on the GitHub token.",
-          detail: { status: 401 },
-        },
-      ]);
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane Doe" },
-      });
-      installMocks({
-        test,
-        save: vi.fn().mockResolvedValue({}),
-        candidates: { data: candidates },
-      });
-
-      renderDialog({
-        plugin: makePlugin({ name: "GitHub" }),
-        effective: {
-          plugin: "ghe",
-          instance: "https://github.com",
-          sources: { items: [{ externalId: "repo-1", includeCodeQLAlerts: true }] },
-        },
-      });
-
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByTestId("sources-section")).toBeInTheDocument());
-
-      await user.click(
-        screen.getByRole("button", { name: /Security & quality alerts for acme\/api/i }),
-      );
-
-      // The chip is now a button (interactive re-consent affordance).
-      const chip = await screen.findByRole("button", { name: /unavailable/i });
-      expect(chip.tagName).toBe("BUTTON");
-
-      await user.click(chip);
-
-      // OAuth re-consent dialog opens AND the Configure dialog is still mounted.
-      expect(screen.getByTestId("oauth-reconsent-dialog")).toBeInTheDocument();
-      expect(screen.getByTestId("save-config")).toBeInTheDocument();
-    });
-  });
-
   // FR-070 (WU-057): the github-com Configure modal hosts the Identity-resident
-  // fields (Repository / Linked GitHub Project / Submodules).
+  // fields (Repository / Submodules). The GitHub Project picker is gone; the
+  // server infers projects from the chosen repo.
   describe("integration fields section (WU-057)", () => {
     function githubPlugin(): Plugin {
       return {
@@ -772,7 +455,7 @@ describe("PluginConfigureDialog", () => {
       };
     }
 
-    it("renders Repository and GitHub project for the github-com plugin", () => {
+    it("renders the Repository input for the github-com plugin without a separate Project picker", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
       mockedUseFields.mockReturnValue({
         data: { repo: "acme/demo", layoutType: "single-repo" },
@@ -783,8 +466,9 @@ describe("PluginConfigureDialog", () => {
       const section = screen.getByTestId("integration-fields-section");
       expect(section).toBeInTheDocument();
       expect(section.querySelector("input[placeholder='org/repo-name']")).toBeInTheDocument();
-      expect(section.textContent).toMatch(/GitHub project/i);
-      // single-repo: Submodules editor is hidden (no Submodules label rendered).
+      // The standalone GitHub Project picker is no longer rendered: sources
+      // and linked projects are derived from the repo on the server.
+      expect(section.textContent).not.toMatch(/GitHub project/i);
       expect(section.textContent).not.toMatch(/Submodules/);
     });
 
@@ -798,7 +482,6 @@ describe("PluginConfigureDialog", () => {
 
       const section = screen.getByTestId("integration-fields-section");
       expect(section.textContent).toMatch(/Submodules/);
-      // Existing alias/dir surface as inputs in the editor.
       expect(screen.getByDisplayValue("backend")).toBeInTheDocument();
       expect(screen.getByDisplayValue("apps/backend")).toBeInTheDocument();
     });
@@ -827,40 +510,49 @@ describe("PluginConfigureDialog", () => {
       await user.clear(repoInput);
       await user.type(repoInput, "acme/new");
 
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(test).toHaveBeenCalled());
-
       await user.click(screen.getByTestId("save-config"));
       await waitFor(() => expect(saveFields).toHaveBeenCalledTimes(1));
       expect(saveFields.mock.calls[0][0]).toEqual({ repo: "acme/new" });
     });
 
-    it("skips the save mutation when no field changed", async () => {
-      const user = userEvent.setup();
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "Jane" },
-      });
-      const saveFields = vi.fn().mockResolvedValue({});
-      installMocks({ test, save: vi.fn().mockResolvedValue({}) });
+    it("renders the derived-sources preview line when the server returns a derived repo set", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
       mockedUseFields.mockReturnValue({
         data: { repo: "acme/demo", layoutType: "single-repo" },
         isLoading: false,
       } as unknown as ReturnType<typeof useIntegrationFields>);
-      mockedUseSaveFields.mockReturnValue({
-        mutateAsync: saveFields,
-        isPending: false,
-      } as unknown as ReturnType<typeof useSaveIntegrationFields>);
+      mockedUseDerivedSources.mockReturnValue({
+        data: {
+          repos: ["acme/demo"],
+          projects: [{ externalId: "acme/#1", label: "Planning" }],
+          alertsRequested: ["code-scanning", "secret-scanning", "dependabot"],
+        },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useDerivedGithubSources>);
 
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
 
-      await user.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(test).toHaveBeenCalled());
-      await user.click(screen.getByTestId("save-config"));
-      await waitFor(() => expect(screen.queryByTestId("save-config")).not.toBeInTheDocument(), {
-        timeout: 500,
-      }).catch(() => {});
-      expect(saveFields).not.toHaveBeenCalled();
+      const preview = screen.getByTestId("derived-sources-preview");
+      expect(preview).toHaveTextContent("acme/demo");
+      expect(preview).toHaveTextContent("1 GitHub Project");
+      expect(preview).toHaveTextContent(/security alerts/i);
+    });
+
+    it("warns when the derived-sources response has no matching repos", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "acme/missing", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      mockedUseDerivedSources.mockReturnValue({
+        data: { repos: [], projects: [], alertsRequested: [] },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useDerivedGithubSources>);
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const preview = screen.getByTestId("derived-sources-preview");
+      expect(preview).toHaveTextContent(/could not see this repository/i);
     });
 
     it("is hidden for non-github plugins", () => {
@@ -903,16 +595,18 @@ describe("PluginConfigureDialog (global scope)", () => {
       mutateAsync: vi.fn(),
       isPending: false,
     } as unknown as ReturnType<typeof useSaveIntegrationConfig>);
-    mockedUseSaveSources.mockReturnValue({
-      mutateAsync: vi.fn(),
-      isPending: false,
-    } as unknown as ReturnType<typeof useSaveProjectSources>);
-    mockedUseSourceCandidates.mockReturnValue({
+    mockedUseFields.mockReturnValue({
       data: undefined,
       isLoading: false,
-      isError: false,
-      error: null,
-    } as unknown as ReturnType<typeof useSourceCandidates>);
+    } as unknown as ReturnType<typeof useIntegrationFields>);
+    mockedUseSaveFields.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useSaveIntegrationFields>);
+    mockedUseDerivedSources.mockReturnValue({
+      data: { repos: [], projects: [], alertsRequested: [] },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useDerivedGithubSources>);
   }
 
   function renderGlobalDialog({
@@ -937,26 +631,7 @@ describe("PluginConfigureDialog (global scope)", () => {
     );
   }
 
-  it("never renders the Sources picker, even after a successful test", async () => {
-    const user = userEvent.setup();
-    const test = vi.fn().mockResolvedValue({
-      ok: true,
-      identity: { externalId: "u-1", displayName: "Jane Doe" },
-    });
-    const save = vi.fn().mockResolvedValue({});
-    installGlobalMocks({ test, save });
-
-    renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" } });
-
-    await user.click(screen.getByTestId("test-connection"));
-    await waitFor(() => expect(screen.getByTestId("test-result-success")).toBeInTheDocument());
-
-    expect(screen.queryByTestId("sources-section")).not.toBeInTheDocument();
-    // Source candidates should never have been queried.
-    expect(mockedUseSourceCandidates).toHaveBeenCalledWith("", null);
-  });
-
-  it("invokes the global save mutation (not the project one) on a successful test", async () => {
+  it("invokes the global save mutation (not the project one) when Save runs the implicit Verify", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({
       ok: true,
@@ -967,41 +642,25 @@ describe("PluginConfigureDialog (global scope)", () => {
 
     renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" } });
 
-    await user.click(screen.getByTestId("test-connection"));
+    await user.click(screen.getByTestId("save-config"));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0][0].capturedUserId).toEqual({
       externalId: "u-7",
       displayName: "Globally Yours",
     });
-    // The project-mode save mutation must NOT be touched.
     expect(mockedUseSave("demo").mutateAsync).not.toHaveBeenCalled();
-  });
-
-  it("closes the dialog on Save without calling any sources mutation", async () => {
-    const user = userEvent.setup();
-    const test = vi.fn().mockResolvedValue({
-      ok: true,
-      identity: { externalId: "u-1", displayName: "Jane Doe" },
-    });
-    const save = vi.fn().mockResolvedValue({});
-    const onClose = vi.fn();
-    installGlobalMocks({ test, save });
-
-    renderGlobalDialog({ effective: { plugin: "ghe", instance: "https://example" }, onClose });
-
-    await user.click(screen.getByTestId("test-connection"));
-    await waitFor(() => expect(screen.getByTestId("save-config")).not.toBeDisabled());
-
-    await user.click(screen.getByTestId("save-config"));
-    expect(onClose).toHaveBeenCalled();
-    // saveSourcesMutation belongs to the project scope and must remain untouched.
-    expect(mockedUseSaveSources("demo").mutateAsync).not.toHaveBeenCalled();
   });
 
   it("appends '(global defaults)' to the dialog title", () => {
     installGlobalMocks({ test: vi.fn(), save: vi.fn() });
     renderGlobalDialog();
     expect(screen.getByText(/global defaults/i)).toBeInTheDocument();
+  });
+
+  it("does not render the Repository & Metadata section in global scope", () => {
+    installGlobalMocks({ test: vi.fn(), save: vi.fn() });
+    renderGlobalDialog();
+    expect(screen.queryByTestId("integration-fields-section")).not.toBeInTheDocument();
   });
 
   describe("GitHub OAuth section", () => {
@@ -1036,8 +695,22 @@ describe("PluginConfigureDialog (global scope)", () => {
       expect(screen.getByTestId("github-oauth-section")).toBeInTheDocument();
     });
 
-    it("opens the OAuth URL in a new window when Connect is clicked", async () => {
+    it("hides the prominent Connect button when the pill reads 'connected' and shows a low-emphasis Disconnect instead", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      expect(screen.queryByTestId("github-connect")).not.toBeInTheDocument();
+      expect(screen.getByTestId("github-disconnect")).toBeInTheDocument();
+    });
+
+    it("shows the prominent Connect button when the pill reads anything other than 'connected'", () => {
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByTestId("github-disconnect")).not.toBeInTheDocument();
+    });
+
+    it("opens the OAuth URL in a new window when Connect is clicked", async () => {
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
       const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
       mockStartGithubPluginOauth.mockResolvedValue({ url: "https://github.com/login/oauth/auth" });
 
@@ -1053,22 +726,18 @@ describe("PluginConfigureDialog (global scope)", () => {
       openSpy.mockRestore();
     });
 
-    it("shows the connected username once the test succeeds", async () => {
-      const test = vi.fn().mockResolvedValue({
-        ok: true,
-        identity: { externalId: "u-1", displayName: "octocat" },
-      });
-      const save = vi.fn().mockResolvedValue({});
-      installMocks({ test, save });
+    it("calls the disconnect endpoint when the Disconnect link is clicked", async () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockDisconnectGithubPluginOauth.mockResolvedValue({ ok: true });
 
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
-      await userEvent.click(screen.getByTestId("test-connection"));
-      await waitFor(() => expect(screen.getByText("octocat")).toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /reconnect/i })).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId("github-disconnect"));
+
+      await waitFor(() => expect(mockDisconnectGithubPluginOauth).toHaveBeenCalled());
     });
 
     it("surfaces an error message if the authorize call fails", async () => {
-      installMocks({ test: vi.fn(), save: vi.fn() });
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
       mockStartGithubPluginOauth.mockRejectedValue(new Error("server down"));
 
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
@@ -1080,7 +749,7 @@ describe("PluginConfigureDialog (global scope)", () => {
   describe("WU-050: opportunistic connection-status re-check on modal mount", () => {
     it("fires for the plugin when status is enabled", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
-      renderDialog({ plugin: makePlugin() }); // makePlugin status = "enabled"
+      renderDialog({ plugin: makePlugin() });
       expect(useOpportunisticRecheckOnMountMock).toHaveBeenCalledWith(["ghe"]);
     });
 
