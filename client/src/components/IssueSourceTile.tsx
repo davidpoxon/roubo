@@ -112,7 +112,7 @@ function ConfiguredBody({
                     key={`${key}-${i}`}
                     className="px-2 py-0.5 rounded-md text-[11px] font-mono text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
                   >
-                    {String(v)}
+                    {typeof v === "object" ? String(v.externalId) : String(v)}
                   </span>
                 ))}
               </dd>
