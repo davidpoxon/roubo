@@ -190,6 +190,37 @@ describe("IssueSourceTile", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
+  it("renders object-form source entries by their externalId (not [object Object])", () => {
+    // Since #278/#281 the server derives github-com sources as object-form
+    // entries carrying alert toggles. The tile must render each entry's
+    // externalId rather than coercing the whole object to "[object Object]".
+    withData({
+      effective: {
+        plugin: "github-com",
+        instance: "https://github.com",
+        sources: {
+          Repository: [{ externalId: "owner/repo", includeCodeQLAlerts: true }],
+          Project: [{ externalId: 123 }],
+        },
+      },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTile();
+
+    expect(screen.getByText("owner/repo")).toBeInTheDocument();
+    expect(screen.getByText("123")).toBeInTheDocument();
+    expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
+  });
+
   it("renders the override-only caption exactly as TC-056 mandates", () => {
     withData({
       effective: { plugin: "jira-self-hosted" },
