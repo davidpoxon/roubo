@@ -2,8 +2,19 @@ import { Button, Link } from "react-aria-components";
 import type { GitHubErrorCode } from "@roubo/shared";
 import { ApiError, getApiErrorParams } from "../lib/api";
 
+// Plugin-RPC transport codes minted by `server/routes/plugin-rpc-error.ts`. They
+// surface in the same UI as GitHub-domain codes because the cut-list pipes both
+// through this component, but they describe transport / plugin-lifecycle state
+// rather than GitHub itself, so they get their own copy.
+type PluginErrorCode =
+  | "rpc-error"
+  | "rpc-init-failed"
+  | "plugin-not-enabled"
+  | "unknown-plugin"
+  | "timeout";
+
 interface ErrorCopy {
-  code: GitHubErrorCode | "GENERIC";
+  code: GitHubErrorCode | PluginErrorCode | "GENERIC";
   title: string;
   description: string;
   primaryKind?: "connect" | "reconnect" | "link";
@@ -19,7 +30,7 @@ function resolveErrorCopy(error: unknown): ErrorCopy {
   }
 
   const params = getApiErrorParams(error);
-  const code = error.code as GitHubErrorCode | undefined;
+  const code = error.code as GitHubErrorCode | PluginErrorCode | undefined;
 
   switch (code) {
     case "NOT_CONNECTED":
@@ -89,6 +100,37 @@ function resolveErrorCopy(error: unknown): ErrorCopy {
         code,
         title: "Can't reach GitHub",
         description: "Check your internet connection and try again.",
+        showSecondaryRetry: true,
+      };
+    case "rpc-error":
+      return {
+        code,
+        title: "Plugin error",
+        description: error.message || "The integration plugin returned an error.",
+        showSecondaryRetry: true,
+      };
+    case "rpc-init-failed":
+      return {
+        code,
+        title: "Plugin failed to start",
+        description: error.message || "The integration plugin failed to initialise.",
+        showSecondaryRetry: true,
+      };
+    case "plugin-not-enabled":
+    case "unknown-plugin":
+      return {
+        code,
+        title: "Integration not available",
+        description: "Enable the integration plugin to load issues.",
+        primaryKind: "reconnect",
+        primaryLabel: "Configure",
+        showSecondaryRetry: true,
+      };
+    case "timeout":
+      return {
+        code,
+        title: "Plugin timed out",
+        description: error.message || "The plugin took too long to respond.",
         showSecondaryRetry: true,
       };
     default:

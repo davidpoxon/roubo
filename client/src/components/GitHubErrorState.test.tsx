@@ -152,4 +152,46 @@ describe("GitHubErrorState", () => {
     expect(screen.getByText("SAML SSO authorization required")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /authorize sso/i })).toBeNull();
   });
+
+  it("rpc-error: surfaces the plugin's actual message, not the code", () => {
+    const onRetry = vi.fn();
+    render(
+      <GitHubErrorState
+        error={makeApiError("rpc-error", "GitHub responded 401 Bad credentials")}
+        onRetry={onRetry}
+      />,
+    );
+    expect(screen.getByText("Plugin error")).toBeTruthy();
+    expect(screen.getByText("GitHub responded 401 Bad credentials")).toBeTruthy();
+    expect(screen.queryByText("rpc-error")).toBeNull();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
+  });
+
+  it("rpc-init-failed: shows plugin-start title with the underlying message", () => {
+    render(
+      <GitHubErrorState
+        error={makeApiError("rpc-init-failed", "plugin process exited during init")}
+      />,
+    );
+    expect(screen.getByText("Plugin failed to start")).toBeTruthy();
+    expect(screen.getByText("plugin process exited during init")).toBeTruthy();
+  });
+
+  it("plugin-not-enabled: shows integration-not-available title and Configure button", () => {
+    render(<GitHubErrorState error={makeApiError("plugin-not-enabled")} onReconnect={() => {}} />);
+    expect(screen.getByText("Integration not available")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /configure/i })).toBeTruthy();
+  });
+
+  it("unknown-plugin: shares the integration-not-available copy", () => {
+    render(<GitHubErrorState error={makeApiError("unknown-plugin")} onReconnect={() => {}} />);
+    expect(screen.getByText("Integration not available")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /configure/i })).toBeTruthy();
+  });
+
+  it("timeout: shows timed-out title with the underlying message", () => {
+    render(<GitHubErrorState error={makeApiError("timeout", "request exceeded 30s")} />);
+    expect(screen.getByText("Plugin timed out")).toBeTruthy();
+    expect(screen.getByText("request exceeded 30s")).toBeTruthy();
+  });
 });
