@@ -61,6 +61,7 @@ describe("useDeepLink", () => {
     const keys = invalidateSpy.mock.calls.map((args) => args[0]?.queryKey);
     expect(keys).toEqual(
       expect.arrayContaining([
+        ["plugin-connection-status", "github-com"],
         ["global-plugin-integration", "github-com"],
         ["project-integration"],
         ["source-candidates"],
