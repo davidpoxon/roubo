@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+/// <reference types="node" />
+// #279: references node types for the `process.env` perf-harness gate below;
+// the client tsconfig pins `types: ["vite/client"]`, so @types/node is not
+// otherwise in scope for this file.
 /**
  * TC-151: Cut-list filter recompute + re-render budget.
  *

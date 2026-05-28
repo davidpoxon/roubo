@@ -251,8 +251,8 @@ export type IntegrationCategoryStatus =
 
 /**
  * One row in the Test Connection result strip. `label` is the human-facing
- * string the strip renders (kept in sync with `SourcePicker`'s ALERT_CATEGORIES
- * via `shared/integration-categories.ts`). `detail` is rendered verbatim
+ * string the strip renders (sourced from `INTEGRATION_CATEGORY_LABELS` below).
+ * `detail` is rendered verbatim
  * underneath the row when present (e.g. "Timed out", "Token missing
  * `security_events` scope"). `httpStatus` is included for diagnostics and
  * tests; the UI does not render it directly.
@@ -280,10 +280,8 @@ export type IntegrationTestResult =
   | { ok: false; error: IntegrationTestErrorPayload };
 
 /**
- * Human-facing labels for each Test Connection result-strip row. Mirrors the
- * `ALERT_CATEGORIES` table the SourcePicker uses for checkbox labels so the
- * two surfaces stay aligned. Kept in `shared/` so client, server, and plugin
- * code all read from one place.
+ * Human-facing labels for each Test Connection result-strip row. Kept in
+ * `shared/` so client, server, and plugin code all read from one place.
  */
 export const INTEGRATION_CATEGORY_LABELS: Record<IntegrationCategoryId, string> = {
   issues: "Issues",

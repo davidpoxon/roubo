@@ -1,5 +1,5 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ListIssuesWarning, NormalizedIssue, PaginatedIssues } from "@roubo/shared";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import type { NormalizedIssue, PaginatedIssues } from "@roubo/shared";
 import * as api from "../lib/api";
 
 export interface UseIssuesFilters {
@@ -80,29 +80,4 @@ export function useIssues(
 export function useRefreshIssues() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: ["issues"] });
-}
-
-/**
- * Project-scoped per-source per-category warnings emitted on the most recent
- * `listIssues` page-1 pull. Alerts only fetch on page 1, so page 1 is the
- * authoritative health signal. A category that is no longer in the warnings
- * array after the next pull is implicitly cleared (AC #7).
- *
- * Lives on its own React Query key so the Configure dialog can subscribe
- * independent of the issue list, while still using the same underlying
- * fetch surface. Stale-time matches the issues hook so the dialog reflects
- * the same cadence the cut list sees.
- */
-export function useIssueListWarnings(projectId: string | undefined): ListIssuesWarning[] {
-  const query = useQuery<ListIssuesWarning[]>({
-    queryKey: ["integration-warnings", projectId],
-    enabled: !!projectId,
-    queryFn: async () => {
-      const firstPage = await api.fetchIssuesPage(projectId as string, { cursor: null });
-      return firstPage.warnings ?? [];
-    },
-    staleTime: 30_000,
-    retry: false,
-  });
-  return query.data ?? [];
 }

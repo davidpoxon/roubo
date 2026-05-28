@@ -22,6 +22,10 @@ export interface RegisterTestProjectOptions {
   // matching value. The route rejects a nested `plugin` here; pass it via
   // the top-level `plugin` / `pluginId` field instead.
   integrationConfig?: Omit<Partial<IntegrationConfig>, "plugin">;
+  // TC-164/167/177: optional `project.repo` for the generated fixture
+  // roubo.yaml. Drives the github-com Configure modal's derived-sources
+  // preview to its success state (sources are derived from `project.repo`).
+  projectRepo?: string;
 }
 
 export interface RegisterTestProjectResult {
@@ -56,6 +60,7 @@ export async function registerTestProject(
     projectId,
     plugin,
     integrationConfig: opts.integrationConfig as Record<string, unknown> | undefined,
+    projectRepo: opts.projectRepo,
   });
 }
 

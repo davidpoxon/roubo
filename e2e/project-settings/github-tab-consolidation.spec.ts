@@ -82,17 +82,20 @@ test("section title, sidebar, and breadcrumb all read the github-com manifest na
   await expect(page.getByRole("button", { name: "Choose sources" })).toHaveCount(0);
 });
 
-// Skipped pending #279. PR #278 dropped the GitHub-project picker field from
-// integration-fields (sources are derived from the repo + submodules now), so
-// the "GitHub project" label this spec asserts on is no longer rendered.
-// Re-author once the new field set is finalised.
-test.skip("the integration-fields section moves into the github-com Configure modal", async ({
+// #279: PR #278 dropped the standalone "GitHub project" picker field from
+// integration-fields (sources are derived from the repo + submodules now) and
+// replaced it with the read-only derived-sources preview. This test asserts the
+// surviving Repository field plus that preview, and no longer expects a
+// "GitHub project" label. The fixture seeds `project.repo` so the preview
+// resolves to its success state against the scenario's `Repository` candidate.
+test("the integration-fields section moves into the github-com Configure modal", async ({
   page,
   request,
 }) => {
   const { projectId } = await registerTestProject(request, {
     projectName: "tc-177-modal",
     pluginId: "github-com",
+    projectRepo: "acme/widgets",
     integrationConfig: {
       sources: { repo: [{ externalId: "acme/widgets" }] },
       capturedUserId: { externalId: "alice", displayName: "Alice" },
@@ -109,8 +112,12 @@ test.skip("the integration-fields section moves into the github-com Configure mo
   await expect(modalHeader).toBeVisible();
   const integrationFields = page.getByTestId("integration-fields-section");
   await expect(integrationFields).toBeVisible();
-  // The section contains the moved fields. Use accessible labels (the inputs
-  // don't have stable ids today; the labels are the contract).
+  // The section still hosts the Repository field (the input has no stable id;
+  // the label is the contract).
   await expect(integrationFields.getByText("Repository", { exact: true })).toBeVisible();
-  await expect(integrationFields.getByText("GitHub project", { exact: true })).toBeVisible();
+  // PR #278 replaced the standalone "GitHub project" field with the read-only
+  // derived-sources preview, which lists what Roubo will pull from the repo.
+  const preview = integrationFields.getByTestId("derived-sources-preview");
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("acme/widgets");
 });

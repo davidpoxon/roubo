@@ -102,7 +102,9 @@ describe("WU-068 scenario packs", () => {
   it("github-tab-consolidation loads with a connected baseline", () => {
     const scenario = loadScenario("github-tab-consolidation");
     expect(scenario.connectionStatus.state).toBe("connected");
-    expect(scenario.sourceCandidates.shape).toBe("multi-list");
+    // #279: derived-sources auto-derivation reads the `Repository` category, so
+    // the github-com scenarios carry the categorized shape.
+    expect(scenario.sourceCandidates.shape).toBe("categorized-multi-list");
   });
 
   it("connect-configure-button loads with disconnected→connected→auth-problem", () => {
@@ -122,27 +124,5 @@ describe("WU-068 scenario packs", () => {
   it("tab-propagation loads with a connected baseline", () => {
     const scenario = loadScenario("tab-propagation");
     expect(scenario.connectionStatus.state).toBe("connected");
-  });
-});
-
-// TC-166: the GHE PAT secret-scanning alerts scenario carries a
-// `listIssuesSequence` that walks from a missing-scope 401 warning through to
-// a no-warning, alert-row-interleaved success step. Catching a shape regression
-// here (missing pluginId override, wrong warning category, dropped final
-// item) is much cheaper than catching it in the Playwright run.
-describe("TC-166 scenario pack", () => {
-  it("alerts-ghe-secret-scanning-enable loads with the ghe overlay and a missing-scope→success sequence", () => {
-    const scenario = loadScenario("alerts-ghe-secret-scanning-enable");
-    expect(scenario.pluginId).toBe("ghe");
-    expect(scenario.connectionStatus.state).toBe("connected");
-    expect(scenario.sourceCandidates.shape).toBe("categorized-multi-list");
-    expect(Array.isArray(scenario.listIssuesSequence)).toBe(true);
-    expect(scenario.listIssuesSequence?.length).toBeGreaterThanOrEqual(2);
-    const first = scenario.listIssuesSequence?.[0];
-    expect(first?.warnings?.[0]?.code).toBe("missing-scope");
-    expect(first?.warnings?.[0]?.category).toBe("secret-scanning");
-    const last = scenario.listIssuesSequence?.[scenario.listIssuesSequence.length - 1];
-    expect(last?.warnings ?? []).toHaveLength(0);
-    expect(last?.items.some((it) => it.issueType === "security-secret-scanning")).toBe(true);
   });
 });

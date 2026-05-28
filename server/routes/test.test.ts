@@ -484,6 +484,49 @@ describe("POST /test/__register-fixture-project", () => {
     });
   });
 
+  // TC-164/167/177: an optional `projectRepo` is written under `project.repo`
+  // in the generated roubo.yaml so the github-com Configure modal's
+  // derived-sources preview can reach its success state.
+  it("writes projectRepo under project.repo in the fixture roubo.yaml", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-with-repo", plugin: "github-com", projectRepo: "acme/widgets" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^\s{2}repo: acme\/widgets$/m);
+  });
+
+  it("omits project.repo when projectRepo is not provided", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-no-repo", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).not.toMatch(/\brepo:/);
+  });
+
+  it("returns 400 when projectRepo is provided but empty", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-a", plugin: "github-com", projectRepo: "" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/projectRepo/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
   it("merges optional integrationConfig into the saved override alongside plugin", async () => {
     process.env.ROUBO_E2E = "1";
 

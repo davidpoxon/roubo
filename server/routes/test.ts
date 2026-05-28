@@ -102,13 +102,18 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
 // registerProject + saveOverride. `benches.max` is set to 5 (rather than 1)
 // so the `seedBenches` option below can pin multiple persisted benches
 // without violating the config cap.
-function writeFixtureRouboYaml(repoPath: string, projectId: string): void {
+function writeFixtureRouboYaml(repoPath: string, projectId: string, repo?: string): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
+  // TC-164/167/177: when a spec passes `projectRepo`, emit it under `project.repo`
+  // so `deriveGithubSources` (which reads `config.project.repo`) returns a
+  // non-empty repo set and the Configure modal's derived-sources preview renders
+  // its success state instead of the "could not see this repository" fallback.
+  const repoLine = repo ? `\n  repo: ${repo}` : "";
   const yaml = `project:
   name: ${projectId}
   displayName: Roubo E2E Fixture
-  type: web
+  type: web${repoLine}
 layout:
   type: single-repo
 components:
@@ -356,6 +361,11 @@ router.post("/__reset", async (req: Request, res: Response) => {
 interface RegisterFixtureBody {
   projectId?: unknown;
   plugin?: unknown;
+  // TC-164/167/177: optional `project.repo` written into the fixture roubo.yaml
+  // so the github-com Configure modal's derived-sources preview can reach its
+  // success state (the preview reads `config.project.repo` via
+  // `deriveGithubSources`). Independent of `integrationConfig`.
+  projectRepo?: unknown;
   // WU-068: optional extra integration fields (instance, sources,
   // capturedUserId, etc.) merged into the saved override after `plugin`.
   // `plugin` on this nested object is rejected so the top-level field
@@ -380,6 +390,7 @@ interface ParsedRegisterFixture {
   // and the IssueSourceTile renders its UnconfiguredBody variant (TC-164).
   plugin: string | null;
   integrationConfig?: IntegrationConfig;
+  projectRepo?: string;
   seedBenches: SeedBenchInput[];
 }
 
@@ -463,9 +474,16 @@ function parseRegisterFixtureBody(
     }
     integrationConfig = parsed.data;
   }
+  let projectRepo: string | undefined;
+  if (body?.projectRepo !== undefined) {
+    if (typeof body.projectRepo !== "string" || body.projectRepo.length === 0) {
+      return "projectRepo must be a non-empty string when provided";
+    }
+    projectRepo = body.projectRepo;
+  }
   const seedBenches = parseSeedBenches(body?.seedBenches);
   if (typeof seedBenches === "string") return seedBenches;
-  return { projectId: projectIdRaw, plugin, integrationConfig, seedBenches };
+  return { projectId: projectIdRaw, plugin, integrationConfig, projectRepo, seedBenches };
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -477,7 +495,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin, integrationConfig, seedBenches } = parsed;
+  const { projectId, plugin, integrationConfig, projectRepo, seedBenches } = parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -493,7 +511,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
 
   const seededWorkspacePaths: string[] = [];
   try {
-    writeFixtureRouboYaml(repoPath, projectId);
+    writeFixtureRouboYaml(repoPath, projectId, projectRepo);
     projectRegistry.registerProject(repoPath);
     // TC-164: when `plugin` is omitted we skip writing an override so the
     // tile renders the UnconfiguredBody variant; the spec then drives the

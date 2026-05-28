@@ -20,8 +20,8 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bundled-overlays");
 
 // Four surfaces share one config:
-//   - dev-fixture: drives the Vite-served `client/source-picker-fixture.html`
-//     for component-shape coverage (TC-021/022/076). Dev-mode only.
+//   - dev-fixture: drives Vite-served component fixtures (the Enable-plugin
+//     prompt) against the dev server. Dev-mode only.
 //   - e2e-harness: drives the BUILT Roubo app (server serving the built client
 //     via express.static) with ROUBO_E2E=1 enabling POST /test/__reset. Holds
 //     the WU-064 harness-shape specs (smoke, determinism, gate behaviour).
@@ -38,8 +38,8 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 //   - cut-list-ui: same built-app surface, holds the WU-067 specs
 //     (TC-173..TC-176 cut-list filtering, facets, chip taxonomy). Each spec
 //     pins the stubbed plugin to a dedicated scenario + frozen-now.
-//   - e2e-alerts: same built-app surface, holds the WU-069 spec
-//     (TC-180 Dependabot alerts toggle + re-consent + cut-list rendering).
+//   - e2e-alerts: same built-app surface, holds the per-category
+//     test-connection spec (TC-167 alerts scope-missing result strip).
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
@@ -68,7 +68,7 @@ export default defineConfig({
   projects: [
     {
       name: "dev-fixture",
-      testMatch: ["source-picker.spec.ts", "enable-plugin-prompt.spec.ts"],
+      testMatch: ["enable-plugin-prompt.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: DEV_BASE_URL },
     },
     {

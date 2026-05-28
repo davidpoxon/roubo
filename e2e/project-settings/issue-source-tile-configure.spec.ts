@@ -6,14 +6,18 @@ import { registerTestProject } from "./_support/test-project.js";
 // without an integration override renders the IssueSourceTile in its
 // UnconfiguredBody variant. The user clicks "Choose integration", picks
 // github-com via the SwitchIntegrationDialog, opens the now-visible Configure
-// modal, tests the connection, picks a source from the SourcePicker, and
-// saves. The tile flips to the configured variant with the connection chip in
-// the connected state and the chosen source rendered in the sources list.
+// modal, and confirms the read-only derived-sources preview lists the project's
+// registered repo. PR #278 replaced the manual SourcePicker with server-side
+// auto-derivation, so the contract is now "the modal shows what Roubo will
+// pull" rather than "pick a source from a list".
 //
 // All plugin-side data is driven by the `issue-source-tile-configure` stub
 // scenario pinned via /test/__reset; the github-com overlay swap routes
 // `github-com` plugin calls to the same stub runtime so the manifest name
-// "GitHub.com" appears as the radio label in the SwitchIntegrationDialog.
+// "GitHub.com" appears as the radio label in the SwitchIntegrationDialog. The
+// fixture is registered with `projectRepo: acme/widgets` so the
+// derived-sources endpoint (which reads `project.repo`) resolves to the single
+// repo the scenario's `Repository` source-candidate category exposes.
 
 const SCENARIO = "issue-source-tile-configure";
 const NOW = "2026-05-27T09:00:00.000Z";
@@ -22,20 +26,19 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-// Skipped pending #279. PR #278 removed the SourcePicker tile (which owned
-// `sources-section`) in favour of server-side sources auto-derivation, so the
-// "pick a source from a list" step this spec exercises no longer has a UI
-// surface. Re-author against the derived-sources preview once the new flow
-// is finalised.
-test.skip("unconfigured tile -> choose integration -> configure -> pick source -> connected", async ({
+test("unconfigured tile -> choose integration -> configure -> derived sources -> connected", async ({
   page,
   request,
 }) => {
   // Register the fixture project with no plugin so the tile starts in its
-  // UnconfiguredBody variant. The new optional-`plugin` contract on
-  // /test/__register-fixture-project (TC-164) is what lets the project be
-  // registered without an integration override.
-  const { projectId } = await registerTestProject(request, { projectName: "tc-164" });
+  // UnconfiguredBody variant, and seed `project.repo` so the Configure modal's
+  // derived-sources preview can reach its success state. The optional-`plugin`
+  // contract on /test/__register-fixture-project (TC-164) is what lets the
+  // project be registered without an integration override.
+  const { projectId } = await registerTestProject(request, {
+    projectName: "tc-164",
+    projectRepo: "acme/widgets",
+  });
 
   await page.goto(`/projects/${projectId}/settings`);
 
@@ -71,29 +74,29 @@ test.skip("unconfigured tile -> choose integration -> configure -> pick source -
   await expect(primary).toBeVisible();
   await primary.click();
 
-  // Run "Test connection" so the sources section mounts (gated on a
-  // successful test in PluginConfigureDialog).
+  // The Configure modal opens. The github-com scenario pins a `connected`
+  // connection status, so the form (and the github-com integration-fields
+  // section that hosts the derived-sources preview) renders without a manual
+  // Test connection step.
   const configureDialog = page.getByRole("dialog");
   await expect(configureDialog.getByTestId("plugin-configure-dialog-header")).toBeVisible();
-  await configureDialog.getByTestId("test-connection").click();
-  await expect(configureDialog.getByTestId("test-result-success")).toBeVisible();
-  const sourcesSection = configureDialog.getByTestId("sources-section");
-  await expect(sourcesSection).toBeVisible();
 
-  // Pick the single scenario-provided source candidate. The ListBox item
-  // renders as role="option" with the candidate label as its accessible name.
-  await sourcesSection.getByRole("option", { name: "acme/widgets" }).click();
+  // Replaces the removed SourcePicker pick step: the read-only derived-sources
+  // preview confirms Roubo will pull from the project's registered repo. The
+  // preview query keys off the saved `project.repo` (seeded above) and narrows
+  // against the scenario's `Repository` source candidates.
+  const preview = configureDialog.getByTestId("derived-sources-preview");
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("acme/widgets");
 
-  // Save closes the dialog and persists the source selection.
+  // Save closes the dialog and persists the integration config.
   await configureDialog.getByTestId("save-config").click();
   await expect(configureDialog).toBeHidden();
 
-  // Configured variant invariants. The connection-status pill carries the
-  // scenario-pinned "connected" state and the source chip appears inside the
-  // tile under the "Repo" group.
+  // Configured variant invariant: the connection-status pill carries the
+  // scenario-pinned "connected" state.
   await expect(tile.getByTestId("connection-status-pill")).toHaveAttribute(
     "data-state",
     "connected",
   );
-  await expect(tile.getByText("acme/widgets")).toBeVisible();
 });
