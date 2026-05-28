@@ -2,24 +2,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
-const { githubOauthMocks, githubMocks, pluginManagerMocks } = vi.hoisted(() => ({
-  githubOauthMocks: {
-    buildAuthorizationUrl: vi.fn(),
-    exchangeCodeForToken: vi.fn(),
-    fetchGitHubUsername: vi.fn(),
-    saveToken: vi.fn(),
-    validateState: vi.fn(),
-    GITHUB_PLUGIN_ID: "github-com",
-    GITHUB_TOKEN_SLOT: "github-token",
-    // WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
-    REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
-  },
-  githubMocks: { refreshAuth: vi.fn() },
-  pluginManagerMocks: { invalidateConnectionStatus: vi.fn() },
-}));
+const { githubOauthMocks, githubMocks, pluginManagerMocks, credentialStoreMocks } = vi.hoisted(
+  () => ({
+    githubOauthMocks: {
+      buildAuthorizationUrl: vi.fn(),
+      exchangeCodeForToken: vi.fn(),
+      fetchGitHubUsername: vi.fn(),
+      saveToken: vi.fn(),
+      validateState: vi.fn(),
+      GITHUB_PLUGIN_ID: "github-com",
+      GITHUB_TOKEN_SLOT: "github-token",
+      // WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
+      REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
+    },
+    githubMocks: { refreshAuth: vi.fn() },
+    pluginManagerMocks: { invalidateConnectionStatus: vi.fn() },
+    credentialStoreMocks: { deleteSlot: vi.fn(), set: vi.fn(), get: vi.fn() },
+  }),
+);
 vi.mock("../services/github-oauth.js", () => githubOauthMocks);
 vi.mock("../services/github.js", () => githubMocks);
 vi.mock("../services/plugin-manager.js", () => pluginManagerMocks);
+vi.mock("../services/credential-store.js", () => credentialStoreMocks);
 
 import router from "./plugins-github-oauth.js";
 
@@ -35,6 +39,9 @@ beforeEach(() => {
   }
   githubMocks.refreshAuth.mockReset();
   pluginManagerMocks.invalidateConnectionStatus.mockReset();
+  credentialStoreMocks.deleteSlot.mockReset();
+  credentialStoreMocks.set.mockReset();
+  credentialStoreMocks.get.mockReset();
   // WU-036: silence the structured oauth-authorize / oauth-exchange lines
   // emitted by the route. Tests that need to inspect them assert on the spy.
   consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
@@ -198,6 +205,57 @@ describe("POST /exchange", () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: "upstream 502" });
     expect(githubOauthMocks.saveToken).not.toHaveBeenCalled();
+    expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
+    expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /disconnect", () => {
+  it("clears the stored token, refreshes legacy auth, and invalidates connection status", async () => {
+    credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
+    githubMocks.refreshAuth.mockResolvedValue(undefined);
+
+    const res = await request(app).post("/disconnect");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(credentialStoreMocks.deleteSlot).toHaveBeenCalledWith("github-com", "github-token");
+    expect(githubMocks.refreshAuth).toHaveBeenCalled();
+    expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
+  });
+
+  it("emits a structured oauth-disconnect log line", async () => {
+    credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
+    githubMocks.refreshAuth.mockResolvedValue(undefined);
+
+    await request(app).post("/disconnect");
+
+    const payloads = infoPayloads().filter((p) => p.kind === "oauth-disconnect");
+    expect(payloads).toEqual([{ kind: "oauth-disconnect", pluginId: "github-com" }]);
+  });
+
+  it("is idempotent when the keychain reports no token to delete", async () => {
+    // The OS keychain implementations differ; deleteSlot is contracted to
+    // resolve successfully whether or not a slot existed, so the route should
+    // never surface a 5xx for a redundant disconnect.
+    credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
+    githubMocks.refreshAuth.mockResolvedValue(undefined);
+
+    const first = await request(app).post("/disconnect");
+    const second = await request(app).post("/disconnect");
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(credentialStoreMocks.deleteSlot).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns 500 when the credential store throws", async () => {
+    credentialStoreMocks.deleteSlot.mockRejectedValue(new Error("keychain locked"));
+
+    const res = await request(app).post("/disconnect");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "keychain locked" });
     expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();
   });

@@ -5,12 +5,14 @@ import {
   exchangeCodeForToken,
   fetchGitHubUsername,
   GITHUB_PLUGIN_ID,
+  GITHUB_TOKEN_SLOT,
   REQUIRED_SCOPES,
   saveToken,
   validateState,
 } from "../services/github-oauth.js";
 import { refreshAuth } from "../services/github.js";
 import { invalidateConnectionStatus } from "../services/plugin-manager.js";
+import * as credentialStore from "../services/credential-store.js";
 
 const router = Router();
 
@@ -89,6 +91,27 @@ router.post("/exchange", async (req, res) => {
       }),
     );
     res.json({ ok: true, username });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Clears the persisted github-com token. Idempotent: calling it when no token
+// is stored still resolves cleanly. After deletion the next connection-status
+// poll reports `auth-problem`, which the Configure modal renders as the
+// disconnected state.
+router.post("/disconnect", async (_req, res) => {
+  try {
+    await credentialStore.deleteSlot(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
+    await refreshAuth();
+    invalidateConnectionStatus(GITHUB_PLUGIN_ID);
+    console.info(
+      JSON.stringify({
+        kind: "oauth-disconnect",
+        pluginId: GITHUB_PLUGIN_ID,
+      }),
+    );
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

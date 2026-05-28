@@ -80,7 +80,11 @@ test.beforeEach(async ({ request, page }) => {
   });
 });
 
-test("GHE PAT user: missing-scope chip → simulated PAT regen → cut list updates", async ({
+// Skipped pending #279. The missing-scope chip rendered inside the SourcePicker
+// disclosure that PR #278 removed; the dialog no longer hosts a sources tile.
+// Re-author against the new derived-sources preview once the alerts surface
+// is finalised.
+test.skip("GHE PAT user: missing-scope chip -> simulated PAT regen -> cut list updates", async ({
   page,
   request,
 }) => {

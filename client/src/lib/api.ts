@@ -828,6 +828,16 @@ export function fetchSourceCandidates(projectId: string): Promise<SourceCandidat
   return request(`/projects/${projectId}/integration/sources`);
 }
 
+export interface DerivedGithubSourcesPreview {
+  repos: string[];
+  projects: Array<{ externalId: string; label: string }>;
+  alertsRequested: Array<"code-scanning" | "secret-scanning" | "dependabot">;
+}
+
+export function fetchDerivedGithubSources(projectId: string): Promise<DerivedGithubSourcesPreview> {
+  return request(`/projects/${projectId}/integration/derived-sources`);
+}
+
 export function fetchFilterFacets(projectId: string): Promise<FilterFacet[]> {
   return request(`/projects/${projectId}/integration/filter-facets`);
 }
@@ -900,6 +910,12 @@ export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]>
 // github-com plugin OAuth — returns the URL to open in a browser.
 export function startGithubPluginOauth(): Promise<{ url: string }> {
   return request("/plugins/github-com/oauth/authorize", { method: "POST" });
+}
+
+// Clears the persisted github-com OAuth token. The server-side handler is
+// idempotent, so calling it for an already-disconnected plugin still resolves.
+export function disconnectGithubPluginOauth(): Promise<{ ok: true }> {
+  return request("/plugins/github-com/oauth/disconnect", { method: "POST" });
 }
 
 // Plugins

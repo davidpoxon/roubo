@@ -27,6 +27,10 @@ vi.mock("../services/plugin-activation.js", () => ({
   forgetPluginActivation: vi.fn(),
   resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
 }));
+vi.mock("../services/derive-github-sources.js", () => ({
+  deriveAndPersistGithubSources: vi.fn().mockResolvedValue(null),
+  deriveGithubSources: vi.fn(),
+}));
 
 import router from "./projects.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -38,6 +42,7 @@ import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
+import * as deriveGithubSourcesService from "../services/derive-github-sources.js";
 
 const app = express();
 app.use(express.json());
@@ -916,6 +921,39 @@ describe("PUT /:projectId/integration/fields", () => {
     const res = await request(app).put("/test/integration/fields").send({ repo: "acme/new" });
     expect(res.status).toBe(200);
     expect(atomicWrite).toHaveBeenCalled();
+    expect(deriveGithubSourcesService.deriveAndPersistGithubSources).toHaveBeenCalledWith("test");
+  });
+
+  it("still returns 200 when derivation rejects (best-effort hook)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "test",
+      repoPath: "/repo",
+      config: {
+        project: { name: "x", displayName: "X", type: "web", repo: "acme/old" },
+        layout: { type: "single-repo" },
+        components: {},
+        benches: { max: 5 },
+      },
+      configValid: true,
+      settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
+    } as any);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "github-com",
+      integrationId: "github-com",
+      pageSize: 50,
+    });
+    // The route calls deriveAndPersistGithubSources with `void`, so a rejection
+    // here must not surface as a 500 to the caller.
+    vi.mocked(deriveGithubSourcesService.deriveAndPersistGithubSources).mockRejectedValueOnce(
+      new Error("plugin offline"),
+    );
+    // Swallow the unhandled-rejection warning the test runner would otherwise
+    // print for the deliberately-rejected promise.
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app).put("/test/integration/fields").send({ repo: "acme/new" });
+    expect(res.status).toBe(200);
+    consoleWarn.mockRestore();
   });
 
   it("returns 409 when there is no active plugin", async () => {
@@ -960,6 +998,39 @@ describe("PUT /:projectId/integration/fields", () => {
       .send({ githubProject: "not-a-number" } as any);
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_FIELD");
+  });
+});
+
+describe("GET /:projectId/integration/derived-sources", () => {
+  it("returns the preview shape from deriveGithubSources", async () => {
+    vi.mocked(deriveGithubSourcesService.deriveGithubSources).mockResolvedValue({
+      sources: {},
+      preview: {
+        repos: ["acme/demo"],
+        projects: [{ externalId: "acme/#1", label: "Planning" }],
+        alertsRequested: ["code-scanning", "secret-scanning", "dependabot"],
+      },
+    });
+
+    const res = await request(app).get("/test/integration/derived-sources");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      repos: ["acme/demo"],
+      projects: [{ externalId: "acme/#1", label: "Planning" }],
+      alertsRequested: ["code-scanning", "secret-scanning", "dependabot"],
+    });
+  });
+
+  it("returns 500 when derivation throws", async () => {
+    vi.mocked(deriveGithubSourcesService.deriveGithubSources).mockRejectedValue(
+      new Error("no project"),
+    );
+
+    const res = await request(app).get("/test/integration/derived-sources");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "no project" });
   });
 });
 

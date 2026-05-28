@@ -82,7 +82,11 @@ test("section title, sidebar, and breadcrumb all read the github-com manifest na
   await expect(page.getByRole("button", { name: "Choose sources" })).toHaveCount(0);
 });
 
-test("the integration-fields section moves into the github-com Configure modal", async ({
+// Skipped pending #279. PR #278 dropped the GitHub-project picker field from
+// integration-fields (sources are derived from the repo + submodules now), so
+// the "GitHub project" label this spec asserts on is no longer rendered.
+// Re-author once the new field set is finalised.
+test.skip("the integration-fields section moves into the github-com Configure modal", async ({
   page,
   request,
 }) => {

@@ -110,7 +110,13 @@ test.beforeEach(async ({ request, page }) => {
   });
 });
 
-test("Test connection per-category: Alerts scope-missing → Re-consent → ok", async ({ page }) => {
+// Skipped pending #279. The Re-consent chip rendered inside the per-source
+// security-alerts disclosure that PR #278 removed along with the SourcePicker.
+// Re-author against the new derived-sources preview once the alerts surface
+// is finalised.
+test.skip("Test connection per-category: Alerts scope-missing -> Re-consent -> ok", async ({
+  page,
+}) => {
   await loadAppShell(page);
   await page.goto(`/projects/${PROJECT_ID}/settings`);
 

@@ -27,10 +27,8 @@ import type {
   IntegrationFieldsUpdate,
   IntegrationTestResult,
   ProjectIntegrationState,
-  SourceCandidatesResponse,
-  SourceSelection,
 } from "@roubo/shared";
-import { ApiError, startGithubPluginOauth } from "../lib/api";
+import { ApiError, disconnectGithubPluginOauth, startGithubPluginOauth } from "../lib/api";
 import {
   useSaveIntegrationConfig,
   useTestIntegrationConnection,
@@ -39,16 +37,12 @@ import {
   useSaveGlobalPluginIntegration,
   useTestGlobalPluginIntegration,
 } from "../hooks/useGlobalPluginIntegration";
-import { useSourceCandidates } from "../hooks/useSourceCandidates";
-import { useSaveProjectSources } from "../hooks/useSaveProjectSources";
-import { useIssueListWarnings } from "../hooks/useIssues";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
+import { useDerivedGithubSources } from "../hooks/useDerivedGithubSources";
 import { useConnectionStatus, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
-import { useProjectBenches } from "../hooks/useBenches";
+import { useQueryClient } from "@tanstack/react-query";
 import ConfigSchemaForm from "./ConfigSchemaForm";
-import SourcePicker from "./SourcePicker";
 import Spinner from "./Spinner";
-import GitHubProjectField from "./project-settings/GitHubProjectField";
 import SubmodulesEditor from "./project-settings/SubmodulesEditor";
 import { passwordFieldKeys } from "./config-schema-utils";
 import { INPUT } from "./setup/styles";
@@ -63,12 +57,11 @@ const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com"]);
 const STRINGS = {
   titlePrefix: "Configure ",
   globalSuffix: "(global defaults)",
-  sourcesHeading: "Sources",
-  loadingSources: "Loading sources…",
   integrationFieldsHeading: "Repository & metadata",
   repositoryLabel: "Repository",
   repositoryPlaceholder: "org/repo-name",
-  testConnection: "Test connection",
+  verify: "Verify",
+  verifying: "Verifying…",
   cancel: "Cancel",
   save: "Save",
   saving: "Saving…",
@@ -79,10 +72,22 @@ const STRINGS = {
   connectedAsPrefix: "Connected as ",
   connectPrompt: "Connect your GitHub account to authorize Roubo to read issues and projects.",
   reconnect: "Reconnect",
+  disconnect: "Disconnect",
+  disconnecting: "Disconnecting…",
   connectGithub: "Connect GitHub",
   postOauthHintPrefix: "After authorizing in the browser, click ",
-  postOauthHintCta: "Test connection",
-  postOauthHintSuffix: " to verify the credential.",
+  postOauthHintCta: "Verify",
+  postOauthHintSuffix: " to confirm the credential.",
+  derivedSourcesLoading: "Looking up what Roubo will pull from your repo…",
+  derivedSourcesNoRepo:
+    "Set a repository above so Roubo knows where to pull issues, projects, and alerts from.",
+  derivedSourcesPrefix: "Roubo will pull from ",
+  derivedSourcesNoRepos: "Roubo could not see this repository under your GitHub account.",
+  derivedSourcesUnknown: "Could not preview derived sources. Save will still try.",
+  connectedAccountFallback: "GitHub",
+  derivedSourcesProjectsLabel: (n: number) =>
+    n === 1 ? "1 GitHub Project" : `${n} GitHub Projects`,
+  derivedSourcesAlertsLabel: "security alerts when enabled on the repo",
 };
 
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
@@ -121,14 +126,6 @@ function findTlsFieldKey(schema: Record<string, unknown> | undefined): string | 
     }
   }
   return null;
-}
-
-function snapshotEquals(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    if (a[k] !== b[k]) return false;
-  }
-  return true;
 }
 
 function seedInitialValues(
@@ -188,13 +185,8 @@ function ProjectScopeDialog({
   // setSubmitError surface is dropped.
   const testMutation = useTestIntegrationConnection(projectId);
   const saveMutation = useSaveIntegrationConfig(projectId);
-  const saveSourcesMutation = useSaveProjectSources(projectId);
   const saveFieldsMutation = useSaveIntegrationFields(projectId);
-  const isBusy =
-    testMutation.isPending ||
-    saveMutation.isPending ||
-    saveSourcesMutation.isPending ||
-    saveFieldsMutation.isPending;
+  const isBusy = testMutation.isPending || saveMutation.isPending || saveFieldsMutation.isPending;
 
   return (
     <ModalOverlay
@@ -202,8 +194,8 @@ function ProjectScopeDialog({
       isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+      <Modal className="w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden">
           {({ close }) => (
             <ConfigureFlow
               mode="project"
@@ -213,7 +205,6 @@ function ProjectScopeDialog({
               close={close}
               testMutation={testMutation}
               saveMutation={saveMutation}
-              saveSourcesMutation={saveSourcesMutation}
               saveFieldsMutation={saveFieldsMutation}
             />
           )}
@@ -240,8 +231,8 @@ function GlobalScopeDialog({
       isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+      <Modal className="w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden">
           {({ close }) => (
             <ConfigureFlow
               mode="global"
@@ -256,33 +247,6 @@ function GlobalScopeDialog({
       </Modal>
     </ModalOverlay>
   );
-}
-
-function initialSourceSelection(effective: IntegrationConfig): SourceSelection {
-  const out: SourceSelection = {};
-  const raw = effective.sources;
-  if (!raw) return out;
-  for (const [key, value] of Object.entries(raw)) {
-    if (!Array.isArray(value)) continue;
-    out[key] = value.map((entry) => {
-      // Primitive forms (string or number) flatten to the externalId string.
-      if (typeof entry === "string") return entry;
-      if (typeof entry === "number") return String(entry);
-      // Object form: keep only the SourceSelectionEntry-recognized fields so
-      // we round-trip the alert booleans but drop any plugin-internal extras.
-      const next: {
-        externalId: string;
-        includeCodeQLAlerts?: boolean;
-        includeSecretScanningAlerts?: boolean;
-        includeDependabotAlerts?: boolean;
-      } = { externalId: String(entry.externalId) };
-      if (entry.includeCodeQLAlerts === true) next.includeCodeQLAlerts = true;
-      if (entry.includeSecretScanningAlerts === true) next.includeSecretScanningAlerts = true;
-      if (entry.includeDependabotAlerts === true) next.includeDependabotAlerts = true;
-      return next;
-    });
-  }
-  return out;
 }
 
 function submodulesEqual(
@@ -322,12 +286,6 @@ function diffIntegrationFields(
   return changed ? update : null;
 }
 
-function hasAnyCandidates(data: SourceCandidatesResponse | undefined): boolean {
-  if (!data) return false;
-  if (data.shape === "multi-list") return (data.items?.length ?? 0) > 0;
-  return (data.categories ?? []).some((cat) => cat.items.length > 0);
-}
-
 type ConfigureFlowProps =
   | {
       mode: "project";
@@ -337,7 +295,6 @@ type ConfigureFlowProps =
       close: () => void;
       testMutation: ReturnType<typeof useTestIntegrationConnection>;
       saveMutation: ReturnType<typeof useSaveIntegrationConfig>;
-      saveSourcesMutation: ReturnType<typeof useSaveProjectSources>;
       saveFieldsMutation: ReturnType<typeof useSaveIntegrationFields>;
     }
   | {
@@ -377,15 +334,10 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     () => seedInitialValues(manifest?.configSchema, effective),
     [manifest?.configSchema, effective],
   );
-  const initialSources = useMemo(() => initialSourceSelection(effective), [effective]);
 
   const [values, setValuesState] = useState<Record<string, unknown>>(initialValues);
   const [testResult, setTestResult] = useState<IntegrationTestResult | null>(null);
-  const [lastTestedSnapshot, setLastTestedSnapshot] = useState<Record<string, unknown> | null>(
-    null,
-  );
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [sources, setSources] = useState<SourceSelection>(initialSources);
 
   // FR-070: repo / linked GitHub Project / submodules are now edited inside
   // the plugin Configure modal. Server values arrive via /integration/fields
@@ -402,7 +354,6 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   const setFields = (next: IntegrationFields) => {
     setFieldEdits({
       repo: next.repo,
-      githubProject: next.githubProject,
       submodules: next.submodules,
     });
   };
@@ -417,43 +368,17 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     [manifest?.configSchema],
   );
 
-  const hasTestedSuccessfully =
-    testResult?.ok === true &&
-    lastTestedSnapshot !== null &&
-    snapshotEquals(values, lastTestedSnapshot);
-
-  // Per-source per-category warnings from the most recent listIssues page-1
-  // pull. Global scope has no project context, so the hook is called with
-  // undefined and returns [] (AC #7 clear-on-next-pull is implicit: the
-  // underlying queryKey is invalidated whenever the issues query refreshes).
-  const warnings = useIssueListWarnings(mode === "project" ? props.projectId : undefined);
-
-  // Project-wide count of alert-backed benches keyed by frozen-snapshot
-  // issueType. Drives the "<K> existing benches still show alerts from this
-  // category." line in the security alerts disclosure (WU-035 / TC-097).
-  // Global scope has no project context; the result is left empty.
-  const projectIdForBenches = mode === "project" ? props.projectId : undefined;
-  const benchesQuery = useProjectBenches(projectIdForBenches);
-  const alertBenchCounts = useMemo(() => {
-    if (!projectIdForBenches) return undefined;
-    const counts: Record<string, number> = {};
-    for (const bench of benchesQuery.data ?? []) {
-      if (bench.projectId !== projectIdForBenches) continue;
-      const it = bench.assignedIssue?.issueType;
-      if (!it) continue;
-      counts[it] = (counts[it] ?? 0) + 1;
-    }
-    return counts;
-  }, [projectIdForBenches, benchesQuery.data]);
-
-  // Sources are inherently per-project, so the global Plugins-page Configure
-  // dialog never queries or renders them. Hooks must still be called
-  // unconditionally; passing `null` as the pluginId disables the underlying
-  // fetch and is supported by useSourceCandidates.
-  const sourceCandidatesQuery = useSourceCandidates(
-    mode === "project" ? props.projectId : "",
-    mode === "project" && hasTestedSuccessfully ? plugin.id : null,
-  );
+  // Connection state is the single gate on whether the rest of the form is
+  // editable. The header pill already uses `pillState`; we read it as a plain
+  // boolean here so the legacy `hasTestedSuccessfully` interlock is gone.
+  const connected = pillState === "connected";
+  // The connection gate only fits OAuth-driven plugins (github-com), where
+  // credentials are bootstrapped outside the form via GithubOauthSection. For
+  // other plugins the form itself is the only place to enter `instance` /
+  // `token`, so it must stay reachable even when the pill reads disconnected
+  // (e.g. first-time setup or expired credentials).
+  const isOauthPlugin = plugin.id === "github-com";
+  const showForm = connected || !isOauthPlugin;
 
   function buildUpdate(
     snapshot: Record<string, unknown>,
@@ -482,44 +407,29 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
   function setValues(next: Record<string, unknown>) {
     setValuesState(next);
-    // Any field change invalidates the previous test success — FR-034 / TC-037.
-    // Reset the source selection back to whatever the override held, since the
-    // candidate list is keyed to the previously-tested connection.
+    // Clear any stale test strip so a value-change-driven re-render doesn't
+    // claim the previous-snapshot's identity. The connection-status hook is
+    // the source of truth for whether the form is editable, so no other state
+    // resets are needed here.
     setTestResult(null);
-    setLastTestedSnapshot(null);
-    setSources(initialSources);
   }
 
-  async function runTest(snapshot: Record<string, unknown>) {
+  async function runTest(snapshot: Record<string, unknown>): Promise<IntegrationTestResult | null> {
     setSubmitError(null);
     try {
       const result = await testMutation.mutateAsync(snapshot);
       setTestResult(result);
-      if (result.ok) {
-        // Commit instance + advanced + capturedUserId so the subsequent
-        // listSourceCandidates fetch sees the right effective config. The test
-        // endpoint already persists credentials; this brings instance/advanced
-        // into line so the source picker can populate without forcing a manual
-        // intermediate Save.
-        try {
-          await saveMutation.mutateAsync(buildUpdate(snapshot, result));
-          setLastTestedSnapshot(snapshot);
-        } catch (err) {
-          setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
-          setLastTestedSnapshot(null);
-        }
-      } else {
-        setLastTestedSnapshot(null);
-      }
+      return result;
     } catch (err) {
-      setTestResult({
+      const failure: IntegrationTestResult = {
         ok: false,
         error: {
           kind: "other",
           message: err instanceof ApiError ? err.message : (err as Error).message,
         },
-      });
-      setLastTestedSnapshot(null);
+      };
+      setTestResult(failure);
+      return failure;
     }
   }
 
@@ -533,22 +443,20 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   }
 
   async function handleSave() {
-    if (!hasTestedSuccessfully || testResult?.ok !== true) return;
     setSubmitError(null);
+    // Save runs Verify implicitly so capturedUserId is fresh and instance /
+    // advanced get persisted with the latest values. If Verify fails the
+    // ResultStrip already explains why; bail without writing.
+    const result = await runTest(values);
+    if (!result || !result.ok) return;
 
-    // Instance/advanced + capturedUserId were already committed in `runTest`
-    // when the test passed. In project mode Save is dedicated to persisting
-    // the source selection; in global mode there's nothing left to persist
-    // (sources are per-project) so we just close.
-    if (mode === "global") {
-      close();
-      return;
-    }
     try {
-      await props.saveSourcesMutation.mutateAsync(sources);
-      const update = diffIntegrationFields(serverFields, fields);
-      if (update) {
-        await props.saveFieldsMutation.mutateAsync(update);
+      await saveMutation.mutateAsync(buildUpdate(values, result));
+      if (mode === "project") {
+        const update = diffIntegrationFields(serverFields, fields);
+        if (update) {
+          await props.saveFieldsMutation.mutateAsync(update);
+        }
       }
       close();
     } catch (err) {
@@ -556,20 +464,14 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     }
   }
 
-  const saveSourcesPending = mode === "project" ? props.saveSourcesMutation.isPending : false;
   const saveFieldsPending = mode === "project" ? props.saveFieldsMutation.isPending : false;
-  const isBusy =
-    testMutation.isPending || saveMutation.isPending || saveSourcesPending || saveFieldsPending;
-  const showSourcesSection =
-    mode === "project" &&
-    hasTestedSuccessfully &&
-    (sourceCandidatesQuery.isLoading || hasAnyCandidates(sourceCandidatesQuery.data));
+  const isBusy = testMutation.isPending || saveMutation.isPending || saveFieldsPending;
 
   return (
     <>
       <div
         data-testid="plugin-configure-dialog-header"
-        className="flex items-start gap-3 px-5 py-4 border-b border-stone-200 dark:border-stone-800/60"
+        className="flex items-start gap-3 px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0"
       >
         <Heading
           slot="title"
@@ -586,103 +488,53 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         <ConnectionStatusPill status={pillStatus} rechecking={connectionQuery.isFetching} />
       </div>
 
-      <div className="px-5 py-4 space-y-4">
-        {plugin.id === "github-com" && <GithubOauthSection testResult={testResult} />}
-
-        <ConfigSchemaForm
-          schema={manifest?.configSchema}
-          permissions={manifest?.permissions}
-          values={values}
-          onChange={setValues}
-        />
-
-        <ResultStrip
-          testing={testMutation.isPending}
-          result={testResult}
-          tlsFieldKey={tlsFieldKey}
-          onEnableTls={handleEnableTls}
-        />
-
-        {showSourcesSection && (
-          <div className="flex flex-col gap-2" data-testid="sources-section">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-              {STRINGS.sourcesHeading}
-            </span>
-            {sourceCandidatesQuery.isLoading ? (
-              <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
-                <Spinner />
-                {STRINGS.loadingSources}
-              </div>
-            ) : sourceCandidatesQuery.data ? (
-              <SourcePicker
-                response={sourceCandidatesQuery.data}
-                value={sources}
-                onChange={setSources}
-                warnings={warnings}
-                alertBenchCounts={alertBenchCounts}
-                chipContext={{
-                  pluginId: plugin.id,
-                  // GHE PAT settings link target, derived from whichever
-                  // instance the user has typed (or saved). The chip falls
-                  // back to the generic "Unavailable" pill if absent, so the
-                  // missing-instance edge case still renders gracefully.
-                  gheInstanceUrl:
-                    plugin.id === "ghe"
-                      ? typeof values.instance === "string" && values.instance.length > 0
-                        ? values.instance
-                        : (effective.instance ?? undefined)
-                      : undefined,
-                  // OAuth re-consent fallback for the github-com chip.
-                  // Reuses the same window.open call as the standalone
-                  // GithubOauthSection's "Connect" button so the chip and
-                  // the button funnel through one flow.
-                  onReconnectOAuth:
-                    plugin.id === "github-com"
-                      ? () => {
-                          void (async () => {
-                            try {
-                              const { url } = await startGithubPluginOauth();
-                              window.open(url, "_blank", "noopener,noreferrer");
-                            } catch (err) {
-                              setSubmitError(
-                                err instanceof ApiError ? err.message : (err as Error).message,
-                              );
-                            }
-                          })();
-                        }
-                      : undefined,
-                }}
-              />
-            ) : null}
-          </div>
+      <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-4">
+        {plugin.id === "github-com" && (
+          <GithubOauthSection connected={connected} onAfterDisconnect={() => setTestResult(null)} />
         )}
 
-        {showIntegrationFields && (
-          <div className="flex flex-col gap-4" data-testid="integration-fields-section">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
-              {STRINGS.integrationFieldsHeading}
-            </span>
-            <TextField
-              value={fields.repo ?? ""}
-              onChange={(v) => setFields({ ...fields, repo: v })}
-            >
-              <Label className="block text-xs text-stone-500 mb-1.5">
-                {STRINGS.repositoryLabel}
-              </Label>
-              <Input placeholder={STRINGS.repositoryPlaceholder} className={INPUT} />
-            </TextField>
-            <GitHubProjectField
-              repo={fields.repo}
-              value={fields.githubProject}
-              onChange={(next) => setFields({ ...fields, githubProject: next })}
+        {showForm && (
+          <>
+            <ConfigSchemaForm
+              schema={manifest?.configSchema}
+              permissions={manifest?.permissions}
+              values={values}
+              onChange={setValues}
             />
-            {isMetaRepo && (
-              <SubmodulesEditor
-                value={fields.submodules ?? {}}
-                onChange={(next) => setFields({ ...fields, submodules: next })}
-              />
+
+            <ResultStrip
+              testing={testMutation.isPending}
+              result={testResult}
+              tlsFieldKey={tlsFieldKey}
+              onEnableTls={handleEnableTls}
+            />
+
+            {showIntegrationFields && (
+              <div className="flex flex-col gap-4" data-testid="integration-fields-section">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                  {STRINGS.integrationFieldsHeading}
+                </span>
+                <TextField
+                  value={fields.repo ?? ""}
+                  onChange={(v) => setFields({ ...fields, repo: v })}
+                >
+                  <Label className="block text-xs text-stone-500 mb-1.5">
+                    {STRINGS.repositoryLabel}
+                  </Label>
+                  <Input placeholder={STRINGS.repositoryPlaceholder} className={INPUT} />
+                </TextField>
+                {mode === "project" && plugin.id === "github-com" && (
+                  <DerivedSourcesPreview projectId={props.projectId} repo={fields.repo} />
+                )}
+                {isMetaRepo && (
+                  <SubmodulesEditor
+                    value={fields.submodules ?? {}}
+                    onChange={(next) => setFields({ ...fields, submodules: next })}
+                  />
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {submitError && (
@@ -692,15 +544,19 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
-        <Button
-          isDisabled={isBusy}
-          onPress={() => void runTest(values)}
-          data-testid="test-connection"
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-        >
-          {STRINGS.testConnection}
-        </Button>
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+        {showForm ? (
+          <Button
+            isDisabled={isBusy}
+            onPress={() => void runTest(values)}
+            data-testid="test-connection"
+            className="px-2.5 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            {testMutation.isPending ? STRINGS.verifying : STRINGS.verify}
+          </Button>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-2">
           <Button
             isDisabled={isBusy}
@@ -710,14 +566,12 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             {STRINGS.cancel}
           </Button>
           <Button
-            isDisabled={!hasTestedSuccessfully || isBusy}
+            isDisabled={!showForm || isBusy}
             onPress={() => void handleSave()}
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending || saveSourcesPending || saveFieldsPending
-              ? STRINGS.saving
-              : STRINGS.save}
+            {saveMutation.isPending || saveFieldsPending ? STRINGS.saving : STRINGS.save}
           </Button>
         </div>
       </div>
@@ -897,11 +751,22 @@ function ResultStrip({
   );
 }
 
-function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult | null }) {
+function GithubOauthSection({
+  connected,
+  onAfterDisconnect,
+}: {
+  connected: boolean;
+  onAfterDisconnect: () => void;
+}) {
   const [pending, setPending] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const connected = testResult?.ok === true;
-  const username = connected ? testResult.identity.displayName : null;
+  const queryClient = useQueryClient();
+  // The connection-status hook caches per-plugin under
+  // ["plugin-connection-status", pluginId]; this id matches the GitHub plugin
+  // and lets us invalidate after a disconnect so the pill flips immediately
+  // instead of waiting for its next poll cycle.
+  const GITHUB_PLUGIN_ID = "github-com";
 
   async function handleConnect() {
     setPending(true);
@@ -913,6 +778,22 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
       setError(err instanceof ApiError ? err.message : (err as Error).message);
     } finally {
       setPending(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await disconnectGithubPluginOauth();
+      void queryClient.invalidateQueries({
+        queryKey: ["plugin-connection-status", GITHUB_PLUGIN_ID],
+      });
+      onAfterDisconnect();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -929,7 +810,9 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
           {connected ? (
             <p className="text-[12px] text-stone-700 dark:text-stone-300 mt-1">
               {STRINGS.connectedAsPrefix}
-              <span className="font-mono text-stone-900 dark:text-stone-100">{username}</span>
+              <span className="font-mono text-stone-900 dark:text-stone-100">
+                {STRINGS.connectedAccountFallback}
+              </span>
             </p>
           ) : (
             <p className="text-[12px] text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
@@ -937,19 +820,30 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
             </p>
           )}
         </div>
-        <Button
-          isDisabled={pending}
-          onPress={() => void handleConnect()}
-          data-testid="github-connect"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
-        >
-          {pending ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <ExternalLink size={12} aria-hidden />
-          )}
-          {connected ? STRINGS.reconnect : STRINGS.connectGithub}
-        </Button>
+        {connected ? (
+          <Button
+            isDisabled={disconnecting}
+            onPress={() => void handleDisconnect()}
+            data-testid="github-disconnect"
+            className="inline-flex items-center px-2 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+          >
+            {disconnecting ? STRINGS.disconnecting : STRINGS.disconnect}
+          </Button>
+        ) : (
+          <Button
+            isDisabled={pending}
+            onPress={() => void handleConnect()}
+            data-testid="github-connect"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-500 bg-amber-500 text-stone-950 hover:bg-amber-400 hover:border-amber-400 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+          >
+            {pending ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <ExternalLink size={12} aria-hidden />
+            )}
+            {STRINGS.connectGithub}
+          </Button>
+        )}
       </div>
       {error && (
         <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
@@ -964,5 +858,68 @@ function GithubOauthSection({ testResult }: { testResult: IntegrationTestResult 
         </p>
       )}
     </div>
+  );
+}
+
+function DerivedSourcesPreview({
+  projectId,
+  repo,
+}: {
+  projectId: string;
+  repo: string | undefined;
+}) {
+  const trimmedRepo = repo?.trim() ?? "";
+  const query = useDerivedGithubSources(trimmedRepo.length > 0 ? projectId : undefined);
+
+  if (trimmedRepo.length === 0) {
+    return (
+      <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+        {STRINGS.derivedSourcesNoRepo}
+      </p>
+    );
+  }
+  if (query.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-stone-400 dark:text-stone-600">
+        <Spinner />
+        {STRINGS.derivedSourcesLoading}
+      </div>
+    );
+  }
+  if (!query.data) {
+    // Surface the error inline. Derivation failure does not block the user
+    // from saving; the warning sets expectations rather than gating.
+    return (
+      <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+        {STRINGS.derivedSourcesUnknown}
+      </p>
+    );
+  }
+
+  const { repos, projects, alertsRequested } = query.data;
+  if (repos.length === 0) {
+    return (
+      <p
+        className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed"
+        data-testid="derived-sources-preview"
+      >
+        {STRINGS.derivedSourcesNoRepos}
+      </p>
+    );
+  }
+
+  const parts: string[] = [];
+  parts.push(repos.join(", "));
+  if (projects.length > 0) parts.push(STRINGS.derivedSourcesProjectsLabel(projects.length));
+  if (alertsRequested.length > 0) parts.push(STRINGS.derivedSourcesAlertsLabel);
+
+  return (
+    <p
+      className="text-[11px] text-stone-500 dark:text-stone-500 leading-relaxed"
+      data-testid="derived-sources-preview"
+    >
+      {STRINGS.derivedSourcesPrefix}
+      {parts.join(" · ")}.
+    </p>
   );
 }
