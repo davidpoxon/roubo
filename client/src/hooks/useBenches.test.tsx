@@ -72,7 +72,12 @@ describe("useCreateBench", () => {
     const { result } = renderHookWithProviders(() => useCreateBench());
     result.current.mutate({ projectId: "p1", branch: "feat" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", "feat", undefined, undefined);
+    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", {
+      branch: "feat",
+      issueNumber: undefined,
+      externalId: undefined,
+      branchConflictResolution: undefined,
+    });
   });
 
   it("calls createBench with issueNumber for combined flow", async () => {
@@ -81,7 +86,26 @@ describe("useCreateBench", () => {
     const { result } = renderHookWithProviders(() => useCreateBench());
     result.current.mutate({ projectId: "p1", issueNumber: 42 });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", undefined, 42, undefined);
+    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", {
+      branch: undefined,
+      issueNumber: 42,
+      externalId: undefined,
+      branchConflictResolution: undefined,
+    });
+  });
+
+  it("calls createBench with externalId for the alert flow", async () => {
+    const response = { status: "success", bench: { id: 1 }, terminalSessionId: "term-1" };
+    mockedApi.createBench.mockResolvedValue(response as never);
+    const { result } = renderHookWithProviders(() => useCreateBench());
+    result.current.mutate({ projectId: "p1", externalId: "org/repo#code-scanning-117" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", {
+      branch: undefined,
+      issueNumber: undefined,
+      externalId: "org/repo#code-scanning-117",
+      branchConflictResolution: undefined,
+    });
   });
 
   it("calls createBench with branchConflictResolution", async () => {
@@ -90,7 +114,12 @@ describe("useCreateBench", () => {
     const { result } = renderHookWithProviders(() => useCreateBench());
     result.current.mutate({ projectId: "p1", issueNumber: 42, branchConflictResolution: "resume" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", undefined, 42, "resume");
+    expect(mockedApi.createBench).toHaveBeenCalledWith("p1", {
+      branch: undefined,
+      issueNumber: 42,
+      externalId: undefined,
+      branchConflictResolution: "resume",
+    });
   });
 
   it("handles branchConflict response from createBench", async () => {

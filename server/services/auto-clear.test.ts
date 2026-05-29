@@ -248,6 +248,30 @@ describe("checkAndClearDoneBenches", () => {
     expect(benchManager.teardownBench).toHaveBeenCalledWith("proj-1", 1, true);
   });
 
+  it("never tears down an alert-backed bench via the issue-state fallback (#291 collision guard)", async () => {
+    const alertBench = makeBench({
+      assignedIssue: {
+        number: 117,
+        title: "Bad thing",
+        externalId: "owner/repo#code-scanning-117",
+        issueType: "security-code-scanning",
+      } as never,
+    });
+    vi.mocked(benchManager.getBenches).mockReturnValue([alertBench]);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+    // Even if an unrelated issue #117 were closed, the alert bench must never be
+    // classified by issue number.
+    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
+      number: 117,
+      state: "closed",
+    } as unknown as GitHubIssue);
+
+    await checkAndClearDoneBenches();
+
+    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
+    expect(benchManager.teardownBench).not.toHaveBeenCalled();
+  });
+
   it("does not clear bench when project board item has null status and issue is open", async () => {
     const bench = makeBench();
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);

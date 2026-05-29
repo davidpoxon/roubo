@@ -6,6 +6,7 @@ import { getCurrentUser } from "../methods/get-current-user.js";
 import { getIssue } from "../methods/get-issue.js";
 import { listIssueTypes } from "../methods/list-issue-types.js";
 import { listLabels } from "../methods/list-labels.js";
+import { resetAlertsRuntime } from "../alerts-runtime.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
 let mocks: ReturnType<typeof installMocks>;
@@ -57,6 +58,70 @@ describe("getIssue", () => {
   it("throws on a malformed externalId without contacting GitHub", async () => {
     await expect(getIssue({ externalId: "no-slash-no-hash" })).rejects.toThrow(/externalId/);
     expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
+  });
+});
+
+describe("getIssue (security alerts)", () => {
+  beforeEach(() => {
+    resetAlertsRuntime();
+  });
+
+  it("fetches a code-scanning alert as a redacted NormalizedIssue", async () => {
+    mocks.mockHost.fetch.mockImplementation(async (url: string) => {
+      expect(url).toBe("https://api.github.com/repos/foo/bar/code-scanning/alerts/117");
+      return {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          number: 117,
+          html_url: "https://github.com/foo/bar/security/code-scanning/117",
+          state: "open",
+          created_at: "t",
+          rule: { id: "js/x", description: "Bad thing", security_severity_level: "high" },
+        }),
+      };
+    });
+
+    const issue = await getIssue({ externalId: "foo/bar#code-scanning-117" });
+    expect(issue.externalId).toBe("foo/bar#code-scanning-117");
+    expect(issue.issueType).toBe("security-code-scanning");
+    expect(issue.title).toBe("Bad thing");
+    expect(issue.allowedTransitions).toEqual([]);
+    expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
+  });
+
+  it("never exposes the literal secret for a secret-scanning alert", async () => {
+    const literal = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    mocks.mockHost.fetch.mockImplementation(async (url: string) => {
+      expect(url).toBe("https://api.github.com/repos/foo/bar/secret-scanning/alerts/42");
+      return {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          number: 42,
+          html_url: "u",
+          state: "open",
+          created_at: "t",
+          secret_type_display_name: "GitHub PAT",
+          secret: literal,
+        }),
+      };
+    });
+
+    const issue = await getIssue({ externalId: "foo/bar#secret-scanning-42" });
+    expect(issue.issueType).toBe("security-secret-scanning");
+    expect(JSON.stringify(issue.raw)).not.toContain(literal);
+  });
+
+  it("propagates a status-bearing error when the alert fetch fails", async () => {
+    mocks.mockHost.fetch.mockImplementation(async () => ({
+      status: 403,
+      headers: {},
+      body: "",
+    }));
+    await expect(getIssue({ externalId: "foo/bar#dependabot-7" })).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });
 

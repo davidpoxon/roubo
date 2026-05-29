@@ -17,3 +17,23 @@ export function issueNumberFromExternalId(externalId: string): number | null {
   if (!Number.isFinite(n) || n <= 0 || String(n) !== after) return null;
   return n;
 }
+
+const ALERT_EXTERNAL_ID_RE = /#(code-scanning|secret-scanning|dependabot)-\d+$/;
+
+/**
+ * True when an externalId is a GitHub security alert (`owner/repo#<category>-<n>`).
+ * Such issues have no bare numeric form, so bench creation assigns them by
+ * externalId rather than issueNumber.
+ */
+export function isAlertExternalId(externalId: string): boolean {
+  return ALERT_EXTERNAL_ID_RE.test(externalId);
+}
+
+/**
+ * Short, human-facing id for a pending/assigned issue, derived from its
+ * externalId: the part after `#` (e.g. `42` or `code-scanning-117`), or the
+ * whole value when there is no `#`.
+ */
+export function shortIdFromExternalId(externalId: string): string {
+  return externalId.includes("#") ? (externalId.split("#").pop() ?? externalId) : externalId;
+}

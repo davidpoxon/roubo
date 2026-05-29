@@ -3,6 +3,7 @@ import { DONE_STATUSES } from "@roubo/shared";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
+import { isAlertExternalId } from "./alert-external-id.js";
 import { buildKnownMergedLocations, getDirtyState } from "./git-state.js";
 import * as notificationService from "./notification.js";
 import { syncAllWorkUnitPRs } from "./pr-sync.js";
@@ -170,7 +171,23 @@ async function checkProjectBenches(
 
   // Split benches by type: work-unit benches (meta-repo) vs legacy benches (issue-based)
   const workUnitBenches = benches.filter((b) => b.workUnits && b.workUnits.length > 0);
-  const legacyBenches = benches.filter((b) => !b.workUnits || b.workUnits.length === 0);
+  // Alert-backed benches have no GitHub issue to re-fetch by number, and their
+  // assignedIssue.number is an alert number that could collide with an unrelated
+  // issue #N, so they must never enter the issue-state classification below.
+  // Auto-clearing alert benches from alert state is deferred to #289.
+  const alertBenchCount = benches.filter((b) =>
+    isAlertExternalId(b.assignedIssue?.externalId),
+  ).length;
+  const legacyBenches = benches.filter(
+    (b) =>
+      (!b.workUnits || b.workUnits.length === 0) && !isAlertExternalId(b.assignedIssue?.externalId),
+  );
+  if (alertBenchCount > 0) {
+    console.debug(
+      `[auto-clear] Skipping ${alertBenchCount} alert-backed bench(es) in project ${projectId} ` +
+        `(no issue-state auto-clear for security alerts; see #289)`,
+    );
+  }
 
   // --- Work-unit bench classification ---
   if (workUnitAutoClear) {

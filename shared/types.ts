@@ -717,6 +717,13 @@ export interface RegisterProjectRequest {
 export interface CreateBenchRequest {
   branch?: string;
   issueNumber?: number;
+  /**
+   * Fully-qualified issue/alert id (e.g. `owner/repo#code-scanning-117`). Used
+   * for security alerts, whose externalId has no bare numeric form. When set,
+   * the server fetches the redacted issue via the active plugin's `getIssue`.
+   * `issueNumber` remains the path for plain GitHub issues.
+   */
+  externalId?: string;
   branchConflictResolution?: "resume" | "new";
 }
 
@@ -1189,7 +1196,12 @@ export interface AssignedIssue {
 }
 
 export interface AssignIssueRequest {
-  issueNumber: number;
+  issueNumber?: number;
+  /**
+   * Fully-qualified alert id (e.g. `owner/repo#code-scanning-117`) for security
+   * alerts. Exactly one of `issueNumber` or `externalId` must be provided.
+   */
+  externalId?: string;
 }
 
 export interface AssignIssueResponse {

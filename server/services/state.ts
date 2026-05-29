@@ -74,7 +74,17 @@ export function getWorkspacesDir(): string {
 }
 
 export function sanitizeBranchForPath(branch: string): string {
-  return branch.replace(/\//g, "-").replace(/^[-.]+|[-.]+$/g, "") || "branch";
+  // Trim leading/trailing runs of '-'/'.' with explicit index walks rather than a
+  // regex. An anchored `/[-.]+$/` trim is reported as js/polynomial-redos because the
+  // greedy quantifier can backtrack on long separator runs; index walks are strictly
+  // linear with no backtracking surface.
+  const slashed = branch.replace(/\//g, "-");
+  const isTrimChar = (c: string) => c === "-" || c === ".";
+  let start = 0;
+  let end = slashed.length;
+  while (start < end && isTrimChar(slashed[start])) start++;
+  while (end > start && isTrimChar(slashed[end - 1])) end--;
+  return slashed.slice(start, end) || "branch";
 }
 
 export function getWorkspacePath(

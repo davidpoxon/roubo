@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router } from "express";
 import type {
   AssignIssueRequest,
   ListIssuesParams,
@@ -7,45 +7,18 @@ import type {
   NormalizedIssue,
   PaginatedIssues,
 } from "@roubo/shared";
-import { resolveActivePlugin, type ActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
-import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
+import { resolveSources } from "../services/plugin-activation.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { parseIntParam } from "./helpers.js";
+import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
 import { ServiceError } from "../services/service-error.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
 
 const router = Router();
-
-async function getActivePluginOrRespond(
-  projectId: string,
-  res: Response,
-): Promise<ActivePlugin | null> {
-  const active = resolveActivePlugin(projectId);
-  if (!active) {
-    res.status(503).json({
-      error: "no-active-integration",
-      message: "No integration plugin is configured for this project.",
-    });
-    return null;
-  }
-  // Push the plugin's plugin-wide config (instance URL, TLS toggle) if it
-  // has any. Per-project source selection is supplied inline on each
-  // source-bound RPC via the `sources` param.
-  try {
-    await ensurePluginActivated(projectId, active.pluginId);
-  } catch (err) {
-    res.status(502).json({
-      error: "plugin-activation-failed",
-      message: (err as Error).message,
-    });
-    return null;
-  }
-  return active;
-}
 
 router.get("/:projectId/issues", async (req, res) => {
   const active = await getActivePluginOrRespond(req.params.projectId, res);

@@ -214,7 +214,7 @@ describe("createBench", () => {
 
   it("sends POST with branch when provided", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ id: 1 }));
-    await createBench("p1", "feature/x");
+    await createBench("p1", { branch: "feature/x" });
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches",
       expect.objectContaining({

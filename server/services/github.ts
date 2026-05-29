@@ -1041,6 +1041,10 @@ export async function fetchIssueType(
   issueNumber: number,
 ): Promise<string | null> {
   const { owner, repo } = parseRepo(repoFullName);
+  // Coerce to a plain integer up front so the value used in the GraphQL variable
+  // and in the diagnostic log below is a number, never an interpolated string
+  // derived from request input.
+  const issueNum = Math.trunc(Number(issueNumber));
   const query = `query($owner: String!, $repo: String!, $issueNumber: Int!) {
     repository(owner: $owner, name: $repo) {
       issue(number: $issueNumber) {
@@ -1052,12 +1056,12 @@ export async function fetchIssueType(
     const r = await githubRequest<IssueTypeResponse>({
       kind: "graphql",
       query,
-      variables: { owner, repo, issueNumber },
+      variables: { owner, repo, issueNumber: issueNum },
       opName: "fetchIssueType",
     });
     return r.data.repository?.issue?.issueType?.name ?? null;
   } catch (err) {
-    console.warn(`[github] Failed to fetch issue type for #${issueNumber}:`, err);
+    console.warn("[github] Failed to fetch issue type for #%d:", issueNum, err);
     return null;
   }
 }

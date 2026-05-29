@@ -1,5 +1,10 @@
 export type { FetchTransport } from "./transport.js";
-export { parseLinkHeader, paginateAlerts, AlertPaginationError } from "./pagination.js";
+export {
+  parseLinkHeader,
+  paginateAlerts,
+  fetchSingleAlert,
+  AlertPaginationError,
+} from "./pagination.js";
 export type { PaginateOptions } from "./pagination.js";
 export { safeFetchAlerts } from "./alerts/safe-fetch.js";
 export type {
@@ -15,12 +20,22 @@ export type {
   ProbeSource,
   ProbeStatus,
 } from "./alerts/probe-categories.js";
-export { fetchCodeScanningAlerts, type RawCodeScanningAlert } from "./alerts/code-scanning.js";
+export {
+  fetchCodeScanningAlerts,
+  fetchCodeScanningAlert,
+  type RawCodeScanningAlert,
+  type GetAlertArgs,
+} from "./alerts/code-scanning.js";
 export {
   fetchSecretScanningAlerts,
+  fetchSecretScanningAlert,
   type RawSecretScanningAlert,
 } from "./alerts/secret-scanning.js";
-export { fetchDependabotAlerts, type RawDependabotAlert } from "./alerts/dependabot.js";
+export {
+  fetchDependabotAlerts,
+  fetchDependabotAlert,
+  type RawDependabotAlert,
+} from "./alerts/dependabot.js";
 export {
   redactSecretScanningAlert,
   redactCodeScanningAlert,

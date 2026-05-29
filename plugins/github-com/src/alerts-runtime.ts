@@ -11,13 +11,17 @@
 import type { FetchInit, FetchResult, ListIssuesWarning, NormalizedIssue } from "@roubo/plugin-sdk";
 import {
   detectTokenScopes,
+  fetchCodeScanningAlert,
   fetchCodeScanningAlerts,
+  fetchDependabotAlert,
   fetchDependabotAlerts,
+  fetchSecretScanningAlert,
   fetchSecretScanningAlerts,
   mapCodeScanningAlertToNormalizedIssue,
   mapDependabotAlertToNormalizedIssue,
   mapSecretScanningAlertToNormalizedIssue,
   safeFetchAlerts,
+  type AlertCategory,
   type AlertFetchCategory,
   type FetchTransport,
   type SafeFetchResult,
@@ -144,6 +148,42 @@ function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } |
   const slash = repoFullName.indexOf("/");
   if (slash <= 0 || slash === repoFullName.length - 1) return null;
   return { owner: repoFullName.slice(0, slash), repo: repoFullName.slice(slash + 1) };
+}
+
+/**
+ * Fetches one alert by category + number and returns it as a redacted
+ * NormalizedIssue. Backs the plugin's `getIssue` for alert externalIds so the
+ * host (bench assignment, alert-backed BenchDetail) only ever receives the
+ * mapper's redacted clone; the literal secret never leaves the plugin
+ * (FR-043, NFR-012). Fetch failures surface as `AlertPaginationError`
+ * (status-bearing: 403 missing scope, 404 deleted alert).
+ */
+export async function fetchSingleAlertAsIssue(
+  repoFullName: string,
+  category: AlertCategory,
+  alertNumber: number,
+): Promise<NormalizedIssue> {
+  const parsed = parseOwnerRepo(repoFullName);
+  if (!parsed) {
+    throw new Error(`[github-com] invalid repo "${repoFullName}" for alert fetch`);
+  }
+  const transport = await getTransport();
+  const args = { baseUrl: GITHUB_API_BASE, owner: parsed.owner, repo: parsed.repo, alertNumber };
+
+  switch (category) {
+    case "code-scanning": {
+      const raw = await fetchCodeScanningAlert(transport, args);
+      return mapCodeScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw);
+    }
+    case "secret-scanning": {
+      const raw = await fetchSecretScanningAlert(transport, args);
+      return mapSecretScanningAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw);
+    }
+    case "dependabot": {
+      const raw = await fetchDependabotAlert(transport, args);
+      return mapDependabotAlertToNormalizedIssue(INTEGRATION_ID, repoFullName, raw);
+    }
+  }
 }
 
 /**

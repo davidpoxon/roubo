@@ -29,6 +29,15 @@ vi.mock("../services/tool-launcher.js", () => ({
 
 vi.mock("../services/issue-assignment.js", () => ({
   createBenchAndAssignIssue: vi.fn(),
+  createBenchAndAssignAlert: vi.fn(),
+}));
+
+vi.mock("./plugin-route-helpers.js", () => ({
+  getActivePluginOrRespond: vi.fn(),
+}));
+
+vi.mock("../services/plugin-manager.js", () => ({
+  invoke: vi.fn(),
 }));
 
 vi.mock("../services/project-registry.js", () => ({
@@ -70,6 +79,8 @@ import * as githubService from "../services/github.js";
 import * as notificationService from "../services/notification.js";
 import * as gitState from "../services/git-state.js";
 import * as prSync from "../services/pr-sync.js";
+import * as pluginManager from "../services/plugin-manager.js";
+import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
 
 const app = express();
 app.use(express.json());
@@ -205,6 +216,73 @@ describe("POST /:projectId/benches with issueNumber", () => {
 
     const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
     expect(res.status).toBe(500);
+  });
+});
+
+describe("POST /:projectId/benches with externalId (security alert)", () => {
+  const alert = {
+    integrationId: "github-com",
+    externalId: "org/repo#code-scanning-117",
+    issueType: "security-code-scanning",
+    title: "Bad thing",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getActivePluginOrRespond).mockResolvedValue({
+      pluginId: "github-com",
+      pageSize: 50,
+    } as any);
+  });
+
+  it("returns 400 for an empty externalId", async () => {
+    const res = await request(app).post("/my-project/benches").send({ externalId: "" });
+    expect(res.status).toBe(400);
+  });
+
+  it("fetches the alert via the plugin and forwards it to createBenchAndAssignAlert", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(alert as any);
+    const result = { status: "success", bench: { id: 7 }, terminalSessionId: "t" };
+    vi.mocked(issueAssignment.createBenchAndAssignAlert).mockResolvedValue(result as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "org/repo#code-scanning-117", branchConflictResolution: "new" });
+
+    expect(res.status).toBe(201);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "org/repo#code-scanning-117",
+    });
+    expect(issueAssignment.createBenchAndAssignAlert).toHaveBeenCalledWith(
+      "my-project",
+      alert,
+      "new",
+    );
+  });
+
+  it("returns 409 when the alert branch conflicts", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(alert as any);
+    vi.mocked(issueAssignment.createBenchAndAssignAlert).mockResolvedValue({
+      status: "conflict",
+    } as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "org/repo#code-scanning-117" });
+    expect(res.status).toBe(409);
+  });
+
+  it("surfaces a plugin RPC error (e.g. missing scope) instead of a generic 500", async () => {
+    vi.mocked(pluginManager.invoke).mockRejectedValue({
+      code: "rpc-error",
+      message: "GET .../code-scanning/alerts/117 returned status 403",
+    });
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "org/repo#code-scanning-117" });
+    expect(res.status).toBe(502);
+    expect(issueAssignment.createBenchAndAssignAlert).not.toHaveBeenCalled();
   });
 });
 

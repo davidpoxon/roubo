@@ -865,6 +865,62 @@ describe("BenchDashboard", () => {
       );
     });
 
+    it("creates a bench by externalId when a security alert is dropped", async () => {
+      const { createMutate, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      act(() => {
+        dndCallbacks.onDragEnd?.({
+          active: {
+            data: {
+              current: {
+                issue: {
+                  externalId: "org/repo#code-scanning-117",
+                  title: "SQL injection",
+                  integrationId: "github-com",
+                },
+              },
+            },
+          },
+          over: { data: { current: { position: 1 } } },
+        });
+      });
+      expect(screen.getByTestId("pending-bench-card")).toBeInTheDocument();
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      // Alerts assign by externalId, not issueNumber.
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: "proj-1", externalId: "org/repo#code-scanning-117" }),
+        expect.any(Object),
+      );
+      expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
+    });
+
+    it("shows an unsupported toast for a non-issue, non-alert externalId", () => {
+      const { addToast } = stubDefaults({ projects: [makeProject()], benches: [] });
+      renderDashboard("/projects/proj-1");
+      act(() => {
+        dndCallbacks.onDragEnd?.({
+          active: {
+            data: {
+              current: {
+                issue: { externalId: "ROUBO-42", title: "Jira", integrationId: "jira" },
+              },
+            },
+          },
+          over: { data: { current: { position: 1 } } },
+        });
+      });
+      expect(addToast).toHaveBeenCalledWith(
+        expect.stringContaining("does not yet support this integration"),
+        expect.any(Object),
+      );
+      expect(screen.queryByTestId("pending-bench-card")).not.toBeInTheDocument();
+    });
+
     it("fires handleDragEnd early return when over is null", () => {
       stubDefaults({ projects: [makeProject()], benches: [] });
       renderDashboard("/projects/proj-1");
