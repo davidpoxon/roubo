@@ -104,6 +104,11 @@ export async function registerFixtureProject(
     // `plugin`. Specs use this to drive surfaces (e.g. Source-tile instance
     // line) that only render when the override carries the matching value.
     integrationConfig?: Record<string, unknown>;
+    // TC-164/167/177: optional `project.repo` written into the fixture
+    // roubo.yaml so the github-com Configure modal's derived-sources preview
+    // resolves to a success state (the server derives sources from
+    // `config.project.repo`).
+    projectRepo?: string;
     // TC-161: optional list of benches to seed against the fixture project,
     // each pinned with its own `assignedIssue`. The server route persists
     // them onto fresh tmpdir-backed PersistedBench rows and reloads

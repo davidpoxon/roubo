@@ -1,3 +1,8 @@
+/// <reference types="node" />
+// #279: the client tsconfig pins `types: ["vite/client"]`, so @types/node is
+// not globally available. This node-run test reads source files via node:fs, so
+// it references the node types explicitly rather than relying on an incidental
+// transitive include from another client module.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "vitest";
@@ -15,7 +20,6 @@ const OPTED_IN = [
   "client/src/components/IssueSourceTile.tsx",
   "client/src/components/MissingPluginDialog.tsx",
   "client/src/components/PluginConfigureDialog.tsx",
-  "client/src/components/SourcePicker.tsx",
   "client/src/components/SwitchIntegrationDialog.tsx",
   "client/src/components/settings/plugins/ConnectionStatusPill.tsx",
   "client/src/components/settings/plugins/ErroredBanner.tsx",

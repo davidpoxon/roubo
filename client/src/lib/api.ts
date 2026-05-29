@@ -45,8 +45,6 @@ import type {
   IntegrationFields,
   IntegrationFieldsUpdate,
   IntegrationTestResult,
-  SourceCandidatesResponse,
-  SourceSelection,
   FilterFacet,
   FilterFacetOption,
   InstalledPluginSummary,
@@ -824,10 +822,6 @@ export function saveIntegrationFields(
   });
 }
 
-export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
-  return request(`/projects/${projectId}/integration/sources`);
-}
-
 export interface DerivedGithubSourcesPreview {
   repos: string[];
   projects: Array<{ externalId: string; label: string }>;
@@ -850,16 +844,6 @@ export function fetchFacetOptions(
   const params = new URLSearchParams({ facetId });
   if (search && search.length > 0) params.set("search", search);
   return request(`/projects/${projectId}/integration/facet-options?${params.toString()}`);
-}
-
-export function saveProjectSources(
-  projectId: string,
-  sources: SourceSelection,
-): Promise<ProjectIntegrationState> {
-  return request(`/projects/${projectId}/integration/sources`, {
-    method: "PUT",
-    body: JSON.stringify({ sources }),
-  });
 }
 
 // Global plugin integration (Plugins settings page)

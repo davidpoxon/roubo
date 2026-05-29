@@ -29,19 +29,6 @@ vi.mock("../hooks/useInstalledPlugins", () => ({
   useInstalledPlugins: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
-vi.mock("../hooks/useSourceCandidates", () => ({
-  useSourceCandidates: vi.fn(() => ({
-    data: undefined,
-    isLoading: true,
-    isError: false,
-    error: null,
-  })),
-}));
-
-vi.mock("../hooks/useSaveProjectSources", () => ({
-  useSaveProjectSources: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-}));
-
 // WU-050: PluginConfigureDialog renders useOpportunisticRecheckOnMount, which
 // would otherwise issue a real fetch when the dialog mounts in this jsdom
 // suite (no MSW; api.ts uses relative URLs with no base). Mock the hook so
