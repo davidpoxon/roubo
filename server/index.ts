@@ -12,6 +12,7 @@ import { detectClaudeAutoMode } from "./services/claude-version.js";
 import * as projectRegistry from "./services/project-registry.js";
 import { initializeIntegrationMigrations } from "./services/integration-migrations.js";
 import * as benchManager from "./services/bench-manager.js";
+import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
 import * as databaseService from "./services/database.js";
 import * as terminalService from "./services/terminal.js";
@@ -110,8 +111,12 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     let benches = benchManager.getBenches();
     const issue = parseInt(req.query.issue as string, 10);
     if (!isNaN(issue)) {
-      // Matches on assignedIssue.number; an alert numbered N over-matches here. See #291.
-      benches = benches.filter((b) => b.assignedIssue?.number === issue);
+      // The ?issue= filter targets GitHub issue numbers. Alert-backed benches reuse
+      // assignedIssue.number for the alert number, so skip them to avoid colliding
+      // with a real issue #N. See #291.
+      benches = benches.filter(
+        (b) => b.assignedIssue?.number === issue && !isAlertExternalId(b.assignedIssue?.externalId),
+      );
     }
     res.json(benches);
   });
