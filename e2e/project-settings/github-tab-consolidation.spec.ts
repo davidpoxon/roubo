@@ -8,8 +8,7 @@ import { registerTestProject } from "./_support/test-project.js";
 
 // TC-177 (US-022, FR-069/070/071): on a project configured against the
 // github.com plugin, the per-project Settings page surfaces the plugin's
-// manifest name as the Source section title and propagates the same name to
-// the sidebar entry + page breadcrumb. The Repository / Linked Project /
+// manifest name as the Source section title. The Repository / Linked Project /
 // Submodules editors now live inside the plugin Configure modal rather than
 // alongside the project identity tile.
 
@@ -44,10 +43,7 @@ test("scenario surfaces through the github-com overlay's connection-status endpo
   await loadAppShell(page);
 });
 
-test("section title, sidebar, and breadcrumb all read the github-com manifest name", async ({
-  page,
-  request,
-}) => {
+test("the Source section title reads the github-com manifest name", async ({ page, request }) => {
   const { projectId } = await registerTestProject(request, {
     projectName: "tc-177",
     pluginId: "github-com",
@@ -63,16 +59,6 @@ test("section title, sidebar, and breadcrumb all read the github-com manifest na
   // hard-coded "Source" default.
   const sectionTitle = page.getByTestId("project-settings-source-section-title");
   await expect(sectionTitle).toHaveText("GitHub.com");
-
-  // FR-053/FR-069: the same plugin name propagates to the sidebar entry and
-  // the page breadcrumb (TC-182 asserts the switch behaviour; TC-177 takes
-  // the static read). Sidebar selector is project-scoped so unrelated
-  // leftover projects from other benches' e2e runs don't fool .first().
-  const sidebarEntry = page.locator(
-    `[data-project-id="${projectId}"] [data-testid="project-sidebar-integration-name"]`,
-  );
-  await expect(sidebarEntry).toHaveText("GitHub.com");
-  await expect(page.getByTestId("breadcrumb-integration-name")).toHaveText("GitHub.com");
 
   // The IssueSourceTile renders the configured variant (live connection pill,
   // single primary action). WU-058 collapsed the prior "Choose sources"

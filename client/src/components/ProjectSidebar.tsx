@@ -4,7 +4,6 @@ import { Button } from "react-aria-components";
 import { Layers, Settings, Plus } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
-import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import NotificationIndicator from "./NotificationIndicator";
 import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import { collectActionNeeded } from "../lib/notifications";
@@ -134,8 +133,6 @@ function ProjectSidebarRow({
   isBenchActive: (projectId: string, benchId: number) => boolean;
   navigate: (path: string) => void;
 }) {
-  const { data: integration } = useProjectIntegration(project.id);
-  const integrationName = integration?.plugin?.manifest?.name ?? "Source";
   return (
     <div data-project-id={project.id}>
       <Button
@@ -152,12 +149,6 @@ function ProjectSidebarRow({
           )}
         </div>
       </Button>
-      <p
-        data-testid="project-sidebar-integration-name"
-        className="pl-3 pr-3 pb-1 text-[11px] text-stone-500 dark:text-stone-600 truncate"
-      >
-        {integrationName}
-      </p>
       {projectBenches.map((bench) => {
         const active = isBenchActive(project.id, bench.id);
         return (

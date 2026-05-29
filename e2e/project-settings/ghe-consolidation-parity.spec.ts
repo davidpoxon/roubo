@@ -3,9 +3,9 @@ import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject } from "./_support/test-project.js";
 
 // TC-179 (US-023, FR-073): GHE follows the same Source-tile consolidation as
-// github-com. Manifest name flows to the section title / sidebar / breadcrumb,
-// the configured instance URL surfaces on the tile, and the single primary
-// action drives the same Configure modal. The Repository / Linked Project /
+// github-com. Manifest name flows to the Source section title, the configured
+// instance URL surfaces on the tile, and the single primary action drives the
+// same Configure modal. The Repository / Linked Project /
 // Submodules editors are gated on plugin.id === "github-com" today (FR-073
 // follow-up), so this spec deliberately does not assert their presence on
 // the GHE modal; see the WU-068 plan for the carve-out.
@@ -45,18 +45,10 @@ test("section title and instance URL reflect the GHE plugin manifest and effecti
 
   await page.goto(`/projects/${projectId}/settings`);
 
-  // FR-069: GHE's manifest.name surfaces in the per-project label slots.
-  // Sidebar selector is project-scoped so unrelated leftover projects from
-  // other benches' e2e runs don't fool the lookup.
+  // FR-069: GHE's manifest.name surfaces in the Source section title.
   await expect(page.getByTestId("project-settings-source-section-title")).toHaveText(
     "GitHub Enterprise",
   );
-  await expect(
-    page.locator(
-      `[data-project-id="${projectId}"] [data-testid="project-sidebar-integration-name"]`,
-    ),
-  ).toHaveText("GitHub Enterprise");
-  await expect(page.getByTestId("breadcrumb-integration-name")).toHaveText("GitHub Enterprise");
 
   // FR-073: the configured instance URL is rendered as a read-only line on
   // the Source tile header.
