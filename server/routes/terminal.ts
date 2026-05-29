@@ -64,6 +64,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     applyContainerOverrides(templateCtx, bench.assignedContainers);
 
     let issueCtx: Partial<IssueContext> = {};
+    // Alert-backed benches re-hydrate by alert number here, which 404s and
+    // degrades to minimal data; re-hydrating from the persisted redacted raw is
+    // deferred to #290.
     if (bench.assignedIssue && project.config.project.repo) {
       try {
         issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);

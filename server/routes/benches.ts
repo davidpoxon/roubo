@@ -7,12 +7,31 @@ import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as githubService from "../services/github.js";
+import * as pluginManager from "../services/plugin-manager.js";
 import { RouteError, parseIntParam } from "./helpers.js";
+import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
+import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { syncBenchWorkUnitPRs } from "../services/pr-sync.js";
-import type { CreateBenchRequest, AssignContainerRequest, ExecuteToolRequest } from "@roubo/shared";
+import type {
+  CreateBenchRequest,
+  AssignContainerRequest,
+  ExecuteToolRequest,
+  NormalizedIssue,
+} from "@roubo/shared";
 
 const router = Router();
+
+function handleCreateBenchError(res: import("express").Response, err: unknown) {
+  if (err instanceof ServiceError) {
+    res.status(err.statusCode).json({ ...err.data, error: err.message });
+  } else if (err instanceof BenchError) {
+    const status = err.code === "PROJECT_NOT_FOUND" ? 404 : err.code === "NO_BENCHES" ? 409 : 400;
+    res.status(status).json({ error: err.message, code: err.code });
+  } else {
+    res.status(500).json({ error: (err as Error).message });
+  }
+}
 
 function handleBenchError(res: import("express").Response, err: unknown) {
   if (err instanceof RouteError) {
@@ -31,15 +50,17 @@ router.get("/:projectId/benches", (req, res) => {
   let benches = benchManager.getBenches(req.params.projectId);
   const issue = parseInt(req.query.issue as string, 10);
   if (!isNaN(issue)) {
+    // Matches on assignedIssue.number; an alert numbered N over-matches here. See #291.
     benches = benches.filter((b) => b.assignedIssue?.number === issue);
   }
   res.json(benches);
 });
 
 router.post("/:projectId/benches", async (req, res) => {
-  const { branch, issueNumber, branchConflictResolution } = req.body as CreateBenchRequest;
+  const { branch, issueNumber, externalId, branchConflictResolution } =
+    req.body as CreateBenchRequest;
 
-  // Combined create-and-assign flow
+  // Combined create-and-assign flow (plain GitHub issue, by number)
   if (issueNumber !== undefined) {
     if (typeof issueNumber !== "number") {
       res.status(400).json({ error: "issueNumber must be a number" });
@@ -60,15 +81,46 @@ router.post("/:projectId/benches", async (req, res) => {
 
       res.status(201).json(result);
     } catch (err) {
-      if (err instanceof ServiceError) {
-        res.status(err.statusCode).json({ ...err.data, error: err.message });
-      } else if (err instanceof BenchError) {
-        const status =
-          err.code === "PROJECT_NOT_FOUND" ? 404 : err.code === "NO_BENCHES" ? 409 : 400;
-        res.status(status).json({ error: err.message, code: err.code });
-      } else {
-        res.status(500).json({ error: (err as Error).message });
+      handleCreateBenchError(res, err);
+    }
+    return;
+  }
+
+  // Combined create-and-assign flow (security alert, by externalId). The alert
+  // is fetched and redacted by the active plugin's getIssue, so the host only
+  // ever sees the redacted NormalizedIssue (FR-043, NFR-012).
+  if (externalId !== undefined) {
+    if (typeof externalId !== "string" || externalId.length === 0) {
+      res.status(400).json({ error: "externalId must be a non-empty string" });
+      return;
+    }
+
+    const active = await getActivePluginOrRespond(req.params.projectId, res);
+    if (!active) return;
+
+    let issue: NormalizedIssue;
+    try {
+      issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
+        externalId,
+      });
+    } catch (err) {
+      sendPluginRpcError(res, err);
+      return;
+    }
+
+    try {
+      const result = await issueAssignment.createBenchAndAssignAlert(
+        req.params.projectId,
+        issue,
+        branchConflictResolution,
+      );
+      if (result.status === "conflict") {
+        res.status(409).json(result);
+        return;
       }
+      res.status(201).json(result);
+    } catch (err) {
+      handleCreateBenchError(res, err);
     }
     return;
   }

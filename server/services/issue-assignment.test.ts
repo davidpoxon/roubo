@@ -96,7 +96,13 @@ import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
 import { runCommand } from "./exec.js";
 import fs from "node:fs";
-import { assignIssue, unassignIssue, createBenchAndAssignIssue } from "./issue-assignment.js";
+import type { NormalizedIssue } from "@roubo/shared";
+import {
+  assignIssue,
+  unassignIssue,
+  createBenchAndAssignIssue,
+  createBenchAndAssignAlert,
+} from "./issue-assignment.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -1889,5 +1895,147 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ injectedJigSource: "project" }),
     );
+  });
+});
+
+describe("createBenchAndAssignAlert", () => {
+  const project = {
+    repoPath: "/repos/project",
+    config: {
+      project: {
+        name: "project",
+        displayName: "My Project",
+        type: "web" as const,
+        repo: "org/repo",
+      },
+      layout: { type: "single-repo" as const },
+      components: {},
+      ports: {},
+      benches: { max: 5 },
+    },
+  };
+
+  function makeBench() {
+    return {
+      id: 3,
+      projectId: "project1",
+      branch: "",
+      workspacePath: "/workspace",
+      ports: { backend: 5000 },
+      createdAt: "2026-01-01",
+      assignedContainers: {},
+      notifications: [],
+    } as any;
+  }
+
+  function codeScanningAlert(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+    return {
+      integrationId: "github-com",
+      externalId: "org/repo#code-scanning-117",
+      externalUrl: "https://github.com/org/repo/security/code-scanning/117",
+      title: "Bad thing",
+      body: null,
+      currentState: "open",
+      allowedTransitions: [],
+      assignees: [],
+      labels: [],
+      issueType: "security-code-scanning",
+      blocks: [],
+      blockedBy: [],
+      updatedAt: "t",
+      raw: {
+        number: 117,
+        rule: { id: "js/x", description: "Bad thing", security_severity_level: "high" },
+        most_recent_instance: { location: { path: "src/a.ts", start_line: 5 } },
+      },
+      ...overrides,
+    };
+  }
+
+  function setup() {
+    const bench = makeBench();
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(benchManager.createBench).mockReturnValue(bench);
+    // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+    vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-9",
+      benchKey: "project1:3",
+      label: "Claude 3",
+      createdAt: "",
+      command: "claude",
+      status: "live",
+    });
+    return bench;
+  }
+
+  it("creates a bench on a category-prefixed branch and persists the full alert externalId + redacted raw", async () => {
+    const bench = setup();
+
+    const result = await createBenchAndAssignAlert("project1", codeScanningAlert());
+
+    expect(result.status).toBe("success");
+    expect(benchManager.createBench).toHaveBeenCalledWith(
+      "project1",
+      "code-scanning-117-bad-thing",
+    );
+    expect(bench.assignedIssue).toMatchObject({
+      number: 117,
+      integrationId: "github-com",
+      externalId: "org/repo#code-scanning-117",
+      issueType: "security-code-scanning",
+    });
+    // The persisted raw is the redacted clone passed in (never re-fetched).
+    expect(bench.assignedIssue.raw).toEqual(codeScanningAlert().raw);
+  });
+
+  it("never fetches a GitHub issue by number for alerts (no open-check)", async () => {
+    setup();
+    await createBenchAndAssignAlert("project1", codeScanningAlert());
+    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
+    expect(githubService.fetchIssueComments).not.toHaveBeenCalled();
+  });
+
+  it("resolves the jig from the alert issueType", async () => {
+    setup();
+    await createBenchAndAssignAlert("project1", codeScanningAlert());
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+      "project1",
+      "security-code-scanning",
+      expect.anything(),
+    );
+  });
+
+  it("falls back to a bare category-number branch when the title slugifies to empty", async () => {
+    setup();
+    await createBenchAndAssignAlert(
+      "project1",
+      codeScanningAlert({
+        externalId: "org/repo#secret-scanning-42",
+        title: "!!!",
+        issueType: "security-secret-scanning",
+        raw: { number: 42, secret_type_display_name: "GitHub PAT" },
+      }),
+    );
+    expect(benchManager.createBench).toHaveBeenCalledWith("project1", "secret-scanning-42");
+  });
+
+  it("rejects a non-alert externalId", async () => {
+    setup();
+    await expect(
+      createBenchAndAssignAlert("project1", codeScanningAlert({ externalId: "org/repo#42" })),
+    ).rejects.toThrow(/Not a security alert/);
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("returns a conflict when the branch exists and no resolution is given", async () => {
+    setup();
+    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const result = await createBenchAndAssignAlert("project1", codeScanningAlert());
+    expect(result.status).toBe("conflict");
+    if (result.status === "conflict") {
+      expect(result.branchConflict.branchName).toBe("code-scanning-117-bad-thing");
+    }
+    expect(benchManager.createBench).not.toHaveBeenCalled();
   });
 });

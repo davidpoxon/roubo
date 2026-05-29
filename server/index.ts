@@ -110,6 +110,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     let benches = benchManager.getBenches();
     const issue = parseInt(req.query.issue as string, 10);
     if (!isNaN(issue)) {
+      // Matches on assignedIssue.number; an alert numbered N over-matches here. See #291.
       benches = benches.filter((b) => b.assignedIssue?.number === issue);
     }
     res.json(benches);

@@ -3,10 +3,13 @@ import type {
   AssignIssueResponse,
   CreateBenchWithIssueResponse,
   Bench,
+  NormalizedIssue,
   RouboConfig,
   JigDefaultSource,
 } from "@roubo/shared";
 import { CLAUDE_STARTUP_DELAY_MS } from "@roubo/shared";
+import { parseAlertExternalId } from "./alert-external-id.js";
+import { formatAlertBody } from "./alert-formatting.js";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
@@ -103,6 +106,62 @@ function slugify(text: string, maxLength = 40): string {
     .slice(0, maxLength);
 }
 
+type BranchResolution =
+  | {
+      status: "conflict";
+      branchConflict: { branchExists: true; workspaceExists: boolean; branchName: string };
+    }
+  | { status: "ok"; branchName: string };
+
+/**
+ * Resolves the final branch name for a create-and-assign flow, honoring the
+ * caller's conflict-resolution choice. Returns a `conflict` payload when the
+ * branch already exists and the caller has not chosen how to proceed; appends a
+ * numeric suffix when "new" was chosen. Shared by the issue and alert paths so
+ * both behave identically.
+ */
+async function resolveBranchNameForCreate(
+  repoPath: string,
+  baseBranchName: string,
+  conflictResolution: "resume" | "new" | undefined,
+): Promise<BranchResolution> {
+  let branchName = baseBranchName;
+  const branchCheck = await runCommand(
+    "git",
+    ["rev-parse", "--verify", `refs/heads/${branchName}`],
+    repoPath,
+  );
+  const branchExists = branchCheck.code === 0;
+
+  if (branchExists && !conflictResolution) {
+    const existingBench = stateService.getPersistedBenches().find((s) => s.branch === branchName);
+    const workspaceExists = existingBench ? fs.existsSync(existingBench.workspacePath) : false;
+    return {
+      status: "conflict",
+      branchConflict: { branchExists: true, workspaceExists, branchName },
+    };
+  }
+
+  if (branchExists && conflictResolution === "new") {
+    let suffix = 2;
+    let candidate = `${branchName}-${suffix}`;
+    while (true) {
+      const check = await runCommand(
+        "git",
+        ["rev-parse", "--verify", `refs/heads/${candidate}`],
+        repoPath,
+      );
+      if (check.code !== 0) break;
+      suffix++;
+      if (suffix > 100) throw new ServiceError(409, "Too many branch name conflicts");
+      candidate = `${branchName}-${suffix}`;
+    }
+    branchName = candidate;
+  }
+
+  return { status: "ok", branchName };
+}
+
 export async function createBenchAndAssignIssue(
   projectId: string,
   issueNumber: number,
@@ -125,49 +184,16 @@ export async function createBenchAndAssignIssue(
   // fetchIssueType catches all errors internally and returns null on failure.
   const issueType = await githubService.fetchIssueType(repoFullName, issueNumber);
 
-  // Generate branch name
-  let branchName = `issue-${issueNumber}-${slugify(issue.title)}`;
-
-  // Check if branch already exists
-  const branchCheck = await runCommand(
-    "git",
-    ["rev-parse", "--verify", `refs/heads/${branchName}`],
+  // Generate branch name and resolve any conflict
+  const branchResult = await resolveBranchNameForCreate(
     project.repoPath,
+    `issue-${issueNumber}-${slugify(issue.title)}`,
+    conflictResolution,
   );
-  const branchExists = branchCheck.code === 0;
-
-  if (branchExists && !conflictResolution) {
-    // Check if any existing bench is using this branch
-    const existingBench = stateService.getPersistedBenches().find((s) => s.branch === branchName);
-    const workspaceExists = existingBench ? fs.existsSync(existingBench.workspacePath) : false;
-
-    return {
-      status: "conflict",
-      branchConflict: {
-        branchExists: true,
-        workspaceExists,
-        branchName,
-      },
-    };
+  if (branchResult.status === "conflict") {
+    return branchResult;
   }
-
-  if (branchExists && conflictResolution === "new") {
-    // Append numeric suffix
-    let suffix = 2;
-    let candidate = `${branchName}-${suffix}`;
-    while (true) {
-      const check = await runCommand(
-        "git",
-        ["rev-parse", "--verify", `refs/heads/${candidate}`],
-        project.repoPath,
-      );
-      if (check.code !== 0) break;
-      suffix++;
-      if (suffix > 100) throw new ServiceError(409, "Too many branch name conflicts");
-      candidate = `${branchName}-${suffix}`;
-    }
-    branchName = candidate;
-  }
+  const branchName = branchResult.branchName;
 
   // Create bench with the branch name
   const bench = benchManager.createBench(projectId, branchName);
@@ -213,6 +239,117 @@ export async function createBenchAndAssignIssue(
     project.config,
     issue,
     comments,
+    issueType,
+  );
+
+  if (jigId) {
+    bench.injectedJigId = jigId;
+    bench.injectedJigSource = jigSource;
+    stateService.updateBench({
+      id: bench.id,
+      projectId: bench.projectId,
+      branch: bench.branch,
+      workspacePath: bench.workspacePath,
+      ports: bench.ports,
+      createdAt: bench.createdAt,
+      assignedContainers: bench.assignedContainers,
+      assignedIssue: bench.assignedIssue,
+      notifications: bench.notifications,
+      workUnits: bench.workUnits,
+      baseBranch: bench.baseBranch,
+      baseCommit: bench.baseCommit,
+      injectedJigId: bench.injectedJigId,
+      injectedJigSource: bench.injectedJigSource,
+    });
+  }
+
+  return {
+    status: "success",
+    bench,
+    terminalSessionId,
+  };
+}
+
+/**
+ * Create-and-assign flow for a security alert (code-scanning, secret-scanning,
+ * dependabot). `alert` is the already-redacted NormalizedIssue fetched by the
+ * active plugin's `getIssue`, so the literal secret never reaches the host
+ * (FR-043, NFR-012). Mirrors createBenchAndAssignIssue but keys off the alert
+ * externalId rather than a GitHub issue number: no comments, no linked PRs, and
+ * no "is open" check (the cut list only surfaces open alerts).
+ */
+export async function createBenchAndAssignAlert(
+  projectId: string,
+  alert: NormalizedIssue,
+  conflictResolution?: "resume" | "new",
+): Promise<CreateBenchWithIssueResponse> {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) throw new ServiceError(404, "Project config not found");
+  if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");
+
+  const parsed = parseAlertExternalId(alert.externalId);
+  if (!parsed) {
+    throw new ServiceError(400, `Not a security alert externalId: ${alert.externalId}`);
+  }
+  const { category, alertNumber } = parsed;
+  const projectName = project.config.project.displayName;
+  const issueType = alert.issueType ?? null;
+
+  // Branch name: `${category}-${alertNumber}-${slug}`, never ending in a bare
+  // hyphen when the title slugifies to empty (symbol-only titles).
+  const slug = slugify(alert.title);
+  const baseBranch = slug ? `${category}-${alertNumber}-${slug}` : `${category}-${alertNumber}`;
+  const branchResult = await resolveBranchNameForCreate(
+    project.repoPath,
+    baseBranch,
+    conflictResolution,
+  );
+  if (branchResult.status === "conflict") {
+    return branchResult;
+  }
+  const branchName = branchResult.branchName;
+
+  const bench = benchManager.createBench(projectId, branchName);
+
+  bench.assignedIssue = {
+    number: alertNumber,
+    integrationId: alert.integrationId || "github-com",
+    externalId: alert.externalId,
+    title: alert.title,
+    issueType,
+    raw: alert.raw,
+  };
+
+  stateService.updateBench({
+    id: bench.id,
+    projectId: bench.projectId,
+    branch: bench.branch,
+    workspacePath: bench.workspacePath,
+    ports: bench.ports,
+    createdAt: bench.createdAt,
+    assignedContainers: bench.assignedContainers,
+    assignedIssue: bench.assignedIssue,
+    notifications: bench.notifications,
+    workUnits: bench.workUnits,
+  });
+
+  const {
+    sessionId: terminalSessionId,
+    jigId,
+    jigSource,
+  } = buildAndStartClaudeSession(
+    projectId,
+    bench.id,
+    bench,
+    projectName,
+    project.config,
+    {
+      number: alertNumber,
+      title: alert.title,
+      body: formatAlertBody(alert),
+      htmlUrl: alert.externalUrl,
+    },
+    [],
     issueType,
   );
 
