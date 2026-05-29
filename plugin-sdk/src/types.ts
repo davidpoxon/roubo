@@ -37,6 +37,13 @@ export interface ConnectionStatus {
   detail?: string;
   /** ISO-8601 timestamp; the plugin (or host fallback) sets this at observation. */
   checkedAt: string;
+  /**
+   * Present on `connected` when the plugin can cheaply resolve the
+   * authenticated account (e.g. from the same `GET /user` probe). The host
+   * forwards it verbatim to the UI's "Connected as <login>" label; omit it
+   * otherwise. Kept in sync with `ConnectionStatus` in `@roubo/shared`.
+   */
+  account?: { login: string };
 }
 
 /**

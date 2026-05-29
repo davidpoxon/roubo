@@ -85,5 +85,12 @@ export async function getConnectionStatus(): Promise<ConnectionStatus> {
     }
   }
 
-  return { state: "connected", checkedAt };
+  // `result` is narrowed to scopes|unknown here; both carry the best-effort
+  // `login` parsed from the same GET /user probe. Surface it so the Configure
+  // dialog can render "Connected as <login>" without a second request.
+  return {
+    state: "connected",
+    checkedAt,
+    ...(result.login ? { account: { login: result.login } } : {}),
+  };
 }

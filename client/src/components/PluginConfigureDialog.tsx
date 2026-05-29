@@ -490,7 +490,13 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
       <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-4">
         {plugin.id === "github-com" && (
-          <GithubOauthSection connected={connected} onAfterDisconnect={() => setTestResult(null)} />
+          <GithubOauthSection
+            connected={connected}
+            accountLogin={
+              connectionQuery.data?.account?.login ?? effective.capturedUserId?.externalId
+            }
+            onAfterDisconnect={() => setTestResult(null)}
+          />
         )}
 
         {showForm && (
@@ -753,9 +759,11 @@ function ResultStrip({
 
 function GithubOauthSection({
   connected,
+  accountLogin,
   onAfterDisconnect,
 }: {
   connected: boolean;
+  accountLogin?: string;
   onAfterDisconnect: () => void;
 }) {
   const [pending, setPending] = useState(false);
@@ -811,7 +819,7 @@ function GithubOauthSection({
             <p className="text-[12px] text-stone-700 dark:text-stone-300 mt-1">
               {STRINGS.connectedAsPrefix}
               <span className="font-mono text-stone-900 dark:text-stone-100">
-                {STRINGS.connectedAccountFallback}
+                {accountLogin ?? STRINGS.connectedAccountFallback}
               </span>
             </p>
           ) : (

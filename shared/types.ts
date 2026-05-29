@@ -318,6 +318,10 @@ export interface ConnectionStatus {
   state: ConnectionState;
   detail?: string;
   checkedAt?: string;
+  // Present on `connected` when the plugin can cheaply resolve the
+  // authenticated account (e.g. from the same `GET /user` probe). Drives the
+  // "Connected as <login>" label in the Configure dialog; omitted otherwise.
+  account?: { login: string };
 }
 
 /**
