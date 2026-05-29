@@ -6,6 +6,8 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
 import { buildTemplateContext, applyContainerOverrides } from "../services/config-parser.js";
 import { fetchIssueContext, type IssueContext } from "../services/issue-formatting.js";
+import { isAlertExternalId } from "../services/alert-external-id.js";
+import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
@@ -64,20 +66,26 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     applyContainerOverrides(templateCtx, bench.assignedContainers);
 
     let issueCtx: Partial<IssueContext> = {};
-    // Alert-backed benches re-hydrate by alert number here, which 404s and
-    // degrades to minimal data; re-hydrating from the persisted redacted raw is
-    // deferred to #290.
-    if (bench.assignedIssue && project.config.project.repo) {
-      try {
-        issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);
-      } catch (err) {
-        console.warn(
-          `[terminal] Failed to fetch issue #${bench.assignedIssue.number} for jig injection: ${(err as Error).message}`,
-        );
-        issueCtx = {
-          issueNumber: bench.assignedIssue.number,
-          issueTitle: bench.assignedIssue.title,
-        };
+    // Alert-backed benches have no GitHub issue to fetch by number, so re-hydrate
+    // from the persisted redacted raw. Plain issues fetch fresh from GitHub.
+    if (bench.assignedIssue) {
+      if (isAlertExternalId(bench.assignedIssue.externalId)) {
+        issueCtx = buildAlertIssueContext(bench.assignedIssue);
+      } else if (project.config.project.repo) {
+        try {
+          issueCtx = await fetchIssueContext(
+            project.config.project.repo,
+            bench.assignedIssue.number,
+          );
+        } catch (err) {
+          console.warn(
+            `[terminal] Failed to fetch issue #${bench.assignedIssue.number} for jig injection: ${(err as Error).message}`,
+          );
+          issueCtx = {
+            issueNumber: bench.assignedIssue.number,
+            issueTitle: bench.assignedIssue.title,
+          };
+        }
       }
     }
 

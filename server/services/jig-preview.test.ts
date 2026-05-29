@@ -119,6 +119,32 @@ describe("buildPreviewContext", () => {
     expect(ctx.issueBody).toBeUndefined();
   });
 
+  it("re-hydrates alert-backed benches from persisted raw without fetching", async () => {
+    const alertBench: Bench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        number: 117,
+        integrationId: "github-com",
+        externalId: "org/repo#code-scanning-117",
+        title: "SQL injection",
+        issueType: "security-code-scanning",
+        raw: {
+          html_url: "https://github.com/org/repo/security/code-scanning/117",
+          rule: { description: "SQL injection", security_severity_level: "high" },
+          most_recent_instance: { location: { path: "src/db.ts", start_line: 12 } },
+        },
+      },
+    };
+
+    const ctx = await buildPreviewContext(MOCK_PROJECT, alertBench);
+
+    expect(fetchIssueContext).not.toHaveBeenCalled();
+    expect(ctx.issueNumber).toBe(117);
+    expect(ctx.issueTitle).toBe("SQL injection");
+    expect(ctx.issueBody).toContain("**Location:** src/db.ts:12");
+    expect(ctx.issueUrl).toBe("https://github.com/org/repo/security/code-scanning/117");
+  });
+
   it("skips issue fetch when bench has no assigned issue", async () => {
     const benchNoIssue: Bench = { ...MOCK_BENCH, assignedIssue: undefined };
     await buildPreviewContext(MOCK_PROJECT, benchNoIssue);

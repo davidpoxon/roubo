@@ -268,6 +268,41 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     );
   });
 
+  it("re-hydrates alert-backed benches from persisted raw without fetching by number", async () => {
+    const alertBench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        number: 117,
+        integrationId: "github-com",
+        externalId: "owner/repo#code-scanning-117",
+        title: "SQL injection",
+        issueType: "security-code-scanning",
+        raw: {
+          html_url: "https://github.com/owner/repo/security/code-scanning/117",
+          rule: { description: "SQL injection", security_severity_level: "high" },
+          most_recent_instance: { location: { path: "src/db.ts", start_line: 12 } },
+        },
+      },
+    };
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT_WITH_REPO as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      alertBench as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+
+    await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
+
+    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    const ctx = vi.mocked(jigManager.resolveJigContent).mock.calls[0][1];
+    expect(ctx).toMatchObject({
+      issueNumber: 117,
+      issueTitle: "SQL injection",
+      issueUrl: "https://github.com/owner/repo/security/code-scanning/117",
+    });
+    expect(ctx.issueBody).toContain("**Location:** src/db.ts:12");
+  });
+
   it("appends \\r when autoExecute is true", async () => {
     vi.mocked(state.loadSettings).mockReturnValue({
       theme: "dark",
