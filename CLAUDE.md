@@ -40,7 +40,7 @@ When a code comment, commit message, PR description, or plan file mentions defer
 
 ```bash
 # Install all dependencies
-npm install
+nvm use && npm install
 
 # Run both server and client (from root)
 npm run dev

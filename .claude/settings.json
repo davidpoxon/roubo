@@ -6,7 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git push'; then npx prettier --check . && npm run lint && npm run typecheck; fi"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-push-checks.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/nvm-use-before-npm-install.sh"
           }
         ]
       }
