@@ -31,8 +31,8 @@ function slotDescription(
 /**
  * Minimal JSON-Schema → React Aria form renderer. Handles the four field
  * shapes WU-012 needs: string, password-string, boolean, number/integer.
- * Anything else renders a stone-500 caption pointing the user at the
- * override file.
+ * Anything else renders a stone-500 caption explaining the field is managed
+ * per project and edited in the override file rather than inline here.
  */
 export default function ConfigSchemaForm({
   schema,
@@ -150,7 +150,8 @@ export default function ConfigSchemaForm({
 
         return (
           <p key={key} className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-            Field {label} uses an unsupported type and must be edited in the override file.
+            {label} is managed per project and configured automatically. To set it by hand, edit the
+            override file.
           </p>
         );
       })}

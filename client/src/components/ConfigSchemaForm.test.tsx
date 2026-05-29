@@ -99,7 +99,7 @@ describe("ConfigSchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ instance: "x" });
   });
 
-  it("renders an unsupported-type caption for unknown JSON Schema shapes", () => {
+  it("renders a managed-field caption for complex JSON Schema shapes", () => {
     render(
       <ConfigSchemaForm
         schema={{ properties: { weird: { type: "array" } as unknown } }}
@@ -107,7 +107,9 @@ describe("ConfigSchemaForm", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByText(/uses an unsupported type/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/managed per project and configured automatically/),
+    ).toBeInTheDocument();
   });
 
   it("emits an empty list for passwordFieldKeys when the schema is missing", () => {
