@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
@@ -89,6 +89,10 @@ const MOCK_JIG = {
   sizeBytes: 50,
   sizeWarning: false,
 };
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("invalid bench id", () => {
   it("returns 400 for non-numeric bench id on POST", async () => {

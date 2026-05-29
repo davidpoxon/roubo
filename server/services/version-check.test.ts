@@ -17,6 +17,10 @@ describe("checkForUpdate", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // restoreAllMocks does not revert vi.stubGlobal, so the stubbed
+    // globalThis.fetch would otherwise leak into later files sharing this
+    // worker. Unstub it here to keep cross-file isolation clean (#293).
+    vi.unstubAllGlobals();
   });
 
   it("prints update notice when a newer version is available", async () => {

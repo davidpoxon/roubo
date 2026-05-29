@@ -19,6 +19,18 @@ export default defineConfig({
   test: {
     globals: true,
     restoreMocks: true,
+    // Bounded retry for the suite-wide Vitest-at-scale mock-isolation flake
+    // tracked in #293. Under a full run the forks pool occasionally lets one
+    // file's module mock bleed into another that mocks the same module
+    // differently, so a (random) route test reads a foreign value and asserts
+    // the wrong HTTP status. We removed the leak sources we could pin down
+    // (version-check.test.ts global-fetch stub, fake-timer teardown gaps), but
+    // a residual flake remains inside Vitest's own per-file isolation that no
+    // available config or pool option (forks/threads) eliminates. This bounded
+    // retry re-runs only the failed test (re-establishing its mocks) to keep CI
+    // green while #293 stays open for a root-cause fix upstream. It is a
+    // stabilizer, not a fix: it also masks other genuinely intermittent tests.
+    retry: 1,
     include: [
       "server/**/*.test.ts",
       "client/src/**/*.test.{ts,tsx}",

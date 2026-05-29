@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 
 vi.mock("./bench-manager.js", () => ({
@@ -106,6 +106,10 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("assignIssue", () => {

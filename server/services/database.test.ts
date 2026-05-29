@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockQuery = vi.hoisted(() => vi.fn());
 const mockInput = vi.hoisted(() => vi.fn());
@@ -41,6 +41,10 @@ import {
   closeIdleConnections,
   closeAllConnections,
 } from "./database.js";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(async () => {
   mockQuery.mockReset();
