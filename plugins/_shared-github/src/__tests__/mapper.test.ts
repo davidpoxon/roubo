@@ -11,6 +11,7 @@ import {
   mapCodeScanningAlertToNormalizedIssue,
   mapDependabotAlertToNormalizedIssue,
   mapSecretScanningAlertToNormalizedIssue,
+  normalizeAlertState,
 } from "../mapper.js";
 
 function loadFixture<T>(name: string): T {
@@ -91,5 +92,92 @@ describe("stable external-id across repeated mapping (AC#7)", () => {
     const first = mapCodeScanningAlertToNormalizedIssue("github-com", "wday-planning/roubo", raw);
     const second = mapCodeScanningAlertToNormalizedIssue("github-com", "wday-planning/roubo", raw);
     expect(first.externalId).toBe(second.externalId);
+  });
+});
+
+describe("normalizeAlertState (#289)", () => {
+  it("passes open and fixed through unchanged", () => {
+    expect(normalizeAlertState("open")).toBe("open");
+    expect(normalizeAlertState("fixed")).toBe("fixed");
+  });
+
+  it("folds the terminal variants into dismissed", () => {
+    expect(normalizeAlertState("dismissed")).toBe("dismissed");
+    expect(normalizeAlertState("auto_dismissed")).toBe("dismissed"); // dependabot
+    expect(normalizeAlertState("resolved")).toBe("dismissed"); // secret-scanning
+  });
+
+  it("falls back to open for missing or unknown values", () => {
+    expect(normalizeAlertState(undefined)).toBe("open");
+    expect(normalizeAlertState(null)).toBe("open");
+    expect(normalizeAlertState("")).toBe("open");
+    expect(normalizeAlertState("something-new")).toBe("open");
+  });
+});
+
+describe("currentState reflects the alert lifecycle (#289)", () => {
+  it("code-scanning: maps raw fixed/dismissed/open into currentState", () => {
+    const base: RawCodeScanningAlert = {
+      number: 1,
+      html_url: "u",
+      state: "open",
+      created_at: "2026-01-01T00:00:00Z",
+    };
+    expect(
+      mapCodeScanningAlertToNormalizedIssue("github-com", "foo/bar", { ...base, state: "open" })
+        .currentState,
+    ).toBe("open");
+    expect(
+      mapCodeScanningAlertToNormalizedIssue("github-com", "foo/bar", { ...base, state: "fixed" })
+        .currentState,
+    ).toBe("fixed");
+    expect(
+      mapCodeScanningAlertToNormalizedIssue("github-com", "foo/bar", {
+        ...base,
+        state: "dismissed",
+      }).currentState,
+    ).toBe("dismissed");
+  });
+
+  it("secret-scanning: maps raw resolved into dismissed", () => {
+    const base: RawSecretScanningAlert = {
+      number: 2,
+      html_url: "u",
+      state: "open",
+      created_at: "2026-01-01T00:00:00Z",
+    };
+    expect(
+      mapSecretScanningAlertToNormalizedIssue("github-com", "foo/bar", { ...base, state: "open" })
+        .currentState,
+    ).toBe("open");
+    expect(
+      mapSecretScanningAlertToNormalizedIssue("github-com", "foo/bar", {
+        ...base,
+        state: "resolved",
+      }).currentState,
+    ).toBe("dismissed");
+  });
+
+  it("dependabot: maps raw auto_dismissed/fixed into currentState", () => {
+    const base: RawDependabotAlert = {
+      number: 3,
+      html_url: "u",
+      state: "open",
+      created_at: "2026-01-01T00:00:00Z",
+    };
+    expect(
+      mapDependabotAlertToNormalizedIssue("github-com", "foo/bar", { ...base, state: "open" })
+        .currentState,
+    ).toBe("open");
+    expect(
+      mapDependabotAlertToNormalizedIssue("github-com", "foo/bar", { ...base, state: "fixed" })
+        .currentState,
+    ).toBe("fixed");
+    expect(
+      mapDependabotAlertToNormalizedIssue("github-com", "foo/bar", {
+        ...base,
+        state: "auto_dismissed",
+      }).currentState,
+    ).toBe("dismissed");
   });
 });

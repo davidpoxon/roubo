@@ -1,8 +1,10 @@
-import type { Bench, BenchWorkUnit, UserPreferences } from "@roubo/shared";
+import type { Bench, BenchWorkUnit, NormalizedIssue, UserPreferences } from "@roubo/shared";
 import { DONE_STATUSES } from "@roubo/shared";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
+import { resolveActivePlugin } from "./active-plugin.js";
+import * as pluginManager from "./plugin-manager.js";
 import { isAlertExternalId } from "./alert-external-id.js";
 import { buildKnownMergedLocations, getDirtyState } from "./git-state.js";
 import * as notificationService from "./notification.js";
@@ -13,10 +15,15 @@ const TWO_MINUTES_MS = 2 * 60 * 1000;
 
 const POLL_INTERVAL_MS = 30_000;
 
+// Shorter than the 30s default RPC timeout (= the poll interval) so a hung
+// plugin cannot stall a whole auto-clear pass while fetching alert state.
+const ALERT_FETCH_TIMEOUT_MS = 15_000;
+
 type AutoClearReason =
   | "merged"
   | "closed"
   | "legacy-issue-closed"
+  | "alert-resolved"
   | "blocked:open-pr"
   | "blocked:sync-error"
   | "blocked:stale-sync";
@@ -156,6 +163,51 @@ async function safeTeardown(projectId: string, bench: Bench): Promise<void> {
   }
 }
 
+/**
+ * Classify alert-backed benches for auto-clear (#289). Each bench's alert is
+ * re-fetched through the active integration plugin's `getIssue` by `externalId`
+ * (never by issue number, to avoid the alert/issue number collision). A bench is
+ * cleared once its alert is no longer open (i.e. fixed or dismissed). Fetch
+ * failures leave the bench untouched so a transient error never tears down work.
+ */
+async function classifyAlertBenches(projectId: string, alertBenches: Bench[]): Promise<void> {
+  const active = resolveActivePlugin(projectId);
+  if (!active) {
+    console.debug(
+      `[auto-clear] Skipping ${alertBenches.length} alert-backed bench(es) in project ${projectId} ` +
+        `(no active integration plugin)`,
+    );
+    return;
+  }
+
+  await Promise.all(
+    alertBenches.map(async (bench) => {
+      const externalId = bench.assignedIssue?.externalId;
+      if (!externalId) return;
+      try {
+        const issue = await pluginManager.invoke<NormalizedIssue>(
+          active.pluginId,
+          "getIssue",
+          { externalId },
+          { timeoutMs: ALERT_FETCH_TIMEOUT_MS },
+        );
+        if (issue.currentState !== "open") {
+          console.log(
+            `[auto-clear] Clearing bench ${bench.id} (project ${projectId}): ` +
+              `alert ${externalId} state is "${issue.currentState}" reason=alert-resolved`,
+          );
+          await safeTeardown(projectId, bench);
+        }
+      } catch (err) {
+        console.error(
+          `[auto-clear] Could not fetch alert ${externalId} for project ${projectId}:`,
+          err,
+        );
+      }
+    }),
+  );
+}
+
 async function checkProjectBenches(
   projectId: string,
   benches: ReturnType<typeof benchManager.getBenches>,
@@ -169,24 +221,25 @@ async function checkProjectBenches(
 
   if (!projectRegistry.resolveAutoClear(projectId, settings)) return;
 
-  // Split benches by type: work-unit benches (meta-repo) vs legacy benches (issue-based)
+  // Split benches by type. Alert-backed benches have no GitHub issue to re-fetch
+  // by number, and their assignedIssue.number is an alert number that could
+  // collide with an unrelated issue #N, so they must never enter the issue-state
+  // classification below; they are classified by alert state instead (#289).
   const workUnitBenches = benches.filter((b) => b.workUnits && b.workUnits.length > 0);
-  // Alert-backed benches have no GitHub issue to re-fetch by number, and their
-  // assignedIssue.number is an alert number that could collide with an unrelated
-  // issue #N, so they must never enter the issue-state classification below.
-  // Auto-clearing alert benches from alert state is deferred to #289.
-  const alertBenchCount = benches.filter((b) =>
-    isAlertExternalId(b.assignedIssue?.externalId),
-  ).length;
+  const alertBenches = benches.filter(
+    (b) =>
+      (!b.workUnits || b.workUnits.length === 0) && isAlertExternalId(b.assignedIssue?.externalId),
+  );
   const legacyBenches = benches.filter(
     (b) =>
       (!b.workUnits || b.workUnits.length === 0) && !isAlertExternalId(b.assignedIssue?.externalId),
   );
-  if (alertBenchCount > 0) {
-    console.debug(
-      `[auto-clear] Skipping ${alertBenchCount} alert-backed bench(es) in project ${projectId} ` +
-        `(no issue-state auto-clear for security alerts; see #289)`,
-    );
+
+  // --- Alert-backed bench classification (#289) ---
+  // Re-fetch each alert via the active plugin's getIssue by externalId (never by
+  // issue number) and clear once the alert is no longer open (fixed/dismissed).
+  if (alertBenches.length > 0) {
+    await classifyAlertBenches(projectId, alertBenches);
   }
 
   // --- Work-unit bench classification ---
