@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Button, DialogTrigger } from "react-aria-components";
 import type { IntegrationConfig, ProjectIntegrationState } from "@roubo/shared";
@@ -154,12 +154,17 @@ function installMocks(opts: {
   testPending?: boolean;
   savePending?: boolean;
   connectionState?: "connected" | "auth-problem" | "disconnected" | "errored";
+  account?: { login: string };
 }) {
   const connState = opts.connectionState ?? "connected";
   useConnectionStatusMock.mockImplementation(
     () =>
       ({
-        data: { state: connState, checkedAt: "2026-05-22T09:00:00.000Z" },
+        data: {
+          state: connState,
+          checkedAt: "2026-05-22T09:00:00.000Z",
+          ...(opts.account ? { account: opts.account } : {}),
+        },
         isFetching: false,
       }) as unknown as UseConnectionStatusReturn,
   );
@@ -693,6 +698,36 @@ describe("PluginConfigureDialog (global scope)", () => {
 
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
       expect(screen.getByTestId("github-oauth-section")).toBeInTheDocument();
+    });
+
+    it("renders the live GitHub login from the connection status as the account label", () => {
+      installMocks({ test: vi.fn(), save: vi.fn(), account: { login: "octocat" } });
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("octocat")).toBeInTheDocument();
+    });
+
+    it("falls back to the persisted capturedUserId.externalId when the live status has no account", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({
+        plugin: githubPlugin(),
+        effective: {
+          plugin: "github-com",
+          capturedUserId: { externalId: "octocat", displayName: "The Octocat" },
+        },
+      });
+
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("octocat")).toBeInTheDocument();
+    });
+
+    it("falls back to the literal 'GitHub' when neither the live status nor the persisted identity carries a login", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("GitHub")).toBeInTheDocument();
     });
 
     it("hides the prominent Connect button when the pill reads 'connected' and shows a low-emphasis Disconnect instead", () => {

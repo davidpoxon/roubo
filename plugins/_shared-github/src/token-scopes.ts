@@ -13,10 +13,15 @@ import type { FetchTransport } from "./transport.js";
  *   - `error`: the probe call itself failed (non-2xx or transport threw). The
  *     `status` and `detail` are safe to surface; `detail` never contains the
  *     bearer token.
+ *
+ * The `scopes` and `unknown` variants also carry the authenticated account's
+ * `login` when it could be parsed from the `GET /user` body (the same request
+ * that reads the scopes header). It is omitted when the body is missing,
+ * unparseable, or carries no `login`; callers must treat it as best-effort.
  */
 export type DetectTokenScopesResult =
-  | { kind: "scopes"; scopes: string[] }
-  | { kind: "unknown" }
+  | { kind: "scopes"; scopes: string[]; login?: string }
+  | { kind: "unknown"; login?: string }
   | { kind: "error"; status?: number; detail: string };
 
 export interface DetectTokenScopesOptions {
@@ -46,6 +51,19 @@ function parseScopesHeader(value: string | string[] | undefined): string[] | und
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+// Best-effort extraction of the authenticated account's `login` from the
+// `GET /user` body. Never throws: a missing, non-JSON, or login-less body
+// yields `undefined` so the scopes probe stays the source of truth.
+function parseLogin(body: string | undefined): string | undefined {
+  if (!body) return undefined;
+  try {
+    const parsed = JSON.parse(body) as { login?: unknown };
+    return typeof parsed.login === "string" && parsed.login.length > 0 ? parsed.login : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -89,9 +107,10 @@ export async function detectTokenScopes(
     };
   }
 
+  const login = parseLogin(res.body);
   const scopes = parseScopesHeader(getHeader(res.headers, "X-OAuth-Scopes"));
-  if (scopes === undefined) return { kind: "unknown" };
-  return { kind: "scopes", scopes };
+  if (scopes === undefined) return { kind: "unknown", login };
+  return { kind: "scopes", scopes, login };
 }
 
 /**

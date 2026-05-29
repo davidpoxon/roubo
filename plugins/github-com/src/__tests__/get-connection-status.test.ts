@@ -42,6 +42,26 @@ describe("getConnectionStatus (github-com)", () => {
     expect(result.checkedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
+  it("surfaces the authenticated login as account on the connected result", async () => {
+    queueUserResponse(mocks, { "X-OAuth-Scopes": "repo, read:org" });
+
+    const result = await getConnectionStatus();
+    expect(result.state).toBe("connected");
+    expect(result.account).toEqual({ login: "octocat" });
+  });
+
+  it("omits account when the /user body carries no login", async () => {
+    mocks.mockHost.fetch.mockImplementationOnce(async () => ({
+      status: 200,
+      headers: { "X-OAuth-Scopes": "repo" },
+      body: "{}",
+    }));
+
+    const result = await getConnectionStatus();
+    expect(result.state).toBe("connected");
+    expect(result.account).toBeUndefined();
+  });
+
   it("requests https://api.github.com/user with a Bearer Authorization header", async () => {
     mocks.mockHost.fetch.mockImplementationOnce(async (url, init) => {
       expect(url).toBe("https://api.github.com/user");
@@ -64,6 +84,7 @@ describe("getConnectionStatus (github-com)", () => {
     const result = await getConnectionStatus();
     expect(result.state).toBe("auth-problem");
     expect(result.detail).toMatch(/invalid or expired/);
+    expect(result.account).toBeUndefined();
   });
 
   it("returns auth-problem when /user returns 403", async () => {

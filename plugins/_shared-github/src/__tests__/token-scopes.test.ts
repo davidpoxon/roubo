@@ -37,6 +37,7 @@ describe("detectTokenScopes", () => {
     expect(result).toEqual({
       kind: "scopes",
       scopes: ["repo", "gist", "read:org", "security_events"],
+      login: "octocat",
     });
     expect(hasScope(result, SECURITY_EVENTS_SCOPE)).toBe(true);
     expect(scopeStatus(result, SECURITY_EVENTS_SCOPE)).toBe("granted");
@@ -51,6 +52,7 @@ describe("detectTokenScopes", () => {
     expect(result).toEqual({
       kind: "scopes",
       scopes: ["repo", "gist", "read:org"],
+      login: "octocat",
     });
     expect(hasScope(result, SECURITY_EVENTS_SCOPE)).toBe(false);
     expect(scopeStatus(result, SECURITY_EVENTS_SCOPE)).toBe("lacking");
@@ -60,7 +62,7 @@ describe("detectTokenScopes", () => {
     const transport = vi.fn(async (): Promise<FetchResult> => fixtureResponse("fine-grained-pat"));
 
     const result = await detectTokenScopes(transport, "https://api.github.com");
-    expect(result).toEqual({ kind: "unknown" });
+    expect(result).toEqual({ kind: "unknown", login: "octocat" });
     expect(hasScope(result, SECURITY_EVENTS_SCOPE)).toBe(false);
     expect(scopeStatus(result, SECURITY_EVENTS_SCOPE)).toBe("unknown");
   });
@@ -69,7 +71,7 @@ describe("detectTokenScopes", () => {
     const transport = vi.fn(async (): Promise<FetchResult> => fixtureResponse("empty-scopes"));
 
     const result = await detectTokenScopes(transport, "https://api.github.com");
-    expect(result).toEqual({ kind: "scopes", scopes: [] });
+    expect(result).toEqual({ kind: "scopes", scopes: [], login: "octocat" });
     expect(scopeStatus(result, SECURITY_EVENTS_SCOPE)).toBe("lacking");
   });
 
@@ -172,6 +174,36 @@ describe("detectTokenScopes", () => {
     await detectTokenScopes(transport, "https://api.github.com");
     await detectTokenScopes(transport, "https://api.github.com/");
     expect(seen).toEqual(["https://api.github.com/user", "https://api.github.com/user"]);
+  });
+
+  it("parses the authenticated login from the /user body (same request as the scopes probe)", async () => {
+    const transport = vi.fn(
+      async (): Promise<FetchResult> => ({
+        status: 200,
+        headers: { "X-OAuth-Scopes": "repo" },
+        body: JSON.stringify({ login: "monalisa", id: 7 }),
+      }),
+    );
+
+    const result = await detectTokenScopes(transport, "https://api.github.com");
+    expect(result).toEqual({ kind: "scopes", scopes: ["repo"], login: "monalisa" });
+  });
+
+  it("omits login when the /user body is empty, login-less, or unparseable (never throws)", async () => {
+    const bodies = ["{}", '{"id":7}', "not json", ""];
+    for (const body of bodies) {
+      const transport = vi.fn(
+        async (): Promise<FetchResult> => ({
+          status: 200,
+          headers: { "X-OAuth-Scopes": "repo" },
+          body,
+        }),
+      );
+
+      const result = await detectTokenScopes(transport, "https://api.github.com");
+      expect(result).toEqual({ kind: "scopes", scopes: ["repo"] });
+      expect("login" in result && result.login).toBeFalsy();
+    }
   });
 
   it("requests GET /user against the supplied baseUrl (GHE form)", async () => {
