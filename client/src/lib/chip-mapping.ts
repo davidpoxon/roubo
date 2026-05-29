@@ -140,6 +140,17 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/**
+ * Strip the "owner/repo" prefix from an externalId, leaving just the issue
+ * reference ("#76" or "#code-scanning-106"). The repo is redundant in the cut
+ * list (single project context) and wastes horizontal space. Degrades to the
+ * original string when there is no "#".
+ */
+export function shortIssueRef(externalId: string): string {
+  const hashIdx = externalId.lastIndexOf("#");
+  return hashIdx === -1 ? externalId : externalId.slice(hashIdx);
+}
+
 export const METADATA_ICONS = {
   assignee: User,
   blocks: Link2,

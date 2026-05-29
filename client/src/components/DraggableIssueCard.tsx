@@ -8,6 +8,7 @@ import {
   alertSeverityTooltip,
   issueTypeChip,
   securityCategoryFor,
+  shortIssueRef,
   statusTone,
   truncateChips,
   type ChipItem,
@@ -53,7 +54,19 @@ export default function DraggableIssueCard({
     ariaDescription: isBlocked ? `Blocked by ${blockers.join(", ")}` : undefined,
   });
 
-  // Security categories surface a dedicated chip inline-left of the title
+  // Keep the dependency chip adjacent to the status chip so "Blocked" and
+  // "Blocks N issue(s)" wrap onto the same line. Being the earliest metadata
+  // entry also makes it the last metadata chip truncateChips drops.
+  if (issue.blocks.length > 0) {
+    chips.push({
+      category: "metadata",
+      key: "blocks",
+      label: `Blocks ${issue.blocks.length} ${issue.blocks.length === 1 ? "issue" : "issues"}`,
+      icon: METADATA_ICONS.blocks,
+    });
+  }
+
+  // Security categories surface a dedicated chip in the chips row
   // (rendered below). Suppress the duplicate row-chip so the list shows only
   // the category chip per prototype-notes.
   if (typeChip && !securityCategory) {
@@ -81,15 +94,6 @@ export default function DraggableIssueCard({
       key: "assignee",
       label: primaryAssignee,
       icon: METADATA_ICONS.assignee,
-    });
-  }
-
-  if (issue.blocks.length > 0) {
-    chips.push({
-      category: "metadata",
-      key: "blocks",
-      label: `Blocks ${issue.blocks.length} ${issue.blocks.length === 1 ? "issue" : "issues"}`,
-      icon: METADATA_ICONS.blocks,
     });
   }
 
@@ -122,12 +126,17 @@ export default function DraggableIssueCard({
     >
       <div className="flex items-start gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span
-              className={`text-[11px] font-mono shrink-0 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
-            >
-              {issue.externalId}
-            </span>
+          <span
+            className={`block truncate text-xs font-medium ${isAssigned ? "text-stone-400 dark:text-stone-600" : "text-stone-800 dark:text-stone-200"}`}
+          >
+            {issue.title}
+          </span>
+          <span
+            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
+          >
+            {shortIssueRef(issue.externalId)}
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
             {securityCategory && typeChip && (
               <IssueChip
                 variant="security-category"
@@ -139,13 +148,6 @@ export default function DraggableIssueCard({
                 {typeChip.label}
               </IssueChip>
             )}
-            <span
-              className={`text-xs font-medium truncate ${isAssigned ? "text-stone-400 dark:text-stone-600" : "text-stone-800 dark:text-stone-200"}`}
-            >
-              {issue.title}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
             {visible.map((chip) => (
               <IssueChip
                 key={chip.key}

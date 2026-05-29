@@ -5,6 +5,7 @@ import {
   alertSeverityTooltip,
   issueTypeChip,
   securityCategoryFor,
+  shortIssueRef,
   statusTone,
   truncateChips,
   type ChipItem,
@@ -234,5 +235,20 @@ describe("truncateChips", () => {
     const result = truncateChips(items, 6);
     expect(result.visible.length + 1).toBeLessThanOrEqual(6);
     expect(result.overflowCount).toBe(11 - result.visible.length);
+  });
+});
+
+describe("shortIssueRef", () => {
+  it.each([
+    ["davidpoxon/roubo#76", "#76"],
+    ["foo/bar#42", "#42"],
+    ["davidpoxon/roubo#code-scanning-106", "#code-scanning-106"],
+    ["#42", "#42"],
+  ])("strips the owner/repo prefix from %s", (input, expected) => {
+    expect(shortIssueRef(input)).toBe(expected);
+  });
+
+  it("returns the input unchanged when there is no '#'", () => {
+    expect(shortIssueRef("42")).toBe("42");
   });
 });
