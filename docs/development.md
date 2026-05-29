@@ -13,6 +13,7 @@ This guide is for working on Roubo itself. If you just want to use it, start wit
 ```bash
 git clone https://github.com/davidpoxon/roubo.git
 cd roubo
+nvm use
 npm install
 ```
 
