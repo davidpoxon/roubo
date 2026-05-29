@@ -1,4 +1,5 @@
-import type { NormalizedIssue } from "@roubo/shared";
+import type { NormalizedIssue, AssignedIssue } from "@roubo/shared";
+import type { IssueContext } from "./issue-formatting.js";
 
 // Builds the prompt body injected into a jig for an alert-backed bench. Reads
 // ONLY from the already-redacted NormalizedIssue produced by the plugin's
@@ -78,7 +79,9 @@ function formatDependabot(raw: Record<string, unknown>): string[] {
  * Formats a security alert as a Markdown body for jig injection. The issueType
  * discriminates the category; unknown types fall back to the title only.
  */
-export function formatAlertBody(issue: NormalizedIssue): string {
+export function formatAlertBody(
+  issue: Pick<NormalizedIssue, "issueType" | "raw" | "externalUrl">,
+): string {
   const raw = asRecord(issue.raw);
   let lines: string[];
   switch (issue.issueType) {
@@ -96,4 +99,28 @@ export function formatAlertBody(issue: NormalizedIssue): string {
   }
   if (issue.externalUrl) lines.push(`**Alert URL:** ${issue.externalUrl}`);
   return lines.join("\n");
+}
+
+/**
+ * Re-hydrates jig context for an alert-backed bench from its persisted, already
+ * redacted `assignedIssue.raw`, reproducing the context the bench received at
+ * creation. Used by the jig re-injection paths instead of fetching by number,
+ * since an alert-backed bench's `number` is an alert number, not a GitHub issue
+ * number. No network call and no leak risk: `formatAlertBody` reads only the
+ * redacted clone, and `externalUrl` is recovered from `raw.html_url` (the same
+ * field the plugin mapper used to set `NormalizedIssue.externalUrl`).
+ */
+export function buildAlertIssueContext(assignedIssue: AssignedIssue): IssueContext {
+  const externalUrl = str(asRecord(assignedIssue.raw).html_url) ?? "";
+  return {
+    issueNumber: assignedIssue.number,
+    issueTitle: assignedIssue.title,
+    issueBody: formatAlertBody({
+      issueType: assignedIssue.issueType ?? null,
+      raw: assignedIssue.raw,
+      externalUrl,
+    }),
+    issueUrl: externalUrl,
+    comments: "",
+  };
 }

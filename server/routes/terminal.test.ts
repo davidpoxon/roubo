@@ -235,6 +235,44 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
   });
 
+  it("re-hydrates alert-backed benches from persisted raw without fetching by number", async () => {
+    const alertBench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        number: 117,
+        integrationId: "github-com",
+        externalId: "owner/repo#code-scanning-117",
+        title: "SQL injection",
+        issueType: "security-code-scanning",
+        raw: {
+          html_url: "https://github.com/owner/repo/security/code-scanning/117",
+          rule: { description: "SQL injection", security_severity_level: "high" },
+          most_recent_instance: { location: { path: "src/db.ts", start_line: 12 } },
+        },
+      },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      alertBench as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("resolved");
+
+    await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    const ctx = vi.mocked(jigManager.resolveJigContent).mock.calls[0][1];
+    expect(ctx).toMatchObject({
+      issueNumber: 117,
+      issueTitle: "SQL injection",
+      issueUrl: "https://github.com/owner/repo/security/code-scanning/117",
+    });
+    expect(ctx.issueBody).toContain("**Location:** src/db.ts:12");
+  });
+
   it("does not pass initialInput when autoExecute is false, schedules PTY write instead", async () => {
     vi.useFakeTimers();
     vi.mocked(state.loadSettings).mockReturnValue({

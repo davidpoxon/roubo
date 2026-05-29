@@ -1,6 +1,8 @@
 import type { RegisteredProject, Bench } from "@roubo/shared";
 import { buildTemplateContext, applyContainerOverrides } from "./config-parser.js";
 import { fetchIssueContext } from "./issue-formatting.js";
+import { isAlertExternalId } from "./alert-external-id.js";
+import { buildAlertIssueContext } from "./alert-formatting.js";
 import type { JigResolveContext } from "./jig-manager.js";
 
 export function getSampleResolveContext(): JigResolveContext {
@@ -31,16 +33,20 @@ export async function buildPreviewContext(
 
   let issueCtx: Partial<JigResolveContext> = {};
 
-  // Alert-backed benches re-hydrate by alert number here and degrade to minimal
-  // data; re-hydrating from the persisted redacted raw is deferred to #290.
-  if (bench.assignedIssue && project.config.project.repo) {
-    try {
-      issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);
-    } catch {
-      issueCtx = {
-        issueNumber: bench.assignedIssue.number,
-        issueTitle: bench.assignedIssue.title,
-      };
+  // Alert-backed benches have no GitHub issue to fetch by number, so re-hydrate
+  // from the persisted redacted raw. Plain issues fetch fresh from GitHub.
+  if (bench.assignedIssue) {
+    if (isAlertExternalId(bench.assignedIssue.externalId)) {
+      issueCtx = buildAlertIssueContext(bench.assignedIssue);
+    } else if (project.config.project.repo) {
+      try {
+        issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);
+      } catch {
+        issueCtx = {
+          issueNumber: bench.assignedIssue.number,
+          issueTitle: bench.assignedIssue.title,
+        };
+      }
     }
   }
 
