@@ -332,14 +332,24 @@ async function discoverRoot(
   source: PluginSource,
   acc: Map<string, PluginEntry>,
 ): Promise<void> {
-  // `root` is supplied by trusted callers (bundledPluginsRoot /
-  // userPluginsRoot, both env-overridable but server-controlled) and is
-  // already an absolute path. We do not path.resolve here because that turns
-  // the value into a fresh path expression CodeQL flags at the readdir sink
-  // without strengthening the trust boundary.
+  // `root` comes from bundledPluginsRoot / userPluginsRoot, both of which read
+  // server-controlled env overrides (ROUBO_BUNDLED_PLUGINS_DIR /
+  // ROUBO_USER_PLUGINS_DIR). CodeQL models process.env as a user-controlled
+  // source for js/path-injection, so resolve the root and run the same inline
+  // path.relative containment barrier readLogs/logDirFor use before the readdir
+  // sink. The guard is recognised by the default js/path-injection suite; a
+  // value that isn't a well-formed absolute path is rejected rather than read.
+  const resolvedRoot = path.resolve(root);
+  const rel = path.relative(path.parse(resolvedRoot).root, resolvedRoot);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(
+      `plugin-manager: plugins root "${root}" is not a valid absolute path; rejecting`,
+    );
+  }
+
   let dirents;
   try {
-    dirents = await readdir(root, { withFileTypes: true });
+    dirents = await readdir(resolvedRoot, { withFileTypes: true });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;
@@ -351,7 +361,7 @@ async function discoverRoot(
     if (dirent.name === ".staging") continue;
     let pluginDir: string;
     try {
-      pluginDir = resolveWithin(root, dirent.name);
+      pluginDir = resolveWithin(resolvedRoot, dirent.name);
     } catch {
       // dirent.name was a traversal payload (only possible via a hostile filesystem); skip it.
       continue;

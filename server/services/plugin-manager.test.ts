@@ -184,6 +184,29 @@ describe("discovery", () => {
     );
     expect(userDup).toBeDefined();
   });
+
+  it("resolves a relative plugins root against cwd before discovery (CodeQL #117 barrier)", async () => {
+    // discoverRoot now resolves the env-overridable root and runs a
+    // path-containment barrier before readdir (the CodeQL #117 sanitizer). A
+    // relative ROUBO_BUNDLED_PLUGINS_DIR is normalised to an absolute path under
+    // cwd, passes the barrier, and is discovered from there rather than throwing.
+    sandbox = await makeSandbox({});
+    const cwd = process.cwd();
+    const relName = path.join("roubo-rel-plugins-test", "bundled");
+    const absRel = path.join(cwd, relName);
+    await mkdir(absRel, { recursive: true });
+    await symlink(path.join(FIXTURES_ROOT, "echo"), path.join(absRel, "echo"), "dir");
+    process.env.ROUBO_BUNDLED_PLUGINS_DIR = relName;
+    mgr = await loadManager();
+    try {
+      await mgr.initialize();
+      const installed = mgr.listInstalled();
+      const echo = findRecord(installed, "echo", "bundled");
+      expect(echo.status).toBe("enabled");
+    } finally {
+      await rm(path.join(cwd, "roubo-rel-plugins-test"), { recursive: true, force: true });
+    }
+  });
 });
 
 describe("lifecycle", () => {
