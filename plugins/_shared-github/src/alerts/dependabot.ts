@@ -43,7 +43,11 @@ export async function fetchDependabotAlerts(
   options: PaginateOptions = {},
 ): Promise<RawDependabotAlert[]> {
   const perPage = clampPerPage(args.perPage);
-  const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/dependabot/alerts?state=open&per_page=${perPage}&page=1`;
+  // The Dependabot alerts endpoint rejects the `page` query param with a 400
+  // ("Pagination using the `page` parameter is not supported."); unlike
+  // code-scanning and secret-scanning it paginates by cursor only. Omit `page`
+  // and let paginateAlerts walk the cursor-based `Link: rel="next"` chain.
+  const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/dependabot/alerts?state=open&per_page=${perPage}`;
   return paginateAlerts<RawDependabotAlert>(transport, url, {
     ...options,
     init: {

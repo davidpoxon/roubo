@@ -116,10 +116,13 @@ describe("fetchSecretScanningAlerts", () => {
 });
 
 describe("fetchDependabotAlerts", () => {
-  it("hits /dependabot/alerts with state=open", async () => {
+  it("hits /dependabot/alerts with state=open and no page param", async () => {
+    // The Dependabot endpoint rejects `page` with a 400 ("Pagination using the
+    // `page` parameter is not supported."), unlike code-scanning/secret-scanning.
+    // The request URL must carry state=open and per_page but never page=.
     const base = "https://api.github.com";
-    const url = `${base}/repos/foo/bar/dependabot/alerts?state=open&per_page=50&page=1`;
-    const { transport } = makeTransport({
+    const url = `${base}/repos/foo/bar/dependabot/alerts?state=open&per_page=50`;
+    const { transport, calls } = makeTransport({
       [url]: {
         status: 200,
         headers: {},
@@ -133,5 +136,60 @@ describe("fetchDependabotAlerts", () => {
     });
     expect(out).toHaveLength(1);
     expect(out[0].number).toBe(7);
+    expect(calls[0].url).toContain("state=open");
+    expect(calls[0].url).toContain("per_page=50");
+    // The standalone `page` param is what GitHub rejects; `per_page` is fine.
+    expect(calls[0].url).not.toContain("&page=");
+  });
+
+  it("walks the cursor-based Link header (after=...) across pages", async () => {
+    // Dependabot paginates by opaque cursor, not by incrementing `page`.
+    // paginateAlerts must follow the absolute URL in the `Link: rel="next"`
+    // header verbatim, including its `after=` cursor.
+    const base = "https://api.github.com";
+    const page1 = `${base}/repos/foo/bar/dependabot/alerts?state=open&per_page=2`;
+    const page2 = `${base}/repos/foo/bar/dependabot/alerts?state=open&per_page=2&after=CURSOR`;
+    const { transport, calls } = makeTransport({
+      [page1]: {
+        status: 200,
+        headers: PAGE1_HEADERS_NEXT(page2),
+        body: JSON.stringify([{ number: 1, html_url: "u1", state: "open", created_at: "t" }]),
+      },
+      [page2]: {
+        status: 200,
+        headers: {},
+        body: JSON.stringify([{ number: 2, html_url: "u2", state: "open", created_at: "t" }]),
+      },
+    });
+
+    const out = await fetchDependabotAlerts(transport, {
+      baseUrl: base,
+      owner: "foo",
+      repo: "bar",
+      perPage: 2,
+    });
+    expect(out.map((a) => a.number)).toEqual([1, 2]);
+    expect(calls[1].url).toBe(page2);
+  });
+
+  it("surfaces a 400 from the API (e.g. if the page param is reintroduced)", async () => {
+    // Guards against regressing back to a `page`-bearing URL: GitHub answers
+    // such a request with HTTP 400, which must propagate as a status-bearing
+    // error rather than being silently swallowed.
+    const base = "https://api.github.com";
+    const url = `${base}/repos/foo/bar/dependabot/alerts?state=open&per_page=50`;
+    const { transport } = makeTransport({
+      [url]: {
+        status: 400,
+        headers: {},
+        body: JSON.stringify({
+          message: "Pagination using the `page` parameter is not supported.",
+          status: "400",
+        }),
+      },
+    });
+    await expect(
+      fetchDependabotAlerts(transport, { baseUrl: base, owner: "foo", repo: "bar" }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

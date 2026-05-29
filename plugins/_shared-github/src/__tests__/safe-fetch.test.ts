@@ -17,7 +17,7 @@ function makeTransport(map: Record<string, FetchResult>) {
 const BASE = "https://api.github.com";
 const CODE_URL = `${BASE}/repos/foo/bar/code-scanning/alerts?state=open&per_page=50&page=1`;
 const SECRET_URL = `${BASE}/repos/foo/bar/secret-scanning/alerts?state=open&per_page=50&page=1`;
-const DEP_URL = `${BASE}/repos/foo/bar/dependabot/alerts?state=open&per_page=50&page=1`;
+const DEP_URL = `${BASE}/repos/foo/bar/dependabot/alerts?state=open&per_page=50`;
 
 describe("safeFetchAlerts", () => {
   it("returns { ok: true, items } when the fetcher resolves", async () => {
