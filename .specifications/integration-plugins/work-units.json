@@ -353,8 +353,8 @@
   },
   {
     "id": "WU-014",
-    "title": "Declarative source picker renderer (multi-list + categorized-multi-list)",
-    "description": "Build `client/src/components/SourcePicker.tsx` switching on the shape returned by `plugin.listSourceCandidates`. `multi-list`: single combined list with type labels and search (used by GitHub.com + GHE). `categorized-multi-list`: React Aria `Tabs` over Boards / Epics / Filters, each tab with its own search and selection (used by Jira). Selected items render as removable chips below the list. Reuse the existing `client/src/components/MultiSelect.tsx` primitive. No plugin React.",
+    "title": "[Retired] Declarative source picker renderer (multi-list + categorized-multi-list)",
+    "description": "RETIRED via https://github.com/davidpoxon/roubo/issues/279. https://github.com/davidpoxon/roubo/pull/278 replaced the manual source picker with server-side source auto-derivation, so `client/src/components/SourcePicker.tsx` was deleted (with its tests and dev fixture). Original deliverable: Build `client/src/components/SourcePicker.tsx` switching on the shape returned by `plugin.listSourceCandidates`. `multi-list`: single combined list with type labels and search (used by GitHub.com + GHE). `categorized-multi-list`: React Aria `Tabs` over Boards / Epics / Filters, each tab with its own search and selection (used by Jira). Selected items render as removable chips below the list. Reuse the existing `client/src/components/MultiSelect.tsx` primitive. No plugin React.",
     "acceptance_criteria": [
       "SourcePicker.tsx renders both shapes from a single component, switching on shape",
       "multi-list: combined repos + Projects list with type label, search, chip strip",
@@ -749,7 +749,7 @@
   {
     "id": "WU-030",
     "title": "GitHub.com plugin: per-source security category booleans, listIssues merge, inline warnings, Configure warning chip",
-    "description": "Wires the addendum into the bundled GitHub.com plugin. Adds three per-source booleans to the plugin's configSchema (and the manifest's documented config shape). Threads them through the active-config resolver so the effective per-source object carries booleans the listIssues method reads. Extends listIssues to invoke the WU-029 fetchers for any enabled category on each source, merge results with regular Issues, and emit per-source per-category warnings inline on the `ListIssuesResult` envelope (new optional `warnings` field). Adds a `Security & quality alerts` disclosure section in the Configure dialog with three React Aria Checkbox rows per source, and renders a per-category warning chip when the host receives a warning for that source/category. Disclosure label surfaces a chip-count when at least one category is on. GHAS HTTP-code → cause-string mapping table is implemented per the architecture addendum.",
+    "description": "PARTIALLY SUPERSEDED by https://github.com/davidpoxon/roubo/pull/278 (recorded via https://github.com/davidpoxon/roubo/issues/279): the `Security & quality alerts` disclosure section and the per-category warning chip in the Configure dialog were removed in favour of server-side source auto-derivation (which enables all three alert categories for derived repo sources). The plugin-side parts remain in force: the per-source booleans in configSchema, the active-config threading, the listIssues alert-merge, and the inline `warnings` envelope. Original deliverable: Wires the addendum into the bundled GitHub.com plugin. Adds three per-source booleans to the plugin's configSchema (and the manifest's documented config shape). Threads them through the active-config resolver so the effective per-source object carries booleans the listIssues method reads. Extends listIssues to invoke the WU-029 fetchers for any enabled category on each source, merge results with regular Issues, and emit per-source per-category warnings inline on the `ListIssuesResult` envelope (new optional `warnings` field). Adds a `Security & quality alerts` disclosure section in the Configure dialog with three React Aria Checkbox rows per source, and renders a per-category warning chip when the host receives a warning for that source/category. Disclosure label surfaces a chip-count when at least one category is on. GHAS HTTP-code → cause-string mapping table is implemented per the architecture addendum.",
     "acceptance_criteria": [
       "Configure dialog renders the three checkboxes per source, defaulting off",
       "Toggling a checkbox on/off persists to the per-user override file (NOT roubo.yaml) and survives a Roubo restart",
@@ -927,7 +927,7 @@
   {
     "id": "WU-037",
     "title": "Per-source alert booleans on github.com / GHE plugin manifests",
-    "description": "Extend the github.com and GHE bundled plugin manifests and source-config schemas to include three optional per-source booleans: `includeCodeQLAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. All default to `false`. Schema validation enforces the boolean type. Roubo.yaml round-tripping preserves the booleans without loss.",
+    "description": "NOTE (https://github.com/davidpoxon/roubo/pull/278): these per-source booleans remain in the plugin manifests and are still honoured by listIssues, but they are no longer set via a manual UI toggle. Server-side source auto-derivation now sets all three to `true` for derived repo sources (the manual per-source disclosure was removed). Original deliverable: Extend the github.com and GHE bundled plugin manifests and source-config schemas to include three optional per-source booleans: `includeCodeQLAlerts`, `includeSecretScanningAlerts`, `includeDependabotAlerts`. All default to `false`. Schema validation enforces the boolean type. Roubo.yaml round-tripping preserves the booleans without loss.",
     "category": "feature",
     "acceptance_criteria": [
       "Both plugin manifests declare the three booleans on the source config schema with default false",
@@ -974,8 +974,8 @@
   },
   {
     "id": "WU-039",
-    "title": "Inline OAuth re-consent affordance for alert categories (github.com)",
-    "description": "In the per-source Configure block, when the user toggles an alert category on for a github.com source that lacks `security_events` scope, surface an inline action chip reading \"Sign in again to grant security_events access\". Clicking re-runs the OAuth flow with extended scope. Existing OAuth callback handling stores the new token in the existing keyring slot.",
+    "title": "[Retired] Inline OAuth re-consent affordance for alert categories (github.com)",
+    "description": "RETIRED via https://github.com/davidpoxon/roubo/issues/279. https://github.com/davidpoxon/roubo/pull/278 removed the per-source security-alerts disclosure that hosted this chip (and the OAuthReconsentDialog / WarningChip components), so the re-consent affordance no longer renders. Original deliverable: In the per-source Configure block, when the user toggles an alert category on for a github.com source that lacks `security_events` scope, surface an inline action chip reading \"Sign in again to grant security_events access\". Clicking re-runs the OAuth flow with extended scope. Existing OAuth callback handling stores the new token in the existing keyring slot.",
     "category": "feature",
     "acceptance_criteria": [
       "Affordance only renders when scope is missing for the toggled category",
@@ -998,8 +998,8 @@
   },
   {
     "id": "WU-040",
-    "title": "PAT scope reminder for alert categories (GHE)",
-    "description": "For GHE PAT users, when the user toggles an alert category on, surface an inline reminder string in place of the OAuth re-consent affordance: \"Verify your PAT has security_events scope.\" No OAuth flow is triggered; the reminder links to the GHE PAT settings docs.",
+    "title": "[Retired] PAT scope reminder for alert categories (GHE)",
+    "description": "RETIRED via https://github.com/davidpoxon/roubo/issues/279. https://github.com/davidpoxon/roubo/pull/278 removed the per-source security-alerts disclosure that hosted this reminder, so it no longer renders. Original deliverable: For GHE PAT users, when the user toggles an alert category on, surface an inline reminder string in place of the OAuth re-consent affordance: \"Verify your PAT has security_events scope.\" No OAuth flow is triggered; the reminder links to the GHE PAT settings docs.",
     "category": "feature",
     "acceptance_criteria": [
       "Reminder renders only for GHE plugin with PAT auth",
@@ -1692,8 +1692,8 @@
   },
   {
     "id": "WU-069",
-    "title": "E2E automation: Dependabot alerts enable + re-consent + cut-list rendering",
-    "description": "Automate the Dependabot end-to-end case: toggle on a github.com source, observe inline re-consent affordance, complete OAuth re-run, observe Dependabot rows in cut list with correct chip and no transition/assign actions.",
+    "title": "[Retired] E2E automation: Dependabot alerts enable + re-consent + cut-list rendering",
+    "description": "RETIRED via https://github.com/davidpoxon/roubo/issues/279. This work unit shipped (https://github.com/davidpoxon/roubo/issues/160) as the Dependabot e2e spec (TC-180), but https://github.com/davidpoxon/roubo/pull/278 removed the per-source toggle + inline OAuth re-consent UI the spec drove, so https://github.com/davidpoxon/roubo/issues/279 deleted the spec rather than re-authoring it. The alert-interleave and read-only-row contracts it asserted remain covered by unit tests (server list-issues + DraggableIssueCard). Its linked requirements are the e2e harness/determinism FRs (FR-077/078/080, NFR-018), which are NOT retired. Original deliverable: automate the Dependabot end-to-end case: toggle on a github.com source, observe inline re-consent affordance, complete OAuth re-run, observe Dependabot rows in cut list with correct chip and no transition/assign actions.",
     "category": "e2e_automation",
     "acceptance_criteria": [
       "All listed test cases automated as Playwright specs",
