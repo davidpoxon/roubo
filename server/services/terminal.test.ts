@@ -54,6 +54,7 @@ vi.mock("./bench-manager.js", () => ({
 
 vi.mock("./env.js", () => ({
   getClaudeBinary: () => "claude",
+  getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
 }));
 
@@ -139,7 +140,7 @@ describe("createSession", () => {
     expect(session.command).toBeUndefined();
     expect(session.status).toBe("live");
     expect(mockSpawn).toHaveBeenCalledWith(
-      expect.any(String),
+      "/bin/zsh",
       [],
       expect.objectContaining({
         cwd: "/workspace",

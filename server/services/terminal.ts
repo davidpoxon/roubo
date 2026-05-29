@@ -11,7 +11,7 @@ import type {
   ProjectPermissions,
 } from "@roubo/shared";
 import { atomicWrite, getRouboDir } from "./state.js";
-import { getClaudeBinary } from "./env.js";
+import { getClaudeBinary, getLoginShell } from "./env.js";
 import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
@@ -279,7 +279,7 @@ export function createSession(
   const key = benchKey(projectId, benchId);
   const label = generateLabel(projectName, benchId, command);
 
-  const shell = command === "claude" ? getClaudeBinary() : (process.env.SHELL ?? "/bin/sh");
+  const shell = command === "claude" ? getClaudeBinary() : getLoginShell();
   const args: string[] = [];
   if (command === "claude") {
     if (claudeCodeSettings?.enableAutoMode) args.push("--enable-auto-mode");

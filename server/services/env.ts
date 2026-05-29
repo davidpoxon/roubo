@@ -5,6 +5,23 @@ import path from "node:path";
 import { getRouboDir } from "./state.js";
 import { DEFAULT_CONTEXT_WINDOW } from "@roubo/shared";
 
+// process.env.SHELL is externally controlled and is used as the executable in
+// execFileSync/pty.spawn. Restrict it to an absolute path of safe characters
+// (the shape of every real login shell) before use. This both rejects unsafe
+// values and is the barrier CodeQL's js/command-line-injection suite recognises
+// as a sanitizer; see code-scanning alert #106.
+const SAFE_SHELL_PATH_RE = /^\/[\w./-]+$/;
+
+/**
+ * Returns the user's login shell from $SHELL, validated to be an absolute path
+ * containing only safe characters, falling back to /bin/sh when $SHELL is unset
+ * or fails validation.
+ */
+export function getLoginShell(): string {
+  const shell = process.env.SHELL;
+  return shell && SAFE_SHELL_PATH_RE.test(shell) ? shell : "/bin/sh";
+}
+
 function parseEnvFile(): Array<{ key: string; raw: string }> {
   const envFile = path.join(getRouboDir(), ".env");
   if (!fs.existsSync(envFile)) return [];
@@ -45,7 +62,7 @@ const WELL_KNOWN_CLI_DIRS_DARWIN: string[] = [
  * colon-separated), so resolution is skipped when SHELL points to fish.
  */
 export function resolveShellPath(): void {
-  const shell = process.env.SHELL || "/bin/sh";
+  const shell = getLoginShell();
   // fish outputs PATH entries newline-separated rather than colon-separated,
   // which would produce an invalid PATH value — skip the exec for fish only.
   // The well-known-dirs fallback below still runs for all shells.
@@ -112,7 +129,7 @@ const WELL_KNOWN_CLAUDE_PATHS = [
  * Silently no-ops on failure — the bare-name fallback ensures backwards-compatible behaviour.
  */
 export function resolveClaudeBinary(): void {
-  const shell = process.env.SHELL || "/bin/sh";
+  const shell = getLoginShell();
   if (path.basename(shell) !== "fish") {
     try {
       const resolved = execFileSync(shell, ["-lc", "command -v claude"], {

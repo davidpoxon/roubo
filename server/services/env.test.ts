@@ -561,3 +561,47 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
     expect(getClaudeBinary()).toBe("/usr/local/bin/claude");
   });
 });
+
+describe("getLoginShell", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns $SHELL when it is a valid absolute path", async () => {
+    process.env.SHELL = "/bin/zsh";
+    const { getLoginShell } = await import("./env.js");
+    expect(getLoginShell()).toBe("/bin/zsh");
+  });
+
+  it("accepts absolute paths with dots and hyphens (e.g. homebrew fish)", async () => {
+    process.env.SHELL = "/opt/homebrew/bin/fish";
+    const { getLoginShell } = await import("./env.js");
+    expect(getLoginShell()).toBe("/opt/homebrew/bin/fish");
+  });
+
+  it("falls back to /bin/sh when $SHELL is unset", async () => {
+    delete process.env.SHELL;
+    const { getLoginShell } = await import("./env.js");
+    expect(getLoginShell()).toBe("/bin/sh");
+  });
+
+  it("falls back to /bin/sh for a relative value", async () => {
+    process.env.SHELL = "bash";
+    const { getLoginShell } = await import("./env.js");
+    expect(getLoginShell()).toBe("/bin/sh");
+  });
+
+  it("falls back to /bin/sh for values containing shell metacharacters", async () => {
+    const { getLoginShell } = await import("./env.js");
+    for (const malicious of ["/bin/sh; rm -rf /", "/bin/sh$(touch x)", "/bin/sh | cat", ""]) {
+      process.env.SHELL = malicious;
+      expect(getLoginShell()).toBe("/bin/sh");
+    }
+  });
+});
