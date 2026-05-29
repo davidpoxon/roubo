@@ -28,10 +28,6 @@ vi.mock("./services/bench-manager.js", () => ({
 vi.mock("./services/process-manager.js", () => ({
   stopAllProcesses: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("./services/database.js", () => ({
-  closeIdleConnections: vi.fn(() => Promise.resolve()),
-  closeAllConnections: vi.fn(() => Promise.resolve()),
-}));
 vi.mock("./services/terminal.js", () => ({
   loadPersistedSessions: vi.fn(),
   destroyAllSessions: vi.fn(),
@@ -188,10 +184,6 @@ describe.sequential("startServer", () => {
       vi.doMock("./services/process-manager.js", () => ({
         stopAllProcesses: vi.fn(() => Promise.resolve()),
       }));
-      vi.doMock("./services/database.js", () => ({
-        closeIdleConnections: vi.fn(() => Promise.resolve()),
-        closeAllConnections: vi.fn(() => Promise.resolve()),
-      }));
       vi.doMock("./services/terminal.js", () => ({
         loadPersistedSessions: vi.fn(),
         destroyAllSessions: vi.fn(),
@@ -237,7 +229,6 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/project-registry.js");
       vi.doUnmock("./services/bench-manager.js");
       vi.doUnmock("./services/process-manager.js");
-      vi.doUnmock("./services/database.js");
       vi.doUnmock("./services/terminal.js");
       vi.doUnmock("./services/jig-manager.js");
       vi.doUnmock("./services/auto-clear.js");

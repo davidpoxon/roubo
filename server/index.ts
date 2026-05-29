@@ -14,13 +14,11 @@ import { initializeIntegrationMigrations } from "./services/integration-migratio
 import * as benchManager from "./services/bench-manager.js";
 import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
-import * as databaseService from "./services/database.js";
 import * as terminalService from "./services/terminal.js";
 import projectsRouter from "./routes/projects.js";
 import benchesRouter from "./routes/benches.js";
 import containersRouter from "./routes/containers.js";
 import filesystemRouter from "./routes/filesystem.js";
-import databaseRouter from "./routes/database.js";
 import terminalRouter from "./routes/terminal.js";
 import inspectionRouter from "./routes/inspection.js";
 import issuesRouter from "./routes/issues.js";
@@ -85,7 +83,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   app.use("/api/projects", projectsRouter);
   app.use("/api/projects", benchesRouter);
-  app.use("/api/projects", databaseRouter);
   app.use("/api/projects", terminalRouter);
   app.use("/api/projects", inspectionRouter);
   app.use("/api/projects", issuesRouter);
@@ -244,10 +241,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Starting auto-clear watcher...");
   autoClear.start();
 
-  const idleDbInterval = setInterval(() => {
-    databaseService.closeIdleConnections().catch(console.error);
-  }, 60_000);
-
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
   }
@@ -259,12 +252,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     if (closed) return;
     closed = true;
     clearInterval(statusInterval);
-    clearInterval(idleDbInterval);
     autoClear.stop();
     jigManager.stopAllWatchers();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
-    await databaseService.closeAllConnections();
     await pluginManager.shutdown();
     await processManager.stopAllProcesses();
     server.closeAllConnections();

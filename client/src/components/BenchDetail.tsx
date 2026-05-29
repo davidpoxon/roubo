@@ -63,7 +63,6 @@ import { useUnassignContainer } from "../hooks/useContainers";
 import ComponentStatusDot from "./ComponentStatusDot";
 import ToolButtons from "./ToolButtons";
 import LogStream from "./LogStream";
-import DatabaseViewer from "./DatabaseViewer";
 import TerminalTabs from "./TerminalTabs";
 import InspectionRunner from "./InspectionRunner";
 import AssignContainerModal from "./AssignContainerModal";
@@ -866,7 +865,6 @@ export default function BenchDetail() {
   const availableTabIds: BenchTabId[] = [
     "components",
     "terminal",
-    ...(hasDatabaseComponent ? (["database"] as BenchTabId[]) : []),
     ...(hasInsepection ? (["inspection"] as BenchTabId[]) : []),
     "info",
   ];
@@ -1065,11 +1063,6 @@ export default function BenchDetail() {
               notifications={bench.notifications.filter((n) => n.sourceSessionId)}
             />
           </Tab>
-          {hasDatabaseComponent && (
-            <Tab id="database" className={tabClassName}>
-              Database
-            </Tab>
-          )}
           {hasInsepection && (
             <Tab id="inspection" className={tabClassName}>
               Inspection
@@ -1109,12 +1102,6 @@ export default function BenchDetail() {
             notifications={bench.notifications}
           />
         </TabPanel>
-
-        {hasDatabaseComponent && (
-          <TabPanel id="database" className="outline-none overflow-auto flex-1">
-            <DatabaseViewer projectId={projectId} benchId={benchId} />
-          </TabPanel>
-        )}
 
         {hasInsepection && (
           <TabPanel id="inspection" className="outline-none overflow-auto flex-1">

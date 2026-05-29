@@ -26,9 +26,6 @@ import {
   fetchRawConfig,
   fetchTools,
   executeTool,
-  fetchDbTables,
-  fetchDbTableData,
-  fetchDbTableSchema,
   assignContainer,
   unassignContainer,
   fetchContainers,
@@ -552,46 +549,6 @@ describe("executeTool", () => {
         body: JSON.stringify({ userName: "alice" }),
       }),
     );
-  });
-});
-
-describe("fetchDbTables", () => {
-  it("sends GET to /api/projects/:id/benches/:id/database/tables", async () => {
-    mockFetch.mockResolvedValue(jsonResponse([]));
-    await fetchDbTables("p1", 1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/database/tables",
-      expect.objectContaining({}),
-    );
-  });
-});
-
-describe("fetchDbTableData", () => {
-  it("includes schema, page, and pageSize params", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ rows: [], total: 0, page: 1, pageSize: 20 }));
-    await fetchDbTableData("p1", 1, "public", "users", 1, 20);
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("users");
-    expect(url).toContain("schema=public");
-    expect(url).toContain("page=1");
-    expect(url).toContain("pageSize=20");
-  });
-
-  it("URL-encodes table names with spaces", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ rows: [], total: 0, page: 1, pageSize: 20 }));
-    await fetchDbTableData("p1", 1, "public", "my table", 1, 20);
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("my%20table");
-  });
-});
-
-describe("fetchDbTableSchema", () => {
-  it("sends GET with encoded table name", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ columns: [] }));
-    await fetchDbTableSchema("p1", 1, "public", "users");
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("users");
-    expect(url).toContain("schema=public");
   });
 });
 

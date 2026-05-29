@@ -20,7 +20,6 @@ vi.mock("../hooks/useElapsed", () => ({ useElapsed: () => null }));
 vi.mock("./ComponentStatusDot", () => ({ default: () => <span data-testid="status-dot" /> }));
 vi.mock("./ToolButtons", () => ({ default: () => <span data-testid="tool-buttons" /> }));
 vi.mock("./LogStream", () => ({ default: () => <div data-testid="log-stream" /> }));
-vi.mock("./DatabaseViewer", () => ({ default: () => <div data-testid="database-viewer" /> }));
 vi.mock("./TerminalTabs", () => ({ default: () => <div data-testid="terminal-tabs" /> }));
 vi.mock("./InspectionRunner", () => ({ default: () => <div data-testid="inspection-runner" /> }));
 vi.mock("./AssignContainerModal", () => ({ default: () => null }));
