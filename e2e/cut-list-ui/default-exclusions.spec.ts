@@ -109,10 +109,10 @@ test.describe("TC-173: cut-list default exclusions + override", () => {
 
     // The four scenario issues are #1 Open, #2 In progress, #3 In review, #4 Closed.
     // Default excludedStatuses hide #3 and #4; #1 and #2 remain visible.
-    await expect(page.getByText("acme/widgets#1")).toBeVisible();
-    await expect(page.getByText("acme/widgets#2")).toBeVisible();
-    await expect(page.getByText("acme/widgets#3")).toHaveCount(0);
-    await expect(page.getByText("acme/widgets#4")).toHaveCount(0);
+    await expect(page.getByText("#1", { exact: true })).toBeVisible();
+    await expect(page.getByText("#2", { exact: true })).toBeVisible();
+    await expect(page.getByText("#3", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("#4", { exact: true })).toHaveCount(0);
 
     await page.getByRole("button", { name: /^Filter cut list/ }).click();
     // Click the visible checkbox label (React Aria Checkbox renders the input
@@ -120,9 +120,9 @@ test.describe("TC-173: cut-list default exclusions + override", () => {
     // intercepted by that overlay).
     await page.getByText("Include hidden statuses in this view").click();
 
-    await expect(page.getByText("acme/widgets#1")).toBeVisible();
-    await expect(page.getByText("acme/widgets#2")).toBeVisible();
-    await expect(page.getByText("acme/widgets#3")).toBeVisible();
-    await expect(page.getByText("acme/widgets#4")).toBeVisible();
+    await expect(page.getByText("#1", { exact: true })).toBeVisible();
+    await expect(page.getByText("#2", { exact: true })).toBeVisible();
+    await expect(page.getByText("#3", { exact: true })).toBeVisible();
+    await expect(page.getByText("#4", { exact: true })).toBeVisible();
   });
 });

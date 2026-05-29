@@ -50,9 +50,9 @@ test.describe("TC-174: milestone facet via filterFacets RPC", () => {
     await page.goto(`/projects/${projectId}`);
 
     // All three scenario issues are visible by default.
-    await expect(page.getByText("acme/widgets#10")).toBeVisible();
-    await expect(page.getByText("acme/widgets#11")).toBeVisible();
-    await expect(page.getByText("acme/widgets#12")).toBeVisible();
+    await expect(page.getByText("#10", { exact: true })).toBeVisible();
+    await expect(page.getByText("#11", { exact: true })).toBeVisible();
+    await expect(page.getByText("#12", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: /^Filter cut list/ }).click();
     // Scope to the popover dialog so the "Milestone" facet header isn't
@@ -74,8 +74,8 @@ test.describe("TC-174: milestone facet via filterFacets RPC", () => {
 
     await popover.getByRole("option", { name: "v1.2" }).click();
 
-    await expect(page.getByText("acme/widgets#10")).toBeVisible();
-    await expect(page.getByText("acme/widgets#11")).toBeVisible();
-    await expect(page.getByText("acme/widgets#12")).toHaveCount(0);
+    await expect(page.getByText("#10", { exact: true })).toBeVisible();
+    await expect(page.getByText("#11", { exact: true })).toBeVisible();
+    await expect(page.getByText("#12", { exact: true })).toHaveCount(0);
   });
 });

@@ -51,7 +51,7 @@ test.describe("TC-175: common-facet fallback when filterFacets is absent", () =>
     await loadAppShell(page);
     await page.goto(`/projects/${projectId}`);
 
-    await expect(page.getByText("acme/widgets#20")).toBeVisible();
+    await expect(page.getByText("#20", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^Filter cut list/ }).click();
 
     // Scope facet-header assertions to the popover so they don't match issue
