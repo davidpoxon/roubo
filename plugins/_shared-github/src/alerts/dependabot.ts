@@ -1,6 +1,11 @@
-import { paginateAlerts, type PaginateOptions } from "../pagination.js";
+import { fetchSingleAlert, paginateAlerts, type PaginateOptions } from "../pagination.js";
 import type { FetchTransport } from "../transport.js";
-import { clampPerPage, trimTrailingSlash, type FetchAlertsArgs } from "./code-scanning.js";
+import {
+  clampPerPage,
+  trimTrailingSlash,
+  type FetchAlertsArgs,
+  type GetAlertArgs,
+} from "./code-scanning.js";
 
 /**
  * Subset of the GitHub Dependabot alert REST payload.
@@ -40,6 +45,22 @@ export async function fetchDependabotAlerts(
   const perPage = clampPerPage(args.perPage);
   const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/dependabot/alerts?state=open&per_page=${perPage}&page=1`;
   return paginateAlerts<RawDependabotAlert>(transport, url, {
+    ...options,
+    init: {
+      ...(options.init ?? {}),
+      allowSelfSignedTls: args.allowSelfSignedTls ?? options.init?.allowSelfSignedTls,
+    },
+  });
+}
+
+/** Fetches a single Dependabot alert by number. */
+export async function fetchDependabotAlert(
+  transport: FetchTransport,
+  args: GetAlertArgs,
+  options: PaginateOptions = {},
+): Promise<RawDependabotAlert> {
+  const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/dependabot/alerts/${args.alertNumber}`;
+  return fetchSingleAlert<RawDependabotAlert>(transport, url, {
     ...options,
     init: {
       ...(options.init ?? {}),

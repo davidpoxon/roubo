@@ -1,4 +1,4 @@
-import { paginateAlerts, type PaginateOptions } from "../pagination.js";
+import { fetchSingleAlert, paginateAlerts, type PaginateOptions } from "../pagination.js";
 import type { FetchTransport } from "../transport.js";
 
 /**
@@ -52,6 +52,15 @@ export interface FetchAlertsArgs {
   allowSelfSignedTls?: boolean;
 }
 
+/** Args for fetching a single alert by its per-repo alert number. */
+export interface GetAlertArgs {
+  baseUrl: string;
+  owner: string;
+  repo: string;
+  alertNumber: number;
+  allowSelfSignedTls?: boolean;
+}
+
 export async function fetchCodeScanningAlerts(
   transport: FetchTransport,
   args: FetchAlertsArgs,
@@ -60,6 +69,26 @@ export async function fetchCodeScanningAlerts(
   const perPage = clampPerPage(args.perPage);
   const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/code-scanning/alerts?state=open&per_page=${perPage}&page=1`;
   return paginateAlerts<RawCodeScanningAlert>(transport, url, {
+    ...options,
+    init: {
+      ...(options.init ?? {}),
+      allowSelfSignedTls: args.allowSelfSignedTls ?? options.init?.allowSelfSignedTls,
+    },
+  });
+}
+
+/**
+ * Fetches a single Code Scanning alert by number. Used by the host's
+ * bench-assignment path (via the plugin's `getIssue`) to hydrate redacted
+ * alert detail without paginating the whole listing.
+ */
+export async function fetchCodeScanningAlert(
+  transport: FetchTransport,
+  args: GetAlertArgs,
+  options: PaginateOptions = {},
+): Promise<RawCodeScanningAlert> {
+  const url = `${trimTrailingSlash(args.baseUrl)}/repos/${args.owner}/${args.repo}/code-scanning/alerts/${args.alertNumber}`;
+  return fetchSingleAlert<RawCodeScanningAlert>(transport, url, {
     ...options,
     init: {
       ...(options.init ?? {}),

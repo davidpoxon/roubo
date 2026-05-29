@@ -51,15 +51,15 @@ export interface PaginateOptions {
 }
 
 /**
- * Status-bearing error thrown by `paginateAlerts` on non-2xx responses.
- * Callers (notably `safeFetchAlerts`) classify by `status` without
- * resorting to message string-matching.
+ * Status-bearing error thrown by `paginateAlerts` and `fetchSingleAlert` on
+ * non-2xx responses. Callers (notably `safeFetchAlerts`) classify by `status`
+ * without resorting to message string-matching.
  */
 export class AlertPaginationError extends Error {
   readonly status: number;
   readonly url: string;
   constructor(status: number, url: string) {
-    super(`[shared-github] paginateAlerts: GET ${url} returned status ${status}`);
+    super(`[shared-github] GET ${url} returned status ${status}`);
     this.name = "AlertPaginationError";
     this.status = status;
     this.url = url;
@@ -106,4 +106,36 @@ export async function paginateAlerts<T>(
     url = links.next;
   }
   return out;
+}
+
+/**
+ * Fetches a single alert object (not a listing) from a GitHub alert detail
+ * endpoint. Shares the auth/header/TLS `init` with `paginateAlerts` and reuses
+ * `AlertPaginationError` so callers classify failures by `status` (e.g. 403
+ * missing `security_events` scope, 404 deleted alert) without message matching.
+ */
+export async function fetchSingleAlert<T>(
+  transport: FetchTransport,
+  url: string,
+  options: PaginateOptions = {},
+): Promise<T> {
+  const init = {
+    method: "GET",
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(options.init?.headers ?? {}),
+    },
+    ...(options.init?.allowSelfSignedTls ? { allowSelfSignedTls: true } : {}),
+  };
+
+  const res = await transport(url, init);
+  if (res.status < 200 || res.status >= 300) {
+    throw new AlertPaginationError(res.status, url);
+  }
+  const parsed: unknown = res.body.length === 0 ? null : JSON.parse(res.body);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`[shared-github] fetchSingleAlert: ${url} response body was not a JSON object`);
+  }
+  return parsed as T;
 }

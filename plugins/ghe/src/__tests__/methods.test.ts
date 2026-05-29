@@ -6,6 +6,7 @@ import { getCurrentUser } from "../methods/get-current-user.js";
 import { getIssue } from "../methods/get-issue.js";
 import { listIssueTypes } from "../methods/list-issue-types.js";
 import { listLabels } from "../methods/list-labels.js";
+import { resetAlertsRuntime } from "../alerts-runtime.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
 let mocks: ReturnType<typeof installMocks>;
@@ -56,6 +57,35 @@ describe("getIssue", () => {
 
   it("throws on a malformed externalId without contacting GitHub", async () => {
     await expect(getIssue({ externalId: "no-slash-no-hash" })).rejects.toThrow(/externalId/);
+    expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
+  });
+});
+
+describe("getIssue (security alerts)", () => {
+  beforeEach(() => {
+    resetAlertsRuntime();
+  });
+
+  it("fetches a code-scanning alert from the GHE instance as a redacted NormalizedIssue", async () => {
+    mocks.mockHost.fetch.mockImplementation(async (url: string) => {
+      expect(url).toBe("https://ghe.example.com/api/v3/repos/foo/bar/code-scanning/alerts/117");
+      return {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          number: 117,
+          html_url: "https://ghe.example.com/foo/bar/security/code-scanning/117",
+          state: "open",
+          created_at: "t",
+          rule: { id: "js/x", description: "Bad thing", security_severity_level: "high" },
+        }),
+      };
+    });
+
+    const issue = await getIssue({ externalId: "foo/bar#code-scanning-117" });
+    expect(issue.externalId).toBe("foo/bar#code-scanning-117");
+    expect(issue.issueType).toBe("security-code-scanning");
+    expect(issue.allowedTransitions).toEqual([]);
     expect(mocks.mockOctokit.request).not.toHaveBeenCalled();
   });
 });
