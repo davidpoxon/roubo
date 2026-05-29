@@ -8,6 +8,12 @@ vi.mock("./project-registry.js", () => ({
   resolveWorkUnitAutoClear: vi.fn(),
 }));
 vi.mock("./github.js");
+vi.mock("./plugin-manager.js", () => ({
+  invoke: vi.fn(),
+}));
+vi.mock("./active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(),
+}));
 vi.mock("./git-state.js");
 vi.mock("./notification.js");
 vi.mock("./state.js", () => ({
@@ -25,6 +31,8 @@ vi.mock("./git-helpers.js", async (importOriginal) => ({
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
+import * as pluginManager from "./plugin-manager.js";
+import { resolveActivePlugin } from "./active-plugin.js";
 import * as gitState from "./git-state.js";
 import * as notificationService from "./notification.js";
 import * as state from "./state.js";
@@ -34,6 +42,7 @@ import type {
   BenchWorkUnit,
   DirtyReason,
   GitHubIssue,
+  NormalizedIssue,
   RegisteredProject,
   RouboConfig,
 } from "@roubo/shared";
@@ -270,6 +279,133 @@ describe("checkAndClearDoneBenches", () => {
 
     expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
     expect(benchManager.teardownBench).not.toHaveBeenCalled();
+  });
+
+  describe("alert-backed bench auto-clear (#289)", () => {
+    function makeAlertBench(): Bench {
+      return makeBench({
+        id: 7,
+        assignedIssue: {
+          number: 117,
+          title: "SQL injection",
+          externalId: "owner/repo#code-scanning-117",
+          issueType: "security-code-scanning",
+        } as never,
+      });
+    }
+
+    const ACTIVE = { pluginId: "github-com", integrationId: "github-com", pageSize: 50 };
+
+    function mockAlertState(currentState: string): void {
+      vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+      vi.mocked(pluginManager.invoke).mockResolvedValue({
+        currentState,
+      } as unknown as NormalizedIssue);
+    }
+
+    it("fetches the alert via getIssue by externalId, never by issue number", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      mockAlertState("open");
+
+      await checkAndClearDoneBenches();
+
+      expect(pluginManager.invoke).toHaveBeenCalledWith(
+        "github-com",
+        "getIssue",
+        { externalId: "owner/repo#code-scanning-117" },
+        expect.objectContaining({ timeoutMs: expect.any(Number) }),
+      );
+      expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
+    });
+
+    it("leaves the bench when the alert is still open", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      mockAlertState("open");
+
+      await checkAndClearDoneBenches();
+
+      expect(benchManager.teardownBench).not.toHaveBeenCalled();
+    });
+
+    it("tears down a clean bench when the alert is fixed", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      mockAlertState("fixed");
+
+      await checkAndClearDoneBenches();
+
+      expect(benchManager.teardownBench).toHaveBeenCalledWith("proj-1", 7, true);
+    });
+
+    it("tears down a clean bench when the alert is dismissed", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      mockAlertState("dismissed");
+
+      await checkAndClearDoneBenches();
+
+      expect(benchManager.teardownBench).toHaveBeenCalledWith("proj-1", 7, true);
+    });
+
+    it("blocks teardown and raises teardown-blocked notification for a dirty alert bench", async () => {
+      const bench = makeAlertBench();
+      const dirtyReasons: DirtyReason[] = [
+        { kind: "dirty-worktree", location: "workspace", detail: "1 modified" },
+      ];
+      vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      mockAlertState("fixed");
+      vi.mocked(gitState.getDirtyState).mockResolvedValue({ clean: false, reasons: dirtyReasons });
+
+      await checkAndClearDoneBenches();
+
+      expect(benchManager.teardownBench).not.toHaveBeenCalled();
+      expect(notificationService.createNotification).toHaveBeenCalledWith(
+        bench,
+        "teardown-blocked",
+        undefined,
+        { dirtyReasons },
+      );
+    });
+
+    it("leaves the bench intact when the alert fetch fails", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+      vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("plugin offline"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await checkAndClearDoneBenches();
+
+      expect(benchManager.teardownBench).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
+    it("does not fetch the alert when there is no active integration plugin", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      vi.mocked(resolveActivePlugin).mockReturnValue(null);
+
+      await checkAndClearDoneBenches();
+
+      expect(pluginManager.invoke).not.toHaveBeenCalled();
+      expect(benchManager.teardownBench).not.toHaveBeenCalled();
+    });
+
+    it("does not fetch the alert when autoClear is disabled", async () => {
+      vi.mocked(benchManager.getBenches).mockReturnValue([makeAlertBench()]);
+      vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+      vi.mocked(projectRegistry.resolveAutoClear).mockReturnValue(false);
+      mockAlertState("fixed");
+
+      await checkAndClearDoneBenches();
+
+      expect(pluginManager.invoke).not.toHaveBeenCalled();
+      expect(benchManager.teardownBench).not.toHaveBeenCalled();
+    });
   });
 
   it("does not clear bench when project board item has null status and issue is open", async () => {

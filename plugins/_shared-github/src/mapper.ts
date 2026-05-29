@@ -11,14 +11,41 @@ export const CODE_SCANNING_ISSUE_TYPE = "security-code-scanning";
 export const SECRET_SCANNING_ISSUE_TYPE = "security-secret-scanning";
 export const DEPENDABOT_ISSUE_TYPE = "security-dependabot";
 
-function commonAlertFields(): Pick<
+/** Canonical alert lifecycle vocabulary the host uses for auto-clear (#289). */
+export type NormalizedAlertState = "open" | "fixed" | "dismissed";
+
+/**
+ * Normalize a category-specific GitHub alert state into the canonical
+ * `open | fixed | dismissed` vocabulary. The raw values differ per category
+ * (code-scanning: open/dismissed/fixed; secret-scanning: open/resolved;
+ * dependabot: open/dismissed/fixed/auto_dismissed), so we fold the terminal
+ * variants together. Any missing or unrecognized value falls back to "open"
+ * so an ambiguous state never triggers a teardown.
+ */
+export function normalizeAlertState(rawState: string | null | undefined): NormalizedAlertState {
+  switch (rawState) {
+    case "fixed":
+      return "fixed";
+    case "dismissed":
+    case "auto_dismissed": // dependabot
+    case "resolved": // secret-scanning
+      return "dismissed";
+    default:
+      return "open";
+  }
+}
+
+function commonAlertFields(
+  currentState: NormalizedAlertState,
+): Pick<
   NormalizedIssue,
   "body" | "currentState" | "allowedTransitions" | "assignees" | "labels" | "blocks" | "blockedBy"
 > {
   return {
     body: null,
-    currentState: "open",
+    currentState,
     // FR-048: alerts are read-only — no host-mediated state changes, no assignment.
+    // currentState reflects the alert's lifecycle for read/auto-clear purposes only.
     allowedTransitions: [],
     assignees: [],
     labels: [],
@@ -46,7 +73,7 @@ export function mapCodeScanningAlertToNormalizedIssue(
     issueType: CODE_SCANNING_ISSUE_TYPE,
     updatedAt: redacted.updated_at ?? redacted.created_at,
     raw: redacted,
-    ...commonAlertFields(),
+    ...commonAlertFields(normalizeAlertState(redacted.state)),
   };
 }
 
@@ -68,7 +95,7 @@ export function mapSecretScanningAlertToNormalizedIssue(
     issueType: SECRET_SCANNING_ISSUE_TYPE,
     updatedAt: redacted.updated_at ?? redacted.created_at,
     raw: redacted,
-    ...commonAlertFields(),
+    ...commonAlertFields(normalizeAlertState(redacted.state)),
   };
 }
 
@@ -92,6 +119,6 @@ export function mapDependabotAlertToNormalizedIssue(
     issueType: DEPENDABOT_ISSUE_TYPE,
     updatedAt: cloned.updated_at ?? cloned.created_at,
     raw: cloned,
-    ...commonAlertFields(),
+    ...commonAlertFields(normalizeAlertState(cloned.state)),
   };
 }
