@@ -66,7 +66,7 @@ test.describe("TC-176: chip taxonomy renders four distinct categories", () => {
   test("cut-list renders chips covering all four taxonomy categories", async ({ page }) => {
     await loadAppShell(page);
     await page.goto(`/projects/${projectId}`);
-    await expect(page.getByText("acme/widgets#100")).toBeVisible();
+    await expect(page.getByText("#100", { exact: true })).toBeVisible();
 
     // The four categories are encoded as the `data-chip-category` attribute on
     // <IssueChip>. Asserting at least one chip per category proves the
@@ -83,7 +83,7 @@ test.describe("TC-176: chip taxonomy renders four distinct categories", () => {
     test(`chips remain rendered under ${palette.name} palette`, async ({ page }, testInfo) => {
       await loadAppShell(page);
       await page.goto(`/projects/${projectId}`);
-      await expect(page.getByText("acme/widgets#100")).toBeVisible();
+      await expect(page.getByText("#100", { exact: true })).toBeVisible();
 
       // Inject SVG colour-matrix definitions once per page, then apply the
       // chosen palette via a CSS filter. Default palette skips both because
@@ -100,7 +100,7 @@ test.describe("TC-176: chip taxonomy renders four distinct categories", () => {
       // Structural distinguishability holds across palettes because each
       // category renders distinct DOM (icon, shape, position) regardless of
       // colour. The screenshot rides along as an attachment for review.
-      const cutList = page.locator(`text=acme/widgets#100`).first();
+      const cutList = page.locator(`text="#100"`).first();
       await testInfo.attach(`chip-taxonomy-${palette.name}.png`, {
         body: await cutList
           .locator("xpath=ancestor::div[contains(@class,'space-y-0.5')]")

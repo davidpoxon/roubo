@@ -42,6 +42,12 @@ describe("DraggableIssueCard", () => {
     expect(screen.getByText("Fix the bug")).toBeInTheDocument();
   });
 
+  it("renders only the issue reference, stripping the owner/repo prefix", () => {
+    render(<DraggableIssueCard issue={makeIssue({ externalId: "davidpoxon/roubo#76" })} />);
+    expect(screen.getByText("#76")).toBeInTheDocument();
+    expect(screen.queryByText(/davidpoxon\/roubo/)).not.toBeInTheDocument();
+  });
+
   it("renders labels", () => {
     render(<DraggableIssueCard issue={makeIssue({ labels: ["bug", "help wanted"] })} />);
     expect(screen.getByText("bug")).toBeInTheDocument();
@@ -166,7 +172,7 @@ describe("DraggableIssueCard", () => {
     expect(secretContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();
   });
 
-  it("places the security-category chip inline-left of the issue title (WU-033)", () => {
+  it("renders the security-category chip in the chips row, leading the status chip (WU-033)", () => {
     const { container } = render(
       <DraggableIssueCard
         issue={makeIssue({
@@ -178,14 +184,19 @@ describe("DraggableIssueCard", () => {
       />,
     );
     const chip = container.querySelector('[data-chip-category="security-category"]') as HTMLElement;
+    const statusChip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
     const titleSpan = Array.from(container.querySelectorAll("span")).find(
       (n) => n.textContent === "SQL injection in handler",
     );
     expect(chip).not.toBeNull();
+    expect(statusChip).not.toBeNull();
     expect(titleSpan).toBeDefined();
-    // Both live in the same title row, with the chip before the title element.
-    expect(chip.parentElement).toBe(titleSpan?.parentElement);
-    expect(chip.compareDocumentPosition(titleSpan as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    // The chip lives in the chips row (alongside the status chip), not on the
+    // title line, so it no longer overlaps the open-in-browser button.
+    expect(chip.parentElement).toBe(statusChip.parentElement);
+    expect(chip.parentElement).not.toBe(titleSpan?.parentElement);
+    // It leads the chips row, before the status chip.
+    expect(chip.compareDocumentPosition(statusChip) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
