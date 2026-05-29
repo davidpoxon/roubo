@@ -647,54 +647,6 @@ export interface ToolResult {
   login?: LoginConfig;
 }
 
-// ── Database viewer types ──
-
-export interface DatabaseTable {
-  schema: string;
-  name: string;
-  type: "BASE TABLE" | "VIEW";
-  rowCount?: number;
-}
-
-export interface DatabaseColumn {
-  name: string;
-  dataType: string;
-  maxLength: number | null;
-  isNullable: boolean;
-  defaultValue: string | null;
-  isPrimaryKey: boolean;
-  isIdentity: boolean;
-}
-
-export interface DatabaseIndex {
-  name: string;
-  columns: string[];
-  isUnique: boolean;
-  isPrimaryKey: boolean;
-  type: string;
-}
-
-export interface DatabaseForeignKey {
-  name: string;
-  column: string;
-  referencedTable: string;
-  referencedColumn: string;
-}
-
-export interface DatabaseTableSchema {
-  columns: DatabaseColumn[];
-  indexes: DatabaseIndex[];
-  foreignKeys: DatabaseForeignKey[];
-}
-
-export interface DatabaseQueryResult {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  totalRows: number;
-  page: number;
-  pageSize: number;
-}
-
 // ── Container assignment types ──
 
 export interface AssignedContainer {

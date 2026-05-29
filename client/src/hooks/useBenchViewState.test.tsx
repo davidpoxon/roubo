@@ -75,16 +75,16 @@ describe("useBenchViewState", () => {
     const { result: bench2 } = renderHook(() => useBenchViewState("proj", 2));
 
     act(() => {
-      bench1.current.setActiveTab("database");
+      bench1.current.setActiveTab("components");
     });
     act(() => {
       bench2.current.setActiveTab("info");
     });
 
-    expect(bench1.current.activeTab).toBe("database");
+    expect(bench1.current.activeTab).toBe("components");
     expect(bench2.current.activeTab).toBe("info");
     const store = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    expect(store["proj:1"].activeTab).toBe("database");
+    expect(store["proj:1"].activeTab).toBe("components");
     expect(store["proj:2"].activeTab).toBe("info");
   });
 

@@ -10,9 +10,6 @@ import type {
   CheckConfigResult,
   ResolvedTool,
   ToolResult,
-  DatabaseTable,
-  DatabaseQueryResult,
-  DatabaseTableSchema,
   TerminalSession,
   TerminalCreateResponse,
   InspectionRun,
@@ -360,35 +357,6 @@ export function executeTool(
     method: "POST",
     body: JSON.stringify({ userName }),
   });
-}
-
-// Database
-export function fetchDbTables(projectId: string, benchId: number): Promise<DatabaseTable[]> {
-  return request(`/projects/${projectId}/benches/${benchId}/database/tables`);
-}
-
-export function fetchDbTableData(
-  projectId: string,
-  benchId: number,
-  schema: string,
-  table: string,
-  page: number,
-  pageSize: number,
-): Promise<DatabaseQueryResult> {
-  return request(
-    `/projects/${projectId}/benches/${benchId}/database/tables/${encodeURIComponent(table)}/data?schema=${encodeURIComponent(schema)}&page=${page}&pageSize=${pageSize}`,
-  );
-}
-
-export function fetchDbTableSchema(
-  projectId: string,
-  benchId: number,
-  schema: string,
-  table: string,
-): Promise<DatabaseTableSchema> {
-  return request(
-    `/projects/${projectId}/benches/${benchId}/database/tables/${encodeURIComponent(table)}/schema?schema=${encodeURIComponent(schema)}`,
-  );
 }
 
 // Container assignment

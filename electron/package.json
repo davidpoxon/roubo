@@ -30,7 +30,6 @@
     "esm": true
   },
   "dependencies": {
-    "mssql": "12.5.0",
     "node-pty": "1.1.0",
     "update-electron-app": "3.1.2"
   },
