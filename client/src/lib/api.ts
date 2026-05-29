@@ -170,14 +170,20 @@ export function fetchBench(projectId: string, benchId: number): Promise<Bench> {
 
 export function createBench(
   projectId: string,
-  branch?: string,
-  issueNumber?: number,
-  branchConflictResolution?: "resume" | "new",
+  opts: {
+    branch?: string;
+    issueNumber?: number;
+    // Security alerts assign by externalId (no bare numeric form); plain issues
+    // continue to assign by issueNumber.
+    externalId?: string;
+    branchConflictResolution?: "resume" | "new";
+  } = {},
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
-  if (branch) body.branch = branch;
-  if (issueNumber) body.issueNumber = issueNumber;
-  if (branchConflictResolution) body.branchConflictResolution = branchConflictResolution;
+  if (opts.branch) body.branch = opts.branch;
+  if (opts.issueNumber) body.issueNumber = opts.issueNumber;
+  if (opts.externalId) body.externalId = opts.externalId;
+  if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
   return request(`/projects/${projectId}/benches`, {
     method: "POST",
     body: JSON.stringify(body),

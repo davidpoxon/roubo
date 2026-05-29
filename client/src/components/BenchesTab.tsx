@@ -99,7 +99,7 @@ export default function BenchesTab() {
                   <PendingBenchCard
                     key={`pending-${position}`}
                     position={position}
-                    issueNumber={pending.issueNumber}
+                    externalId={pending.externalId}
                     issueTitle={pending.issueTitle}
                   />
                 );

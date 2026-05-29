@@ -1,12 +1,13 @@
 import Spinner from "./Spinner";
+import { shortIdFromExternalId } from "../lib/issue-id";
 
 export default function PendingBenchCard({
   position,
-  issueNumber,
+  externalId,
   issueTitle,
 }: {
   position: number;
-  issueNumber: number;
+  externalId: string;
   issueTitle: string;
 }) {
   return (
@@ -22,7 +23,9 @@ export default function PendingBenchCard({
 
           {/* Issue */}
           <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-2.5 shrink-0">
-            <span className="font-mono text-violet-400 shrink-0">#{issueNumber}</span>
+            <span className="font-mono text-violet-400 shrink-0">
+              #{shortIdFromExternalId(externalId)}
+            </span>
             <span className="truncate">{issueTitle}</span>
           </div>
 

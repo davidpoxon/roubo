@@ -154,7 +154,7 @@ function parseOwnerRepo(repoFullName: string): { owner: string; repo: string } |
  * Fetches one alert by category + number and returns it as a redacted
  * NormalizedIssue. Backs the plugin's `getIssue` for alert externalIds so the
  * host (bench assignment, alert-backed BenchDetail) only ever receives the
- * mapper's redacted clone — the literal secret never leaves the plugin
+ * mapper's redacted clone; the literal secret never leaves the plugin
  * (FR-043, NFR-012). Fetch failures surface as `AlertPaginationError`
  * (status-bearing: 403 missing scope, 404 deleted alert).
  */

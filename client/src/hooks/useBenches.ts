@@ -41,13 +41,15 @@ export function useCreateBench() {
       projectId,
       branch,
       issueNumber,
+      externalId,
       branchConflictResolution,
     }: {
       projectId: string;
       branch?: string;
       issueNumber?: number;
+      externalId?: string;
       branchConflictResolution?: "resume" | "new";
-    }) => api.createBench(projectId, branch, issueNumber, branchConflictResolution),
+    }) => api.createBench(projectId, { branch, issueNumber, externalId, branchConflictResolution }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["benches"] });
       queryClient.invalidateQueries({ queryKey: ["project-items"] });

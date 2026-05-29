@@ -21,7 +21,7 @@ import type {
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
 } from "@roubo/shared";
-import { issueNumberFromExternalId } from "../lib/issue-id";
+import { issueNumberFromExternalId, isAlertExternalId } from "../lib/issue-id";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -39,7 +39,7 @@ import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
 export type ProjectOutletContext = {
   benchPositions: Array<{ position: number; bench?: Bench }> | null;
-  pendingAssignments: Map<number, { issueNumber: number; issueTitle: string }>;
+  pendingAssignments: Map<number, { externalId: string; issueTitle: string }>;
   isLoading: boolean;
   openCreateBench: () => void;
   pickIssueForBench: (position: number) => void;
@@ -78,20 +78,16 @@ export default function BenchDashboard() {
   const [showIssuePicker, setShowIssuePicker] = useState(false);
   const { open: openRegisterModal } = useRegisterProjectModal();
   const [branchConflict, setBranchConflict] = useState<
-    (BranchConflictInfo & { issueNumber: number }) | null
+    (BranchConflictInfo & { externalId: string; issueNumber: number | null }) | null
   >(null);
   const [draggingIssue, setDraggingIssue] = useState<NormalizedIssue | null>(null);
   const [issueQueueCollapsed, setIssueQueueCollapsed] = useState(false);
-  // Map from bench-assignment issueNumber to the originating NormalizedIssue.externalId.
-  // Tracked so UI filtering (cut list, picker) can dedupe by externalId, while
-  // server callbacks (which key on issueNumber) can still find what to clear.
-  const [pendingByIssueNumber, setPendingByIssueNumber] = useState<Map<number, string>>(new Map());
-  const pendingIssueExternalIds = useMemo(
-    () => new Set(pendingByIssueNumber.values()),
-    [pendingByIssueNumber],
-  );
+  // Set of in-flight NormalizedIssue.externalIds, used to dedupe the cut list and
+  // picker. Keyed on externalId (not issueNumber) so security alerts (which have
+  // no bare numeric form) are tracked uniformly with plain issues.
+  const [pendingIssueExternalIds, setPendingIssueExternalIds] = useState<Set<string>>(new Set());
   const [pendingAssignments, setPendingAssignments] = useState<
-    Map<number, { issueNumber: number; issueTitle: string }>
+    Map<number, { externalId: string; issueTitle: string }>
   >(new Map());
   const [issuePickerPosition, setIssuePickerPosition] = useState<number | null>(null);
   const [filterCache, setFilterCache] = useState<Map<string, FilterState>>(new Map());
@@ -121,18 +117,18 @@ export default function BenchDashboard() {
   const openCreateBench = useCallback(() => setShowCreate(true), []);
   const onToggleIssueQueue = useCallback(() => setIssueQueueCollapsed((prev) => !prev), []);
 
-  const addPending = useCallback((issueNumber: number, externalId: string) => {
-    setPendingByIssueNumber((prev) => {
-      const next = new Map(prev);
-      next.set(issueNumber, externalId);
+  const addPending = useCallback((externalId: string) => {
+    setPendingIssueExternalIds((prev) => {
+      const next = new Set(prev);
+      next.add(externalId);
       return next;
     });
   }, []);
 
-  const removePending = useCallback((issueNumber: number) => {
-    setPendingByIssueNumber((prev) => {
-      const next = new Map(prev);
-      next.delete(issueNumber);
+  const removePending = useCallback((externalId: string) => {
+    setPendingIssueExternalIds((prev) => {
+      const next = new Set(prev);
+      next.delete(externalId);
       return next;
     });
   }, []);
@@ -180,11 +176,11 @@ export default function BenchDashboard() {
 
   const isLoading = projectsLoading || benchesLoading;
 
-  const clearPendingAssignment = useCallback((issueNumber: number) => {
+  const clearPendingAssignment = useCallback((externalId: string) => {
     setPendingAssignments((prev) => {
       const next = new Map(prev);
       for (const [pos, assignment] of next) {
-        if (assignment.issueNumber === issueNumber) {
+        if (assignment.externalId === externalId) {
           next.delete(pos);
           break;
         }
@@ -193,27 +189,33 @@ export default function BenchDashboard() {
     });
   }, []);
 
+  // Creates a bench for an issue or alert. Plain issues assign by issueNumber;
+  // security alerts (issueNumber === null) assign by their externalId.
   const handleCreateBenchWithIssue = useCallback(
-    (issueNumber: number, conflictResolution?: "resume" | "new") => {
+    (
+      target: { externalId: string; issueNumber: number | null },
+      conflictResolution?: "resume" | "new",
+    ) => {
       if (!projectId) return;
+      const { externalId, issueNumber } = target;
       createBench.mutate(
         {
           projectId,
-          issueNumber,
+          ...(issueNumber !== null ? { issueNumber } : { externalId }),
           branchConflictResolution: conflictResolution,
         },
         {
           onSuccess: (result) => {
-            removePending(issueNumber);
-            clearPendingAssignment(issueNumber);
+            removePending(externalId);
+            clearPendingAssignment(externalId);
             const response = result as CreateBenchWithIssueResponse;
             if (response.status === "conflict") {
-              setBranchConflict({ ...response.branchConflict, issueNumber });
+              setBranchConflict({ ...response.branchConflict, externalId, issueNumber });
             }
           },
           onError: (err) => {
-            removePending(issueNumber);
-            clearPendingAssignment(issueNumber);
+            removePending(externalId);
+            clearPendingAssignment(externalId);
             addToast(err instanceof Error && err.message ? err.message : "Failed to create bench", {
               duration: 8000,
             });
@@ -239,33 +241,36 @@ export default function BenchDashboard() {
       const position = over.data.current?.position as number | undefined;
       if (!issue || position === undefined) return;
 
-      const issueNumber = issueNumberFromExternalId(issue.externalId);
-      if (issueNumber === null) {
+      const externalId = issue.externalId;
+      const issueNumber = issueNumberFromExternalId(externalId);
+      // Plain GitHub issues assign by number; security alerts assign by their
+      // externalId. Anything else (e.g. a Jira-style key) is not yet supported.
+      if (issueNumber === null && !isAlertExternalId(externalId)) {
         addToast(
-          `Cannot assign ${issue.externalId}: bench creation does not yet support this integration.`,
+          `Cannot assign ${externalId}: bench creation does not yet support this integration.`,
           { duration: 8000 },
         );
         return;
       }
 
-      addPending(issueNumber, issue.externalId);
+      addPending(externalId);
       setPendingAssignments((prev) => {
         const next = new Map(prev);
         next.set(position, {
-          issueNumber,
+          externalId,
           issueTitle: issue.title,
         });
         return next;
       });
 
       let cancelled = false;
-      addToast(`Setting up bench for ${issue.externalId} - ${issue.title}`, {
+      addToast(`Setting up bench for ${externalId} - ${issue.title}`, {
         duration: 3000,
         action: {
           label: "Cancel",
           onPress: () => {
             cancelled = true;
-            removePending(issueNumber);
+            removePending(externalId);
             setPendingAssignments((prev) => {
               const next = new Map(prev);
               next.delete(position);
@@ -275,7 +280,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue(issueNumber);
+            handleCreateBenchWithIssue({ externalId, issueNumber });
           }
         },
       });
@@ -332,16 +337,16 @@ export default function BenchDashboard() {
     (issueNumber: number, issueTitle: string) => {
       setShowIssuePicker(false);
       if (!projectId) return;
-      // Picker bridges back to the legacy assign-issue API (issueNumber). We
-      // synthesise an externalId for pending tracking since the picker today
-      // only surfaces github-style issues (others are disabled in the row).
+      // Picker only surfaces github-style issues (others are disabled in the
+      // row), so we synthesise an externalId from the number for pending
+      // tracking; the server call still goes through the issueNumber path.
       const syntheticExternalId = `${issueNumber}`;
-      addPending(issueNumber, syntheticExternalId);
+      addPending(syntheticExternalId);
       const position = issuePickerPosition;
       if (position !== null) {
         setPendingAssignments((prev) => {
           const next = new Map(prev);
-          next.set(position, { issueNumber, issueTitle });
+          next.set(position, { externalId: syntheticExternalId, issueTitle });
           return next;
         });
       }
@@ -352,7 +357,7 @@ export default function BenchDashboard() {
           label: "Cancel",
           onPress: () => {
             cancelled = true;
-            removePending(issueNumber);
+            removePending(syntheticExternalId);
             if (position !== null) {
               setPendingAssignments((prev) => {
                 const next = new Map(prev);
@@ -364,7 +369,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue(issueNumber);
+            handleCreateBenchWithIssue({ externalId: syntheticExternalId, issueNumber });
           }
         },
       });
@@ -525,11 +530,23 @@ export default function BenchDashboard() {
               onClose={() => setBranchConflict(null)}
               conflict={branchConflict}
               onResume={() => {
-                handleCreateBenchWithIssue(branchConflict.issueNumber, "resume");
+                handleCreateBenchWithIssue(
+                  {
+                    externalId: branchConflict.externalId,
+                    issueNumber: branchConflict.issueNumber,
+                  },
+                  "resume",
+                );
                 setBranchConflict(null);
               }}
               onCreateNew={() => {
-                handleCreateBenchWithIssue(branchConflict.issueNumber, "new");
+                handleCreateBenchWithIssue(
+                  {
+                    externalId: branchConflict.externalId,
+                    issueNumber: branchConflict.issueNumber,
+                  },
+                  "new",
+                );
                 setBranchConflict(null);
               }}
             />

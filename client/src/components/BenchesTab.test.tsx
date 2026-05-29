@@ -136,7 +136,7 @@ describe("BenchesTab", () => {
   });
 
   it("renders PendingBenchCard for pending assignments", () => {
-    const pending = new Map([[2, { issueNumber: 42, issueTitle: "Fix bug" }]]);
+    const pending = new Map([[2, { externalId: "org/repo#42", issueTitle: "Fix bug" }]]);
     renderTab(
       makeContext({
         benchPositions: [{ position: 1 }, { position: 2 }],
