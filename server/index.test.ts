@@ -66,6 +66,7 @@ vi.mock("./services/github.js", () => ({
   refreshAuth: vi.fn(() => Promise.resolve()),
 }));
 
+import * as benchManager from "./services/bench-manager.js";
 import { startServer } from "./index.js";
 
 describe.sequential("startServer", () => {
@@ -97,6 +98,24 @@ describe.sequential("startServer", () => {
     const handle = await startServer({ port: 0 });
     await expect(handle.shutdown()).resolves.toBeUndefined();
     await expect(fetch(`http://127.0.0.1:${handle.port}/api/benches`)).rejects.toThrow();
+  });
+
+  it("GET /api/benches?issue=N excludes alert-backed benches that collide on the alert number (#291)", async () => {
+    vi.mocked(benchManager.getBenches).mockReturnValue([
+      { id: 1, assignedIssue: { number: 42, externalId: "42" } },
+      { id: 2, assignedIssue: { number: 42, externalId: "owner/repo#code-scanning-42" } },
+    ] as any);
+    const handle = await startServer({ port: 0 });
+    try {
+      const res = await fetch(`http://127.0.0.1:${handle.port}/api/benches?issue=42`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Array<{ id: number }>;
+      expect(body).toHaveLength(1);
+      expect(body[0].id).toBe(1);
+    } finally {
+      await handle.shutdown();
+      vi.mocked(benchManager.getBenches).mockReturnValue([]);
+    }
   });
 
   it("port already in use: rejects with a bind error", async () => {

@@ -13,6 +13,7 @@ import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { syncBenchWorkUnitPRs } from "../services/pr-sync.js";
+import { isAlertExternalId } from "../services/alert-external-id.js";
 import type {
   CreateBenchRequest,
   AssignContainerRequest,
@@ -50,8 +51,12 @@ router.get("/:projectId/benches", (req, res) => {
   let benches = benchManager.getBenches(req.params.projectId);
   const issue = parseInt(req.query.issue as string, 10);
   if (!isNaN(issue)) {
-    // Matches on assignedIssue.number; an alert numbered N over-matches here. See #291.
-    benches = benches.filter((b) => b.assignedIssue?.number === issue);
+    // The ?issue= filter targets GitHub issue numbers. Alert-backed benches reuse
+    // assignedIssue.number for the alert number, so skip them to avoid colliding
+    // with a real issue #N. See #291.
+    benches = benches.filter(
+      (b) => b.assignedIssue?.number === issue && !isAlertExternalId(b.assignedIssue?.externalId),
+    );
   }
   res.json(benches);
 });
@@ -161,6 +166,7 @@ router.get("/:projectId/benches/:id", async (req, res) => {
     let enrichedBench = bench;
     if (
       bench.assignedIssue &&
+      !isAlertExternalId(bench.assignedIssue.externalId) &&
       projectRegistry.resolveEnforceIssueDependencies(req.params.projectId)
     ) {
       const repo = projectRegistry.getProject(req.params.projectId)?.config?.project?.repo;

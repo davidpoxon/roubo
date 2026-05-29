@@ -109,6 +109,19 @@ describe("GET /:projectId/benches", () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].id).toBe(1);
   });
+
+  it("excludes alert-backed benches whose alert number collides with the issue (#291)", async () => {
+    const allBenches = [
+      { id: 1, assignedIssue: { number: 42, externalId: "42" } },
+      { id: 2, assignedIssue: { number: 42, externalId: "owner/repo#code-scanning-42" } },
+    ];
+    vi.mocked(benchManager.getBenches).mockReturnValue(allBenches as any);
+
+    const res = await request(app).get("/my-project/benches?issue=42");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].id).toBe(1);
+  });
 });
 
 describe("POST /:projectId/benches", () => {
@@ -349,6 +362,29 @@ describe("GET /:projectId/benches/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body.assignedIssue.blockedBy).toEqual([{ number: 10, title: "Dependency" }]);
     expect(githubService.fetchBlockingRelationships).toHaveBeenCalledWith("owner/repo", [42]);
+  });
+
+  it("does not fetch blocking relationships for alert-backed benches (#291)", async () => {
+    const bench = {
+      id: 1,
+      projectId: "my-project",
+      branch: "main",
+      assignedIssue: {
+        number: 42,
+        externalId: "owner/repo#code-scanning-42",
+        title: "Fix alert",
+      },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { project: { repo: "owner/repo" } },
+    } as any);
+
+    const res = await request(app).get("/my-project/benches/1");
+    expect(res.status).toBe(200);
+    expect(res.body.assignedIssue.blockedBy).toBeUndefined();
+    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
 
   it("returns bench without blockedBy when no blockers exist", async () => {
