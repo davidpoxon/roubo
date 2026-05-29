@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -11,9 +11,6 @@ import type { RegisteredProject, Bench } from "@roubo/shared";
 
 vi.mock("../hooks/useProjects");
 vi.mock("../hooks/useBenches");
-vi.mock("../hooks/useProjectIntegration", () => ({
-  useProjectIntegration: vi.fn(() => ({ data: undefined })),
-}));
 vi.mock("./RegisterProjectModal", () => ({
   default: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="register-modal">Register modal</div> : null,
@@ -21,49 +18,9 @@ vi.mock("./RegisterProjectModal", () => ({
 
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
-import { useProjectIntegration } from "../hooks/useProjectIntegration";
 
 const mockedUseProjects = vi.mocked(useProjects);
 const mockedUseAllBenches = vi.mocked(useAllBenches);
-const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
-
-type IntegrationFixture = { id: string; name: string | null } | null;
-
-function integrationStateFor(plugin: IntegrationFixture) {
-  if (!plugin) {
-    return {
-      effective: {},
-      committed: null,
-      override: null,
-      plugin: null,
-      captionKey: "none" as const,
-    };
-  }
-  return {
-    effective: { plugin: plugin.id },
-    committed: { plugin: plugin.id },
-    override: null,
-    plugin: {
-      id: plugin.id,
-      installed: true,
-      status: "enabled" as const,
-      manifest: plugin.name ? { name: plugin.name } : null,
-    },
-    captionKey: "yaml-only" as const,
-  };
-}
-
-function mockIntegrationsByProject(byProject: Record<string, IntegrationFixture>) {
-  mockedUseProjectIntegration.mockImplementation(
-    (projectId) =>
-      ({
-        data: integrationStateFor(byProject[projectId ?? ""] ?? null),
-        isLoading: false,
-        isError: false,
-        error: null,
-      }) as unknown as ReturnType<typeof useProjectIntegration>,
-  );
-}
 
 function renderSidebar(initialPath = "/") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -116,15 +73,6 @@ function stubNoData() {
 }
 
 describe("ProjectSidebar", () => {
-  beforeEach(() => {
-    mockedUseProjectIntegration.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: false,
-      error: null,
-    } as unknown as ReturnType<typeof useProjectIntegration>);
-  });
-
   it("renders All Projects and Settings nav items", () => {
     stubNoData();
     renderSidebar();
@@ -475,72 +423,6 @@ describe("ProjectSidebar", () => {
       renderSidebar("/projects/proj-1/benches/1");
       const projectButton = screen.getByText("My Project").closest("button");
       expect(projectButton?.querySelector('[aria-label="Action needed"]')).not.toBeNull();
-    });
-  });
-
-  describe("active integration caption", () => {
-    it("renders the active integration display name beneath the project row", () => {
-      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
-        RegisteredProject[]
-      >);
-      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
-      mockIntegrationsByProject({ "proj-1": { id: "github-com", name: "GitHub.com" } });
-      renderSidebar();
-      expect(screen.getByText("GitHub.com")).toBeInTheDocument();
-    });
-
-    it('falls back to "Source" when no integration is active', () => {
-      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
-        RegisteredProject[]
-      >);
-      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
-      mockIntegrationsByProject({ "proj-1": null });
-      renderSidebar();
-      expect(screen.getByText("Source")).toBeInTheDocument();
-    });
-
-    it('falls back to "Source" when the integration has a plugin id but no manifest name', () => {
-      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
-        RegisteredProject[]
-      >);
-      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
-      mockIntegrationsByProject({ "proj-1": { id: "jira-self-hosted", name: null } });
-      renderSidebar();
-      expect(screen.getByText("Source")).toBeInTheDocument();
-    });
-
-    it("scopes the caption per-project when multiple projects have different integrations", () => {
-      const projectA = makeProject({
-        id: "proj-a",
-        config: {
-          project: { displayName: "Project A", name: "proj-a", type: "web", repo: "" },
-        } as RegisteredProject["config"],
-      });
-      const projectB = makeProject({
-        id: "proj-b",
-        config: {
-          project: { displayName: "Project B", name: "proj-b", type: "web", repo: "" },
-        } as RegisteredProject["config"],
-      });
-      mockedUseProjects.mockReturnValue({ data: [projectA, projectB] } as unknown as UseQueryResult<
-        RegisteredProject[]
-      >);
-      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
-      mockIntegrationsByProject({
-        "proj-a": { id: "github-com", name: "GitHub.com" },
-        "proj-b": { id: "jira-self-hosted", name: "Jira (Self-hosted)" },
-      });
-      renderSidebar();
-
-      const projectASection = screen.getByText("Project A").closest("div");
-      const projectBSection = screen.getByText("Project B").closest("div");
-      if (!projectASection || !projectBSection) {
-        throw new Error("expected both project sections");
-      }
-      expect(projectASection).toHaveTextContent("GitHub.com");
-      expect(projectASection).not.toHaveTextContent("Jira (Self-hosted)");
-      expect(projectBSection).toHaveTextContent("Jira (Self-hosted)");
-      expect(projectBSection).not.toHaveTextContent("GitHub.com");
     });
   });
 });

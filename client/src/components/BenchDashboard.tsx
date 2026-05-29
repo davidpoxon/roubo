@@ -438,7 +438,6 @@ export default function BenchDashboard() {
   }
 
   // Single-project layout: tab strip + Outlet (Cut List lives inside BenchesTab)
-  const integrationName = integration?.plugin?.manifest?.name ?? "Source";
   const projectName = currentProject?.config?.project?.displayName ?? currentProject?.id;
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -453,16 +452,8 @@ export default function BenchDashboard() {
           <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
             /
           </span>
-          <span className="text-stone-700 dark:text-stone-300">{projectName}</span>
-          <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
-            /
-          </span>
-          <span
-            aria-current="page"
-            data-testid="breadcrumb-integration-name"
-            className="text-stone-700 dark:text-stone-300"
-          >
-            {integrationName}
+          <span aria-current="page" className="text-stone-700 dark:text-stone-300">
+            {projectName}
           </span>
         </nav>
         <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-3">
