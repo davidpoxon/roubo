@@ -74,7 +74,14 @@ export function getWorkspacesDir(): string {
 }
 
 export function sanitizeBranchForPath(branch: string): string {
-  return branch.replace(/\//g, "-").replace(/^[-.]+|[-.]+$/g, "") || "branch";
+  // Trim leading then trailing runs of '-'/'.' as two separate anchored, single-
+  // match replacements. Splitting the alternation avoids the polynomial-backtracking
+  // shape CodeQL flags on the combined `/^[-.]+|[-.]+$/g` form; each pass here is
+  // a single linear scan.
+  const slashed = branch.replace(/\//g, "-");
+  const trimmedStart = slashed.replace(/^[-.]+/, "");
+  const trimmed = trimmedStart.replace(/[-.]+$/, "");
+  return trimmed || "branch";
 }
 
 export function getWorkspacePath(

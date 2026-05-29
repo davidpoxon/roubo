@@ -1735,7 +1735,8 @@ describe("fetchIssueType", () => {
 
     expect(result).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[github] Failed to fetch issue type for #42:"),
+      "[github] Failed to fetch issue type for #%d:",
+      42,
       expect.any(Error),
     );
   });
