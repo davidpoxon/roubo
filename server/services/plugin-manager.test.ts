@@ -1145,7 +1145,11 @@ describe("plugin-enable-state integration (WU-046)", () => {
 
 describe("getConnectionStatus (WU-044)", () => {
   const PLUGIN_ID = "github-com";
-  const CONFIG = { instance: "https://api.github.com" };
+  // github.com has a fixed API host and no plugin-wide `instance`, so the
+  // connection-status flow never pushes setActiveConfig for it (see the
+  // instance-gated push below). Model that here so these cases exercise the
+  // single-RPC path; the instance-bearing (GHE-like) push has its own block.
+  const CONFIG = { plugin: "github-com" };
   const FROZEN_TIME = new Date("2026-05-25T12:00:00.000Z");
 
   type InvokerArgs = [string, string, unknown, { timeoutMs?: number } | undefined];
@@ -1578,6 +1582,82 @@ describe("getConnectionStatus (WU-044)", () => {
 
       pluginManager.__test.resetE2EConnectionStateLogTap();
       expect(pluginManager.__test.getE2EConnectionStateLogTap()).toEqual([]);
+    });
+  });
+
+  // A plugin with plugin-wide config (e.g. GHE's `instance` URL) needs the
+  // host to push that config before it can answer getConnectionStatus on a
+  // cold process. Without the push it reports "No active configuration",
+  // because it implements getConnectionStatus and so never reaches the
+  // MethodNotFound -> validateConfig fallback.
+  describe("plugin-wide config push before getConnectionStatus (GHE)", () => {
+    const GHE_ID = "ghe";
+    const GHE_CONFIG = { plugin: "ghe", instance: "https://ghe.example.com" };
+
+    it("pushes setActiveConfig before getConnectionStatus when config carries an instance", async () => {
+      invokerMock
+        .mockResolvedValueOnce({ ok: true }) // setActiveConfig
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      const status = await pluginManager.getConnectionStatus(GHE_ID, GHE_CONFIG);
+
+      expect(status).toEqual({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+      expect(invokerMock).toHaveBeenCalledTimes(2);
+      expect(invokerMock).toHaveBeenNthCalledWith(
+        1,
+        GHE_ID,
+        "setActiveConfig",
+        { config: GHE_CONFIG },
+        { timeoutMs: 5_000 },
+      );
+      expect(invokerMock).toHaveBeenNthCalledWith(2, GHE_ID, "getConnectionStatus", undefined, {
+        timeoutMs: 5_000,
+      });
+    });
+
+    it("swallows MethodNotFound from setActiveConfig and still reports the plugin status", async () => {
+      invokerMock
+        .mockRejectedValueOnce(methodNotFound("setActiveConfig"))
+        .mockResolvedValueOnce({ state: "connected", checkedAt: FROZEN_TIME.toISOString() });
+
+      const status = await pluginManager.getConnectionStatus(GHE_ID, GHE_CONFIG);
+
+      expect(status.state).toBe("connected");
+      expect(invokerMock).toHaveBeenNthCalledWith(2, GHE_ID, "getConnectionStatus", undefined, {
+        timeoutMs: 5_000,
+      });
+    });
+
+    it("reports errored without probing when setActiveConfig throws a non-MethodNotFound error", async () => {
+      const boom = Object.assign(new Error("instance unreachable"), { code: "rpc-error" });
+      invokerMock.mockRejectedValueOnce(boom);
+
+      const status = await pluginManager.getConnectionStatus(GHE_ID, GHE_CONFIG);
+
+      expect(status).toEqual({
+        state: "errored",
+        detail: "instance unreachable",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+      expect(invokerMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not push setActiveConfig when the config has no instance", async () => {
+      invokerMock.mockResolvedValueOnce({
+        state: "connected",
+        checkedAt: FROZEN_TIME.toISOString(),
+      });
+
+      await pluginManager.getConnectionStatus(GHE_ID, { plugin: "ghe" });
+
+      expect(invokerMock).toHaveBeenCalledExactlyOnceWith(
+        GHE_ID,
+        "getConnectionStatus",
+        undefined,
+        {
+          timeoutMs: 5_000,
+        },
+      );
     });
   });
 });

@@ -83,6 +83,50 @@ describe("runIntegrationTest", () => {
     }
   });
 
+  it("surfaces a validateConfig { ok: false } result instead of masking it with getCurrentUser (GHE TLS regression)", async () => {
+    // A stateful plugin (GHE) resolves { ok: false } and rolls its active
+    // config back to null on a failed probe. The host must report that real
+    // error (here a self-signed-cert TLS failure, so the dialog can offer the
+    // opt-in) rather than blindly calling getCurrentUser, which would throw a
+    // misleading "No active configuration" error classified as "other".
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      ok: false,
+      errors: [{ message: "self-signed certificate in certificate chain" }],
+    });
+
+    const result = await runIntegrationTest(makeRecord("ghe"), {
+      instance: "https://ghe.example.com",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("tls");
+      expect(result.error.message).toMatch(/self-signed certificate/);
+    }
+    // getCurrentUser must not run once validation has failed.
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "ghe",
+      "validateConfig",
+      { config: { instance: "https://ghe.example.com" } },
+      { timeoutMs: 15_000 },
+    );
+  });
+
+  it("prefixes the field name when validateConfig reports a field error", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      ok: false,
+      errors: [{ field: "instance", message: "instance must be a non-empty string" }],
+    });
+
+    const result = await runIntegrationTest(makeRecord("ghe"), {});
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe("instance: instance must be a non-empty string");
+    }
+  });
+
   it("returns a structured error when getCurrentUser returns an invalid shape", async () => {
     vi.mocked(pluginManager.invoke)
       .mockResolvedValueOnce(undefined)

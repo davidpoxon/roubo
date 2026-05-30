@@ -9,7 +9,11 @@ import type {
   PluginRecord,
 } from "@roubo/shared";
 import { CapturedUserIdSchema, INTEGRATION_CATEGORY_LABELS } from "@roubo/shared";
-import type { ProbeAlertCategoriesResult, ProbeAlertCategory } from "@roubo/plugin-sdk";
+import type {
+  ProbeAlertCategoriesResult,
+  ProbeAlertCategory,
+  ValidateConfigResult,
+} from "@roubo/plugin-sdk";
 import * as credentialStore from "./credential-store.js";
 import * as pluginManager from "./plugin-manager.js";
 import { translateSources } from "./plugin-source-translation.js";
@@ -226,7 +230,27 @@ export async function runIntegrationTest(
   ctx?: RunIntegrationTestContext,
 ): Promise<IntegrationTestResult> {
   try {
-    await pluginManager.invoke(record.id, "validateConfig", { config }, { timeoutMs: 15_000 });
+    // Inspect the validateConfig result rather than blindly proceeding. When
+    // validation resolves with { ok: false } the plugin has not set its active
+    // config (e.g. GHE rolls back to null on a failed probe), so calling
+    // getCurrentUser next would throw a misleading "No active configuration"
+    // error that masks the real reason (TLS / auth / network) and defeats the
+    // self-signed-TLS opt-in affordance, which keys off the classified kind.
+    // A plugin that resolves undefined (no plugin-wide config to validate) is
+    // still treated as success.
+    const validation = await pluginManager.invoke<ValidateConfigResult | undefined>(
+      record.id,
+      "validateConfig",
+      { config },
+      { timeoutMs: 15_000 },
+    );
+    if (validation && validation.ok === false) {
+      const first = validation.errors?.[0];
+      const message = first
+        ? `${first.field ? `${first.field}: ` : ""}${first.message}`
+        : "Configuration validation failed.";
+      return { ok: false, error: { kind: classifyError(message), message } };
+    }
     const identity = await pluginManager.invoke<CapturedUserId>(
       record.id,
       "getCurrentUser",

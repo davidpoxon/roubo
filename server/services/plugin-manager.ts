@@ -1287,6 +1287,35 @@ async function fetchConnectionStatus(
   pluginId: string,
   config: Record<string, unknown>,
 ): Promise<ConnectionStatus> {
+  // Push the plugin-wide config (e.g. a GHE instance URL) before probing so a
+  // stateful plugin can answer getConnectionStatus on a cold process. Without
+  // this, a plugin that implements getConnectionStatus (host-API >= 1.1.0)
+  // never reaches the MethodNotFound -> validateConfig fallback below, so its
+  // active config stays unset and it reports "No active configuration". Gated
+  // on a non-empty `instance` so plugins with a fixed API host (github.com)
+  // are not needlessly cache-reset on every poll. Best-effort: plugins without
+  // plugin-wide config don't implement setActiveConfig (MethodNotFound).
+  if (typeof config.instance === "string" && config.instance.length > 0) {
+    try {
+      await connectionStatusInvoker(
+        pluginId,
+        "setActiveConfig",
+        { config },
+        {
+          timeoutMs: CONNECTION_STATUS_RPC_TIMEOUT_MS,
+        },
+      );
+    } catch (err) {
+      if (!isMethodNotFound(err)) {
+        return {
+          state: "errored",
+          detail: errorMessage(err),
+          checkedAt: nowIso(),
+        };
+      }
+    }
+  }
+
   try {
     return await connectionStatusInvoker<ConnectionStatus>(
       pluginId,
