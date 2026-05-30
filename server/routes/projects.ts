@@ -270,7 +270,21 @@ router.get("/:projectId/issue-types", async (req, res) => {
   }
 });
 
-router.post("/save-config", (req, res) => {
+// Defence-in-depth rate limit on the config-save surface. Roubo runs as a
+// localhost-only service, but this handler takes a user-supplied repoPath and
+// writes roubo.yaml to disk (fs.mkdirSync + atomicWrite), so we cap requests per
+// minute per IP to prevent a runaway caller from saturating disk I/O. Applied
+// per-route (not router-wide) because projects.ts shares the /api/projects mount
+// with the bench, terminal, inspection and other routers. Mirrors the pattern in
+// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#41).
+const saveConfigRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.post("/save-config", saveConfigRateLimiter, (req, res) => {
   const { repoPath, config } = req.body as SaveConfigRequest;
   if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0") || !config) {
     res.status(400).json({ error: "repoPath and config are required" });
