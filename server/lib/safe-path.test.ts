@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import {
   resolveWithin,
+  resolveWithinRoots,
   isInside,
   assertSafeIdentifier,
   UnsafePathError,
@@ -45,6 +46,45 @@ describe("resolveWithin", () => {
 
   it("allows nested-then-back path that stays inside root", () => {
     expect(resolveWithin(ROOT, "a", "..", "b")).toBe(path.join(ROOT, "b"));
+  });
+});
+
+describe("resolveWithinRoots", () => {
+  const ROOT_A = path.resolve("/tmp/safe-roots-a");
+  const ROOT_B = path.resolve("/tmp/safe-roots-b");
+
+  it("returns the resolved path for a candidate inside the first root", () => {
+    expect(resolveWithinRoots([ROOT_A, ROOT_B], path.join(ROOT_A, "proj"))).toBe(
+      path.join(ROOT_A, "proj"),
+    );
+  });
+
+  it("returns the root itself when the candidate equals a root", () => {
+    expect(resolveWithinRoots([ROOT_A], ROOT_A)).toBe(ROOT_A);
+  });
+
+  it("returns the resolved path for a candidate inside a later root", () => {
+    expect(resolveWithinRoots([ROOT_A, ROOT_B], path.join(ROOT_B, "x"))).toBe(
+      path.join(ROOT_B, "x"),
+    );
+  });
+
+  it("returns null when the candidate escapes every root", () => {
+    expect(resolveWithinRoots([ROOT_A, ROOT_B], "/etc/passwd")).toBeNull();
+  });
+
+  it("returns null for a relative traversal that escapes the root", () => {
+    expect(resolveWithinRoots([ROOT_A], path.join(ROOT_A, "..", "etc"))).toBeNull();
+  });
+
+  it("returns the normalized path for traversal that stays inside the root", () => {
+    expect(resolveWithinRoots([ROOT_A], path.join(ROOT_A, "a", "..", "b"))).toBe(
+      path.join(ROOT_A, "b"),
+    );
+  });
+
+  it("returns null when no roots are provided", () => {
+    expect(resolveWithinRoots([], ROOT_A)).toBeNull();
   });
 });
 

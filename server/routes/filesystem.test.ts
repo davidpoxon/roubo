@@ -68,6 +68,15 @@ describe("GET /", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects traversal that escapes the home root with 403", async () => {
+    vi.mocked(readdir).mockResolvedValue([makeDirent("src", false)]);
+    vi.mocked(access).mockRejectedValue(new Error("no .git"));
+
+    const app = await makeApp();
+    const res = await request(app).get("/?path=/mock-home/../etc");
+    expect(res.status).toBe(403);
+  });
+
   it("accepts paths inside ROUBO_FILESYSTEM_ROOTS allowlist", async () => {
     process.env.ROUBO_FILESYSTEM_ROOTS = "/opt/repos";
     vi.mocked(readdir).mockResolvedValue([makeDirent("src", false)]);

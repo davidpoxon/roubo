@@ -28,6 +28,24 @@ export function resolveWithin(root: string, ...segments: string[]): string {
   return resolved;
 }
 
+// Resolves `rawPath` to an absolute path and asserts it is `root` or strictly
+// inside one of `roots`. Returns the resolved absolute path (sanitized) when
+// contained, or null when it escapes every root. Returning the checked value is
+// what lets CodeQL's default js/path-injection suite treat this as a sanitizer:
+// the returned path sits inside the containment-guarded branch, mirroring
+// resolveWithin above.
+export function resolveWithinRoots(roots: string[], rawPath: string): string | null {
+  const resolved = path.resolve(rawPath);
+  for (const root of roots) {
+    const resolvedRoot = path.resolve(root);
+    const rel = path.relative(resolvedRoot, resolved);
+    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+      return resolved;
+    }
+  }
+  return null;
+}
+
 // Returns true when `candidate` is `root` or strictly inside `root`, false
 // otherwise. Mirrors the shape recognised by CodeQL's default sanitizer.
 export function isInside(root: string, candidate: string): boolean {
