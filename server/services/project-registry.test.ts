@@ -8,10 +8,11 @@ vi.mock("./port-allocator.js");
 
 import { parseConfig } from "./config-parser.js";
 import * as state from "./state.js";
-import { checkPortConflicts } from "./port-allocator.js";
+import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
 
 const mockedParseConfig = vi.mocked(parseConfig);
 const mockedCheckPortConflicts = vi.mocked(checkPortConflicts);
+const mockedGetPortConflicts = vi.mocked(getPortConflicts);
 const mockedLoadProjects = vi.mocked(state.loadProjects);
 const mockedAddProject = vi.mocked(state.addProject);
 const mockedRemoveProject = vi.mocked(state.removeProject);
@@ -483,8 +484,11 @@ describe("checkPortConflictsForConfig", () => {
       benches: { max: 5 },
     });
 
-    mockedCheckPortConflicts.mockReturnValue([
-      "Port conflict: new-project.web (5000-5004) overlaps with test-project.backend (5000-5004)",
+    mockedGetPortConflicts.mockReturnValue([
+      {
+        newRange: { name: "web", projectId: "new-project", low: 5000, high: 5004 },
+        existingRange: { name: "backend", projectId: "test-project", low: 5000, high: 5004 },
+      },
     ]);
 
     const result = registryModule.checkPortConflictsForConfig(newConfig);
@@ -492,6 +496,8 @@ describe("checkPortConflictsForConfig", () => {
     expect(result).toHaveLength(1);
     expect(result[0].port).toBe("web");
     expect(result[0].conflictsWith.projectId).toBe("test-project");
+    expect(result[0].conflictsWith.port).toBe("backend");
+    expect(result[0].conflictsWith.range).toEqual([5000, 5004]);
   });
 });
 
