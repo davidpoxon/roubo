@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { Bench, BenchWorkUnit, DirtyReason, DirtyState } from "@roubo/shared";
 import { runCommand } from "./exec.js";
+import { isBenchOperable } from "./bench-operability.js";
 
 export interface DirtyStateOptions {
   /**
@@ -219,12 +220,12 @@ export async function getDirtyState(
   bench: Bench,
   options?: DirtyStateOptions,
 ): Promise<DirtyState> {
-  // An allowlist-rejected bench loads with a blank workspacePath (see
-  // bench-manager.initialize()) and was never provisioned, so it has no worktree to
-  // probe and no uncommitted work to protect. Treat it as clean here — the single
-  // chokepoint for every caller (the DELETE route, auto-clear) — so none of them runs
-  // git with cwd="" (the server's own repo) via enumerateSubmodules/checkLocation.
-  if (!bench.workspacePath) {
+  // A non-operable bench (blank workspacePath, see bench-operability.ts) was never
+  // provisioned, so it has no worktree to probe and no uncommitted work to protect.
+  // Treat it as clean here — the single chokepoint for every caller (the DELETE route,
+  // auto-clear) — so none of them runs git with cwd="" (the server's own repo) via
+  // enumerateSubmodules/checkLocation.
+  if (!isBenchOperable(bench)) {
     return { clean: true, reasons: [] };
   }
 

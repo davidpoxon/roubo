@@ -7,6 +7,7 @@ import * as projectRegistry from "./project-registry.js";
 import { buildTemplateContext, resolveServiceEnv } from "./config-parser.js";
 import { parseCommand } from "./exec.js";
 import { ServiceError } from "./service-error.js";
+import { assertBenchOperable } from "./bench-operability.js";
 import { createNotification, dismissOne } from "./notification.js";
 
 interface InternalInspectionRun {
@@ -36,15 +37,10 @@ export function startInspection(
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) throw new ServiceError(404, "Bench not found");
 
-  // An allowlist-rejected bench loads with a blank workspacePath (see
-  // bench-manager.initialize()). path.resolve("", inspection.directory) would root the
-  // spawn cwd at the server's own working directory, running the inspection command in
-  // the wrong place, so refuse: clear is the only valid action for such a bench.
-  if (!bench.workspacePath)
-    throw new ServiceError(
-      400,
-      "Bench has no valid workspace path and cannot be inspected; clear it instead.",
-    );
+  // Refuse a non-operable bench (blank workspacePath, see bench-operability.ts):
+  // path.resolve("", inspection.directory) would otherwise root the spawn cwd at the
+  // server's own working directory.
+  assertBenchOperable(bench, "be inspected");
 
   const project = projectRegistry.getProject(projectId);
   if (!project?.config?.inspection)
