@@ -232,6 +232,19 @@ describe("POST /check-config", () => {
       benchCap: 4,
     });
   });
+
+  // The handler touches the user-supplied directory off disk (fs.existsSync +
+  // parseConfig), so it is rate-limited (CodeQL js/missing-rate-limiting #39).
+  // Asserting the draft-7 RateLimit headers proves the limiter is wired onto
+  // the route.
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.spyOn(fs, "existsSync").mockReturnValue(false);
+
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
 
 describe("POST /scan", () => {

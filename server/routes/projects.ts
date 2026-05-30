@@ -37,12 +37,13 @@ import type {
 const router = Router();
 
 // Defence-in-depth rate limit on the repo-scan surface. Roubo runs as a
-// localhost-only service, but this handler takes a user-supplied directory path
-// and walks it from disk (fs.existsSync + scanRepo), so we cap requests per
-// minute per IP to keep a runaway caller from hammering the filesystem. Applied
-// per-route (not router-wide) because projects.ts shares the /api/projects mount
-// with the bench, terminal, inspection and other routers. Mirrors the pattern in
-// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#40).
+// localhost-only service, but /check-config and /scan both take a user-supplied
+// directory path and touch it from disk (fs.existsSync + parseConfig / scanRepo),
+// so we cap requests per minute per IP to keep a runaway caller from hammering
+// the filesystem. Applied per-route (not router-wide) because projects.ts shares
+// the /api/projects mount with the bench, terminal, inspection and other routers.
+// Mirrors the pattern in plugins-github-oauth.ts and satisfies CodeQL
+// js/missing-rate-limiting (#40, #39).
 const scanRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
@@ -91,7 +92,7 @@ router.post("/", (req, res) => {
   }
 });
 
-router.post("/check-config", (req, res) => {
+router.post("/check-config", scanRateLimiter, (req, res) => {
   const { repoPath } = req.body as CheckConfigRequest;
   if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
