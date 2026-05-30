@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "node:path";
+import { homedir } from "node:os";
 import {
   resolveWithin,
   resolveWithinRoots,
+  allowedRoots,
   normalizeAbsolutePath,
   isInside,
   assertSafeIdentifier,
@@ -86,6 +88,43 @@ describe("resolveWithinRoots", () => {
 
   it("returns null when no roots are provided", () => {
     expect(resolveWithinRoots([], ROOT_A)).toBeNull();
+  });
+});
+
+describe("allowedRoots", () => {
+  const HOME = path.resolve(homedir());
+  let original: string | undefined;
+
+  beforeEach(() => {
+    original = process.env.ROUBO_FILESYSTEM_ROOTS;
+    delete process.env.ROUBO_FILESYSTEM_ROOTS;
+  });
+
+  afterEach(() => {
+    if (original === undefined) {
+      delete process.env.ROUBO_FILESYSTEM_ROOTS;
+    } else {
+      process.env.ROUBO_FILESYSTEM_ROOTS = original;
+    }
+  });
+
+  it("returns the home directory by default", () => {
+    expect(allowedRoots()).toEqual([HOME]);
+  });
+
+  it("appends resolved absolute entries from ROUBO_FILESYSTEM_ROOTS", () => {
+    process.env.ROUBO_FILESYSTEM_ROOTS = "/opt/work, /srv/repos";
+    expect(allowedRoots()).toEqual([HOME, path.resolve("/opt/work"), path.resolve("/srv/repos")]);
+  });
+
+  it("drops empty and relative entries", () => {
+    process.env.ROUBO_FILESYSTEM_ROOTS = " , relative/path, /opt/work";
+    expect(allowedRoots()).toEqual([HOME, path.resolve("/opt/work")]);
+  });
+
+  it("de-duplicates roots, keeping first occurrence", () => {
+    process.env.ROUBO_FILESYSTEM_ROOTS = `${HOME}, /opt/work, /opt/work`;
+    expect(allowedRoots()).toEqual([HOME, path.resolve("/opt/work")]);
   });
 });
 
