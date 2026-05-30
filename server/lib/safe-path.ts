@@ -1,4 +1,5 @@
 import path from "node:path";
+import { homedir } from "node:os";
 
 export class UnsafePathError extends Error {
   constructor(message: string) {
@@ -29,18 +30,25 @@ export function resolveWithin(root: string, ...segments: string[]): string {
 }
 
 // Resolves `rawPath` to an absolute path and asserts it is `root` or strictly
-// inside one of `roots`. Returns the resolved absolute path (sanitized) when
-// contained, or null when it escapes every root. Returning the checked value is
-// what lets CodeQL's default js/path-injection suite treat this as a sanitizer:
-// the returned path sits inside the containment-guarded branch, mirroring
-// resolveWithin above.
+// inside one of `roots`. Returns a path re-derived through resolveWithin when
+// contained, or null when it escapes every root. Re-joining the relative segment
+// onto the matched root via resolveWithin (rather than returning the caller's
+// own path.resolve(rawPath)) is deliberate: resolveWithin is the
+// join-under-fixed-root shape CodeQL's default js/path-injection suite
+// recognises as a sanitizer, so the returned value reaches downstream fs sinks
+// already laundered.
 export function resolveWithinRoots(roots: string[], rawPath: string): string | null {
   const resolved = path.resolve(rawPath);
   for (const root of roots) {
     const resolvedRoot = path.resolve(root);
     const rel = path.relative(resolvedRoot, resolved);
     if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-      return resolved;
+      try {
+        // rel === "" (the root itself) re-resolves to the root.
+        return resolveWithin(resolvedRoot, rel);
+      } catch {
+        return null;
+      }
     }
   }
   return null;
@@ -72,6 +80,29 @@ export function isInside(root: string, candidate: string): boolean {
   const resolvedCandidate = path.resolve(candidate);
   const rel = path.relative(resolvedRoot, resolvedCandidate);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+// Allowed roots for user-supplied directory paths: the user's home directory
+// plus any absolute paths in ROUBO_FILESYSTEM_ROOTS (comma-separated). Shared by
+// the filesystem browser and the project-scan endpoint so both confine to the
+// same locations. Pair with resolveWithinRoots to confine a tainted path.
+export function allowedRoots(): string[] {
+  const extra = (process.env.ROUBO_FILESYSTEM_ROOTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .filter((s) => path.isAbsolute(s))
+    .map((s) => path.resolve(s));
+  const home = path.resolve(homedir());
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const r of [home, ...extra]) {
+    if (!seen.has(r)) {
+      seen.add(r);
+      result.push(r);
+    }
+  }
+  return result;
 }
 
 export function assertSafeIdentifier(value: unknown, pattern: RegExp, label: string): void {

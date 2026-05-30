@@ -3,34 +3,11 @@ import { readdir, access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { DirectoryEntry, BrowseDirectoryResponse } from "@roubo/shared";
-import { resolveWithin, resolveWithinRoots } from "../lib/safe-path.js";
+import { resolveWithin, resolveWithinRoots, allowedRoots } from "../lib/safe-path.js";
 
 const router = Router();
 
 const MAX_PATH_LENGTH = 4096;
-
-// Allowed browsing roots: always the user's home directory, plus any absolute
-// paths supplied via the ROUBO_FILESYSTEM_ROOTS env var (comma-separated). The
-// endpoint refuses to list anything that resolves outside these roots so the
-// project-registration UI cannot be tricked into reading arbitrary locations.
-function allowedRoots(): string[] {
-  const extra = (process.env.ROUBO_FILESYSTEM_ROOTS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .filter((s) => path.isAbsolute(s))
-    .map((s) => path.resolve(s));
-  const home = path.resolve(homedir());
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const r of [home, ...extra]) {
-    if (!seen.has(r)) {
-      seen.add(r);
-      result.push(r);
-    }
-  }
-  return result;
-}
 
 router.get("/", async (req, res) => {
   const rawPath = (req.query.path as string) || homedir();

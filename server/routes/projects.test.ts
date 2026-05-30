@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 vi.mock("../services/project-registry.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../services/project-registry.js")>();
@@ -217,18 +219,34 @@ describe("POST /check-config", () => {
 });
 
 describe("POST /scan", () => {
+  // /scan confines repoPath to the allowed roots (home + ROUBO_FILESYSTEM_ROOTS),
+  // so the happy-path fixtures must resolve inside the user's home directory.
+  const insideHome = path.join(os.homedir(), "repo");
+  const missingInsideHome = path.join(os.homedir(), "nonexistent");
+  const outsideHome = path.resolve(os.homedir(), "..", "..", "outside-roubo-scan-test");
+
   it("returns 400 when repoPath is missing", async () => {
     const res = await request(app).post("/scan").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("repoPath is required");
   });
 
+  it("returns 403 when repoPath escapes the allowed roots", async () => {
+    const existsSpy = vi.spyOn(fs, "existsSync");
+
+    const res = await request(app).post("/scan").send({ repoPath: outsideHome });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Path is outside the allowed roots");
+    expect(existsSpy).not.toHaveBeenCalled();
+    expect(scanRepo).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when directory not found", async () => {
     vi.spyOn(fs, "existsSync").mockReturnValue(false);
 
-    const res = await request(app).post("/scan").send({ repoPath: "/nonexistent" });
+    const res = await request(app).post("/scan").send({ repoPath: missingInsideHome });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe("Directory not found: /nonexistent");
+    expect(res.body.error).toBe(`Directory not found: ${missingInsideHome}`);
   });
 
   it("returns 200 with scan result on success", async () => {
@@ -236,16 +254,17 @@ describe("POST /scan", () => {
     const scanResult = { type: "node", services: [] };
     vi.mocked(scanRepo).mockResolvedValue(scanResult as any);
 
-    const res = await request(app).post("/scan").send({ repoPath: "/repo" });
+    const res = await request(app).post("/scan").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body).toEqual(scanResult);
+    expect(scanRepo).toHaveBeenCalledWith(insideHome);
   });
 
   it("returns 500 when scanRepo throws", async () => {
     vi.spyOn(fs, "existsSync").mockReturnValue(true);
     vi.mocked(scanRepo).mockRejectedValue(new Error("scan failed"));
 
-    const res = await request(app).post("/scan").send({ repoPath: "/repo" });
+    const res = await request(app).post("/scan").send({ repoPath: insideHome });
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("scan failed");
   });

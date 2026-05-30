@@ -12,7 +12,7 @@ import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { atomicWrite } from "../services/state.js";
-import { resolveWithin } from "../lib/safe-path.js";
+import { resolveWithin, resolveWithinRoots, allowedRoots } from "../lib/safe-path.js";
 import {
   getIntegrationFields,
   setIntegrationFields,
@@ -35,6 +35,20 @@ import type {
 } from "@roubo/shared";
 
 const router = Router();
+
+// Defence-in-depth rate limit on the repo-scan surface. Roubo runs as a
+// localhost-only service, but this handler takes a user-supplied directory path
+// and walks it from disk (fs.existsSync + scanRepo), so we cap requests per
+// minute per IP to keep a runaway caller from hammering the filesystem. Applied
+// per-route (not router-wide) because projects.ts shares the /api/projects mount
+// with the bench, terminal, inspection and other routers. Mirrors the pattern in
+// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#40).
+const scanRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 /**
  * Bundled github.com / GHE plugins emit alerts as NormalizedIssue with these
@@ -135,20 +149,28 @@ router.post("/check-config", (req, res) => {
   });
 });
 
-router.post("/scan", async (req, res) => {
+router.post("/scan", scanRateLimiter, async (req, res) => {
   const { repoPath } = req.body as { repoPath?: string };
   if (!repoPath || typeof repoPath !== "string" || repoPath.includes("\0")) {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
-  // See /check-config above: we deliberately do not path.resolve(repoPath)
-  // here. The endpoint takes a user-supplied local directory by design.
-  if (!fs.existsSync(repoPath)) {
-    res.status(404).json({ error: `Directory not found: ${repoPath}` });
+  // Confine the user-supplied directory to the same roots the filesystem
+  // browser restricts to (home + ROUBO_FILESYSTEM_ROOTS). resolveWithinRoots
+  // returns the resolved path from inside its containment-guarded branch, the
+  // shape CodeQL's js/path-injection suite recognises as a sanitizer, so the
+  // value reaching existsSync / scanRepo is already laundered (CodeQL #53).
+  const safePath = resolveWithinRoots(allowedRoots(), repoPath);
+  if (safePath === null) {
+    res.status(403).json({ error: "Path is outside the allowed roots" });
+    return;
+  }
+  if (!fs.existsSync(safePath)) {
+    res.status(404).json({ error: `Directory not found: ${safePath}` });
     return;
   }
   try {
-    const result = await scanRepo(repoPath);
+    const result = await scanRepo(safePath);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
