@@ -389,6 +389,16 @@ export async function assignIssue(
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) throw new ServiceError(404, "Bench not found");
 
+  // An allowlist-rejected bench loads with a blank workspacePath (see
+  // bench-manager.initialize()). The git checkout below would otherwise run with
+  // cwd="" — the server's own repo — and create/switch a branch there, so refuse:
+  // clear is the only valid action for such a bench.
+  if (!bench.workspacePath)
+    throw new ServiceError(
+      400,
+      "Bench has no valid workspace path and cannot be assigned an issue; clear it instead.",
+    );
+
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new ServiceError(404, "Project config not found");
   if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");

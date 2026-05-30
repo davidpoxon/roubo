@@ -241,6 +241,15 @@ describe("assignIssue", () => {
     await expect(assignIssue("project1", 1, 42)).rejects.toThrow("Bench not found");
   });
 
+  it("refuses a blank-workspace-path bench (allowlist-rejected) before any git checkout", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench, workspacePath: "" });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+
+    // Must reject before running `git checkout -b` with cwd="" (the server's own repo).
+    await expect(assignIssue("project1", 1, 42)).rejects.toThrow(/no valid workspace path/i);
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+
   it("throws when both checkout -b and checkout fail", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);

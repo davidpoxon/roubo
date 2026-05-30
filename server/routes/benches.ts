@@ -208,6 +208,8 @@ router.delete("/:projectId/benches/:id", async (req, res) => {
         return;
       }
 
+      // getDirtyState treats a blank-workspacePath bench (allowlist-rejected, see
+      // bench-manager.initialize()) as clean, so this never probes git with cwd="".
       const dirtyState = await getDirtyState(bench, {
         knownMergedLocations: buildKnownMergedLocations(bench),
       });

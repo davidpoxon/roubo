@@ -63,6 +63,16 @@ export async function executeTool(
       error: `Bench ${benchId} not found for project '${projectId}'`,
     };
 
+  // An allowlist-rejected bench loads with a blank workspacePath (see
+  // bench-manager.initialize()). A shell tool would otherwise run its command with
+  // cwd="" — the server's own working directory — so refuse it. Clear is the only
+  // valid action for such a bench.
+  if (!bench.workspacePath)
+    return {
+      success: false,
+      error: `Bench ${benchId} has no valid workspace path; clear it instead.`,
+    };
+
   const tools = project.config.tools;
   if (!tools || toolIndex < 0 || toolIndex >= tools.length) {
     return { success: false, error: `Invalid tool index: ${toolIndex}` };

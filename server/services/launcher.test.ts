@@ -157,6 +157,17 @@ describe("executeTool", () => {
     expect(result.error).toContain("Invalid tool index");
   });
 
+  it("returns error for a blank-workspace-path bench (allowlist-rejected)", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue(makeBench({ workspacePath: "" }));
+
+    // Tool index 1 is the shell tool; the guard must short-circuit before it runs so
+    // the command never executes with cwd="" (the server's own working directory).
+    const result = await executeTool("test-project", 1, 1);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("no valid workspace path");
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it("returns error when tool is disabled", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       makeBench({

@@ -82,8 +82,10 @@ export function normalizeAbsolutePath(input: string, label = "path"): string {
 // real workspace paths (letters, digits, _ . - / and spaces) and rejects every
 // shell metacharacter, leaving the value safe to pass to `exec`. The regex-test
 // guard is the barrier CodeQL's js/command-line-injection suite recognises as a
-// sanitizer (same shape as getLoginShell, alert #106); see code-scanning alert
-// #32.
+// sanitizer (same shape as getLoginShell, alert #106); see code-scanning alerts
+// #32 (shell tool exec) and #31 (the workspacePath that flows into spawn() via
+// {{workspace}} template substitution, validated at the state-load boundary in
+// bench-manager.initialize()).
 export const SAFE_WORKSPACE_PATH_RE = /^\/[\w .\-/]+$/;
 
 // Validates a persisted workspace path against SAFE_WORKSPACE_PATH_RE and returns
