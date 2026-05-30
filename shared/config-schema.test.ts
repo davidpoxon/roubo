@@ -89,20 +89,24 @@ describe("RouboConfigSchema — required fields", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects missing components", () => {
+  it("accepts missing components and defaults to {}", () => {
     const result = RouboConfigSchema.safeParse({
       ...makeConfig(),
       components: undefined,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.components).toEqual({});
   });
 
-  it("rejects missing ports", () => {
+  it("accepts missing ports and defaults to {}", () => {
     const result = RouboConfigSchema.safeParse({
       ...makeConfig(),
       ports: undefined,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.ports).toEqual({});
   });
 
   it("rejects missing benches", () => {
@@ -211,8 +215,12 @@ describe("ports.base", () => {
 });
 
 describe("components map", () => {
-  it("rejects empty components", () => {
-    expect(RouboConfigSchema.safeParse(makeConfig({ components: {} })).success).toBe(false);
+  it("accepts empty components", () => {
+    expect(RouboConfigSchema.safeParse(makeConfig({ components: {} })).success).toBe(true);
+  });
+
+  it("accepts empty ports", () => {
+    expect(RouboConfigSchema.safeParse(makeConfig({ ports: {} })).success).toBe(true);
   });
 
   it("rejects a process component without command", () => {
@@ -687,7 +695,9 @@ describe("zodIssuesToFieldMap", () => {
   });
 
   it("skips issues with empty path", () => {
-    const result = RouboConfigSchema.safeParse(makeConfig({ components: {} }));
+    // An unrecognized top-level key trips `.strict()`, which reports at the
+    // object root (empty path); zodIssuesToFieldMap should drop it.
+    const result = RouboConfigSchema.safeParse({ ...makeConfig(), unknownKey: true });
     if (result.success) throw new Error("expected failure");
     const map = zodIssuesToFieldMap(result.error.issues);
     expect("" in map).toBe(false);

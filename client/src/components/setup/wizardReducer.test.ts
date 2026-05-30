@@ -16,6 +16,7 @@ import {
   nextAvailablePort,
   wizardReducer,
   validateSection,
+  REQUIRED_SECTIONS,
   WIZARD_SECTIONS,
   type WizardState,
   type WizardAction,
@@ -28,6 +29,12 @@ function makeState(overrides?: Partial<WizardState>): WizardState {
     ...overrides,
   };
 }
+
+describe("REQUIRED_SECTIONS", () => {
+  it("does not require the components section (components are optional)", () => {
+    expect(REQUIRED_SECTIONS).not.toContain("components");
+  });
+});
 
 describe("validateSection", () => {
   describe("project", () => {
@@ -99,12 +106,12 @@ describe("validateSection", () => {
   });
 
   describe("components", () => {
-    it("returns invalid when no components", () => {
-      expect(validateSection("components", {})).toBe("invalid");
+    it("returns valid when no components (optional)", () => {
+      expect(validateSection("components", {})).toBe("valid");
     });
 
-    it("returns invalid when empty components object", () => {
-      expect(validateSection("components", { components: {} })).toBe("invalid");
+    it("returns valid for an empty components object (optional)", () => {
+      expect(validateSection("components", { components: {}, ports: {} })).toBe("valid");
     });
 
     it("returns invalid for process component with empty command", () => {

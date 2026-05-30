@@ -18,7 +18,7 @@ jigs: # Optional: default AI coding agent jig and issue-type mappings
 users: # Optional: non-sensitive seed users
 ```
 
-`project`, `layout`, `components`, `ports`, and `benches` are **required**. Everything else is optional.
+`project`, `layout`, and `benches` are **required**. Everything else is optional, including `components` and `ports` (omit them for a project with no long-running services).
 
 ---
 
@@ -73,9 +73,9 @@ layout:
 
 ---
 
-## `components` (required)
+## `components` (optional)
 
-The processes and containers that make up a bench. Each key is the component name; the value describes how to run it.
+The processes and containers that make up a bench. Each key is the component name; the value describes how to run it. Omit this section (or leave it empty) for a project with no long-running services; a bench can still provide a workspace, jigs, and tools.
 
 ```yaml
 components:
@@ -148,9 +148,9 @@ Any string value in `env`, `command`, `connection.template`, and tool URLs may r
 
 ---
 
-## `ports` (required)
+## `ports` (optional)
 
-Port bases per component. Roubo computes a bench's actual port as `base + (benchNumber − 1)`.
+Port bases per component, usually paired one-to-one with `components`. Roubo computes a bench's actual port as `base + (benchNumber − 1)`. Omit this section when a project has no components.
 
 ```yaml
 ports:

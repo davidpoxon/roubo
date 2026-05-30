@@ -48,7 +48,7 @@ export const WIZARD_SECTIONS: WizardSection[] = [
   "benches",
   "review",
 ];
-export const REQUIRED_SECTIONS: WizardSection[] = ["project", "layout", "components", "benches"];
+export const REQUIRED_SECTIONS: WizardSection[] = ["project", "layout", "benches"];
 
 const NAME_PATTERN = /^[a-z0-9-]+$/;
 
@@ -75,9 +75,10 @@ export function validateSection(
       return "valid";
     }
     case "components": {
-      const components = config.components;
+      // components and ports are optional. An empty map is valid (a project may
+      // have no long-running services); only entries that exist must be complete.
+      const components = config.components ?? {};
       const ports = config.ports ?? {};
-      if (!components || Object.keys(components).length === 0) return "invalid";
       const allComponentsValid = Object.values(components).every((c) => {
         if (!c.type) return false;
         if (c.type === "process") return !!c.command?.trim();

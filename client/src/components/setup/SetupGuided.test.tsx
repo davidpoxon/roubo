@@ -204,7 +204,8 @@ describe("SetupGuided", () => {
         saveError="Server rejected the config"
       />,
     );
-    expect(screen.getByText("Server rejected the config")).toBeInTheDocument();
+    // Shown in both the validation panel summary and the detailed error block.
+    expect(screen.getAllByText("Server rejected the config").length).toBeGreaterThan(0);
   });
 
   it("does not render default branch field when no projectId", () => {

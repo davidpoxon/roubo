@@ -266,23 +266,12 @@ export const IntegrationOverrideSchema = z
   .strict();
 export type IntegrationOverride = z.infer<typeof IntegrationOverrideSchema>;
 
-const ComponentsMapSchema = z.record(z.string(), ComponentConfigSchema).superRefine((val, ctx) => {
-  if (Object.keys(val).length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "At least one component is required",
-    });
-  }
-});
+// components and ports are optional: a project may be just a worktree with jigs
+// and tools and no long-running services. Both default to {} so downstream
+// consumers always see a real (possibly empty) object.
+const ComponentsMapSchema = z.record(z.string(), ComponentConfigSchema);
 
-const PortsMapSchema = z.record(z.string(), PortConfigSchema).superRefine((val, ctx) => {
-  if (Object.keys(val).length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "At least one port is required",
-    });
-  }
-});
+const PortsMapSchema = z.record(z.string(), PortConfigSchema);
 
 const UsersArraySchema = z.array(UserConfigSchema).superRefine((users, ctx) => {
   const seen = new Set<string>();
@@ -307,8 +296,8 @@ export const RouboConfigSchema = z
   .object({
     project: ProjectConfigSchema,
     layout: LayoutConfigSchema,
-    components: ComponentsMapSchema,
-    ports: PortsMapSchema,
+    components: ComponentsMapSchema.default({}),
+    ports: PortsMapSchema.default({}),
     tools: z.array(ToolConfigSchema).optional(),
     inspection: InspectionConfigSchema.optional(),
     benches: BenchesConfigSchema,
