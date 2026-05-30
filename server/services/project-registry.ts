@@ -7,7 +7,7 @@ import type {
 } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS, DEFAULT_BENCH_SETTINGS } from "@roubo/shared";
 import { parseConfig } from "./config-parser.js";
-import { checkPortConflicts } from "./port-allocator.js";
+import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
 import * as state from "./state.js";
 import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
 
@@ -221,32 +221,18 @@ export function checkPortConflictsForConfig(
     (p) => p.id !== excludeProjectId && p.configValid,
   );
   const newProject = { id: config.project.name, config };
-  const conflicts = checkPortConflicts(newProject, existingProjects);
+  const conflicts = getPortConflicts(newProject, existingProjects);
 
-  return conflicts.map((msg) => {
-    const match = msg.match(
-      /^Port conflict: .+?\.(\S+) \((\d+)-(\d+)\) overlaps with (.+?)\.(\S+) \((\d+)-(\d+)\)$/,
-    );
-    if (!match)
-      return {
-        port: "",
-        base: 0,
-        conflictsWith: {
-          projectId: "",
-          projectName: "",
-          port: "",
-          range: [0, 0] as [number, number],
-        },
-      };
-    const existingProject = existingProjects.find((p) => p.id === match[4]);
+  return conflicts.map(({ newRange, existingRange }) => {
+    const existingProject = existingProjects.find((p) => p.id === existingRange.projectId);
     return {
-      port: match[1],
-      base: config.ports[match[1]]?.base ?? 0,
+      port: newRange.name,
+      base: config.ports[newRange.name]?.base ?? 0,
       conflictsWith: {
-        projectId: match[4],
-        projectName: existingProject?.config?.project?.displayName ?? match[4],
-        port: match[5],
-        range: [parseInt(match[6]), parseInt(match[7])] as [number, number],
+        projectId: existingRange.projectId,
+        projectName: existingProject?.config?.project?.displayName ?? existingRange.projectId,
+        port: existingRange.name,
+        range: [existingRange.low, existingRange.high] as [number, number],
       },
     };
   });

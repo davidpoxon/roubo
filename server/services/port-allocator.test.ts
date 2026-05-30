@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allocatePorts, checkPortConflicts } from "./port-allocator.js";
+import { allocatePorts, checkPortConflicts, getPortConflicts } from "./port-allocator.js";
 import { makeConfig, makeProject } from "../test/fixtures.js";
 
 describe("allocatePorts", () => {
@@ -138,5 +138,52 @@ describe("checkPortConflicts", () => {
     ];
     const conflicts = checkPortConflicts(newProject, existing);
     expect(conflicts.length).toBe(2);
+  });
+});
+
+describe("getPortConflicts", () => {
+  it("returns empty when ranges do not overlap", () => {
+    const newProject = {
+      id: "project-new",
+      config: makeConfig({
+        ports: { web: { base: 3000 } },
+        benches: { max: 3 },
+      }),
+    };
+    const existing = [
+      makeProject({
+        id: "project-existing",
+        config: makeConfig({
+          ports: { web: { base: 3003 } },
+          benches: { max: 3 },
+        }),
+      }),
+    ];
+    expect(getPortConflicts(newProject, existing)).toEqual([]);
+  });
+
+  it("returns structured ranges for overlapping ports", () => {
+    const newProject = {
+      id: "project-new",
+      config: makeConfig({
+        ports: { web: { base: 3000 } },
+        benches: { max: 5 },
+      }),
+    };
+    const existing = [
+      makeProject({
+        id: "project-existing",
+        config: makeConfig({
+          ports: { web: { base: 3002 } },
+          benches: { max: 5 },
+        }),
+      }),
+    ];
+    const conflicts = getPortConflicts(newProject, existing);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toEqual({
+      newRange: { name: "web", projectId: "project-new", low: 3000, high: 3004 },
+      existingRange: { name: "web", projectId: "project-existing", low: 3002, high: 3006 },
+    });
   });
 });

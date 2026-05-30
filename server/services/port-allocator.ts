@@ -8,18 +8,23 @@ export function allocatePorts(config: RouboConfig, benchNumber: number): Record<
   return ports;
 }
 
-interface PortRange {
+export interface PortRange {
   name: string;
   projectId: string;
   low: number;
   high: number;
 }
 
-export function checkPortConflicts(
+export interface PortConflict {
+  newRange: PortRange;
+  existingRange: PortRange;
+}
+
+export function getPortConflicts(
   newProject: { id: string; config: RouboConfig },
   existingProjects: RegisteredProject[],
-): string[] {
-  const conflicts: string[] = [];
+): PortConflict[] {
+  const conflicts: PortConflict[] = [];
   const newRanges = getPortRanges(newProject.id, newProject.config);
 
   for (const existing of existingProjects) {
@@ -29,16 +34,24 @@ export function checkPortConflicts(
     for (const nr of newRanges) {
       for (const er of existingRanges) {
         if (nr.low <= er.high && er.low <= nr.high) {
-          conflicts.push(
-            `Port conflict: ${newProject.id}.${nr.name} (${nr.low}-${nr.high}) ` +
-              `overlaps with ${existing.id}.${er.name} (${er.low}-${er.high})`,
-          );
+          conflicts.push({ newRange: nr, existingRange: er });
         }
       }
     }
   }
 
   return conflicts;
+}
+
+export function checkPortConflicts(
+  newProject: { id: string; config: RouboConfig },
+  existingProjects: RegisteredProject[],
+): string[] {
+  return getPortConflicts(newProject, existingProjects).map(
+    ({ newRange, existingRange }) =>
+      `Port conflict: ${newRange.projectId}.${newRange.name} (${newRange.low}-${newRange.high}) ` +
+      `overlaps with ${existingRange.projectId}.${existingRange.name} (${existingRange.low}-${existingRange.high})`,
+  );
 }
 
 function getPortRanges(projectId: string, config: RouboConfig): PortRange[] {
