@@ -183,6 +183,31 @@ describe("loadSettings", () => {
     });
   });
 
+  it("throws on malformed JSON when throwOnCorrupt is set, but stays fail-open by default", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("not valid json{{{");
+    // Default callers keep the fail-open contract.
+    expect(() => stateModule.loadSettings()).not.toThrow();
+    // Opt-in callers (the global bench-cap check) can distinguish corruption.
+    expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow();
+  });
+
+  it("does not throw on a missing file even when throwOnCorrupt is set (absence is not corruption)", () => {
+    existsSync.mockReturnValue(false);
+    expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).not.toThrow();
+    expect(stateModule.loadSettings({ throwOnCorrupt: true }).benches).toEqual(
+      DEFAULT_BENCH_SETTINGS,
+    );
+  });
+
+  it("preserves benches.maxGlobal from file", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({ theme: "dark", benches: { ...DEFAULT_BENCH_SETTINGS, maxGlobal: 7 } }),
+    );
+    expect(stateModule.loadSettings().benches?.maxGlobal).toBe(7);
+  });
+
   it("preserves custom jig settings from file", () => {
     existsSync.mockReturnValue(true);
     const customJigs = {

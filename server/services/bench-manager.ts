@@ -44,6 +44,31 @@ import {
 export const RESOLVE_DEFAULT_BRANCH_PHASE = "Resolving default branch";
 const benches = new Map<string, Bench>();
 
+// Guards the one-warning-per-process-load contract for a corrupt settings.json
+// when the global bench cap is evaluated (NFR-004). Reset only on process restart.
+let corruptedSettingsWarned = false;
+
+// Reads the application-wide bench cap from settings.json. Returns null (unlimited)
+// when the cap is absent, null, malformed, or unreadable. On a corrupt settings.json
+// it fails open and warns at most once per process load. Performs exactly one
+// loadSettings call (a single fs read) so it adds no extra I/O to the create path.
+function readGlobalBenchCap(): number | null {
+  let settings;
+  try {
+    settings = stateService.loadSettings({ throwOnCorrupt: true });
+  } catch {
+    if (!corruptedSettingsWarned) {
+      console.warn(
+        "[bench-manager] settings.json unreadable; treating global bench limit as unlimited.",
+      );
+      corruptedSettingsWarned = true;
+    }
+    return null;
+  }
+  const max = settings.benches?.maxGlobal;
+  return typeof max === "number" && Number.isInteger(max) && max >= 1 ? max : null;
+}
+
 function resolveComponentOrder(components: Record<string, ComponentConfig>): string[] {
   const names = Object.keys(components);
   const visited = new Set<string>();
@@ -450,6 +475,19 @@ export function createBench(projectId: string, branch?: string): Bench {
     throw new BenchError(
       `No available benches for '${projectId}' (max: ${config.benches.max})`,
       "NO_BENCHES",
+    );
+  }
+
+  // Application-wide cap, on top of the per-Project cap above (which takes
+  // precedence when tighter). Every Map entry counts, including in-flight
+  // `preparing` and failed `error` benches, because the cap governs host load,
+  // not just healthy benches. This stays inside the synchronous reservation
+  // block so a parallel create observes an already-reserved slot.
+  const maxGlobal = readGlobalBenchCap();
+  if (maxGlobal !== null && benches.size >= maxGlobal) {
+    throw new BenchError(
+      `Global bench limit reached: ${benches.size} of ${maxGlobal} benches in use.`,
+      "GLOBAL_CAP_REACHED",
     );
   }
 

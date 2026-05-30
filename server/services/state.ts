@@ -230,7 +230,7 @@ export function removeBench(projectId: string, benchId: number) {
   saveState(data);
 }
 
-export function loadSettings(): UserPreferences {
+export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferences {
   ensureDirs();
   if (!fs.existsSync(SETTINGS_FILE)) {
     return {
@@ -268,7 +268,15 @@ export function loadSettings(): UserPreferences {
       claudeCode: { ...DEFAULT_CLAUDE_CODE_SETTINGS, ...raw.claudeCode },
       github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
     };
-  } catch {
+  } catch (err) {
+    // Fail-open by default: a corrupt settings.json yields built-in defaults so
+    // the app keeps working. Callers that need to distinguish corruption from a
+    // legitimately-default config (e.g. the global bench-cap check, which warns
+    // once per process load) opt in via throwOnCorrupt. A missing file is handled
+    // by the early return above and never reaches here, so absence never throws.
+    if (opts?.throwOnCorrupt) {
+      throw err;
+    }
     return {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,

@@ -66,6 +66,18 @@ router.put("/", (req, res) => {
       });
       return;
     }
+    const mg = body.benches.maxGlobal;
+    if (
+      mg !== undefined &&
+      mg !== null &&
+      !(typeof mg === "number" && Number.isInteger(mg) && mg >= 1)
+    ) {
+      res.status(400).json({
+        error:
+          "Invalid bench settings: benches.maxGlobal must be a positive integer (>= 1) or null.",
+      });
+      return;
+    }
   }
   if (body.claudeCode !== undefined) {
     const cc = body.claudeCode;
@@ -107,10 +119,16 @@ router.put("/", (req, res) => {
       const { defaultJigId, ...rest } = jigs;
       jigs = defaultJigId != null ? { ...rest, defaultJigId } : rest;
     }
+    let benches = body.benches ?? current.benches;
+    if (benches) {
+      // Never persist an explicit null/undefined maxGlobal: absence is the unlimited signal.
+      const { maxGlobal, ...rest } = benches;
+      benches = maxGlobal != null ? { ...rest, maxGlobal } : rest;
+    }
     const updated: UserPreferences = {
       theme: body.theme,
       jigs,
-      benches: body.benches ?? current.benches,
+      benches,
       claudeCode: body.claudeCode ?? current.claudeCode,
       github: body.github ?? current.github,
     };
