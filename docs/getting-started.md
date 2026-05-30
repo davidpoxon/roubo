@@ -15,7 +15,7 @@ The first launch opens the Roubo window and starts the local server. The web UI 
 
 ## 2. Add a `roubo.yaml` to your project
 
-Roubo expects each project to describe itself with a `roubo.yaml` at `.roubo/roubo.yaml` in the project repo. This file tells Roubo what components make up a bench (database, backend, frontend), what ports they need, and how to start them.
+Roubo expects each project to describe itself with a `roubo.yaml` at `.roubo/roubo.yaml` in the project repo. This file tells Roubo what components make up a bench (database, backend, frontend), what ports they need, and how to start them. Components are optional, so a project with no long-running services can ship a `roubo.yaml` without them.
 
 Here is a minimal example for a single-repo web project:
 
