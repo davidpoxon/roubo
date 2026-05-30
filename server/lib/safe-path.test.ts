@@ -6,6 +6,7 @@ import {
   resolveWithinRoots,
   allowedRoots,
   normalizeAbsolutePath,
+  assertSafeWorkspacePath,
   isInside,
   assertSafeIdentifier,
   UnsafePathError,
@@ -145,6 +146,37 @@ describe("normalizeAbsolutePath", () => {
     expect(() => normalizeAbsolutePath("")).toThrow(UnsafePathError);
     expect(() => normalizeAbsolutePath(undefined as unknown as string)).toThrow(UnsafePathError);
     expect(() => normalizeAbsolutePath("/repos/a\0b")).toThrow(UnsafePathError);
+  });
+});
+
+describe("assertSafeWorkspacePath", () => {
+  it("returns a normal roubo workspace path unchanged", () => {
+    const p = "/home/.roubo/workspaces/test-project/bench-1";
+    expect(assertSafeWorkspacePath(p)).toBe(p);
+  });
+
+  it("allows spaces, dots, and hyphens in a branch-derived bench dir", () => {
+    const p = "/Users/jane doe/.roubo/workspaces/my-app/bench-2-feat.x-1";
+    expect(assertSafeWorkspacePath(p)).toBe(p);
+  });
+
+  it("rejects shell metacharacters that survive branch sanitization", () => {
+    for (const bad of [
+      "/home/.roubo/workspaces/app/bench-1-feat;rm -rf x",
+      "/home/.roubo/workspaces/app/bench-1-$(whoami)",
+      "/home/.roubo/workspaces/app/bench-1-`id`",
+      "/home/.roubo/workspaces/app/bench-1|cat",
+      "/home/.roubo/workspaces/app/bench-1&&echo",
+    ]) {
+      expect(() => assertSafeWorkspacePath(bad)).toThrow(UnsafePathError);
+    }
+  });
+
+  it("rejects non-absolute, empty, non-string, and NUL-byte input", () => {
+    expect(() => assertSafeWorkspacePath("relative/path")).toThrow(UnsafePathError);
+    expect(() => assertSafeWorkspacePath("")).toThrow(UnsafePathError);
+    expect(() => assertSafeWorkspacePath(undefined as unknown as string)).toThrow(UnsafePathError);
+    expect(() => assertSafeWorkspacePath("/home/a\0b")).toThrow(UnsafePathError);
   });
 });
 

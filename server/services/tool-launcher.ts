@@ -4,6 +4,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as benchManager from "./bench-manager.js";
 import { BenchError } from "./bench-manager.js";
 import { buildTemplateContext, resolveTemplate, applyContainerOverrides } from "./config-parser.js";
+import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 
 export function getResolvedTools(projectId: string, benchId: number): ResolvedTool[] {
   const project = projectRegistry.getProject(projectId);
@@ -88,7 +89,19 @@ export async function executeTool(
   const selectedUser = userName
     ? project.config.users?.find((u) => u.name === userName)
     : undefined;
-  const ctx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+
+  // The persisted workspace path is interpolated into shell tool commands via
+  // {{workspace}} and reaches exec, so validate it against the shell-safe
+  // allowlist first (CodeQL #32, js/command-line-injection).
+  let workspacePath: string;
+  try {
+    workspacePath = assertSafeWorkspacePath(bench.workspacePath);
+  } catch (err) {
+    if (err instanceof UnsafePathError) return { success: false, error: err.message };
+    throw err;
+  }
+
+  const ctx = buildTemplateContext(project.config, benchId, workspacePath);
   applyContainerOverrides(ctx, bench.assignedContainers);
   ctx.user = selectedUser?.properties;
 
@@ -106,7 +119,7 @@ export async function executeTool(
     if (rawTool.type === "browser" && url) {
       await execFileAsync("open", [url]);
     } else if (rawTool.type === "shell" && command) {
-      await execAsync(command, bench.workspacePath);
+      await execAsync(command, workspacePath);
     } else {
       return {
         success: false,
@@ -132,8 +145,10 @@ function execAsync(command: string, cwd?: string): Promise<void> {
   // exec is intentional: it passes the command to /bin/sh so the OS shell
   // handles argument quoting (e.g. `open -a "Rider" "/path with spaces"`).
   // All template values substituted into shell tool commands must be
-  // trusted (internal paths, allocated ports, developer-controlled roubo.yaml
-  // user properties) — never externally-sourced strings.
+  // trusted (allocated ports, developer-controlled roubo.yaml user properties),
+  // never externally-sourced strings. The one value derived from a user-chosen
+  // name, the workspace path, is validated by assertSafeWorkspacePath in
+  // executeTool before substitution (CodeQL #32).
   return new Promise((resolve, reject) => {
     exec(command, { cwd }, (err) => {
       if (err) reject(err);

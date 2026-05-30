@@ -73,6 +73,30 @@ export function normalizeAbsolutePath(input: string, label = "path"): string {
   return resolved;
 }
 
+// Workspace paths are roubo-generated absolute paths
+// (~/.roubo/workspaces/<project>/bench-N[-branch]). A bench's git branch name
+// flows into the path (sanitizeBranchForPath only collapses slashes, so a branch
+// like `feat;rm -rf` survives), and a state.json round-trip makes the value
+// untrusted to CodeQL, so it must be validated before being interpolated into a
+// shell tool command. This allowlist permits only the characters that appear in
+// real workspace paths (letters, digits, _ . - / and spaces) and rejects every
+// shell metacharacter, leaving the value safe to pass to `exec`. The regex-test
+// guard is the barrier CodeQL's js/command-line-injection suite recognises as a
+// sanitizer (same shape as getLoginShell, alert #106); see code-scanning alert
+// #32.
+export const SAFE_WORKSPACE_PATH_RE = /^\/[\w .\-/]+$/;
+
+// Validates a persisted workspace path against SAFE_WORKSPACE_PATH_RE and returns
+// it unchanged when safe, throwing UnsafePathError otherwise. Returning the
+// checked value inside the guarded branch is what lets CodeQL treat this as a
+// command-injection sanitizer.
+export function assertSafeWorkspacePath(input: string, label = "workspace path"): string {
+  if (typeof input !== "string" || !SAFE_WORKSPACE_PATH_RE.test(input)) {
+    throw new UnsafePathError(`Unsafe ${label}: ${String(input)}`);
+  }
+  return input;
+}
+
 // Returns true when `candidate` is `root` or strictly inside `root`, false
 // otherwise. Mirrors the shape recognised by CodeQL's default sanitizer.
 export function isInside(root: string, candidate: string): boolean {

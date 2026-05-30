@@ -218,6 +218,22 @@ describe("executeTool", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("command failed");
   });
+
+  it("rejects a shell tool when the workspace path contains shell metacharacters", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      makeBench({
+        workspacePath: "/home/.roubo/workspaces/test-project/bench-1-feat;rm -rf x",
+        components: {
+          frontend: { name: "frontend", status: "running", setupComplete: true },
+        },
+      }),
+    );
+
+    const result = await executeTool("test-project", 1, 1);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Unsafe workspace path");
+    expect(exec).not.toHaveBeenCalled();
+  });
 });
 
 describe("getResolvedTools requiresUserPicker", () => {
