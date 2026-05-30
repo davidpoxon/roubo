@@ -16,7 +16,7 @@ const { githubOauthMocks, githubMocks, pluginManagerMocks, credentialStoreMocks 
       REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
     },
     githubMocks: { refreshAuth: vi.fn() },
-    pluginManagerMocks: { invalidateConnectionStatus: vi.fn() },
+    pluginManagerMocks: { invalidateConnectionStatus: vi.fn(), invoke: vi.fn() },
     credentialStoreMocks: { deleteSlot: vi.fn(), set: vi.fn(), get: vi.fn() },
   }),
 );
@@ -39,6 +39,8 @@ beforeEach(() => {
   }
   githubMocks.refreshAuth.mockReset();
   pluginManagerMocks.invalidateConnectionStatus.mockReset();
+  pluginManagerMocks.invoke.mockReset();
+  pluginManagerMocks.invoke.mockResolvedValue(undefined);
   credentialStoreMocks.deleteSlot.mockReset();
   credentialStoreMocks.set.mockReset();
   credentialStoreMocks.get.mockReset();
@@ -143,6 +145,11 @@ describe("POST /exchange", () => {
     // WU-031: invalidate the cached connection-status so the next UI poll
     // re-probes under the freshly-saved token (incl. any newly granted scopes).
     expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
+    // Reset the plugin process's cached Octokit so the derived-sources preview
+    // and Cut List re-read the freshly-saved token instead of the pre-OAuth one.
+    expect(pluginManagerMocks.invoke).toHaveBeenCalledWith("github-com", "setActiveConfig", {
+      config: {},
+    });
   });
 
   it("emits an oauth-exchange log with empty reconsentForCategories when security_events not granted", async () => {
@@ -187,6 +194,29 @@ describe("POST /exchange", () => {
     });
   });
 
+  it("still succeeds when the plugin cache reset fails (best-effort, swallowed)", async () => {
+    githubOauthMocks.validateState.mockReturnValue(true);
+    githubOauthMocks.exchangeCodeForToken.mockResolvedValue({
+      token: "ghp_secret",
+      scopes: ["repo"],
+    });
+    githubOauthMocks.fetchGitHubUsername.mockResolvedValue("octocat");
+    githubOauthMocks.saveToken.mockResolvedValue(undefined);
+    githubMocks.refreshAuth.mockResolvedValue(undefined);
+    // The plugin may not be running; the reset RPC rejecting must not fail OAuth.
+    pluginManagerMocks.invoke.mockRejectedValue(new Error("plugin-not-enabled"));
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app).post("/exchange").send({ code: "abc", state: "good" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, username: "octocat" });
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    const warned = JSON.parse(String(consoleWarn.mock.calls[0]?.[0]));
+    expect(warned).toMatchObject({ kind: "oauth-plugin-reset-failed", pluginId: "github-com" });
+    consoleWarn.mockRestore();
+  });
+
   it("does not emit oauth-exchange when the exchange fails", async () => {
     githubOauthMocks.validateState.mockReturnValue(true);
     githubOauthMocks.exchangeCodeForToken.mockRejectedValue(new Error("upstream 502"));
@@ -222,6 +252,11 @@ describe("POST /disconnect", () => {
     expect(credentialStoreMocks.deleteSlot).toHaveBeenCalledWith("github-com", "github-token");
     expect(githubMocks.refreshAuth).toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
+    // Drop the plugin's cached client so source-bound RPCs stop using the
+    // now-cleared token immediately.
+    expect(pluginManagerMocks.invoke).toHaveBeenCalledWith("github-com", "setActiveConfig", {
+      config: {},
+    });
   });
 
   it("emits a structured oauth-disconnect log line", async () => {

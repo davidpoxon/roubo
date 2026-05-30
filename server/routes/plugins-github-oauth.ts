@@ -11,7 +11,7 @@ import {
   validateState,
 } from "../services/github-oauth.js";
 import { refreshAuth } from "../services/github.js";
-import { invalidateConnectionStatus } from "../services/plugin-manager.js";
+import { invalidateConnectionStatus, invoke } from "../services/plugin-manager.js";
 import * as credentialStore from "../services/credential-store.js";
 
 const router = Router();
@@ -34,6 +34,28 @@ router.use(oauthRateLimiter);
 // "Connection upgraded" UI flip can be correlated with a structured log line
 // (architecture addendum line 952).
 const SECURITY_EVENTS_CATEGORIES = ["code-scanning", "secret-scanning", "dependabot"] as const;
+
+// Best-effort: tell the github-com plugin process to drop its cached Octokit and
+// alerts-runtime token after the credential changes, so the next source-bound
+// RPC (listSourceCandidates, listIssues, ...) re-reads the freshly saved or
+// cleared token instead of a client cached before the rotation. The plugin
+// process caches a valid token for its lifetime, so without this the derived-
+// sources preview and Cut List keep using the pre-disconnect token until a
+// validateConfig happens to run. A failure here (plugin not running, RPC error)
+// must never break the OAuth flow, so it is swallowed with a structured warning.
+async function resetGithubPluginAuthCache(): Promise<void> {
+  try {
+    await invoke(GITHUB_PLUGIN_ID, "setActiveConfig", { config: {} });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        kind: "oauth-plugin-reset-failed",
+        pluginId: GITHUB_PLUGIN_ID,
+        error: (err as Error).message,
+      }),
+    );
+  }
+}
 
 router.post("/authorize", (_req, res) => {
   try {
@@ -76,6 +98,7 @@ router.post("/exchange", async (req, res) => {
     // WU-031: drop the cached connection-status for github-com so the next UI
     // poll re-probes under the freshly-saved token (incl. its new scopes).
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
+    await resetGithubPluginAuthCache();
     // WU-036: architecture addendum line 952. Emit the granted scopes and
     // the alert categories this re-consent unlocks (empty when the user did
     // not grant `security_events`, so a connection that never enabled any
@@ -105,6 +128,7 @@ router.post("/disconnect", async (_req, res) => {
     await credentialStore.deleteSlot(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
     await refreshAuth();
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
+    await resetGithubPluginAuthCache();
     console.info(
       JSON.stringify({
         kind: "oauth-disconnect",
