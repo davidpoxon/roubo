@@ -21,6 +21,7 @@ import type { ConnectionStatus, ValidateConfigResult } from "@roubo/plugin-sdk";
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
+import { redactSecrets } from "./log-redaction.js";
 import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
@@ -503,13 +504,16 @@ function formatLogLine(
 ): string {
   const ts = nowIso();
   const lvl = level ? ` [${level}]` : "";
-  return `${ts} ${source}${lvl} ${escapeLogText(text)}\n`;
+  // Redact before escaping so secrets are masked regardless of source (stderr, host-logger
+  // notifications, denial logs, RPC error strings). This is the single chokepoint every log
+  // line passes through, so nothing reaches disk or the logs API without scrubbing.
+  return `${ts} ${source}${lvl} ${escapeLogText(redactSecrets(text))}\n`;
 }
 
 // Tracks every in-flight writeLog promise. Two consumers drain this:
 //   1. `readLogs()` snapshots and awaits it before reading the file so callers observe
 //      writes enqueued just before this tick (denial logs from plugin-host-api.ts,
-//      host-logger notifications, stdout/stderr fan-out). Without this, the file-read
+//      host-logger notifications, stderr fan-out). Without this, the file-read
 //      can beat the write-callback under CI load.
 //   2. `__test.flushLogs()` drains it in afterEach before clearing ROUBO_USER_PLUGINS_DIR,
 //      so a still-pending write can't race the env-var clear and leak into ~/.roubo.
@@ -546,15 +550,20 @@ async function writeLog(
 }
 
 function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
-  const handleData = (source: "stdout" | "stderr") => (buf: Buffer) => {
+  // IMPORTANT: stdout is the JSON-RPC transport (see createConnection -> StreamMessageReader on
+  // proc.stdout). Every request the plugin sends, including host.fetch with its Authorization
+  // header, travels over stdout as a protocol frame. Mirroring stdout to the log file would
+  // therefore persist bearer tokens to disk and expose them via the logs API, so we capture
+  // stderr only. Plugins surface diagnostics through host.logger.* (logged under the "host"
+  // source) or stderr; neither carries the protocol frames.
+  const handleStderr = (buf: Buffer) => {
     const lines = buf.toString("utf8").split("\n");
     for (const raw of lines) {
       if (raw.length === 0) continue;
-      writeLog(entry, source, raw).catch(() => {});
+      writeLog(entry, "stderr", raw).catch(() => {});
     }
   };
-  proc.stdout?.on("data", handleData("stdout"));
-  proc.stderr?.on("data", handleData("stderr"));
+  proc.stderr?.on("data", handleStderr);
 }
 
 async function spawnPlugin(entry: PluginEntry): Promise<void> {
@@ -1137,13 +1146,13 @@ export async function readLogs(
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(`Invalid log path for plugin: ${pluginId}`);
   }
-  // Host loggers (denial paths in plugin-host-api.ts, stdout/stderr from
+  // Host loggers (denial paths in plugin-host-api.ts, stderr from
   // attachStdioLogging, RPC error handlers) add their writeLog promise to
   // `pendingWrites` synchronously but settle asynchronously. Snapshot the
   // set once and await it so this read observes every write that was
   // enqueued before readLogs was called. Snapshot once, not a while-loop:
   // under a chatty live plugin a `while (pendingWrites.size > 0)` would
-  // livelock as new stdout lines kept arriving.
+  // livelock as new stderr lines kept arriving.
   if (pendingWrites.size > 0) {
     await Promise.allSettled(Array.from(pendingWrites));
   }
