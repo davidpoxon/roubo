@@ -129,7 +129,7 @@ describe("ProjectSettings", () => {
 
     it("renders all five tab labels", () => {
       render();
-      expect(screen.getByRole("tab", { name: "Bench Defaults" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Benches" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Jigs" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
@@ -141,12 +141,15 @@ describe("ProjectSettings", () => {
       expect(screen.queryByRole("tab", { name: "Integrations" })).toBeNull();
     });
 
-    it("defaults to the Bench Defaults tab", () => {
+    it("TC-010: top-level tab is labelled 'Benches', not 'Bench Defaults'", () => {
       render();
-      expect(screen.getByRole("tab", { name: "Bench Defaults" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      expect(screen.getByRole("tab", { name: "Benches" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Bench Defaults" })).toBeNull();
+    });
+
+    it("defaults to the Benches tab", () => {
+      render();
+      expect(screen.getByRole("tab", { name: "Benches" })).toHaveAttribute("aria-selected", "true");
     });
 
     it("pre-selects the Plugins tab when the URL hash is #plugins", () => {
@@ -158,10 +161,7 @@ describe("ProjectSettings", () => {
     it("ignores an unknown hash and falls back to the default tab", () => {
       mockedUseLocation.mockReturnValue({ hash: "#bogus" } as ReturnType<typeof useLocation>);
       render();
-      expect(screen.getByRole("tab", { name: "Bench Defaults" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      expect(screen.getByRole("tab", { name: "Benches" })).toHaveAttribute("aria-selected", "true");
     });
   });
 
@@ -393,11 +393,11 @@ describe("ProjectSettings", () => {
     });
   });
 
-  describe("Bench Defaults tab", () => {
+  describe("Benches tab", () => {
     async function openBenchesTab() {
       const user = userEvent.setup();
       render();
-      await user.click(screen.getByRole("tab", { name: "Bench Defaults" }));
+      await user.click(screen.getByRole("tab", { name: "Benches" }));
       return user;
     }
 
@@ -742,6 +742,123 @@ describe("ProjectSettings", () => {
           },
         }),
       );
+    });
+
+    describe("Global bench limit", () => {
+      const cappedSettings = (maxGlobal?: number) => ({
+        ...defaultSettings,
+        benches: {
+          autoClear: true,
+          enforceIssueDependencies: false,
+          workUnitAutoClear: true,
+          autoStartComponents: false,
+          ...(maxGlobal != null ? { maxGlobal } : {}),
+        },
+      });
+
+      it("TC-011: renders Unlimited (selected) with a disabled numeric field by default", async () => {
+        await openBenchesTab();
+        expect(screen.getByRole("radio", { name: "Unlimited" })).toBeChecked();
+        expect(screen.getByRole("radio", { name: "Limit" })).not.toBeChecked();
+        expect(screen.getByRole("textbox", { name: "Maximum benches" })).toBeDisabled();
+      });
+
+      it("TC-011: selecting Limit enables the field and prefills 5", async () => {
+        const updateSettings = vi.fn();
+        mockedUseSettings.mockReturnValue({
+          settings: defaultSettings,
+          isLoading: false,
+          updateSettings,
+        });
+        const user = await openBenchesTab();
+        await user.click(screen.getByRole("radio", { name: "Limit" }));
+        const field = screen.getByRole("textbox", { name: "Maximum benches" });
+        expect(field).toBeEnabled();
+        expect(field).toHaveValue("5");
+        expect(updateSettings.mock.calls.at(-1)?.[0].benches.maxGlobal).toBe(5);
+      });
+
+      it("renders Limit selected with the persisted value when a cap is set", async () => {
+        mockedUseSettings.mockReturnValue({
+          settings: cappedSettings(5),
+          isLoading: false,
+          updateSettings: vi.fn(),
+        });
+        await openBenchesTab();
+        expect(screen.getByRole("radio", { name: "Limit" })).toBeChecked();
+        const field = screen.getByRole("textbox", { name: "Maximum benches" });
+        expect(field).toBeEnabled();
+        expect(field).toHaveValue("5");
+      });
+
+      it("TC-031: selecting Unlimited removes the cap and clears the field", async () => {
+        const updateSettings = vi.fn();
+        mockedUseSettings.mockReturnValue({
+          settings: cappedSettings(5),
+          isLoading: false,
+          updateSettings,
+        });
+        const user = await openBenchesTab();
+        await user.click(screen.getByRole("radio", { name: "Unlimited" }));
+        expect(updateSettings.mock.calls.at(-1)?.[0].benches.maxGlobal).toBeUndefined();
+        const field = screen.getByRole("textbox", { name: "Maximum benches" });
+        expect(field).toBeDisabled();
+        expect(field).toHaveValue("");
+      });
+
+      it("persists a valid limit on blur", async () => {
+        const updateSettings = vi.fn();
+        mockedUseSettings.mockReturnValue({
+          settings: cappedSettings(5),
+          isLoading: false,
+          updateSettings,
+        });
+        const user = await openBenchesTab();
+        const field = screen.getByRole("textbox", { name: "Maximum benches" });
+        await user.clear(field);
+        await user.type(field, "7");
+        await user.tab();
+        expect(updateSettings.mock.calls.at(-1)?.[0].benches.maxGlobal).toBe(7);
+      });
+
+      it("shows inline validation and does not persist invalid input", async () => {
+        const updateSettings = vi.fn();
+        mockedUseSettings.mockReturnValue({
+          settings: cappedSettings(5),
+          isLoading: false,
+          updateSettings,
+        });
+        const user = await openBenchesTab();
+        const field = screen.getByRole("textbox", { name: "Maximum benches" });
+
+        for (const bad of ["0", "-3", "1.5"]) {
+          updateSettings.mockClear();
+          await user.clear(field);
+          await user.type(field, bad);
+          await user.tab();
+          expect(screen.getByRole("alert")).toHaveTextContent(/whole number of 1 or more/i);
+          expect(updateSettings).not.toHaveBeenCalled();
+        }
+
+        // Empty while Limit is selected is also invalid.
+        updateSettings.mockClear();
+        await user.clear(field);
+        await user.tab();
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+        expect(updateSettings).not.toHaveBeenCalled();
+      });
+
+      it("does not persist when settings has not loaded", async () => {
+        const updateSettings = vi.fn();
+        mockedUseSettings.mockReturnValue({
+          settings: undefined,
+          isLoading: true,
+          updateSettings,
+        });
+        const user = await openBenchesTab();
+        await user.click(screen.getByRole("radio", { name: "Limit" }));
+        expect(updateSettings).not.toHaveBeenCalled();
+      });
     });
   });
 

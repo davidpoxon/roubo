@@ -71,14 +71,14 @@
   {
     "id": "WU-002",
     "title": "Settings UI: rename Bench Defaults tab to Benches and add the Global bench limit control",
-    "description": "Add the user-facing control for the cap. Rename `TAB_LABELS.benches` from 'Bench Defaults' to 'Benches' in `client/src/components/ProjectSettings.tsx`. Inside `BenchesTab`, add a new 'Global bench limit' section: a React Aria `RadioGroup` with `Unlimited` and `Limit` options paired with a numeric `TextField` that is disabled in Unlimited mode. On save, dispatch through `updateSettings` so the new `benches.maxGlobal` round-trips to `PUT /api/settings` per the contract WU-001 introduced. Surface inline validation for invalid numeric input.",
+    "description": "Add the user-facing control for the cap. Rename `TAB_LABELS.benches` from 'Bench Defaults' to 'Benches' in `client/src/components/ProjectSettings.tsx`. Inside `BenchesTab`, add a new 'Global bench limit' section: a React Aria `RadioGroup` with `Unlimited` and `Limit` options paired with a numeric `TextField` that is disabled in Unlimited mode. Switching to Limit prefills 5. The control persists instantly like the rest of the Settings UI (no Save button): selecting a mode or blurring a valid value dispatches through `updateSettings` so the new `benches.maxGlobal` round-trips to `PUT /api/settings` per the contract WU-001 introduced. Surface inline validation for invalid numeric input.",
     "acceptance_criteria": [
       "Top-level Settings tab is labelled 'Benches' (not 'Bench Defaults').",
       "The Benches tab renders a 'Global bench limit' section above the existing content with a RadioGroup (Unlimited selected by default when no cap is set) and a numeric TextField.",
-      "Selecting Unlimited disables the TextField and a Save dispatches `benches.maxGlobal: null`.",
-      "Selecting Limit and entering 5 saves `benches.maxGlobal: 5` and the value persists after reload.",
-      "Entering 0, -3, or a non-integer shows inline validation and prevents Save.",
-      "Save success surfaces a transient confirmation consistent with the existing Settings UX.",
+      "Selecting Unlimited disables the TextField and immediately dispatches `benches.maxGlobal` as absent (cap removed).",
+      "Selecting Limit prefills 5; entering a valid positive integer persists `benches.maxGlobal` on blur and the value persists after reload.",
+      "Entering 0, -3, a non-integer, or leaving the field empty shows inline validation and is not persisted.",
+      "Changes persist immediately on selection/blur, consistent with the rest of the Settings UI (no separate Save button or confirmation toast).",
       "The control follows the project's React Aria + Tailwind conventions; uses the same RadioGroup pattern as the existing Appearance section."
     ],
     "linked_requirement_ids": ["FR-008", "FR-011"],
