@@ -482,7 +482,7 @@ router.put(
       try {
         projectRegistry.reloadConfig(req.params.projectId);
       } catch {
-        // reload failure is non-fatal — save succeeded
+        // reload failure is non-fatal: save succeeded
       }
 
       res.json({ path: configPath });
