@@ -10,7 +10,11 @@ import * as pluginManager from "./plugin-manager.js";
 // surrounding state-machine cache behaviour.
 
 const PLUGIN_ID = "github-com";
-const CONFIG = { instance: "https://api.github.com" };
+// github.com has a fixed API host and no plugin-wide `instance`, so the
+// connection-status flow does not push setActiveConfig for it; each
+// getConnectionStatus call is a single RPC, which is what the two-mock
+// transition sequences below assume.
+const CONFIG = { plugin: "github-com" };
 const FROZEN_TIME = new Date("2026-05-25T12:00:00.000Z");
 
 // A recognisable sentinel that the test feeds nowhere into the production
