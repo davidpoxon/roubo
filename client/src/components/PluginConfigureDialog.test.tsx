@@ -656,6 +656,39 @@ describe("PluginConfigureDialog (global scope)", () => {
     expect(mockedUseSave("demo").mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("omits the manifest's `sources` array property from the Verify snapshot", async () => {
+    // Regression: GHE declares `sources` (type: array) in its configSchema.
+    // seedInitialValues used to seed it as "" and that bogus non-array value
+    // rode into the validateConfig test snapshot, so Verify/Save failed with
+    // "sources: sources must be an array". The form must never carry `sources`.
+    const user = userEvent.setup();
+    const test = vi.fn().mockResolvedValue({
+      ok: true,
+      identity: { externalId: "u-9", displayName: "GHE User" },
+    });
+    const save = vi.fn().mockResolvedValue({});
+    installGlobalMocks({ test, save });
+
+    const plugin = makePlugin({
+      configSchema: {
+        type: "object",
+        properties: {
+          instance: { type: "string", title: "Instance URL" },
+          token: { type: "string", format: "password", title: "Personal access token" },
+          allowSelfSignedTls: { type: "boolean", title: "Allow self-signed TLS" },
+          sources: { type: "array" },
+        },
+      },
+    });
+    renderGlobalDialog({ plugin, effective: { plugin: "ghe", instance: "https://ghe.example" } });
+
+    await user.click(screen.getByTestId("test-connection"));
+    await waitFor(() => expect(test).toHaveBeenCalledTimes(1));
+    const snapshot = test.mock.calls[0][0] as Record<string, unknown>;
+    expect(snapshot).not.toHaveProperty("sources");
+    expect(snapshot).toMatchObject({ instance: "https://ghe.example" });
+  });
+
   it("appends '(global defaults)' to the dialog title", () => {
     installGlobalMocks({ test: vi.fn(), save: vi.fn() });
     renderGlobalDialog();
