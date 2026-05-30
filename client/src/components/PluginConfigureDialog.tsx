@@ -146,6 +146,12 @@ function seedInitialValues(
       continue;
     }
     const def = (raw ?? {}) as { default?: unknown; type?: string };
+    // Skip non-scalar schema properties the form cannot edit (e.g. `sources`,
+    // an array). These are host-managed top-level IntegrationConfig keys;
+    // seeding one as "" injects an invalid non-array value into the
+    // validateConfig test snapshot, which the GitHub-family plugins reject
+    // ("sources must be an array").
+    if (def.type === "array" || def.type === "object") continue;
     if (def.default !== undefined) {
       out[key] = def.default;
     } else if (def.type === "boolean") {
