@@ -13,10 +13,20 @@ vi.mock("../services/state.js", () => ({
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
+  const realReadFileSync = actual.default.readFileSync as (...args: unknown[]) => unknown;
   return {
     default: {
       ...actual.default,
-      readFileSync: vi.fn().mockReturnValue(""),
+      // Scope the stub to the project roubo.yaml only; delegate every other path
+      // to the real implementation. A blanket stub that returns a constant for
+      // all reads corrupts unrelated fs access in the request pipeline, which
+      // makes express-rate-limit emit a spurious X-Forwarded-For validation
+      // warning once the overrides limiter is mounted on the PUT route.
+      readFileSync: vi.fn((path: unknown, ...rest: unknown[]): unknown =>
+        typeof path === "string" && path.endsWith("roubo.yaml")
+          ? "benches:\n  max: 3\n"
+          : realReadFileSync(path, ...rest),
+      ),
       mkdirSync: vi.fn(),
     },
   };
@@ -30,7 +40,6 @@ vi.mock("yaml", () => ({
 import router from "./benches-settings.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as state from "../services/state.js";
-import fs from "node:fs";
 import * as YAML from "yaml";
 
 const app = express();
@@ -49,7 +58,6 @@ const MOCK_PROJECT = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(projectRegistry.getProject).mockReturnValue(MOCK_PROJECT as never);
-  vi.mocked(fs.readFileSync).mockReturnValue("benches:\n  max: 3\n");
   vi.mocked(YAML.parse).mockReturnValue({ benches: { max: 3 } });
   vi.mocked(YAML.stringify).mockReturnValue("benches:\n  max: 3\n");
   vi.mocked(state.atomicWrite).mockReturnValue(undefined);
@@ -224,5 +232,15 @@ describe("PUT /:projectId/benches/overrides", () => {
     });
     const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
     expect(res.status).toBe(200);
+  });
+
+  // The PUT handler reads/writes roubo.yaml on disk, so it is rate-limited
+  // (CodeQL js/missing-rate-limiting #35). Asserting the draft-7 RateLimit
+  // headers proves the limiter is wired onto the route.
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
   });
 });
