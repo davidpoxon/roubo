@@ -593,6 +593,22 @@ describe("GET /:projectId/config/raw", () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("Config file not found on disk");
   });
+
+  // The handler reads roubo.yaml off disk, so it is rate-limited (CodeQL
+  // js/missing-rate-limiting #42). Asserting the draft-7 RateLimit headers
+  // proves the limiter is wired onto the route.
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "project",
+      repoPath: "/repo",
+    } as any);
+    vi.spyOn(fs, "readFileSync").mockReturnValue("project:\n  name: test");
+
+    const res = await request(app).get("/project/config/raw");
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
 
 describe("GET /github-projects", () => {
