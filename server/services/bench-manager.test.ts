@@ -3736,6 +3736,27 @@ describe("startComponent", () => {
 
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
+
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // component name is user-controlled and indexes plain bench objects.
+  describe("prototype-polluting component names", () => {
+    afterEach(() => {
+      delete (Object.prototype as Record<string, unknown>).status;
+    });
+
+    it.each(["__proto__", "constructor", "prototype"])(
+      "rejects %s with INVALID_COMPONENT and does not pollute Object.prototype",
+      async (componentName) => {
+        setupExistingBench();
+
+        await expect(
+          benchManager.startComponent("test-project", 1, componentName),
+        ).rejects.toMatchObject({ code: "INVALID_COMPONENT" });
+
+        expect(({} as Record<string, unknown>).status).toBeUndefined();
+      },
+    );
+  });
 });
 
 describe("stopComponent", () => {
@@ -3809,6 +3830,27 @@ describe("stopComponent", () => {
     } catch (err) {
       expect((err as any).code).toBe("COMPONENT_NOT_FOUND");
     }
+  });
+
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // component name is user-controlled and indexes plain bench objects.
+  describe("prototype-polluting component names", () => {
+    afterEach(() => {
+      delete (Object.prototype as Record<string, unknown>).status;
+    });
+
+    it.each(["__proto__", "constructor", "prototype"])(
+      "rejects %s with INVALID_COMPONENT and does not pollute Object.prototype",
+      async (componentName) => {
+        setupExistingBench();
+
+        await expect(
+          benchManager.stopComponent("test-project", 1, componentName),
+        ).rejects.toMatchObject({ code: "INVALID_COMPONENT" });
+
+        expect(({} as Record<string, unknown>).status).toBeUndefined();
+      },
+    );
   });
 });
 

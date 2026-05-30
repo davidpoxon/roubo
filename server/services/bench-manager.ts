@@ -1218,6 +1218,8 @@ async function launchComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
+  assertSafeComponentName(componentName);
+
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
@@ -1289,6 +1291,8 @@ export async function startComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
+  assertSafeComponentName(componentName);
+
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
@@ -1314,6 +1318,8 @@ export async function stopComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
+  assertSafeComponentName(componentName);
+
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
