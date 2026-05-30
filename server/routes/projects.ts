@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import fs from "node:fs";
 import * as YAML from "yaml";
 import * as projectRegistry from "../services/project-registry.js";
@@ -402,75 +403,93 @@ router.get("/:projectId/integration/derived-sources", async (req, res) => {
   }
 });
 
-router.put("/:projectId/config/raw", (req, res) => {
-  const project = projectRegistry.getProject(req.params.projectId);
-  if (!project) {
-    res.status(404).json({ error: "Project not found" });
-    return;
-  }
+// Defence-in-depth rate limit on the config-write surface. Roubo runs as a
+// localhost-only service, but this handler validates and writes roubo.yaml to
+// disk (fs.mkdirSync + atomicWrite), so we cap requests per minute per IP to
+// prevent a runaway caller from saturating disk I/O. Applied per-route (not
+// router-wide) because projects.ts shares the /api/projects mount with the
+// bench, terminal, inspection and other routers. Mirrors the pattern in
+// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#43).
+const configRawRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
-  const { yaml: rawYaml } = req.body as { yaml: unknown };
-  if (typeof rawYaml !== "string") {
-    res.status(400).json({ error: "yaml must be a string" });
-    return;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = YAML.parse(rawYaml);
-  } catch (err) {
-    const yamlErr = err as {
-      linePos?: [{ line: number; col: number }, { line: number; col: number }];
-      message: string;
-    };
-    res.status(400).json({
-      yamlError: {
-        line: yamlErr.linePos?.[0].line ?? 1,
-        column: yamlErr.linePos?.[0].col ?? 1,
-        message: yamlErr.message,
-      },
-    });
-    return;
-  }
-
-  const parseResult = validateConfigObject(parsed);
-  if (!parseResult.valid) {
-    res.status(400).json({
-      error: "Invalid config",
-      errors: parseResult.fieldErrors ?? [],
-      details: parseResult.errors ?? [],
-    });
-    return;
-  }
-
-  // WU-057 migration shim: PUT /config/raw still writes the full YAML, but
-  // when it touches plugin-owned fields (repo, github.project, submodules)
-  // we log a one-line deprecation so call-sites can be migrated to
-  // /integration/fields. Both paths write to the same roubo.yaml, so the
-  // two stores never disagree during the migration window.
-  if (touchesIntegrationFields(parsed)) {
-    console.warn(
-      `[deprecated] PUT /projects/${req.params.projectId}/config/raw set plugin-owned fields ` +
-        "(repo / github.project / submodules); prefer PUT /integration/fields.",
-    );
-  }
-
-  try {
-    const dir = resolveWithin(project.repoPath, ".roubo");
-    fs.mkdirSync(dir, { recursive: true });
-    const configPath = resolveWithin(dir, "roubo.yaml");
-    atomicWrite(configPath, rawYaml);
-
-    try {
-      projectRegistry.reloadConfig(req.params.projectId);
-    } catch {
-      // reload failure is non-fatal — save succeeded
+router.put(
+  "/:projectId/config/raw",
+  configRawRateLimiter,
+  (req: Request<{ projectId: string }>, res: Response) => {
+    const project = projectRegistry.getProject(req.params.projectId);
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
     }
 
-    res.json({ path: configPath });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
+    const { yaml: rawYaml } = req.body as { yaml: unknown };
+    if (typeof rawYaml !== "string") {
+      res.status(400).json({ error: "yaml must be a string" });
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = YAML.parse(rawYaml);
+    } catch (err) {
+      const yamlErr = err as {
+        linePos?: [{ line: number; col: number }, { line: number; col: number }];
+        message: string;
+      };
+      res.status(400).json({
+        yamlError: {
+          line: yamlErr.linePos?.[0].line ?? 1,
+          column: yamlErr.linePos?.[0].col ?? 1,
+          message: yamlErr.message,
+        },
+      });
+      return;
+    }
+
+    const parseResult = validateConfigObject(parsed);
+    if (!parseResult.valid) {
+      res.status(400).json({
+        error: "Invalid config",
+        errors: parseResult.fieldErrors ?? [],
+        details: parseResult.errors ?? [],
+      });
+      return;
+    }
+
+    // WU-057 migration shim: PUT /config/raw still writes the full YAML, but
+    // when it touches plugin-owned fields (repo, github.project, submodules)
+    // we log a one-line deprecation so call-sites can be migrated to
+    // /integration/fields. Both paths write to the same roubo.yaml, so the
+    // two stores never disagree during the migration window.
+    if (touchesIntegrationFields(parsed)) {
+      console.warn(
+        `[deprecated] PUT /projects/${req.params.projectId}/config/raw set plugin-owned fields ` +
+          "(repo / github.project / submodules); prefer PUT /integration/fields.",
+      );
+    }
+
+    try {
+      const dir = resolveWithin(project.repoPath, ".roubo");
+      fs.mkdirSync(dir, { recursive: true });
+      const configPath = resolveWithin(dir, "roubo.yaml");
+      atomicWrite(configPath, rawYaml);
+
+      try {
+        projectRegistry.reloadConfig(req.params.projectId);
+      } catch {
+        // reload failure is non-fatal — save succeeded
+      }
+
+      res.json({ path: configPath });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  },
+);
 
 export default router;

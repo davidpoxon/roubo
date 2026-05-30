@@ -850,6 +850,27 @@ describe("PUT /:projectId/config/raw", () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("disk full");
   });
+
+  // Alert #43 (js/missing-rate-limiting): the config-write surface is fronted
+  // by a per-route express-rate-limit middleware. A successful PUT carries the
+  // draft-7 RateLimit headers, proving the limiter is wired onto the route.
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      repoPath: "/repo",
+    } as any);
+    vi.mocked(validateConfigObject).mockReturnValue({
+      valid: true,
+      config: {},
+    } as any);
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.reloadConfig).mockReturnValue({} as any);
+
+    const res = await request(app).put("/test/config/raw").send({ yaml: VALID_YAML });
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
 
 // WU-057: the three fields move to the plugin tab. These tests cover the
