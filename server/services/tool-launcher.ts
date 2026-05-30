@@ -5,6 +5,7 @@ import * as benchManager from "./bench-manager.js";
 import { BenchError } from "./bench-manager.js";
 import { buildTemplateContext, resolveTemplate, applyContainerOverrides } from "./config-parser.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
+import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 
 export function getResolvedTools(projectId: string, benchId: number): ResolvedTool[] {
   const project = projectRegistry.getProject(projectId);
@@ -63,14 +64,13 @@ export async function executeTool(
       error: `Bench ${benchId} not found for project '${projectId}'`,
     };
 
-  // An allowlist-rejected bench loads with a blank workspacePath (see
-  // bench-manager.initialize()). A shell tool would otherwise run its command with
-  // cwd="" — the server's own working directory — so refuse it. Clear is the only
-  // valid action for such a bench.
-  if (!bench.workspacePath)
+  // Refuse a non-operable bench (blank workspacePath, see bench-operability.ts): a
+  // shell tool would otherwise run its command with cwd="" (the server's own working
+  // directory).
+  if (!isBenchOperable(bench))
     return {
       success: false,
-      error: `Bench ${benchId} has no valid workspace path; clear it instead.`,
+      error: benchNotOperableMessage(),
     };
 
   const tools = project.config.tools;

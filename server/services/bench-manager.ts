@@ -31,6 +31,7 @@ import {
 } from "./config-parser.js";
 import { runCommand, parseCommand } from "./exec.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
+import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { injectPermissions } from "./claude-settings-local.js";
 import {
   resolveDefaultBranch,
@@ -167,10 +168,10 @@ export async function reconcile() {
   const workspaceCache = new Map<string, string>();
 
   for (const bench of benches.values()) {
-    // Benches loaded with a blank workspacePath were rejected by the safe-path
-    // allowlist at load time (see initialize()). They already carry their own error
-    // state and have no workspace to reconcile — leave them untouched.
-    if (!bench.workspacePath) {
+    // Non-operable benches (blank workspacePath, see bench-operability.ts) already
+    // carry their own error state and have no workspace to reconcile — leave them
+    // untouched.
+    if (!isBenchOperable(bench)) {
       continue;
     }
     if (!fs.existsSync(bench.workspacePath)) {
@@ -1150,15 +1151,11 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   if (!bench.error) {
     throw new BenchError("Bench has no error to clean up", "INVALID_STATE");
   }
-  if (!bench.workspacePath) {
-    // The bench was loaded with a blank workspacePath because its persisted path
-    // failed the safe-path allowlist (see initialize()). There is no usable path to
-    // re-provision from, and recomputing it would only regenerate the same rejected
-    // path, so retry cannot succeed: the only safe action is to clear the bench.
-    throw new BenchError(
-      "Bench has no valid workspace path and cannot be retried; clear it instead.",
-      "INVALID_STATE",
-    );
+  if (!isBenchOperable(bench)) {
+    // A non-operable bench (blank workspacePath, see bench-operability.ts) has no
+    // usable path to re-provision from, and recomputing it would only regenerate the
+    // same rejected path, so retry cannot succeed: the only safe action is to clear it.
+    throw new BenchError(benchNotOperableMessage("be retried"), "INVALID_STATE");
   }
 
   const project = projectRegistry.getProject(projectId);
@@ -1334,17 +1331,14 @@ async function launchComponent(
  * component. Does not seed the `bench-setup` step, so bench-level setup is
  * never run from a per-component Start.
  */
-// A bench loaded with a blank workspacePath was rejected by the safe-path allowlist
-// at load time (see initialize()). It cannot be provisioned or started — its only
-// valid action is Clear. Guard the start entry points so they neither run setup/launch
-// commands against the server's own cwd (path.resolve("", dir) / path.join("", envFile)
-// both root there) nor clear the bench's error state.
+// A non-operable bench (blank workspacePath, see bench-operability.ts) cannot be
+// provisioned or started — its only valid action is Clear. Guard the start entry points
+// so they neither run setup/launch commands against the server's own cwd
+// (path.resolve("", dir) / path.join("", envFile) both root there) nor clear the
+// bench's error state.
 function assertStartableWorkspace(bench: Bench): void {
-  if (!bench.workspacePath) {
-    throw new BenchError(
-      "Bench has no valid workspace path and cannot be started; clear it instead.",
-      "INVALID_STATE",
-    );
+  if (!isBenchOperable(bench)) {
+    throw new BenchError(benchNotOperableMessage("be started"), "INVALID_STATE");
   }
 }
 

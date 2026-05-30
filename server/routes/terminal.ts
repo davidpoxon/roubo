@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as terminalService from "../services/terminal.js";
 import * as benchManager from "../services/bench-manager.js";
+import { isBenchOperable, benchNotOperableMessage } from "../services/bench-operability.js";
 import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
@@ -43,12 +44,11 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     return;
   }
 
-  // An allowlist-rejected bench loads with a blank workspacePath (see
-  // bench-manager.initialize()). Spawning a terminal here would set cwd="" (the
-  // server's own working directory) and write .claude/settings.local.json into it,
-  // so refuse: clear is the only valid action for such a bench.
-  if (!bench.workspacePath) {
-    res.status(400).json({ error: "Bench has no valid workspace path; clear it instead." });
+  // Refuse a non-operable bench (blank workspacePath, see bench-operability.ts):
+  // spawning a terminal here would set cwd="" (the server's own working directory) and
+  // write .claude/settings.local.json into it.
+  if (!isBenchOperable(bench)) {
+    res.status(400).json({ error: benchNotOperableMessage() });
     return;
   }
 
