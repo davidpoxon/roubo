@@ -22,7 +22,13 @@ const MAIN_METHOD =
   /\bstatic\s+(?:async\s+)?(?:void|int|Task\s*<\s*int\s*>|Task)\s+Main\s*\(\s*(?:string\s*\[\s*\]\s+\w+)?\s*\)/;
 
 export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
-  const resolved = path.resolve(repoPath);
+  // `repoPath` is user-supplied (POST /scan accepts an arbitrary local
+  // directory by design). Normalise it through the same containment sanitizer
+  // the child paths use so the value reaching every readdir sink is recognised
+  // as sanitized. Self-rooted: resolveWithin(p) returns path.resolve(p) for the
+  // no-segment case and only throws on empty/null-byte input, which the route
+  // already rejects.
+  const resolved = resolveWithin(repoPath);
 
   const detected: RepoScanResult["detected"] = {
     hasGit: false,

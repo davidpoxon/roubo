@@ -133,6 +133,16 @@ describe("scanRepo", () => {
     expect(result.detected.suggestedName).toBe("my-cool-project");
   });
 
+  it("runs the user-supplied root through resolveWithin (rejects an empty root before touching the filesystem)", async () => {
+    // The scan root is normalised through resolveWithin so the value reaching
+    // every readdir sink is sanitized (closes CodeQL js/path-injection). An
+    // empty root is rejected by that sanitizer, whereas a bare path.resolve("")
+    // would silently fall back to the process cwd.
+    mockedReaddir.mockClear();
+    await expect(scanRepo("")).rejects.toThrow();
+    expect(mockedReaddir).not.toHaveBeenCalled();
+  });
+
   it("detects .git directory", async () => {
     mockedExistsSync.mockImplementation((p: unknown) => {
       return String(p).endsWith(".git");
