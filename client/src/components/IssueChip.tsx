@@ -3,7 +3,13 @@ import type { LucideIcon } from "lucide-react";
 import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { SecurityCategory, StatusTone } from "../lib/chip-mapping";
 
-export type IssueChipVariant = "status" | "label" | "issue-type" | "metadata" | "security-category";
+export type IssueChipVariant =
+  | "status"
+  | "milestone"
+  | "label"
+  | "issue-type"
+  | "metadata"
+  | "security-category";
 
 interface IssueChipProps {
   variant: IssueChipVariant;
@@ -133,6 +139,8 @@ function classesForVariant(
       return `rounded-full ${STATUS_TONE_CLASSES[tone]}`;
     case "label":
       return "rounded-sm border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 bg-transparent";
+    case "milestone":
+      return "rounded-full bg-indigo-500/15 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300";
     case "issue-type":
       return "rounded-full bg-violet-500/15 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300";
     case "metadata":
