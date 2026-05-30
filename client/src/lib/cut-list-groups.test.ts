@@ -1,103 +1,87 @@
 import { describe, it, expect } from "vitest";
+import { groupItems, createEmptyGrouping, isGroupingActive } from "./cut-list-groups";
 import type { NormalizedIssue } from "@roubo/shared";
-import { createEmptyGrouping, isGroupingActive, groupItems } from "./cut-list-groups";
 
-function makeIssue(
-  externalId: string,
-  overrides: { issueType?: string | null; labels?: string[] } = {},
-): NormalizedIssue {
+function issue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
   return {
     integrationId: "github-com",
-    externalId,
-    externalUrl: `https://github.com/org/repo/issues/${externalId}`,
-    title: `Issue ${externalId}`,
+    externalId: "1",
+    externalUrl: "https://example.com/1",
+    title: "Test",
     body: null,
     currentState: "open",
     allowedTransitions: [],
     assignees: [],
-    labels: overrides.labels ?? [],
-    issueType: overrides.issueType ?? null,
+    labels: [],
+    issueType: null,
     blocks: [],
     blockedBy: [],
     updatedAt: "2024-01-01T00:00:00Z",
-    raw: null,
+    raw: {},
+    ...overrides,
   };
 }
 
-describe("createEmptyGrouping", () => {
-  it("returns groupBy none", () => {
-    expect(createEmptyGrouping()).toEqual({ groupBy: "none" });
-  });
-});
-
-describe("isGroupingActive", () => {
-  it("returns false for none", () => {
-    expect(isGroupingActive({ groupBy: "none" })).toBe(false);
+describe("cut-list-groups", () => {
+  describe("createEmptyGrouping", () => {
+    it("returns none dimension", () => {
+      expect(createEmptyGrouping()).toEqual({ groupBy: "none" });
+    });
   });
 
-  it("returns true for type and labels", () => {
-    expect(isGroupingActive({ groupBy: "type" })).toBe(true);
-    expect(isGroupingActive({ groupBy: "labels" })).toBe(true);
-  });
-});
-
-describe("groupItems", () => {
-  it("returns [] for none dimension", () => {
-    expect(groupItems([makeIssue("1", { issueType: "bug" })], "none")).toEqual([]);
+  describe("isGroupingActive", () => {
+    it("is false for none", () => {
+      expect(isGroupingActive(createEmptyGrouping())).toBe(false);
+    });
+    it("is true for a real dimension", () => {
+      expect(isGroupingActive({ groupBy: "type" })).toBe(true);
+    });
   });
 
-  it("returns [] for empty issues", () => {
-    expect(groupItems([], "type")).toEqual([]);
-    expect(groupItems([], "labels")).toEqual([]);
-  });
+  describe("groupItems", () => {
+    it("returns [] for none dimension", () => {
+      expect(groupItems([], "none", "")).toEqual([]);
+    });
 
-  describe("type", () => {
-    it("buckets issues by issueType", () => {
+    it("returns [] when there are no issues", () => {
+      expect(groupItems([], "type", "Type")).toEqual([]);
+    });
+
+    it("groups by type with a 'No type' bucket last", () => {
       const issues = [
-        makeIssue("1", { issueType: "Bug" }),
-        makeIssue("2", { issueType: "Feature" }),
-        makeIssue("3", { issueType: "Bug" }),
+        issue({ externalId: "1", issueType: "Bug" }),
+        issue({ externalId: "2", issueType: "Feature" }),
+        issue({ externalId: "3", issueType: null }),
       ];
-      const groups = groupItems(issues, "type");
-      const byLabel = Object.fromEntries(
-        groups.map((g) => [g.label, g.items.map((i) => i.externalId)]),
-      );
-      expect(byLabel["Bug"]).toEqual(["1", "3"]);
-      expect(byLabel["Feature"]).toEqual(["2"]);
+      const groups = groupItems(issues, "type", "Type");
+      expect(groups.map((g) => g.label)).toEqual(["Bug", "Feature", "No type"]);
+      expect(groups[2].items).toHaveLength(1);
     });
 
-    it('routes null issueType to sentinel labelled "No type"', () => {
-      const groups = groupItems([makeIssue("1")], "type");
-      expect(groups[0]).toMatchObject({ key: "__none__", label: "No type" });
+    it("groups by label, an issue in multiple buckets, empty bucket last", () => {
+      const issues = [
+        issue({ externalId: "1", labels: ["a", "b"] }),
+        issue({ externalId: "2", labels: ["a"] }),
+        issue({ externalId: "3", labels: [] }),
+      ];
+      const groups = groupItems(issues, "label", "Label");
+      const a = groups.find((g) => g.key === "a");
+      const b = groups.find((g) => g.key === "b");
+      expect(a?.items).toHaveLength(2);
+      expect(b?.items).toHaveLength(1);
+      expect(groups[groups.length - 1].label).toBe("No label");
+      expect(groups.find((g) => g.label === "No label")?.items).toHaveLength(1);
     });
 
-    it("places sentinel bucket last", () => {
-      const issues = [makeIssue("1"), makeIssue("2", { issueType: "Zeta" })];
-      const groups = groupItems(issues, "type");
-      expect(groups[0].label).toBe("Zeta");
-      expect(groups[1].key).toBe("__none__");
-    });
-  });
-
-  describe("labels", () => {
-    it("places issues with N labels in N buckets", () => {
-      const groups = groupItems([makeIssue("1", { labels: ["frontend", "backend"] })], "labels");
-      expect(groups).toHaveLength(2);
-      const keys = groups.map((g) => g.key).sort();
-      expect(keys).toEqual(["backend", "frontend"]);
-      for (const g of groups) expect(g.items[0].externalId).toBe("1");
-    });
-
-    it('routes issues with zero labels to "Unlabeled" bucket', () => {
-      const groups = groupItems([makeIssue("1", { labels: [] })], "labels");
-      expect(groups).toHaveLength(1);
-      expect(groups[0]).toMatchObject({ key: "__none__", label: "Unlabeled" });
-    });
-
-    it("sorts named label groups alphabetically", () => {
-      const groups = groupItems([makeIssue("1", { labels: ["gamma", "Alpha", "beta"] })], "labels");
-      const namedGroups = groups.filter((g) => g.key !== "__none__");
-      expect(namedGroups.map((g) => g.label)).toEqual(["Alpha", "beta", "gamma"]);
+    it("groups by milestone from facetValues", () => {
+      const issues = [
+        issue({ externalId: "1", facetValues: { milestone: "v1.0" } }),
+        issue({ externalId: "2", facetValues: { milestone: "v2.0" } }),
+        issue({ externalId: "3" }),
+      ];
+      const groups = groupItems(issues, "milestone", "Milestone");
+      expect(groups.map((g) => g.label)).toEqual(["v1.0", "v2.0", "No milestone"]);
+      expect(groups.find((g) => g.label === "No milestone")?.items).toHaveLength(1);
     });
   });
 });

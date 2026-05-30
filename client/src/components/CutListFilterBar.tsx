@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   DialogTrigger,
   Button,
@@ -60,7 +60,7 @@ export default function CutListFilterBar({
   const hasOptions = facets.length > 0;
 
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2">
+    <div className="flex items-center gap-1.5 pl-3 pr-1 py-2">
       <TextField
         aria-label="Search cuts by title or number"
         value={filters.search}
@@ -172,14 +172,14 @@ function FacetSection({
   isLast,
 }: FacetSectionProps) {
   const isStatus = facet.id === "status";
-  // Lazy enum-async: the query is gated on the section being opened so the
-  // network call only fires when the user expresses intent (TC-181). Eager
-  // facets (`enum`/`multi-enum`) render their inline or derived options
-  // immediately and never need to call `getFacetOptions`.
+  // `enum-async` facets fetch their options via `getFacetOptions` as soon as
+  // the popover renders this section. The panel also prefetches these on load
+  // (see usePrefetchFacetOptions), so the query usually resolves instantly from
+  // cache. Eager facets (`enum`/`multi-enum`) render their inline or derived
+  // options immediately and never call `getFacetOptions`.
   const isAsync = facet.type === "enum-async";
-  const [isOpen, setIsOpen] = useState(!isAsync);
 
-  const asyncQuery = useFacetOptions(projectId, pluginId, facet.id, { enabled: isOpen && isAsync });
+  const asyncQuery = useFacetOptions(projectId, pluginId, facet.id, { enabled: isAsync });
 
   const selection = getFacetSelection(filters, facet.id);
   const multi = facet.type !== "enum";
@@ -214,7 +214,7 @@ function FacetSection({
   };
 
   const excludedSet = useMemo(() => new Set(excludedStatuses), [excludedStatuses]);
-  const showEmpty = isOpen && options.length === 0 && !asyncQuery.isLoading;
+  const showEmpty = options.length === 0 && !asyncQuery.isLoading;
 
   return (
     <div className={isLast ? "" : "border-b border-stone-100 dark:border-stone-800/40"}>
@@ -248,34 +248,20 @@ function FacetSection({
         </div>
       )}
 
-      {/* Reveal-on-open trigger for async facets so the query stays cold
-          until needed. Once open we leave the section open for the lifetime
-          of the popover; closing the popover resets local state. */}
-      {!isOpen && (
-        <div className="px-3 pb-2">
-          <Button
-            onPress={() => setIsOpen(true)}
-            className="text-[11px] text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 underline-offset-2 hover:underline transition-colors outline-none"
-          >
-            Load options
-          </Button>
-        </div>
-      )}
-
-      {isOpen && asyncQuery.isLoading && (
+      {asyncQuery.isLoading && (
         <div className="px-3 py-3 flex items-center gap-2 text-[11px] text-stone-500">
           <Spinner />
           <span>Loading…</span>
         </div>
       )}
 
-      {isOpen && asyncQuery.isError && (
+      {asyncQuery.isError && (
         <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-500">
           Couldn’t load options. Try reopening the filter.
         </div>
       )}
 
-      {isOpen && options.length > 0 && (
+      {options.length > 0 && (
         <ListBox
           aria-label={`Filter by ${facet.label}`}
           selectionMode={multi ? "multiple" : "single"}

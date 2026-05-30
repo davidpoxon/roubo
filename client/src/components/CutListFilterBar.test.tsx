@@ -131,15 +131,8 @@ describe("CutListFilterBar", () => {
     expect(selection.has("backend")).toBe(true);
   });
 
-  describe("enum-async facets (TC-181)", () => {
-    it("does not fetch options on initial popover render", async () => {
-      const facets: FilterFacet[] = [{ id: "milestone", label: "Milestone", type: "enum-async" }];
-      renderBar({ facets, derivedOptions: {} });
-      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
-      expect(fetchFacetOptions).not.toHaveBeenCalled();
-    });
-
-    it("fetches options on first 'Load options' click", async () => {
+  describe("enum-async facets", () => {
+    it("fetches options as soon as the popover opens, with no 'Load options' button", async () => {
       fetchFacetOptions.mockResolvedValueOnce([
         { value: "v1", label: "v1.0" },
         { value: "v2", label: "v2.0" },
@@ -147,10 +140,10 @@ describe("CutListFilterBar", () => {
       const facets: FilterFacet[] = [{ id: "milestone", label: "Milestone", type: "enum-async" }];
       renderBar({ facets, derivedOptions: {} });
       await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
-      expect(fetchFacetOptions).not.toHaveBeenCalled();
-      await userEvent.click(screen.getByRole("button", { name: "Load options" }));
+      expect(screen.queryByRole("button", { name: "Load options" })).not.toBeInTheDocument();
       expect(fetchFacetOptions).toHaveBeenCalledWith("milestone");
       expect(await screen.findByRole("option", { name: "v1.0" })).toBeInTheDocument();
+      expect(await screen.findByRole("option", { name: "v2.0" })).toBeInTheDocument();
     });
   });
 

@@ -128,7 +128,7 @@ export function applyFilters(
  * canonical NormalizedIssue field for the four common facets so plugins that
  * still rely on the COMMON_FACET_FALLBACK set keep working unchanged.
  */
-function issueFacetValues(issue: NormalizedIssue, facetId: string): string[] {
+export function issueFacetValues(issue: NormalizedIssue, facetId: string): string[] {
   const raw = issue.facetValues?.[facetId];
   if (raw !== undefined) {
     return Array.isArray(raw) ? raw : [raw];
