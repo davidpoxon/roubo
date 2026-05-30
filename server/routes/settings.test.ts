@@ -396,6 +396,89 @@ describe("PUT /", () => {
     expect(res.body.error).toMatch(/invalid bench/i);
   });
 
+  // The route replaces the whole benches block, so every payload below carries the
+  // four required booleans plus the maxGlobal value under test. The spec's abbreviated
+  // { benches: { maxGlobal } } shorthand is illustrative; sent literally it would 400
+  // on the missing booleans rather than exercising the maxGlobal rule.
+  const validBenches = {
+    autoClear: true,
+    enforceIssueDependencies: false,
+    workUnitAutoClear: true,
+    autoStartComponents: false,
+  };
+
+  it("accepts an absent benches.maxGlobal (unlimited) and persists no maxGlobal field", async () => {
+    const res = await request(app).put("/").send({ theme: "dark", benches: validBenches });
+    expect(res.status).toBe(200);
+    expect(res.body.benches).toEqual(validBenches);
+    expect(res.body.benches.maxGlobal).toBeUndefined();
+  });
+
+  it("persists benches.maxGlobal = 5", async () => {
+    const benches = { ...validBenches, maxGlobal: 5 };
+    const res = await request(app).put("/").send({ theme: "dark", benches });
+    expect(res.status).toBe(200);
+    expect(res.body.benches.maxGlobal).toBe(5);
+    expect(state.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ benches: expect.objectContaining({ maxGlobal: 5 }) }),
+    );
+  });
+
+  it("strips benches.maxGlobal = null before persisting (unlimited)", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", benches: { ...validBenches, maxGlobal: null } });
+    expect(res.status).toBe(200);
+    expect(res.body.benches).toEqual(validBenches);
+    expect(res.body.benches).not.toHaveProperty("maxGlobal");
+    expect(state.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        benches: expect.not.objectContaining({ maxGlobal: expect.anything() }),
+      }),
+    );
+  });
+
+  it.each([
+    ["0", 0],
+    ["a negative integer", -3],
+    ["a non-integer", 2.5],
+  ])("returns 400 when benches.maxGlobal is %s", async (_label, maxGlobal) => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", benches: { ...validBenches, maxGlobal } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/benches\.maxGlobal/);
+  });
+
+  it("returns 400 when benches.maxGlobal coerces to Infinity", async () => {
+    // JSON has no Infinity literal, but a numeric literal that overflows the double
+    // range (1e999) parses to Infinity, which is the wire form a hostile client would
+    // use. Number.isInteger(Infinity) is false, so the guard rejects it. (NaN has no
+    // JSON representation at all and cannot reach the route; the typeof guard covers
+    // the non-number cases instead, see the string test below.)
+    const rawBody = `{"theme":"dark","benches":{"autoClear":true,"enforceIssueDependencies":false,"workUnitAutoClear":true,"autoStartComponents":false,"maxGlobal":1e999}}`;
+    const res = await request(app).put("/").set("Content-Type", "application/json").send(rawBody);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/benches\.maxGlobal/);
+  });
+
+  it("returns 400 when benches.maxGlobal is a string", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", benches: { ...validBenches, maxGlobal: "5" } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/benches\.maxGlobal/);
+    expect(res.body.error).toMatch(/positive integer/);
+  });
+
+  it("remains unauthenticated: no auth headers still returns 200", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", benches: { ...validBenches, maxGlobal: 3 } });
+    expect(res.status).toBe(200);
+    expect([401, 403]).not.toContain(res.status);
+  });
+
   it("saves valid claudeCode settings alongside theme", async () => {
     const claudeCode = { enableAutoMode: true, startInPlanMode: false };
     const res = await request(app).put("/").send({ theme: "dark", claudeCode });

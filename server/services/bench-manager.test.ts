@@ -5889,3 +5889,339 @@ describe("startComponent (per-component Start setup gating)", () => {
     expect(bench?.provisioningSteps[0].status).toBe("done");
   });
 });
+
+describe("createBench global cap", () => {
+  // Flushes the void create/teardown background promise chains so seeded benches
+  // settle and torn-down benches leave the Map before the next assertion.
+  const flushBackground = () => new Promise((r) => setTimeout(r, 0));
+
+  // Builds a settings object with the given global cap. Pass undefined for unlimited.
+  function setCap(maxGlobal?: number) {
+    vi.mocked(stateService.loadSettings).mockReturnValue({
+      theme: "dark",
+      benches: {
+        autoClear: true,
+        enforceIssueDependencies: false,
+        workUnitAutoClear: true,
+        autoStartComponents: false,
+        ...(maxGlobal === undefined ? {} : { maxGlobal }),
+      },
+    } as any);
+  }
+
+  // Seeds `count` benches into the in-memory Map via initialize() (synchronous, no
+  // background provisioning), under a project whose per-Project cap is high enough
+  // not to interfere with the global-cap assertions.
+  function seed(count: number, opts?: { max?: number }) {
+    const project = setupCreateBenchMocks({
+      project: makeProject({
+        config: makeConfig({ benches: { max: opts?.max ?? 200 } }),
+        settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+      }),
+    });
+    setupProcessMocks();
+    setupDockerServiceMocks();
+    vi.mocked(stateService.getWorkspacePath).mockImplementation(
+      (_appName: string, benchNum: number) =>
+        `/home/.roubo/workspaces/test-project/bench-${benchNum}`,
+    );
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: Array.from({ length: count }, (_unused, i) =>
+        makePersistedBench({
+          id: i + 1,
+          projectId: "test-project",
+          branch: `bench-${i + 1}`,
+          workspacePath: `/home/.roubo/workspaces/test-project/bench-${i + 1}`,
+        }),
+      ),
+    });
+    benchManager.initialize();
+    return project;
+  }
+
+  // Counts only the warnings emitted by the cap's fail-open path, ignoring the
+  // unrelated git/worktree warnings the background flow may also log.
+  const capWarnCount = () =>
+    vi
+      .mocked(console.warn)
+      .mock.calls.filter(
+        (args) =>
+          typeof args[0] === "string" &&
+          args[0].includes("[bench-manager]") &&
+          args[0].includes("settings.json"),
+      ).length;
+
+  it("creates a bench when the global count is below the cap (TC-006)", () => {
+    seed(2);
+    setCap(5);
+
+    const bench = benchManager.createBench("test-project");
+
+    expect(bench.status).toBe("preparing");
+    expect(benchManager.getBenches()).toHaveLength(3);
+  });
+
+  it("rejects with GLOBAL_CAP_REACHED when the count equals the cap (TC-007)", () => {
+    seed(3);
+    setCap(3);
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+    expect(thrown.message).toMatch(/3 of 3/);
+    // No leaked reservation.
+    expect(benchManager.getBenches()).toHaveLength(3);
+  });
+
+  it("rejects when the cap is lowered exactly to the current count (TC-029)", () => {
+    seed(5);
+    setCap(5);
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+    expect(benchManager.getBenches()).toHaveLength(5);
+  });
+
+  it("counts error-state benches toward the cap (TC-017)", () => {
+    seed(2);
+    setCap(2);
+    // Force one seeded bench into the error state; it must still count.
+    const errored = benchManager.getBench("test-project", 1);
+    expect(errored).toBeDefined();
+    if (errored) errored.status = "error";
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+  });
+
+  it("does not enforce a cap when maxGlobal is absent, regardless of count (TC-018)", () => {
+    seed(50);
+    setCap(undefined);
+
+    const bench = benchManager.createBench("test-project");
+
+    expect(bench.status).toBe("preparing");
+    expect(benchManager.getBenches()).toHaveLength(51);
+  });
+
+  it("reserves the slot synchronously so a parallel create sees the cap (TC-008)", () => {
+    seed(3);
+    setCap(4);
+
+    const first = benchManager.createBench("test-project");
+    expect(first.status).toBe("preparing");
+    expect(benchManager.getBenches()).toHaveLength(4);
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+    expect(benchManager.getBenches()).toHaveLength(4);
+  });
+
+  it("yields exactly one success and one rejection at the boundary (TC-032/TC-023)", async () => {
+    seed(3);
+    setCap(4);
+
+    const results = await Promise.allSettled([
+      Promise.resolve().then(() => benchManager.createBench("test-project")),
+      Promise.resolve().then(() => benchManager.createBench("test-project")),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason.code).toBe("GLOBAL_CAP_REACHED");
+    expect(benchManager.getBenches()).toHaveLength(4);
+  });
+
+  it("never blocks clearing, and a cleared slot can be re-created (TC-009)", async () => {
+    seed(3);
+    setCap(3);
+
+    // At cap: create is blocked.
+    expect(() => benchManager.createBench("test-project")).toThrow();
+
+    // Clearing is never gated by the cap.
+    const clearing = benchManager.teardownBench("test-project", 1);
+    expect(clearing.status).toBe("clearing");
+    await flushBackground();
+    expect(benchManager.getBench("test-project", 1)).toBeUndefined();
+    expect(benchManager.getBenches()).toHaveLength(2);
+
+    // Slot freed: create now succeeds.
+    const bench = benchManager.createBench("test-project");
+    expect(bench.status).toBe("preparing");
+    expect(benchManager.getBenches()).toHaveLength(3);
+  });
+
+  it("fails open and warns exactly once when settings.json is corrupt (TC-016)", () => {
+    setupCreateBenchMocks();
+    setupProcessMocks();
+    setupDockerServiceMocks();
+    // throwOnCorrupt path throws; the no-arg background read still returns defaults.
+    vi.mocked(stateService.loadSettings).mockImplementation(
+      (opts?: { throwOnCorrupt?: boolean }) => {
+        if (opts?.throwOnCorrupt) {
+          throw new SyntaxError("Unexpected token in JSON");
+        }
+        return {
+          theme: "dark",
+          benches: {
+            autoClear: true,
+            enforceIssueDependencies: false,
+            workUnitAutoClear: true,
+            autoStartComponents: false,
+          },
+        } as any;
+      },
+    );
+
+    const first = benchManager.createBench("test-project");
+    expect(first.status).toBe("preparing");
+    expect(capWarnCount()).toBe(1);
+
+    // Second create in the same process must not warn again.
+    benchManager.createBench("test-project");
+    expect(capWarnCount()).toBe(1);
+  });
+
+  it("treats a missing settings.json as unlimited and does not warn (TC-030)", () => {
+    setupCreateBenchMocks();
+    setupProcessMocks();
+    setupDockerServiceMocks();
+    // A missing file never throws (absence is not corruption); loadSettings returns
+    // defaults with no maxGlobal.
+    setCap(undefined);
+
+    const bench = benchManager.createBench("test-project");
+    expect(bench.status).toBe("preparing");
+    expect(capWarnCount()).toBe(0);
+  });
+
+  it("reads the cap via a single loadSettings call and no extra fs reads (TC-019)", () => {
+    seed(1);
+    setCap(5);
+    vi.mocked(stateService.loadSettings).mockClear();
+    vi.mocked(fs.default.readFileSync).mockClear();
+
+    benchManager.createBench("test-project");
+
+    const capReads = vi
+      .mocked(stateService.loadSettings)
+      .mock.calls.filter((args) => args[0]?.throwOnCorrupt === true);
+    expect(capReads).toHaveLength(1);
+    expect(fs.default.readFileSync).not.toHaveBeenCalled();
+  });
+
+  it("lets the per-Project cap take precedence when tighter than the global cap (TC-025)", () => {
+    const projA = makeProject({
+      id: "proj-a",
+      config: makeConfig({ benches: { max: 2 } }),
+      settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+    });
+    const projB = makeProject({
+      id: "proj-b",
+      config: makeConfig({ benches: { max: 5 } }),
+      settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+    });
+    setupCreateBenchMocks();
+    setupProcessMocks();
+    setupDockerServiceMocks();
+    vi.mocked(projectRegistry.getProject).mockImplementation((id: string) =>
+      id === "proj-a" ? projA : id === "proj-b" ? projB : (undefined as any),
+    );
+    vi.mocked(stateService.getWorkspacePath).mockImplementation(
+      (appName: string, benchNum: number) => `/home/.roubo/workspaces/${appName}/bench-${benchNum}`,
+    );
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: [
+        makePersistedBench({
+          id: 1,
+          projectId: "proj-a",
+          workspacePath: "/home/.roubo/workspaces/test-project/bench-1",
+        }),
+        makePersistedBench({
+          id: 2,
+          projectId: "proj-a",
+          workspacePath: "/home/.roubo/workspaces/test-project/bench-2",
+        }),
+      ],
+    });
+    benchManager.initialize();
+    setCap(10);
+
+    // proj-a is at its per-Project cap of 2: the per-Project error wins, not the global one.
+    let thrown: any;
+    try {
+      benchManager.createBench("proj-a");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("NO_BENCHES");
+    expect(benchManager.getBenches()).toHaveLength(2);
+
+    // proj-b still has global headroom.
+    const bench = benchManager.createBench("proj-b");
+    expect(bench.status).toBe("preparing");
+    expect(benchManager.getBenches()).toHaveLength(3);
+  });
+
+  it.each([1, 2, 3, 5, 10, 100])(
+    "never exceeds the cap at the boundary for cap=%i (TC-036)",
+    (cap) => {
+      seed(cap - 1);
+      setCap(cap);
+
+      // One create fills the last slot exactly.
+      const bench = benchManager.createBench("test-project");
+      expect(bench.status).toBe("preparing");
+      expect(benchManager.getBenches()).toHaveLength(cap);
+
+      // Every further create at size >= cap is rejected; size never exceeds cap.
+      let thrown: any;
+      try {
+        benchManager.createBench("test-project");
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+      expect(benchManager.getBenches()).toHaveLength(cap);
+    },
+  );
+
+  it("does not leak Map entries across many create+clear cycles at the boundary (TC-037)", async () => {
+    seed(5);
+    setCap(5);
+
+    for (let i = 0; i < 100; i++) {
+      benchManager.teardownBench("test-project", 1);
+      await flushBackground();
+      const bench = benchManager.createBench("test-project");
+      expect(bench.status).toBe("preparing");
+      await flushBackground();
+    }
+
+    const all = benchManager.getBenches();
+    expect(all).toHaveLength(5);
+    expect(all.some((b) => b.status === "error")).toBe(false);
+  });
+});

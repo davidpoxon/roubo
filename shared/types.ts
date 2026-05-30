@@ -1318,6 +1318,8 @@ export interface BenchSettings {
   enforceIssueDependencies: boolean;
   workUnitAutoClear: boolean;
   autoStartComponents: boolean;
+  /** Application-wide cap on initialised benches. Positive integer (>= 1); absent means unlimited. */
+  maxGlobal?: number;
 }
 
 export const DEFAULT_BENCH_SETTINGS: BenchSettings = {

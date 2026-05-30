@@ -159,6 +159,20 @@ describe("POST /:projectId/benches", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("NO_BENCHES");
   });
+
+  it("returns 409 for GLOBAL_CAP_REACHED error", async () => {
+    vi.mocked(benchManager.createBench).mockImplementation(() => {
+      throw new BenchError(
+        "Global bench limit reached: 3 of 3 benches in use.",
+        "GLOBAL_CAP_REACHED",
+      );
+    });
+
+    const res = await request(app).post("/my-project/benches").send({});
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GLOBAL_CAP_REACHED");
+    expect(res.body.error).toMatch(/3 of 3/);
+  });
 });
 
 describe("POST /:projectId/benches with issueNumber", () => {
@@ -220,6 +234,16 @@ describe("POST /:projectId/benches with issueNumber", () => {
     const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("NO_BENCHES");
+  });
+
+  it("returns 409 for GLOBAL_CAP_REACHED BenchError", async () => {
+    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(
+      new BenchError("Global bench limit reached: 3 of 3 benches in use.", "GLOBAL_CAP_REACHED"),
+    );
+
+    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GLOBAL_CAP_REACHED");
   });
 
   it("returns 500 on generic error", async () => {

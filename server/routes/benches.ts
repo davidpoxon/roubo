@@ -27,7 +27,12 @@ function handleCreateBenchError(res: import("express").Response, err: unknown) {
   if (err instanceof ServiceError) {
     res.status(err.statusCode).json({ ...err.data, error: err.message });
   } else if (err instanceof BenchError) {
-    const status = err.code === "PROJECT_NOT_FOUND" ? 404 : err.code === "NO_BENCHES" ? 409 : 400;
+    const status =
+      err.code === "PROJECT_NOT_FOUND"
+        ? 404
+        : err.code === "NO_BENCHES" || err.code === "GLOBAL_CAP_REACHED"
+          ? 409
+          : 400;
     res.status(status).json({ error: err.message, code: err.code });
   } else {
     res.status(500).json({ error: (err as Error).message });
@@ -146,7 +151,12 @@ router.post("/:projectId/benches", async (req, res) => {
     res.status(201).json(bench);
   } catch (err) {
     if (err instanceof BenchError) {
-      const status = err.code === "PROJECT_NOT_FOUND" ? 404 : err.code === "NO_BENCHES" ? 409 : 400;
+      const status =
+        err.code === "PROJECT_NOT_FOUND"
+          ? 404
+          : err.code === "NO_BENCHES" || err.code === "GLOBAL_CAP_REACHED"
+            ? 409
+            : 400;
       res.status(status).json({ error: err.message, code: err.code });
     } else {
       res.status(500).json({ error: (err as Error).message });
