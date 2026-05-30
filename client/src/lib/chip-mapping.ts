@@ -3,6 +3,7 @@ import {
   CheckSquare,
   KeyRound,
   Link2,
+  Milestone,
   Package,
   Shield,
   Sparkles,
@@ -15,7 +16,7 @@ import type { NormalizedIssue } from "@roubo/shared";
 
 export type StatusTone = "open" | "in-progress" | "blocked" | "done" | "neutral" | "warning";
 
-export type ChipCategory = "status" | "issue-type" | "label" | "metadata";
+export type ChipCategory = "status" | "milestone" | "issue-type" | "label" | "metadata";
 
 export type SecurityCategory = "codeql" | "secret-scanning" | "dependabot";
 
@@ -156,6 +157,26 @@ export const METADATA_ICONS = {
   blocks: Link2,
   bench: Wrench,
 } satisfies Record<string, LucideIcon>;
+
+// The cut list surfaces the milestone (when a plugin emits it via
+// `facetValues.milestone`) as a dedicated chip. Co-locate the icon with the
+// other chip mappings so the card stays declarative.
+export const MILESTONE_ICON: LucideIcon = Milestone;
+
+/**
+ * Read the milestone title from an issue's `facetValues`. Plugins that support
+ * milestones emit the `milestone` facet (e.g. the github-com plugin maps
+ * `milestone.title`); plugins without the concept omit it. The host type allows
+ * a facet value to be a string or string[], so tolerate both and return null
+ * when there is nothing meaningful to show.
+ */
+export function milestoneLabel(issue: NormalizedIssue): string | null {
+  const raw = issue.facetValues?.milestone;
+  const value = Array.isArray(raw) ? raw.find((entry) => entry.trim().length > 0) : raw;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export interface TruncationResult {
   visible: ChipItem[];

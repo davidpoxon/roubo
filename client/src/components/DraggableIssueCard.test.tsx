@@ -206,6 +206,30 @@ describe("DraggableIssueCard", () => {
     expect(container.querySelector('[data-chip-category="security-category"]')).toBeNull();
   });
 
+  it("renders an indigo milestone chip right after status when facetValues.milestone is set", () => {
+    const { container, getByText } = render(
+      <DraggableIssueCard issue={makeIssue({ facetValues: { milestone: "v1.2" } })} />,
+    );
+    const milestoneChip = container.querySelector(
+      '[data-chip-category="milestone"]',
+    ) as HTMLElement;
+    const statusChip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
+    expect(milestoneChip).not.toBeNull();
+    expect(milestoneChip.className).toMatch(/indigo-/);
+    expect(milestoneChip.querySelector("svg")).not.toBeNull();
+    expect(getByText("v1.2")).toBeInTheDocument();
+    // It sits in the chips row immediately after the status chip.
+    expect(milestoneChip.parentElement).toBe(statusChip.parentElement);
+    expect(
+      statusChip.compareDocumentPosition(milestoneChip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("does not render a milestone chip when there is no milestone facet", () => {
+    const { container } = render(<DraggableIssueCard issue={makeIssue()} />);
+    expect(container.querySelector('[data-chip-category="milestone"]')).toBeNull();
+  });
+
   it("renders alert rows with no transition or assign affordance (FR-075)", () => {
     const { container, queryByRole } = render(
       <DraggableIssueCard

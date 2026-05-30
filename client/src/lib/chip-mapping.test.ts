@@ -4,6 +4,7 @@ import type { NormalizedIssue } from "@roubo/shared";
 import {
   alertSeverityTooltip,
   issueTypeChip,
+  milestoneLabel,
   securityCategoryFor,
   shortIssueRef,
   statusTone,
@@ -175,6 +176,57 @@ describe("alertSeverityTooltip", () => {
   });
 });
 
+describe("milestoneLabel", () => {
+  function issueWith(facetValues: NormalizedIssue["facetValues"]): NormalizedIssue {
+    return {
+      integrationId: "github-com:test",
+      externalId: "owner/repo#1",
+      externalUrl: "https://example.test",
+      title: "fixture",
+      body: null,
+      issueType: null,
+      currentState: "open",
+      allowedTransitions: [],
+      assignees: [],
+      labels: [],
+      blocks: [],
+      blockedBy: [],
+      updatedAt: "2026-01-01T00:00:00Z",
+      raw: null,
+      facetValues,
+    };
+  }
+
+  it("returns the milestone title when present", () => {
+    expect(milestoneLabel(issueWith({ milestone: "v1.2" }))).toBe("v1.2");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(milestoneLabel(issueWith({ milestone: "  Sprint 4  " }))).toBe("Sprint 4");
+  });
+
+  it("returns null when facetValues is undefined", () => {
+    expect(milestoneLabel(issueWith(undefined))).toBeNull();
+  });
+
+  it("returns null when the milestone facet is absent", () => {
+    expect(milestoneLabel(issueWith({ status: "open" }))).toBeNull();
+  });
+
+  it("returns null for an empty or whitespace-only milestone", () => {
+    expect(milestoneLabel(issueWith({ milestone: "   " }))).toBeNull();
+    expect(milestoneLabel(issueWith({ milestone: "" }))).toBeNull();
+  });
+
+  it("picks the first non-empty entry when the facet is an array", () => {
+    expect(milestoneLabel(issueWith({ milestone: ["", "v2.0"] }))).toBe("v2.0");
+  });
+
+  it("returns null for an array with only empty entries", () => {
+    expect(milestoneLabel(issueWith({ milestone: ["", "   "] }))).toBeNull();
+  });
+});
+
 describe("truncateChips", () => {
   function chip(category: ChipItem["category"], key: string): ChipItem {
     return { category, key, label: key };
@@ -226,6 +278,17 @@ describe("truncateChips", () => {
     ];
     const result = truncateChips(items, 6);
     expect(result.visible.find((c) => c.category === "status")).toBeDefined();
+    expect(result.overflowCount).toBeGreaterThan(0);
+  });
+
+  it("never drops the milestone chip", () => {
+    const items: ChipItem[] = [
+      chip("status", "s"),
+      chip("milestone", "m"),
+      ...Array.from({ length: 20 }, (_, i) => chip("label", `l${i}`)),
+    ];
+    const result = truncateChips(items, 6);
+    expect(result.visible.find((c) => c.category === "milestone")).toBeDefined();
     expect(result.overflowCount).toBeGreaterThan(0);
   });
 

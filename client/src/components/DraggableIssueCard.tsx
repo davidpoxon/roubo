@@ -5,8 +5,10 @@ import type { NormalizedIssue } from "@roubo/shared";
 import IssueChip from "./IssueChip";
 import {
   METADATA_ICONS,
+  MILESTONE_ICON,
   alertSeverityTooltip,
   issueTypeChip,
+  milestoneLabel,
   securityCategoryFor,
   shortIssueRef,
   statusTone,
@@ -53,6 +55,19 @@ export default function DraggableIssueCard({
     icon: isBlocked ? Lock : undefined,
     ariaDescription: isBlocked ? `Blocked by ${blockers.join(", ")}` : undefined,
   });
+
+  // Surface the milestone right after the status chip when a plugin provides it.
+  // The chip truncates, so the full title is exposed via tooltip on hover.
+  const milestone = milestoneLabel(issue);
+  if (milestone) {
+    chips.push({
+      category: "milestone",
+      key: "milestone",
+      label: milestone,
+      icon: MILESTONE_ICON,
+      tooltip: milestone,
+    });
+  }
 
   // Keep the dependency chip adjacent to the status chip so "Blocked" and
   // "Blocks N issue(s)" wrap onto the same line. Being the earliest metadata
