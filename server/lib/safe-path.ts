@@ -46,6 +46,25 @@ export function resolveWithinRoots(roots: string[], rawPath: string): string | n
   return null;
 }
 
+// Normalises a user-supplied absolute filesystem path and asserts it is
+// well-formed (resolves to an absolute path that does not escape the
+// filesystem root). Use for paths that are legitimately allowed to point
+// anywhere on the local disk (e.g. a registered project's repoPath), where no
+// containment root applies but the value must still be sanitised before it
+// reaches a path/exec sink. This is the same containment-barrier shape CodeQL's
+// default js/path-injection suite recognises as a sanitizer (see CodeQL #117).
+export function normalizeAbsolutePath(input: string, label = "path"): string {
+  if (typeof input !== "string" || input.length === 0 || input.includes("\0")) {
+    throw new UnsafePathError(`Invalid ${label}: ${String(input)}`);
+  }
+  const resolved = path.resolve(input);
+  const rel = path.relative(path.parse(resolved).root, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new UnsafePathError(`${label} "${input}" is not a valid absolute path`);
+  }
+  return resolved;
+}
+
 // Returns true when `candidate` is `root` or strictly inside `root`, false
 // otherwise. Mirrors the shape recognised by CodeQL's default sanitizer.
 export function isInside(root: string, candidate: string): boolean {

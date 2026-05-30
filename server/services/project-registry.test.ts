@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import path from "node:path";
 import { makeConfig } from "../test/fixtures.js";
 
 vi.mock("./config-parser.js");
@@ -211,6 +212,33 @@ describe("registerProject", () => {
       repoPath: "/repos/test-project",
       settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
     });
+  });
+
+  it("normalises a non-normalised repoPath through the safe-path barrier (CodeQL #92)", () => {
+    const config = makeConfig();
+    mockedParseConfig.mockReturnValue({ valid: true, config });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const resolved = path.resolve("/repos/a/b/../test-project");
+    const project = registryModule.registerProject("/repos/a/b/../test-project");
+
+    expect(project.repoPath).toBe(resolved);
+    expect(mockedParseConfig).toHaveBeenCalledWith(resolved);
+    expect(mockedAddProject).toHaveBeenCalledWith(expect.objectContaining({ repoPath: resolved }));
+  });
+
+  it("throws INVALID_PATH for a repoPath containing a NUL byte (CodeQL #92)", () => {
+    mockedParseConfig.mockClear();
+    try {
+      registryModule.registerProject("/repos/test\0project");
+      expect.unreachable("expected registerProject to throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(registryModule.ProjectRegistryError);
+      expect((e as InstanceType<typeof registryModule.ProjectRegistryError>).code).toBe(
+        "INVALID_PATH",
+      );
+    }
+    expect(mockedParseConfig).not.toHaveBeenCalled();
   });
 
   it("throws NO_CONFIG when config not found", () => {
