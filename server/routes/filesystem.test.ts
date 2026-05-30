@@ -177,3 +177,17 @@ describe("GET /", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("rate limiting", () => {
+  it("attaches RateLimit response headers (middleware is mounted)", async () => {
+    vi.mocked(readdir).mockResolvedValue([makeDirent("projects", false)]);
+    vi.mocked(access).mockRejectedValue(new Error("no .git"));
+
+    const app = await makeApp();
+    const res = await request(app).get("/");
+    expect(res.status).toBe(200);
+    // express-rate-limit (draft-7) sets these headers when the limiter runs.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
+});

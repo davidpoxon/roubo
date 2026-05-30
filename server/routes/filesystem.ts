@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { readdir, access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -6,6 +7,22 @@ import type { DirectoryEntry, BrowseDirectoryResponse } from "@roubo/shared";
 import { resolveWithin, resolveWithinRoots, allowedRoots } from "../lib/safe-path.js";
 
 const router = Router();
+
+// Defence-in-depth rate limit on the directory-browse surface. Roubo runs as a
+// localhost-only service, but this handler takes a user-supplied path and touches
+// it from disk (readdir + per-entry access), so we cap requests per minute per IP
+// to keep a runaway caller from hammering the filesystem. Applied router-wide
+// because this router has a single route mounted on its own /api/filesystem/browse
+// prefix. Mirrors the pattern in plugins-github-oauth.ts and satisfies CodeQL
+// js/missing-rate-limiting (#38).
+const browseRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.use(browseRateLimiter);
 
 const MAX_PATH_LENGTH = 4096;
 
