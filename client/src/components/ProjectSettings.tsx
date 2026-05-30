@@ -9,6 +9,8 @@ import {
   RadioGroup,
   Radio,
   Switch,
+  TextField,
+  Input,
 } from "react-aria-components";
 import { RefreshCw, Sun, Moon, Monitor, Plus } from "lucide-react";
 import { useSettings, useRecheckClaudeCode } from "../hooks/useSettings";
@@ -34,6 +36,7 @@ import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
+import { INPUT } from "./setup/styles";
 
 const THEME_OPTIONS: {
   value: ThemeMode;
@@ -110,6 +113,147 @@ function SettingToggle({
   );
 }
 
+const LIMIT_MODES: {
+  value: "unlimited" | "limit";
+  label: string;
+  description: string;
+}[] = [
+  { value: "unlimited", label: "Unlimited", description: "No cap" },
+  { value: "limit", label: "Limit", description: "Set a maximum" },
+];
+
+const LIMIT_ERROR = "Enter a whole number of 1 or more.";
+
+function parseLimit(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+function GlobalBenchLimitSection({
+  cap,
+  onChange,
+}: {
+  cap?: number;
+  onChange: (value: number | null) => void;
+}) {
+  const [mode, setMode] = useState<"unlimited" | "limit">(cap != null ? "limit" : "unlimited");
+  const [text, setText] = useState(cap != null ? String(cap) : "5");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleMode = (value: string) => {
+    if (value === "unlimited") {
+      setMode("unlimited");
+      setError(null);
+      onChange(null);
+      return;
+    }
+    setMode("limit");
+    const n = parseLimit(text);
+    if (n != null) {
+      setError(null);
+      onChange(n);
+    } else {
+      setError(LIMIT_ERROR);
+    }
+  };
+
+  const handleText = (value: string) => {
+    setText(value);
+    setError(parseLimit(value) == null ? LIMIT_ERROR : null);
+  };
+
+  const commit = () => {
+    if (mode !== "limit") return;
+    const n = parseLimit(text);
+    if (n != null) onChange(n);
+  };
+
+  const disabled = mode === "unlimited";
+
+  return (
+    <section>
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-2">
+        Global bench limit
+      </h3>
+      <p className="text-xs text-stone-400 dark:text-stone-600 mb-5 leading-relaxed">
+        Cap the total number of initialised benches across every project. Per-project limits in{" "}
+        <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span> still
+        apply.
+      </p>
+
+      <RadioGroup
+        value={mode}
+        onChange={handleMode}
+        aria-label="Global bench limit"
+        className="flex gap-3"
+      >
+        {LIMIT_MODES.map(({ value, label, description }) => (
+          <Radio key={value} value={value} aria-label={label} className="outline-none">
+            {({ isSelected, isFocusVisible }) => (
+              <div
+                className={[
+                  "flex flex-col gap-1 px-5 py-4 rounded-xl border cursor-pointer transition-all duration-150 select-none w-40",
+                  isSelected
+                    ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
+                    : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
+                  isFocusVisible
+                    ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
+                    : "",
+                ].join(" ")}
+              >
+                <div
+                  className={`text-[13px] font-medium leading-none ${
+                    isSelected
+                      ? "text-stone-900 dark:text-stone-100"
+                      : "text-stone-600 dark:text-stone-400"
+                  }`}
+                >
+                  {label}
+                </div>
+                <div className="text-[10px] text-stone-400 dark:text-stone-600 leading-none">
+                  {description}
+                </div>
+              </div>
+            )}
+          </Radio>
+        ))}
+      </RadioGroup>
+
+      <div className="mt-5">
+        <div className="flex items-center gap-3">
+          <TextField
+            value={disabled ? "" : text}
+            onChange={handleText}
+            isDisabled={disabled}
+            isInvalid={!disabled && error != null}
+            aria-label="Maximum benches"
+            className="w-28"
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="5"
+              onBlur={commit}
+              className={`${INPUT} ${disabled ? "opacity-40" : ""}`}
+            />
+          </TextField>
+          <span
+            className={`text-xs ${disabled ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
+          >
+            benches
+          </span>
+        </div>
+        {!disabled && error != null && (
+          <p role="alert" className="text-[12px] text-red-500 dark:text-red-400 mt-2">
+            {error}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function BenchesTab() {
   const { settings, updateSettings } = useSettings();
   const benchSettings = settings?.benches ?? DEFAULT_BENCH_SETTINGS;
@@ -119,8 +263,22 @@ function BenchesTab() {
     updateSettings({ ...settings, benches: { ...benchSettings, ...patch } });
   };
 
+  const setMaxGlobal = (value: number | null) => {
+    if (!settings) return;
+    const next: BenchSettings = { ...benchSettings };
+    if (value == null) delete next.maxGlobal;
+    else next.maxGlobal = value;
+    updateSettings({ ...settings, benches: next });
+  };
+
   return (
     <div className="space-y-10">
+      <GlobalBenchLimitSection
+        key={benchSettings.maxGlobal ?? "unlimited"}
+        cap={benchSettings.maxGlobal}
+        onChange={setMaxGlobal}
+      />
+
       <section>
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-5">
           Bench Defaults
@@ -495,7 +653,7 @@ function AppearanceTab() {
 
 const TAB_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
-  benches: "Bench Defaults",
+  benches: "Benches",
 };
 
 const HASH_TAB_IDS = new Set(["benches", "appearance", "jigs", "plugins", "claude-code"]);

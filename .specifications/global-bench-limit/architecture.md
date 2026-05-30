@@ -83,7 +83,7 @@ Client:
 ### `BenchesTab` "Global bench limit" control
 
 - **Path**: `client/src/components/ProjectSettings.tsx` (new section inside `BenchesTab` at lines 133-194, above the existing "Bench Defaults" section). The in-tab section header at line 146 stays "Bench Defaults"; only the outer tab label changes.
-- **Responsibility**: Render a RadioGroup with two options (`Unlimited`, `Limit`). When `Limit` is selected, a numeric `TextField` appears beneath. Save dispatches `updateSettings({ ...settings, benches: { ...benchSettings, maxGlobal: value | undefined } })`.
+- **Responsibility**: Render a RadioGroup with two options (`Unlimited`, `Limit`). When `Limit` is selected, a numeric `TextField` is enabled (prefilled to 5). The control persists instantly like the rest of the Settings UI (no Save button): selecting a mode, or blurring a valid value, dispatches `updateSettings({ ...settings, benches: { ...benchSettings, maxGlobal: value } })` (the `maxGlobal` key is omitted when Unlimited).
 - **Reuse vs new**: extension of `BenchesTab`. The RadioGroup choice resolves prototype open question (1): `ProjectSettings.tsx` already uses React Aria `RadioGroup` at lines 284-307 and 652-707; reusing it keeps visual and a11y consistency with the rest of the tab. We do not use `Switch` (the Switch precedent at line 88 is for boolean toggles, and the Limit / Unlimited choice has an associated numeric input that pairs better with a RadioGroup affordance).
 - **Public interface**: no new props. Reads `settings.benches.maxGlobal` from `useSettings()`. Writes via `updateSettings`. Validation message renders red text below the input on `<= 0`, non-integer, or empty-when-Limit-selected.
 - **Dependencies**: `useSettings`, `BenchSettings` type.
@@ -326,7 +326,7 @@ sequenceDiagram
 - **`server/routes/settings.ts:56-70`** — extend the `body.benches` validator with `maxGlobal` rules. Strip `maxGlobal: null` in the `updated` object so persistence never stores explicit nulls.
 - **`server/routes/benches.ts:65-71` and `:91-93`** — add `"GLOBAL_CAP_REACHED"` to the 409 branch of both `BenchError` ternaries.
 - **`client/src/components/ProjectSettings.tsx:712-715`** — rename `benches: "Bench Defaults"` → `benches: "Benches"` in `TAB_LABELS`. The section header at line 146 stays "Bench Defaults" (it labels a sub-section; out of scope to rename).
-- **`client/src/components/ProjectSettings.tsx:133-194`** — add a new section above the existing one inside `BenchesTab`: RadioGroup (Unlimited / Limit) plus a numeric `TextField` for the limit value. Validation error renders inline; save dispatches through `updateSettings`.
+- **`client/src/components/ProjectSettings.tsx:133-194`** — add a new section above the existing one inside `BenchesTab`: RadioGroup (Unlimited / Limit) plus a numeric `TextField` for the limit value. Validation error renders inline; changes dispatch through `updateSettings` on selection/blur (no Save button).
 - **`client/src/hooks/useGlobalCap.ts`** — new file. Composes `useSettings()` and `useAllBenches()` into the derived `GlobalCapState`.
 - **`client/src/components/GlobalBenchMeter.tsx`** — new file. Renders the meter when `isCapped`. Mirrors `ProjectTile.tsx:60-72` markup with the staged colour ramp.
 - **`client/src/components/BenchesTab.tsx:51-65`** — render `<GlobalBenchMeter />` in the header strip; wrap the "Set up bench" Button in `TooltipTrigger`; pass `isDisabled` from `useGlobalCap`.

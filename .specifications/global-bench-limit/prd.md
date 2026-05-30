@@ -84,7 +84,7 @@ When two `createBench` calls race at the cap boundary, the synchronous reservati
 
 ### FR-008 — Settings UI: tab renamed and global limit control added
 
-The existing Settings tab labelled "Bench Defaults" is renamed to "Benches" (update the `TAB_LABELS` entry in `client/src/components/ProjectSettings.tsx`). The tab content gains a "Global bench limit" control. The control offers an "Unlimited" mode (clears the cap) and a numeric mode (positive integer, >= 1). Saving updates `UserPreferences.benches.maxGlobal` via `PUT /api/settings`.
+The existing Settings tab labelled "Bench Defaults" is renamed to "Benches" (update the `TAB_LABELS` entry in `client/src/components/ProjectSettings.tsx`). The tab content gains a "Global bench limit" control. The control offers an "Unlimited" mode (clears the cap) and a numeric "Limit" mode (positive integer, >= 1; prefilled to 5 when selected). Changes update `UserPreferences.benches.maxGlobal` immediately via `PUT /api/settings`, consistent with the rest of the Settings UI (no separate Save button).
 
 ### FR-009 — Disabled "New bench" button with accessible tooltip
 

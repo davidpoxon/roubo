@@ -208,10 +208,7 @@
       },
       {
         "action": "Select the 'Limit' radio",
-        "expected": [
-          "Numeric TextField becomes enabled",
-          "Default value populates (e.g. 5) or empty awaiting input"
-        ]
+        "expected": ["Numeric TextField becomes enabled", "Default value prefills 5"]
       }
     ],
     "tags": ["smoke", "automated"],
@@ -424,8 +421,8 @@
     "preconditions": ["Fresh install, no cap, no benches"],
     "steps": [
       {
-        "action": "Open Settings > Benches; select Limit; enter 2; Save",
-        "expected": ["Saved confirmation appears", "benches.maxGlobal is 2"]
+        "action": "Open Settings > Benches; select Limit; enter 2; blur the field",
+        "expected": ["The value persists immediately (no Save button)", "benches.maxGlobal is 2"]
       },
       {
         "action": "Navigate to BenchesTab; create bench A",
@@ -459,8 +456,8 @@
     "preconditions": ["benches.maxGlobal unlimited", "5 benches exist"],
     "steps": [
       {
-        "action": "Open Settings > Benches; switch to Limit; enter 3; Save",
-        "expected": ["Save succeeds; meter shows '5 of 3' in red"]
+        "action": "Open Settings > Benches; switch to Limit; enter 3; blur the field",
+        "expected": ["The value persists immediately (no Save button); meter shows '5 of 3' in red"]
       },
       {
         "action": "Attempt to create a new bench",
@@ -510,7 +507,7 @@
     "steps": [
       { "action": "Create a bench", "expected": ["201 Created", "GlobalBenchMeter not rendered"] },
       {
-        "action": "Open Settings > Benches; set cap to 4; Save",
+        "action": "Open Settings > Benches; set cap to 4 (persists immediately on blur)",
         "expected": ["Meter appears showing '4 of 4'; 'Set up bench' button disables"]
       }
     ],
@@ -642,12 +639,10 @@
     "steps": [
       {
         "action": "Select the 'Unlimited' radio",
-        "expected": ["Numeric TextField becomes disabled and visually cleared"]
-      },
-      {
-        "action": "Click Save",
         "expected": [
-          "PUT /api/settings payload includes benches.maxGlobal = null (or absent)",
+          "Numeric TextField becomes disabled and visually cleared",
+          "Selecting Unlimited immediately dispatches the change (no Save button)",
+          "PUT /api/settings payload omits benches.maxGlobal (cap removed)",
           "Server responds 200",
           "Subsequent GET shows no cap"
         ]
