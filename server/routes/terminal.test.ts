@@ -140,6 +140,22 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     expect(res.status).toBe(404);
   });
 
+  it("returns 400 and does not spawn for a blank-workspace-path bench (allowlist-rejected)", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...MOCK_BENCH,
+      workspacePath: "",
+    } as unknown as ReturnType<typeof benchManager.getBench>);
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no valid workspace path/i);
+    // No shell may be spawned with cwd="" (the server's own working directory).
+    expect(terminalService.createSession).not.toHaveBeenCalled();
+  });
+
   it("creates a terminal session", async () => {
     const res = await request(app)
       .post("/project1/benches/1/terminals")

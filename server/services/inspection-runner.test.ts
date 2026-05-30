@@ -94,6 +94,18 @@ describe("startInspection", () => {
     expect(() => startInspection("project1", 1)).toThrow("Bench not found");
   });
 
+  it("throws for a blank-workspace-path bench (allowlist-rejected) before spawning", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      workspacePath: "",
+      notifications: [],
+    } as any);
+
+    const { startInspection } = await loadModule();
+    // Must reject before computing cwd=path.resolve("", dir) and spawning in the
+    // server's own working directory.
+    expect(() => startInspection("project1", 1)).toThrow(/no valid workspace path/i);
+  });
+
   it("throws when a test is already running", async () => {
     const child = createMockChild();
     mockSpawn.mockReturnValue(child);

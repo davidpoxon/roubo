@@ -58,6 +58,15 @@ beforeEach(() => {
 });
 
 describe("getDirtyState", () => {
+  it("returns clean without running git for a blank-workspace-path bench (allowlist-rejected)", async () => {
+    // A blank workspacePath would otherwise make execGit run with cwd="" (the server's
+    // own repo). The guard must short-circuit before any runCommand call.
+    const result = await getDirtyState(bench({ workspacePath: "" }));
+
+    expect(result).toEqual({ clean: true, reasons: [] });
+    expect(execModule.runCommand).not.toHaveBeenCalled();
+  });
+
   it("returns clean when worktree is fully clean with no submodules", async () => {
     mockGit(cleanResponses());
 

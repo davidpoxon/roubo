@@ -30,6 +30,7 @@ import {
   type ResolvedTemplateContext,
 } from "./config-parser.js";
 import { runCommand, parseCommand } from "./exec.js";
+import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { injectPermissions } from "./claude-settings-local.js";
 import {
   resolveDefaultBranch,
@@ -91,6 +92,28 @@ function processId(projectId: string, benchId: number, component: string): strin
 export function initialize() {
   const persisted = stateService.loadState();
   for (const ps of persisted.benches) {
+    // workspacePath is read back from ~/.roubo/state.json (untrusted on disk) and
+    // later flows into the executable position of spawn() via {{workspace}} command
+    // substitution, so it must clear the allowlist barrier before it enters the live
+    // bench model (CodeQL #31, js/command-line-injection). A value that fails the
+    // allowlist is tampered, corrupt, or rooted at a home directory containing a
+    // character outside the allowlist. We cannot safely manage such a bench, but
+    // silently dropping it would orphan its worktree with no trace in the UI. Instead
+    // load it in an error state with a blank workspacePath: the bench stays visible
+    // and clearable, and the tainted value never reaches a spawn/git/fs sink.
+    let safeWorkspacePath = "";
+    let workspacePathError: string | undefined;
+    try {
+      safeWorkspacePath = assertSafeWorkspacePath(ps.workspacePath);
+    } catch (err) {
+      if (!(err instanceof UnsafePathError)) throw err;
+      workspacePathError =
+        "Persisted workspace path failed the safe-path allowlist; clear this bench to remove it.";
+      console.warn(
+        `Bench ${ps.projectId}:${ps.id} loaded in error state: unsafe persisted workspace path (${err.message})`,
+      );
+    }
+
     const project = projectRegistry.getProject(ps.projectId);
     const components: Record<string, ComponentStatus> = {};
 
@@ -115,8 +138,9 @@ export function initialize() {
       id: ps.id,
       projectId: ps.projectId,
       branch: ps.branch,
-      workspacePath: ps.workspacePath,
-      status: "idle",
+      workspacePath: safeWorkspacePath,
+      status: workspacePathError ? "error" : "idle",
+      error: workspacePathError,
       ports: ps.ports,
       components,
       createdAt: ps.createdAt,
@@ -143,6 +167,12 @@ export async function reconcile() {
   const workspaceCache = new Map<string, string>();
 
   for (const bench of benches.values()) {
+    // Benches loaded with a blank workspacePath were rejected by the safe-path
+    // allowlist at load time (see initialize()). They already carry their own error
+    // state and have no workspace to reconcile — leave them untouched.
+    if (!bench.workspacePath) {
+      continue;
+    }
     if (!fs.existsSync(bench.workspacePath)) {
       bench.status = "error";
       bench.error = "Workspace directory not found";
@@ -1112,6 +1142,16 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   if (!bench.error) {
     throw new BenchError("Bench has no error to clean up", "INVALID_STATE");
   }
+  if (!bench.workspacePath) {
+    // The bench was loaded with a blank workspacePath because its persisted path
+    // failed the safe-path allowlist (see initialize()). There is no usable path to
+    // re-provision from, and recomputing it would only regenerate the same rejected
+    // path, so retry cannot succeed: the only safe action is to clear the bench.
+    throw new BenchError(
+      "Bench has no valid workspace path and cannot be retried; clear it instead.",
+      "INVALID_STATE",
+    );
+  }
 
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) {
@@ -1286,6 +1326,20 @@ async function launchComponent(
  * component. Does not seed the `bench-setup` step, so bench-level setup is
  * never run from a per-component Start.
  */
+// A bench loaded with a blank workspacePath was rejected by the safe-path allowlist
+// at load time (see initialize()). It cannot be provisioned or started — its only
+// valid action is Clear. Guard the start entry points so they neither run setup/launch
+// commands against the server's own cwd (path.resolve("", dir) / path.join("", envFile)
+// both root there) nor clear the bench's error state.
+function assertStartableWorkspace(bench: Bench): void {
+  if (!bench.workspacePath) {
+    throw new BenchError(
+      "Bench has no valid workspace path and cannot be started; clear it instead.",
+      "INVALID_STATE",
+    );
+  }
+}
+
 export async function startComponent(
   projectId: string,
   benchId: number,
@@ -1298,6 +1352,8 @@ export async function startComponent(
 
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
+
+  assertStartableWorkspace(bench);
 
   const componentConfig = project.config.components[componentName];
   if (!componentConfig)
@@ -1358,6 +1414,8 @@ export function startAllComponents(projectId: string, benchId: number): Bench {
 
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
+
+  assertStartableWorkspace(bench);
 
   const ordered = getComponentOrder(project.config.components);
 

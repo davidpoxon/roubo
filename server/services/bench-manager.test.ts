@@ -321,6 +321,39 @@ describe("initialize", () => {
     expect(bench.components).toEqual({});
   });
 
+  it("loads a persisted bench whose workspace path fails the safe-path allowlist in an error state", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const config = makeConfig();
+    const project = makeProject({ config });
+    const safe = makePersistedBench({ id: 1 });
+    const unsafe = makePersistedBench({
+      id: 2,
+      workspacePath: "/home/.roubo/workspaces/test-project/bench-2; rm -rf x",
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [safe, unsafe] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+
+    expect(benchManager.getBench("test-project", 1)?.status).toBe("idle");
+
+    // The unsafe bench stays visible (so it can be cleared from the UI) but is
+    // marked errored, and the tainted path never enters the live bench model.
+    const errored = benchManager.getBench("test-project", 2);
+    expect(errored).toBeDefined();
+    expect(errored?.status).toBe("error");
+    expect(errored?.workspacePath).toBe("");
+    expect(errored?.error).toMatch(/safe-path allowlist/);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unsafe persisted workspace path"),
+    );
+
+    warnSpy.mockRestore();
+  });
+
   it("restores notifications from persisted state", () => {
     const notification: BenchNotification = {
       id: "n1",
@@ -2990,6 +3023,29 @@ describe("extractWorkspacePermissions via teardown", () => {
 });
 
 describe("startComponent", () => {
+  it("throws INVALID_STATE for a blank-workspace-path bench (allowlist-rejected)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const config = makeConfig();
+    const project = makeProject({ config });
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: [
+        makePersistedBench({
+          id: 1,
+          workspacePath: "/home/.roubo/workspaces/test-project/bench-1; rm -rf x",
+        }),
+      ],
+    });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    benchManager.initialize();
+
+    await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+    expect(benchManager.getBench("test-project", 1)?.error).toBeTruthy();
+
+    warnSpy.mockRestore();
+  });
+
   it("starts docker service via composeUp + waitForHealthy", async () => {
     const config = makeConfig({
       components: {
@@ -3855,6 +3911,34 @@ describe("stopComponent", () => {
 });
 
 describe("startAllComponents / stopAllComponents", () => {
+  it("throws INVALID_STATE for a blank-workspace-path bench (allowlist-rejected)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const config = makeConfig();
+    const project = makeProject({ config });
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: [
+        makePersistedBench({
+          id: 1,
+          workspacePath: "/home/.roubo/workspaces/test-project/bench-1; rm -rf x",
+        }),
+      ],
+    });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    benchManager.initialize();
+
+    // Start must be refused so setup/launch commands never run with cwd="" (the
+    // server's own working directory) and the bench's error state is preserved.
+    try {
+      benchManager.startAllComponents("test-project", 1);
+      throw new Error("expected to throw");
+    } catch (err) {
+      expect((err as { code: string }).code).toBe("INVALID_STATE");
+    }
+    expect(benchManager.getBench("test-project", 1)?.error).toBeTruthy();
+
+    warnSpy.mockRestore();
+  });
+
   it("returns bench in provisioning state with pending steps", () => {
     const config = makeConfig({
       components: {
@@ -4525,6 +4609,32 @@ describe("cleanupAndRetryBench", () => {
     } catch (err) {
       expect((err as { code: string }).code).toBe("INVALID_STATE");
     }
+  });
+
+  it("throws INVALID_STATE for a bench with a blank workspace path (allowlist-rejected)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const config = makeConfig();
+    const project = makeProject({ config });
+    const unsafe = makePersistedBench({
+      id: 1,
+      workspacePath: "/home/.roubo/workspaces/test-project/bench-1; rm -rf x",
+    });
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [unsafe] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    benchManager.initialize();
+
+    // Sanity: the bench loaded errored with a blanked path, so retry must be refused
+    // rather than running provisioning against an empty path.
+    expect(benchManager.getBench("test-project", 1)?.workspacePath).toBe("");
+
+    try {
+      await benchManager.cleanupAndRetryBench("test-project", 1);
+      throw new Error("expected to throw");
+    } catch (err) {
+      expect((err as { code: string }).code).toBe("INVALID_STATE");
+    }
+
+    warnSpy.mockRestore();
   });
 
   it("cleans up resources and re-provisions an error bench", async () => {

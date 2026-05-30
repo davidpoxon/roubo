@@ -219,6 +219,15 @@ export async function getDirtyState(
   bench: Bench,
   options?: DirtyStateOptions,
 ): Promise<DirtyState> {
+  // An allowlist-rejected bench loads with a blank workspacePath (see
+  // bench-manager.initialize()) and was never provisioned, so it has no worktree to
+  // probe and no uncommitted work to protect. Treat it as clean here — the single
+  // chokepoint for every caller (the DELETE route, auto-clear) — so none of them runs
+  // git with cwd="" (the server's own repo) via enumerateSubmodules/checkLocation.
+  if (!bench.workspacePath) {
+    return { clean: true, reasons: [] };
+  }
+
   const knownMerged = options?.knownMergedLocations ?? new Set<string>();
   const submodules = await enumerateSubmodules(bench.workspacePath);
   const locations = [{ location: "workspace", cwd: bench.workspacePath }, ...submodules];

@@ -36,6 +36,16 @@ export function startInspection(
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) throw new ServiceError(404, "Bench not found");
 
+  // An allowlist-rejected bench loads with a blank workspacePath (see
+  // bench-manager.initialize()). path.resolve("", inspection.directory) would root the
+  // spawn cwd at the server's own working directory, running the inspection command in
+  // the wrong place, so refuse: clear is the only valid action for such a bench.
+  if (!bench.workspacePath)
+    throw new ServiceError(
+      400,
+      "Bench has no valid workspace path and cannot be inspected; clear it instead.",
+    );
+
   const project = projectRegistry.getProject(projectId);
   if (!project?.config?.inspection)
     throw new ServiceError(400, "No inspection configuration for this project");

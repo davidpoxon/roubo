@@ -43,6 +43,15 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     return;
   }
 
+  // An allowlist-rejected bench loads with a blank workspacePath (see
+  // bench-manager.initialize()). Spawning a terminal here would set cwd="" (the
+  // server's own working directory) and write .claude/settings.local.json into it,
+  // so refuse: clear is the only valid action for such a bench.
+  if (!bench.workspacePath) {
+    res.status(400).json({ error: "Bench has no valid workspace path; clear it instead." });
+    return;
+  }
+
   const project = projectRegistry.getProject(projectId);
   const projectName = project?.config?.project?.displayName ?? projectId;
 
