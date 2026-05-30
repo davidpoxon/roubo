@@ -356,20 +356,39 @@ router.get("/:projectId/config", (req, res) => {
   res.json({ config: project.config, configValid: true });
 });
 
-router.get("/:projectId/config/raw", (req, res) => {
-  const project = projectRegistry.getProject(req.params.projectId);
-  if (!project) {
-    res.status(404).json({ error: "Project not found" });
-    return;
-  }
-  const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
-  try {
-    const content = fs.readFileSync(configPath, "utf-8");
-    res.json({ yaml: content });
-  } catch {
-    res.status(404).json({ error: "Config file not found on disk" });
-  }
+// Defence-in-depth rate limit on the config-file surface. Roubo runs as a
+// localhost-only service, but these handlers touch roubo.yaml on disk: the GET
+// reads it (fs.readFileSync) and the PUT validates and writes it (fs.mkdirSync +
+// atomicWrite), so we cap requests per minute per IP to prevent a runaway caller
+// from saturating disk I/O. Applied per-route (not router-wide) because
+// projects.ts shares the /api/projects mount with the bench, terminal,
+// inspection and other routers. Mirrors the pattern in plugins-github-oauth.ts
+// and satisfies CodeQL js/missing-rate-limiting (GET #42, PUT #43).
+const configRawRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
 });
+
+router.get(
+  "/:projectId/config/raw",
+  configRawRateLimiter,
+  (req: Request<{ projectId: string }>, res: Response) => {
+    const project = projectRegistry.getProject(req.params.projectId);
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    const configPath = resolveWithin(project.repoPath, ".roubo", "roubo.yaml");
+    try {
+      const content = fs.readFileSync(configPath, "utf-8");
+      res.json({ yaml: content });
+    } catch {
+      res.status(404).json({ error: "Config file not found on disk" });
+    }
+  },
+);
 
 router.get("/:projectId/integration/fields", (req, res) => {
   try {
@@ -423,20 +442,6 @@ router.get("/:projectId/integration/derived-sources", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
-});
-
-// Defence-in-depth rate limit on the config-write surface. Roubo runs as a
-// localhost-only service, but this handler validates and writes roubo.yaml to
-// disk (fs.mkdirSync + atomicWrite), so we cap requests per minute per IP to
-// prevent a runaway caller from saturating disk I/O. Applied per-route (not
-// router-wide) because projects.ts shares the /api/projects mount with the
-// bench, terminal, inspection and other routers. Mirrors the pattern in
-// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#43).
-const configRawRateLimiter = rateLimit({
-  windowMs: 60_000,
-  limit: 30,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
 });
 
 router.put(
