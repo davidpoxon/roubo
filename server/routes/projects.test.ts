@@ -460,6 +460,23 @@ describe("POST /save-config", () => {
     await request(app).post("/save-config").send({ repoPath: "/repo", config });
     expect(projectRegistry.reloadConfig).not.toHaveBeenCalled();
   });
+
+  // The handler writes roubo.yaml to disk, so it is rate-limited (CodeQL
+  // js/missing-rate-limiting #41). Asserting the draft-7 RateLimit headers
+  // proves the limiter is wired onto the route.
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.mocked(validateConfigObject).mockReturnValue({ valid: true, config: {} } as any);
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app)
+      .post("/save-config")
+      .send({ repoPath: "/repo", config: { project: { name: "test" } } });
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
 
 describe("POST /:projectId/reload-config", () => {
