@@ -3,7 +3,7 @@ import { readdir, access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { DirectoryEntry, BrowseDirectoryResponse } from "@roubo/shared";
-import { resolveWithin } from "../lib/safe-path.js";
+import { resolveWithin, resolveWithinRoots } from "../lib/safe-path.js";
 
 const router = Router();
 
@@ -32,19 +32,6 @@ function allowedRoots(): string[] {
   return result;
 }
 
-// Returns the matching root if `candidate` is `root` or strictly inside one of
-// the allowed roots, null otherwise. Uses path.relative + startsWith("..") so
-// CodeQL's default js/path-injection suite recognises the containment check.
-function containingRoot(candidate: string): string | null {
-  for (const root of allowedRoots()) {
-    const rel = path.relative(root, candidate);
-    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-      return root;
-    }
-  }
-  return null;
-}
-
 router.get("/", async (req, res) => {
   const rawPath = (req.query.path as string) || homedir();
   const showHidden = req.query.showHidden === "true";
@@ -54,10 +41,9 @@ router.get("/", async (req, res) => {
     return;
   }
 
-  const resolved = path.resolve(rawPath);
-  const root = containingRoot(resolved);
-  if (!root) {
-    res.status(403).json({ error: `Path is outside the allowed roots: ${resolved}` });
+  const resolved = resolveWithinRoots(allowedRoots(), rawPath);
+  if (resolved === null) {
+    res.status(403).json({ error: `Path is outside the allowed roots: ${path.resolve(rawPath)}` });
     return;
   }
 
