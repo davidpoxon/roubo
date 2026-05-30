@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   resolveWithin,
   resolveWithinRoots,
+  normalizeAbsolutePath,
   isInside,
   assertSafeIdentifier,
   UnsafePathError,
@@ -85,6 +86,26 @@ describe("resolveWithinRoots", () => {
 
   it("returns null when no roots are provided", () => {
     expect(resolveWithinRoots([], ROOT_A)).toBeNull();
+  });
+});
+
+describe("normalizeAbsolutePath", () => {
+  it("resolves a relative input to an absolute path under cwd", () => {
+    expect(normalizeAbsolutePath("foo/bar")).toBe(path.resolve("foo/bar"));
+  });
+
+  it("returns an already-absolute path unchanged", () => {
+    expect(normalizeAbsolutePath("/repos/x")).toBe(path.resolve("/repos/x"));
+  });
+
+  it("collapses .. segments via path.resolve", () => {
+    expect(normalizeAbsolutePath("/a/b/../c")).toBe(path.resolve("/a/c"));
+  });
+
+  it("throws for empty, non-string, or NUL-byte input", () => {
+    expect(() => normalizeAbsolutePath("")).toThrow(UnsafePathError);
+    expect(() => normalizeAbsolutePath(undefined as unknown as string)).toThrow(UnsafePathError);
+    expect(() => normalizeAbsolutePath("/repos/a\0b")).toThrow(UnsafePathError);
   });
 });
 

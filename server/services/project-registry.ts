@@ -9,6 +9,7 @@ import { DEFAULT_PROJECT_SETTINGS, DEFAULT_BENCH_SETTINGS } from "@roubo/shared"
 import { parseConfig } from "./config-parser.js";
 import { checkPortConflicts } from "./port-allocator.js";
 import * as state from "./state.js";
+import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
 
 const projects = new Map<string, RegisteredProject>();
 
@@ -80,7 +81,22 @@ export function initialize() {
 }
 
 export function registerProject(repoPath: string): RegisteredProject {
-  const result = parseConfig(repoPath);
+  // repoPath is a user-supplied local directory (project-registration UI). It
+  // can legitimately point anywhere on disk, so we cannot contain it under a
+  // root; instead normalise it through the safe-path barrier before it is
+  // stored and later flows into git/worktree cwd at the spawn sink
+  // (CodeQL #92, js/path-injection).
+  let safeRepoPath: string;
+  try {
+    safeRepoPath = normalizeAbsolutePath(repoPath, "repoPath");
+  } catch (err) {
+    if (err instanceof UnsafePathError) {
+      throw new ProjectRegistryError(err.message, "INVALID_PATH");
+    }
+    throw err;
+  }
+
+  const result = parseConfig(safeRepoPath);
   if (!result.valid || !result.config) {
     const isNotFound = result.errors?.some((e) => e.includes("not found"));
     throw new ProjectRegistryError(
@@ -106,7 +122,7 @@ export function registerProject(repoPath: string): RegisteredProject {
 
   const project: RegisteredProject = {
     id,
-    repoPath,
+    repoPath: safeRepoPath,
     config,
     configValid: true,
     settings: {
@@ -116,7 +132,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   };
 
   projects.set(id, project);
-  state.addProject({ id, repoPath, settings: project.settings });
+  state.addProject({ id, repoPath: safeRepoPath, settings: project.settings });
 
   emitConfigLoaded(project);
   return project;
