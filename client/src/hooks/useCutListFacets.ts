@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { FilterFacet } from "@roubo/shared";
 import * as api from "../lib/api";
 
 /**
@@ -35,4 +37,35 @@ export function useFacetOptions(
     enabled: opts.enabled && !!projectId && !!pluginId && facetId.length > 0,
     staleTime: 5 * 60_000,
   });
+}
+
+/**
+ * Warm the option cache for every `enum-async` facet as soon as the facet
+ * descriptors are known, so the filter popover shows options immediately
+ * instead of behind a "Load options" click. Uses the exact same query key /
+ * fn / staleTime as `useFacetOptions`, so the popover's own queries dedupe
+ * against these and resolve from cache.
+ */
+export function usePrefetchFacetOptions(
+  projectId: string | undefined,
+  pluginId: string | null,
+  facets: FilterFacet[],
+) {
+  const queryClient = useQueryClient();
+  // Stable dependency: the ids of the async facets to prefetch.
+  const asyncFacetIds = facets
+    .filter((f) => f.type === "enum-async")
+    .map((f) => f.id)
+    .join(",");
+
+  useEffect(() => {
+    if (!projectId || !pluginId || asyncFacetIds.length === 0) return;
+    for (const facetId of asyncFacetIds.split(",")) {
+      void queryClient.prefetchQuery({
+        queryKey: ["facet-options", projectId, pluginId, facetId],
+        queryFn: () => api.fetchFacetOptions(projectId, facetId),
+        staleTime: 5 * 60_000,
+      });
+    }
+  }, [queryClient, projectId, pluginId, asyncFacetIds]);
 }

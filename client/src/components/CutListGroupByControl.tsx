@@ -7,6 +7,7 @@ import {
   ListBoxItem,
 } from "react-aria-components";
 import { Layers, Check } from "lucide-react";
+import type { FilterFacet } from "@roubo/shared";
 import type { GroupingState, GroupByDimension } from "../lib/cut-list-groups";
 import { createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 
@@ -15,23 +16,30 @@ export type { GroupingState };
 interface CutListGroupByControlProps {
   grouping: GroupingState;
   onGroupingChange: (grouping: GroupingState) => void;
-}
-
-const DIMENSIONS: { id: GroupByDimension; label: string }[] = [
-  { id: "none", label: "None" },
-  { id: "type", label: "Type" },
-  { id: "labels", label: "Labels" },
-];
-
-function activeDimensionLabel(groupBy: GroupByDimension): string {
-  return DIMENSIONS.find((d) => d.id === groupBy)?.label ?? "";
+  /**
+   * Facets exposed by the active plugin. Each becomes a group-by dimension
+   * alongside the "None" sentinel, so grouping stays in lock-step with the
+   * available filters (e.g. Milestone).
+   */
+  facets: FilterFacet[];
 }
 
 export default function CutListGroupByControl({
   grouping,
   onGroupingChange,
+  facets,
 }: CutListGroupByControlProps) {
-  const active = isGroupingActive(grouping);
+  const dimensions: { id: GroupByDimension; label: string }[] = [
+    { id: "none", label: "None" },
+    ...facets.map((f) => ({ id: f.id, label: f.label })),
+  ];
+  const activeDimensionLabel = (groupBy: GroupByDimension): string =>
+    dimensions.find((d) => d.id === groupBy)?.label ?? "";
+
+  // Guard a persisted groupBy whose facet is no longer exposed (plugin switch):
+  // treat it as inactive so we never render a dangling dimension label.
+  const known = dimensions.some((d) => d.id === grouping.groupBy);
+  const active = isGroupingActive(grouping) && known;
   const dimLabel = activeDimensionLabel(grouping.groupBy);
 
   return (
@@ -81,7 +89,7 @@ export default function CutListGroupByControl({
               }}
               className="outline-none py-1"
             >
-              {DIMENSIONS.map((dim) => (
+              {dimensions.map((dim) => (
                 <ListBoxItem
                   key={dim.id}
                   id={dim.id}

@@ -20,8 +20,15 @@ vi.mock("../hooks/usePlugins", () => ({
   useOpportunisticRecheckOnMount: vi.fn(),
 }));
 vi.mock("../hooks/useCutListFacets", () => ({
-  useFilterFacets: vi.fn(() => ({ data: [] })),
+  useFilterFacets: vi.fn(() => ({
+    data: [
+      { id: "type", label: "Type", type: "enum" },
+      { id: "labels", label: "Labels", type: "enum" },
+      { id: "milestone", label: "Milestone", type: "enum-async" },
+    ],
+  })),
   useFacetOptions: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
+  usePrefetchFacetOptions: vi.fn(),
 }));
 vi.mock("./PluginConfigureDialog", () => ({
   default: ({ pluginId, plugin }: { pluginId?: string; plugin?: { id: string } }) => (
@@ -71,10 +78,12 @@ vi.mock("./CutListGroupByControl", () => ({
 import { useIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
+import { usePrefetchFacetOptions } from "../hooks/useCutListFacets";
 const mockedUseIssues = vi.mocked(useIssues);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 const mockedUsePlugins = vi.mocked(usePlugins);
 const mockedRecheck = vi.mocked(useOpportunisticRecheckOnMount);
+const mockedPrefetch = vi.mocked(usePrefetchFacetOptions);
 
 function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
@@ -358,6 +367,36 @@ describe("IssueQueuePanel", () => {
       />,
     );
     expect(screen.getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("prefetches async facet options on load", () => {
+    mockedUseProjectIntegration.mockReturnValue(integrationWithPlugin("GitHub.com"));
+    renderWithProviders(
+      <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+    );
+    expect(mockedPrefetch).toHaveBeenCalledWith("proj-1", "github-com", expect.any(Array));
+  });
+
+  it("groups issues by milestone", () => {
+    mockedUseIssues.mockReturnValue(
+      defaultResult({
+        issues: [
+          makeIssue("1", { facetValues: { milestone: "v1.0" } }),
+          makeIssue("2", { facetValues: { milestone: "v2.0" } }),
+        ],
+      }),
+    );
+    renderWithProviders(
+      <IssueQueuePanel
+        projectId="proj-1"
+        benches={noBenches}
+        projectConfig={config}
+        initialGrouping={{ groupBy: "milestone" }}
+      />,
+    );
+    expect(screen.getByText("v1.0")).toBeInTheDocument();
+    expect(screen.getByText("v2.0")).toBeInTheDocument();
+    expect(screen.getAllByTestId("issue-card")).toHaveLength(2);
   });
 
   it("scroll container has overflow-x-hidden to prevent drag-induced layout shift", () => {

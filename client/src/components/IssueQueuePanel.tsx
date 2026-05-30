@@ -7,7 +7,7 @@ import Spinner from "./Spinner";
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
-import { useFilterFacets } from "../hooks/useCutListFacets";
+import { useFilterFacets, usePrefetchFacetOptions } from "../hooks/useCutListFacets";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -72,6 +72,9 @@ export default function IssueQueuePanel({
   );
   const facetsQuery = useFilterFacets(projectId, activePluginId);
   const facets: FilterFacet[] = useMemo(() => facetsQuery.data ?? [], [facetsQuery.data]);
+  // Warm the option cache for async facets so the filter popover shows options
+  // immediately instead of behind a "Load options" click.
+  usePrefetchFacetOptions(projectId, activePluginId, facets);
   const [reconnectOpen, setReconnectOpen] = useState(false);
   // Only the github-com plugin has an in-dialog OAuth flow; reconnect for other
   // plugins falls back to the schema form's existing token entry.
@@ -168,10 +171,14 @@ export default function IssueQueuePanel({
     [baseItems, filters, excludedStatuses],
   );
 
-  const groups = useMemo(
-    () => (isGroupingActive(grouping) ? groupItems(filteredItems, grouping.groupBy) : []),
-    [filteredItems, grouping],
-  );
+  const groups = useMemo(() => {
+    if (!isGroupingActive(grouping)) return [];
+    // Resolve the facet backing the active dimension. If it's no longer exposed
+    // (e.g. plugin switched), skip grouping rather than render a dangling group.
+    const groupFacet = facets.find((f) => f.id === grouping.groupBy);
+    if (!groupFacet) return [];
+    return groupItems(filteredItems, grouping.groupBy, groupFacet.label);
+  }, [filteredItems, grouping, facets]);
 
   // Auto-fetch next page when the sentinel scrolls into view (FR-022, NFR-005).
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -238,21 +245,27 @@ export default function IssueQueuePanel({
               derivedOptions={derivedOptions}
             />
           </div>
-          <CutListGroupByControl grouping={grouping} onGroupingChange={updateGrouping} />
-          {!isFiltersEmpty(filters) && (
-            <div className="flex items-center gap-1 pr-2 shrink-0">
-              <span className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap">
-                {filteredItems.length}/{baseItems.length}
-              </span>
-              <Button
-                onPress={() => updateFilters(createEmptyFilters())}
-                aria-label="Clear all filters"
-                className="p-1 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
-              >
-                <X size={12} />
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-1 pr-2 shrink-0">
+            <CutListGroupByControl
+              grouping={grouping}
+              onGroupingChange={updateGrouping}
+              facets={facets}
+            />
+            {!isFiltersEmpty(filters) && (
+              <>
+                <span className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap">
+                  {filteredItems.length}/{baseItems.length}
+                </span>
+                <Button
+                  onPress={() => updateFilters(createEmptyFilters())}
+                  aria-label="Clear all filters"
+                  className="p-1 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                >
+                  <X size={12} />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
