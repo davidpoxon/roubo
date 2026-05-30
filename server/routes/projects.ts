@@ -97,12 +97,18 @@ router.post("/check-config", (req, res) => {
     res.status(400).json({ error: "repoPath is required" });
     return;
   }
-  // /check-config and /scan accept an arbitrary local directory path by
-  // design (project registration UI). We reject NUL bytes above; we do not
-  // path.resolve here because doing so turns the tainted string into a new
-  // path expression that CodeQL flags at every downstream fs call without
-  // adding a real trust boundary.
-  if (!fs.existsSync(repoPath)) {
+  // Confine the user-supplied directory to the same roots /scan and the
+  // filesystem browser restrict to (home + ROUBO_FILESYSTEM_ROOTS).
+  // resolveWithinRoots returns the resolved path from inside its
+  // containment-guarded branch, the shape CodeQL's js/path-injection suite
+  // recognises as a sanitizer, so the value reaching existsSync / parseConfig
+  // is already laundered (CodeQL #52).
+  const resolved = resolveWithinRoots(allowedRoots(), repoPath);
+  if (resolved === null) {
+    res.status(403).json({ error: "Path is outside the allowed roots" });
+    return;
+  }
+  if (!fs.existsSync(resolved)) {
     res.json({
       hasConfig: false,
       configValid: false,
@@ -112,10 +118,10 @@ router.post("/check-config", (req, res) => {
     return;
   }
 
-  const result = parseConfig(repoPath);
+  const result = parseConfig(resolved);
   if (!result.valid || !result.config) {
     const isNotFound = result.errors?.some((e) => e.includes("not found"));
-    const existingProject = projectRegistry.getProjects().find((p) => p.repoPath === repoPath);
+    const existingProject = projectRegistry.getProjects().find((p) => p.repoPath === resolved);
     res.json({
       hasConfig: !isNotFound,
       configValid: false,

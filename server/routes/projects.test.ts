@@ -109,16 +109,32 @@ describe("POST /", () => {
 });
 
 describe("POST /check-config", () => {
+  // /check-config confines repoPath to the allowed roots (home +
+  // ROUBO_FILESYSTEM_ROOTS), so the happy-path fixtures must resolve inside the
+  // user's home directory.
+  const insideHome = path.join(os.homedir(), "repo");
+  const outsideHome = path.resolve(os.homedir(), "..", "..", "outside-roubo-check-config-test");
+
   it("returns 400 when repoPath is missing", async () => {
     const res = await request(app).post("/check-config").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("repoPath is required");
   });
 
+  it("returns 403 when repoPath escapes the allowed roots", async () => {
+    const existsSpy = vi.spyOn(fs, "existsSync");
+
+    const res = await request(app).post("/check-config").send({ repoPath: outsideHome });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Path is outside the allowed roots");
+    expect(existsSpy).not.toHaveBeenCalled();
+    expect(parseConfig).not.toHaveBeenCalled();
+  });
+
   it("returns hasConfig:false when directory not found", async () => {
     vi.spyOn(fs, "existsSync").mockReturnValue(false);
 
-    const res = await request(app).post("/check-config").send({ repoPath: "/nonexistent" });
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body.hasConfig).toBe(false);
     expect(res.body.error).toBe("Directory not found");
@@ -132,7 +148,7 @@ describe("POST /check-config", () => {
     } as any);
     vi.mocked(projectRegistry.getProjects).mockReturnValue([]);
 
-    const res = await request(app).post("/check-config").send({ repoPath: "/repo" });
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body.hasConfig).toBe(true);
     expect(res.body.configValid).toBe(false);
@@ -148,7 +164,7 @@ describe("POST /check-config", () => {
     } as any);
     const existingProject = {
       id: "my-app",
-      repoPath: "/repo",
+      repoPath: insideHome,
       configValid: false,
       settings: {
         worktreeSource: { branchFromDefault: true, pullLatest: true },
@@ -156,7 +172,7 @@ describe("POST /check-config", () => {
     };
     vi.mocked(projectRegistry.getProjects).mockReturnValue([existingProject] as any);
 
-    const res = await request(app).post("/check-config").send({ repoPath: "/repo" });
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body.hasConfig).toBe(true);
     expect(res.body.configValid).toBe(false);
@@ -180,7 +196,7 @@ describe("POST /check-config", () => {
     } as any);
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
 
-    const res = await request(app).post("/check-config").send({ repoPath: "/repo" });
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body.hasConfig).toBe(true);
     expect(res.body.configValid).toBe(true);
@@ -203,7 +219,7 @@ describe("POST /check-config", () => {
     } as any);
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
 
-    const res = await request(app).post("/check-config").send({ repoPath: "/repo" });
+    const res = await request(app).post("/check-config").send({ repoPath: insideHome });
     expect(res.status).toBe(200);
     expect(res.body.preview).toEqual({
       name: "atlas",
