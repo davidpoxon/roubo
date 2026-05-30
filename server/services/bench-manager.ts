@@ -533,6 +533,14 @@ async function runComponentsInOrder(
   }
 
   for (const name of componentOrder) {
+    // Re-assert the guard here, not just in the route-facing callers. The
+    // user-controlled name reaches this loop via startComponent as [name], and
+    // bench.components[name] / componentStatus.* assignments below would mutate
+    // Object.prototype for a '__proto__'/'constructor'/'prototype' value. The
+    // caller's guard runs before the array wrapping, so CodeQL can't see it
+    // dominate this sink (js/prototype-polluting-assignment, alert #4).
+    assertSafeComponentName(name);
+
     if (!isBenchStillActive(bench.projectId, bench.id)) return;
 
     const componentStatus = bench.components[name];

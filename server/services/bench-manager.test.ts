@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { BenchNotification } from "@roubo/shared";
+import type { BenchNotification, RouboConfig } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { makeConfig, makeProject, makePersistedBench } from "../test/fixtures.js";
 import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
@@ -3813,6 +3813,57 @@ describe("startComponent", () => {
       },
     );
   });
+});
+
+describe("runComponentsInOrder prototype-polluting component names", () => {
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #4): the
+  // component loop indexes bench.components[name] and assigns componentStatus.*.
+  // startComponent guards its single user-supplied name before wrapping it in an
+  // array, but the loop re-asserts the guard so a polluting name reaching it via
+  // any path (here: a config-sourced bench-level Start) can't mutate
+  // Object.prototype.
+  afterEach(() => {
+    delete (Object.prototype as Record<string, unknown>).phases;
+    delete (Object.prototype as Record<string, unknown>).status;
+  });
+
+  it.each(["__proto__", "constructor", "prototype"])(
+    "aborts bench-level start for a '%s' component without polluting Object.prototype",
+    async (name) => {
+      // Build the config with a genuine own (polluting) key. An object literal
+      // can't create an own '__proto__' key, so define it explicitly; the same
+      // form works uniformly for constructor/prototype.
+      const components: Record<string, unknown> = {};
+      const ports: Record<string, unknown> = {};
+      Object.defineProperty(components, name, {
+        value: { type: "process", command: "echo hi" },
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(ports, name, {
+        value: { base: 5000 },
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+      const config = makeConfig({
+        components: components as RouboConfig["components"],
+        ports: ports as RouboConfig["ports"],
+      });
+      setupExistingBench({ config });
+
+      benchManager.startAllComponents("test-project", 1);
+
+      await vi.waitFor(() => {
+        const bench = benchManager.getBench("test-project", 1);
+        expect(bench?.status).toBe("error");
+      });
+
+      expect(({} as Record<string, unknown>).phases).toBeUndefined();
+      expect(({} as Record<string, unknown>).status).toBeUndefined();
+    },
+  );
 });
 
 describe("stopComponent", () => {
