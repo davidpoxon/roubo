@@ -1674,12 +1674,27 @@ export async function refreshComponentStatuses() {
   }
 }
 
+// Component names index plain objects (bench.components, bench.ports,
+// bench.assignedContainers) and arrive from user-controlled request params.
+// Reject the prototype-polluting keys before any indexing so a malicious
+// '__proto__'/'constructor'/'prototype' value can't mutate Object.prototype
+// (CodeQL js/prototype-polluting-assignment, alert #27).
+const PROTOTYPE_POLLUTING_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function assertSafeComponentName(componentName: string): void {
+  if (PROTOTYPE_POLLUTING_KEYS.has(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
+}
+
 export async function assignContainer(
   projectId: string,
   benchId: number,
   componentName: string,
   containerId: string,
 ): Promise<Bench> {
+  assertSafeComponentName(componentName);
+
   const bench = getBench(projectId, benchId);
   if (!bench)
     throw new BenchError(`Bench ${benchId} not found for project '${projectId}'`, "NOT_FOUND");
@@ -1728,6 +1743,8 @@ export async function unassignContainer(
   benchId: number,
   componentName: string,
 ): Promise<Bench> {
+  assertSafeComponentName(componentName);
+
   const bench = getBench(projectId, benchId);
   if (!bench)
     throw new BenchError(`Bench ${benchId} not found for project '${projectId}'`, "NOT_FOUND");

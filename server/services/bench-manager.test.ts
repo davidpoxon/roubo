@@ -4900,6 +4900,30 @@ describe("assignContainer", () => {
       }),
     );
   });
+
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // component name is user-controlled and indexes plain bench objects.
+  describe("prototype-polluting component names", () => {
+    afterEach(() => {
+      delete (Object.prototype as Record<string, unknown>).status;
+    });
+
+    it.each(["__proto__", "constructor", "prototype"])(
+      "rejects %s with INVALID_COMPONENT and does not pollute Object.prototype",
+      async (componentName) => {
+        setupExistingBench({
+          config: dbConfig,
+          ports: { backend: 5001, db: 5432 },
+        });
+
+        await expect(
+          benchManager.assignContainer("test-project", 1, componentName, "abc123"),
+        ).rejects.toMatchObject({ code: "INVALID_COMPONENT" });
+
+        expect(({} as Record<string, unknown>).status).toBeUndefined();
+      },
+    );
+  });
 });
 
 describe("unassignContainer", () => {
@@ -4997,6 +5021,30 @@ describe("unassignContainer", () => {
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ injectedJigSource: "project" }),
+    );
+  });
+
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // component name is user-controlled and indexes plain bench objects.
+  describe("prototype-polluting component names", () => {
+    afterEach(() => {
+      delete (Object.prototype as Record<string, unknown>).status;
+    });
+
+    it.each(["__proto__", "constructor", "prototype"])(
+      "rejects %s with INVALID_COMPONENT and does not pollute Object.prototype",
+      async (componentName) => {
+        setupExistingBench({
+          config: dbConfig,
+          ports: { backend: 5001, db: 5432 },
+        });
+
+        await expect(
+          benchManager.unassignContainer("test-project", 1, componentName),
+        ).rejects.toMatchObject({ code: "INVALID_COMPONENT" });
+
+        expect(({} as Record<string, unknown>).status).toBeUndefined();
+      },
     );
   });
 });
