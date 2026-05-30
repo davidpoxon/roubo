@@ -534,13 +534,15 @@ async function runComponentsInOrder(
   }
 
   for (const name of componentOrder) {
-    // Re-assert the guard here, not just in the route-facing callers. The
-    // user-controlled name reaches this loop via startComponent as [name], and
-    // bench.components[name] / componentStatus.* assignments below would mutate
-    // Object.prototype for a '__proto__'/'constructor'/'prototype' value. The
-    // caller's guard runs before the array wrapping, so CodeQL can't see it
-    // dominate this sink (js/prototype-polluting-assignment, alert #4).
-    assertSafeComponentName(name);
+    // Guard inline as the first loop statement, not just in the route-facing
+    // callers. The user-controlled name reaches this loop via startComponent as
+    // [name], and the bench.components[name] lookup plus the componentStatus.*
+    // assignments below would mutate Object.prototype for a '__proto__'/
+    // 'constructor'/'prototype' value. The check must be inline here so CodeQL
+    // sees it dominate every sink in the loop body.
+    if (PROTOTYPE_POLLUTING_KEYS.includes(name)) {
+      throw new BenchError(`Invalid component name '${name}'`, "INVALID_COMPONENT");
+    }
 
     if (!isBenchStillActive(bench.projectId, bench.id)) return;
 
@@ -1263,7 +1265,9 @@ async function launchComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
-  assertSafeComponentName(componentName);
+  if (PROTOTYPE_POLLUTING_KEYS.includes(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
 
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
@@ -1347,7 +1351,9 @@ export async function startComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
-  assertSafeComponentName(componentName);
+  if (PROTOTYPE_POLLUTING_KEYS.includes(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
 
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
@@ -1376,7 +1382,9 @@ export async function stopComponent(
   benchId: number,
   componentName: string,
 ): Promise<void> {
-  assertSafeComponentName(componentName);
+  if (PROTOTYPE_POLLUTING_KEYS.includes(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
 
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
@@ -1742,16 +1750,18 @@ export async function refreshComponentStatuses() {
 
 // Component names index plain objects (bench.components, bench.ports,
 // bench.assignedContainers) and arrive from user-controlled request params.
-// Reject the prototype-polluting keys before any indexing so a malicious
-// '__proto__'/'constructor'/'prototype' value can't mutate Object.prototype
-// (CodeQL js/prototype-polluting-assignment, alert #27).
-const PROTOTYPE_POLLUTING_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function assertSafeComponentName(componentName: string): void {
-  if (PROTOTYPE_POLLUTING_KEYS.has(componentName)) {
-    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
-  }
-}
+// The prototype-polluting keys. Any function that indexes a per-component record
+// (bench.components, bench.ports, bench.assignedContainers) with a user-controlled
+// name must reject these inline, before the lookup, or a '__proto__'/'constructor'/
+// 'prototype' value would resolve to Object.prototype and the assignment that
+// follows would mutate it (CodeQL js/prototype-polluting-assignment).
+//
+// The guard is inlined at each call site rather than wrapped in a helper on
+// purpose: CodeQL only treats the membership check itself as a dataflow barrier
+// when it lives in the same function as the sink and dominates it. A helper call
+// is not recognized, even sharing a function with the sink, so it leaves the
+// alert open.
+const PROTOTYPE_POLLUTING_KEYS: readonly string[] = ["__proto__", "constructor", "prototype"];
 
 export async function assignContainer(
   projectId: string,
@@ -1759,7 +1769,9 @@ export async function assignContainer(
   componentName: string,
   containerId: string,
 ): Promise<Bench> {
-  assertSafeComponentName(componentName);
+  if (PROTOTYPE_POLLUTING_KEYS.includes(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
 
   const bench = getBench(projectId, benchId);
   if (!bench)
@@ -1809,7 +1821,9 @@ export async function unassignContainer(
   benchId: number,
   componentName: string,
 ): Promise<Bench> {
-  assertSafeComponentName(componentName);
+  if (PROTOTYPE_POLLUTING_KEYS.includes(componentName)) {
+    throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
+  }
 
   const bench = getBench(projectId, benchId);
   if (!bench)
