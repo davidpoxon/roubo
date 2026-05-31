@@ -38,6 +38,33 @@ function legalAdvancedKeysFromManifest(manifest: PluginManifest | null): Set<str
 }
 
 /**
+ * Drop entries from an `advanced` block whose key shadows a top-level
+ * `IntegrationConfig` field (`sources`, `plugin`, `instance`, …). Those keys
+ * never legitimately belong under `advanced` for any plugin, so this needs no
+ * manifest and is safe to run on read paths (e.g. when computing the effective
+ * config for the Configure dialog or the Verify snapshot). Returns the cleaned
+ * record, or `undefined` when the cleaned record would be empty so callers can
+ * drop the `advanced` key entirely.
+ *
+ * This is the read-boundary companion to `filterAdvancedAgainstManifest`,
+ * which only runs on write/activation paths: a stale `advanced.sources: ""`
+ * (the issue #125 leftover) would otherwise ride through the effective-config
+ * merge and break Verify before any write path could canonicalise it.
+ */
+export function stripTopLevelKeyShadows(
+  advanced: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!advanced || typeof advanced !== "object") return undefined;
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(advanced)) {
+    if (TOP_LEVEL_INTEGRATION_KEYS.has(key)) continue;
+    cleaned[key] = value;
+  }
+  if (Object.keys(cleaned).length === 0) return undefined;
+  return cleaned;
+}
+
+/**
  * Drop entries from a plugin-wide `advanced` block that don't appear in the
  * plugin manifest's `configSchema.properties`. Returns the cleaned record, or
  * `undefined` when the cleaned record would be empty (so callers can drop the

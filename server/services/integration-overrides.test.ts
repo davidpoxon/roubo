@@ -194,6 +194,41 @@ describe("getEffectiveIntegrationConfig", () => {
     );
     expect(effective).toEqual({ plugin: "github-com", instance: "from-global" });
   });
+
+  it("issue #125: strips a stale `advanced.sources` shadow merged in from the global layer", () => {
+    // Mirrors a real ~/.roubo/integrations/_global/github-com.yaml that still
+    // carries the pre-fix `advanced.sources: ""` leftover. Left in place it
+    // rides into the Configure dialog seed and the Verify snapshot, where the
+    // GitHub-family plugins reject it ("sources must be an array").
+    const effective = mod.getEffectiveIntegrationConfig(
+      undefined,
+      {
+        schemaVersion: 1,
+        integration: {
+          plugin: "github-com",
+          advanced: { sources: "", token: "global" },
+        },
+      },
+      null,
+    );
+    expect(effective).toEqual({
+      plugin: "github-com",
+      advanced: { token: "global" },
+    });
+  });
+
+  it("issue #125: drops the `advanced` key entirely when its only key was a shadow", () => {
+    const effective = mod.getEffectiveIntegrationConfig(
+      undefined,
+      {
+        schemaVersion: 1,
+        integration: { plugin: "github-com", advanced: { sources: "" } },
+      },
+      null,
+    );
+    expect(effective).toEqual({ plugin: "github-com" });
+    expect(effective.advanced).toBeUndefined();
+  });
 });
 
 const GLOBAL_DIR = `${OVERRIDES_DIR}/_global`;
@@ -319,6 +354,36 @@ describe("getEffectiveWithGlobal", () => {
         },
       ),
     ).toEqual({ instance: "from-committed", advanced: { token: "p" } });
+  });
+
+  it("issue #125: strips a stale `advanced.sources` from a real-shaped global file", () => {
+    // The actual ~/.roubo/integrations/_global/github-com.yaml that broke
+    // Verify/Save for ai-agent-marketplace.
+    fsMocks.existsSync.mockImplementation((p: string) => p === `${GLOBAL_DIR}/github-com.yaml`);
+    fsMocks.readFileSync.mockReturnValue(
+      [
+        "schemaVersion: 1",
+        "integration:",
+        "  plugin: github-com",
+        "  advanced:",
+        '    sources: ""',
+        "  capturedUserId:",
+        "    externalId: davidpoxon",
+        "    displayName: David Poxon",
+        "",
+      ].join("\n"),
+    );
+
+    const effective = mod.getEffectiveWithGlobal(undefined, {
+      schemaVersion: 1,
+      integration: { plugin: "github-com" },
+    });
+
+    expect(effective.advanced).toBeUndefined();
+    expect(effective).toEqual({
+      plugin: "github-com",
+      capturedUserId: { externalId: "davidpoxon", displayName: "David Poxon" },
+    });
   });
 });
 

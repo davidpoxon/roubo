@@ -771,6 +771,45 @@ describe("PluginConfigureDialog (global scope)", () => {
     expect(snapshot).toMatchObject({ instance: "https://ghe.example" });
   });
 
+  it("omits `sources` from the Verify snapshot even when it leaks into effective.advanced", async () => {
+    // Issue #125 defence-in-depth: a stale `advanced.sources` that survives
+    // into `effective` (e.g. an un-canonicalised global override file) must
+    // not ride into the form values via the `key in advanced` passthrough.
+    // seedInitialValues skips array/object configSchema properties BEFORE
+    // consulting `advanced`, so the snapshot stays clean.
+    const user = userEvent.setup();
+    const test = vi.fn().mockResolvedValue({
+      ok: true,
+      identity: { externalId: "u-9", displayName: "GHE User" },
+    });
+    const save = vi.fn().mockResolvedValue({});
+    installGlobalMocks({ test, save });
+
+    const plugin = makePlugin({
+      configSchema: {
+        type: "object",
+        properties: {
+          instance: { type: "string", title: "Instance URL" },
+          sources: { type: "array" },
+        },
+      },
+    });
+    renderGlobalDialog({
+      plugin,
+      effective: {
+        plugin: "ghe",
+        instance: "https://ghe.example",
+        advanced: { sources: "" } as IntegrationConfig["advanced"],
+      },
+    });
+
+    await user.click(screen.getByTestId("test-connection"));
+    await waitFor(() => expect(test).toHaveBeenCalledTimes(1));
+    const snapshot = test.mock.calls[0][0] as Record<string, unknown>;
+    expect(snapshot).not.toHaveProperty("sources");
+    expect(snapshot).toMatchObject({ instance: "https://ghe.example" });
+  });
+
   it("appends '(global defaults)' to the dialog title", () => {
     installGlobalMocks({ test: vi.fn(), save: vi.fn() });
     renderGlobalDialog();
