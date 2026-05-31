@@ -36,6 +36,22 @@ import type {
 
 const router = Router();
 
+/**
+ * Builds a descriptive top-level error message from a failed config validation.
+ * Clients render the per-field `errors[]`, but any caller that only surfaces the
+ * top-level `error` string (e.g. a bare `err.message`) should still learn which
+ * fields are at fault rather than seeing a generic "Invalid config". Falls back
+ * to the plain label when there are no field-level errors (e.g. a YAML-parse or
+ * legacy-key failure that only populates `errors`).
+ */
+function describeInvalidConfig(parseResult: ReturnType<typeof validateConfigObject>): string {
+  const paths = (parseResult.fieldErrors ?? []).map((e) => e.path || "(root)");
+  if (paths.length === 0) return "Invalid config";
+  const unique = [...new Set(paths)];
+  const verb = unique.length === 1 ? "needs" : "need";
+  return `Invalid config: ${unique.join(", ")} ${verb} attention`;
+}
+
 // Defence-in-depth rate limit on the repo-scan surface. Roubo runs as a
 // localhost-only service, but /check-config and /scan both take a user-supplied
 // directory path and touch it from disk (fs.existsSync + parseConfig / scanRepo),
@@ -301,7 +317,7 @@ router.post("/save-config", saveConfigRateLimiter, (req, res) => {
   const parseResult = validateConfigObject(config);
   if (!parseResult.valid) {
     res.status(400).json({
-      error: "Invalid config",
+      error: describeInvalidConfig(parseResult),
       errors: parseResult.fieldErrors ?? [],
       details: parseResult.errors ?? [],
     });
@@ -502,7 +518,7 @@ router.put(
     const parseResult = validateConfigObject(parsed);
     if (!parseResult.valid) {
       res.status(400).json({
-        error: "Invalid config",
+        error: describeInvalidConfig(parseResult),
         errors: parseResult.fieldErrors ?? [],
         details: parseResult.errors ?? [],
       });

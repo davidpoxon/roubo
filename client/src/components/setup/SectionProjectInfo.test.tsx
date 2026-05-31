@@ -88,4 +88,39 @@ describe("SectionProjectInfo", () => {
     render(<SectionProjectInfo project={{}} scanResult={scanResult} dispatch={vi.fn()} />);
     expect(screen.getByText(/could not auto-detect type/i)).toBeInTheDocument();
   });
+
+  it("shows a required error for project type and supersedes the auto-detect hint", () => {
+    const scanResult = {
+      detected: {
+        suggestedProjectType: null,
+        webFrameworks: [],
+        nativeFrameworks: [],
+      },
+    } as never;
+    render(
+      <SectionProjectInfo
+        project={{}}
+        scanResult={scanResult}
+        validationErrors={{ "project.type": "Invalid input" }}
+        dispatch={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/project type is required/i)).toBeInTheDocument();
+    expect(screen.queryByText(/could not auto-detect type/i)).not.toBeInTheDocument();
+  });
+
+  it("surfaces required errors for display name and repository structure", () => {
+    render(
+      <SectionProjectInfo
+        project={{}}
+        validationErrors={{
+          "project.displayName": "Required",
+          "layout.type": "Invalid input",
+        }}
+        dispatch={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Required")).toBeInTheDocument();
+    expect(screen.getByText("Invalid input")).toBeInTheDocument();
+  });
 });

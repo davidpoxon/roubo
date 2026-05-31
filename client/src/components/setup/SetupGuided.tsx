@@ -119,7 +119,9 @@ export default function SetupGuided({
   const validationErrorCount = Object.keys(state.validationErrors).length;
   const errorSummary =
     mode !== "yaml" && validationErrorCount > 0
-      ? `${validationErrorCount} field${validationErrorCount === 1 ? "" : "s"} need attention`
+      ? `${validationErrorCount} field${validationErrorCount === 1 ? "" : "s"} ${
+          validationErrorCount === 1 ? "needs" : "need"
+        } attention`
       : undefined;
 
   const modeHint =
@@ -201,6 +203,14 @@ export default function SetupGuided({
             />
           ) : (
             <div className={embedded ? "" : "space-y-4 py-2"}>
+              {/* Embedded modals hide the sticky SaveBar (which normally carries the
+                  errorSummary), so surface why "Save & register" is disabled here. */}
+              {embedded && !saveError && errorSummary && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 text-sm text-amber-700 dark:text-amber-400">
+                  {errorSummary}
+                </div>
+              )}
+
               {saveError && (
                 <div
                   role="alert"
@@ -221,6 +231,7 @@ export default function SetupGuided({
                     layout={config.layout ?? {}}
                     scanResult={state.scanResult}
                     projectId={projectId}
+                    validationErrors={state.validationErrors}
                     dispatch={dispatch}
                   />
                 </section>

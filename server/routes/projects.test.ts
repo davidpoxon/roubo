@@ -383,9 +383,37 @@ describe("POST /save-config", () => {
 
     const res = await request(app).post("/save-config").send({ repoPath: "/repo", config: {} });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Invalid config");
+    // Top-level message names the offending field rather than a bare "Invalid config".
+    expect(res.body.error).toBe("Invalid config: project.name needs attention");
     expect(res.body.errors).toEqual([{ path: "project.name", message: "is required" }]);
     expect(res.body.details).toEqual(["project.name: is required"]);
+  });
+
+  it("names every failing field in the top-level message", async () => {
+    vi.mocked(validateConfigObject).mockReturnValue({
+      valid: false,
+      errors: ["project.type: Invalid input", "layout.type: Invalid input"],
+      fieldErrors: [
+        { path: "project.type", message: "Invalid input" },
+        { path: "layout.type", message: "Invalid input" },
+      ],
+    } as any);
+
+    const res = await request(app).post("/save-config").send({ repoPath: "/repo", config: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid config: project.type, layout.type need attention");
+  });
+
+  it("falls back to the generic message when there are no field-level errors", async () => {
+    vi.mocked(validateConfigObject).mockReturnValue({
+      valid: false,
+      errors: ["Found legacy top-level `blueprints:` key."],
+    } as any);
+
+    const res = await request(app).post("/save-config").send({ repoPath: "/repo", config: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid config");
+    expect(res.body.details).toEqual(["Found legacy top-level `blueprints:` key."]);
   });
 
   it("returns 200 with path and config on success", async () => {

@@ -335,6 +335,33 @@ describe("SetupGuided", () => {
     expect(screen.queryByText(/^summary$/i)).not.toBeInTheDocument();
   });
 
+  it("shows a validation summary banner when embedded with validation errors", () => {
+    const state: WizardState = {
+      ...makeState(validConfig),
+      validationErrors: { "project.type": "Required" },
+    };
+    renderInRouter(<SetupGuided {...defaultProps} embedded state={state} dispatch={vi.fn()} />);
+    expect(screen.getByText(/1 field needs attention/i)).toBeInTheDocument();
+  });
+
+  it("hides the embedded summary banner once a server saveError is shown", () => {
+    const state: WizardState = {
+      ...makeState(validConfig),
+      validationErrors: { "project.type": "Required" },
+    };
+    renderInRouter(
+      <SetupGuided
+        {...defaultProps}
+        embedded
+        state={state}
+        dispatch={vi.fn()}
+        saveError="Please fix the highlighted fields above"
+      />,
+    );
+    expect(screen.queryByText(/1 field needs attention/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Please fix the highlighted fields above")).toBeInTheDocument();
+  });
+
   it("still renders all sections when embedded", () => {
     const state = makeState(validConfig);
     renderInRouter(<SetupGuided {...defaultProps} embedded state={state} dispatch={vi.fn()} />);

@@ -10,6 +10,7 @@ import {
 import type { RouboConfig, RegisteredProject } from "@roubo/shared";
 import { useRegisterProject } from "../hooks/useProjects";
 import { useScanRepo, useValidateConfig, useSaveConfig, useEnvKeys } from "../hooks/useSetup";
+import { ApiError } from "../lib/api";
 import {
   wizardReducer,
   createInitialState,
@@ -17,6 +18,7 @@ import {
   validateSection,
   isWizardSaveDisabled,
 } from "./setup/wizardReducer";
+import { useConfigValidation } from "./setup/useConfigValidation";
 import SetupGuided from "./setup/SetupGuided";
 
 interface Props {
@@ -35,6 +37,16 @@ export default function EmbeddedGuidedSetup({ repoPath, onReady, onSaved }: Prop
 
   const { data: scanData } = useScanRepo(repoPath, !!repoPath);
   useEnvKeys(); // prefetch env keys for child sections
+
+  // Client-side Zod validation. Keeps this embedded flow in parity with the
+  // standalone Setup screen. Without it, state.validationErrors stays empty and
+  // isWizardSaveDisabled would let the user click Save with a required field
+  // (e.g. project.type, which the scanner can't infer for signal-less repos)
+  // still missing, only to hit a generic server-side "Invalid config".
+  const { fieldErrors } = useConfigValidation(state.config);
+  useEffect(() => {
+    dispatch({ type: "SET_VALIDATION_ERRORS", payload: fieldErrors });
+  }, [fieldErrors]);
 
   const scanApplied = useRef(false);
   useEffect(() => {
@@ -119,7 +131,25 @@ export default function EmbeddedGuidedSetup({ repoPath, onReady, onSaved }: Prop
                 setError(`Config saved, but registration failed: ${(err as Error).message}`),
             });
           },
-          onError: (err) => setError((err as Error).message),
+          onError: (err) => {
+            // The server returns per-field errors in `details.errors`; surface
+            // them inline (highlighting the offending fields) instead of the
+            // generic top-level "Invalid config" message.
+            if (err instanceof ApiError) {
+              const body = err.details as Record<string, unknown> | undefined;
+              if (
+                Array.isArray(body?.errors) &&
+                typeof (body.errors as unknown[])[0] === "object"
+              ) {
+                const serverErrors = body.errors as Array<{ path: string; message: string }>;
+                const errorMap = Object.fromEntries(serverErrors.map((e) => [e.path, e.message]));
+                dispatch({ type: "MERGE_VALIDATION_ERRORS", payload: errorMap });
+                setError("Please fix the highlighted fields above");
+                return;
+              }
+            }
+            setError((err as Error).message);
+          },
         },
       );
     };

@@ -12,6 +12,7 @@ interface Props {
   layout?: Partial<LayoutConfig>;
   scanResult?: RepoScanResult;
   projectId?: string;
+  validationErrors?: Record<string, string>;
   dispatch: React.Dispatch<WizardAction>;
 }
 
@@ -28,6 +29,7 @@ export default function SectionProjectInfo({
   layout,
   scanResult,
   projectId,
+  validationErrors = {},
   dispatch,
 }: Props) {
   const displayNameTouched = useRef(false);
@@ -55,7 +57,10 @@ export default function SectionProjectInfo({
   const nameError =
     project.name && !NAME_PATTERN.test(project.name)
       ? "Lowercase letters, numbers, and hyphens only"
-      : undefined;
+      : validationErrors["project.name"];
+  const displayNameError = validationErrors["project.displayName"];
+  const typeError = validationErrors["project.type"];
+  const layoutTypeError = validationErrors["layout.type"];
 
   return (
     <div className="space-y-5">
@@ -79,6 +84,7 @@ export default function SectionProjectInfo({
       >
         <Label className="block text-xs text-stone-500 mb-1.5">Display name</Label>
         <Input placeholder="My Project" className={INPUT} />
+        {displayNameError && <p className="mt-1 text-[11px] text-red-400">{displayNameError}</p>}
       </TextField>
 
       <div>
@@ -98,7 +104,13 @@ export default function SectionProjectInfo({
             </Button>
           ))}
         </div>
-        {scanResult && <ProjectTypeHint scanResult={scanResult} selectedType={project.type} />}
+        {typeError ? (
+          <p className="mt-1 text-[11px] text-red-400">
+            Project type is required: choose one above
+          </p>
+        ) : (
+          scanResult && <ProjectTypeHint scanResult={scanResult} selectedType={project.type} />
+        )}
       </div>
 
       <div>
@@ -118,8 +130,14 @@ export default function SectionProjectInfo({
             </Button>
           ))}
         </div>
-        {scanResult && layout?.type && layout.type === scanResult.detected.structureType && (
-          <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-600">Auto-detected</p>
+        {layoutTypeError ? (
+          <p className="mt-1 text-[11px] text-red-400">{layoutTypeError}</p>
+        ) : (
+          scanResult &&
+          layout?.type &&
+          layout.type === scanResult.detected.structureType && (
+            <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-600">Auto-detected</p>
+          )
         )}
       </div>
 
