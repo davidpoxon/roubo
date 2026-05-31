@@ -241,21 +241,60 @@ describe("deriveGithubSources", () => {
     ).toEqual(["acme/demo", "acme/backend"]);
   });
 
-  it("drops repos the user cannot see from the plugin's candidate response", async () => {
+  it("includes an unmatched-but-accessible repo (missing from the capped/paginated listing)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      shape: "categorized-multi-list",
-      categories: [
-        { id: "Repository", items: [{ externalId: "acme/other", label: "acme/other" }] },
-        { id: "Project", items: [] },
-      ],
-    });
+    // listSourceCandidates omits acme/demo (e.g. beyond the 100-repo page), but a
+    // direct probe confirms the user can access it, so it is included anyway.
+    vi.mocked(pluginManager.invoke).mockImplementation(
+      async (_pluginId: string, method: string) => {
+        if (method === "probeRepoAccess") return { accessible: true };
+        return {
+          shape: "categorized-multi-list",
+          categories: [
+            { id: "Repository", items: [{ externalId: "acme/other", label: "acme/other" }] },
+            { id: "Project", items: [] },
+          ],
+        };
+      },
+    );
 
     const result = await deriveGithubSources("demo");
 
-    expect(result.sources).toEqual({});
-    expect(result.preview.repos).toEqual([]);
-    expect(result.preview.alertsRequested).toEqual([]);
+    expect(result.preview.repos).toEqual(["acme/demo"]);
+    expect(result.preview.alertsRequested).toEqual([
+      "code-scanning",
+      "secret-scanning",
+      "dependabot",
+    ]);
+  });
+
+  it("throws ORG_APPROVAL_REQUIRED when the only repo is blocked by org OAuth App restrictions", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
+    vi.mocked(pluginManager.invoke).mockImplementation(
+      async (_pluginId: string, method: string) => {
+        if (method === "probeRepoAccess") {
+          return {
+            accessible: false,
+            status: 403,
+            message:
+              "Although you appear to have the correct authorization credentials, the `acme` organization has enabled OAuth App access restrictions, meaning that data access to third-parties is limited.",
+          };
+        }
+        return {
+          shape: "categorized-multi-list",
+          categories: [
+            { id: "Repository", items: [] },
+            { id: "Project", items: [] },
+          ],
+        };
+      },
+    );
+
+    await expect(deriveGithubSources("demo")).rejects.toMatchObject({
+      code: "ORG_APPROVAL_REQUIRED",
+      statusCode: 403,
+      params: { owner: "acme" },
+    });
   });
 });
 

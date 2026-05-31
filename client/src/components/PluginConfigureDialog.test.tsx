@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Button, DialogTrigger } from "react-aria-components";
 import type { IntegrationConfig, ProjectIntegrationState } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { ApiError } from "../lib/api";
 import PluginConfigureDialog from "./PluginConfigureDialog";
 import {
   useTestIntegrationConnection,
@@ -607,7 +608,38 @@ describe("PluginConfigureDialog", () => {
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
 
       const preview = screen.getByTestId("derived-sources-preview");
-      expect(preview).toHaveTextContent(/could not see this repository/i);
+      expect(preview).toHaveTextContent(/did not find this repository/i);
+    });
+
+    it("renders an actionable card when the repo's org has not approved the app", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "int3nt/ai-agent-marketplace", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      const orgApprovalError = new ApiError(
+        "OAuth App access restrictions",
+        403,
+        "ORG_APPROVAL_REQUIRED",
+        {
+          error: "OAuth App access restrictions",
+          code: "ORG_APPROVAL_REQUIRED",
+          params: { owner: "int3nt" },
+        },
+      );
+      mockedUseDerivedSources.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: orgApprovalError,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useDerivedGithubSources>);
+
+      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+
+      expect(screen.getByText(/org approval required/i)).toBeInTheDocument();
+      expect(screen.getByText(/int3nt/)).toBeInTheDocument();
+      const link = screen.getByRole("link", { name: /request approval/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("int3nt"));
     });
 
     it("is hidden for non-github plugins", () => {

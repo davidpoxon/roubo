@@ -55,6 +55,14 @@ function isGraphqlError(err: unknown): err is GraphqlError {
   );
 }
 
+// GitHub returns this 403 body when an org has enabled OAuth App access
+// restrictions and the Roubo app has not been approved for that org. The text
+// contains neither "forbidden" nor "saml"/"sso", so without this pattern it
+// would fall through to UNKNOWN. Treated as ORG_APPROVAL_REQUIRED because the
+// fix is the same: an org owner approves (or a member requests) the app.
+const OAUTH_APP_RESTRICTION_RE =
+  /oauth app access restrictions|restricting-access-to-your-organization/i;
+
 function getHeader(
   headers: Record<string, string | string[] | undefined>,
   name: string,
@@ -135,7 +143,10 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
         const retryAfterSec = retryAfter ?? "";
         return new GitHubError("RATE_LIMITED", msg, 429, retryAfterSec ? { retryAfterSec } : {});
       }
-      if (/not accessible by integration|forbidden/i.test(msg)) {
+      if (
+        /not accessible by integration|forbidden/i.test(msg) ||
+        OAUTH_APP_RESTRICTION_RE.test(msg)
+      ) {
         return new GitHubError("ORG_APPROVAL_REQUIRED", msg, 403, params);
       }
     }
@@ -169,7 +180,10 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
   const msg = err instanceof Error ? err.message : String(err);
 
   // Final fallback: match known GitHub error message patterns for plain Error objects.
-  if (/resource not accessible by integration|forbidden/i.test(msg)) {
+  if (
+    /resource not accessible by integration|forbidden/i.test(msg) ||
+    OAUTH_APP_RESTRICTION_RE.test(msg)
+  ) {
     return new GitHubError("ORG_APPROVAL_REQUIRED", msg, 403, params);
   }
   if (/saml|sso/i.test(msg)) {

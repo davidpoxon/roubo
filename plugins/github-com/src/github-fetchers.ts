@@ -534,18 +534,34 @@ export async function fetchCurrentUser(): Promise<RawUser> {
   return result.data;
 }
 
+// `/user/repos` is paginated at 100/page; a user with more accessible repos than
+// one page would otherwise have the tail silently dropped (and the dropped repos'
+// owners missed for project enumeration). Walk pages until a short page, capped so
+// a pathological account can't loop unbounded.
+const USER_REPOS_PER_PAGE = 100;
+const USER_REPOS_MAX_PAGES = 10;
+
 export async function fetchUserRepos(): Promise<RawRepo[]> {
-  const result = await githubRequest<RawRepo[]>({
-    kind: "rest",
-    route: "GET /user/repos",
-    params: {
-      affiliation: "owner,collaborator,organization_member",
-      per_page: 100,
-      sort: "updated",
-      direction: "desc",
-    },
-  });
-  return result.data;
+  const all: RawRepo[] = [];
+  for (let page = 1; page <= USER_REPOS_MAX_PAGES; page++) {
+    const result = await githubRequest<RawRepo[]>({
+      kind: "rest",
+      route: "GET /user/repos",
+      params: {
+        affiliation: "owner,collaborator,organization_member",
+        per_page: USER_REPOS_PER_PAGE,
+        sort: "updated",
+        direction: "desc",
+        page,
+      },
+    });
+    all.push(...result.data);
+    if (result.data.length < USER_REPOS_PER_PAGE) return all;
+  }
+  console.warn(
+    `[github] fetchUserRepos: stopped after ${USER_REPOS_MAX_PAGES} pages (${all.length} repos); additional repos were not fetched`,
+  );
+  return all;
 }
 
 export async function fetchRepoSummary(repoFullName: string): Promise<RawRepo> {

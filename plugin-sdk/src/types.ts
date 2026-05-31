@@ -289,6 +289,19 @@ export interface ProbeAlertCategoriesResult {
 }
 
 /**
+ * Result of directly probing access to a single source (e.g. a GitHub repo).
+ * Lets the host distinguish "no such source" from "access blocked by policy"
+ * when a source is missing from `listSourceCandidates`: `status` and `message`
+ * carry the underlying HTTP error verbatim so the host can classify it into an
+ * actionable code rather than a generic miss.
+ */
+export interface ProbeRepoAccessResult {
+  accessible: boolean;
+  status?: number;
+  message?: string;
+}
+
+/**
  * The contract methods a plugin may implement. All methods are optional;
  * a host call to an unimplemented method receives JSON-RPC MethodNotFound.
  */
@@ -328,6 +341,15 @@ export interface PluginContract {
   probeAlertCategories?: (
     params: ProbeAlertCategoriesParams,
   ) => Promise<ProbeAlertCategoriesResult> | ProbeAlertCategoriesResult;
+  /**
+   * Directly probe access to a single repo (`GET /repos/{owner}/{repo}`) so the
+   * host can explain why a configured repo is missing from
+   * `listSourceCandidates` (e.g. org OAuth App access restrictions), rather than
+   * silently reporting "not found".
+   */
+  probeRepoAccess?: (params: {
+    repoFullName: string;
+  }) => Promise<ProbeRepoAccessResult> | ProbeRepoAccessResult;
   filterFacets?: () => Promise<FilterFacet[]> | FilterFacet[];
   getFacetOptions?: (
     params: GetFacetOptionsParams,
