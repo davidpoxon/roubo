@@ -52,6 +52,8 @@ import type {
   InstallPreview,
   InstallSource,
   MigrationRecord,
+  SourceCandidatesResponse,
+  SourceSelection,
 } from "@roubo/shared";
 
 export interface MigrationStatusResponse {
@@ -804,6 +806,23 @@ export interface DerivedGithubSourcesPreview {
 
 export function fetchDerivedGithubSources(projectId: string): Promise<DerivedGithubSourcesPreview> {
   return request(`/projects/${projectId}/integration/derived-sources`);
+}
+
+// Declarative source picker (FR-019). The host proxies the active plugin's
+// `listSourceCandidates`; the response shape (`multi-list` /
+// `categorized-multi-list`) drives which picker the client renders.
+export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
+  return request(`/projects/${projectId}/integration/sources`);
+}
+
+export function saveIntegrationSources(
+  projectId: string,
+  sources: SourceSelection,
+): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration/sources`, {
+    method: "PUT",
+    body: JSON.stringify({ sources }),
+  });
 }
 
 export function fetchFilterFacets(projectId: string): Promise<FilterFacet[]> {

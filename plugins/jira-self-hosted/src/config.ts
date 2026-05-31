@@ -22,6 +22,7 @@ export interface JiraPluginConfig {
   instance: string;
   blocksLinkTypeName: string;
   isBlockedByLinkTypeName: string;
+  allowSelfSignedTls: boolean;
 }
 
 export interface ConfigParseFailure {
@@ -37,7 +38,12 @@ const DEFAULT_BLOCKS_LINK = "blocks";
 const DEFAULT_IS_BLOCKED_BY_LINK = "is blocked by";
 
 export function parseFormConfig(raw: Record<string, unknown>): ConfigParseResult {
-  return finalize(raw.instance, raw.blocksLinkTypeName, raw.isBlockedByLinkTypeName);
+  return finalize(
+    raw.instance,
+    raw.blocksLinkTypeName,
+    raw.isBlockedByLinkTypeName,
+    raw.allowSelfSignedTls,
+  );
 }
 
 export function parseIntegrationConfig(raw: Record<string, unknown>): ConfigParseResult {
@@ -45,13 +51,19 @@ export function parseIntegrationConfig(raw: Record<string, unknown>): ConfigPars
     raw.advanced && typeof raw.advanced === "object" && !Array.isArray(raw.advanced)
       ? (raw.advanced as Record<string, unknown>)
       : {};
-  return finalize(raw.instance, advanced.blocksLinkTypeName, advanced.isBlockedByLinkTypeName);
+  return finalize(
+    raw.instance,
+    advanced.blocksLinkTypeName,
+    advanced.isBlockedByLinkTypeName,
+    advanced.allowSelfSignedTls,
+  );
 }
 
 function finalize(
   rawInstance: unknown,
   rawBlocks: unknown,
   rawIsBlockedBy: unknown,
+  rawAllowSelfSignedTls: unknown,
 ): ConfigParseResult {
   const errors: ConfigParseFailure[] = [];
 
@@ -79,6 +91,7 @@ function finalize(
       instance,
       blocksLinkTypeName: optionalString(rawBlocks, DEFAULT_BLOCKS_LINK),
       isBlockedByLinkTypeName: optionalString(rawIsBlockedBy, DEFAULT_IS_BLOCKED_BY_LINK),
+      allowSelfSignedTls: rawAllowSelfSignedTls === true,
     },
   };
 }

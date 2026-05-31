@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { IntegrationConfigUpdate } from "@roubo/shared";
+import type { IntegrationConfigUpdate, SourceSelection } from "@roubo/shared";
 import * as api from "../lib/api";
 
 export function useProjectIntegration(projectId: string | undefined) {
@@ -35,6 +35,28 @@ export function useSaveIntegrationConfig(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (update: IntegrationConfigUpdate) => api.saveIntegrationConfig(projectId, update),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
+    },
+  });
+}
+
+// Declarative source picker (FR-019). Candidates are fetched lazily (only when
+// the Configure dialog is open and connected) since they require a live plugin
+// connection.
+export function useSourceCandidates(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["integration-source-candidates", projectId],
+    queryFn: () => api.fetchSourceCandidates(projectId),
+    enabled: enabled && !!projectId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSaveIntegrationSources(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sources: SourceSelection) => api.saveIntegrationSources(projectId, sources),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
     },

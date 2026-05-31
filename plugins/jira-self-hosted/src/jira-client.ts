@@ -10,6 +10,13 @@ export interface JiraFetchOptions {
 export interface JiraRequestContext {
   instance: string;
   pat: string;
+  /**
+   * When true, the host's TLS agent uses `rejectUnauthorized: false` for every
+   * request, so an on-prem Jira behind a self-signed or internal-CA cert is
+   * reachable. Off by default; the user opts in per-instance via the Configure
+   * dialog's "Allow self-signed TLS" toggle (FR-009).
+   */
+  allowSelfSignedTls?: boolean;
 }
 
 export class JiraApiError extends Error {
@@ -47,6 +54,9 @@ export async function jiraFetch<T = unknown>(
   if (options.body !== undefined) {
     init.body = JSON.stringify(options.body);
   }
+  if (ctx.allowSelfSignedTls) {
+    init.allowSelfSignedTls = true;
+  }
 
   let result: FetchResult;
   try {
@@ -79,6 +89,24 @@ function buildUrl(
   path: string,
   query: Record<string, string | number | undefined> | undefined,
 ): string {
+  const instanceHost = new URL(instance).host;
+  // Defense-in-depth: the manifest's network allowlist must be `**` because the
+  // instance host is user-supplied and unknown at authoring time. Every internal
+  // caller passes an instance-relative path; reject an absolute URL that points
+  // off-instance so a future caller cannot reach an unintended host. Host-level
+  // enforcement of this constraint is tracked in #338.
+  if (/^https?:\/\//i.test(path)) {
+    const absolute = new URL(path);
+    if (absolute.host !== instanceHost) {
+      throw new JiraApiError(
+        `Refusing to call ${absolute.host}: requests must stay on the configured Jira instance ${instanceHost}.`,
+        0,
+        "",
+      );
+    }
+  }
+  // Concatenate (rather than `new URL(path, instance)`) so an instance served
+  // under a context path (e.g. https://host/jira) keeps that prefix.
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = new URL(`${instance}${normalizedPath}`);
   if (query) {
