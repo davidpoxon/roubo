@@ -7,6 +7,7 @@ import EmptyBenchCard from "./EmptyBenchCard";
 import PendingBenchCard from "./PendingBenchCard";
 import Spinner from "./Spinner";
 import IssueQueuePanel from "./IssueQueuePanel";
+import GlobalBenchMeter from "./GlobalBenchMeter";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useGlobalCap } from "../hooks/useGlobalCap";
 
@@ -64,35 +65,38 @@ export default function BenchesTab() {
               Active and available bench slots.
             </p>
           </div>
-          {atCap ? (
-            // Use aria-disabled rather than isDisabled so the button stays focusable
-            // and keeps firing hover/focus events, which the tooltip needs to appear.
-            // A natively disabled button (RAC isDisabled) would be skipped by the
-            // keyboard and suppress the tooltip. onPress is a no-op while at cap.
-            <TooltipTrigger delay={500}>
+          <div className="flex items-center gap-4">
+            <GlobalBenchMeter />
+            {atCap ? (
+              // Use aria-disabled rather than isDisabled so the button stays focusable
+              // and keeps firing hover/focus events, which the tooltip needs to appear.
+              // A natively disabled button (RAC isDisabled) would be skipped by the
+              // keyboard and suppress the tooltip. onPress is a no-op while at cap.
+              <TooltipTrigger delay={500}>
+                <Button
+                  onPress={() => {
+                    if (!atCap) openCreateBench();
+                  }}
+                  aria-disabled
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 opacity-50 cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                >
+                  <Plus size={14} />
+                  Set up bench
+                </Button>
+                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+                  {capTooltip}
+                </Tooltip>
+              </TooltipTrigger>
+            ) : (
               <Button
-                onPress={() => {
-                  if (!atCap) openCreateBench();
-                }}
-                aria-disabled
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 opacity-50 cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                onPress={openCreateBench}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
               >
                 <Plus size={14} />
                 Set up bench
               </Button>
-              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
-                {capTooltip}
-              </Tooltip>
-            </TooltipTrigger>
-          ) : (
-            <Button
-              onPress={openCreateBench}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
-            >
-              <Plus size={14} />
-              Set up bench
-            </Button>
-          )}
+            )}
+          </div>
         </div>
 
         {isLoading && (
