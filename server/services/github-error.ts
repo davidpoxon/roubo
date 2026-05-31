@@ -71,6 +71,20 @@ function getHeader(
   return Array.isArray(v) ? v[0] : v;
 }
 
+// Detects GitHub "owner not found" messages without a regex. The previous regex
+// (organization.*not found / user.*not found) was polynomial-time on long
+// adversarial inputs (CodeQL js/polynomial-redos, alert #173). Substring checks
+// are linear and have no backtracking. Ordering between the owner-type word and
+// "not found" is intentionally not required: at the call sites a 404 or the final
+// fallback already implies an owner-resolution failure.
+function isOwnerNotFoundMessage(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("could not resolve") ||
+    ((m.includes("organization") || m.includes("user")) && m.includes("not found"))
+  );
+}
+
 function specificity(code: GitHubErrorCode): number {
   // Higher index = lower specificity. Auth/permission errors beat operational/generic ones.
   const order: GitHubErrorCode[] = [
@@ -161,7 +175,7 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
       );
     }
 
-    if (status === 404 && /could not resolve|organization.*not found|user.*not found/i.test(msg)) {
+    if (status === 404 && isOwnerNotFoundMessage(msg)) {
       return new GitHubError("OWNER_NOT_FOUND", msg, 404, params);
     }
   }
@@ -195,7 +209,7 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
   if (/read:project|read:org|required scopes|insufficient.scopes/i.test(msg)) {
     return new GitHubError("SCOPES_OUTDATED", msg, 403, params);
   }
-  if (/could not resolve|organization.*not found|user.*not found/i.test(msg)) {
+  if (isOwnerNotFoundMessage(msg)) {
     return new GitHubError("OWNER_NOT_FOUND", msg, 404, params);
   }
 

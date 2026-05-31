@@ -111,6 +111,26 @@ describe("classifyGitHubError", () => {
     expect(r.statusCode).toBe(404);
   });
 
+  it("rule 7: HTTP 404 + 'organization ... not found' message → OWNER_NOT_FOUND", () => {
+    const r = classifyGitHubError(makeHttpError(404, "Organization acme was not found"), {
+      owner: "acme",
+    });
+    expect(r.code).toBe("OWNER_NOT_FOUND");
+    expect(r.params.owner).toBe("acme");
+  });
+
+  it("rule 7: HTTP 404 with long adversarial message resolves quickly (no ReDoS)", () => {
+    // Pre-fix, the owner-not-found regex (`organization.*not found`) ran in
+    // polynomial time on strings full of "organization" with no "not found"
+    // (CodeQL js/polynomial-redos, alert #173). Substring checks are linear.
+    const malicious = "organization".repeat(100_000);
+    const start = Date.now();
+    const r = classifyGitHubError(makeHttpError(404, malicious));
+    const elapsed = Date.now() - start;
+    expect(r.code).toBe("UNKNOWN");
+    expect(elapsed).toBeLessThan(1000);
+  });
+
   it("rule 8: node ENOTFOUND → NETWORK", () => {
     const e = Object.assign(new Error("getaddrinfo ENOTFOUND api.github.com"), {
       code: "ENOTFOUND",
