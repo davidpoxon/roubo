@@ -63,6 +63,28 @@ describe("classifyGitHubError", () => {
     expect(r.params.owner).toBe("acme");
   });
 
+  it("rule 5: HTTP 403 + OAuth App access restrictions → ORG_APPROVAL_REQUIRED with owner param", () => {
+    const r = classifyGitHubError(
+      makeHttpError(
+        403,
+        "Although you appear to have the correct authorization credentials, the `int3nt` organization has enabled OAuth App access restrictions, meaning that data access to third-parties is limited.",
+      ),
+      { owner: "int3nt" },
+    );
+    expect(r.code).toBe("ORG_APPROVAL_REQUIRED");
+    expect(r.params.owner).toBe("int3nt");
+    expect(r.statusCode).toBe(403);
+  });
+
+  it("fallback: plain Error with OAuth App access restrictions message → ORG_APPROVAL_REQUIRED", () => {
+    const r = classifyGitHubError(
+      new Error("the `acme` organization has enabled OAuth App access restrictions"),
+      { owner: "acme" },
+    );
+    expect(r.code).toBe("ORG_APPROVAL_REQUIRED");
+    expect(r.params.owner).toBe("acme");
+  });
+
   it("rule 6: HTTP 429 → RATE_LIMITED with retryAfterSec param", () => {
     const r = classifyGitHubError(
       makeHttpError(429, "rate limit exceeded", { "retry-after": "60" }),

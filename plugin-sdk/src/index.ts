@@ -29,6 +29,7 @@ export type {
   ProbeAlertCategory,
   ProbeAlertCategoryReport,
   ProbeAlertCategoryStatus,
+  ProbeRepoAccessResult,
   SetActiveConfigResult,
   SourceCandidateCategory,
   SourceCandidateIcon,

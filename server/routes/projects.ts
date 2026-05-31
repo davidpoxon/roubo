@@ -477,7 +477,10 @@ router.get("/:projectId/integration/derived-sources", async (req, res) => {
     const derived = await deriveGithubSources(req.params.projectId);
     res.json(derived.preview);
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    // Surface GitHub-domain failures (e.g. ORG_APPROVAL_REQUIRED when the repo's
+    // org has not approved the Roubo OAuth app) with a stable code + params so
+    // the preview UI can render an actionable message instead of a generic miss.
+    sendGitHubErrorResponse(res, err);
   }
 });
 

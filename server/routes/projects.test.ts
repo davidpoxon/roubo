@@ -45,6 +45,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
 import * as deriveGithubSourcesService from "../services/derive-github-sources.js";
+import { GitHubError } from "../services/github-error.js";
 
 const app = express();
 app.use(express.json());
@@ -1153,7 +1154,7 @@ describe("GET /:projectId/integration/derived-sources", () => {
     });
   });
 
-  it("returns 500 when derivation throws", async () => {
+  it("returns 500 with an UNKNOWN code when derivation throws a generic error", async () => {
     vi.mocked(deriveGithubSourcesService.deriveGithubSources).mockRejectedValue(
       new Error("no project"),
     );
@@ -1161,7 +1162,22 @@ describe("GET /:projectId/integration/derived-sources", () => {
     const res = await request(app).get("/test/integration/derived-sources");
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: "no project" });
+    expect(res.body).toEqual({ error: "no project", code: "UNKNOWN", params: {} });
+  });
+
+  it("surfaces an actionable GitHubError with its status, code, and params", async () => {
+    vi.mocked(deriveGithubSourcesService.deriveGithubSources).mockRejectedValue(
+      new GitHubError("ORG_APPROVAL_REQUIRED", "needs approval", 403, { owner: "acme" }),
+    );
+
+    const res = await request(app).get("/test/integration/derived-sources");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      error: "needs approval",
+      code: "ORG_APPROVAL_REQUIRED",
+      params: { owner: "acme" },
+    });
   });
 });
 

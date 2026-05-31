@@ -43,6 +43,7 @@ import {
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
 import { useDerivedGithubSources } from "../hooks/useDerivedGithubSources";
 import { useConnectionStatus, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
+import GitHubErrorState from "./GitHubErrorState";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import Spinner from "./Spinner";
@@ -93,7 +94,8 @@ const STRINGS = {
   derivedSourcesNoRepo:
     "Set a repository above so Roubo knows where to pull issues, projects, and alerts from.",
   derivedSourcesPrefix: "Roubo will pull from ",
-  derivedSourcesNoRepos: "Roubo could not see this repository under your GitHub account.",
+  derivedSourcesNoRepos:
+    "Roubo did not find this repository. Check the owner and name in roubo.yaml.",
   derivedSourcesUnknown: "Could not preview derived sources. Save will still try.",
   connectedAccountFallback: "GitHub",
   derivedSourcesProjectsLabel: (n: number) =>
@@ -978,8 +980,24 @@ function DerivedSourcesPreview({
     );
   }
   if (!query.data) {
-    // Surface the error inline. Derivation failure does not block the user
-    // from saving; the warning sets expectations rather than gating.
+    // An actionable GitHub-domain failure (e.g. ORG_APPROVAL_REQUIRED when the
+    // repo's org hasn't approved the Roubo app) gets the full GitHubErrorState
+    // card with its fix link, rather than the generic "could not preview" line.
+    if (
+      query.error instanceof ApiError &&
+      typeof query.error.code === "string" &&
+      query.error.code !== "UNKNOWN"
+    ) {
+      return (
+        <GitHubErrorState
+          error={query.error}
+          variant="inline"
+          onRetry={() => void query.refetch()}
+        />
+      );
+    }
+    // Other failures don't block saving; the soft warning sets expectations
+    // rather than gating.
     return (
       <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
         {STRINGS.derivedSourcesUnknown}

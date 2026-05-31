@@ -6,6 +6,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as pluginManager from "./plugin-manager.js";
 import { atomicWrite } from "./state.js";
 import { validateConfigObject } from "./config-parser.js";
+import { classifyGitHubError } from "./github-error.js";
 import { resolveWithin } from "../lib/safe-path.js";
 
 const GITHUB_PLUGIN_ID = "github-com";
@@ -36,6 +37,12 @@ interface ListedCategory {
 interface ListSourceCandidatesShape {
   shape?: string;
   categories?: ListedCategory[];
+}
+
+interface ProbeRepoAccessShape {
+  accessible: boolean;
+  status?: number;
+  message?: string;
 }
 
 /**
@@ -159,6 +166,52 @@ export async function deriveGithubSources(projectId: string): Promise<DerivedSou
 
   const available = new Set(repoItems.map((i) => i.externalId));
   const matchedRepos = desiredRepos.filter((r) => available.has(r));
+
+  // Repos that aren't in the candidate list may be genuinely inaccessible, or
+  // they may just be missing from it: `/user/repos` is capped/paginated and an
+  // org's repos are silently omitted when that org has OAuth App access
+  // restrictions Roubo hasn't been approved for. Probe each unmatched repo
+  // directly so we can either include it (accessible) or surface the real,
+  // actionable error (e.g. ORG_APPROVAL_REQUIRED) instead of a misleading miss.
+  const unmatchedRepos = desiredRepos.filter((r) => !available.has(r));
+  if (unmatchedRepos.length > 0) {
+    const probes = await Promise.all(
+      unmatchedRepos.map(async (repo) => {
+        try {
+          const result = await pluginManager.invoke<ProbeRepoAccessShape>(
+            GITHUB_PLUGIN_ID,
+            "probeRepoAccess",
+            { repoFullName: repo },
+          );
+          return { repo, result };
+        } catch (err) {
+          // A transport-level failure (plugin not enabled, RPC error) is treated
+          // like an inaccessible repo with no HTTP status so it still surfaces.
+          return {
+            repo,
+            result: { accessible: false, message: (err as Error).message } as ProbeRepoAccessShape,
+          };
+        }
+      }),
+    );
+
+    const firstFailure = probes.find((p) => !p.result.accessible);
+    for (const { repo, result } of probes) {
+      if (result.accessible) matchedRepos.push(repo);
+    }
+
+    // If nothing matched at all, the user is fully blocked from every desired
+    // repo: throw the classified error so the route returns an actionable code
+    // (the preview UI renders it via GitHubErrorState). When at least one repo
+    // matched we keep the partial preview rather than failing the whole thing.
+    if (matchedRepos.length === 0 && firstFailure) {
+      const owner = firstFailure.repo.split("/")[0];
+      throw classifyGitHubError(
+        { status: firstFailure.result.status ?? 0, message: firstFailure.result.message ?? "" },
+        owner ? { owner } : undefined,
+      );
+    }
+  }
 
   const repoEntries: SourceSelectionEntry[] = matchedRepos.map((externalId) => ({
     externalId,
