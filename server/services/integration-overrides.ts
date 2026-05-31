@@ -11,6 +11,7 @@ import {
   type SourceEntry,
 } from "@roubo/shared";
 import { atomicWrite, getRouboDir } from "./state.js";
+import { stripTopLevelKeyShadows } from "./plugin-config-filter.js";
 
 export class IntegrationOverrideError extends Error {
   constructor(
@@ -193,7 +194,27 @@ export function getEffectiveIntegrationConfig(
     committed ?? {},
     globalOverride?.integration ?? {},
   );
-  return deepMergeIntegration<IntegrationConfig>(withGlobal, projectOverride?.integration ?? {});
+  const merged = deepMergeIntegration<IntegrationConfig>(
+    withGlobal,
+    projectOverride?.integration ?? {},
+  );
+
+  // Enforce the "advanced never holds a top-level IntegrationConfig key"
+  // invariant on the read boundary. A stale `advanced.sources: ""` (issue
+  // #125 leftover) merged in from any layer would otherwise reach the
+  // Configure dialog seed and the Verify snapshot, where the GitHub-family
+  // plugins reject it with "sources must be an array". Write paths run the
+  // manifest-aware `filterAdvancedAgainstManifest`; reads only need the
+  // manifest-free shadow strip here.
+  if (merged.advanced) {
+    const cleaned = stripTopLevelKeyShadows(merged.advanced);
+    if (cleaned) {
+      merged.advanced = cleaned;
+    } else {
+      delete merged.advanced;
+    }
+  }
+  return merged;
 }
 
 // Convenience wrapper for per-project read paths. Resolves the active plugin

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginManifest } from "@roubo/shared";
-import { filterAdvancedAgainstManifest } from "./plugin-config-filter.js";
+import { filterAdvancedAgainstManifest, stripTopLevelKeyShadows } from "./plugin-config-filter.js";
 
 function manifest(configSchema: Record<string, unknown> | undefined): PluginManifest {
   return {
@@ -143,5 +143,53 @@ describe("filterAdvancedAgainstManifest", () => {
       ),
     ).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("stripTopLevelKeyShadows", () => {
+  it("drops keys that shadow top-level IntegrationConfig fields", () => {
+    expect(stripTopLevelKeyShadows({ sources: "", legitToggle: true })).toEqual({
+      legitToggle: true,
+    });
+  });
+
+  it("drops every shadow key it recognises", () => {
+    expect(
+      stripTopLevelKeyShadows({
+        sources: "",
+        plugin: "github-com",
+        instance: "https://example.com",
+        capturedUserId: { externalId: "x" },
+        keep: 1,
+      }),
+    ).toEqual({ keep: 1 });
+  });
+
+  it("returns undefined when every key is a shadow (so callers can drop `advanced`)", () => {
+    expect(stripTopLevelKeyShadows({ sources: "" })).toBeUndefined();
+  });
+
+  it("returns undefined for empty/undefined input", () => {
+    expect(stripTopLevelKeyShadows(undefined)).toBeUndefined();
+    expect(stripTopLevelKeyShadows({})).toBeUndefined();
+  });
+
+  it("leaves a clean advanced block untouched", () => {
+    expect(stripTopLevelKeyShadows({ allowSelfSignedTls: true, pageHint: 5 })).toEqual({
+      allowSelfSignedTls: true,
+      pageHint: 5,
+    });
+  });
+
+  it("does not mutate its input", () => {
+    const input = { sources: "", keep: 1 };
+    stripTopLevelKeyShadows(input);
+    expect(input).toEqual({ sources: "", keep: 1 });
+  });
+
+  it("treats a non-object value (defence in depth) as nothing to filter", () => {
+    expect(
+      stripTopLevelKeyShadows("not-an-object" as unknown as Record<string, unknown>),
+    ).toBeUndefined();
   });
 });
