@@ -47,9 +47,9 @@ defaultIntegrationConfig:
 permissions:
   network:
     # The Jira instance host is user-supplied (configured per project), so the
-    # static manifest cannot name a concrete host. The plugin re-asserts that
-    # every request stays on the configured instance host in
-    # `src/jira-client.ts`; host-level enforcement is tracked in #338.
+    # static manifest cannot name a concrete host. The host constrains this `**`
+    # to the configured instance host at the host.fetch boundary (#338); the
+    # plugin also re-asserts it in `src/jira-client.ts` as defense-in-depth.
     hosts:
       - "**"
   credentials:

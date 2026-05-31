@@ -14,6 +14,7 @@ import {
   type SpawnLike,
 } from "./plugin-host-api.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
+import { setInstanceHost, clearInstanceRegistry } from "./plugin-instance-registry.js";
 
 // Self-signed cert for localhost, duplicated from plugin-http.test.ts (the
 // canonical source). Embedded so the host.fetch TLS test stays hermetic.
@@ -165,6 +166,11 @@ describe("plugin-host-api", () => {
 
   beforeEach(() => {
     logCalls = [];
+    clearInstanceRegistry();
+  });
+
+  afterEach(() => {
+    clearInstanceRegistry();
   });
 
   const log = (level: "info" | "warn" | "error", text: string) => {
@@ -434,6 +440,38 @@ describe("plugin-host-api", () => {
             level === "warn" &&
             /jira-plugin\.host\.fetch/.test(text) &&
             /Host "blocked\.example\.com"/.test(text),
+        ),
+      ).toBe(true);
+    });
+
+    it("constrains a `**` plugin to its configured instance host (#338)", async () => {
+      // No injected fetcher: registerHostHandlers builds the real one wired to
+      // the instance registry. The instance gate denies before any network I/O,
+      // so no stub fetch is needed. The manifest declares `**`, so only the
+      // instance constraint can reject this request.
+      const manifest = makeManifest([], ["**"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      setInstanceHost(manifest.id, "jira.acme.example");
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({ url: "https://evil.example.com/steal", init: {} });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string; host: string; reason: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        expect(responseErr.data?.code).toBe("network-denied");
+        expect(responseErr.data?.host).toBe("evil.example.com");
+        expect(responseErr.data?.reason).toContain("configured integration instance host");
+      }
+      expect(
+        logCalls.some(
+          ([level, text]) =>
+            level === "warn" &&
+            /jira-plugin\.host\.fetch denied/.test(text) &&
+            /Host "evil\.example\.com"/.test(text),
         ),
       ).toBe(true);
     });

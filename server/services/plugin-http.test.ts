@@ -187,6 +187,83 @@ describe("createPluginFetcher: allowlist enforcement", () => {
   });
 });
 
+describe("createPluginFetcher: instance-host enforcement (#338)", () => {
+  it("constrains a `**` manifest to the configured instance host", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = createPluginFetcher(manifest(["**"]), {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      getInstanceHost: () => "jira.acme.example",
+    });
+
+    await expect(fetcher("https://jira.acme.example/rest/api/2/myself")).resolves.toBeDefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies an off-instance host even though the manifest allows `**`", async () => {
+    const logger = vi.fn<(line: PluginHttpLogLine) => void>();
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = createPluginFetcher(manifest(["**"]), {
+      logger,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      getInstanceHost: () => "jira.acme.example",
+    });
+
+    await expect(fetcher("https://evil.example.com/steal")).rejects.toBeInstanceOf(
+      PluginPermissionDeniedError,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const line = logger.mock.calls[0]?.[0];
+    if (!line) throw new Error("logger not called");
+    expect(line.kind).toBe("denied");
+    expect(line.detail.reason).toContain("configured integration instance host");
+    expect(line.detail).toMatchObject({ host: "evil.example.com" });
+  });
+
+  it("does not constrain when getInstanceHost returns null (manifest governs)", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = createPluginFetcher(manifest(["**"]), {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      getInstanceHost: () => null,
+    });
+
+    await expect(fetcher("https://anywhere.example.com/x")).resolves.toBeDefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("compares case-insensitively and honours the port", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = createPluginFetcher(manifest(["**"]), {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      getInstanceHost: () => "jira.acme.example:8443",
+    });
+
+    await expect(fetcher("https://JIRA.ACME.EXAMPLE:8443/rest")).resolves.toBeDefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    // A request to the same host on a different port is off-instance.
+    await expect(fetcher("https://jira.acme.example/rest")).rejects.toBeInstanceOf(
+      PluginPermissionDeniedError,
+    );
+    await expect(fetcher("https://jira.acme.example:9000/rest")).rejects.toBeInstanceOf(
+      PluginPermissionDeniedError,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces the instance host on the self-signed-TLS fetcher too", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = createPluginFetcher(manifest(["**"]), {
+      allowSelfSignedTls: true,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      getInstanceHost: () => "jira.acme.example",
+    });
+
+    await expect(fetcher("https://evil.example.com/steal")).rejects.toBeInstanceOf(
+      PluginPermissionDeniedError,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
 describe("createPluginFetcher: dispatcher selection", () => {
   it("uses EnvHttpProxyAgent by default", async () => {
     let captured: unknown = undefined;

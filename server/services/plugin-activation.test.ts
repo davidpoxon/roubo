@@ -28,6 +28,7 @@ import {
 import * as projectRegistry from "./project-registry.js";
 import { loadOverride } from "./integration-overrides.js";
 import * as pluginManager from "./plugin-manager.js";
+import { getInstanceHost, clearInstanceRegistry } from "./plugin-instance-registry.js";
 
 const PROJECT_ID = "proj-1";
 const GITHUB_PLUGIN = "github-com";
@@ -103,6 +104,7 @@ describe("ensurePluginActivated", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearActivationCache();
+    clearInstanceRegistry();
     mockInstalledPlugins();
   });
 
@@ -114,6 +116,29 @@ describe("ensurePluginActivated", () => {
 
     // No instance / advanced fields => nothing plugin-wide to push.
     expect(pluginManager.invoke).not.toHaveBeenCalled();
+    // ...and no instance constraint is recorded, so host.fetch stays governed
+    // by the manifest allowlist alone (#338).
+    expect(getInstanceHost(GITHUB_PLUGIN)).toBeNull();
+  });
+
+  it("records the configured instance host for host.fetch enforcement (#338)", async () => {
+    mockGheProject({ instance: "https://GHE.Example.com:8443" });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
+
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+
+    expect(getInstanceHost(GHE_PLUGIN)).toBe("ghe.example.com:8443");
+  });
+
+  it("updates the recorded instance host when the instance changes", async () => {
+    mockGheProject({ instance: "https://ghe-a.example.com" });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    expect(getInstanceHost(GHE_PLUGIN)).toBe("ghe-a.example.com");
+
+    mockGheProject({ instance: "https://ghe-b.example.com" });
+    await ensurePluginActivated(PROJECT_ID, GHE_PLUGIN);
+    expect(getInstanceHost(GHE_PLUGIN)).toBe("ghe-b.example.com");
   });
 
   it("pushes plugin-wide config (instance, advanced) via setActiveConfig and omits per-project sources", async () => {

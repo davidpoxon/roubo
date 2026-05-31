@@ -93,8 +93,9 @@ function buildUrl(
   // Defense-in-depth: the manifest's network allowlist must be `**` because the
   // instance host is user-supplied and unknown at authoring time. Every internal
   // caller passes an instance-relative path; reject an absolute URL that points
-  // off-instance so a future caller cannot reach an unintended host. Host-level
-  // enforcement of this constraint is tracked in #338.
+  // off-instance so a future caller cannot reach an unintended host. The host
+  // now also enforces this at the `host.fetch` boundary (#338, constraining `**`
+  // to the configured instance host); this check stays as a second layer.
   if (/^https?:\/\//i.test(path)) {
     const absolute = new URL(path);
     if (absolute.host !== instanceHost) {
