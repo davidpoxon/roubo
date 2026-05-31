@@ -23,6 +23,11 @@ vi.mock("../hooks/useProjectIntegration", () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
+  useSourceCandidates: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useSaveIntegrationSources: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
 }));
 
 vi.mock("../hooks/useInstalledPlugins", () => ({

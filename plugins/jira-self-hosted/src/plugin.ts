@@ -1,6 +1,7 @@
 import { host } from "@roubo/plugin-sdk";
 import type {
   ConfiguredSource,
+  ConnectionStatus,
   CurrentUser,
   FilterFacet,
   FilterFacetOption,
@@ -58,7 +59,7 @@ export function createPluginContract(): PluginContract {
     if (pat === null || pat.length === 0) {
       throw new Error("Jira PAT is not configured. Open the Configure dialog and Test connection.");
     }
-    return { instance: config.instance, pat };
+    return { instance: config.instance, pat, allowSelfSignedTls: config.allowSelfSignedTls };
   }
 
   function adoptFromIntegration(raw: Record<string, unknown>): JiraPluginConfig {
@@ -110,7 +111,14 @@ export function createPluginContract(): PluginContract {
             errors: [{ field: "pat", message: "Personal access token is required." }],
           };
         }
-        await jiraFetch({ instance: parsed.config.instance, pat }, "/rest/api/2/myself");
+        await jiraFetch(
+          {
+            instance: parsed.config.instance,
+            pat,
+            allowSelfSignedTls: parsed.config.allowSelfSignedTls,
+          },
+          "/rest/api/2/myself",
+        );
         return { ok: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -138,6 +146,60 @@ export function createPluginContract(): PluginContract {
       if (!parsed.ok) return { ok: false, errors: parsed.errors };
       cachedConfig = parsed.config;
       return { ok: true };
+    },
+
+    /**
+     * Report plugin-level connectivity for the connection-status chips
+     * (FR-052). The host primes `setActiveConfig` with the instance URL before
+     * calling this on a cold process, so the cached config is available here.
+     * Probes `/rest/api/2/myself` once and maps the result to the four-state
+     * model: 401/403 -> auth-problem, transport/5xx -> errored, otherwise
+     * connected (surfacing the resolved login). The host caches the result for
+     * 30s, so this method does no caching of its own.
+     */
+    async getConnectionStatus(): Promise<ConnectionStatus> {
+      const checkedAt = new Date().toISOString();
+      if (cachedConfig === null) {
+        return {
+          state: "disconnected",
+          detail: "Jira instance is not configured yet.",
+          checkedAt,
+        };
+      }
+      const pat = await host.credentials.get("pat");
+      if (pat === null || pat.length === 0) {
+        return {
+          state: "auth-problem",
+          detail: "Jira personal access token is not set.",
+          checkedAt,
+        };
+      }
+      try {
+        const me = await jiraFetch<{ key?: string; name?: string; displayName?: string }>(
+          {
+            instance: cachedConfig.instance,
+            pat,
+            allowSelfSignedTls: cachedConfig.allowSelfSignedTls,
+          },
+          "/rest/api/2/myself",
+        );
+        const login = me.name ?? me.key;
+        return {
+          state: "connected",
+          checkedAt,
+          ...(login ? { account: { login } } : {}),
+        };
+      } catch (err) {
+        if (err instanceof JiraApiError && (err.status === 401 || err.status === 403)) {
+          return {
+            state: "auth-problem",
+            detail: "Jira rejected the personal access token (401/403).",
+            checkedAt,
+          };
+        }
+        const detail = err instanceof Error ? err.message : String(err);
+        return { state: "errored", detail, checkedAt };
+      }
     },
 
     async getCurrentUser(params: unknown): Promise<CurrentUser> {

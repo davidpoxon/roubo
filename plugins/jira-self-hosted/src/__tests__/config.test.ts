@@ -12,7 +12,28 @@ describe("parseFormConfig", () => {
       instance: "https://jira.acme.example",
       blocksLinkTypeName: "blocks",
       isBlockedByLinkTypeName: "is blocked by",
+      allowSelfSignedTls: false,
     });
+  });
+
+  it("reads allowSelfSignedTls from the flat form payload", () => {
+    const result = parseFormConfig({
+      instance: "https://jira.acme.example",
+      allowSelfSignedTls: true,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.allowSelfSignedTls).toBe(true);
+  });
+
+  it("treats a non-true allowSelfSignedTls as false", () => {
+    const result = parseFormConfig({
+      instance: "https://jira.acme.example",
+      allowSelfSignedTls: "yes",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.allowSelfSignedTls).toBe(false);
   });
 
   it("strips a trailing slash from the instance URL", () => {
@@ -68,5 +89,16 @@ describe("parseIntegrationConfig", () => {
     if (!result.ok) return;
     expect(result.config.blocksLinkTypeName).toBe("blocks");
     expect(result.config.isBlockedByLinkTypeName).toBe("is blocked by");
+    expect(result.config.allowSelfSignedTls).toBe(false);
+  });
+
+  it("reads allowSelfSignedTls from the advanced sub-object", () => {
+    const result = parseIntegrationConfig({
+      instance: "https://jira.acme.example",
+      advanced: { allowSelfSignedTls: true },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.allowSelfSignedTls).toBe(true);
   });
 });

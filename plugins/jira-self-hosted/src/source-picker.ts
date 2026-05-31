@@ -1,4 +1,10 @@
 import { jiraFetch, type JiraRequestContext } from "./jira-client.js";
+import { mapWithConcurrency } from "./concurrency.js";
+
+// Cap on concurrent board-configuration lookups. Each board resolves its
+// backing filter via a separate HTTP call; an instance with many boards would
+// otherwise burst one request per board at once.
+const BOARD_RESOLVE_CONCURRENCY = 5;
 
 /**
  * Build the `categorized-multi-list` payload Roubo's source picker
@@ -70,8 +76,11 @@ async function fetchBoards(ctx: JiraRequestContext): Promise<SourceCandidateItem
 
     // Boards select issues via their backing filter; resolve filter ids
     // so `listIssues` can JQL `filter = <id>` without per-source dispatch.
-    const resolved: Array<SourceCandidateItem | null> = await Promise.all(
-      boards.map(async (board) => {
+    // Bounded fan-out so a large board list does not burst the instance.
+    const resolved: Array<SourceCandidateItem | null> = await mapWithConcurrency(
+      boards,
+      BOARD_RESOLVE_CONCURRENCY,
+      async (board) => {
         const filterId = await resolveBoardFilterId(ctx, board.id);
         if (filterId === null) return null;
         return {
@@ -79,7 +88,7 @@ async function fetchBoards(ctx: JiraRequestContext): Promise<SourceCandidateItem
           label: String(board.name ?? `Board ${board.id}`),
           icon: "board",
         };
-      }),
+      },
     );
     return resolved.filter((item): item is SourceCandidateItem => item !== null);
   } catch {

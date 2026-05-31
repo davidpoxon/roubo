@@ -27,10 +27,13 @@ import type {
   IntegrationFieldsUpdate,
   IntegrationTestResult,
   ProjectIntegrationState,
+  SourceSelection,
 } from "@roubo/shared";
 import { ApiError, disconnectGithubPluginOauth, startGithubPluginOauth } from "../lib/api";
 import {
   useSaveIntegrationConfig,
+  useSaveIntegrationSources,
+  useSourceCandidates,
   useTestIntegrationConnection,
 } from "../hooks/useProjectIntegration";
 import {
@@ -48,11 +51,19 @@ import { passwordFieldKeys } from "./config-schema-utils";
 import { INPUT } from "./setup/styles";
 import ConnectionStatusPill from "./settings/plugins/ConnectionStatusPill";
 import { derivePluginConnectionState } from "./settings/plugins/derivePluginConnectionState";
+import SourcePicker from "./SourcePicker";
 
 // FR-070 (WU-057): plugins listed here host the Repository / GitHub Project /
 // Submodules controls inside their Configure modal. Other plugins continue to
 // surface the controls elsewhere (or not at all) until their own WU lands.
 const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com"]);
+
+// FR-019: the GitHub family derives its sources from the repo (the
+// derived-sources preview), so it does not render the declarative source
+// picker. Every other plugin (Jira, third-party) selects sources through the
+// host-rendered picker. GHE's own consolidation onto the picker is deferred to
+// its consolidation work unit.
+const PLUGINS_WITHOUT_SOURCE_PICKER = new Set(["github-com", "ghe"]);
 
 const STRINGS = {
   titlePrefix: "Configure ",
@@ -88,6 +99,8 @@ const STRINGS = {
   derivedSourcesProjectsLabel: (n: number) =>
     n === 1 ? "1 GitHub Project" : `${n} GitHub Projects`,
   derivedSourcesAlertsLabel: "security alerts when enabled on the repo",
+  sourcesLoading: "Loading available sources…",
+  sourcesError: "Could not load sources. Check the connection and try again.",
 };
 
 type InstalledPlugin = NonNullable<ProjectIntegrationState["plugin"]>;
@@ -386,6 +399,26 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   const isOauthPlugin = plugin.id === "github-com";
   const showForm = connected || !isOauthPlugin;
 
+  // FR-019: the declarative source picker renders for project-scoped plugins
+  // that are NOT in the GitHub-specific integration-fields set (GitHub.com /
+  // GHE drive sources from the repo via the derived-sources preview instead).
+  // It needs a live connection because `listSourceCandidates` runs server-side
+  // against the saved config.
+  const sourcesProjectId = props.mode === "project" ? props.projectId : "";
+  const showSourcePicker =
+    mode === "project" && !PLUGINS_WITHOUT_SOURCE_PICKER.has(plugin.id) && connected;
+  const sourceCandidatesQuery = useSourceCandidates(sourcesProjectId, showSourcePicker);
+  const saveSourcesMutation = useSaveIntegrationSources(sourcesProjectId);
+  const initialSources = useMemo<SourceSelection>(
+    () => (effective.sources as SourceSelection | undefined) ?? {},
+    [effective.sources],
+  );
+  const [sources, setSources] = useState<SourceSelection>(initialSources);
+  const sourcesChanged = useMemo(
+    () => JSON.stringify(sources) !== JSON.stringify(initialSources),
+    [sources, initialSources],
+  );
+
   function buildUpdate(
     snapshot: Record<string, unknown>,
     identity: IntegrationTestResult & { ok: true },
@@ -464,6 +497,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           await props.saveFieldsMutation.mutateAsync(update);
         }
       }
+      if (showSourcePicker && sourcesChanged) {
+        await saveSourcesMutation.mutateAsync(sources);
+      }
       close();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : (err as Error).message);
@@ -471,7 +507,11 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   }
 
   const saveFieldsPending = mode === "project" ? props.saveFieldsMutation.isPending : false;
-  const isBusy = testMutation.isPending || saveMutation.isPending || saveFieldsPending;
+  const isBusy =
+    testMutation.isPending ||
+    saveMutation.isPending ||
+    saveFieldsPending ||
+    saveSourcesMutation.isPending;
 
   return (
     <>
@@ -546,6 +586,14 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                 )}
               </div>
             )}
+
+            {showSourcePicker && (
+              <SourcePickerSection
+                query={sourceCandidatesQuery}
+                value={sources}
+                onChange={setSources}
+              />
+            )}
           </>
         )}
 
@@ -583,7 +631,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             data-testid="save-config"
             className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
-            {saveMutation.isPending || saveFieldsPending ? STRINGS.saving : STRINGS.save}
+            {saveMutation.isPending || saveFieldsPending || saveSourcesMutation.isPending
+              ? STRINGS.saving
+              : STRINGS.save}
           </Button>
         </div>
       </div>
@@ -873,6 +923,33 @@ function GithubOauthSection({
       )}
     </div>
   );
+}
+
+function SourcePickerSection({
+  query,
+  value,
+  onChange,
+}: {
+  query: ReturnType<typeof useSourceCandidates>;
+  value: SourceSelection;
+  onChange: (next: SourceSelection) => void;
+}) {
+  if (query.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-stone-400 dark:text-stone-600">
+        <Spinner />
+        {STRINGS.sourcesLoading}
+      </div>
+    );
+  }
+  if (!query.data) {
+    return (
+      <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+        {STRINGS.sourcesError}
+      </p>
+    );
+  }
+  return <SourcePicker candidates={query.data} value={value} onChange={onChange} />;
 }
 
 function DerivedSourcesPreview({

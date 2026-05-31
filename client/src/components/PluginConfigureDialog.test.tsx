@@ -9,6 +9,7 @@ import PluginConfigureDialog from "./PluginConfigureDialog";
 import {
   useTestIntegrationConnection,
   useSaveIntegrationConfig,
+  useSourceCandidates,
 } from "../hooks/useProjectIntegration";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
 import { useDerivedGithubSources } from "../hooks/useDerivedGithubSources";
@@ -20,6 +21,8 @@ import {
 vi.mock("../hooks/useProjectIntegration", () => ({
   useTestIntegrationConnection: vi.fn(),
   useSaveIntegrationConfig: vi.fn(),
+  useSourceCandidates: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useSaveIntegrationSources: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 vi.mock("../hooks/useIntegrationFields", () => ({
@@ -83,6 +86,7 @@ const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
 const mockedUseFields = vi.mocked(useIntegrationFields);
 const mockedUseSaveFields = vi.mocked(useSaveIntegrationFields);
 const mockedUseDerivedSources = vi.mocked(useDerivedGithubSources);
+const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
 
 function inputIn(testId: string): HTMLInputElement {
   const wrapper = screen.getByTestId(testId);
@@ -215,6 +219,52 @@ describe("PluginConfigureDialog", () => {
     expect(header).toBeInTheDocument();
     const pill = screen.getByTestId("connection-status-pill");
     expect(pill).toHaveAttribute("data-state", "connected");
+  });
+
+  it("renders the declarative source picker for a non-GitHub plugin when connected (FR-019)", () => {
+    installMocks({ test: vi.fn(), save: vi.fn() });
+    mockedUseSourceCandidates.mockReturnValue({
+      data: {
+        shape: "categorized-multi-list",
+        categories: [
+          { id: "boards", label: "Boards", items: [{ externalId: "999", label: "PROJ Board" }] },
+          { id: "epics", label: "Epics", items: [] },
+          { id: "filters", label: "Filters", items: [] },
+        ],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSourceCandidates>);
+
+    const jira: Plugin = {
+      id: "jira-self-hosted",
+      installed: true,
+      status: "enabled",
+      manifest: {
+        name: "Self-hosted Jira",
+        configSchema: {
+          type: "object",
+          properties: { instance: { type: "string", title: "Instance URL" } },
+        },
+        permissions: {
+          network: { hosts: ["**"] },
+          credentials: { slots: [] },
+          filesystem: { paths: [] },
+          processes: false,
+        },
+      },
+    };
+
+    renderDialog({ plugin: jira, effective: { plugin: "jira-self-hosted" } as IntegrationConfig });
+
+    expect(screen.getByTestId("source-picker")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Boards/ })).toBeInTheDocument();
+  });
+
+  it("does not render the source picker for the GitHub family (uses derived sources)", () => {
+    installMocks({ test: vi.fn(), save: vi.fn() });
+    // makePlugin() defaults to the GHE plugin, which derives sources from the repo.
+    renderDialog();
+    expect(screen.queryByTestId("source-picker")).not.toBeInTheDocument();
   });
 
   it("hides the form body and the Verify button when an OAuth plugin is not connected", () => {

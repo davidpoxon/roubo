@@ -33,6 +33,11 @@ configSchema:
       type: string
       title: '"is blocked by" link-type name'
       default: is blocked by
+    allowSelfSignedTls:
+      type: boolean
+      title: Allow self-signed TLS
+      default: false
+      description: Trust self-signed or internal-CA certificates for this instance. Only enable for an on-prem Jira whose certificate you trust; it disables certificate verification for every request to this instance.
 defaultIntegrationConfig:
   excludedStatuses:
     - Closed
@@ -41,6 +46,10 @@ defaultIntegrationConfig:
     - In Review
 permissions:
   network:
+    # The Jira instance host is user-supplied (configured per project), so the
+    # static manifest cannot name a concrete host. The plugin re-asserts that
+    # every request stays on the configured instance host in
+    # `src/jira-client.ts`; host-level enforcement is tracked in #338.
     hosts:
       - "**"
   credentials:
