@@ -210,6 +210,23 @@ describe("BenchesTab", () => {
     expect(screen.getByRole("button", { name: "Set up bench" })).toBeInTheDocument();
   });
 
+  it("omits the global bench meter when no cap is set", () => {
+    renderTab(makeContext());
+    expect(screen.queryByLabelText(/^Global benches:/)).not.toBeInTheDocument();
+  });
+
+  it("renders the global bench meter in the header when a cap is set", () => {
+    mockUseGlobalCap.mockReturnValue({
+      current: 1,
+      max: 2,
+      isCapped: true,
+      isAtCap: false,
+      isOverCap: false,
+    });
+    renderTab(makeContext());
+    expect(screen.getByLabelText("Global benches: 1 of 2")).toBeInTheDocument();
+  });
+
   it("calls openCreateBench when Set up bench button is clicked", async () => {
     const openCreateBench = vi.fn();
     renderTab(makeContext({ openCreateBench }));
