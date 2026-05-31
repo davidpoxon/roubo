@@ -119,16 +119,50 @@ describe("classifyGitHubError", () => {
     expect(r.params.owner).toBe("acme");
   });
 
+  it("rule 7: HTTP 404 + 'organization not found' → OWNER_NOT_FOUND", () => {
+    const r = classifyGitHubError(makeHttpError(404, "Organization not found"), { owner: "acme" });
+    expect(r.code).toBe("OWNER_NOT_FOUND");
+    expect(r.statusCode).toBe(404);
+  });
+
+  it("rule 7: HTTP 404 + unrelated message → UNKNOWN (not OWNER_NOT_FOUND)", () => {
+    const r = classifyGitHubError(makeHttpError(404, "Something went wrong"));
+    expect(r.code).toBe("UNKNOWN");
+  });
+
   it("rule 7: HTTP 404 with long adversarial message resolves quickly (no ReDoS)", () => {
     // Pre-fix, the owner-not-found regex (`organization.*not found`) ran in
     // polynomial time on strings full of "organization" with no "not found"
-    // (CodeQL js/polynomial-redos, alert #173). Substring checks are linear.
+    // (CodeQL js/polynomial-redos). Substring checks are linear. A generous bound
+    // avoids CI flakiness while still failing loudly if the regex is ever reintroduced.
     const malicious = "organization".repeat(100_000);
     const start = Date.now();
     const r = classifyGitHubError(makeHttpError(404, malicious));
     const elapsed = Date.now() - start;
     expect(r.code).toBe("UNKNOWN");
     expect(elapsed).toBeLessThan(1000);
+  });
+
+  it("fallback: plain Error 'Organization not found' → OWNER_NOT_FOUND", () => {
+    const r = classifyGitHubError(new Error("Organization not found"), { owner: "acme" });
+    expect(r.code).toBe("OWNER_NOT_FOUND");
+    expect(r.params.owner).toBe("acme");
+    expect(r.statusCode).toBe(404);
+  });
+
+  it("fallback: plain Error 'User not found' → OWNER_NOT_FOUND", () => {
+    const r = classifyGitHubError(new Error("User not found"));
+    expect(r.code).toBe("OWNER_NOT_FOUND");
+  });
+
+  it("fallback: owner-not-found match is case-insensitive", () => {
+    const r = classifyGitHubError(new Error("USER NOT FOUND"));
+    expect(r.code).toBe("OWNER_NOT_FOUND");
+  });
+
+  it("fallback: 'could not resolve' anywhere → OWNER_NOT_FOUND", () => {
+    const r = classifyGitHubError(new Error("the server Could Not Resolve the request"));
+    expect(r.code).toBe("OWNER_NOT_FOUND");
   });
 
   it("rule 8: node ENOTFOUND → NETWORK", () => {
