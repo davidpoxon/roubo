@@ -6,6 +6,7 @@ import CreateBenchModal from "./CreateBenchModal";
 
 vi.mock("../hooks/useProjects");
 vi.mock("../hooks/useBenches");
+vi.mock("../hooks/useGlobalCap");
 vi.mock("./Select", () => ({
   default: ({
     items,
@@ -35,9 +36,20 @@ vi.mock("./Select", () => ({
 
 import { useProjects } from "../hooks/useProjects";
 import { useCreateBench } from "../hooks/useBenches";
+import { useGlobalCap } from "../hooks/useGlobalCap";
+import type { GlobalCapState } from "../hooks/useGlobalCap";
 
 const mockUseProjects = vi.mocked(useProjects);
 const mockUseCreateBench = vi.mocked(useCreateBench);
+const mockUseGlobalCap = vi.mocked(useGlobalCap);
+
+const UNCAPPED: GlobalCapState = {
+  current: 0,
+  max: null,
+  isCapped: false,
+  isAtCap: false,
+  isOverCap: false,
+};
 
 const validProject = {
   id: "proj-1",
@@ -57,6 +69,7 @@ beforeEach(() => {
     typeof useProjects
   >);
   mockUseCreateBench.mockReturnValue(makeCreateMock());
+  mockUseGlobalCap.mockReturnValue(UNCAPPED);
 });
 
 describe("CreateBenchModal", () => {
@@ -121,6 +134,33 @@ describe("CreateBenchModal", () => {
   it("does not focus the branch input when no projectId is provided", () => {
     render(<CreateBenchModal isOpen onClose={vi.fn()} />);
     expect(screen.getByPlaceholderText(/leave empty/i)).not.toHaveFocus();
+  });
+
+  it("disables the confirm button when at the global cap", () => {
+    mockUseGlobalCap.mockReturnValue({
+      current: 2,
+      max: 2,
+      isCapped: true,
+      isAtCap: true,
+      isOverCap: false,
+    });
+    render(<CreateBenchModal isOpen onClose={vi.fn()} projectId="proj-1" />);
+    expect(screen.getByRole("button", { name: /^set up$/i })).toBeDisabled();
+  });
+
+  it("surfaces a server 409 cap message via the existing setError flow without crashing", async () => {
+    // Stale client: the cap is not yet reflected locally, so the button is enabled
+    // and the user can submit. The server rejects with 409 and the modal renders it.
+    const mutate = vi.fn((_args, callbacks) =>
+      callbacks.onError(new Error("Global bench limit reached. 2 of 2 benches in use.")),
+    );
+    mockUseCreateBench.mockReturnValue(makeCreateMock({ mutate }));
+    render(<CreateBenchModal isOpen onClose={vi.fn()} projectId="proj-1" />);
+    await userEvent.click(screen.getByRole("button", { name: /^set up$/i }));
+    expect(
+      screen.getByText("Global bench limit reached. 2 of 2 benches in use."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /set up bench/i })).toBeInTheDocument();
   });
 
   it("replaces spaces with hyphens in branch input", async () => {
