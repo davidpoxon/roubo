@@ -73,6 +73,15 @@ vi.mock("@dnd-kit/core", () => ({
 }));
 vi.mock("../hooks/useProjects");
 vi.mock("../hooks/useBenches");
+vi.mock("../hooks/useGlobalCap", () => ({
+  useGlobalCap: vi.fn(() => ({
+    current: 0,
+    max: null,
+    isCapped: false,
+    isAtCap: false,
+    isOverCap: false,
+  })),
+}));
 vi.mock("../hooks/useToast");
 vi.mock("../hooks/useJigs", () => ({
   useJigs: vi.fn(() => ({ data: [], isLoading: false })),
