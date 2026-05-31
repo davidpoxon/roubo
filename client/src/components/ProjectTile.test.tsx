@@ -18,7 +18,7 @@ function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProj
     repoPath: "/repos/my-app",
     configValid: true,
     config: {
-      project: { name: "my-app", displayName: "My App", type: "web", repo: "" },
+      project: { name: "my-app", displayName: "My App", repo: "" },
       layout: { type: "single-repo" },
       components: {},
       ports: {},

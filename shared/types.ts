@@ -793,11 +793,8 @@ export interface RepoScanResult {
     solutionFiles: string[];
     viteProjects: string[];
     envFiles: string[];
-    webFrameworks: string[];
-    nativeFrameworks: string[];
     suggestedName: string;
     suggestedRepo: string | null;
-    suggestedProjectType: "web" | "native" | "api-only" | null;
     suggestedComponents: SuggestedComponent[];
     suggestedTools: SuggestedTool[];
   };
@@ -845,7 +842,6 @@ export interface CheckConfigRequest {
 export interface CheckConfigPreview {
   name: string;
   displayName: string;
-  type: "web" | "native" | "api-only";
   ports: { name: string; base: number }[];
   benchCap: number;
 }

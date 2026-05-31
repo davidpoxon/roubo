@@ -28,7 +28,6 @@ function YamlPreview({ config }: { config: RouboConfig }) {
   return (
     <pre className="text-[11px] font-mono leading-relaxed bg-stone-50 dark:bg-stone-950/50 rounded-md p-3 overflow-hidden">
       <YamlPreviewLine label="name" value={config.project.name} />
-      <YamlPreviewLine label="type" value={config.project.type} />
       <span className="text-stone-400 dark:text-stone-500">{"components:\n"}</span>
       {shownKeys.map((k) => (
         <span key={k}>{`  ${k}\n`}</span>

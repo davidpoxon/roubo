@@ -54,7 +54,7 @@ function makeMutationMock(overrides: Record<string, unknown> = {}) {
 
 function makeScan(
   overrides: {
-    suggestedProjectType?: "web" | "native" | "api-only" | null;
+    suggestedName?: string;
   } = {},
 ) {
   return {
@@ -70,11 +70,8 @@ function makeScan(
       solutionFiles: [],
       viteProjects: [],
       envFiles: [],
-      webFrameworks: [],
-      nativeFrameworks: [],
-      suggestedName: "test-repo",
+      suggestedName: overrides.suggestedName ?? "test-repo",
       suggestedRepo: "acme/test-repo",
-      suggestedProjectType: overrides.suggestedProjectType ?? null,
       suggestedComponents: [],
       suggestedTools: [],
     },
@@ -269,9 +266,9 @@ describe("EmbeddedGuidedSetup", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
-  it("disables save when the scan can't infer a required project.type", () => {
+  it("disables save when the scan supplies a name that fails validation", () => {
     mockUseScanRepo.mockReturnValue({
-      data: makeScan({ suggestedProjectType: null }),
+      data: makeScan({ suggestedName: "Invalid Name!" }),
       isLoading: false,
     } as never);
     const onReady = vi.fn();
@@ -284,7 +281,7 @@ describe("EmbeddedGuidedSetup", () => {
 
   it("enables save once the scan supplies every required field", () => {
     mockUseScanRepo.mockReturnValue({
-      data: makeScan({ suggestedProjectType: "web" }),
+      data: makeScan(),
       isLoading: false,
     } as never);
     const onReady = vi.fn();
@@ -310,11 +307,16 @@ describe("EmbeddedGuidedSetup", () => {
     const saveCallbacks = saveMutate.mock.calls[0][1] as {
       onError: (err: Error) => void;
     };
-    const apiErr = new ApiError("Invalid config: project.type needs attention", 400, undefined, {
-      error: "Invalid config: project.type needs attention",
-      errors: [{ path: "project.type", message: "Required" }],
-      details: [],
-    });
+    const apiErr = new ApiError(
+      "Invalid config: project.displayName needs attention",
+      400,
+      undefined,
+      {
+        error: "Invalid config: project.displayName needs attention",
+        errors: [{ path: "project.displayName", message: "Required" }],
+        details: [],
+      },
+    );
     act(() => {
       saveCallbacks.onError(apiErr);
     });

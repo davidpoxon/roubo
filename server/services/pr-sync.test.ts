@@ -41,7 +41,7 @@ function makeBench(overrides: Partial<Bench> = {}): Bench {
 
 function makeProject(): RegisteredProject {
   const config: RouboConfig = {
-    project: { name: "proj", displayName: "Proj", type: "web", repo: "owner/repo" },
+    project: { name: "proj", displayName: "Proj", repo: "owner/repo" },
     layout: { type: "meta-repo" },
     components: {},
     ports: {},

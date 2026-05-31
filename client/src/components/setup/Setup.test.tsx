@@ -120,7 +120,6 @@ describe("Setup", () => {
         project: {
           name: "my-app",
           displayName: "My App",
-          type: "web",
           repo: "org/r",
         },
         layout: { type: "single-repo" },
@@ -199,7 +198,6 @@ describe("Setup", () => {
         project: {
           name: "my-app",
           displayName: "My App",
-          type: "web",
           repo: "org/r",
         },
         layout: { type: "single-repo" },

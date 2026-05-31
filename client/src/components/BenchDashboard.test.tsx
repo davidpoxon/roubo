@@ -352,7 +352,6 @@ function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProj
       project: {
         displayName: "My Project",
         name: "my-project",
-        type: "web",
         repo: "",
       },
       layout: { type: "single-repo" },
@@ -581,7 +580,6 @@ describe("BenchDashboard", () => {
           project: {
             displayName: "My Project",
             name: "my-project",
-            type: "web",
             repo: "https://github.com/org/repo",
           },
         } as RegisteredProject["config"],
@@ -959,7 +957,6 @@ describe("BenchDashboard", () => {
               project: {
                 displayName: "My Project",
                 name: "my-project",
-                type: "web",
                 repo: "https://github.com/org/repo",
               },
             } as RegisteredProject["config"],
@@ -1000,7 +997,6 @@ describe("BenchDashboard", () => {
           project: {
             displayName: `Project ${id}`,
             name: id,
-            type: "web",
             repo: "",
             github: { project: 1 },
           },
@@ -1101,7 +1097,6 @@ describe("BenchDashboard", () => {
           project: {
             displayName: "My Project",
             name: "my-project",
-            type: "web",
             repo: "https://github.com/org/repo",
           },
         } as RegisteredProject["config"],

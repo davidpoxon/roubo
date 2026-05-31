@@ -131,7 +131,6 @@ describe("assignIssue", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },
@@ -346,7 +345,6 @@ describe("assignIssue", () => {
         project: {
           name: "no-repo",
           displayName: "No Repo",
-          type: "web",
           repo: "",
         },
         layout: { type: "single-repo" },
@@ -790,7 +788,6 @@ describe("createBenchAndAssignIssue", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },
@@ -1418,7 +1415,6 @@ describe("default jig hierarchy injection", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },
@@ -1636,7 +1632,6 @@ describe("issue-type-to-jig mapping resolution", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },
@@ -1794,7 +1789,6 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },
@@ -1918,7 +1912,6 @@ describe("createBenchAndAssignAlert", () => {
       project: {
         name: "project",
         displayName: "My Project",
-        type: "web" as const,
         repo: "org/repo",
       },
       layout: { type: "single-repo" as const },

@@ -5,7 +5,7 @@ import SetupValidationPanel from "./SetupValidationPanel";
 import type { RouboConfig } from "@roubo/shared";
 
 const validConfig: Partial<RouboConfig> = {
-  project: { name: "test", displayName: "Test", type: "web", repo: "org/test" },
+  project: { name: "test", displayName: "Test", repo: "org/test" },
   layout: { type: "single-repo" },
   benches: { max: 5 },
   ports: { frontend: { base: 3000 } },

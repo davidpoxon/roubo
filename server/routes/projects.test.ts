@@ -189,7 +189,6 @@ describe("POST /check-config", () => {
         project: {
           name: "test-project",
           displayName: "Test Project",
-          type: "web",
         },
         ports: {},
         benches: { max: 3 },
@@ -210,7 +209,7 @@ describe("POST /check-config", () => {
     vi.mocked(parseConfig).mockReturnValue({
       valid: true,
       config: {
-        project: { name: "atlas", displayName: "Atlas", type: "web" },
+        project: { name: "atlas", displayName: "Atlas" },
         ports: {
           server: { base: 5300 },
           client: { base: 5301 },
@@ -225,7 +224,6 @@ describe("POST /check-config", () => {
     expect(res.body.preview).toEqual({
       name: "atlas",
       displayName: "Atlas",
-      type: "web",
       ports: [
         { name: "server", base: 5300 },
         { name: "client", base: 5301 },
@@ -393,16 +391,16 @@ describe("POST /save-config", () => {
   it("names every failing field in the top-level message", async () => {
     vi.mocked(validateConfigObject).mockReturnValue({
       valid: false,
-      errors: ["project.type: Invalid input", "layout.type: Invalid input"],
+      errors: ["project.displayName: Invalid input", "layout.type: Invalid input"],
       fieldErrors: [
-        { path: "project.type", message: "Invalid input" },
+        { path: "project.displayName", message: "Invalid input" },
         { path: "layout.type", message: "Invalid input" },
       ],
     } as any);
 
     const res = await request(app).post("/save-config").send({ repoPath: "/repo", config: {} });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Invalid config: project.type, layout.type need attention");
+    expect(res.body.error).toBe("Invalid config: project.displayName, layout.type need attention");
   });
 
   it("falls back to the generic message when there are no field-level errors", async () => {
@@ -995,7 +993,6 @@ describe("GET /:projectId/integration/fields", () => {
         project: {
           name: "x",
           displayName: "X",
-          type: "web",
           repo: "acme/x",
           github: { project: 9 },
         },
@@ -1036,7 +1033,7 @@ describe("PUT /:projectId/integration/fields", () => {
       id: "test",
       repoPath: "/repo",
       config: {
-        project: { name: "x", displayName: "X", type: "web", repo: "acme/old" },
+        project: { name: "x", displayName: "X", repo: "acme/old" },
         layout: { type: "single-repo" },
         components: {},
         benches: { max: 5 },
@@ -1061,7 +1058,7 @@ describe("PUT /:projectId/integration/fields", () => {
       id: "test",
       repoPath: "/repo",
       config: {
-        project: { name: "x", displayName: "X", type: "web", repo: "acme/old" },
+        project: { name: "x", displayName: "X", repo: "acme/old" },
         layout: { type: "single-repo" },
         components: {},
         benches: { max: 5 },
@@ -1093,7 +1090,7 @@ describe("PUT /:projectId/integration/fields", () => {
       id: "test",
       repoPath: "/repo",
       config: {
-        project: { name: "x", displayName: "X", type: "web" },
+        project: { name: "x", displayName: "X" },
         layout: { type: "single-repo" },
         components: {},
         benches: { max: 5 },
@@ -1112,7 +1109,7 @@ describe("PUT /:projectId/integration/fields", () => {
       id: "test",
       repoPath: "/repo",
       config: {
-        project: { name: "x", displayName: "X", type: "web" },
+        project: { name: "x", displayName: "X" },
         layout: { type: "single-repo" },
         components: {},
         benches: { max: 5 },
@@ -1186,7 +1183,6 @@ describe("PUT /:projectId/config/raw deprecation shim (WU-057)", () => {
     "project:",
     '  name: "x"',
     '  displayName: "X"',
-    '  type: "web"',
     '  repo: "acme/x"',
     "layout:",
     '  type: "single-repo"',

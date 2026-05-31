@@ -44,6 +44,7 @@ export function parseConfig(repoPath: string): ParseResult {
   }
 
   coerceEnvValues(raw);
+  stripRemovedProjectType(raw);
   const legacyError = detectLegacyJigKeys(raw);
   if (legacyError) {
     return { valid: false, errors: [legacyError] };
@@ -52,11 +53,26 @@ export function parseConfig(repoPath: string): ParseResult {
 }
 
 export function validateConfigObject(config: unknown): ParseResult {
+  stripRemovedProjectType(config);
   const legacyError = detectLegacyJigKeys(config);
   if (legacyError) {
     return { valid: false, errors: [legacyError] };
   }
   return toParseResult(RouboConfigSchema.safeParse(config));
+}
+
+/**
+ * `project.type` (web/native/api-only) was removed: it never drove behaviour.
+ * Existing roubo.yaml files still carry it, and the strict schema would reject
+ * the now-unknown key, so silently drop it before validation. No user action
+ * is required; this is intentionally a quiet strip rather than a hard error.
+ */
+function stripRemovedProjectType(raw: unknown): void {
+  if (!raw || typeof raw !== "object") return;
+  const project = (raw as Record<string, unknown>).project;
+  if (project && typeof project === "object" && "type" in project) {
+    delete (project as Record<string, unknown>).type;
+  }
 }
 
 /**

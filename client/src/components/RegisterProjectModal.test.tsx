@@ -128,7 +128,6 @@ describe("RegisterProjectModal", () => {
       preview: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         ports: [
           { name: "server", base: 5300 },
           { name: "client", base: 5301 },
@@ -151,7 +150,6 @@ describe("RegisterProjectModal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("My App")).toBeInTheDocument();
-    expect(screen.getByText("web")).toBeInTheDocument();
     expect(screen.getByText("Port · server")).toBeInTheDocument();
     expect(screen.getByText("5300")).toBeInTheDocument();
     expect(screen.getByText("Port · client")).toBeInTheDocument();
@@ -169,7 +167,6 @@ describe("RegisterProjectModal", () => {
       preview: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         ports: [],
         benchCap: 3,
       },
@@ -365,7 +362,6 @@ describe("RegisterProjectModal", () => {
       preview: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         ports: [],
         benchCap: 3,
       },
@@ -399,7 +395,6 @@ describe("RegisterProjectModal", () => {
       preview: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         ports: [],
         benchCap: 3,
       },
@@ -440,7 +435,6 @@ describe("RegisterProjectModal", () => {
       preview: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         ports: [],
         benchCap: 3,
       },

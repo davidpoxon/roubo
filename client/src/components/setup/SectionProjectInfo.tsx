@@ -17,13 +17,12 @@ interface Props {
 }
 
 const NAME_PATTERN = /^[a-z0-9-]+$/;
-const PROJECT_TYPES = ["web", "native", "api-only"] as const;
 const STRUCTURE_TYPES = ["meta-repo", "monorepo", "single-repo"] as const;
 
 // FR-070 (WU-057): Repository, Linked GitHub Project, and Submodules moved out
 // of this Identity step into the plugin Configure modal. This section now only
-// edits Roubo-shaped fields (name, type, layout) plus the detected default
-// branch; GitHub-shaped config is owned by the active plugin's tab.
+// edits Roubo-shaped fields (name, displayName, layout) plus the detected
+// default branch; GitHub-shaped config is owned by the active plugin's tab.
 export default function SectionProjectInfo({
   project,
   layout,
@@ -59,7 +58,6 @@ export default function SectionProjectInfo({
       ? "Lowercase letters, numbers, and hyphens only"
       : validationErrors["project.name"];
   const displayNameError = validationErrors["project.displayName"];
-  const typeError = validationErrors["project.type"];
   const layoutTypeError = validationErrors["layout.type"];
 
   return (
@@ -86,32 +84,6 @@ export default function SectionProjectInfo({
         <Input placeholder="My Project" className={INPUT} />
         {displayNameError && <p className="mt-1 text-[11px] text-red-400">{displayNameError}</p>}
       </TextField>
-
-      <div>
-        <Label className="block text-xs text-stone-500 mb-1.5">Project type</Label>
-        <div role="group" aria-label="Project type" className="flex gap-1">
-          {PROJECT_TYPES.map((t) => (
-            <Button
-              key={t}
-              onPress={() => update({ type: t })}
-              className={`px-3 py-1.5 text-xs rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
-                project.type === t
-                  ? "bg-stone-700 text-stone-100"
-                  : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
-              }`}
-            >
-              {t}
-            </Button>
-          ))}
-        </div>
-        {typeError ? (
-          <p className="mt-1 text-[11px] text-red-400">
-            Project type is required: choose one above
-          </p>
-        ) : (
-          scanResult && <ProjectTypeHint scanResult={scanResult} selectedType={project.type} />
-        )}
-      </div>
 
       <div>
         <Label className="block text-xs text-stone-500 mb-1.5">Repository structure</Label>
@@ -176,31 +148,4 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
       )}
     </div>
   );
-}
-
-function ProjectTypeHint({
-  scanResult,
-  selectedType,
-}: {
-  scanResult: RepoScanResult;
-  selectedType?: string;
-}) {
-  const { suggestedProjectType, webFrameworks, nativeFrameworks } = scanResult.detected;
-  if (suggestedProjectType && selectedType === suggestedProjectType) {
-    const evidence = [...nativeFrameworks, ...webFrameworks];
-    const evidenceText = evidence.length > 0 ? ` (found ${evidence.join(", ")})` : "";
-    return (
-      <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-600">
-        Auto-detected{evidenceText}
-      </p>
-    );
-  }
-  if (suggestedProjectType === null) {
-    return (
-      <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-600">
-        Could not auto-detect type
-      </p>
-    );
-  }
-  return null;
 }

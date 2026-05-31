@@ -92,7 +92,7 @@ function makeBench(overrides: Partial<Bench> = {}): Bench {
 
 function makeConfig(): RouboConfig {
   return {
-    project: { name: "proj-1", displayName: "Project 1", type: "web" },
+    project: { name: "proj-1", displayName: "Project 1" },
     layout: { type: "single-repo" },
     components: {},
     ports: {},

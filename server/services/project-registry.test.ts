@@ -409,7 +409,7 @@ describe("getProjects", () => {
     mockedParseConfig.mockReturnValue({
       valid: true,
       config: makeConfig({
-        project: { name: "a", displayName: "A", type: "web", repo: "org/a" },
+        project: { name: "a", displayName: "A", repo: "org/a" },
       }),
     });
     registryModule.registerProject("/repos/a");
@@ -417,7 +417,7 @@ describe("getProjects", () => {
     mockedParseConfig.mockReturnValue({
       valid: true,
       config: makeConfig({
-        project: { name: "b", displayName: "B", type: "web", repo: "org/b" },
+        project: { name: "b", displayName: "B", repo: "org/b" },
       }),
     });
     registryModule.registerProject("/repos/b");
@@ -477,7 +477,6 @@ describe("checkPortConflictsForConfig", () => {
       project: {
         name: "new-project",
         displayName: "New",
-        type: "web",
         repo: "org/new",
       },
       ports: { web: { base: 5000 } },

@@ -70,7 +70,6 @@ const validConfig: Partial<RouboConfig> = {
   project: {
     name: "test",
     displayName: "Test",
-    type: "web",
     repo: "org/test",
   },
   layout: { type: "single-repo" },
@@ -338,7 +337,7 @@ describe("SetupGuided", () => {
   it("shows a validation summary banner when embedded with validation errors", () => {
     const state: WizardState = {
       ...makeState(validConfig),
-      validationErrors: { "project.type": "Required" },
+      validationErrors: { "project.displayName": "Required" },
     };
     renderInRouter(<SetupGuided {...defaultProps} embedded state={state} dispatch={vi.fn()} />);
     expect(screen.getByText(/1 field needs attention/i)).toBeInTheDocument();
@@ -347,7 +346,7 @@ describe("SetupGuided", () => {
   it("hides the embedded summary banner once a server saveError is shown", () => {
     const state: WizardState = {
       ...makeState(validConfig),
-      validationErrors: { "project.type": "Required" },
+      validationErrors: { "project.displayName": "Required" },
     };
     renderInRouter(
       <SetupGuided

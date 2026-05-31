@@ -61,10 +61,10 @@ export function validateSection(
     case "project": {
       // FR-070 (WU-057): `repo` lives in the plugin Configure modal now, not
       // this Identity step, so it is no longer part of the section's validity
-      // gate. Name + displayName + type remain required.
+      // gate. Name + displayName remain required.
       const p = config.project;
-      if (!p?.name && !p?.displayName && !p?.type) return undefined;
-      return p?.name && NAME_PATTERN.test(p.name) && p.displayName && p.type ? "valid" : "invalid";
+      if (!p?.name && !p?.displayName) return undefined;
+      return p?.name && NAME_PATTERN.test(p.name) && p.displayName ? "valid" : "invalid";
     }
     case "layout": {
       // FR-070 (WU-057): `submodules` is edited inside the plugin Configure
@@ -435,12 +435,6 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         config.project = {
           ...config.project,
           repo: scan.detected.suggestedRepo,
-        } as ProjectConfig;
-      }
-      if (!config.project?.type && scan.detected.suggestedProjectType) {
-        config.project = {
-          ...config.project,
-          type: scan.detected.suggestedProjectType,
         } as ProjectConfig;
       }
       if (!config.layout?.type) {

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RepoScanResult } from "@roubo/shared";
 import { makeConfig, makeDirent } from "../test/fixtures.js";
 
 // ── Mocks ──
@@ -33,7 +32,7 @@ import fs from "node:fs";
 import { readdir, readFile, access } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { parseConfig } from "./config-parser.js";
-import { scanRepo, inferProjectType, extractPortVar, extractComposeVars } from "./repo-scanner.js";
+import { scanRepo, extractPortVar, extractComposeVars } from "./repo-scanner.js";
 
 const mockedExistsSync = vi.mocked(fs.existsSync);
 const mockedReadFileSync = vi.mocked(fs.readFileSync);
@@ -42,74 +41,6 @@ const mockedReadFile = vi.mocked(readFile);
 const mockedAccess = vi.mocked(access);
 const mockedExecFile = vi.mocked(execFile);
 const mockedParseConfig = vi.mocked(parseConfig);
-
-// ── inferProjectType ──
-
-describe("inferProjectType", () => {
-  function makeDetected(
-    overrides: Partial<RepoScanResult["detected"]> = {},
-  ): RepoScanResult["detected"] {
-    return {
-      hasGit: false,
-      submodules: {},
-      structureType: "single-repo",
-      dockerComposeFiles: [],
-      dockerComposeServiceNames: {},
-      dockerComposePortVars: {},
-      dotnetProjects: [],
-      solutionFiles: [],
-      viteProjects: [],
-      envFiles: [],
-      webFrameworks: [],
-      nativeFrameworks: [],
-      suggestedName: "test",
-      suggestedRepo: null,
-      suggestedProjectType: null,
-      suggestedComponents: [],
-      suggestedTools: [],
-      ...overrides,
-    };
-  }
-
-  it("returns null when all detection arrays are empty", () => {
-    expect(inferProjectType(makeDetected())).toBe(null);
-  });
-
-  it("returns native when nativeFrameworks is non-empty (highest priority)", () => {
-    expect(
-      inferProjectType(
-        makeDetected({
-          nativeFrameworks: ["react-native"],
-          webFrameworks: ["vite"],
-          dotnetProjects: ["src/Api/Api.csproj"],
-        }),
-      ),
-    ).toBe("native");
-  });
-
-  it("returns web when webFrameworks non-empty but no native", () => {
-    expect(
-      inferProjectType(
-        makeDetected({
-          webFrameworks: ["next"],
-          dotnetProjects: ["src/Api/Api.csproj"],
-        }),
-      ),
-    ).toBe("web");
-  });
-
-  it("returns api-only when dotnetProjects present, no web or native", () => {
-    expect(inferProjectType(makeDetected({ dotnetProjects: ["src/Api/Api.csproj"] }))).toBe(
-      "api-only",
-    );
-  });
-
-  it("returns api-only when dockerComposeFiles present, no web or native", () => {
-    expect(inferProjectType(makeDetected({ dockerComposeFiles: ["docker-compose.yml"] }))).toBe(
-      "api-only",
-    );
-  });
-});
 
 // ── scanRepo ──
 
@@ -256,43 +187,6 @@ describe("scanRepo", () => {
     expect(result.detected.suggestedRepo).toBeNull();
   });
 
-  // ── collectFrameworkSignals via root package.json ──
-
-  it("collects web framework signals from root package.json", async () => {
-    mockedExistsSync.mockImplementation((p: unknown) => {
-      const s = String(p);
-      return s.endsWith("package.json");
-    });
-    mockedReadFileSync.mockReturnValue(
-      JSON.stringify({
-        dependencies: { vite: "5.0.0", next: "14.0.0" },
-        devDependencies: { "@angular/core": "17.0.0" },
-      }) as any,
-    );
-
-    const result = await scanRepo("/repos/web-app");
-    expect(result.detected.webFrameworks).toContain("vite");
-    expect(result.detected.webFrameworks).toContain("next");
-    expect(result.detected.webFrameworks).toContain("@angular/core");
-  });
-
-  it("collects native framework signals from root package.json", async () => {
-    mockedExistsSync.mockImplementation((p: unknown) => {
-      const s = String(p);
-      return s.endsWith("package.json");
-    });
-    mockedReadFileSync.mockReturnValue(
-      JSON.stringify({
-        dependencies: { "react-native": "0.73.0", expo: "49.0.0" },
-      }) as any,
-    );
-
-    const result = await scanRepo("/repos/native-app");
-    expect(result.detected.nativeFrameworks).toContain("react-native");
-    expect(result.detected.nativeFrameworks).toContain("expo");
-    expect(result.detected.suggestedProjectType).toBe("native");
-  });
-
   it("handles invalid root package.json gracefully", async () => {
     mockedExistsSync.mockImplementation((p: unknown) => {
       const s = String(p);
@@ -302,10 +196,9 @@ describe("scanRepo", () => {
 
     const result = await scanRepo("/repos/bad-pkg");
     expect(result.detected.structureType).toBe("single-repo");
-    expect(result.detected.webFrameworks).toEqual([]);
   });
 
-  // ── walk: .sln files, .env files, pubspec.yaml ──
+  // ── walk: .sln files, .env files ──
 
   it("detects .sln files during walk", async () => {
     mockedReaddir.mockImplementation(async (dir: any) => {
@@ -336,34 +229,6 @@ describe("scanRepo", () => {
     expect(result.detected.envFiles).toContain(".env");
     expect(result.detected.envFiles).toContain(".env.local");
     expect(result.detected.envFiles).toContain(".env.production");
-  });
-
-  it("detects pubspec.yaml and adds flutter to nativeFrameworks", async () => {
-    mockedReaddir.mockImplementation(async (dir: any) => {
-      if (dir.toString() === "/repos/flutter-app") {
-        return [makeDirent("pubspec.yaml", true)] as any;
-      }
-      return [];
-    });
-
-    const result = await scanRepo("/repos/flutter-app");
-    expect(result.detected.nativeFrameworks).toContain("flutter");
-  });
-
-  it("does not duplicate flutter when pubspec.yaml found at multiple levels", async () => {
-    mockedReaddir.mockImplementation(async (dir: any) => {
-      const dirStr = dir.toString();
-      if (dirStr === "/repos/flutter-mono") {
-        return [makeDirent("pubspec.yaml", true), makeDirent("packages", false)] as any;
-      }
-      if (dirStr === "/repos/flutter-mono/packages") {
-        return [makeDirent("pubspec.yaml", true)] as any;
-      }
-      return [];
-    });
-
-    const result = await scanRepo("/repos/flutter-mono");
-    expect(result.detected.nativeFrameworks.filter((f) => f === "flutter")).toHaveLength(1);
   });
 
   it("detects docker-compose.yaml (alternate extension)", async () => {
@@ -406,44 +271,6 @@ describe("scanRepo", () => {
 
     const result = await scanRepo("/repos/mono-vite");
     expect(result.detected.viteProjects).toContain("client");
-    expect(result.detected.webFrameworks).toContain("vite");
-  });
-
-  it("collects framework signals from subdirectory package.json", async () => {
-    mockedReaddir.mockImplementation(async (dir: any) => {
-      const dirStr = dir.toString();
-      if (dirStr === "/repos/multi-pkg") {
-        return [makeDirent("web", false), makeDirent("mobile", false)] as any;
-      }
-      if (dirStr === "/repos/multi-pkg/web" || dirStr === "/repos/multi-pkg/mobile") {
-        return [] as any;
-      }
-      return [];
-    });
-    mockedAccess.mockImplementation(async (p: any) => {
-      const pStr = p.toString();
-      if (
-        pStr === "/repos/multi-pkg/web/package.json" ||
-        pStr === "/repos/multi-pkg/mobile/package.json"
-      ) {
-        return undefined as any;
-      }
-      throw new Error("not found");
-    });
-    mockedReadFile.mockImplementation(async (p: any) => {
-      const pStr = p.toString();
-      if (pStr === "/repos/multi-pkg/web/package.json") {
-        return JSON.stringify({ dependencies: { svelte: "4.0.0" } });
-      }
-      if (pStr === "/repos/multi-pkg/mobile/package.json") {
-        return JSON.stringify({ dependencies: { "react-native": "0.73.0" } });
-      }
-      throw new Error("not found");
-    });
-
-    const result = await scanRepo("/repos/multi-pkg");
-    expect(result.detected.webFrameworks).toContain("svelte");
-    expect(result.detected.nativeFrameworks).toContain("react-native");
   });
 
   it("skips directories in SKIP_DIRS set", async () => {
@@ -463,13 +290,13 @@ describe("scanRepo", () => {
       }
       // Only 'src' should be reached
       if (dirStr === "/repos/skip-test/src") {
-        return [makeDirent("pubspec.yaml", true)] as any;
+        return [makeDirent("App.sln", true)] as any;
       }
       return [];
     });
 
     const result = await scanRepo("/repos/skip-test");
-    expect(result.detected.nativeFrameworks).toContain("flutter");
+    expect(result.detected.solutionFiles).toContain("src/App.sln");
   });
 
   it("handles readdir error gracefully in walk", async () => {
@@ -1181,17 +1008,11 @@ describe("scanRepo", () => {
       }
       throw new Error("not found");
     });
-    // Make it a 'web' app type
-    mockedExistsSync.mockImplementation((p: unknown) => {
-      const s = String(p);
-      return s.endsWith("package.json");
-    });
-    mockedReadFileSync.mockReturnValue(JSON.stringify({ dependencies: { vite: "5.0.0" } }) as any);
 
     const result = await scanRepo("/repos/vite-launch");
     const tools = result.detected.suggestedTools;
 
-    // Should have browser tool, VS Code for the service dir, and VS Code root
+    // Should have a browser tool and a VS Code tool for the service dir
     const browserTool = tools.find((l) => l.config.type === "browser");
     if (!browserTool) throw new Error("expected browser tool");
     expect(browserTool.config.name).toBe("Web App");
@@ -1203,11 +1024,6 @@ describe("scanRepo", () => {
     if (!vscodeTool) throw new Error("expected vscode tool");
     expect(vscodeTool.config.name).toBe("VS Code");
     expect(vscodeTool.config.command).toContain("client");
-
-    // Should have VS Code root tool for web apps
-    const vscodeRoot = tools.find((l) => l.source === "vscode:root");
-    if (!vscodeRoot) throw new Error("expected vscode root tool");
-    expect(vscodeRoot.config.name).toBe("VS Code (root)");
   });
 
   it("infers named tools for multiple vite services", async () => {
@@ -1258,8 +1074,7 @@ describe("scanRepo", () => {
     expect(browserTools.some((l) => l.config.name === "Web App (portal)")).toBe(true);
 
     const vscodeTools = tools.filter(
-      (l) =>
-        l.config.type === "shell" && l.source.startsWith("vscode:") && l.source !== "vscode:root",
+      (l) => l.config.type === "shell" && l.source.startsWith("vscode:"),
     );
     expect(vscodeTools).toHaveLength(2);
     expect(vscodeTools.some((l) => l.config.name === "VS Code (admin)")).toBe(true);
@@ -1298,7 +1113,7 @@ describe("scanRepo", () => {
     expect(riderTools.some((l) => l.config.name === "Rider (Worker.sln)")).toBe(true);
   });
 
-  it("does not emit VS Code root tool for non-web app type", async () => {
+  it("never emits a VS Code root tool", async () => {
     mockedReaddir.mockImplementation(async (dir: any) => {
       if (dir.toString() === "/repos/api-only-launch") {
         return [makeDirent("Api.csproj", true), makeDirent("Program.cs", true)] as any;
@@ -1435,7 +1250,6 @@ describe("scanRepo", () => {
     expect(result.detected.hasGit).toBe(true);
     expect(result.detected.suggestedRepo).toBe("company/fullstack");
     expect(result.detected.suggestedName).toBe("full");
-    expect(result.detected.suggestedProjectType).toBe("web");
     expect(result.detected.dockerComposeFiles).toContain("docker-compose.yml");
     expect(result.detected.dotnetProjects).toContain("src/Api.csproj");
     expect(result.detected.viteProjects).toContain("web");
@@ -1448,7 +1262,7 @@ describe("scanRepo", () => {
     expect(result.detected.suggestedComponents.find((s) => s.key === "backend")).toBeDefined();
     expect(result.detected.suggestedComponents.find((s) => s.key === "frontend")).toBeDefined();
 
-    // Should have tools: Web App, VS Code (web), VS Code (root), Rider
+    // Should have tools: Web App, VS Code (web), Rider
     expect(result.detected.suggestedTools.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -1540,37 +1354,6 @@ describe("scanRepo", () => {
     // Should not throw
     const result = await scanRepo("/repos/bad-sub-pkg");
     expect(result.detected.viteProjects).toEqual([]);
-  });
-
-  // ── Additional web framework indicators ──
-
-  it("detects additional web frameworks: nuxt, svelte, gatsby, remix, astro", async () => {
-    mockedExistsSync.mockImplementation((p: unknown) => String(p).endsWith("package.json"));
-    mockedReadFileSync.mockReturnValue(
-      JSON.stringify({
-        dependencies: { nuxt: "3.0.0", gatsby: "5.0.0", astro: "4.0.0" },
-        devDependencies: { svelte: "4.0.0", "@remix-run/node": "2.0.0" },
-      }) as any,
-    );
-
-    const result = await scanRepo("/repos/web-all");
-    expect(result.detected.webFrameworks).toContain("nuxt");
-    expect(result.detected.webFrameworks).toContain("svelte");
-    expect(result.detected.webFrameworks).toContain("gatsby");
-    expect(result.detected.webFrameworks).toContain("@remix-run/node");
-    expect(result.detected.webFrameworks).toContain("astro");
-  });
-
-  it("detects @expo/cli as native framework", async () => {
-    mockedExistsSync.mockImplementation((p: unknown) => String(p).endsWith("package.json"));
-    mockedReadFileSync.mockReturnValue(
-      JSON.stringify({
-        devDependencies: { "@expo/cli": "0.10.0" },
-      }) as any,
-    );
-
-    const result = await scanRepo("/repos/expo-app");
-    expect(result.detected.nativeFrameworks).toContain("@expo/cli");
   });
 
   // ── gitmodules edge cases ──

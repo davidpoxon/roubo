@@ -48,7 +48,6 @@ describe("validateSection", () => {
           project: {
             name: "my-project",
             displayName: "My Project",
-            type: "web",
             repo: "org/repo",
           },
         }),
@@ -61,7 +60,6 @@ describe("validateSection", () => {
           project: {
             name: "My Project",
             displayName: "My Project",
-            type: "web",
             repo: "org/repo",
           },
         }),
@@ -73,7 +71,7 @@ describe("validateSection", () => {
     it("returns valid even when repo is missing", () => {
       expect(
         validateSection("project", {
-          project: { name: "my-project", displayName: "My Project", type: "web" },
+          project: { name: "my-project", displayName: "My Project" },
         }),
       ).toBe("valid");
     });
@@ -420,7 +418,6 @@ describe("wizardReducer", () => {
           project: {
             name: "old",
             displayName: "Old",
-            type: "web",
             repo: "",
           } as ProjectConfig,
         },
@@ -1013,11 +1010,8 @@ describe("wizardReducer", () => {
           solutionFiles: [],
           viteProjects: [],
           envFiles: [],
-          webFrameworks: [],
-          nativeFrameworks: [],
           suggestedName: "my-project",
           suggestedRepo: "https://github.com/org/my-project",
-          suggestedProjectType: "web",
           suggestedComponents: [],
           suggestedTools: [],
           ...overrides,
@@ -1042,7 +1036,6 @@ describe("wizardReducer", () => {
           project: {
             name: "custom",
             displayName: "Custom",
-            type: "web",
             repo: "",
           },
         },
@@ -1119,7 +1112,6 @@ describe("wizardReducer", () => {
         project: {
           name: "existing",
           displayName: "Existing",
-          type: "web",
           repo: "",
         },
         layout: { type: "monorepo" },
@@ -1158,7 +1150,6 @@ describe("wizardReducer", () => {
         project: {
           name: "test",
           displayName: "Test",
-          type: "web",
           repo: "org/repo",
         },
         layout: { type: "single-repo" },
@@ -1181,7 +1172,6 @@ describe("wizardReducer", () => {
         project: {
           name: "test",
           displayName: "Test",
-          type: "web",
           repo: "org/repo",
         },
         layout: { type: "single-repo" },
@@ -1200,7 +1190,7 @@ describe("wizardReducer", () => {
     it("sets isEditMode to true", () => {
       const state = makeState();
       const config: RouboConfig = {
-        project: { name: "test", displayName: "Test", type: "web", repo: "" },
+        project: { name: "test", displayName: "Test", repo: "" },
         layout: { type: "single-repo" },
         components: {},
         ports: {},
@@ -1221,7 +1211,6 @@ describe("wizardReducer", () => {
         project: {
           name: "loaded",
           displayName: "Loaded",
-          type: "api-only",
           repo: "git@...",
         },
         layout: { type: "monorepo" },
@@ -1242,7 +1231,6 @@ describe("wizardReducer", () => {
         project: {
           name: "test",
           displayName: "Test",
-          type: "web",
           repo: "org/repo",
         },
         layout: { type: "single-repo" },

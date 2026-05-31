@@ -1170,7 +1170,7 @@ describe("deleteAppJig", () => {
         configValid: true,
         settings: {} as never,
         config: {
-          project: { name: "my-project", displayName: "My Project", type: "web", repo: "repo" },
+          project: { name: "my-project", displayName: "My Project", repo: "repo" },
           jigs: { defaultJig: "project-default" },
         } as never,
       },
@@ -1201,7 +1201,6 @@ describe("deleteAppJig", () => {
           project: {
             name: "proj-2",
             displayName: "Proj Two",
-            type: "web",
             repo: "r",
             jigSettings: {
               autoInject: true,
@@ -1230,7 +1229,6 @@ describe("deleteAppJig", () => {
           project: {
             name: "proj-3",
             displayName: "Proj Three",
-            type: "web",
             repo: "r",
             jigSettings: {
               autoInject: true,
@@ -1289,7 +1287,6 @@ describe("findAppJigReferences", () => {
           project: {
             name: "p1",
             displayName: "P One",
-            type: "web",
             repo: "r",
             jigSettings: {
               autoInject: true,
@@ -1317,7 +1314,6 @@ describe("findAppJigReferences", () => {
           project: {
             name: "p2",
             displayName: "P Two",
-            type: "web",
             repo: "r",
             jigSettings: {
               autoInject: true,
@@ -1343,7 +1339,7 @@ describe("findAppJigReferences", () => {
         configValid: true,
         settings: {} as never,
         config: {
-          project: { name: "p4", displayName: "P Four", type: "web", repo: "r" },
+          project: { name: "p4", displayName: "P Four", repo: "r" },
           jigs: {
             issueTypeMappings: { Bug: "mapped-app-bp", Feature: "mapped-app-bp", Task: "other" },
           },
@@ -1402,7 +1398,7 @@ function makeMockProject(id: string, repoPath: string, configOverride?: Record<s
     configValid: true,
     settings: {} as never,
     config: {
-      project: { name: id, displayName: id, type: "web", repo: "owner/repo" },
+      project: { name: id, displayName: id, repo: "owner/repo" },
       ...configOverride,
     } as never,
   };
@@ -1633,7 +1629,6 @@ describe("deleteProjectJig", () => {
         project: {
           name: "proj-1",
           displayName: "proj-1",
-          type: "web",
           repo: "owner/repo",
           jigSettings: {
             autoInject: true,
@@ -1743,7 +1738,6 @@ describe("findProjectJigReferences", () => {
         project: {
           name: "proj-1",
           displayName: "proj-1",
-          type: "web",
           repo: "r",
           jigSettings: { autoInject: true, autoExecute: true, defaultJigId: "target" },
         },
@@ -1761,7 +1755,6 @@ describe("findProjectJigReferences", () => {
         project: {
           name: "proj-1",
           displayName: "proj-1",
-          type: "web",
           repo: "r",
           jigSettings: { autoInject: true, autoExecute: true, defaultJigId: "target" },
         },
@@ -1778,7 +1771,6 @@ describe("findProjectJigReferences", () => {
         project: {
           name: "proj-1",
           displayName: "proj-1",
-          type: "web",
           repo: "r",
           jigSettings: {
             autoInject: true,
