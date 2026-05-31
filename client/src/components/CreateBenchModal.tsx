@@ -11,6 +11,7 @@ import {
 } from "react-aria-components";
 import { useProjects } from "../hooks/useProjects";
 import { useCreateBench } from "../hooks/useBenches";
+import { useGlobalCap } from "../hooks/useGlobalCap";
 import Select from "./Select";
 
 export default function CreateBenchModal({
@@ -24,6 +25,8 @@ export default function CreateBenchModal({
 }) {
   const { data: projects } = useProjects();
   const createBench = useCreateBench();
+  const cap = useGlobalCap();
+  const atCap = cap.isAtCap || cap.isOverCap;
   const [selectedProject, setSelectedProject] = useState(fixedProjectId ?? "");
   const [branch, setBranch] = useState("");
   const [error, setError] = useState("");
@@ -119,7 +122,7 @@ export default function CreateBenchModal({
                 </Button>
                 <Button
                   onPress={() => handleCreate(close)}
-                  isDisabled={createBench.isPending}
+                  isDisabled={createBench.isPending || atCap}
                   className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors outline-none"
                 >
                   {createBench.isPending ? "Setting up..." : "Set up"}

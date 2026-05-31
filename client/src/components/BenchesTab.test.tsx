@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, Outlet } from "react-router-dom";
@@ -13,6 +13,9 @@ vi.mock("./BenchCard", () => ({
 }));
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
+}));
+vi.mock("../hooks/useGlobalCap", () => ({
+  useGlobalCap: vi.fn(),
 }));
 vi.mock("./EmptyBenchCard", () => ({
   default: ({
@@ -53,6 +56,22 @@ vi.mock("./IssueQueuePanel", () => ({
 }));
 
 import BenchesTab from "./BenchesTab";
+import { useGlobalCap } from "../hooks/useGlobalCap";
+import type { GlobalCapState } from "../hooks/useGlobalCap";
+
+const mockUseGlobalCap = vi.mocked(useGlobalCap);
+
+const UNCAPPED: GlobalCapState = {
+  current: 0,
+  max: null,
+  isCapped: false,
+  isAtCap: false,
+  isOverCap: false,
+};
+
+beforeEach(() => {
+  mockUseGlobalCap.mockReturnValue(UNCAPPED);
+});
 
 function makeBench(overrides: Partial<Bench> = {}): Bench {
   return {
@@ -224,5 +243,65 @@ describe("BenchesTab", () => {
     );
     await userEvent.click(screen.getByTestId("collapse-queue"));
     expect(onToggleIssueQueue).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the Set up bench button enabled when under the global cap", () => {
+    mockUseGlobalCap.mockReturnValue({
+      current: 1,
+      max: 2,
+      isCapped: true,
+      isAtCap: false,
+      isOverCap: false,
+    });
+    renderTab(makeContext());
+    const button = screen.getByRole("button", { name: "Set up bench" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toBeDisabled();
+  });
+
+  it("disables the Set up bench button with an accessible tooltip when at the global cap", async () => {
+    mockUseGlobalCap.mockReturnValue({
+      current: 2,
+      max: 2,
+      isCapped: true,
+      isAtCap: true,
+      isOverCap: false,
+    });
+    const openCreateBench = vi.fn();
+    renderTab(makeContext({ openCreateBench }));
+    const user = userEvent.setup();
+    const button = screen.getByRole("button", { name: "Set up bench" });
+
+    // aria-disabled, not the native disabled attribute, so it remains focusable.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    await user.tab();
+    expect(button).toHaveFocus();
+
+    // Tooltip is announced via aria-describedby with the exact cap-reached copy.
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent(
+      "Global bench limit reached. 2 of 2 benches in use. Clear a bench to free a slot.",
+    );
+    expect(button).toHaveAttribute("aria-describedby", tooltip.id);
+
+    // Pressing the disabled button does not open the create flow.
+    await user.click(button);
+    expect(openCreateBench).not.toHaveBeenCalled();
+  });
+
+  it("disables the Set up bench button when over the global cap", () => {
+    mockUseGlobalCap.mockReturnValue({
+      current: 3,
+      max: 2,
+      isCapped: true,
+      isAtCap: true,
+      isOverCap: true,
+    });
+    renderTab(makeContext());
+    expect(screen.getByRole("button", { name: "Set up bench" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 });
