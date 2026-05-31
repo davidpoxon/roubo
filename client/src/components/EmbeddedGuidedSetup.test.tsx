@@ -35,6 +35,7 @@ vi.mock("./setup/SetupGuided", () => ({
 
 import { useRegisterProject } from "../hooks/useProjects";
 import { useScanRepo, useValidateConfig, useSaveConfig, useEnvKeys } from "../hooks/useSetup";
+import { ApiError } from "../lib/api";
 
 const mockUseRegisterProject = vi.mocked(useRegisterProject);
 const mockUseScanRepo = vi.mocked(useScanRepo);
@@ -49,6 +50,36 @@ function makeMutationMock(overrides: Record<string, unknown> = {}) {
     error: null,
     ...overrides,
   } as never;
+}
+
+function makeScan(
+  overrides: {
+    suggestedProjectType?: "web" | "native" | "api-only" | null;
+  } = {},
+) {
+  return {
+    detected: {
+      hasGit: true,
+      submodules: {},
+      structureType: "single-repo",
+      dockerComposeFiles: [],
+      dockerComposeServiceNames: {},
+      dockerComposePortVars: {},
+      dockerComposeVars: {},
+      dotnetProjects: [],
+      solutionFiles: [],
+      viteProjects: [],
+      envFiles: [],
+      webFrameworks: [],
+      nativeFrameworks: [],
+      suggestedName: "test-repo",
+      suggestedRepo: "acme/test-repo",
+      suggestedProjectType: overrides.suggestedProjectType ?? null,
+      suggestedComponents: [],
+      suggestedTools: [],
+    },
+    existingConfig: null,
+  };
 }
 
 function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProject {
@@ -235,6 +266,63 @@ describe("EmbeddedGuidedSetup", () => {
     const lastCall = allCalls[allCalls.length - 1][0] as { saveError?: string };
     expect(lastCall.saveError).toContain("Config saved, but registration failed");
     expect(lastCall.saveError).toContain("Port conflict: 3000");
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("disables save when the scan can't infer a required project.type", () => {
+    mockUseScanRepo.mockReturnValue({
+      data: makeScan({ suggestedProjectType: null }),
+      isLoading: false,
+    } as never);
+    const onReady = vi.fn();
+    renderComponent(onReady);
+
+    const allCalls = onReady.mock.calls;
+    const lastCall = allCalls[allCalls.length - 1][0] as { isSaveDisabled: boolean };
+    expect(lastCall.isSaveDisabled).toBe(true);
+  });
+
+  it("enables save once the scan supplies every required field", () => {
+    mockUseScanRepo.mockReturnValue({
+      data: makeScan({ suggestedProjectType: "web" }),
+      isLoading: false,
+    } as never);
+    const onReady = vi.fn();
+    renderComponent(onReady);
+
+    const allCalls = onReady.mock.calls;
+    const lastCall = allCalls[allCalls.length - 1][0] as { isSaveDisabled: boolean };
+    expect(lastCall.isSaveDisabled).toBe(false);
+  });
+
+  it("maps server field errors into an actionable message instead of the generic one", () => {
+    const saveMutate = vi.fn();
+    mockUseSaveConfig.mockReturnValue(makeMutationMock({ mutate: saveMutate }) as never);
+    const onReady = vi.fn();
+    const onSaved = vi.fn();
+    renderComponent(onReady, onSaved);
+
+    const { save } = onReady.mock.calls[0][0] as { save: () => void };
+    act(() => {
+      save();
+    });
+
+    const saveCallbacks = saveMutate.mock.calls[0][1] as {
+      onError: (err: Error) => void;
+    };
+    const apiErr = new ApiError("Invalid config: project.type needs attention", 400, undefined, {
+      error: "Invalid config: project.type needs attention",
+      errors: [{ path: "project.type", message: "Required" }],
+      details: [],
+    });
+    act(() => {
+      saveCallbacks.onError(apiErr);
+    });
+
+    const allCalls = onReady.mock.calls;
+    const lastCall = allCalls[allCalls.length - 1][0] as { saveError?: string };
+    expect(lastCall.saveError).toBe("Please fix the highlighted fields above");
+    expect(lastCall.saveError).not.toBe("Invalid config");
     expect(onSaved).not.toHaveBeenCalled();
   });
 });
