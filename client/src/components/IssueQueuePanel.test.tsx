@@ -141,7 +141,6 @@ const config: RouboConfig = {
   project: {
     name: "app",
     displayName: "App",
-    type: "web",
     repo: "org/repo",
   },
   layout: { type: "monorepo" },

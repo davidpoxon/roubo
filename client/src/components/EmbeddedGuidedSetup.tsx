@@ -41,8 +41,8 @@ export default function EmbeddedGuidedSetup({ repoPath, onReady, onSaved }: Prop
   // Client-side Zod validation. Keeps this embedded flow in parity with the
   // standalone Setup screen. Without it, state.validationErrors stays empty and
   // isWizardSaveDisabled would let the user click Save with a required field
-  // (e.g. project.type, which the scanner can't infer for signal-less repos)
-  // still missing, only to hit a generic server-side "Invalid config".
+  // (e.g. project.displayName) still missing, only to hit a generic
+  // server-side "Invalid config".
   const { fieldErrors } = useConfigValidation(state.config);
   useEffect(() => {
     dispatch({ type: "SET_VALIDATION_ERRORS", payload: fieldErrors });

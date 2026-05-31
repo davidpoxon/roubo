@@ -22,7 +22,6 @@ const FIXTURE_CONFIG: RouboConfig = {
   project: {
     name: "demo",
     displayName: "Demo",
-    type: "web",
     repo: "acme/demo",
     github: { project: 7 },
   },
@@ -68,7 +67,7 @@ describe("getIntegrationFields", () => {
 
   it("omits unset fields so the client gets undefined rather than empty defaults", () => {
     const project = withProject({
-      project: { name: "demo", displayName: "Demo", type: "web" },
+      project: { name: "demo", displayName: "Demo" },
       layout: { type: "single-repo" },
       components: { server: { type: "process", command: "npm start" } },
       ports: { server: { base: 3000 } },

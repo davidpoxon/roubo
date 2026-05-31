@@ -70,7 +70,6 @@ function makeProject(overrides: Partial<RouboConfig> = {}): RegisteredProject {
     project: {
       name: "proj",
       displayName: "Proj",
-      type: "web",
       repo: "owner/repo",
       ...overrides.project,
     },
@@ -167,7 +166,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -189,7 +187,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -211,7 +208,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -238,7 +234,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -416,7 +411,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -443,7 +437,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -539,7 +532,6 @@ describe("checkAndClearDoneBenches", () => {
         project: {
           name: "proj",
           displayName: "Proj",
-          type: "web",
           repo: "owner/repo",
           github: { project: 1 },
         },
@@ -665,7 +657,6 @@ describe("checkAndClearDoneBenches", () => {
           project: {
             name: "proj",
             displayName: "Proj",
-            type: "web",
             repo: "owner/repo",
             github: { project: 1 },
           },
@@ -692,7 +683,6 @@ describe("checkAndClearDoneBenches", () => {
           project: {
             name: "proj",
             displayName: "Proj",
-            type: "web",
             repo: "owner/repo",
             github: { project: 1 },
           },
@@ -928,7 +918,6 @@ describe("checkAndClearDoneBenches", () => {
           project: {
             name: "proj",
             displayName: "Proj",
-            type: "web",
             repo: "owner/repo",
             github: { project: 1 },
           },

@@ -8,7 +8,6 @@ const validConfig: RouboConfig = {
   project: {
     name: "my-app",
     displayName: "My App",
-    type: "web",
     repo: "org/repo",
   },
   layout: { type: "single-repo" },
@@ -52,7 +51,6 @@ describe("useConfigValidation", () => {
       project: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         repo: "org/repo",
       },
       layout: { type: "single-repo" },

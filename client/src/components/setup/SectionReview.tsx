@@ -246,15 +246,12 @@ export default function SectionReview({
       {/* Project Info */}
       {/* FR-070 (WU-057): Repository, linked GitHub Project, and submodules
           are owned by the plugin Configure modal now, so Review omits them.
-          Identity here only lists project name and type. */}
+          Identity here only lists the project name. */}
       {config.project && (
         <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
           <SectionHeader icon={Globe} label="Project Info" status={sectionStatus.project} />
           <div className="space-y-2">
-            <ItemHeader
-              name={config.project.displayName || config.project.name}
-              badge={config.project.type}
-            />
+            <ItemHeader name={config.project.displayName || config.project.name} />
             <Row label="Name" value={config.project.name} mono />
           </div>
         </div>

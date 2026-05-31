@@ -20,7 +20,6 @@ const baseConfig = {
   project: {
     name: "test",
     displayName: "Test",
-    type: "web" as const,
     repo: "",
   },
   layout: { type: "single-repo" as const },

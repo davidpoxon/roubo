@@ -300,6 +300,36 @@ describe("parseConfig", () => {
     expect(result.config.project.name).toBe("test-project");
   });
 
+  it("strips a legacy project.type and still parses (backward compat)", () => {
+    // `project.type` was removed; existing roubo.yaml files still carry it and
+    // the strict schema would otherwise reject the now-unknown key.
+    const yamlContent = [
+      "project:",
+      "  name: legacy-project",
+      "  displayName: Legacy Project",
+      "  type: web",
+      "  repo: org/legacy",
+      "layout:",
+      "  type: single-repo",
+      "components:",
+      "  backend:",
+      "    type: process",
+      "    command: npm run dev",
+      "ports:",
+      "  backend:",
+      "    base: 5000",
+      "benches:",
+      "  max: 5",
+    ].join("\n");
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
+    vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
+    const result = parseConfig("/some/repo");
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(result.config.project.name).toBe("legacy-project");
+    expect(result.config.project).not.toHaveProperty("type");
+  });
+
   it("coerces numeric env values to strings", () => {
     // yaml.load parses unquoted 1433 as a number — coercion must fix this before validation
     const yamlContent = [
@@ -793,6 +823,15 @@ describe("validateConfigObject", () => {
     const result = validateConfigObject(config);
     expect(result.valid).toBe(true);
     expect(result.config).toEqual(config);
+  });
+
+  it("strips a legacy project.type before validating (backward compat)", () => {
+    const config = makeConfig();
+    const withType = { ...config, project: { ...config.project, type: "web" } };
+    const result = validateConfigObject(withType);
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(result.config.project).not.toHaveProperty("type");
   });
 
   it("returns errors for missing required fields", () => {

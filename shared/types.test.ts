@@ -69,7 +69,6 @@ describe("jig type exports", () => {
     const config: ProjectConfig = {
       name: "my-project",
       displayName: "My Project",
-      type: "web",
       repo: "https://github.com/org/repo",
       jigSettings: {
         autoInject: true,

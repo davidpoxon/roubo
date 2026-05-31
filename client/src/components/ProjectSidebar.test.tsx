@@ -41,7 +41,7 @@ function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProj
     repoPath: "/repos/proj-1",
     configValid: true,
     config: {
-      project: { displayName: "My Project", name: "my-project", type: "web", repo: "" },
+      project: { displayName: "My Project", name: "my-project", repo: "" },
     } as RegisteredProject["config"],
     settings: { worktreeSource: { branchFromDefault: true, pullLatest: true } },
     ...overrides,
@@ -237,13 +237,13 @@ describe("ProjectSidebar", () => {
     const projectA = makeProject({
       id: "proj-a",
       config: {
-        project: { displayName: "Project A", name: "proj-a", type: "web", repo: "" },
+        project: { displayName: "Project A", name: "proj-a", repo: "" },
       } as RegisteredProject["config"],
     });
     const projectB = makeProject({
       id: "proj-b",
       config: {
-        project: { displayName: "Project B", name: "proj-b", type: "web", repo: "" },
+        project: { displayName: "Project B", name: "proj-b", repo: "" },
       } as RegisteredProject["config"],
     });
     mockedUseProjects.mockReturnValue({ data: [projectA, projectB] } as unknown as UseQueryResult<

@@ -421,7 +421,6 @@ describe("RouboConfigSchema non-regression", () => {
       project: {
         name: "test-project",
         displayName: "Test Project",
-        type: "web",
         repo: "org/test-project",
       },
       layout: { type: "single-repo" },

@@ -8,12 +8,11 @@
   "properties": {
     "project": {
       "type": "object",
-      "required": ["name", "displayName", "type", "repo"],
+      "required": ["name", "displayName", "repo"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
         "displayName": { "type": "string" },
-        "type": { "type": "string", "enum": ["web", "native", "api-only"] },
         "repo": { "type": "string" },
         "github": {
           "type": "object",

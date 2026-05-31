@@ -28,7 +28,6 @@ function baseConfig(): RouboConfig {
     project: {
       name: "demo",
       displayName: "Demo",
-      type: "web",
       repo: "acme/demo",
     },
     layout: { type: "single-repo" },

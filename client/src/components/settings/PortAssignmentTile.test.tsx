@@ -15,7 +15,6 @@ function makeConfig(ports: RouboConfig["ports"]): RouboConfig {
     project: {
       name: "app",
       displayName: "App",
-      type: "web",
       repo: "git@github.com:org/app.git",
     },
     layout: { type: "single-repo" },

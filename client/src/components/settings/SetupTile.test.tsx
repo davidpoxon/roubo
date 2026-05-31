@@ -23,7 +23,6 @@ function makeConfig(overrides: Partial<RouboConfig> = {}): RouboConfig {
     project: {
       name: "test-app",
       displayName: "Test App",
-      type: "web",
       repo: "git@github.com:org/test.git",
     },
     layout: { type: "single-repo" },
@@ -63,11 +62,6 @@ describe("SetupTile", () => {
   it("renders project name in the yaml preview", () => {
     render(<SetupTile projectId="proj-1" />);
     expect(screen.getByText(/test-app/)).toBeInTheDocument();
-  });
-
-  it("renders project type in the yaml preview", () => {
-    render(<SetupTile projectId="proj-1" />);
-    expect(screen.getByText(/web/)).toBeInTheDocument();
   });
 
   it("renders component names in the yaml preview", () => {

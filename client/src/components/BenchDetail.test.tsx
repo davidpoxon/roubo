@@ -94,7 +94,7 @@ const baseProject = {
   repoPath: "/repo",
   configValid: true,
   config: {
-    project: { name: "my-app", displayName: "My App", type: "web" },
+    project: { name: "my-app", displayName: "My App" },
     components: { server: { type: "process", command: "npm start" } },
     inspection: { command: "npx playwright test", framework: "playwright", directory: "tests" },
   },

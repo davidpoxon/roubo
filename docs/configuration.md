@@ -30,7 +30,6 @@ Identifies the project and links it to its repo on GitHub.
 project:
   name: my-app # kebab-case, [a-z0-9-]+ only
   displayName: My App # shown in the UI
-  type: web # web | native | api-only
   repo: my-org/my-app # owner/repo on GitHub
   github:
     project: 1 # optional, GitHub Project (v2) number
@@ -40,7 +39,6 @@ project:
 | ---------------- | -------- | ------- | ------------------------------------------------------------- |
 | `name`           | yes      | string  | Must match `^[a-z0-9-]+$`. Used as the workspace folder name. |
 | `displayName`    | yes      | string  | Human-readable title.                                         |
-| `type`           | yes      | enum    | `web`, `native`, or `api-only`.                               |
 | `repo`           | yes      | string  | `owner/repo` form. Used for GitHub integration.               |
 | `github.project` | no       | integer | GitHub Projects v2 number. Used for issue assignment.         |
 
@@ -329,7 +327,6 @@ This is the real `roubo.yaml` from the Roubo repo, kept up to date with the sche
 project:
   name: roubo
   displayName: Roubo
-  type: web
   repo: davidpoxon/roubo
   github:
     project: 1

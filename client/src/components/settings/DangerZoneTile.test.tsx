@@ -40,7 +40,6 @@ function makeProject(overrides: Partial<RegisteredProject> = {}): RegisteredProj
       project: {
         name: "my-app",
         displayName: "My App",
-        type: "web",
         repo: "org/my-app",
       },
       layout: { type: "single-repo" },

@@ -154,7 +154,6 @@ router.post("/check-config", scanRateLimiter, (req, res) => {
   const preview = {
     name: projectName,
     displayName: result.config.project.displayName,
-    type: result.config.project.type,
     ports: Object.entries(result.config.ports ?? {}).map(([name, p]) => ({
       name,
       base: p.base,

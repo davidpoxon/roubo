@@ -169,7 +169,6 @@ const baseConfig = {
   project: {
     name: "my-app",
     displayName: "My App",
-    type: "web" as const,
     repo: "org/my-app",
   },
   layout: { type: "monorepo" as const },

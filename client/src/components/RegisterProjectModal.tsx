@@ -225,12 +225,6 @@ export default function RegisterProjectModal({
                               {preview.displayName}
                             </dd>
                           </div>
-                          <div className="flex justify-between py-1.5">
-                            <dt className="text-stone-400 dark:text-stone-500">Type</dt>
-                            <dd className="font-mono text-stone-700 dark:text-stone-300">
-                              {preview.type}
-                            </dd>
-                          </div>
                           {preview.ports.map((port) => (
                             <div key={port.name} className="flex justify-between py-1.5">
                               <dt className="text-stone-400 dark:text-stone-500">

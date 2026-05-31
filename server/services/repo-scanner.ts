@@ -42,11 +42,8 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
     solutionFiles: [],
     viteProjects: [],
     envFiles: [],
-    webFrameworks: [],
-    nativeFrameworks: [],
     suggestedName: suggestName(resolved),
     suggestedRepo: null,
-    suggestedProjectType: null,
     suggestedComponents: [],
     suggestedTools: [],
   };
@@ -72,7 +69,6 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
         if (pkg.workspaces) {
           detected.structureType = "monorepo";
         }
-        collectFrameworkSignals(pkg, detected);
       } catch {
         // invalid package.json, ignore
       }
@@ -89,8 +85,6 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   } finally {
     clearTimeout(timeout);
   }
-
-  detected.suggestedProjectType = inferProjectType(detected);
 
   detected.dockerComposeFiles = detected.dockerComposeFiles.map((p) => path.relative(resolved, p));
   detected.dotnetProjects = detected.dotnetProjects.map((p) => path.relative(resolved, p));
@@ -123,7 +117,6 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   detected.suggestedTools = inferTools(
     suggestedComponents,
     detected.solutionFiles,
-    detected.suggestedProjectType,
     detected.viteProjects,
   );
 
@@ -177,10 +170,6 @@ async function walk(
         }
       } else if (entry.name.endsWith(".sln")) {
         detected.solutionFiles.push(fullPath);
-      } else if (entry.name === "pubspec.yaml") {
-        if (!detected.nativeFrameworks.includes("flutter")) {
-          detected.nativeFrameworks.push("flutter");
-        }
       } else if (entry.name.startsWith(".env")) {
         detected.envFiles.push(fullPath);
       }
@@ -195,7 +184,6 @@ async function walk(
           if (deps.vite) {
             detected.viteProjects.push(fullPath);
           }
-          collectFrameworkSignals(pkg, detected);
         } catch {
           // no package.json or invalid
         }
@@ -225,48 +213,6 @@ function parseGitmodules(content: string): Record<string, string> {
   }
 
   return submodules;
-}
-
-const WEB_INDICATORS = [
-  "vite",
-  "next",
-  "nuxt",
-  "@angular/core",
-  "svelte",
-  "gatsby",
-  "@remix-run/node",
-  "astro",
-];
-const NATIVE_INDICATORS = ["react-native", "expo", "@expo/cli"];
-
-function collectFrameworkSignals(
-  pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> },
-  detected: RepoScanResult["detected"],
-): void {
-  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  for (const indicator of WEB_INDICATORS) {
-    if (deps[indicator] && !detected.webFrameworks.includes(indicator)) {
-      detected.webFrameworks.push(indicator);
-    }
-  }
-  for (const indicator of NATIVE_INDICATORS) {
-    if (deps[indicator] && !detected.nativeFrameworks.includes(indicator)) {
-      detected.nativeFrameworks.push(indicator);
-    }
-  }
-}
-
-export function inferProjectType(
-  detected: RepoScanResult["detected"],
-): "web" | "native" | "api-only" | null {
-  const hasNative = detected.nativeFrameworks.length > 0;
-  const hasWeb = detected.webFrameworks.length > 0;
-  const hasBackend = detected.dotnetProjects.length > 0 || detected.dockerComposeFiles.length > 0;
-
-  if (hasNative) return "native";
-  if (hasWeb) return "web";
-  if (hasBackend) return "api-only";
-  return null;
 }
 
 function detectRepo(repoPath: string): Promise<string | null> {
@@ -623,7 +569,6 @@ function deduplicateServiceKeys(components: SuggestedComponent[]): void {
 function inferTools(
   suggestedComponents: SuggestedComponent[],
   solutionFiles: string[],
-  suggestedProjectType: "web" | "native" | "api-only" | null,
   viteProjects: string[],
 ): SuggestedTool[] {
   const tools: SuggestedTool[] = [];
@@ -657,20 +602,6 @@ function inferTools(
         command: `code "{{workspace}}/${dir}"`,
       },
       source: `vscode:${component.key}`,
-    });
-  }
-
-  if (suggestedProjectType === "web") {
-    tools.push({
-      config: {
-        name: viteComponents.some((s) => s.config.directory && s.config.directory !== ".")
-          ? "VS Code (root)"
-          : "VS Code",
-        icon: "code",
-        type: "shell",
-        command: 'code "{{workspace}}"',
-      },
-      source: "vscode:root",
     });
   }
 
