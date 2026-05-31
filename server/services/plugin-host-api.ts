@@ -14,6 +14,7 @@ import {
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
 import { assertSpawnAllowed, resolveAllowedExecutables } from "./plugin-spawn.js";
+import { getInstanceHost } from "./plugin-instance-registry.js";
 
 // JSON-RPC server-error range; we use app-level codes and surface the
 // specific reason via the structured `data` payload.
@@ -142,8 +143,19 @@ export async function registerHostHandlers(
   const fetcherLogger = (line: PluginHttpLogLine): void => {
     log(line.level, `${pluginId}.host.fetch ${line.kind}: ${line.detail.reason}`);
   };
+  // For integration plugins whose host is user-supplied (declared as `**`),
+  // constrain host.fetch to the configured instance host recorded at activation
+  // time. Read at call time so a fetcher built once here tracks instance
+  // changes. Non-integration kinds (none today) and unconfigured plugins return
+  // null, leaving the manifest allowlist to govern alone. See issue #338.
+  const resolveInstanceHost = (): string | null =>
+    manifest.kind === "integration" ? getInstanceHost(pluginId) : null;
   const strictFetcher: PluginFetcher =
-    options.fetcher ?? createPluginFetcher(manifest, { logger: fetcherLogger });
+    options.fetcher ??
+    createPluginFetcher(manifest, {
+      logger: fetcherLogger,
+      getInstanceHost: resolveInstanceHost,
+    });
   let laxFetcher: PluginFetcher | null = null;
   const getLaxFetcher = (): PluginFetcher => {
     if (options.fetcher) return options.fetcher;
@@ -151,6 +163,7 @@ export async function registerHostHandlers(
       laxFetcher = createPluginFetcher(manifest, {
         allowSelfSignedTls: true,
         logger: fetcherLogger,
+        getInstanceHost: resolveInstanceHost,
       });
     }
     return laxFetcher;

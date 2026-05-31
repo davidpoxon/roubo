@@ -64,6 +64,9 @@ defaultIntegrationConfig:
     - Waiting on reviewer
 permissions:
   network:
+    # The GHE instance host is user-supplied, so the static manifest cannot name
+    # a concrete host. The host constrains this `**` to the configured instance
+    # host at the host.fetch boundary (#338).
     hosts:
       - "**"
   credentials:

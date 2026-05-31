@@ -8,6 +8,7 @@ import {
 import * as pluginManager from "./plugin-manager.js";
 import { filterAdvancedAgainstManifest } from "./plugin-config-filter.js";
 import { translateSources } from "./plugin-source-translation.js";
+import { deriveInstanceHost, setInstanceHost } from "./plugin-instance-registry.js";
 
 interface ActivationResult {
   ok: boolean;
@@ -124,6 +125,12 @@ export function resolveSources(projectId: string): ConfiguredSource[] {
  */
 export async function ensurePluginActivated(_projectId: string, pluginId: string): Promise<void> {
   const config = buildPluginConfig(_projectId);
+  // Record the host-side instance constraint before anything else, on every
+  // call (cheap), so `host.fetch` enforcement always reflects the current
+  // instance even when the activation cache short-circuits the RPC below. A
+  // plugin with no instance (e.g. github.com) records null, leaving its
+  // manifest allowlist to govern alone. See issue #338.
+  setInstanceHost(pluginId, deriveInstanceHost(config?.instance));
   if (!config || Object.keys(config).length === 0) {
     // Nothing plugin-wide to push (e.g. github.com): the plugin will read
     // its sources directly off the per-call params.
