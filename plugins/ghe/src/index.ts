@@ -10,6 +10,7 @@ import { listIssues } from "./methods/list-issues.js";
 import { listLabels } from "./methods/list-labels.js";
 import { listSourceCandidates } from "./methods/list-source-candidates.js";
 import { probeAlertCategories } from "./methods/probe-alert-categories.js";
+import { probeRepoAccess } from "./methods/probe-repo-access.js";
 import { setActiveConfigMethod } from "./methods/set-active-config.js";
 import { validateConfig } from "./methods/validate-config.js";
 
@@ -28,4 +29,5 @@ definePlugin({
   listLabels,
   getConnectionStatus,
   probeAlertCategories,
+  probeRepoAccess,
 });

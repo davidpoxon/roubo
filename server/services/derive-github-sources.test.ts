@@ -11,6 +11,7 @@ import {
 } from "./derive-github-sources.js";
 import * as projectRegistry from "./project-registry.js";
 import * as pluginManager from "./plugin-manager.js";
+import * as activePlugin from "./active-plugin.js";
 
 vi.mock("./project-registry.js", () => ({
   getProject: vi.fn(),
@@ -19,6 +20,13 @@ vi.mock("./project-registry.js", () => ({
 vi.mock("./plugin-manager.js", () => ({
   invoke: vi.fn(),
 }));
+vi.mock("./active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(),
+}));
+
+function activePluginFor(pluginId: string): activePlugin.ActivePlugin {
+  return { pluginId, integrationId: pluginId, pageSize: 50 };
+}
 
 let tmpDir: string;
 let consoleWarn: ReturnType<typeof vi.spyOn>;
@@ -50,6 +58,9 @@ function projectFor(config: RouboConfig): RegisteredProject {
 beforeEach(() => {
   vi.resetAllMocks();
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "derive-sources-"));
+  // Default the active plugin to github-com so the existing derivation tests
+  // exercise the happy path; family-specific tests override per case.
+  vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(activePluginFor("github-com"));
   // Derivation logs warnings on every fallback path; silence by default and
   // re-spy in the specific tests that need to assert on the message.
   consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -294,6 +305,46 @@ describe("deriveGithubSources", () => {
       statusCode: 403,
       params: { owner: "acme" },
     });
+  });
+
+  it("addresses RPCs to the active GitHub-family plugin (ghe), not a hard-coded github-com", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(activePluginFor("ghe"));
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      shape: "categorized-multi-list",
+      categories: [
+        { id: "Repository", items: [{ externalId: "acme/demo", label: "acme/demo" }] },
+        { id: "Project", items: [] },
+      ],
+    });
+
+    const result = await deriveGithubSources("demo");
+
+    expect(result.preview.repos).toEqual(["acme/demo"]);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("ghe", "listSourceCandidates", {});
+  });
+
+  it("returns empty and never invokes the plugin when the active plugin is outside the GitHub family", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(
+      activePluginFor("jira-self-hosted"),
+    );
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
+
+    const result = await deriveGithubSources("demo");
+
+    expect(result.sources).toEqual({});
+    expect(result.preview.repos).toEqual([]);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns empty when the project has no active plugin", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
+
+    const result = await deriveGithubSources("demo");
+
+    expect(result.sources).toEqual({});
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });
 

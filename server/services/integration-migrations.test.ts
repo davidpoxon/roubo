@@ -8,6 +8,7 @@ vi.mock("./project-registry.js", () => ({
 }));
 vi.mock("./derive-github-sources.js", () => ({
   deriveAndPersistGithubSources: vi.fn(),
+  GITHUB_FAMILY_PLUGIN_IDS: new Set(["github-com", "ghe"]),
 }));
 vi.mock("./integration-overrides.js", () => ({
   loadOverride: vi.fn(),
@@ -68,6 +69,23 @@ describe("initializeIntegrationMigrations", () => {
     vi.mocked(overrides.loadOverride).mockReturnValue(null);
     vi.mocked(overrides.getEffectiveWithGlobal).mockReturnValue({
       plugin: "github-com",
+      sources: undefined,
+    });
+    vi.mocked(deriveSources.deriveAndPersistGithubSources).mockResolvedValue(null);
+
+    initializeIntegrationMigrations();
+    await awaitPendingIntegrationSetup("a");
+
+    expect(deriveSources.deriveAndPersistGithubSources).toHaveBeenCalledWith("a");
+  });
+
+  it("triggers derivation for a GHE project whose sources are missing", async () => {
+    const project = projectFixture("a");
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([project]);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    vi.mocked(overrides.loadOverride).mockReturnValue(null);
+    vi.mocked(overrides.getEffectiveWithGlobal).mockReturnValue({
+      plugin: "ghe",
       sources: undefined,
     });
     vi.mocked(deriveSources.deriveAndPersistGithubSources).mockResolvedValue(null);

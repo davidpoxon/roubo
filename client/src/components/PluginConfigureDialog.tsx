@@ -55,9 +55,11 @@ import { derivePluginConnectionState } from "./settings/plugins/derivePluginConn
 import SourcePicker from "./SourcePicker";
 
 // FR-070 (WU-057): plugins listed here host the Repository / GitHub Project /
-// Submodules controls inside their Configure modal. Other plugins continue to
-// surface the controls elsewhere (or not at all) until their own WU lands.
-const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com"]);
+// Submodules controls inside their Configure modal. The GitHub family
+// (github-com, ghe) derives its sources from the repo entered here on save.
+// Other plugins continue to surface the controls elsewhere (or not at all)
+// until their own WU lands.
+const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com", "ghe"]);
 
 // FR-019: the GitHub family derives its sources from the repo (the
 // derived-sources preview), so it does not render the declarative source
