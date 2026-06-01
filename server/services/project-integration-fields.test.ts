@@ -106,6 +106,21 @@ describe("setIntegrationFields", () => {
     expect(written).toMatch(/core: "apps\/core"/);
   });
 
+  it("persists fields for a GHE project (the GitHub family owns these controls)", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(withProject());
+    vi.mocked(resolveActivePlugin).mockReturnValue({
+      pluginId: "ghe",
+      integrationId: "ghe",
+      pageSize: 50,
+    });
+
+    const next = setIntegrationFields("demo", { repo: "acme/other" });
+
+    expect(next.repo).toBe("acme/other");
+    const written = fs.readFileSync(path.join(tmpDir, ".roubo", "roubo.yaml"), "utf-8");
+    expect(written).toMatch(/repo: "acme\/other"/);
+  });
+
   it("clears fields when an explicit null is provided", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(withProject());
     vi.mocked(resolveActivePlugin).mockReturnValue({

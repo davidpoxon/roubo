@@ -29,7 +29,10 @@ vi.mock("../services/plugin-activation.js", () => ({
   forgetPluginActivation: vi.fn(),
   resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
 }));
-vi.mock("../services/derive-github-sources.js", () => ({
+// Keep the real GITHUB_FAMILY_PLUGIN_IDS so the family roster stays a single
+// source of truth; stub only the side-effecting derivation calls.
+vi.mock("../services/derive-github-sources.js", async (importActual) => ({
+  ...(await importActual<typeof import("../services/derive-github-sources.js")>()),
   deriveAndPersistGithubSources: vi.fn().mockResolvedValue(null),
   deriveGithubSources: vi.fn(),
 }));

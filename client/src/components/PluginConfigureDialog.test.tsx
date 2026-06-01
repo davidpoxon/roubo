@@ -642,13 +642,45 @@ describe("PluginConfigureDialog", () => {
       expect(link).toHaveAttribute("href", expect.stringContaining("int3nt"));
     });
 
-    it("is hidden for non-github plugins", () => {
+    it("renders the Repository input for the ghe plugin (GitHub family derives sources from the repo)", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      mockedUseFields.mockReturnValue({
+        data: { repo: "acme/demo", layoutType: "single-repo" },
+        isLoading: false,
+      } as unknown as ReturnType<typeof useIntegrationFields>);
+      // renderDialog defaults to the ghe plugin.
+      renderDialog();
+
+      const section = screen.getByTestId("integration-fields-section");
+      expect(section).toBeInTheDocument();
+      expect(section.querySelector("input[placeholder='org/repo-name']")).toBeInTheDocument();
+    });
+
+    it("is hidden for non-GitHub-family plugins", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
       mockedUseFields.mockReturnValue({
         data: undefined,
         isLoading: false,
       } as unknown as ReturnType<typeof useIntegrationFields>);
-      renderDialog();
+      const jira: Plugin = {
+        id: "jira-self-hosted",
+        installed: true,
+        status: "enabled",
+        manifest: {
+          name: "Self-hosted Jira",
+          configSchema: { type: "object", properties: {} },
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
+      };
+      renderDialog({
+        plugin: jira,
+        effective: { plugin: "jira-self-hosted" } as IntegrationConfig,
+      });
       expect(screen.queryByTestId("integration-fields-section")).not.toBeInTheDocument();
     });
   });

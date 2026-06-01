@@ -8,10 +8,11 @@ import { validateConfigObject } from "./config-parser.js";
 import type { IntegrationFields, IntegrationFieldsUpdate, RouboConfig } from "@roubo/shared";
 
 /**
- * Plugins that own the three Identity-resident fields (FR-070). Only github-com
- * ships today; GHE and Jira plugins will join this list as their WUs land.
+ * Plugins that own the three Identity-resident fields (FR-070). The GitHub
+ * family (github-com, ghe) derives its sources from the repo field on save, so
+ * both own these controls; Jira will join this list as its WU lands.
  */
-const PLUGINS_OWNING_FIELDS = new Set(["github-com"]);
+const PLUGINS_OWNING_FIELDS = new Set(["github-com", "ghe"]);
 
 export class IntegrationFieldsError extends Error {
   constructor(

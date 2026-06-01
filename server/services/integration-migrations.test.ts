@@ -6,7 +6,10 @@ vi.mock("./project-registry.js", () => ({
   getProjects: vi.fn(),
   getProject: vi.fn(),
 }));
-vi.mock("./derive-github-sources.js", () => ({
+// Keep the real GITHUB_FAMILY_PLUGIN_IDS so the family roster stays a single
+// source of truth; stub only the side-effecting derivation call.
+vi.mock("./derive-github-sources.js", async (importActual) => ({
+  ...(await importActual<typeof import("./derive-github-sources.js")>()),
   deriveAndPersistGithubSources: vi.fn(),
 }));
 vi.mock("./integration-overrides.js", () => ({
@@ -68,6 +71,23 @@ describe("initializeIntegrationMigrations", () => {
     vi.mocked(overrides.loadOverride).mockReturnValue(null);
     vi.mocked(overrides.getEffectiveWithGlobal).mockReturnValue({
       plugin: "github-com",
+      sources: undefined,
+    });
+    vi.mocked(deriveSources.deriveAndPersistGithubSources).mockResolvedValue(null);
+
+    initializeIntegrationMigrations();
+    await awaitPendingIntegrationSetup("a");
+
+    expect(deriveSources.deriveAndPersistGithubSources).toHaveBeenCalledWith("a");
+  });
+
+  it("triggers derivation for a GHE project whose sources are missing", async () => {
+    const project = projectFixture("a");
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([project]);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    vi.mocked(overrides.loadOverride).mockReturnValue(null);
+    vi.mocked(overrides.getEffectiveWithGlobal).mockReturnValue({
+      plugin: "ghe",
       sources: undefined,
     });
     vi.mocked(deriveSources.deriveAndPersistGithubSources).mockResolvedValue(null);

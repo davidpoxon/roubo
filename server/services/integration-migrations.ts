@@ -1,12 +1,13 @@
 import * as projectRegistry from "./project-registry.js";
-import { deriveAndPersistGithubSources } from "./derive-github-sources.js";
+import {
+  deriveAndPersistGithubSources,
+  GITHUB_FAMILY_PLUGIN_IDS,
+} from "./derive-github-sources.js";
 import {
   loadOverride,
   getEffectiveWithGlobal,
   IntegrationOverrideError,
 } from "./integration-overrides.js";
-
-const GITHUB_PLUGIN_ID = "github-com";
 
 const pending = new Map<string, Promise<void>>();
 
@@ -15,13 +16,14 @@ const pending = new Map<string, Promise<void>>();
  * config-loaded hook, and run a one-shot sweep over already-loaded projects.
  *
  * Call this AFTER both `projectRegistry.initialize()` and
- * `pluginManager.initialize()` have completed: the github-com backfill calls
+ * `pluginManager.initialize()` have completed: the GitHub-family backfill calls
  * `pluginManager.invoke("listSourceCandidates", ...)`, which needs a ready
  * plugin runtime.
  *
- * Today this covers a single case: projects whose active integration is
- * github-com but whose persisted config predates #278's auto-derived sources.
- * The Configure modal's Save path (`PUT /integration/fields`) already triggers
+ * This covers GitHub-family projects (github-com, ghe) whose persisted config
+ * has no sources yet: either predating #278's auto-derived sources, or set up
+ * before the active plugin gained a repo-driven derivation path. The Configure
+ * modal's Save path (`PUT /integration/fields`) already triggers
  * `deriveAndPersistGithubSources`; this hook covers everyone who has not
  * re-saved since the upgrade.
  */
@@ -53,7 +55,11 @@ function runMigrationsFor(projectId: string): Promise<void> {
 
       const effective = getEffectiveWithGlobal(project.config.integration, override);
 
-      if (effective.plugin === GITHUB_PLUGIN_ID && !hasAnySource(effective.sources)) {
+      if (
+        effective.plugin !== undefined &&
+        GITHUB_FAMILY_PLUGIN_IDS.has(effective.plugin) &&
+        !hasAnySource(effective.sources)
+      ) {
         await deriveAndPersistGithubSources(projectId);
       }
     } catch (err) {

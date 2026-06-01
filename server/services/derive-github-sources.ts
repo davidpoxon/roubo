@@ -4,12 +4,23 @@ import * as YAML from "yaml";
 import type { RouboConfig, SourceSelection, SourceSelectionEntry } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as pluginManager from "./plugin-manager.js";
+import { resolveActivePlugin } from "./active-plugin.js";
 import { atomicWrite } from "./state.js";
 import { validateConfigObject } from "./config-parser.js";
 import { classifyGitHubError } from "./github-error.js";
 import { resolveWithin } from "../lib/safe-path.js";
 
 const GITHUB_PLUGIN_ID = "github-com";
+
+/**
+ * Plugins whose sources are derived from the project's repo (root + resolvable
+ * submodules) rather than picked through the host source picker. They share the
+ * same `owner/repo` + `owner/#number` source shapes and the same
+ * `listSourceCandidates` / `probeRepoAccess` contract, so a single derivation
+ * path serves the whole family. Any other active plugin (Jira, third-party)
+ * selects sources through the picker and is skipped here.
+ */
+export const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
 const REPOSITORY_CATEGORY = "Repository";
 const PROJECT_CATEGORY = "Project";
 
@@ -127,8 +138,9 @@ export function parseGitHubRepoFromUrl(url: string): string | null {
 }
 
 /**
- * Asks the github-com plugin for the authenticated user's repos and projects,
- * then narrows the result to the repos declared on this project (root + every
+ * Asks the project's active GitHub-family plugin (github-com or ghe) for the
+ * authenticated user's repos and projects, then narrows the result to the
+ * repos declared on this project (root + every
  * resolvable submodule) and the GitHub Projects (v2) owned by any of those
  * repos' owners. Repository entries carry all three alert flags so the runtime
  * fetches whichever security categories the repo has enabled; the categories
@@ -139,6 +151,18 @@ export async function deriveGithubSources(projectId: string): Promise<DerivedSou
   const project = projectRegistry.getProject(projectId);
   if (!project) throw new Error(`Project not found: ${projectId}`);
   if (!project.config) throw new Error(`Project config invalid: ${projectId}`);
+
+  // Derivation only applies to the GitHub family. Resolve the active plugin and
+  // address every RPC to it (not a hard-coded github-com) so GHE projects derive
+  // against their own instance. A non-family or absent plugin yields no sources.
+  const active = resolveActivePlugin(projectId);
+  const pluginId = active?.pluginId;
+  if (!pluginId || !GITHUB_FAMILY_PLUGIN_IDS.has(pluginId)) {
+    return {
+      sources: {},
+      preview: { repos: [], projects: [], alertsRequested: [] },
+    };
+  }
 
   const desiredRepos = collectDesiredRepos(project.config, project.repoPath);
   if (desiredRepos.length === 0) {
@@ -155,7 +179,7 @@ export async function deriveGithubSources(projectId: string): Promise<DerivedSou
   }
 
   const raw = await pluginManager.invoke<ListSourceCandidatesShape>(
-    GITHUB_PLUGIN_ID,
+    pluginId,
     "listSourceCandidates",
     {},
   );
@@ -179,7 +203,7 @@ export async function deriveGithubSources(projectId: string): Promise<DerivedSou
       unmatchedRepos.map(async (repo) => {
         try {
           const result = await pluginManager.invoke<ProbeRepoAccessShape>(
-            GITHUB_PLUGIN_ID,
+            pluginId,
             "probeRepoAccess",
             { repoFullName: repo },
           );
@@ -246,9 +270,10 @@ export async function deriveGithubSources(projectId: string): Promise<DerivedSou
 
 /**
  * Derives the sources set, then writes it into the project's roubo.yaml
- * `integration.sources` field. Best-effort: any failure (no active github-com
- * plugin, network blip during listSourceCandidates, malformed config) is
- * logged and swallowed so the surrounding field-edit path still succeeds.
+ * `integration.sources` field. Best-effort: any failure (no active
+ * GitHub-family plugin, network blip during listSourceCandidates, malformed
+ * config) is logged and swallowed so the surrounding field-edit path still
+ * succeeds.
  *
  * Returns the preview structure when derivation ran, or `null` when it was
  * skipped or errored. The caller can surface this to the UI but must not
