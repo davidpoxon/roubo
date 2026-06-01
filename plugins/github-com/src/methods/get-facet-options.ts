@@ -30,6 +30,8 @@ async function fetchFacetValues(facetId: string, repoFullName: string): Promise<
 }
 
 export async function getFacetOptions(params: GetFacetOptionsParams): Promise<FilterFacetOption[]> {
+  // Facet options cover the primary source only; multi-source (submodule) facet
+  // coverage tracked in #369.
   const source = requirePrimarySource(params.sources);
   if (source.kind !== "repo") return [];
 

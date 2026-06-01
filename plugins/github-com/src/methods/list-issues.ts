@@ -4,7 +4,7 @@ import type {
   ListIssuesWarning,
   NormalizedIssue,
 } from "@roubo/plugin-sdk";
-import { requirePrimarySource, type GithubSource } from "../sources.js";
+import { parseAllSources, type GithubSource } from "../sources.js";
 import { formatExternalId } from "../external-id.js";
 import {
   fetchBlockingRelationships,
@@ -13,6 +13,7 @@ import {
 } from "../github-fetchers.js";
 import { projectNodeToNormalizedIssue, rawToNormalizedIssue } from "../normalize.js";
 import { fetchRepoAlerts, type AlertFlags } from "../alerts-runtime.js";
+import { decodeCompositeCursor, encodeCompositeCursor } from "@roubo/shared-github";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -232,10 +233,83 @@ async function listFromProject(
   return result_;
 }
 
-export async function listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {
-  const source = requirePrimarySource(params.sources);
+/** Dispatch one source to its kind-specific lister with a per-source cursor. */
+function listFromSource(source: GithubSource, params: ListIssuesParams): Promise<ListIssuesResult> {
   if (source.kind === "repo") {
     return listFromRepo(source.externalId, params, source);
   }
   return listFromProject(source.externalId, params, source);
+}
+
+/**
+ * Aggregate the cut list across every configured source. A submodule project
+ * surfaces the root repo plus each submodule (and any GitHub Projects); each is
+ * paginated independently and stitched together with an opaque composite cursor
+ * that carries each source's own next-page cursor.
+ *
+ * On the first request (`cursor == null`) every source starts at page 1, so each
+ * source's own `page === 1` gate fetches its security alerts exactly once. On
+ * later pages only the sources that still have a next page remain active, and no
+ * source ever returns to page 1, so alerts are never re-fetched. Item order is
+ * stable: sources in host order (root first, then submodules), and within each
+ * source issues precede its code-scanning/secret-scanning/dependabot alerts.
+ * Cross-source duplicates are collapsed by the host's (integrationId,
+ * externalId) dedup.
+ */
+export async function listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {
+  const sources = parseAllSources(params.sources);
+  const isFirstPage = params.cursor == null;
+  const cursorBySource = isFirstPage ? {} : decodeCompositeCursor(params.cursor as string);
+
+  const active = isFirstPage
+    ? sources
+    : sources.filter((s) => cursorBySource[s.externalId] != null);
+
+  const perSource = await Promise.allSettled(
+    active.map((s) =>
+      listFromSource(s, {
+        ...params,
+        cursor: isFirstPage ? null : (cursorBySource[s.externalId] ?? null),
+      }),
+    ),
+  );
+
+  const items: NormalizedIssue[] = [];
+  const warnings: ListIssuesWarning[] = [];
+  const nextBySource: Record<string, string> = {};
+  active.forEach((s, i) => {
+    const settled = perSource[i];
+    // One source failing must not blank the whole cut list. With Promise.all a
+    // transient error on a single submodule (a 5xx, rate-limit, or missing repo
+    // from fetchIssuesPage) would reject the entire page and suppress every
+    // other source's issues AND security alerts: the exact regression this
+    // branch exists to fix. Aggregate what succeeded, surface a per-source
+    // warning for what failed, and carry the failed source's prior cursor
+    // forward so it is retried on the next page rather than silently dropped
+    // from pagination. A source that keeps failing once it is the only one left
+    // echoes back its own cursor, which the host's stall detection collapses to
+    // end-of-list, so this cannot loop forever.
+    if (settled.status === "rejected") {
+      const priorCursor = isFirstPage ? null : (cursorBySource[s.externalId] ?? null);
+      if (priorCursor != null) nextBySource[s.externalId] = priorCursor;
+      warnings.push({
+        category: "issues",
+        sourceExternalId: s.externalId,
+        cause: settled.reason instanceof Error ? settled.reason.message : String(settled.reason),
+        code: "unknown",
+      });
+      return;
+    }
+    const result = settled.value;
+    items.push(...result.items);
+    if (result.warnings) warnings.push(...result.warnings);
+    if (result.nextCursor != null) nextBySource[s.externalId] = result.nextCursor;
+  });
+
+  const out: ListIssuesResult = {
+    items,
+    nextCursor: Object.keys(nextBySource).length > 0 ? encodeCompositeCursor(nextBySource) : null,
+  };
+  if (warnings.length > 0) out.warnings = warnings;
+  return out;
 }
