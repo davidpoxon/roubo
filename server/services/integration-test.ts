@@ -17,6 +17,7 @@ import type {
 import * as credentialStore from "./credential-store.js";
 import * as pluginManager from "./plugin-manager.js";
 import { translateSources } from "./plugin-source-translation.js";
+import { GITHUB_FAMILY_PLUGIN_IDS } from "./derive-github-sources.js";
 
 export function passwordFieldKeys(manifest: PluginManifest | null | undefined): string[] {
   if (!manifest?.configSchema) return [];
@@ -77,11 +78,6 @@ export function errorMessage(err: unknown): string {
   if (typeof err === "string") return err;
   return "Unknown error";
 }
-
-// Plugin ids that model the three GitHub Advanced Security alert categories.
-// Other plugins ignore the per-source alert flags entirely, so the host
-// shouldn't ask them to probe.
-const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
 
 // Host-side budgets for the per-category probe (FR-047, WU-034). The per-probe
 // value is what gets handed to the plugin so it can race each individual HTTP

@@ -22,6 +22,7 @@ import {
 import {
   deriveAndPersistGithubSources,
   deriveGithubSources,
+  GITHUB_FAMILY_PLUGIN_IDS,
 } from "../services/derive-github-sources.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
@@ -79,8 +80,6 @@ const GITHUB_FAMILY_SECURITY_ISSUE_TYPES = [
   "security-secret-scanning",
   "security-dependabot",
 ] as const;
-
-const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
 
 router.get("/", (_req, res) => {
   const projects = projectRegistry.getProjects();

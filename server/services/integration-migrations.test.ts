@@ -6,9 +6,11 @@ vi.mock("./project-registry.js", () => ({
   getProjects: vi.fn(),
   getProject: vi.fn(),
 }));
-vi.mock("./derive-github-sources.js", () => ({
+// Keep the real GITHUB_FAMILY_PLUGIN_IDS so the family roster stays a single
+// source of truth; stub only the side-effecting derivation call.
+vi.mock("./derive-github-sources.js", async (importActual) => ({
+  ...(await importActual<typeof import("./derive-github-sources.js")>()),
   deriveAndPersistGithubSources: vi.fn(),
-  GITHUB_FAMILY_PLUGIN_IDS: new Set(["github-com", "ghe"]),
 }));
 vi.mock("./integration-overrides.js", () => ({
   loadOverride: vi.fn(),
