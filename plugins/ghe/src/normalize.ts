@@ -4,7 +4,7 @@ import type { BlockedByNode, BlockingNode, ProjectV2Data, RawComment, RawIssue }
 export const INTEGRATION_ID = "ghe";
 
 /** Lowercases GitHub's "open"/"closed" issue state for downstream consumers. */
-function normalizeState(state: string | undefined): string {
+export function normalizeState(state: string | undefined): string {
   return (state ?? "open").toLowerCase();
 }
 
