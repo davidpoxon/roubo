@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ConfiguredSource } from "@roubo/plugin-sdk";
+import { decodeCompositeCursor } from "@roubo/shared-github";
 import { listIssues } from "../methods/list-issues.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
@@ -101,7 +102,9 @@ describe("listIssues", () => {
 
     const result = await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 2 });
     expect(result.items).toHaveLength(2);
-    expect(result.nextCursor).toBe("2");
+    // nextCursor is an opaque composite cursor carrying each source's own next
+    // page; the single repo source advances to page 2.
+    expect(decodeCompositeCursor(result.nextCursor as string)).toEqual({ "foo/bar": "2" });
   });
 
   it("passes labels filter through to the GitHub request", async () => {
@@ -161,7 +164,7 @@ describe("listIssues", () => {
     const result = await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 2 });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].title).toBe("issue");
-    expect(result.nextCursor).toBe("2");
+    expect(decodeCompositeCursor(result.nextCursor as string)).toEqual({ "foo/bar": "2" });
   });
 
   it("enriches project-sourced issues with per-repo blocking relationships", async () => {

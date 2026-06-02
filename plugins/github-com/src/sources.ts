@@ -37,3 +37,27 @@ export function requirePrimarySource(sources: ConfiguredSource[] | undefined): G
   }
   return first;
 }
+
+/**
+ * Narrow the entire host-supplied source list to the kinds this plugin
+ * understands. Used by `listIssues`, which aggregates the cut list across every
+ * configured source (a submodule project surfaces the root repo plus each
+ * submodule), not just the primary one. Throws on an empty/missing list or any
+ * unsupported source kind so a misconfigured source surfaces loudly rather than
+ * silently dropping out of the cut list.
+ */
+export function parseAllSources(sources: ConfiguredSource[] | undefined): GithubSource[] {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    throw new Error(
+      "[github-com] sources is required for source-bound methods (listIssues, listIssueTypes, listLabels).",
+    );
+  }
+  return sources.map((s) => {
+    if (!isGithubSource(s)) {
+      throw new Error(
+        `[github-com] unsupported source kind "${s?.kind}"; expected "repo" or "project".`,
+      );
+    }
+    return s;
+  });
+}

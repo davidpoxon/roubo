@@ -11,6 +11,7 @@ Documentation for [Roubo](../README.md), a workbench for running multiple parall
 ## For contributors
 
 - **[Architecture](./architecture.md)**: how Roubo thinks about projects, benches, components, ports, and the API surface.
+- **[The Cut List](./cut-list.md)**: how Roubo retrieves issues and security alerts across a project's sources, and how the multi-source paging scheme works, with worked examples.
 - **[Development](./development.md)**: running Roubo from source, code quality, building the desktop app.
 - **[Releasing](./releasing.md)**: how releases are cut, signed, and published.
 - **[Integrations](./integrations.md)**: configuring GitHub OAuth and other external services.

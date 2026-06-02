@@ -64,3 +64,8 @@ export {
   type DetectTokenScopesResult,
   type DetectTokenScopesOptions,
 } from "./token-scopes.js";
+export {
+  encodeCompositeCursor,
+  decodeCompositeCursor,
+  type CompositeCursor,
+} from "./composite-cursor.js";
