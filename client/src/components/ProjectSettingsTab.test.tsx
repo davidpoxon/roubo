@@ -19,6 +19,13 @@ vi.mock("../hooks/useProjects", () => ({
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(),
   useSwitchProjectIntegration: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  usePromoteProjectIntegration: vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  })),
   useTestIntegrationConnection: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useSaveIntegrationConfig: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));

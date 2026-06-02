@@ -13,7 +13,11 @@ import {
   primaryActionLabelFor,
 } from "./settings/plugins/derivePluginConnectionState";
 import { useConnectionStatus } from "../hooks/usePlugins";
-import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import {
+  useProjectIntegration,
+  usePromoteProjectIntegration,
+} from "../hooks/useProjectIntegration";
+import { ApiError } from "../lib/api";
 import { titleCase } from "../lib/title-case";
 
 const CAPTION_TEXT: Record<IntegrationCaptionKey, string> = {
@@ -31,6 +35,25 @@ const STRINGS = {
   unknownError: "unknown error",
   noSources: "No sources selected yet.",
   switchIntegration: "Switch integration",
+  updateRouboYaml: "Update roubo.yaml",
+  updatingRouboYaml: "Updating…",
+  promoteFailedFallback: "Failed to update roubo.yaml",
+  mismatchLead: "This project's ",
+  mismatchRoubo: "roubo.yaml",
+  mismatchTrailing: ".",
+  noInstance: "no host",
+  // Same sentence shape for both divergence axes; only the verbs and the
+  // highlighted value (plugin id vs instance host) change.
+  mismatchPlugin: {
+    specifies: " specifies ",
+    active: ", but the active integration is ",
+    teammates: ". Teammates who clone the repo will get ",
+  },
+  mismatchInstance: {
+    specifies: " points at ",
+    active: ", but the active integration uses ",
+    teammates: ". Teammates who clone the repo will connect to ",
+  },
   noIssueSource: "No issue source configured yet.",
   noIssueSourceHint: "Choose an installed integration to start pulling issues into this project.",
   chooseIntegration: "Choose integration",
@@ -41,6 +64,69 @@ const STRINGS = {
 
 const TRIGGER_BUTTON_CLASS =
   "px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+
+function IntegrationMismatchBanner({
+  projectId,
+  mismatch,
+}: {
+  projectId: string;
+  mismatch: NonNullable<ProjectIntegrationState["integrationMismatch"]>;
+}) {
+  const promote = usePromoteProjectIntegration(projectId);
+  const errorMessage = promote.isError
+    ? promote.error instanceof ApiError || promote.error instanceof Error
+      ? promote.error.message
+      : STRINGS.promoteFailedFallback
+    : null;
+
+  // Plugin drift is the headline; when the plugin id agrees, the divergence is
+  // the instance (which host the same plugin talks to).
+  const pluginDiffers = mismatch.committedPlugin !== mismatch.effectivePlugin;
+  const copy = pluginDiffers ? STRINGS.mismatchPlugin : STRINGS.mismatchInstance;
+  const committedValue = pluginDiffers
+    ? mismatch.committedPlugin
+    : (mismatch.committedInstance ?? STRINGS.noInstance);
+  const effectiveValue = pluginDiffers
+    ? mismatch.effectivePlugin
+    : (mismatch.effectiveInstance ?? STRINGS.noInstance);
+
+  return (
+    <div
+      data-testid="issue-source-integration-mismatch"
+      className="flex flex-col gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20"
+    >
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+        <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+          {STRINGS.mismatchLead}
+          <span className="font-mono">{STRINGS.mismatchRoubo}</span>
+          {copy.specifies}
+          <span className="font-mono text-stone-900 dark:text-stone-100">{committedValue}</span>
+          {copy.active}
+          <span className="font-mono text-stone-900 dark:text-stone-100">{effectiveValue}</span>
+          {copy.teammates}
+          <span className="font-mono text-stone-900 dark:text-stone-100">{committedValue}</span>
+          {STRINGS.mismatchTrailing}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 pl-6">
+        <Button
+          isDisabled={promote.isPending}
+          onPress={() => promote.mutate()}
+          data-testid="issue-source-promote"
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          {promote.isPending ? STRINGS.updatingRouboYaml : STRINGS.updateRouboYaml}
+        </Button>
+        {errorMessage && (
+          <span role="alert" className="text-[11px] text-red-400">
+            {errorMessage}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ConfiguredBody({
   projectId,
@@ -74,6 +160,9 @@ function ConfiguredBody({
 
   return (
     <div className="space-y-4">
+      {state.integrationMismatch && (
+        <IntegrationMismatchBanner projectId={projectId} mismatch={state.integrationMismatch} />
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />

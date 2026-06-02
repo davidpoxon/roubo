@@ -24,6 +24,19 @@ export function useSwitchProjectIntegration(projectId: string) {
   });
 }
 
+export function usePromoteProjectIntegration(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.promoteProjectIntegration(projectId),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
+      // Benches derive integration-related badges from the project's active
+      // integration, so refresh them too (mirrors the switch mutation).
+      void queryClient.invalidateQueries({ queryKey: ["benches"] });
+    },
+  });
+}
+
 export function useTestIntegrationConnection(projectId: string) {
   return useMutation({
     mutationFn: (config: Record<string, unknown>) =>

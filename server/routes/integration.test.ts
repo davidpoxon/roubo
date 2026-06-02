@@ -37,11 +37,20 @@ vi.mock("../services/integration-overrides.js", async () => {
   };
 });
 
+vi.mock("../services/promote-integration.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/promote-integration.js")>(
+    "../services/promote-integration.js",
+  );
+  return { ...actual, promoteIntegrationToCommitted: vi.fn() };
+});
+
 import router from "./integration.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as credentialStore from "../services/credential-store.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
+import * as promoteIntegration from "../services/promote-integration.js";
+import { PromoteIntegrationError } from "../services/promote-integration.js";
 
 const app = express();
 app.use(express.json());
@@ -215,6 +224,137 @@ describe("GET /:projectId/integration", () => {
     expect(res.status).toBe(200);
     expect(res.body.captionKey).toBe("yaml-and-override");
     expect(res.body.effective.plugin).toBe("jira-self-hosted");
+  });
+
+  it("flags integrationMismatch when committed plugin differs from the effective plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe", instance: "https://ghe.example" },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "GitHub Enterprise"),
+    ]);
+
+    const res = await request(app).get("/demo/integration");
+
+    expect(res.status).toBe(200);
+    expect(res.body.effective.plugin).toBe("ghe");
+    expect(res.body.integrationMismatch).toEqual({
+      committedPlugin: "github-com",
+      effectivePlugin: "ghe",
+      committedInstance: null,
+      effectiveInstance: "https://ghe.example",
+    });
+  });
+
+  it("flags integrationMismatch when the plugin agrees but the instance differs", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe.old.example" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe", instance: "https://ghe.new.example" },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "GitHub Enterprise"),
+    ]);
+
+    const res = await request(app).get("/demo/integration");
+
+    expect(res.status).toBe(200);
+    expect(res.body.integrationMismatch).toEqual({
+      committedPlugin: "ghe",
+      effectivePlugin: "ghe",
+      committedInstance: "https://ghe.old.example",
+      effectiveInstance: "https://ghe.new.example",
+    });
+  });
+
+  it("reports no integrationMismatch when committed and effective integrations agree", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe.example" }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "GitHub Enterprise"),
+    ]);
+
+    const res = await request(app).get("/demo/integration");
+
+    expect(res.status).toBe(200);
+    expect(res.body.integrationMismatch).toBeNull();
+  });
+
+  it("reports no integrationMismatch when the committed config has no plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe" },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "GitHub Enterprise"),
+    ]);
+
+    const res = await request(app).get("/demo/integration");
+
+    expect(res.status).toBe(200);
+    expect(res.body.integrationMismatch).toBeNull();
+  });
+});
+
+describe("POST /:projectId/integration/promote", () => {
+  it("returns the rebuilt state on success", async () => {
+    vi.mocked(promoteIntegration.promoteIntegrationToCommitted).mockReturnValue(undefined);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe.example" }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("ghe", "GitHub Enterprise"),
+    ]);
+
+    const res = await request(app).post("/demo/integration/promote");
+
+    expect(res.status).toBe(200);
+    expect(promoteIntegration.promoteIntegrationToCommitted).toHaveBeenCalledWith("demo");
+    expect(res.body.effective.plugin).toBe("ghe");
+    expect(res.body.integrationMismatch).toBeNull();
+  });
+
+  it("returns 404 when promote reports the project is unknown", async () => {
+    vi.mocked(promoteIntegration.promoteIntegrationToCommitted).mockImplementation(() => {
+      throw new PromoteIntegrationError("Project not found", "PROJECT_NOT_FOUND");
+    });
+
+    const res = await request(app).post("/missing/integration/promote");
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("PROJECT_NOT_FOUND");
+  });
+
+  it("returns 400 with the code when the promoted config fails validation", async () => {
+    vi.mocked(promoteIntegration.promoteIntegrationToCommitted).mockImplementation(() => {
+      throw new PromoteIntegrationError("bad config", "VALIDATION");
+    });
+
+    const res = await request(app).post("/demo/integration/promote");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("bad config");
+    expect(res.body.code).toBe("VALIDATION");
+  });
+
+  it("returns 400 when the per-user override is malformed", async () => {
+    vi.mocked(promoteIntegration.promoteIntegrationToCommitted).mockImplementation(() => {
+      throw new integrationOverrides.IntegrationOverrideError("schema busted", "SCHEMA", [
+        { path: "integration.plugin", message: "Required" },
+      ]);
+    });
+
+    const res = await request(app).post("/demo/integration/promote");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("SCHEMA");
+    expect(res.body.fieldErrors).toEqual([{ path: "integration.plugin", message: "Required" }]);
   });
 });
 

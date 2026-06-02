@@ -6,7 +6,10 @@ import { Button, DialogTrigger } from "react-aria-components";
 import { renderWithProviders } from "../test/renderWithProviders";
 import SwitchIntegrationDialog from "./SwitchIntegrationDialog";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
-import { useSwitchProjectIntegration } from "../hooks/useProjectIntegration";
+import {
+  useSwitchProjectIntegration,
+  usePromoteProjectIntegration,
+} from "../hooks/useProjectIntegration";
 
 function renderDialog(props: { currentPluginId: string | null; onClose?: () => void }) {
   const onClose = props.onClose ?? vi.fn();
@@ -29,20 +32,28 @@ vi.mock("../hooks/useInstalledPlugins", () => ({
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useSwitchProjectIntegration: vi.fn(),
+  usePromoteProjectIntegration: vi.fn(),
 }));
 
 const mockedUseInstalledPlugins = vi.mocked(useInstalledPlugins);
 const mockedUseSwitchProjectIntegration = vi.mocked(useSwitchProjectIntegration);
+const mockedUsePromoteProjectIntegration = vi.mocked(usePromoteProjectIntegration);
 
 const mutateAsync = vi.fn();
+const promoteMutateAsync = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   mutateAsync.mockResolvedValue(undefined);
+  promoteMutateAsync.mockResolvedValue(undefined);
   mockedUseSwitchProjectIntegration.mockReturnValue({
     mutateAsync,
     isPending: false,
   } as unknown as ReturnType<typeof useSwitchProjectIntegration>);
+  mockedUsePromoteProjectIntegration.mockReturnValue({
+    mutateAsync: promoteMutateAsync,
+    isPending: false,
+  } as unknown as ReturnType<typeof usePromoteProjectIntegration>);
   mockedUseInstalledPlugins.mockReturnValue({
     data: [
       { id: "github-com", name: "GitHub.com", status: "enabled" },
@@ -104,6 +115,50 @@ describe("SwitchIntegrationDialog", () => {
 
     expect(mutateAsync).toHaveBeenCalledWith("jira-self-hosted");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("does not promote to roubo.yaml on confirm when the checkbox is left unchecked", async () => {
+    const user = userEvent.setup();
+    renderDialog({ currentPluginId: "github-com" });
+
+    await user.click(screen.getByRole("radio", { name: /Jira/i }));
+    const buttons = screen.getAllByRole("button", { name: /Switch integration/i });
+    await user.click(buttons[buttons.length - 1]);
+
+    expect(mutateAsync).toHaveBeenCalledWith("jira-self-hosted");
+    expect(promoteMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("promotes to roubo.yaml after switching when the checkbox is checked", async () => {
+    const user = userEvent.setup();
+    renderDialog({ currentPluginId: "github-com" });
+
+    await user.click(screen.getByRole("radio", { name: /Jira/i }));
+    await user.click(screen.getByRole("checkbox", { name: /update this project's roubo\.yaml/i }));
+    const buttons = screen.getAllByRole("button", { name: /Switch integration/i });
+    await user.click(buttons[buttons.length - 1]);
+
+    expect(mutateAsync).toHaveBeenCalledWith("jira-self-hosted");
+    expect(promoteMutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the dialog open and surfaces the error when the switch succeeds but promote fails", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    // Switch resolves; the best-effort promote rejects. The override is already
+    // changed, so the dialog must not close and must show the failure inline.
+    promoteMutateAsync.mockRejectedValueOnce(new Error("roubo.yaml is read-only"));
+    renderDialog({ currentPluginId: "github-com", onClose });
+
+    await user.click(screen.getByRole("radio", { name: /Jira/i }));
+    await user.click(screen.getByRole("checkbox", { name: /update this project's roubo\.yaml/i }));
+    const buttons = screen.getAllByRole("button", { name: /Switch integration/i });
+    await user.click(buttons[buttons.length - 1]);
+
+    expect(mutateAsync).toHaveBeenCalledWith("jira-self-hosted");
+    expect(promoteMutateAsync).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("roubo.yaml is read-only");
   });
 
   it("disables radios for errored or incompatible plugins", () => {

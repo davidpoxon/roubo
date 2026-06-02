@@ -12,6 +12,7 @@ import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { atomicWrite } from "../services/state.js";
+import { writeRouboConfig } from "../services/write-roubo-config.js";
 import { resolveWithin, resolveWithinRoots, allowedRoots } from "../lib/safe-path.js";
 import {
   getIntegrationFields,
@@ -323,16 +324,7 @@ router.post("/save-config", saveConfigRateLimiter, (req, res) => {
   }
 
   try {
-    const dir = resolveWithin(repoPath, ".roubo");
-    fs.mkdirSync(dir, { recursive: true });
-    const configPath = resolveWithin(dir, "roubo.yaml");
-    const yamlContent = YAML.stringify(config, {
-      indent: 2,
-      lineWidth: 0,
-      defaultStringType: "QUOTE_DOUBLE",
-      defaultKeyType: "PLAIN",
-    });
-    atomicWrite(configPath, yamlContent);
+    const configPath = writeRouboConfig(repoPath, config);
 
     try {
       const projectId = config.project.name;

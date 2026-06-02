@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import * as YAML from "yaml";
 import type { RegisteredProject, RouboConfig } from "@roubo/shared";
 import {
   collectDesiredRepos,
@@ -381,5 +382,57 @@ describe("deriveAndPersistGithubSources", () => {
 
     expect(preview).toBeNull();
     expect(fs.existsSync(path.join(tmpDir, ".roubo", "roubo.yaml"))).toBe(false);
+  });
+
+  it("never fabricates a github-com plugin when the committed config has no integration block", async () => {
+    // baseConfig() has no `integration` block. Derivation must write only
+    // `sources` and must NOT invent `plugin: github-com`, which is what left
+    // GHE projects with a stale plugin id that only worked via the override.
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(baseConfig()));
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      shape: "categorized-multi-list",
+      categories: [
+        { id: "Repository", items: [{ externalId: "acme/demo", label: "acme/demo" }] },
+        { id: "Project", items: [] },
+      ],
+    });
+
+    await deriveAndPersistGithubSources("demo");
+
+    const written = fs.readFileSync(path.join(tmpDir, ".roubo", "roubo.yaml"), "utf-8");
+    const parsed = YAML.parse(written) as RouboConfig;
+    expect(parsed.integration?.plugin).toBeUndefined();
+    expect(parsed.integration?.sources?.Repository).toEqual([
+      {
+        externalId: "acme/demo",
+        includeCodeQLAlerts: true,
+        includeSecretScanningAlerts: true,
+        includeDependabotAlerts: true,
+      },
+    ]);
+    expect(written).not.toContain("github-com");
+  });
+
+  it("preserves the committed plugin and instance verbatim, writing only sources", async () => {
+    const config = baseConfig();
+    config.integration = { plugin: "ghe", instance: "https://ghe.megaleo.com" };
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(activePluginFor("ghe"));
+    vi.mocked(projectRegistry.getProject).mockReturnValue(projectFor(config));
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      shape: "categorized-multi-list",
+      categories: [
+        { id: "Repository", items: [{ externalId: "acme/demo", label: "acme/demo" }] },
+        { id: "Project", items: [] },
+      ],
+    });
+
+    await deriveAndPersistGithubSources("demo");
+
+    const written = fs.readFileSync(path.join(tmpDir, ".roubo", "roubo.yaml"), "utf-8");
+    const parsed = YAML.parse(written) as RouboConfig;
+    expect(parsed.integration?.plugin).toBe("ghe");
+    expect(parsed.integration?.instance).toBe("https://ghe.megaleo.com");
+    expect(parsed.integration?.sources?.Repository).toHaveLength(1);
+    expect(written).not.toContain("github-com");
   });
 });

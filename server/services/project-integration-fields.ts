@@ -1,10 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
-import * as YAML from "yaml";
 import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
-import { atomicWrite } from "./state.js";
 import { validateConfigObject } from "./config-parser.js";
+import { writeRouboConfig } from "./write-roubo-config.js";
 import type { IntegrationFields, IntegrationFieldsUpdate, RouboConfig } from "@roubo/shared";
 
 /**
@@ -96,12 +93,19 @@ export function setIntegrationFields(
     );
   }
 
-  writeConfig(project.repoPath, next);
+  try {
+    writeRouboConfig(project.repoPath, next);
+  } catch (err) {
+    throw new IntegrationFieldsError(
+      `Failed to write config: ${(err as Error).message}`,
+      "WRITE_FAILED",
+    );
+  }
 
   try {
     projectRegistry.reloadConfig(projectId);
   } catch {
-    // Reload failure is non-fatal — the on-disk write succeeded.
+    // Reload failure is non-fatal: the on-disk write succeeded.
   }
 
   // Return the just-written values directly rather than re-reading through
@@ -149,36 +153,6 @@ function validateUpdateShape(update: IntegrationFieldsUpdate): void {
         );
       }
     }
-  }
-}
-
-function writeConfig(repoPath: string, config: RouboConfig): void {
-  try {
-    // Resolve to an absolute, normalised path and assert it stays inside
-    // the registered repoPath. `repoPath` originates from the operator-
-    // controlled project registry, not from request input, but the
-    // surrounding handler is reached via a user-controlled projectId, so
-    // we defend against a malformed registry entry escaping the project
-    // root via traversal (CodeQL js/path-injection).
-    const repoRoot = path.resolve(repoPath);
-    const dir = path.resolve(repoRoot, ".roubo");
-    if (dir !== path.join(repoRoot, ".roubo")) {
-      throw new Error("Resolved config directory escaped the project root");
-    }
-    fs.mkdirSync(dir, { recursive: true });
-    const configPath = path.join(dir, "roubo.yaml");
-    const yamlContent = YAML.stringify(config, {
-      indent: 2,
-      lineWidth: 0,
-      defaultStringType: "QUOTE_DOUBLE",
-      defaultKeyType: "PLAIN",
-    });
-    atomicWrite(configPath, yamlContent);
-  } catch (err) {
-    throw new IntegrationFieldsError(
-      `Failed to write config: ${(err as Error).message}`,
-      "WRITE_FAILED",
-    );
   }
 }
 
