@@ -764,6 +764,12 @@ export function switchProjectIntegration(
   });
 }
 
+export function promoteProjectIntegration(projectId: string): Promise<ProjectIntegrationState> {
+  return request(`/projects/${projectId}/integration/promote`, {
+    method: "POST",
+  });
+}
+
 export function testIntegrationConnection(
   projectId: string,
   config: Record<string, unknown>,
@@ -884,7 +890,7 @@ export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]>
   });
 }
 
-// github-com plugin OAuth — returns the URL to open in a browser.
+// github-com plugin OAuth: returns the URL to open in a browser.
 export function startGithubPluginOauth(): Promise<{ url: string }> {
   return request("/plugins/github-com/oauth/authorize", { method: "POST" });
 }

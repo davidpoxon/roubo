@@ -1,16 +1,12 @@
 import fs from "node:fs";
-import path from "node:path";
-import * as YAML from "yaml";
 import type { RouboConfig, SourceSelection, SourceSelectionEntry } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as pluginManager from "./plugin-manager.js";
 import { resolveActivePlugin } from "./active-plugin.js";
-import { atomicWrite } from "./state.js";
 import { validateConfigObject } from "./config-parser.js";
+import { writeRouboConfig } from "./write-roubo-config.js";
 import { classifyGitHubError } from "./github-error.js";
 import { resolveWithin } from "../lib/safe-path.js";
-
-const GITHUB_PLUGIN_ID = "github-com";
 
 /**
  * Plugins whose sources are derived from the project's repo (root + resolvable
@@ -300,12 +296,15 @@ export async function deriveAndPersistGithubSources(
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) return derived.preview;
 
+  // Derivation only manages `sources`. The committed `plugin` is preserved
+  // verbatim and never fabricated: writing a default `github-com` here is what
+  // left GHE projects with a stale `github-com` that only worked because the
+  // per-user override resolved to `ghe`. A teammate cloning the repo would then
+  // resolve `github-com` against api.github.com and silently break. Promoting
+  // the active plugin into committed config is an explicit user action
+  // (POST /integration/promote), not a side effect of source derivation.
   const next: RouboConfig = structuredClone(project.config);
-  const existing = next.integration ?? { plugin: GITHUB_PLUGIN_ID };
-  next.integration = {
-    ...existing,
-    plugin: existing.plugin ?? GITHUB_PLUGIN_ID,
-  };
+  next.integration = { ...(next.integration ?? {}) };
   if (Object.keys(derived.sources).length === 0) {
     delete next.integration.sources;
   } else {
@@ -323,7 +322,7 @@ export async function deriveAndPersistGithubSources(
   }
 
   try {
-    writeConfig(project.repoPath, next);
+    writeRouboConfig(project.repoPath, next);
     try {
       projectRegistry.reloadConfig(projectId);
     } catch {
@@ -339,19 +338,4 @@ export async function deriveAndPersistGithubSources(
   }
 
   return derived.preview;
-}
-
-function writeConfig(repoPath: string, config: RouboConfig): void {
-  // resolveWithin enforces containment under repoPath (the project's repo
-  // root) using the path.relative shape CodeQL recognises as a sanitizer.
-  const configPath = resolveWithin(repoPath, ".roubo", "roubo.yaml");
-  const dir = path.dirname(configPath);
-  fs.mkdirSync(dir, { recursive: true });
-  const yamlContent = YAML.stringify(config, {
-    indent: 2,
-    lineWidth: 0,
-    defaultStringType: "QUOTE_DOUBLE",
-    defaultKeyType: "PLAIN",
-  });
-  atomicWrite(configPath, yamlContent);
 }

@@ -6,14 +6,26 @@ import { MemoryRouter } from "react-router-dom";
 import type { ProjectIntegrationState } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
 import IssueSourceTile from "./IssueSourceTile";
-import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import {
+  useProjectIntegration,
+  usePromoteProjectIntegration,
+} from "../hooks/useProjectIntegration";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
+
+const mockPromoteMutate = vi.fn();
 
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(),
   useSwitchProjectIntegration: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
+  })),
+  usePromoteProjectIntegration: vi.fn(() => ({
+    mutate: mockPromoteMutate,
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
   })),
   useTestIntegrationConnection: vi.fn(() => ({
     mutateAsync: vi.fn(),
@@ -272,6 +284,119 @@ describe("IssueSourceTile", () => {
     expect(
       screen.getByText("Configuration merged from roubo.yaml and your override"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the integration-mismatch banner and promotes on click when the plugin differs", async () => {
+    const user = userEvent.setup();
+    withData({
+      effective: { plugin: "ghe", instance: "https://ghe.megaleo.com" },
+      committed: { plugin: "github-com" },
+      override: { plugin: "ghe" },
+      plugin: {
+        id: "ghe",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub Enterprise" },
+      },
+      captionKey: "yaml-and-override",
+      integrationMismatch: {
+        committedPlugin: "github-com",
+        effectivePlugin: "ghe",
+        committedInstance: null,
+        effectiveInstance: "https://ghe.megaleo.com",
+      },
+    });
+
+    renderTile();
+
+    const banner = screen.getByTestId("issue-source-integration-mismatch");
+    expect(banner).toBeInTheDocument();
+    // Plugin-axis copy names both plugin ids.
+    expect(banner).toHaveTextContent("github-com");
+    expect(banner).toHaveTextContent("ghe");
+    await user.click(screen.getByTestId("issue-source-promote"));
+    expect(mockPromoteMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces an instance drift in the banner when the plugin agrees but the host differs", () => {
+    withData({
+      effective: { plugin: "ghe", instance: "https://ghe.new.example" },
+      committed: { plugin: "ghe", instance: "https://ghe.old.example" },
+      override: { plugin: "ghe", instance: "https://ghe.new.example" },
+      plugin: {
+        id: "ghe",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub Enterprise" },
+      },
+      captionKey: "yaml-and-override",
+      integrationMismatch: {
+        committedPlugin: "ghe",
+        effectivePlugin: "ghe",
+        committedInstance: "https://ghe.old.example",
+        effectiveInstance: "https://ghe.new.example",
+      },
+    });
+
+    renderTile();
+
+    const banner = screen.getByTestId("issue-source-integration-mismatch");
+    expect(banner).toBeInTheDocument();
+    // Instance-axis copy names both hosts, not the (identical) plugin id.
+    expect(banner).toHaveTextContent("https://ghe.old.example");
+    expect(banner).toHaveTextContent("https://ghe.new.example");
+    expect(banner).toHaveTextContent("connect to");
+  });
+
+  it("shows the promote error inline when promotion fails", () => {
+    vi.mocked(usePromoteProjectIntegration).mockReturnValueOnce({
+      mutate: mockPromoteMutate,
+      mutateAsync: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new Error("roubo.yaml is read-only"),
+    } as unknown as ReturnType<typeof usePromoteProjectIntegration>);
+    withData({
+      effective: { plugin: "ghe", instance: "https://ghe.megaleo.com" },
+      committed: { plugin: "github-com" },
+      override: { plugin: "ghe" },
+      plugin: {
+        id: "ghe",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub Enterprise" },
+      },
+      captionKey: "yaml-and-override",
+      integrationMismatch: {
+        committedPlugin: "github-com",
+        effectivePlugin: "ghe",
+        committedInstance: null,
+        effectiveInstance: "https://ghe.megaleo.com",
+      },
+    });
+
+    renderTile();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("roubo.yaml is read-only");
+  });
+
+  it("does not render the integration-mismatch banner when integrationMismatch is absent", () => {
+    withData({
+      effective: { plugin: "github-com" },
+      committed: { plugin: "github-com" },
+      override: null,
+      plugin: {
+        id: "github-com",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "GitHub.com" },
+      },
+      captionKey: "yaml-only",
+    });
+
+    renderTile();
+
+    expect(screen.queryByTestId("issue-source-integration-mismatch")).not.toBeInTheDocument();
   });
 
   it('shows "Connect" as the primary action when the plugin has no credentials yet (FR-072, TC-133)', () => {

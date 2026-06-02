@@ -197,6 +197,23 @@ export interface ProjectIntegrationState {
     } | null;
   } | null;
   captionKey: IntegrationCaptionKey;
+  /**
+   * Set when the committed roubo.yaml resolves to a different integration than
+   * the effective (override-resolved) one, along either axis that changes which
+   * host a teammate would reach: the `plugin` id, or (for multi-instance
+   * plugins like `ghe`) the `instance`. The integration works locally because
+   * the per-user override wins, but a teammate cloning the repo would resolve
+   * the committed values instead, against a host they likely cannot reach. The
+   * tile surfaces this and offers to promote the effective integration into the
+   * committed config. `null` when committed and effective agree, or the
+   * committed config names no plugin.
+   */
+  integrationMismatch?: {
+    committedPlugin: string;
+    effectivePlugin: string;
+    committedInstance: string | null;
+    effectiveInstance: string | null;
+  } | null;
 }
 
 /**
@@ -382,7 +399,7 @@ export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]
  * (e.g. per-project jig defaults, per-project Claude Code overrides)
  * should be added as new top-level keys alongside `worktreeSource`, not
  * nested inside it. A missing `settings` key in persisted state is
- * interpreted as all defaults — see `project-registry.ts` for the
+ * interpreted as all defaults. See `project-registry.ts` for the
  * "missing = on" defaulting rule (R4).
  */
 export interface ProjectSettings {
@@ -408,7 +425,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
 /**
  * GET /:projectId/settings response: persisted ProjectSettings plus the
  * server-computed default branch (or the R1 error if detection fails).
- * These two extras are read-only — never persisted, never accepted by PUT.
+ * These two extras are read-only: never persisted, never accepted by PUT.
  */
 export interface ProjectSettingsResponse extends ProjectSettings {
   defaultBranch?: string;
@@ -513,7 +530,7 @@ export interface Bench {
  * in a meta-repo bench maps to one BenchWorkUnit; the meta-repo root may
  * optionally have an entry as well.
  *
- * Single-repo and monorepo benches do not use this type — their branch and
+ * Single-repo and monorepo benches do not use this type; their branch and
  * workspacePath are stored directly on Bench (and Bench.workUnits is absent).
  */
 export interface BenchWorkUnit {
@@ -568,7 +585,7 @@ export interface TrackedPullRequest {
   merged: boolean;
   /** HTML URL for UI linking. */
   url: string;
-  /** GitHub updatedAt — used for ETag-style short-circuiting. */
+  /** GitHub updatedAt, used for ETag-style short-circuiting. */
   updatedAt: string;
 }
 
@@ -716,7 +733,7 @@ export interface PersistedBench {
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag
    * survives reboots so a future Start can skip re-running setup.
-   * Absent on benches written before this field existed — load-time migration
+   * Absent on benches written before this field existed; load-time migration
    * coerces missing entries to `true` (those benches were created under the
    * old full-provisioning flow, so setup already ran).
    */
@@ -1202,7 +1219,7 @@ export interface JigMeta {
   source: JigSource;
   createdAt?: string; // ISO-8601; absent for the embedded global default
   updatedAt?: string; // ISO-8601
-  approxTokens?: number; // chars/4 estimate — lets UIs render a context-usage signal
+  approxTokens?: number; // chars/4 estimate, lets UIs render a context-usage signal
 }
 
 export interface JigDetail extends JigMeta {
@@ -1217,14 +1234,14 @@ export const GLOBAL_DEFAULT_JIG_ID = "__global_default__";
 /** Default Claude context window size in tokens. Used for jig context-usage estimates. */
 export const DEFAULT_CONTEXT_WINDOW = 200_000;
 
-/** Prefix for component provisioning step IDs — must stay in sync between server and client. */
+/** Prefix for component provisioning step IDs; must stay in sync between server and client. */
 export const COMPONENT_STEP_PREFIX = "component:";
 
 /**
  * Delay (ms) between creating a Claude terminal session and writing to it.
  * Claude Code needs time to start and begin accepting stdin; writing too early
  * causes the jig to be silently dropped. If Claude starts slowly (e.g. slow
- * machine, heavy load), this delay may still not be enough — the injection will
+ * machine, heavy load), this delay may still not be enough; the injection will
  * fail without any error signal.
  */
 export const CLAUDE_STARTUP_DELAY_MS = 1500;

@@ -25,6 +25,10 @@ import {
   runIntegrationTest,
 } from "../services/integration-test.js";
 import { forgetProjectActivation, resolveSources } from "../services/plugin-activation.js";
+import {
+  PromoteIntegrationError,
+  promoteIntegrationToCommitted,
+} from "../services/promote-integration.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 import { getPluginFacetOptions, getPluginFilterFacets } from "../services/plugin-filter-facets.js";
@@ -75,12 +79,34 @@ function buildState(projectId: string): ProjectIntegrationState {
     };
   }
 
+  // A committed integration that disagrees with the effective (override-
+  // resolved) one means teammates would resolve a different integration than
+  // the one running locally. Flag a difference along either host-determining
+  // axis: the plugin id, or the instance for multi-instance plugins like ghe
+  // (committed `{plugin: ghe, instance: A}` vs effective instance B still
+  // points teammates at the wrong server). Only flag when committed names a
+  // plugin; an absent committed plugin is "not configured", not a mismatch.
+  const committedInstance = committed?.instance ?? null;
+  const effectiveInstance = effective.instance ?? null;
+  const integrationMismatch =
+    committed?.plugin &&
+    effective.plugin &&
+    (committed.plugin !== effective.plugin || committedInstance !== effectiveInstance)
+      ? {
+          committedPlugin: committed.plugin,
+          effectivePlugin: effective.plugin,
+          committedInstance,
+          effectiveInstance,
+        }
+      : null;
+
   return {
     effective,
     committed,
     override,
     plugin,
     captionKey: deriveCaptionKey(committed, override),
+    integrationMismatch,
   };
 }
 
@@ -242,7 +268,7 @@ router.put("/:projectId/integration/override", (req, res) => {
 
   try {
     // Switching the plugin clears sources (they are plugin-specific) but
-    // preserves any user-set instance — the override schema lets every field
+    // preserves any user-set instance; the override schema lets every field
     // be independently optional.
     const existing = loadOverride(req.params.projectId);
     const next: IntegrationOverride = {
@@ -261,6 +287,29 @@ router.put("/:projectId/integration/override", (req, res) => {
     forgetProjectActivation(req.params.projectId);
     res.json(buildState(req.params.projectId));
   } catch (err) {
+    if (err instanceof IntegrationOverrideError) {
+      res.status(400).json({ error: err.message, code: err.code, fieldErrors: err.fieldErrors });
+      return;
+    }
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Promote the effective (override-resolved) plugin + instance into the
+// committed roubo.yaml so teammates inherit it. The switch flow only ever
+// writes the per-user override; this is the explicit "push it to the team
+// config" action surfaced by the mismatch warning and the switch dialog's
+// "also update roubo.yaml" checkbox.
+router.post("/:projectId/integration/promote", (req, res) => {
+  try {
+    promoteIntegrationToCommitted(req.params.projectId);
+    res.json(buildState(req.params.projectId));
+  } catch (err) {
+    if (err instanceof PromoteIntegrationError) {
+      const status = err.code === "PROJECT_NOT_FOUND" ? 404 : 400;
+      res.status(status).json({ error: err.message, code: err.code });
+      return;
+    }
     if (err instanceof IntegrationOverrideError) {
       res.status(400).json({ error: err.message, code: err.code, fieldErrors: err.fieldErrors });
       return;

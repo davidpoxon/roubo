@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Button,
+  Checkbox,
   Dialog,
   Heading,
   Modal,
@@ -8,10 +9,13 @@ import {
   Radio,
   RadioGroup,
 } from "react-aria-components";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import type { InstalledPluginSummary } from "@roubo/shared";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
-import { useSwitchProjectIntegration } from "../hooks/useProjectIntegration";
+import {
+  useSwitchProjectIntegration,
+  usePromoteProjectIntegration,
+} from "../hooks/useProjectIntegration";
 import { ApiError } from "../lib/api";
 
 const STRINGS = {
@@ -25,6 +29,7 @@ const STRINGS = {
   switchFailedFallback: "Switch failed",
   cancel: "Cancel",
   switching: "Switching…",
+  promoteLabel: "Also update this project's roubo.yaml so teammates inherit it",
 };
 
 const PLUGIN_STATUS_LABELS: Record<InstalledPluginSummary["status"], string> = {
@@ -50,12 +55,13 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
   // PUT to /integration/override continues silently, swapping the active
   // integration after the user thought they cancelled.
   const switchMutation = useSwitchProjectIntegration(projectId);
-  const isSwitching = switchMutation.isPending;
+  const promoteMutation = usePromoteProjectIntegration(projectId);
+  const isBusy = switchMutation.isPending || promoteMutation.isPending;
 
   return (
     <ModalOverlay
-      isDismissable={!isSwitching}
-      isKeyboardDismissDisabled={isSwitching}
+      isDismissable={!isBusy}
+      isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
@@ -65,6 +71,7 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
               currentPluginId={currentPluginId}
               close={close}
               switchMutation={switchMutation}
+              promoteMutation={promoteMutation}
             />
           )}
         </Dialog>
@@ -77,24 +84,34 @@ function SwitchFlow({
   currentPluginId,
   close,
   switchMutation,
+  promoteMutation,
 }: {
   currentPluginId: string | null;
   close: () => void;
   switchMutation: ReturnType<typeof useSwitchProjectIntegration>;
+  promoteMutation: ReturnType<typeof usePromoteProjectIntegration>;
 }) {
   const { data: plugins, isLoading } = useInstalledPlugins(true);
 
   const [selected, setSelected] = useState<string | null>(currentPluginId);
+  const [promoteToCommitted, setPromoteToCommitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const usable = useMemo(() => (plugins ?? []).filter(isUsable), [plugins]);
   const isChoosing = currentPluginId === null;
-  const canConfirm = !switchMutation.isPending && selected !== null && selected !== currentPluginId;
+  const isBusy = switchMutation.isPending || promoteMutation.isPending;
+  const canConfirm = !isBusy && selected !== null && selected !== currentPluginId;
 
   const handleConfirm = async () => {
     if (!canConfirm || !selected) return;
     try {
       await switchMutation.mutateAsync(selected);
+      // Best-effort promote: the override switch already succeeded and is not
+      // rolled back if this fails. A failure surfaces inline and the tile's
+      // mismatch banner offers a retry.
+      if (promoteToCommitted) {
+        await promoteMutation.mutateAsync();
+      }
       close();
     } catch (err) {
       setErrorMessage(
@@ -194,6 +211,25 @@ function SwitchFlow({
           </div>
         )}
 
+        {(plugins ?? []).length > 0 && (
+          <Checkbox
+            isSelected={promoteToCommitted}
+            onChange={setPromoteToCommitted}
+            isDisabled={isBusy}
+            className="group flex items-start gap-2.5 cursor-pointer outline-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
+          >
+            <div className="w-4 h-4 mt-0.5 shrink-0 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 group-data-[focus-visible]:ring-offset-1">
+              <Check
+                size={11}
+                className="text-stone-950 opacity-0 group-data-[selected]:opacity-100 transition-opacity"
+              />
+            </div>
+            <span className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+              {STRINGS.promoteLabel}
+            </span>
+          </Checkbox>
+        )}
+
         {errorMessage && (
           <p role="alert" className="text-[12px] text-red-400">
             {errorMessage}
@@ -203,7 +239,7 @@ function SwitchFlow({
 
       <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
         <Button
-          isDisabled={switchMutation.isPending}
+          isDisabled={isBusy}
           onPress={close}
           className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
@@ -215,11 +251,7 @@ function SwitchFlow({
           data-testid="switch-integration-confirm"
           className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
-          {switchMutation.isPending
-            ? STRINGS.switching
-            : isChoosing
-              ? STRINGS.titleChoose
-              : STRINGS.titleSwitch}
+          {isBusy ? STRINGS.switching : isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Button>
       </div>
     </>
