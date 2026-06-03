@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
 import ToastProvider from "./components/ToastProvider";
 import TeardownTrackerProvider from "./components/ClearingTrackerProvider";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./globals.css";
 
 if (import.meta.env.DEV) document.title = "[DEV] Roubo";
@@ -22,12 +23,14 @@ const router = createBrowserRouter([{ path: "*", element: <App /> }]);
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <TeardownTrackerProvider>
-          <RouterProvider router={router} />
-        </TeardownTrackerProvider>
-      </ToastProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <TeardownTrackerProvider>
+            <RouterProvider router={router} />
+          </TeardownTrackerProvider>
+        </ToastProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
