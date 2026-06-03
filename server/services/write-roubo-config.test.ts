@@ -48,14 +48,34 @@ describe("writeRouboConfig", () => {
     expect(fs.existsSync(path.join(tmpDir, ".roubo"))).toBe(true);
   });
 
-  it("serializes with the canonical formatting (double-quoted string values, plain keys)", () => {
+  it("serializes with the yaml library defaults: minimal quoting, no invented quote rule", () => {
     const configPath = writeRouboConfig(tmpDir, baseConfig());
     const raw = fs.readFileSync(configPath, "utf-8");
 
-    // Keys stay plain (unquoted), string values are double-quoted.
-    expect(raw).toContain('plugin: "ghe"');
-    expect(raw).toContain('instance: "https://ghe.megaleo.com"');
-    expect(raw).not.toContain("'ghe'");
+    // Library defaults emit plain scalars when a value does not need quoting,
+    // rather than the old forced-double-quote profile that rewrote configs on
+    // every save. A plain URL contains no space after its colon, so it stays
+    // unquoted too.
+    expect(raw).toContain("plugin: ghe");
+    expect(raw).toContain("instance: https://ghe.megaleo.com");
+    expect(raw).not.toContain('plugin: "ghe"');
+    expect(raw).not.toContain("plugin: 'ghe'");
+  });
+
+  it("quotes a value only when leaving it plain would change its parsed type", () => {
+    const configPath = writeRouboConfig(tmpDir, {
+      ...baseConfig(),
+      project: { name: "demo", displayName: "123", repo: "acme/demo" },
+    } as unknown as RouboConfig);
+    const raw = fs.readFileSync(configPath, "utf-8");
+
+    // displayName is a string field. The string "123" would parse back as a
+    // number if left plain, so the library quotes it (with double quotes when
+    // it must quote) to preserve the string type across a round-trip. This is
+    // the default doing minimal-but-necessary quoting, not a blanket rule:
+    // `repo: acme/demo` on the same object stays plain.
+    expect(raw).toContain('displayName: "123"');
+    expect(raw).toContain("repo: acme/demo");
   });
 
   it("rejects an empty repoPath via the resolveWithin guard rather than touching disk", () => {
