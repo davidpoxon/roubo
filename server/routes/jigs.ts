@@ -9,7 +9,8 @@ import { buildTemplateContext, applyContainerOverrides } from "../services/confi
 import { fetchIssueContext, type IssueContext } from "../services/issue-formatting.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { buildAlertIssueContext } from "../services/alert-formatting.js";
-import { loadSettings, atomicWrite } from "../services/state.js";
+import { loadSettings } from "../services/state.js";
+import { writeRouboConfig } from "../services/write-roubo-config.js";
 import { parseIntParam, VALID_JIG_ID, handleJigError } from "./helpers.js";
 import { resolveWithin } from "../lib/safe-path.js";
 import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
@@ -17,6 +18,7 @@ import type {
   InjectJigRequest,
   JigCreateRequest,
   JigUpdateRequest,
+  RouboConfig,
   UpdateProjectDefaultJigRequest,
   UpdateProjectIssueTypeMappingsRequest,
 } from "@roubo/shared";
@@ -95,10 +97,7 @@ router.put("/:projectId/jigs/default", (req, res) => {
       };
     }
 
-    const dir = resolveWithin(project.repoPath, ".roubo");
-    fs.mkdirSync(dir, { recursive: true });
-    const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
-    atomicWrite(configPath, yamlContent);
+    writeRouboConfig(project.repoPath, config as RouboConfig);
 
     try {
       projectRegistry.reloadConfig(req.params.projectId);
@@ -190,10 +189,7 @@ router.put("/:projectId/jigs/issue-type-mappings", (req, res) => {
       };
     }
 
-    const dir = resolveWithin(project.repoPath, ".roubo");
-    fs.mkdirSync(dir, { recursive: true });
-    const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
-    atomicWrite(configPath, yamlContent);
+    writeRouboConfig(project.repoPath, config as RouboConfig);
 
     try {
       projectRegistry.reloadConfig(req.params.projectId);

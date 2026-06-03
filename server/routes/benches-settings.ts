@@ -3,8 +3,9 @@ import * as YAML from "yaml";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
-import { atomicWrite } from "../services/state.js";
+import { writeRouboConfig } from "../services/write-roubo-config.js";
 import { resolveWithin } from "../lib/safe-path.js";
+import type { RouboConfig } from "@roubo/shared";
 
 const router = Router();
 
@@ -113,10 +114,7 @@ router.put(
 
       config.benches = benchesSection;
 
-      const dir = resolveWithin(project.repoPath, ".roubo");
-      fs.mkdirSync(dir, { recursive: true });
-      const yamlContent = YAML.stringify(config, { indent: 2, lineWidth: 0 });
-      atomicWrite(configPath, yamlContent);
+      writeRouboConfig(project.repoPath, config as RouboConfig);
 
       try {
         projectRegistry.reloadConfig(req.params.projectId);

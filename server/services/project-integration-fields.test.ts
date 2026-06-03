@@ -101,9 +101,11 @@ describe("setIntegrationFields", () => {
     expect(next.repo).toBe("acme/other");
     const yamlPath = path.join(tmpDir, ".roubo", "roubo.yaml");
     const written = fs.readFileSync(yamlPath, "utf-8");
-    expect(written).toMatch(/repo: "acme\/other"/);
+    // Library-default (minimal) quoting: slash-bearing values are valid plain
+    // scalars, so they are written unquoted rather than force-double-quoted.
+    expect(written).toMatch(/repo: acme\/other/);
     expect(written).toMatch(/project: 12/);
-    expect(written).toMatch(/core: "apps\/core"/);
+    expect(written).toMatch(/core: apps\/core/);
   });
 
   it("persists fields for a GHE project (the GitHub family owns these controls)", () => {
@@ -118,7 +120,7 @@ describe("setIntegrationFields", () => {
 
     expect(next.repo).toBe("acme/other");
     const written = fs.readFileSync(path.join(tmpDir, ".roubo", "roubo.yaml"), "utf-8");
-    expect(written).toMatch(/repo: "acme\/other"/);
+    expect(written).toMatch(/repo: acme\/other/);
   });
 
   it("clears fields when an explicit null is provided", () => {
