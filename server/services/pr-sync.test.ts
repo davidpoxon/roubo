@@ -13,12 +13,16 @@ vi.mock("./git-helpers.js", async (importOriginal) => ({
   resolveRepoFullName: vi.fn(),
   probeWorkUnitState: vi.fn(),
 }));
+vi.mock("./bench-manager.js", () => ({
+  isBenchLive: vi.fn(),
+}));
 
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
 import * as notificationService from "./notification.js";
 import * as state from "./state.js";
 import * as gitHelpers from "./git-helpers.js";
+import * as benchManager from "./bench-manager.js";
 import type { Bench, BenchWorkUnit, RegisteredProject, RouboConfig } from "@roubo/shared";
 
 function makeBench(overrides: Partial<Bench> = {}): Bench {
@@ -91,6 +95,8 @@ beforeEach(() => {
   vi.mocked(githubService.fetchOpenPullRequestByBranch).mockResolvedValue(openPrResponse);
   vi.mocked(state.toPersistedBench).mockImplementation((bench) => bench);
   vi.mocked(gitHelpers.probeWorkUnitState).mockResolvedValue(cleanProbeResult);
+  // Default: bench is still tracked, so syncs persist as normal.
+  vi.mocked(benchManager.isBenchLive).mockReturnValue(true);
 });
 
 describe("syncBenchWorkUnitPRs", () => {
@@ -116,6 +122,19 @@ describe("syncBenchWorkUnitPRs", () => {
     expect(wu.lastSyncedAt).toBeDefined();
     expect(wu.syncError).toBeUndefined();
     expect(state.updateBench).toHaveBeenCalled();
+  });
+
+  it("does not persist when the bench was cleared mid-sync (no resurrection)", async () => {
+    // Simulates a teardown removing the bench from state.json + the in-memory map
+    // while this sync holds the bench reference across its awaited GitHub calls.
+    // Persisting here would write the bench back into state.json and resurrect it
+    // on the next app restart, so the guard must skip the write.
+    vi.mocked(benchManager.isBenchLive).mockReturnValue(false);
+    const wu = makeWorkUnit();
+    const bench = makeBench({ workUnits: [wu] });
+    await syncBenchWorkUnitPRs("proj-1", bench);
+    expect(benchManager.isBenchLive).toHaveBeenCalledWith(bench.projectId, bench.id);
+    expect(state.updateBench).not.toHaveBeenCalled();
   });
 
   it("resolves repoFullName from root submodule via project config", async () => {

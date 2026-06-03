@@ -119,6 +119,9 @@ beforeEach(() => {
   });
   vi.mocked(projectRegistry.resolveAutoClear).mockReturnValue(true);
   vi.mocked(projectRegistry.resolveWorkUnitAutoClear).mockReturnValue(true);
+  // pr-sync (driven through this tick) only persists a bench that is still
+  // tracked; default it live so PR-sync write assertions hold.
+  vi.mocked(benchManager.isBenchLive).mockReturnValue(true);
   vi.mocked(gitState.getDirtyState).mockResolvedValue({
     clean: true,
     reasons: [],

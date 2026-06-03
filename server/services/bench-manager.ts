@@ -453,7 +453,13 @@ function makeTeardownSteps(
   return steps;
 }
 
-function isBenchStillActive(projectId: string, benchId: number): boolean {
+/**
+ * True while a bench is still tracked in the in-memory map. Goes false the moment
+ * teardown calls `benches.delete` (right after it removes the bench from state.json),
+ * so background writers can gate their persists on it to avoid resurrecting a bench
+ * that was cleared mid-flight. See pr-sync / issue-assignment guarded writes.
+ */
+export function isBenchLive(projectId: string, benchId: number): boolean {
   return benches.has(benchKey(projectId, benchId));
 }
 
@@ -546,7 +552,7 @@ async function runComponentsInOrder(
   // `bench-setup` step being seeded onto bench.provisioningSteps, which only
   // happens on bench-level Start. Per-component Start never seeds it.
   if (config?.benches.setup && hasStep(bench.provisioningSteps, "bench-setup")) {
-    if (!isBenchStillActive(bench.projectId, bench.id)) return;
+    if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "bench-setup", "running");
     const setupParts = parseCommand(config.benches.setup);
     const result = await runCommand(
@@ -582,7 +588,7 @@ async function runComponentsInOrder(
       throw new BenchError(`Invalid component name '${name}'`, "INVALID_COMPONENT");
     }
 
-    if (!isBenchStillActive(bench.projectId, bench.id)) return;
+    if (!isBenchLive(bench.projectId, bench.id)) return;
 
     const componentStatus = bench.components[name];
     updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "running");
@@ -646,7 +652,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
   const isMetaRepo = config.layout.type === "meta-repo" && !!config.layout.submodules;
 
   try {
-    if (!isBenchStillActive(bench.projectId, bench.id)) return;
+    if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "workspace", "running");
 
     // workspace step is always present — makeWorktreeProvisioningSteps guarantees it as steps[0]
@@ -686,7 +692,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
     }
     bench.baseBranch = headBranch;
-    if (!isBenchStillActive(bench.projectId, bench.id) || bench.status === "clearing") return;
+    if (!isBenchLive(bench.projectId, bench.id) || bench.status === "clearing") return;
 
     // R2: fetch + fast-forward before creating the worktree
     if (pullLatest) {
@@ -869,7 +875,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
         }
       }
 
-      if (!isBenchStillActive(bench.projectId, bench.id)) return;
+      if (!isBenchLive(bench.projectId, bench.id)) return;
       const subPhase = workspaceStep.phases?.find((p) => p.label === "Initializing submodules");
       if (subPhase) subPhase.status = "running";
 
@@ -993,7 +999,7 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
 
   const config = project.config;
   if (!config) return;
-  if (!isBenchStillActive(bench.projectId, bench.id)) return;
+  if (!isBenchLive(bench.projectId, bench.id)) return;
 
   const ordered = getComponentOrder(config.components);
   bench.provisioningSteps = [

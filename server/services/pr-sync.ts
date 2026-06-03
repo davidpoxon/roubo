@@ -1,4 +1,5 @@
 import type { Bench, TrackedPullRequest, RegisteredProject } from "@roubo/shared";
+import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as githubService from "./github.js";
 import * as notificationService from "./notification.js";
@@ -208,7 +209,11 @@ async function syncBenchWorkUnits(
     }
   }
 
-  if (benchDirty) {
+  // Only persist if the bench is still tracked. This sync holds the bench
+  // reference across awaited GitHub calls; if a teardown cleared the bench in
+  // that window (removeBench + benches.delete), persisting here would resurrect
+  // it in state.json and it would reappear on the next app restart.
+  if (benchDirty && benchManager.isBenchLive(bench.projectId, bench.id)) {
     updateBench(toPersistedBench(bench));
   }
 }

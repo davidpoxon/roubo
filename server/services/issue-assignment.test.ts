@@ -4,6 +4,8 @@ import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 vi.mock("./bench-manager.js", () => ({
   getBench: vi.fn(),
   createBench: vi.fn(),
+  // Default true: the bench is still tracked, so guarded persists go through.
+  isBenchLive: vi.fn().mockReturnValue(true),
   // Stubbed so tests can assert issue-assignment never invokes the auto-start
   // primitives directly — those live behind createBench's background path.
   startAllComponents: vi.fn(),
