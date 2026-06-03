@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate, useMatch } from "react-router-dom";
+import { Routes, Route, Navigate, useMatch, useLocation } from "react-router-dom";
 import ProjectSidebar from "./components/ProjectSidebar";
+import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./components/TitleBar";
 import { useProjects } from "./hooks/useProjects";
 import BenchDashboard from "./components/BenchDashboard";
@@ -25,6 +26,7 @@ export default function App() {
   useMenuNav();
   const projectMatch = useMatch({ path: "/projects/:projectId", end: false });
   const projectId = projectMatch?.params.projectId;
+  const location = useLocation();
   const { data: projects } = useProjects();
   const currentProject = projectId ? projects?.find((p) => p.id === projectId) : undefined;
   const projectName = currentProject?.config?.project?.displayName ?? projectId;
@@ -36,28 +38,36 @@ export default function App() {
         <div className="flex flex-1 min-h-0">
           <ProjectSidebar />
           <main className="flex-1 overflow-auto flex flex-col">
-            <Routes>
-              <Route path="/" element={<BenchDashboard />} />
-              <Route path="/projects/:projectId" element={<BenchDashboard />}>
-                <Route index element={<BenchesTab />} />
-                <Route path="settings/*" element={<ProjectSettingsTab />} />
-                <Route path="*" element={<Navigate to=".." relative="path" replace />} />
-              </Route>
-              <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
-              <Route path="/settings" element={<ProjectSettings />} />
-              <Route path="/updates" element={<UpdatesPage />} />
-              <Route path="/jigs/new" element={<JigEditor mode="create" scope="global" />} />
-              <Route path="/jigs/edit/:jigId" element={<JigEditor mode="edit" scope="global" />} />
-              <Route
-                path="/projects/:projectId/jigs/new"
-                element={<JigEditor mode="create" scope="project" />}
-              />
-              <Route
-                path="/projects/:projectId/jigs/edit/:jigId"
-                element={<JigEditor mode="edit" scope="project" />}
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            {/* A render error in any route shows a recoverable panel instead of
+                blanking the whole window. Keyed on pathname so navigating away
+                clears a failed route. */}
+            <ErrorBoundary resetKey={location.pathname}>
+              <Routes>
+                <Route path="/" element={<BenchDashboard />} />
+                <Route path="/projects/:projectId" element={<BenchDashboard />}>
+                  <Route index element={<BenchesTab />} />
+                  <Route path="settings/*" element={<ProjectSettingsTab />} />
+                  <Route path="*" element={<Navigate to=".." relative="path" replace />} />
+                </Route>
+                <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
+                <Route path="/settings" element={<ProjectSettings />} />
+                <Route path="/updates" element={<UpdatesPage />} />
+                <Route path="/jigs/new" element={<JigEditor mode="create" scope="global" />} />
+                <Route
+                  path="/jigs/edit/:jigId"
+                  element={<JigEditor mode="edit" scope="global" />}
+                />
+                <Route
+                  path="/projects/:projectId/jigs/new"
+                  element={<JigEditor mode="create" scope="project" />}
+                />
+                <Route
+                  path="/projects/:projectId/jigs/edit/:jigId"
+                  element={<JigEditor mode="edit" scope="project" />}
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
           </main>
         </div>
       </div>
