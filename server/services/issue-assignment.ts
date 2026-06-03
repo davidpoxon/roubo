@@ -4,6 +4,7 @@ import type {
   CreateBenchWithIssueResponse,
   Bench,
   NormalizedIssue,
+  PersistedBench,
   RouboConfig,
   JigDefaultSource,
 } from "@roubo/shared";
@@ -22,6 +23,19 @@ import { formatIssueBody, formatComments } from "./issue-formatting.js";
 import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
 import { loadSettings } from "./state.js";
+
+/**
+ * Persist a bench only if it is still tracked in the in-memory map. The
+ * create/assign flows hold the bench reference across awaited GitHub and git
+ * calls; if a teardown cleared the bench in that window (removeBench +
+ * benches.delete), persisting here would resurrect it in state.json and it would
+ * reappear on the next app restart. Mirrors the guard in pr-sync.
+ */
+function persistBenchIfLive(persisted: PersistedBench): void {
+  if (benchManager.isBenchLive(persisted.projectId, persisted.id)) {
+    stateService.updateBench(persisted);
+  }
+}
 
 function buildAndStartClaudeSession(
   projectId: string,
@@ -213,7 +227,7 @@ export async function createBenchAndAssignIssue(
   };
 
   // Persist the assignment
-  stateService.updateBench({
+  persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,
     branch: bench.branch,
@@ -246,7 +260,7 @@ export async function createBenchAndAssignIssue(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    stateService.updateBench({
+    persistBenchIfLive({
       id: bench.id,
       projectId: bench.projectId,
       branch: bench.branch,
@@ -321,7 +335,7 @@ export async function createBenchAndAssignAlert(
     raw: alert.raw,
   };
 
-  stateService.updateBench({
+  persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,
     branch: bench.branch,
@@ -357,7 +371,7 @@ export async function createBenchAndAssignAlert(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    stateService.updateBench({
+    persistBenchIfLive({
       id: bench.id,
       projectId: bench.projectId,
       branch: bench.branch,
@@ -439,7 +453,7 @@ export async function assignIssue(
   };
 
   // Persist changes
-  stateService.updateBench({
+  persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,
     branch: bench.branch,
@@ -470,7 +484,7 @@ export async function assignIssue(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    stateService.updateBench({
+    persistBenchIfLive({
       id: bench.id,
       projectId: bench.projectId,
       branch: bench.branch,
@@ -502,7 +516,7 @@ export async function unassignIssue(projectId: string, benchId: number): Promise
 
   bench.assignedIssue = undefined;
 
-  stateService.updateBench({
+  persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,
     branch: bench.branch,
