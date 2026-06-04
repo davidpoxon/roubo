@@ -89,14 +89,14 @@ describe("getTemplateVariables", () => {
     expect(urlVars[1].example).toBe("http://localhost:5000");
   });
 
-  it("shows dash for port example when port has no base", () => {
+  it("shows a placeholder for port example when port has no base", () => {
     const ctx = makeContext({
       portNames: ["db"],
       ports: {} as Record<string, PortConfig>,
     });
     const vars = getTemplateVariables(ctx);
     const portVars = vars.filter((v) => v.category === "ports");
-    expect(portVars[0].example).toBe("\u2013");
+    expect(portVars[0].example).toBe("\u00b7");
   });
 });
 

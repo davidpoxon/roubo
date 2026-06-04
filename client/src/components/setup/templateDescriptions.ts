@@ -42,7 +42,7 @@ export function getTemplateVariables(ctx: TemplateVariableContext): TemplateVari
       syntax: `{{ports.${name}}}`,
       category: "ports",
       description: `Allocated port for ${name}`,
-      example: base ? String(base) : "–",
+      example: base ? String(base) : "·",
       formula: "base + (bench - 1)",
     });
   }
@@ -56,7 +56,7 @@ export function getTemplateVariables(ctx: TemplateVariableContext): TemplateVari
       syntax: `{{urls.${name}}}`,
       category: "urls",
       description: `Full URL for ${name} (${protocol})`,
-      example: base ? `${protocol}://localhost:${base}` : "–",
+      example: base ? `${protocol}://localhost:${base}` : "·",
     });
   }
 

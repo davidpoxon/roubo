@@ -55,7 +55,7 @@ export default function DefaultBranchTile({ projectId }: Props) {
           aria-label="No default branch detected"
           className="text-stone-400 dark:text-stone-600"
         >
-          –
+          ·
         </span>
       )}
     </Tile>

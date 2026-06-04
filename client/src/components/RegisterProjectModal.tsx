@@ -238,7 +238,7 @@ export default function RegisterProjectModal({
                           {preview.ports.length === 0 && (
                             <div className="flex justify-between py-1.5">
                               <dt className="text-stone-400 dark:text-stone-500">Ports</dt>
-                              <dd className="font-mono text-stone-700 dark:text-stone-300">–</dd>
+                              <dd className="font-mono text-stone-700 dark:text-stone-300">·</dd>
                             </div>
                           )}
                           <div className="flex justify-between py-1.5">

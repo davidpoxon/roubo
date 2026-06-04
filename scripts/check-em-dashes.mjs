@@ -5,8 +5,8 @@
 // commit. This script scans the source globs and fails if it finds one outside
 // a small allowlist of intentional, self-documenting exceptions.
 //
-// En dashes (U+2013) are permitted (numeric ranges, empty-value placeholders)
-// and are not checked here.
+// En dashes (U+2013) are permitted for numeric ranges only and are not checked
+// here.
 //
 // Run with: npm run lint:em-dash
 

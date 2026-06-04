@@ -30,9 +30,9 @@ export default function GuidedSummaryPanel({ config }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <StatRow label="Type" value={config.layout?.type ?? "–"} />
+        <StatRow label="Type" value={config.layout?.type ?? "·"} />
         <StatRow label="Components" value={String(componentCount)} />
-        <StatRow label="Bench cap" value={config.benches?.max ? String(config.benches.max) : "–"} />
+        <StatRow label="Bench cap" value={config.benches?.max ? String(config.benches.max) : "·"} />
         <StatRow label="Tools" value={String(config.tools?.length ?? 0)} />
         <StatRow label="Inspections" value={config.inspection ? "1" : "0"} />
       </div>
