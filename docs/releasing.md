@@ -45,7 +45,35 @@ The format is reverse-DNS: the organisation domain (`roubo.dev`) reversed to `de
 - Repo admin access (to set GitHub Actions secrets)
 - macOS with Keychain Access (to export the `.p12` certificate)
 
+## Scripted draft release (recommended)
+
+For day-to-day pre-release builds, `npm run release:draft` does the whole dance in one command: it computes the next version, creates the draft release, and dispatches the build workflow.
+
+```bash
+npm run release:draft -- <patch|minor|major>
+```
+
+What it does, in order:
+
+1. Reads the latest published release (the one GitHub marks as `Latest`) and bumps it by the level you pass. Drafts and existing pre-releases are ignored.
+2. Fetches `origin/main` and appends a SemVer pre-release identifier (per [spec item 9](https://semver.org/#spec-item-9)) built from that commit's short sha: `-rc.<short-sha>`. For example, a `patch` bump off a `v0.1.2` base at commit `a1b2c3d` becomes `v0.1.3-rc.a1b2c3d`. The `rc.` keeps the first identifier non-numeric, which sidesteps the SemVer rule that a numeric identifier must not have a leading zero.
+3. Creates the GitHub release as `--draft --prerelease` with `--generate-notes`, targeting the `origin/main` HEAD commit. The build always uses the latest pushed code regardless of your local checkout.
+4. Dispatches `release.yml` with the matching `tag_name`, kicking off the platform builds.
+
+Flags:
+
+- `--dry-run`: print the resolved base, the computed tag, and the exact `gh` commands, then exit without making any changes. Use this to preview the tag.
+- `--no-dispatch`: create the draft release but do not trigger the build workflow. The command prints the `gh workflow run` line to run later.
+
+Requirements:
+
+- An authenticated GitHub CLI. Check with `gh auth status`; run `gh auth login` if needed.
+
+These are draft, pre-release builds. As with the manual flow below, `update.electronjs.org` does not serve them to users until you publish the release from the GitHub UI. Review the artifacts on the draft, then publish when ready.
+
 ## Release Checklist
+
+The manual steps below are the fallback for the scripted flow above (or when you need full control over the tag, target, or notes).
 
 1. **Create a draft release** with a `v`-prefixed tag. Either via the GitHub web UI:
    1. Go to the repo on GitHub → **Releases** → **Draft a new release**
