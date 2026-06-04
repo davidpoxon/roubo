@@ -58,7 +58,7 @@ export function createConnection(proc: ChildProcess): JsonRpcConnection {
       try {
         connection.dispose();
       } catch {
-        // ignore — child may already be gone
+        // ignore: child may already be gone
       }
     },
   };

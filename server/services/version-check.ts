@@ -20,6 +20,6 @@ export async function checkForUpdate(currentVersion: string): Promise<void> {
       console.log(`Update available: ${currentVersion} → ${latest}. Run npm install -g roubo`);
     }
   } catch {
-    // Fail silently — network unavailable, timeout, parse error, etc.
+    // Fail silently: network unavailable, timeout, parse error, etc.
   }
 }

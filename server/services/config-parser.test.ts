@@ -331,7 +331,7 @@ describe("parseConfig", () => {
   });
 
   it("coerces numeric env values to strings", () => {
-    // yaml.load parses unquoted 1433 as a number — coercion must fix this before validation
+    // yaml.load parses unquoted 1433 as a number: coercion must fix this before validation
     const yamlContent = [
       "project:",
       "  name: test-project",
@@ -362,7 +362,7 @@ describe("parseConfig", () => {
   });
 
   it("coerces boolean env values to strings", () => {
-    // yaml.load parses bare true/false as booleans — coercion must fix this before validation
+    // yaml.load parses bare true/false as booleans: coercion must fix this before validation
     const yamlContent = [
       "project:",
       "  name: test-project",

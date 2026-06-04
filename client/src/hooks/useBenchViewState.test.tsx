@@ -128,7 +128,7 @@ describe("useBenchViewState", () => {
     });
     expect(result.current.activeTab).toBe("inspection");
 
-    // Same hook instance, new benchKey — simulates react-router navigating
+    // Same hook instance, new benchKey: simulates react-router navigating
     // from /benches/1 to /benches/2 while BenchDetail stays mounted.
     rerender({ projectId: "proj", benchId: 2 });
     expect(result.current.activeTab).toBeUndefined();

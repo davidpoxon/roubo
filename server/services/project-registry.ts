@@ -40,7 +40,7 @@ function emitConfigLoaded(project: RegisteredProject): void {
  * R4, `specs/prd-worktree-source-settings.md`): Roubo's single user today
  * wants the new behaviour everywhere with no migration banner. If you are
  * adding another per-project setting in the future, pick the default here
- * very deliberately — you are choosing what every pre-existing project gets.
+ * very deliberately: you are choosing what every pre-existing project gets.
  */
 function resolveSettings(entry: PersistedProjectEntry): ProjectSettings {
   return (
@@ -152,7 +152,7 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
         "HAS_BENCHES",
       );
     }
-    // Force path: drop bench records from state.json. No filesystem cleanup —
+    // Force path: drop bench records from state.json. No filesystem cleanup:
     // worktree dirs may not exist (folder was deleted) and we can't safely act
     // on a missing repo.
     for (const bench of benches) {
@@ -202,7 +202,7 @@ export function updateProjectSettings(
   }
 
   project.settings = settings;
-  // `state.addProject` is an upsert — filters by id then pushes — so passing
+  // `state.addProject` is an upsert (filters by id then pushes), so passing
   // the full entry here rewrites the persisted row with the new settings.
   state.addProject({
     id: project.id,

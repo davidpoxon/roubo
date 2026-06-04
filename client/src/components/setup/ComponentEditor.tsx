@@ -611,7 +611,7 @@ export default function ComponentEditor({
             Compose variables
           </legend>
 
-          {/* Detected variables — read-only keys */}
+          {/* Detected variables: read-only keys */}
           {detectedVarKeys.map((varName) => {
             const value = currentEnv[varName] ?? "";
             const isEnvFile = envFileKeys.includes(varName);
@@ -686,7 +686,7 @@ export default function ComponentEditor({
             );
           })}
 
-          {/* Custom variables — editable keys */}
+          {/* Custom variables: editable keys */}
           {customVarEntries.map(([key, value], i) => {
             const invalidVars = validateTemplateVariables(value, templateCtx);
             return (

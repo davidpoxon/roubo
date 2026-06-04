@@ -78,7 +78,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-describe("ComponentEditor — process type", () => {
+describe("ComponentEditor: process type", () => {
   it("renders base port input", () => {
     render(<ComponentEditor {...baseProps} component={processComponent} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Base port")).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("ComponentEditor — process type", () => {
   });
 });
 
-describe("ComponentEditor — database type", () => {
+describe("ComponentEditor: database type", () => {
   it("renders Docker section", () => {
     render(<ComponentEditor {...baseProps} component={databaseComponent} onChange={vi.fn()} />);
     expect(screen.getByText("Docker")).toBeInTheDocument();
@@ -241,7 +241,7 @@ describe("ComponentEditor — database type", () => {
   });
 });
 
-describe("ComponentEditor — env vars section", () => {
+describe("ComponentEditor: env vars section", () => {
   it("renders env vars section for process type", () => {
     render(<ComponentEditor {...baseProps} component={processComponent} onChange={vi.fn()} />);
     expect(screen.getByText("Environment variables")).toBeInTheDocument();
@@ -279,7 +279,7 @@ describe("ComponentEditor — env vars section", () => {
   });
 });
 
-describe("ComponentEditor — connection section interaction", () => {
+describe("ComponentEditor: connection section interaction", () => {
   it("calls onChange when connection key changes", async () => {
     const onChange = vi.fn();
     render(<ComponentEditor {...baseProps} component={databaseComponent} onChange={onChange} />);
@@ -301,7 +301,7 @@ describe("ComponentEditor — connection section interaction", () => {
   });
 });
 
-describe("ComponentEditor — migration argument interaction", () => {
+describe("ComponentEditor: migration argument interaction", () => {
   it("calls onChange when migration arg is removed", async () => {
     const onChange = vi.fn();
     const dbWithArgs: ComponentConfig = {
@@ -316,7 +316,7 @@ describe("ComponentEditor — migration argument interaction", () => {
   });
 });
 
-describe("ComponentEditor — env variables for process type", () => {
+describe("ComponentEditor: env variables for process type", () => {
   it("calls onChange when env variable name changes", async () => {
     const onChange = vi.fn();
     const componentWithEnv: ComponentConfig = {
@@ -348,7 +348,7 @@ describe("ComponentEditor — env variables for process type", () => {
   });
 });
 
-describe("ComponentEditor — build env vars section", () => {
+describe("ComponentEditor: build env vars section", () => {
   it("renders build env vars section", () => {
     const componentWithEnvVars: ComponentConfig = {
       type: "process",
@@ -374,7 +374,7 @@ describe("ComponentEditor — build env vars section", () => {
   });
 });
 
-describe("ComponentEditor — scan results integration", () => {
+describe("ComponentEditor: scan results integration", () => {
   const scanResultWithFiles = {
     detected: {
       dockerComposeFiles: ["docker-compose.yml"],
@@ -413,7 +413,7 @@ describe("ComponentEditor — scan results integration", () => {
   });
 });
 
-describe("ComponentEditor — no portBase", () => {
+describe("ComponentEditor: no portBase", () => {
   it("does not show HTTPS checkbox when portBase is null", () => {
     render(
       <ComponentEditor
@@ -439,7 +439,7 @@ describe("ComponentEditor — no portBase", () => {
   });
 });
 
-describe("ComponentEditor — template insert callbacks", () => {
+describe("ComponentEditor: template insert callbacks", () => {
   it("calls onChange via TemplateInsert in command field", async () => {
     const onChange = vi.fn();
     render(<ComponentEditor {...baseProps} component={processComponent} onChange={onChange} />);
@@ -478,7 +478,7 @@ describe("ComponentEditor — template insert callbacks", () => {
   });
 });
 
-describe("ComponentEditor — remove interactions", () => {
+describe("ComponentEditor: remove interactions", () => {
   it("calls onChange when connection pair X button is clicked", async () => {
     const onChange = vi.fn();
     const dbWithConnection: ComponentConfig = {
@@ -534,7 +534,7 @@ describe("ComponentEditor — remove interactions", () => {
   });
 });
 
-describe("ComponentEditor — database compose variables", () => {
+describe("ComponentEditor: database compose variables", () => {
   const scanWithVars = {
     detected: {
       dockerComposeFiles: ["docker-compose.yml"],

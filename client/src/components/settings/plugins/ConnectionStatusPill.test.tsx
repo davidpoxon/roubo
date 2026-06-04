@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ConnectionState } from "@roubo/shared";
 import ConnectionStatusPill from "./ConnectionStatusPill";
 
-// Tuesday, 2026-05-19T09:07:00 local — yields "as of 09:07" regardless of timezone
+// Tuesday, 2026-05-19T09:07:00 local: yields "as of 09:07" regardless of timezone
 // because we format with the *local* hours/minutes of the Date instance.
 const FIXED_CHECKED_AT = new Date(2026, 4, 19, 9, 7, 0).toISOString();
 
@@ -24,7 +24,7 @@ const VARIANTS: VariantCase[] = [
   { state: "disabled", label: "Disabled", wrapToken: "bg-stone-200" },
 ];
 
-describe("ConnectionStatusPill — five-variant taxonomy (TC-108)", () => {
+describe("ConnectionStatusPill: five-variant taxonomy (TC-108)", () => {
   for (const variant of VARIANTS) {
     it(`renders the ${variant.state} variant with label "${variant.label}" and its colour token`, () => {
       render(
@@ -57,7 +57,7 @@ describe("ConnectionStatusPill — five-variant taxonomy (TC-108)", () => {
   });
 });
 
-describe("ConnectionStatusPill — timestamp behaviour", () => {
+describe("ConnectionStatusPill: timestamp behaviour", () => {
   it("renders the checkedAt timestamp as 'as of HH:MM' on non-disabled variants", () => {
     render(<ConnectionStatusPill status={{ state: "connected", checkedAt: FIXED_CHECKED_AT }} />);
     expect(screen.getByTestId("connection-status-pill-timestamp")).toHaveTextContent("as of 09:07");
@@ -74,7 +74,7 @@ describe("ConnectionStatusPill — timestamp behaviour", () => {
   });
 });
 
-describe("ConnectionStatusPill — rechecking state (TC-111)", () => {
+describe("ConnectionStatusPill: rechecking state (TC-111)", () => {
   it("replaces the timestamp with a pulsing 'rechecking...' when rechecking is true", () => {
     render(
       <ConnectionStatusPill
@@ -89,12 +89,12 @@ describe("ConnectionStatusPill — rechecking state (TC-111)", () => {
 
   it("never enters the rechecking state on the disabled variant", () => {
     render(<ConnectionStatusPill status={{ state: "disabled" }} rechecking />);
-    // disabled never carries a timestamp — and that holds even with rechecking=true
+    // disabled never carries a timestamp, and that holds even with rechecking=true
     expect(screen.queryByTestId("connection-status-pill-timestamp")).toBeNull();
   });
 });
 
-describe("ConnectionStatusPill — tooltip surfaces detail (TC-109)", () => {
+describe("ConnectionStatusPill: tooltip surfaces detail (TC-109)", () => {
   it("attaches an accessible name combining label + detail on auth-problem", async () => {
     render(
       <ConnectionStatusPill

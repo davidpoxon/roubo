@@ -79,7 +79,7 @@ router.put("/:projectId/jigs/default", (req, res) => {
       const raw = fs.readFileSync(configPath, "utf-8");
       config = (YAML.parse(raw) as Record<string, unknown>) ?? {};
     } catch {
-      // config file doesn't exist yet — start from empty
+      // config file doesn't exist yet: start from empty
     }
 
     if (jigId == null) {
@@ -102,7 +102,7 @@ router.put("/:projectId/jigs/default", (req, res) => {
     try {
       projectRegistry.reloadConfig(req.params.projectId);
     } catch {
-      // reload failure is non-fatal — save succeeded
+      // reload failure is non-fatal: save succeeded
     }
 
     res.json({ jigId: jigId ?? null });
@@ -171,7 +171,7 @@ router.put("/:projectId/jigs/issue-type-mappings", (req, res) => {
       const raw = fs.readFileSync(configPath, "utf-8");
       config = (YAML.parse(raw) as Record<string, unknown>) ?? {};
     } catch {
-      // config file doesn't exist yet — start from empty
+      // config file doesn't exist yet: start from empty
     }
 
     if (Object.keys(mappings).length === 0) {
@@ -194,7 +194,7 @@ router.put("/:projectId/jigs/issue-type-mappings", (req, res) => {
     try {
       projectRegistry.reloadConfig(req.params.projectId);
     } catch {
-      // reload failure is non-fatal — save succeeded
+      // reload failure is non-fatal: save succeeded
     }
 
     res.json({ mappings });

@@ -31,7 +31,7 @@ function makeProps(overrides?: Partial<Parameters<typeof ComponentRowEditor>[0]>
   };
 }
 
-describe("ComponentRowEditor — collapsed row", () => {
+describe("ComponentRowEditor: collapsed row", () => {
   it("renders name input, role badge and port", () => {
     render(<ComponentRowEditor {...makeProps()} />);
     expect(screen.getByLabelText(/component name/i)).toHaveValue("api");
@@ -123,7 +123,7 @@ describe("ComponentRowEditor — collapsed row", () => {
   });
 });
 
-describe("ComponentRowEditor — expanded panel", () => {
+describe("ComponentRowEditor: expanded panel", () => {
   it("shows role toggle group with Process and Database options", () => {
     render(<ComponentRowEditor {...makeProps({ isExpanded: true })} />);
     const group = screen.getByRole("group", { name: /role/i });

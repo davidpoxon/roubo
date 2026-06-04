@@ -8,7 +8,7 @@ export function useAppBadge(): void {
   useEffect(() => {
     window.roubo?.setBadgeCount(count);
   }, [count]);
-  // Reset badge only on unmount — separate effect avoids a 0-frame flicker
+  // Reset badge only on unmount: separate effect avoids a 0-frame flicker
   // that occurs when React runs the cleanup of the count effect before the
   // next effect fires on every count update.
   useEffect(() => {

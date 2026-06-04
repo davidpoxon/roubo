@@ -140,7 +140,7 @@ function persistSession(id: string): void {
   try {
     atomicWrite(sessionFilePath(id), JSON.stringify(data, null, 2));
   } catch {
-    // Best-effort persistence — don't crash if disk write fails
+    // Best-effort persistence: don't crash if disk write fails
   }
 }
 
@@ -200,7 +200,7 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
       internal.lastNotifiedAt = null;
     }
   } catch {
-    // Best-effort — don't break terminal output on notification errors
+    // Best-effort: don't break terminal output on notification errors
   }
 }
 
@@ -220,7 +220,7 @@ function scheduleQuiescenceCheck(id: string): void {
     if (internal.pty === null || internal.exitCode !== null) return;
     // Skip if no fresh output has arrived since the last notification we
     // created for this session. This is what makes a WS reconnect a no-op
-    // after a user dismissal — without it, every reconnect would re-fire.
+    // after a user dismissal: without it, every reconnect would re-fire.
     if (
       internal.lastNotifiedAt !== null &&
       (internal.lastOutputAt ?? 0) <= internal.lastNotifiedAt
@@ -240,7 +240,7 @@ function scheduleQuiescenceCheck(id: string): void {
         internal.lastNotifiedAt = Date.now();
       }
     } catch {
-      // Best-effort — don't break terminal output on notification errors
+      // Best-effort: don't break terminal output on notification errors
     }
   }, debounce);
 }
@@ -289,7 +289,7 @@ export function createSession(
     try {
       writeClaudeSettingsLocal(workspacePath, claudeCodeSettings, projectPermissions);
     } catch (err) {
-      // Best-effort — a failure here (e.g. disk full) should not prevent the session from starting
+      // Best-effort: a failure here (e.g. disk full) should not prevent the session from starting
       console.warn("Failed to write .claude/settings.local.json:", err);
     }
   }
@@ -344,13 +344,13 @@ export function createSession(
   ptyProcess.onData((data) => {
     internal.buffer.push(data);
     internal.lastOutputAt = Date.now();
-    // Debounced flush — coalesces rapid output, also catches idle sessions
+    // Debounced flush: coalesces rapid output, also catches idle sessions
     scheduleBufferFlush(id);
     // Fresh output means this session is not currently waiting on the user.
     // Clear any pending claude-waiting/terminal-waiting notification so the tab
     // indicator (and any OS notification state) tracks the live session state.
     dismissWaitingNotificationsForSession(internal);
-    // Schedule a quiescence check — if no further output arrives within the
+    // Schedule a quiescence check: if no further output arrives within the
     // debounce window the session is likely waiting for input. Claude sessions
     // use a longer window as a fallback for Notification events the hook misses
     // (e.g. AskUserQuestion); hook-driven notifications still fire immediately.
@@ -490,7 +490,7 @@ export function loadPersistedSessions(): void {
       const raw = fs.readFileSync(path.join(SESSIONS_DIR, file), "utf-8");
       const persisted: PersistedTerminalSession = JSON.parse(raw);
 
-      // Mark as ended — the PTY is gone after a server restart
+      // Mark as ended: the PTY is gone after a server restart
       persisted.session.status = "ended";
 
       const internal: InternalSession = {
@@ -553,7 +553,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   // Arm (or re-arm on reconnect) the quiescence timer for non-claude sessions.
   // clearTimers above cancelled any pending timer. On reconnect, if the shell is
   // already idle at a prompt no new PTY output will arrive so the onData handler
-  // won't reschedule — we do it here to ensure a waiting terminal still notifies.
+  // won't reschedule: we do it here to ensure a waiting terminal still notifies.
   //
   // Skip the rearm when we have already notified for the current idle window
   // (no fresh output since lastNotifiedAt). Without this, a reconnect after a
@@ -586,7 +586,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
       ws.send(JSON.stringify({ type: "ping" }));
       if (internal.pongDeadline) clearTimeout(internal.pongDeadline);
       internal.pongDeadline = setTimeout(() => {
-        // No pong received — close to trigger client reconnect
+        // No pong received: close to trigger client reconnect
         try {
           ws.close();
         } catch {
@@ -604,7 +604,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
         internal.pty?.write(msg.data);
         // Cancel the quiescence timer so active typing doesn't trigger a notification
         cancelQuiescenceCheck(internal);
-        // User has engaged — reset the notify-gate so the next idle window can
+        // User has engaged: reset the notify-gate so the next idle window can
         // fire a fresh notification instead of being suppressed by the
         // reconnect/quiescence guards.
         internal.lastNotifiedAt = null;
@@ -614,7 +614,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
             const bench = benchManager.getBench(parsed.projectId, parsed.benchId);
             if (bench) notificationService.dismissBySession(bench, internal.session.id);
           } catch {
-            // Best-effort — don't break terminal input on notification errors
+            // Best-effort: don't break terminal input on notification errors
           }
         }
       } else if (

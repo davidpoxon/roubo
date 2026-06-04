@@ -113,7 +113,7 @@ export default function EmbeddedGuidedSetup({ repoPath, onReady, onSaved }: Prop
     onSavedRef.current = onSaved;
   }, [onSaved]);
 
-  // Stable wrapper — the actual implementation lives in a ref updated by useLayoutEffect
+  // Stable wrapper: the actual implementation lives in a ref updated by useLayoutEffect
   const handleSaveImplRef = useRef<() => void>(() => {});
   useLayoutEffect(() => {
     handleSaveImplRef.current = () => {

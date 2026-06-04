@@ -299,8 +299,8 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
               Changes write to{" "}
               <span className="font-mono text-stone-500 dark:text-stone-500">
                 {"<repo>/.roubo/roubo.yaml"}
-              </span>{" "}
-              — commit alongside your other work.
+              </span>
+              . Commit alongside your other work.
             </p>
           </Tile>
           <div className="mt-6">

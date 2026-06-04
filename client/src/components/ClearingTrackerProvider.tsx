@@ -151,7 +151,7 @@ export default function TeardownTrackerProvider({ children }: { children: ReactN
       if (!currentStopping.has(key) && teardownsRef.current.has(key)) {
         const entry = teardownsRef.current.get(key);
         if (!entry) continue;
-        // Bench completed teardown — show brief completion card then remove
+        // Bench completed teardown: show brief completion card then remove
         setTeardowns((prev) => {
           const next = new Map(prev);
           next.delete(key);

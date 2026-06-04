@@ -66,7 +66,7 @@ router.put(
           config = parsed as Record<string, unknown>;
         }
       } catch {
-        // config file doesn't exist yet — start from empty
+        // config file doesn't exist yet: start from empty
       }
 
       const existingBenches = (config.benches ?? {}) as Record<string, unknown>;
@@ -101,7 +101,7 @@ router.put(
       };
 
       // If the result would be an empty benches object and there was nothing to
-      // begin with, the nulled keys never existed — skip the write to avoid
+      // begin with, the nulled keys never existed: skip the write to avoid
       // writing a bare `benches: {}` that would fail schema validation (max is required).
       if (Object.keys(benchesSection).length === 0 && Object.keys(existingBenches).length === 0) {
         res.json({
@@ -119,7 +119,7 @@ router.put(
       try {
         projectRegistry.reloadConfig(req.params.projectId);
       } catch {
-        // reload failure is non-fatal — save succeeded
+        // reload failure is non-fatal: save succeeded
       }
 
       res.json({

@@ -110,7 +110,7 @@ describe("ProjectPermissionsEditorPage", () => {
     );
     renderEditor();
     expect(screen.getByText("Bash(rm:*)")).toBeInTheDocument();
-    // badge "deny" may appear in option elements too — at least one should be in a span
+    // badge "deny" may appear in option elements too: at least one should be in a span
     expect(screen.getAllByText("deny").length).toBeGreaterThan(0);
   });
 

@@ -300,7 +300,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
 
         {/* Body */}
         <div className="flex flex-1 min-h-0">
-          {/* Left column — metadata */}
+          {/* Left column: metadata */}
           <div className="w-64 shrink-0 border-r border-stone-200 dark:border-stone-800/60 overflow-auto px-5 py-6 space-y-5">
             {/* Icon + Name */}
             <div className="space-y-2">
@@ -376,7 +376,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
               )}
               {sizeSoftWarn && !sizeHardError && (
                 <p className="text-[10px] text-amber-500">
-                  Large jig — will consume ~{tokenPercent}% of the context window per run.
+                  Large jig: will consume ~{tokenPercent}% of the context window per run.
                 </p>
               )}
             </div>
@@ -388,7 +388,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
             {errors.root && <p className="text-xs text-red-500">{errors.root}</p>}
           </div>
 
-          {/* Centre column — editor / preview */}
+          {/* Centre column: editor / preview */}
           <div className="flex-1 min-w-0 flex flex-col p-5">
             <Tabs className="flex flex-col flex-1 min-h-0">
               <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-3">
@@ -413,7 +413,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
             </Tabs>
           </div>
 
-          {/* Right column — variable panel */}
+          {/* Right column: variable panel */}
           <div className="w-52 shrink-0 border-l border-stone-200 dark:border-stone-800/60">
             <VariableInsertionPanel scope={scope} onInsert={handleInsert} />
           </div>

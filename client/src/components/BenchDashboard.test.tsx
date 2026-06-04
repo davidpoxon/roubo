@@ -965,7 +965,7 @@ describe("BenchDashboard", () => {
         benches: [],
       });
       renderDashboard("/projects/proj-1");
-      // Cut list starts visible — collapse button is in the IssueQueuePanel
+      // Cut list starts visible: collapse button is in the IssueQueuePanel
       await userEvent.click(screen.getByTestId("collapse-queue"));
       // After collapse, expand button appears in the tab nav
       expect(screen.getByLabelText("Show cut list")).toBeInTheDocument();
@@ -1038,7 +1038,7 @@ describe("BenchDashboard", () => {
       // Set a filter on proj-1
       await userEvent.click(screen.getByTestId("set-filter"));
 
-      // Switch to proj-2 — should start with empty filters
+      // Switch to proj-2: should start with empty filters
       await act(async () => {
         await router.navigate("/projects/proj-2");
       });
@@ -1080,7 +1080,7 @@ describe("BenchDashboard", () => {
       // Set a grouping on proj-1
       await userEvent.click(screen.getByTestId("set-grouping"));
 
-      // Switch to proj-2 — should start with no grouping
+      // Switch to proj-2: should start with no grouping
       await act(async () => {
         await router.navigate("/projects/proj-2");
       });
@@ -1181,9 +1181,9 @@ describe("BenchDashboard", () => {
     it("hides panel toggle buttons on Settings tab", () => {
       stubDefaults({ projects: [makeProjectWithGitHub()], benches: [] });
       renderDashboard("/projects/proj-1/settings");
-      // IssueQueuePanel not rendered on Settings tab — no collapse button
+      // IssueQueuePanel not rendered on Settings tab: no collapse button
       expect(screen.queryByTestId("collapse-queue")).not.toBeInTheDocument();
-      // Tab nav expand button only shows when collapsed — not shown here (not collapsed + on settings)
+      // Tab nav expand button only shows when collapsed: not shown here (not collapsed + on settings)
       expect(screen.queryByLabelText("Show cut list")).not.toBeInTheDocument();
     });
 

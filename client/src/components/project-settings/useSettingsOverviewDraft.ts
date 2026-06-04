@@ -44,7 +44,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   const serverIssueTypeMappings: Record<string, string> =
     issueTypeMappingsData?.mappings ?? EMPTY_MAPPINGS;
 
-  // Draft state — init from project config (available immediately)
+  // Draft state: init from project config (available immediately)
   // worktreeSource is initialized via useEffect once settings loads
   const [draftWorktreeSourceRaw, setDraftWorktreeSourceRaw] = useState<
     ProjectSettings["worktreeSource"]
@@ -265,8 +265,8 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     saveErrors,
     save,
     discard,
-    // Returned as a ref (not state) so the useBlocker callback — which captures
-    // a stale closure — always reads the current value at navigation time.
+    // Returned as a ref (not state) so the useBlocker callback, which captures
+    // a stale closure, always reads the current value at navigation time.
     justSavedRef,
   };
 }

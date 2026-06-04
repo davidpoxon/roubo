@@ -63,7 +63,7 @@ export default function YamlOutlinePanel({ rawYaml, onSectionClick }: Props) {
       </div>
       {parseError ? (
         <p className="text-[11px] text-stone-400 dark:text-stone-600 italic">
-          YAML unreadable — fix errors in the editor
+          YAML unreadable: fix errors in the editor
         </p>
       ) : items.length === 0 ? (
         <p className="text-[11px] text-stone-400 dark:text-stone-600 italic">Empty document</p>

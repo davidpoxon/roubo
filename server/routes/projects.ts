@@ -332,7 +332,7 @@ router.post("/save-config", saveConfigRateLimiter, (req, res) => {
         projectRegistry.reloadConfig(projectId);
       }
     } catch {
-      // reload failed but save succeeded — not a fatal error
+      // reload failed but save succeeded: not a fatal error
     }
 
     res.json({ path: configPath, config });

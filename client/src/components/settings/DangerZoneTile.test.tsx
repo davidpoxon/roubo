@@ -524,7 +524,7 @@ describe("DangerZoneTile", () => {
     await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "My App");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    // Reopen — input should be empty, Confirm disabled
+    // Reopen: input should be empty, Confirm disabled
     await user.click(screen.getByRole("button", { name: "Unregister" }));
     expect(within(screen.getByRole("dialog")).getByRole("textbox")).toHaveValue("");
     expect(

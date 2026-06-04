@@ -400,7 +400,7 @@ describe("ProjectSidebar", () => {
     });
 
     it("still shows notification on project row when only the active bench has notifications", () => {
-      // The active bench is NOT excluded from the project rollup — all action-needed notifications
+      // The active bench is NOT excluded from the project rollup: all action-needed notifications
       // bubble up to project level regardless of which bench the user is currently viewing.
       mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
         RegisteredProject[]

@@ -25,11 +25,11 @@ function resolveRouboDir(): string {
   if (process.env.ROUBO_PRODUCTION) {
     return path.join(os.homedir(), ".roubo");
   }
-  // state.ts lives at <root>/server/services/state.ts — go up 2 levels to reach project root.
+  // state.ts lives at <root>/server/services/state.ts: go up 2 levels to reach project root.
   // This only runs in dev mode (ROUBO_PRODUCTION unset), where tsx executes the .ts source directly.
   const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   // Uses the checkout directory name as the isolation key. Two checkouts with the
-  // same directory name will share a dev state directory — acceptable tradeoff.
+  // same directory name will share a dev state directory: acceptable tradeoff.
   return path.join(os.homedir(), ".roubo-dev", path.basename(projectRoot));
 }
 

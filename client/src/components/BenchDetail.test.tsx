@@ -571,7 +571,7 @@ describe("BenchDetail", () => {
     it("keeps separate tab state per bench when navigating without unmounting", async () => {
       // Harness: a nav button + the route, so BenchDetail stays mounted
       // across navigation (react-router v6 keeps the same element alive when
-      // only params change — this is the real-world bug path).
+      // only params change: this is the real-world bug path).
       function Harness() {
         const navigate = useNavigate();
         return (
@@ -606,7 +606,7 @@ describe("BenchDetail", () => {
       // Navigate to bench 2 without unmounting BenchDetail
       await userEvent.click(screen.getByRole("button", { name: /go-bench-2/i }));
 
-      // Bench 2 has no persisted tab — should default to Components, NOT Info
+      // Bench 2 has no persisted tab: should default to Components, NOT Info
       expect(screen.getByRole("tab", { name: /components/i })).toHaveAttribute(
         "aria-selected",
         "true",
@@ -681,7 +681,7 @@ describe("BenchDetail", () => {
       await userEvent.click(screen.getByRole("button", { name: /clear/i }));
       const firstDialog = screen.getByRole("dialog");
       await userEvent.click(within(firstDialog).getByRole("button", { name: /^clear$/i }));
-      // Dirty dialog is open — confirm it
+      // Dirty dialog is open: confirm it
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
 
       expect(teardownMutate).toHaveBeenCalledTimes(2);
@@ -713,7 +713,7 @@ describe("BenchDetail", () => {
       await userEvent.click(screen.getByRole("button", { name: /clear/i }));
       const firstDialog = screen.getByRole("dialog");
       await userEvent.click(within(firstDialog).getByRole("button", { name: /^clear$/i }));
-      // Dirty dialog opens — cancel it
+      // Dirty dialog opens: cancel it
       await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
       expect(
@@ -788,10 +788,10 @@ describe("BenchDetail", () => {
       await userEvent.click(within(firstDialog).getByRole("button", { name: /^clear$/i }));
       // First force attempt → 500
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
-      expect(screen.getByText("Clear failed — please try again.")).toBeInTheDocument();
-      // Second force attempt → fresh dirty 409 — stale error must disappear
+      expect(screen.getByText("Clear failed. Please try again.")).toBeInTheDocument();
+      // Second force attempt → fresh dirty 409: stale error must disappear
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
-      expect(screen.queryByText("Clear failed — please try again.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Clear failed. Please try again.")).not.toBeInTheDocument();
       expect(
         screen.getByRole("dialog", { name: /uncommitted work detected/i }),
       ).toBeInTheDocument();
@@ -829,14 +829,14 @@ describe("BenchDetail", () => {
       await userEvent.click(screen.getByRole("button", { name: /clear/i }));
       const firstDialog = screen.getByRole("dialog");
       await userEvent.click(within(firstDialog).getByRole("button", { name: /^clear$/i }));
-      // Dirty dialog is open — confirm it
+      // Dirty dialog is open: confirm it
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
 
-      // Dialog must stay open and show an error — bench stays intact
+      // Dialog must stay open and show an error: bench stays intact
       expect(
         screen.getByRole("dialog", { name: /uncommitted work detected/i }),
       ).toBeInTheDocument();
-      expect(screen.getByText("Clear failed — please try again.")).toBeInTheDocument();
+      expect(screen.getByText("Clear failed. Please try again.")).toBeInTheDocument();
       expect(registerTeardown).not.toHaveBeenCalled();
     });
   });
@@ -892,7 +892,7 @@ describe("BenchDetail", () => {
     });
 
     describe("collapsed chip view (default)", () => {
-      it("is collapsed by default — chip content visible, expanded rows are not", () => {
+      it("is collapsed by default: chip content visible, expanded rows are not", () => {
         renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
         expect(screen.getByText("api")).toBeInTheDocument();
         expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument();
@@ -943,7 +943,7 @@ describe("BenchDetail", () => {
         };
         renderBench({ ...baseBench, workUnits: [rootUnit] } as never);
         const chip = screen.getByText(".").closest("span");
-        // Neutral stone dot appears (meta-root marker) — amber is reserved for activity
+        // Neutral stone dot appears (meta-root marker): amber is reserved for activity
         expect(chip?.querySelector(".bg-stone-400, .bg-stone-600")).toBeInTheDocument();
         expect(chip?.querySelector(".bg-amber-500")).not.toBeInTheDocument();
       });
@@ -1074,7 +1074,7 @@ describe("BenchDetail", () => {
       expect(screen.getByText("closed")).toBeInTheDocument();
     });
 
-    describe("expanded row — activity indicators", () => {
+    describe("expanded row: activity indicators", () => {
       it("shows amber activity dot in row when unit has dirty state", async () => {
         const user = userEvent.setup();
         const dirtyUnit = {
@@ -1346,7 +1346,7 @@ describe("BenchDetail", () => {
         renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
         await user.click(screen.getByRole("button", { name: /work units/i }));
         await user.click(screen.getByRole("button", { name: /ignore for auto-clear/i }));
-        expect(screen.getByText("Failed to update — please try again.")).toBeInTheDocument();
+        expect(screen.getByText("Failed to update. Please try again.")).toBeInTheDocument();
       });
 
       it("Cancel button closes the dialog", async () => {

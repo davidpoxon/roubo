@@ -6,7 +6,7 @@ import { useEntranceAnimation } from "./useEntranceAnimation";
 beforeEach(() => {
   // jsdom does not implement requestAnimationFrame/cancelAnimationFrame
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-    // Store the callback — tests can invoke it manually
+    // Store the callback: tests can invoke it manually
     (globalThis as Record<string, unknown>).__pendingRaf = cb;
     return 1;
   });

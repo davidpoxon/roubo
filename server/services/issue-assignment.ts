@@ -213,7 +213,7 @@ export async function createBenchAndAssignIssue(
   // Create bench with the branch name
   const bench = benchManager.createBench(projectId, branchName);
 
-  // Fetch linked PRs before persisting (best-effort; never throws — returns [] on failure)
+  // Fetch linked PRs before persisting (best-effort; never throws: returns [] on failure)
   const linkedPullRequests = await githubService.fetchLinkedPullRequests(repoFullName, issueNumber);
 
   // Assign issue metadata including seeded linked PRs

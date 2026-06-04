@@ -48,7 +48,7 @@ interface EtagEntry {
 const MAX_ETAG_ENTRIES = 200;
 const etagStore = new Map<string, EtagEntry>();
 
-// Injectable sleep for testability — avoids fake-timer fragility with vi.resetModules()
+// Injectable sleep for testability: avoids fake-timer fragility with vi.resetModules()
 let sleepImpl: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Replace the sleep implementation. Only call this in tests. */
@@ -99,7 +99,7 @@ export async function refreshAuth(): Promise<void> {
     const stored = await credentialStore.get(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
     cachedToken = stored ?? undefined;
   } catch {
-    // Keychain unavailable (headless Linux without secret-tool, etc.) —
+    // Keychain unavailable (headless Linux without secret-tool, etc.):
     // surface as "no token" so callers get a clean 401 rather than crashing.
     cachedToken = undefined;
   }
@@ -180,7 +180,7 @@ function stableStringify(value: unknown): string {
  */
 function buildEtagKey(route: string, params?: Record<string, unknown>): string {
   const spaceIdx = route.indexOf(" ");
-  if (spaceIdx === -1) return route; // no method prefix — skip ETag keying
+  if (spaceIdx === -1) return route; // no method prefix: skip ETag keying
   const method = route.slice(0, spaceIdx);
   const urlTemplate = route.slice(spaceIdx + 1);
 
@@ -297,7 +297,7 @@ async function githubRequest<T>(input: GitHubRequestInput): Promise<GitHubReques
       try {
         res = await client.request(input.route, { ...input.params, headers });
       } catch (innerErr) {
-        // Octokit throws RequestError on 304 — return cached data with sentinel
+        // Octokit throws RequestError on 304: return cached data with sentinel
         if (isRequestError(innerErr) && innerErr.status === 304) {
           if (cached) {
             return {
@@ -308,7 +308,7 @@ async function githubRequest<T>(input: GitHubRequestInput): Promise<GitHubReques
               status: 304,
             };
           }
-          // 304 with no cached data — cache was cleared between request dispatch and
+          // 304 with no cached data: cache was cleared between request dispatch and
           // response receipt (e.g., concurrent resetOctokit call). Throw a clear error
           // rather than propagating the raw 304 object to callers.
           throw new Error("[github] Unexpected 304 Not Modified with no cached ETag data", {
@@ -1079,7 +1079,7 @@ interface MappedPR {
 
 /**
  * Fetches the first open PR on `repoFullName` whose head branch matches `branch`.
- * Uses ETag-based conditional requests — on 304 Not Modified, returns `notModified: true`
+ * Uses ETag-based conditional requests: on 304 Not Modified, returns `notModified: true`
  * and the previously cached PR (or null). This lets callers skip state writes when
  * nothing has changed since the last tick.
  */
@@ -1180,7 +1180,7 @@ function mapIssue(item: RawIssue): GitHubIssue {
     labels: (item.labels ?? []).map((l) => (typeof l === "string" ? l : (l.name ?? ""))),
     assignee: item.assignee?.login,
     milestone: item.milestone?.title,
-    // type is not available via the REST API — it is a GitHub Projects v2 concept only
+    // type is not available via the REST API: it is a GitHub Projects v2 concept only
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     commentsCount: item.comments ?? 0,

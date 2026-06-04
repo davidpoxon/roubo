@@ -1029,7 +1029,7 @@ export async function uninstall(pluginId: string): Promise<void> {
   pluginEnableState.removePlugin(pluginId);
   // FR-014: a re-installed plugin id is a different deployment; previously
   // cached issues should not bleed across the uninstall boundary. Note that
-  // we deliberately do *not* clear the snapshot on disable() — FR-014 calls
+  // we deliberately do *not* clear the snapshot on disable(): FR-014 calls
   // for serving the last-good snapshot while a plugin is `disabled`.
   issueSnapshotCache.clearSnapshot(pluginId);
 }
@@ -1038,7 +1038,7 @@ export async function uninstall(pluginId: string): Promise<void> {
  * Add a freshly-installed plugin directory to the in-memory state and start
  * it. Called by the plugin-installer after it has moved a validated staging
  * directory into `~/.roubo/plugins/<id>/`. The caller is responsible for
- * having ruled out duplicate ids before invoking this — we throw if the id
+ * having ruled out duplicate ids before invoking this: we throw if the id
  * is already known.
  */
 export async function registerInstalled(pluginDir: string): Promise<PluginRecord> {
@@ -1394,7 +1394,7 @@ function makeRpcError(code: string, message: string, methodName?: string): Error
   return err;
 }
 
-// Test-only helpers — exported so tests can reset state and tune internals.
+// Test-only helpers: exported so tests can reset state and tune internals.
 export const __test = {
   reset(): void {
     plugins.clear();
@@ -1449,7 +1449,7 @@ export const __test = {
   // TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
   // a genuine `unexpected-exit` and runs the full restart-budget path in
   // `handleChildExit`. Gated by ROUBO_E2E so production builds can't trigger
-  // it. We intentionally do not flip `intentionalStop` — the goal is to
+  // it. We intentionally do not flip `intentionalStop`: the goal is to
   // exercise the real auto-restart loop, not the clean-shutdown path.
   crashRunningPlugin(pluginId: string): { pid: number } {
     if (process.env.ROUBO_E2E !== "1") {

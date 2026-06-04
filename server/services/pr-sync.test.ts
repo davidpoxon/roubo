@@ -366,7 +366,7 @@ describe("syncBenchWorkUnitPRs", () => {
       const wu = makeWorkUnit({ submodule: ".", branch: "issue-42-fix" });
       const bench = makeBench({ workUnits: [wu] });
       await syncBenchWorkUnitPRs("proj-1", bench);
-      // Branch must not change for the root — it is owned by bench.branch
+      // Branch must not change for the root: it is owned by bench.branch
       expect(wu.branch).toBe("issue-42-fix");
       expect(wu.detached).toBeUndefined();
       // But dirty state should be probed

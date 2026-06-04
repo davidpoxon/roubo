@@ -8,7 +8,7 @@
 //   - `undefined` in override: treated as "not present", base wins.
 //   - `null` in override: treated as present, override wins.
 //
-// Intentionally not a general-purpose library — the integration block has a
+// Intentionally not a general-purpose library: the integration block has a
 // tiny, known shape, so a 25-line walker beats pulling in `lodash.merge`
 // (which concats arrays, the opposite of what we need).
 

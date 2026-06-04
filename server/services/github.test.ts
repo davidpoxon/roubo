@@ -555,7 +555,7 @@ describe("resetOctokit", () => {
     await fetchIssues("org/repo");
     expect(mockRequest).toHaveBeenCalledTimes(1);
 
-    // Second call hits cache — no additional API call
+    // Second call hits cache: no additional API call
     await fetchIssues("org/repo");
     expect(mockRequest).toHaveBeenCalledTimes(1);
 
@@ -730,7 +730,7 @@ describe("fetchBlockingRelationships", () => {
                           number: 4,
                           title: "Level 3",
                           state: "OPEN",
-                          // Level 4 — should not be followed even if present
+                          // Level 4: should not be followed even if present
                           blockedBy: { nodes: [{ number: 5, title: "Level 4", state: "OPEN" }] },
                         },
                       ],
@@ -865,7 +865,7 @@ describe("fetchBlockingRelationships", () => {
   });
 
   it("issues >20 are split across two GraphQL calls and results are merged", async () => {
-    // 21 issues — first batch of 20, second batch of 1
+    // 21 issues: first batch of 20, second batch of 1
     const allNumbers = Array.from({ length: 21 }, (_, i) => i + 1);
     const batch1 = allNumbers.slice(0, 20);
 
@@ -1144,7 +1144,7 @@ describe("githubRequest etag", () => {
   it("304 response thrown by Octokit returns notModified sentinel with cached data", async () => {
     const { fetchLabels } = await loadModule();
 
-    // First call: 200 with etag — stores data in etag cache
+    // First call: 200 with etag: stores data in etag cache
     mockRequest.mockResolvedValueOnce({
       data: [{ name: "bug" }],
       headers: { etag: 'W/"v1"' },
@@ -1187,7 +1187,7 @@ describe("githubRequest etag", () => {
     });
     await fetchLabels("org/repo");
 
-    // Issue detail call — must not receive the labels etag
+    // Issue detail call: must not receive the labels etag
     mockRequest.mockResolvedValueOnce({
       data: {
         number: 1,
@@ -1217,12 +1217,12 @@ describe("githubRequest etag", () => {
       status: 200,
     });
 
-    // First call — etag stored
+    // First call: etag stored
     await fetchLabels("org/repo");
 
     resetOctokit();
 
-    // Second call — etag store was cleared, no If-None-Match
+    // Second call: etag store was cleared, no If-None-Match
     await fetchLabels("org/repo");
 
     const secondCallHeaders = mockRequest.mock.calls[1][1].headers as Record<string, string>;
@@ -1251,7 +1251,7 @@ describe("githubRequest etag", () => {
       await fetchIssueDetail("org/repo", i);
     }
 
-    // Add one more — should trigger pruning and evict the oldest entry
+    // Add one more: should trigger pruning and evict the oldest entry
     mockRequest.mockResolvedValueOnce({
       data: {
         number: 201,
@@ -1268,7 +1268,7 @@ describe("githubRequest etag", () => {
     });
     await fetchIssueDetail("org/repo", 201);
 
-    // Issue 1 should have been evicted — calling it again should not send If-None-Match
+    // Issue 1 should have been evicted: calling it again should not send If-None-Match
     mockRequest.mockResolvedValueOnce({
       data: {
         number: 1,

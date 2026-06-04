@@ -96,7 +96,7 @@ const CONFIG_VARS_GLOBAL: JigVariable[] = [
 ];
 
 const CONFIG_FOOTNOTE_GLOBAL =
-  "Config placeholders are inserted literally — they resolve against the active project when the jig is injected.";
+  "Config placeholders are inserted literally; they resolve against the active project when the jig is injected.";
 
 export function getJigVariableGroups(scope: "global" | "project"): JigVariableGroup[] {
   const configFootnote = scope === "global" ? CONFIG_FOOTNOTE_GLOBAL : undefined;

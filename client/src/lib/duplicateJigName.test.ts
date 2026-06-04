@@ -55,7 +55,7 @@ describe("deriveDuplicateName", () => {
   });
 
   it("strips suffix with extra spaces around it", () => {
-    // "Foo  (copy)" — extra space before suffix
+    // "Foo  (copy)": extra space before suffix
     expect(deriveDuplicateName("Foo  (copy)", [])).toBe("Foo (copy)");
   });
 });

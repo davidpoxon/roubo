@@ -85,7 +85,7 @@ describe("checkPortConflicts", () => {
         }),
       }),
     ];
-    // new: 3000-3002, existing: 3003-3005 — no overlap
+    // new: 3000-3002, existing: 3003-3005, no overlap
     expect(checkPortConflicts(newProject, existing)).toEqual([]);
   });
 

@@ -7,7 +7,7 @@ vi.mock("./bench-manager.js", () => ({
   // Default true: the bench is still tracked, so guarded persists go through.
   isBenchLive: vi.fn().mockReturnValue(true),
   // Stubbed so tests can assert issue-assignment never invokes the auto-start
-  // primitives directly — those live behind createBench's background path.
+  // primitives directly: those live behind createBench's background path.
   startAllComponents: vi.fn(),
   runComponentsInOrder: vi.fn(),
 }));
@@ -198,7 +198,7 @@ describe("assignIssue", () => {
       expect.stringContaining("https://github.com/org/repo/issues/42"),
       undefined,
     );
-    // assignIssue must never trigger auto-start directly — that lives behind
+    // assignIssue must never trigger auto-start directly: that lives behind
     // bench-manager. (Plain assignIssue doesn't create a bench, so the
     // setting wouldn't apply anyway, but lock it in regardless.)
     expect(benchManager.startAllComponents).not.toHaveBeenCalled();
@@ -859,12 +859,12 @@ describe("createBenchAndAssignIssue", () => {
     expect(result.terminalSessionId).toBe("term-1");
     expect(result.status).toBe("success");
     // createBenchAndAssignIssue must delegate auto-start orchestration to
-    // benchManager.createBench — never invoke the start primitives itself.
+    // benchManager.createBench: never invoke the start primitives itself.
     expect(benchManager.startAllComponents).not.toHaveBeenCalled();
     expect(benchManager.runComponentsInOrder).not.toHaveBeenCalled();
   });
 
-  it("leaves bench idle (no component start) when autoStartComponents is off — default", async () => {
+  it("leaves bench idle (no component start) when autoStartComponents is off: default", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
       jigs: {
@@ -899,7 +899,7 @@ describe("createBenchAndAssignIssue", () => {
     );
   });
 
-  it("delegates to createBench when autoStartComponents is on — assignment is unchanged", async () => {
+  it("delegates to createBench when autoStartComponents is on: assignment is unchanged", async () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "system",
       jigs: {
@@ -915,7 +915,7 @@ describe("createBenchAndAssignIssue", () => {
 
     expect(result.status).toBe("success");
     // The setting flips behaviour inside createBench's background path, not in
-    // issue-assignment — so the calls observable from this layer are identical
+    // issue-assignment: so the calls observable from this layer are identical
     // to the off path. createBench is the single orchestration entry point.
     expect(benchManager.createBench).toHaveBeenCalledTimes(1);
     expect(benchManager.createBench).toHaveBeenCalledWith("project1", "issue-42-fix-login-bug");

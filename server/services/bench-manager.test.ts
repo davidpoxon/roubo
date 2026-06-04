@@ -494,7 +494,7 @@ describe("initialize", () => {
       },
     });
     const project = makeProject({ config });
-    // Persisted state mentions only backend — worker was added to roubo.yaml later.
+    // Persisted state mentions only backend: worker was added to roubo.yaml later.
     const persisted = makePersistedBench({
       componentSetupState: { backend: true },
     });
@@ -950,7 +950,7 @@ describe("background provisioning", () => {
     });
 
     const calls = vi.mocked(execModule.runCommand).mock.calls;
-    // Pre-flight cleanup: worktree remove --force (no prune — prune is project-wide
+    // Pre-flight cleanup: worktree remove --force (no prune: prune is project-wide
     // and can race against concurrent bench creation)
     expect(calls[0]).toEqual([
       "git",
@@ -1035,7 +1035,7 @@ describe("background provisioning", () => {
       label: "Initializing submodules",
       status: "error",
     });
-    // Submodule init error is non-fatal — bench still reaches idle (worktree-only create)
+    // Submodule init error is non-fatal: bench still reaches idle (worktree-only create)
     expect(bench.status).toBe("idle");
   });
 
@@ -1163,7 +1163,7 @@ describe("background provisioning", () => {
           },
         }),
       });
-      // existsSync returns false (default from setupCreateBenchMocks) — .gitmodules absent
+      // existsSync returns false (default from setupCreateBenchMocks): .gitmodules absent
 
       benchManager.createBench("test-project");
 
@@ -1486,7 +1486,7 @@ describe("background provisioning", () => {
       // Wait for bench to reach "active" AND for both bench-setup ("npm ci") and
       // component-setup ("npm install") commands to have been issued. CI was
       // observed to occasionally see "active" before the for-loop's await
-      // boundaries had settled — waiting on the runCommand mock directly is a
+      // boundaries had settled: waiting on the runCommand mock directly is a
       // stronger sync point than just bench.status.
       await vi.waitFor(() => {
         const bench = benchManager.getBench("test-project", 1);
@@ -1570,7 +1570,7 @@ describe("background provisioning", () => {
   });
 });
 
-describe("background provisioning — worktreeSource R3 combinations", () => {
+describe("background provisioning: worktreeSource R3 combinations", () => {
   const SETTINGS_R1_OFF_R2_OFF = {
     worktreeSource: { branchFromDefault: false, pullLatest: false },
   };
@@ -1876,7 +1876,7 @@ describe("background provisioning — worktreeSource R3 combinations", () => {
     if (!bench) throw new Error("expected bench");
     expect(bench.provisioningSteps[0].status).toBe("error");
     expect(bench.error).toBe(
-      "Could not fast-forward 'main' — your local branch has diverged from origin/main. " +
+      "Could not fast-forward 'main': your local branch has diverged from origin/main. " +
         "Resolve manually in the source repo, or disable 'Pull latest' in project settings.",
     );
 
@@ -1924,7 +1924,7 @@ describe("background provisioning — worktreeSource R3 combinations", () => {
       expect(bench?.status).toBe("error");
     });
 
-    // mkdirSync was never called — workspace parent was never created
+    // mkdirSync was never called: workspace parent was never created
     expect(vi.mocked(fs.default.mkdirSync)).not.toHaveBeenCalled();
 
     // worktree add was never called
@@ -2189,7 +2189,7 @@ describe("background provisioning — worktreeSource R3 combinations", () => {
       status: "done",
     });
 
-    // In-worktree init phase never ran — still pending
+    // In-worktree init phase never ran: still pending
     expect(phases).toContainEqual({
       label: "Initializing submodules",
       status: "pending",
@@ -2783,7 +2783,7 @@ describe("teardownBench", () => {
     const bench = benchManager.teardownBench("test-project", 1, true);
     await flushBackground();
 
-    // "branch not found" is tolerated — teardown completes without logging an error
+    // "branch not found" is tolerated: teardown completes without logging an error
     expect(bench.status).not.toBe("error");
     expect(stateService.removeBench).toHaveBeenCalledWith("test-project", 1);
     expect(benchManager.getBench("test-project", 1)).toBeUndefined();
@@ -2824,7 +2824,7 @@ describe("teardownBench", () => {
     const calls = vi.mocked(execModule.runCommand).mock.calls;
     const removeCalls = calls.filter((c) => c[1][0] === "worktree" && c[1][1] === "remove");
     expect(removeCalls).toHaveLength(0);
-    // rmSync should have succeeded cleanly — no warnings
+    // rmSync should have succeeded cleanly: no warnings
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
@@ -4112,7 +4112,7 @@ describe("startAllComponents / stopAllComponents", () => {
     // Stop all
     await benchManager.stopAllComponents("test-project", 1);
 
-    // Second start — steps should reset
+    // Second start: steps should reset
     const bench = benchManager.startAllComponents("test-project", 1);
     expect(bench.status).toBe("preparing");
     expect(bench.provisioningSteps.every((s) => s.status === "pending")).toBe(true);
@@ -4835,7 +4835,7 @@ describe("cleanupAndRetryBench", () => {
     vi.mocked(fs.default.existsSync).mockReturnValue(false);
     vi.mocked(execModule.runCommand)
       .mockResolvedValueOnce({
-        // worktree list — workspace not registered
+        // worktree list: workspace not registered
         code: 0,
         stdout: "worktree /repos/test-project\nHEAD abc\nbranch refs/heads/main\n",
         stderr: "",
@@ -4873,7 +4873,7 @@ describe("cleanupAndRetryBench", () => {
     // Workspace path is absent from the worktree listing
     vi.mocked(execModule.runCommand)
       .mockResolvedValueOnce({
-        // worktree list — only the main worktree appears
+        // worktree list: only the main worktree appears
         code: 0,
         stdout: "worktree /repos/test-project\nHEAD abc123\nbranch refs/heads/main\n",
         stderr: "",
@@ -4884,7 +4884,7 @@ describe("cleanupAndRetryBench", () => {
     if (!bench) throw new Error("expected bench");
     bench.status = "error";
     bench.error =
-      "Could not fast-forward 'main' — your local branch has diverged from origin/main. " +
+      "Could not fast-forward 'main': your local branch has diverged from origin/main. " +
       "Resolve manually in the source repo, or disable 'Pull latest' in project settings.";
 
     const result = await benchManager.cleanupAndRetryBench("test-project", 1);
@@ -4904,11 +4904,11 @@ describe("cleanupAndRetryBench", () => {
     setupExistingBench();
     setupProcessMocks();
     const workspacePath = "/home/.roubo/workspaces/test-project/bench-1";
-    // existsSync returns true — directory is on disk but not in git's worktree list
+    // existsSync returns true: directory is on disk but not in git's worktree list
     vi.mocked(fs.default.existsSync).mockReturnValue(true);
     vi.mocked(execModule.runCommand)
       .mockResolvedValueOnce({
-        // worktree list — only main worktree, workspace absent
+        // worktree list: only main worktree, workspace absent
         code: 0,
         stdout: "worktree /repos/test-project\nHEAD abc123\nbranch refs/heads/main\n",
         stderr: "",

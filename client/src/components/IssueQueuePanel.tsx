@@ -106,7 +106,7 @@ export default function IssueQueuePanel({
     [projectId, onGroupingChange],
   );
 
-  // Collapse state keyed by "${projectId}:${groupBy}" — new project/dimension combos start expanded.
+  // Collapse state keyed by "${projectId}:${groupBy}": new project/dimension combos start expanded.
   // This state is intentionally local to this component (not hoisted to BenchDashboard like filter/grouping
   // state). Collapse layout is ephemeral: resetting it on project switch is the desired behavior.
   const [collapsedGroupsByKey, setCollapsedGroupsByKey] = useState<Map<string, Set<string>>>(

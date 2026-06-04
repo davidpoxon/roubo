@@ -81,7 +81,7 @@ export async function scanRepo(repoPath: string): Promise<RepoScanResult> {
   try {
     await walk(resolved, 0, detected, abortController.signal);
   } catch {
-    // timeout or error — return whatever we collected
+    // timeout or error: return whatever we collected
   } finally {
     clearTimeout(timeout);
   }
@@ -313,7 +313,7 @@ function hasTopLevelStatements(content: string): boolean {
       continue;
     if (trimmed.startsWith("[") && trimmed.endsWith("]")) continue;
 
-    // First meaningful line — if it's a type/namespace declaration, not top-level statements
+    // First meaningful line: if it's a type/namespace declaration, not top-level statements
     return !TYPE_OR_NAMESPACE_DECL.test(line);
   }
 
@@ -461,7 +461,7 @@ async function parseDockerComposeServices(
 
     const suggestions: SuggestedComponent[] = [];
     for (const { name, type } of dbServices) {
-      if (initFor.has(name)) continue; // skip — will be attached as initService
+      if (initFor.has(name)) continue; // skip: will be attached as initService
 
       const initServiceName = [...initFor.entries()].find(([, primary]) => primary === name)?.[0];
 

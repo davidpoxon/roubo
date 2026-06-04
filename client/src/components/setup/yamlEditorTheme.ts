@@ -62,8 +62,8 @@ function buildBaseTheme(dark: boolean): Extension {
 
 const lightHighlight = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(2 132 199)" }, // sky-700 — keys
-    { tag: tags.string, color: "rgb(180 83 9)" }, // amber-700 — string values
+    { tag: tags.propertyName, color: "rgb(2 132 199)" }, // sky-700: keys
+    { tag: tags.string, color: "rgb(180 83 9)" }, // amber-700: string values
     { tag: [tags.number, tags.bool, tags.null], color: "rgb(4 120 87)" }, // emerald-700
     { tag: tags.comment, color: "rgb(120 113 108)", fontStyle: "italic" }, // stone-500
     { tag: [tags.punctuation, tags.meta], color: "rgb(120 113 108)" },
@@ -73,8 +73,8 @@ const lightHighlight = syntaxHighlighting(
 
 const darkHighlight = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(125 211 252)" }, // sky-300 — keys
-    { tag: tags.string, color: "rgb(252 211 77)" }, // amber-300 — string values
+    { tag: tags.propertyName, color: "rgb(125 211 252)" }, // sky-300: keys
+    { tag: tags.string, color: "rgb(252 211 77)" }, // amber-300: string values
     { tag: [tags.number, tags.bool, tags.null], color: "rgb(110 231 183)" }, // emerald-300
     { tag: tags.comment, color: "rgb(120 113 108)", fontStyle: "italic" }, // stone-500
     { tag: [tags.punctuation, tags.meta], color: "rgb(120 113 108)" },

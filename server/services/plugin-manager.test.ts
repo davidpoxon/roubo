@@ -15,7 +15,7 @@ vi.mock("./active-plugin.js", () => ({
 
 // Mock the persistence boundary so plugin-manager tests don't touch the real
 // ~/.roubo/plugins-state.json. The unit-tested behaviour is "plugin-manager
-// calls these in the right order" — the actual file IO is covered by
+// calls these in the right order": the actual file IO is covered by
 // plugin-enable-state.test.ts and the migrate integration test.
 const enableStateMocks = vi.hoisted(() => {
   return {
@@ -602,7 +602,7 @@ describe("restart budget (TC-015)", () => {
       for (let i = 0; i < 3; i++) {
         const expectedHistory = i + 1;
         mgr.__test.crashRunningPlugin("echo");
-        // First wait for the SIGKILL to register through handleChildExit — the
+        // First wait for the SIGKILL to register through handleChildExit: the
         // restartHistory entry is pushed synchronously on the child's `exit`
         // event, so seeing history grow guards against the race where a fast
         // `pid !== null` check passes before the kill has taken effect.
@@ -883,7 +883,7 @@ permissions:
   processes: false
 `,
     );
-    // The entry path doesn't need to be runnable — we won't initialize a
+    // The entry path doesn't need to be runnable: we won't initialize a
     // process, we'll register via registerInstalled which spawns it briefly,
     // OR we'll add the entry manually for cases where we don't want to spawn.
     await writeFile(

@@ -139,12 +139,12 @@ describe("ClearBenchDirtyDialog", () => {
     expect(screen.queryByText(/clear failed/i)).not.toBeInTheDocument();
   });
 
-  it('clicking "Clear anyway" does not close the dialog — parent controls lifecycle', async () => {
+  it('clicking "Clear anyway" does not close the dialog: parent controls lifecycle', async () => {
     const onClose = vi.fn();
     const onConfirmForce = vi.fn();
     renderDialog({ onClose, onConfirmForce });
     await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
-    // onConfirmForce fires but onClose must NOT be called — dialog stays open until parent sets isOpen=false
+    // onConfirmForce fires but onClose must NOT be called: dialog stays open until parent sets isOpen=false
     expect(onConfirmForce).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();

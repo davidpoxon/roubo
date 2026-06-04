@@ -96,7 +96,7 @@ describe("getTemplateVariables", () => {
     });
     const vars = getTemplateVariables(ctx);
     const portVars = vars.filter((v) => v.category === "ports");
-    expect(portVars[0].example).toBe("\u2014");
+    expect(portVars[0].example).toBe("\u2013");
   });
 });
 

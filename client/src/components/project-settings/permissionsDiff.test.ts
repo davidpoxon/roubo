@@ -83,7 +83,7 @@ describe("mergeWithSelection", () => {
 
   it("does not duplicate a rule that already exists in current", () => {
     const current = [allow("Bash(*)")];
-    const newRules = [allow("Bash(*)")]; // already present — shouldn't happen in practice but handle defensively
+    const newRules = [allow("Bash(*)")]; // already present: shouldn't happen in practice but handle defensively
     const selectedKeys = new Set(["allow:Bash(*)"] as string[]);
     const { merged } = mergeWithSelection(current, newRules, selectedKeys);
     const allowBash = merged.filter((r) => r.type === "allow" && r.pattern === "Bash(*)");

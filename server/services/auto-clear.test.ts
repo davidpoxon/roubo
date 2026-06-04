@@ -908,7 +908,7 @@ describe("checkAndClearDoneBenches", () => {
     });
 
     it("getDirtyState error in Path 1 does not abort remaining benches in the project", async () => {
-      // bench1: getDirtyState throws; bench2: clean — bench2 must still be torn down
+      // bench1: getDirtyState throws; bench2: clean, so bench2 must still be torn down
       const bench1 = makeBench({ id: 1, notifications: [] });
       const bench2 = makeBench({
         id: 2,
@@ -962,7 +962,7 @@ describe("PR sync for meta-repo work units", () => {
     });
   });
 
-  it("ETag 304 — does not update PR fields but still persists dirty probe results", async () => {
+  it("ETag 304: does not update PR fields but still persists dirty probe results", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -982,7 +982,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(state.updateBench).toHaveBeenCalled();
   });
 
-  it("PR found — updates pullRequest and lastSyncedAt, clears syncError", async () => {
+  it("PR found: updates pullRequest and lastSyncedAt, clears syncError", async () => {
     const workUnit = makeWorkUnit({ syncError: "previous error" });
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1017,7 +1017,7 @@ describe("PR sync for meta-repo work units", () => {
     );
   });
 
-  it("PR not found with no previous — clears pullRequest and sets lastSyncedAt", async () => {
+  it("PR not found with no previous: clears pullRequest and sets lastSyncedAt", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1036,7 +1036,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(state.updateBench).toHaveBeenCalledTimes(1);
   });
 
-  it("PR merged transition — detects closed/merged via fetchPullRequestDetail when previous PR is recent", async () => {
+  it("PR merged transition: detects closed/merged via fetchPullRequestDetail when previous PR is recent", async () => {
     const recentUpdatedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 min ago
     const workUnit = makeWorkUnit({
       pullRequest: {
@@ -1075,7 +1075,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(state.updateBench).toHaveBeenCalledTimes(1);
   });
 
-  it("stale previous PR (>24h) — clears pullRequest without fetching detail", async () => {
+  it("stale previous PR (>24h): clears pullRequest without fetching detail", async () => {
     const staleUpdatedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(); // 25h ago
     const workUnit = makeWorkUnit({
       pullRequest: {
@@ -1105,7 +1105,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(state.updateBench).toHaveBeenCalledTimes(1);
   });
 
-  it("sync error — sets syncError on work unit and does not trigger teardown", async () => {
+  it("sync error: sets syncError on work unit and does not trigger teardown", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1123,7 +1123,7 @@ describe("PR sync for meta-repo work units", () => {
     errorSpy.mockRestore();
   });
 
-  it("dedup — two benches sharing same {repoFullName, branch} produce a single request", async () => {
+  it("dedup: two benches sharing same {repoFullName, branch} produce a single request", async () => {
     const wu1 = makeWorkUnit({ workspacePath: "/tmp/bench-1/api" });
     const wu2 = makeWorkUnit({ workspacePath: "/tmp/bench-2/api" });
     const bench1 = makeMetaBench([wu1], 11);
@@ -1167,7 +1167,7 @@ describe("PR sync for meta-repo work units", () => {
     // PR state was synced
     expect(workUnit.pullRequest?.number).toBe(7);
     expect(state.updateBench).toHaveBeenCalledTimes(1);
-    // Auto-clear teardown did NOT run — PR is open (blocked:open-pr)
+    // Auto-clear teardown did NOT run: PR is open (blocked:open-pr)
     expect(benchManager.teardownBench).not.toHaveBeenCalled();
   });
 
@@ -1195,7 +1195,7 @@ describe("PR sync for meta-repo work units", () => {
     );
   });
 
-  it("no GitHub token — skips PR sync entirely without writing syncError", async () => {
+  it("no GitHub token: skips PR sync entirely without writing syncError", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1209,7 +1209,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(workUnit.syncError).toBeUndefined();
   });
 
-  it("sync error — creates a sync-error notification with submodule name and error message", async () => {
+  it("sync error: creates a sync-error notification with submodule name and error message", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1230,7 +1230,7 @@ describe("PR sync for meta-repo work units", () => {
     errorSpy.mockRestore();
   });
 
-  it("sync error dedup — second failure on same work unit calls createNotification both times (dedup is in notification service)", async () => {
+  it("sync error dedup: second failure on same work unit calls createNotification both times (dedup is in notification service)", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1253,7 +1253,7 @@ describe("PR sync for meta-repo work units", () => {
     errorSpy.mockRestore();
   });
 
-  it("sync error resolution — dismisses the sync-error notification when error clears", async () => {
+  it("sync error resolution: dismisses the sync-error notification when error clears", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1277,7 +1277,7 @@ describe("PR sync for meta-repo work units", () => {
     expect(notificationService.dismissSyncErrorForWorkUnit).toHaveBeenCalledWith(bench, "api");
   });
 
-  it("unresolvable repoFullName — creates a sync-error notification with the submodule name and error", async () => {
+  it("unresolvable repoFullName: creates a sync-error notification with the submodule name and error", async () => {
     const workUnit = makeWorkUnit();
     const bench = makeMetaBench([workUnit]);
     vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
@@ -1319,7 +1319,7 @@ function makeDoneWorkUnit(overrides: Partial<BenchWorkUnit> = {}): BenchWorkUnit
 }
 
 describe("classifyWorkUnitBench", () => {
-  it("all work units merged — returns done with reason merged", () => {
+  it("all work units merged: returns done with reason merged", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api" }),
       makeDoneWorkUnit({ submodule: "web" }),
@@ -1328,7 +1328,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.reason).toBe("merged");
   });
 
-  it("all work units closed but not merged — returns done with reason closed", () => {
+  it("all work units closed but not merged: returns done with reason closed", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({
         submodule: "api",
@@ -1347,7 +1347,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.reason).toBe("closed");
   });
 
-  it("one merged + one open PR — blocked:open-pr", () => {
+  it("one merged + one open PR: blocked:open-pr", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api" }),
       makeWorkUnit({
@@ -1369,7 +1369,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.blockingSubmodule).toBe("web");
   });
 
-  it("work unit with lastSyncedAt undefined — blocked:stale-sync", () => {
+  it("work unit with lastSyncedAt undefined: blocked:stale-sync", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api", lastSyncedAt: undefined }),
     ]);
@@ -1378,7 +1378,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.blockingSubmodule).toBe("api");
   });
 
-  it("work unit with stale lastSyncedAt (> 2 min) — blocked:stale-sync", () => {
+  it("work unit with stale lastSyncedAt (> 2 min): blocked:stale-sync", () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api", lastSyncedAt: fiveMinutesAgo }),
@@ -1387,7 +1387,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.reason).toBe("blocked:stale-sync");
   });
 
-  it("work unit with syncError — blocked:sync-error", () => {
+  it("work unit with syncError: blocked:sync-error", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api", syncError: "rate limited" }),
     ]);
@@ -1396,13 +1396,13 @@ describe("classifyWorkUnitBench", () => {
     expect(result.blockingSubmodule).toBe("api");
   });
 
-  it("empty work units array — blocked:open-pr (not vacuously done)", () => {
+  it("empty work units array: blocked:open-pr (not vacuously done)", () => {
     const result = classifyWorkUnitBench([]);
     expect(result.done).toBe(false);
     expect(result.reason).toBe("blocked:open-pr");
   });
 
-  it("ignored work unit with open PR does not block — returns done when remaining unit is merged", () => {
+  it("ignored work unit with open PR does not block: returns done when remaining unit is merged", () => {
     const result = classifyWorkUnitBench([
       makeDoneWorkUnit({ submodule: "api" }),
       makeWorkUnit({
@@ -1424,7 +1424,7 @@ describe("classifyWorkUnitBench", () => {
     expect(result.reason).toBe("merged");
   });
 
-  it("all work units ignored — returns done:closed", () => {
+  it("all work units ignored: returns done:closed", () => {
     const result = classifyWorkUnitBench([
       makeWorkUnit({ submodule: "api", ignoredForAutoClear: true }),
       makeWorkUnit({ submodule: "web", ignoredForAutoClear: true }),

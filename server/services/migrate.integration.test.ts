@@ -8,7 +8,7 @@ import type { IntegrationOverride, PersistedState, PluginEnableState } from "@ro
 
 // TC-031 / TC-049: integration coverage that runs the migration against a
 // real-on-disk pre-plugin ~/.roubo fixture. Only the credential-store boundary
-// is stubbed — every other side-effect hits the temp filesystem.
+// is stubbed: every other side-effect hits the temp filesystem.
 
 const credentialMocks = {
   set: vi.fn<(p: string, s: string, v: string) => Promise<void>>(),
@@ -107,7 +107,7 @@ afterEach(() => {
   fs.rmSync(homeDir, { recursive: true, force: true });
 });
 
-describe("migrate.run — integration (TC-031, TC-049)", () => {
+describe("migrate.run: integration (TC-031, TC-049)", () => {
   it("migrates a real pre-plugin fixture end-to-end and is a no-op on re-run", async () => {
     const fx = scaffoldFixture();
 
@@ -149,7 +149,7 @@ describe("migrate.run — integration (TC-031, TC-049)", () => {
       "ghp_fixture_token",
     );
 
-    // WU-047 / FR-059: existing installs are not modified — migrate must
+    // WU-047 / FR-059: existing installs are not modified: migrate must
     // leave plugins-state.json absent (downstream readers default missing
     // plugin ids to "enabled").
     const enableStatePath = path.join(fx.rouboDir, "plugins-state.json");

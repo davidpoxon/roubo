@@ -56,7 +56,7 @@ interface FixtureProjectEntry {
 const fixtureProjects = new Map<string, FixtureProjectEntry>();
 
 // Drop everything one fixture project wrote to disk. Each step is wrapped in
-// try/catch so a single failure does not skip the others — the caller wants
+// try/catch so a single failure does not skip the others: the caller wants
 // "after this, the fixture is gone or we logged why it couldn't be."
 function cleanupFixtureProject(entry: FixtureProjectEntry): void {
   try {
@@ -557,7 +557,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       projectRegistry.unregisterProject(projectId, { force: true });
     } catch {
       // Either the project was never registered, or it has benches we won't
-      // create from this route — either way, nothing to do here.
+      // create from this route: either way, nothing to do here.
     }
     try {
       removeOverride(projectId);

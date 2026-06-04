@@ -51,7 +51,7 @@ async function enumerateSubmodules(
   );
   // Non-zero exit is treated as no submodules. `git submodule foreach` exits 0
   // on repos with no submodules, so a non-zero result indicates a real git error.
-  // We prefer skipping submodule checks over blocking teardown in that case —
+  // We prefer skipping submodule checks over blocking teardown in that case,
   // unlike the worktree/stash/rev-list checks which fail-safe to dirty.
   if (result.code !== 0 || !result.stdout.trim()) return [];
   return result.stdout
@@ -140,8 +140,8 @@ async function classifyDeletedUpstream(location: string, cwd: string): Promise<D
 }
 
 async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason | null> {
-  // Exit code 1 = detached HEAD (expected — skip unpushed check).
-  // Any other non-zero = real git error — fail safe to dirty.
+  // Exit code 1 = detached HEAD (expected: skip unpushed check).
+  // Any other non-zero = real git error: fail safe to dirty.
   const symref = await execGit(["symbolic-ref", "-q", "HEAD"], cwd);
   if (symref.code === 1) return null;
   if (symref.code !== 0) {
@@ -170,7 +170,7 @@ async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason
 
     // No upstream tracking configured. This is expected for freshly created bench
     // branches that were never pushed. Check if HEAD has any commits that don't
-    // exist on any remote branch — if not, the branch is effectively clean and
+    // exist on any remote branch: if not, the branch is effectively clean and
     // safe to tear down (nothing would be lost).
     const unique = await execGit(["rev-list", "--count", "HEAD", "--not", "--remotes"], cwd);
     if (unique.code !== 0) {
@@ -222,8 +222,8 @@ export async function getDirtyState(
 ): Promise<DirtyState> {
   // A non-operable bench (blank workspacePath, see bench-operability.ts) was never
   // provisioned, so it has no worktree to probe and no uncommitted work to protect.
-  // Treat it as clean here — the single chokepoint for every caller (the DELETE route,
-  // auto-clear) — so none of them runs git with cwd="" (the server's own repo) via
+  // Treat it as clean here, the single chokepoint for every caller (the DELETE route,
+  // auto-clear), so none of them runs git with cwd="" (the server's own repo) via
   // enumerateSubmodules/checkLocation.
   if (!isBenchOperable(bench)) {
     return { clean: true, reasons: [] };

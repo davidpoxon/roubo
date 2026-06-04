@@ -26,7 +26,7 @@ const VARIANTS: { state: ConnectionState; detail?: string }[] = [
   { state: "disabled" },
 ];
 
-describe("ConnectionStatusPill — axe-core a11y (TC-134 intent: zero contrast violations)", () => {
+describe("ConnectionStatusPill: axe-core a11y (TC-134 intent: zero contrast violations)", () => {
   for (const variant of VARIANTS) {
     it(`has no axe violations on the ${variant.state} variant`, async () => {
       const { container } = render(

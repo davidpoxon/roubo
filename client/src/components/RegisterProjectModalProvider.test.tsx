@@ -94,7 +94,7 @@ describe("RegisterProjectModalProvider", () => {
     await user.click(screen.getByText("Cancel"));
     expect(screen.queryByTestId("register-modal")).not.toBeInTheDocument();
 
-    // Open modal again — key change forces remount, so state resets
+    // Open modal again: key change forces remount, so state resets
     await user.click(screen.getByText("Open modal"));
     expect(screen.getByTestId("directory-picker")).toHaveValue("");
   });

@@ -26,7 +26,7 @@ describe("TemplateVariableReference", () => {
 
   it("renders port variables in the reference", () => {
     render(<TemplateVariableReference ctx={baseCtx} isOpen onOpenChange={vi.fn()} />);
-    // May appear multiple times (list + table) — just verify presence
+    // May appear multiple times (list + table): just verify presence
     expect(screen.getAllByText("{{ports.frontend}}").length).toBeGreaterThan(0);
   });
 

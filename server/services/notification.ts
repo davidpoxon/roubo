@@ -130,7 +130,7 @@ export function dismissBySession(bench: Bench, sessionId: string): void {
   }
 }
 
-// Dismiss only the "waiting for input" notifications for a session — used when
+// Dismiss only the "waiting for input" notifications for a session: used when
 // fresh PTY output proves the session is no longer idle. Narrower than
 // dismissBySession so we don't silently clear sticky session-scoped notifs
 // like claude-exited. Safe to call when there's no match (returns false

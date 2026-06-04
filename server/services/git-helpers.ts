@@ -5,7 +5,7 @@ export interface GitmoduleEntry {
   branch?: string;
 }
 
-// Cache remote URLs for the process lifetime — they don't change once a worktree is created.
+// Cache remote URLs for the process lifetime: they don't change once a worktree is created.
 const repoFullNameCache = new Map<string, string | null>();
 
 /**
@@ -13,7 +13,7 @@ const repoFullNameCache = new Map<string, string | null>();
  * of the git repo at the given path. Supports SSH and HTTPS remote formats.
  * Returns `null` if the remote URL cannot be resolved or parsed.
  *
- * Results are cached indefinitely — remote URLs don't change for the lifetime
+ * Results are cached indefinitely: remote URLs don't change for the lifetime
  * of a worktree, so calling this repeatedly within or across ticks is free.
  */
 export async function resolveRepoFullName(repoPath: string): Promise<string | null> {
@@ -51,7 +51,7 @@ export async function resolveRepoFullName(repoPath: string): Promise<string | nu
       }
     }
   } catch {
-    // command failed — leave resolved as null
+    // command failed: leave resolved as null
   }
 
   repoFullNameCache.set(repoPath, resolved);
@@ -106,7 +106,7 @@ export async function probeDirtyCounts(
  * if the HEAD is detached, there is no upstream, or on any git error.
  */
 export async function probeUnpushedCount(repoPath: string): Promise<number> {
-  // Exit code 1 from symbolic-ref = detached HEAD (expected — return 0).
+  // Exit code 1 from symbolic-ref = detached HEAD (expected: return 0).
   const symref = await runCommand(
     "git",
     ["symbolic-ref", "-q", "HEAD"],
@@ -124,7 +124,7 @@ export async function probeUnpushedCount(repoPath: string): Promise<number> {
     5_000,
   );
   if (upstream.code !== 0) {
-    // No upstream configured — count commits not present on any remote.
+    // No upstream configured: count commits not present on any remote.
     const unique = await runCommand(
       "git",
       ["rev-list", "--count", "HEAD", "--not", "--remotes"],
@@ -231,7 +231,7 @@ export async function resolveSubmoduleBranch(
   try {
     return await resolveHeadBranch(submodulePath);
   } catch {
-    // detached HEAD or error — continue to fallbacks
+    // detached HEAD or error: continue to fallbacks
   }
 
   if (gitmodulesBranch) {
@@ -273,7 +273,7 @@ export async function resolveHeadBranch(repoPath: string): Promise<string> {
   );
   if (result.code !== 0 || !result.stdout.trim()) {
     throw new Error(
-      "Could not determine the current branch in the source repo — it may be in a detached HEAD state.",
+      "Could not determine the current branch in the source repo: it may be in a detached HEAD state.",
     );
   }
   return result.stdout.trim();
