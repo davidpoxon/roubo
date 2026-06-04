@@ -119,7 +119,7 @@ export function useInstallPluginCancel() {
 }
 
 // WU-050: read the cached connection-status for a plugin. Renders the cached
-// value synchronously and never fires its own background poll — re-fetches
+// value synchronously and never fires its own background poll: re-fetches
 // only when an opportunistic trigger (PluginsTab / Configure modal / cut list
 // mount) invalidates or prefetches the query.
 export function useConnectionStatus(pluginId: string, enabled: boolean) {

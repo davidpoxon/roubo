@@ -168,7 +168,7 @@ describe("resolveSubmoduleBranch", () => {
 
   it("falls back to resolveDefaultBranch when HEAD detached and no gitmodulesBranch", async () => {
     vi.mocked(execModule.runCommand)
-      // First call: symbolic-ref HEAD (fails — detached)
+      // First call: symbolic-ref HEAD (fails: detached)
       .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "fatal: not a symbolic ref" })
       // Second call: symbolic-ref refs/remotes/origin/HEAD (succeeds)
       .mockResolvedValueOnce({ code: 0, stdout: "refs/remotes/origin/main\n", stderr: "" });
@@ -503,9 +503,9 @@ describe("probeWorkUnitState", () => {
 
   it("returns null branch for detached HEAD with dirty counts still probed", async () => {
     vi.mocked(execModule.runCommand)
-      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" }) // probeHeadBranch — detached
+      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" }) // probeHeadBranch: detached
       .mockResolvedValueOnce({ code: 0, stdout: " M foo.ts\n", stderr: "" }) // probeDirtyCounts
-      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" }); // probeUnpushedCount symbolic-ref — detached
+      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" }); // probeUnpushedCount symbolic-ref: detached
 
     const result = await probeWorkUnitState(REPO);
 

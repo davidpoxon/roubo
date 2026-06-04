@@ -825,7 +825,7 @@ describe("POST /test/__reset (fixture cleanup)", () => {
     createdTmpdirs.push(tmpdir);
     expect(fs.existsSync(tmpdir)).toBe(true);
 
-    // Saved during the register call — clear so we can assert the reset
+    // Saved during the register call: clear so we can assert the reset
     // cleanup separately.
     vi.mocked(integrationOverrides.saveOverride).mockClear();
 

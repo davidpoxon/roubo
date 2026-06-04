@@ -508,7 +508,7 @@ function WorkUnitsPanel({
                   </p>
                   {setIgnored.isError && (
                     <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-                      Failed to update — please try again.
+                      Failed to update. Please try again.
                     </p>
                   )}
                 </div>
@@ -1227,7 +1227,7 @@ export default function BenchDetail() {
                   setDirtyReasons(err.details.reasons);
                   setForceError(null);
                 } else {
-                  setForceError("Clear failed — please try again.");
+                  setForceError("Clear failed. Please try again.");
                 }
               },
             },

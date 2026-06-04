@@ -28,7 +28,7 @@ beforeEach(() => {
   cleanup();
 });
 
-describe("MigrationBanner — success variant", () => {
+describe("MigrationBanner: success variant", () => {
   it("renders the success copy and Learn more link", async () => {
     mockedApi.fetchMigrationStatus.mockResolvedValue({
       schemaVersion: 1,
@@ -83,7 +83,7 @@ describe("MigrationBanner — success variant", () => {
   });
 });
 
-describe("MigrationBanner — rolled-back variant", () => {
+describe("MigrationBanner: rolled-back variant", () => {
   it("renders the red-tinted copy with a link to /settings#plugins", async () => {
     mockedApi.fetchMigrationStatus.mockResolvedValue({
       schemaVersion: null,
@@ -106,7 +106,7 @@ describe("MigrationBanner — rolled-back variant", () => {
   });
 });
 
-describe("MigrationBanner — no-op", () => {
+describe("MigrationBanner: no-op", () => {
   it("renders nothing when there is no migration record", async () => {
     mockedApi.fetchMigrationStatus.mockResolvedValue({
       schemaVersion: null,

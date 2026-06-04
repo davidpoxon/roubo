@@ -96,7 +96,7 @@ describe("CreateBenchModal", () => {
   it("shows validation error when submitting without a project", async () => {
     render(<CreateBenchModal isOpen onClose={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /^set up$/i }));
-    // Error paragraph — text-red-400
+    // Error paragraph: text-red-400
     const errors = screen.getAllByText("Select a project");
     expect(errors.length).toBeGreaterThan(0);
   });

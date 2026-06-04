@@ -296,7 +296,7 @@ describe("ImportPermissionsModal", () => {
     await user.click(screen.getAllByRole("checkbox")[0]);
     expect(screen.getByRole("button", { name: /import 1 rule/i })).toBeInTheDocument();
 
-    // Switch to another project — selection should reset
+    // Switch to another project: selection should reset
     await user.click(screen.getByRole("button", { name: /project-b/i }));
     await user.click(await screen.findByRole("option", { name: "project-c" }));
 

@@ -213,7 +213,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
 
     render(<PluginsTab />);
 
-    // Disabled and errored plugins must be excluded — only "enabled" plugins
+    // Disabled and errored plugins must be excluded: only "enabled" plugins
     // participate in opportunistic re-check (FR-054 acceptance criterion).
     expect(mockedRecheck).toHaveBeenCalledWith(["github-com", "jira"]);
   });

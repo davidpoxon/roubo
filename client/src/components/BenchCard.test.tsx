@@ -556,7 +556,7 @@ describe("BenchCard", () => {
       const buttons = screen.getAllByRole("button");
       await userEvent.click(buttons[buttons.length - 1]);
       await userEvent.click(screen.getByRole("button", { name: "Clear bench" }));
-      // Dirty dialog is open — confirm it
+      // Dirty dialog is open: confirm it
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
 
       expect(teardownMutate).toHaveBeenCalledTimes(2);
@@ -587,7 +587,7 @@ describe("BenchCard", () => {
       const buttons = screen.getAllByRole("button");
       await userEvent.click(buttons[buttons.length - 1]);
       await userEvent.click(screen.getByRole("button", { name: "Clear bench" }));
-      // Dirty dialog opens — cancel it
+      // Dirty dialog opens: cancel it
       await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
       expect(
@@ -636,10 +636,10 @@ describe("BenchCard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Clear bench" }));
       // Dirty dialog opens → first force attempt → 500
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
-      expect(screen.getByText("Clear failed — please try again.")).toBeInTheDocument();
-      // Second force attempt → fresh dirty 409 — stale error must disappear
+      expect(screen.getByText("Clear failed. Please try again.")).toBeInTheDocument();
+      // Second force attempt → fresh dirty 409: stale error must disappear
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
-      expect(screen.queryByText("Clear failed — please try again.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Clear failed. Please try again.")).not.toBeInTheDocument();
       expect(
         screen.getByRole("dialog", { name: /uncommitted work detected/i }),
       ).toBeInTheDocument();
@@ -676,14 +676,14 @@ describe("BenchCard", () => {
       const buttons = screen.getAllByRole("button");
       await userEvent.click(buttons[buttons.length - 1]);
       await userEvent.click(screen.getByRole("button", { name: "Clear bench" }));
-      // Dirty dialog is open — confirm it
+      // Dirty dialog is open: confirm it
       await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
 
-      // Dialog must stay open and show an error — bench stays intact
+      // Dialog must stay open and show an error: bench stays intact
       expect(
         screen.getByRole("dialog", { name: /uncommitted work detected/i }),
       ).toBeInTheDocument();
-      expect(screen.getByText("Clear failed — please try again.")).toBeInTheDocument();
+      expect(screen.getByText("Clear failed. Please try again.")).toBeInTheDocument();
       expect(registerTeardown).not.toHaveBeenCalled();
     });
   });

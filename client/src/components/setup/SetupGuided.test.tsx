@@ -314,7 +314,7 @@ describe("SetupGuided", () => {
   it("renders the shared sidebar when not embedded and projectId is present", () => {
     const state = makeState(validConfig);
     renderInRouter(<SetupGuided {...defaultProps} state={state} dispatch={vi.fn()} />);
-    // Shared rail panels — Summary and Validation are present in both modes
+    // Shared rail panels: Summary and Validation are present in both modes
     expect(screen.getAllByText(/summary/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/validation/i).length).toBeGreaterThan(0);
   });

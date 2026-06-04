@@ -64,7 +64,7 @@ const WELL_KNOWN_CLI_DIRS_DARWIN: string[] = [
 export function resolveShellPath(): void {
   const shell = getLoginShell();
   // fish outputs PATH entries newline-separated rather than colon-separated,
-  // which would produce an invalid PATH value — skip the exec for fish only.
+  // which would produce an invalid PATH value: skip the exec for fish only.
   // The well-known-dirs fallback below still runs for all shells.
   if (path.basename(shell) !== "fish") {
     try {
@@ -126,7 +126,7 @@ const WELL_KNOWN_CLAUDE_PATHS = [
  * Resolves the absolute path to the Claude CLI and stores it in process.env.ROUBO_CLAUDE_BINARY.
  * Resolution order: login-shell `command -v claude`, then well-known install locations, then
  * bare 'claude' (relies on PATH; spawn will throw a descriptive error if not found).
- * Silently no-ops on failure — the bare-name fallback ensures backwards-compatible behaviour.
+ * Silently no-ops on failure: the bare-name fallback ensures backwards-compatible behaviour.
  */
 export function resolveClaudeBinary(): void {
   const shell = getLoginShell();
@@ -152,7 +152,7 @@ export function resolveClaudeBinary(): void {
       return;
     }
   }
-  // No path found — leave ROUBO_CLAUDE_BINARY unset; getClaudeBinary() returns 'claude'.
+  // No path found: leave ROUBO_CLAUDE_BINARY unset; getClaudeBinary() returns 'claude'.
 }
 
 /** Returns the resolved absolute path to the Claude CLI, or 'claude' as a fallback. */
@@ -185,7 +185,7 @@ export function getContextWindow(): number {
     const parsed = Number.parseInt(raw, 10);
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
     console.warn(
-      `ROUBO_CONTEXT_WINDOW "${raw}" is not a positive integer — using default ${DEFAULT_CONTEXT_WINDOW}`,
+      `ROUBO_CONTEXT_WINDOW "${raw}" is not a positive integer: using default ${DEFAULT_CONTEXT_WINDOW}`,
     );
   }
   return DEFAULT_CONTEXT_WINDOW;

@@ -57,7 +57,7 @@ describe("LogStream", () => {
     mockedApi.fetchComponentLogs.mockRejectedValue(new Error("network") as never);
     render(<LogStream projectId="p1" benchId={1} component="backend" />);
     await waitFor(() => expect(mockedApi.fetchComponentLogs).toHaveBeenCalled());
-    // No error thrown — "waiting for output" is still shown
+    // No error thrown: "waiting for output" is still shown
     expect(screen.getByText(/waiting for output/i)).toBeInTheDocument();
   });
 

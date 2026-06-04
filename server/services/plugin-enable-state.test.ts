@@ -149,7 +149,7 @@ describe("saveEnableState", () => {
       mod.saveEnableState({
         schemaVersion: 1,
         installInitialized: true,
-        // @ts-expect-error — testing runtime rejection of bad payload
+        // @ts-expect-error: testing runtime rejection of bad payload
         plugins: { "github-com": "on" },
       }),
     ).toThrow();
@@ -164,7 +164,7 @@ describe("saveEnableState", () => {
     });
     const mode = fs.statSync(statePath()).mode & 0o777;
     // atomicWrite default is 0o666; on POSIX the system umask trims it. We
-    // assert only that owner can read/write — the precise group/other bits
+    // assert only that owner can read/write: the precise group/other bits
     // depend on the test runner's umask.
     expect(mode & 0o600).toBe(0o600);
   });

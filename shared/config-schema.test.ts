@@ -24,7 +24,7 @@ function makeConfig(overrides?: Partial<RouboConfig>): RouboConfig {
   };
 }
 
-describe("RouboConfigSchema — valid configs", () => {
+describe("RouboConfigSchema: valid configs", () => {
   it("accepts a minimal valid config", () => {
     expect(RouboConfigSchema.safeParse(makeConfig()).success).toBe(true);
   });
@@ -71,7 +71,7 @@ describe("RouboConfigSchema — valid configs", () => {
   });
 });
 
-describe("RouboConfigSchema — required fields", () => {
+describe("RouboConfigSchema: required fields", () => {
   it("rejects missing project", () => {
     const result = RouboConfigSchema.safeParse({
       ...makeConfig(),

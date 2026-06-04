@@ -755,7 +755,7 @@ describe("handleWebSocket", () => {
 
     // Trigger ping
     vi.advanceTimersByTime(30_000);
-    // No pong sent — wait for deadline (10s)
+    // No pong sent: wait for deadline (10s)
     vi.advanceTimersByTime(10_000);
 
     expect(ws.close).toHaveBeenCalled();
@@ -774,7 +774,7 @@ describe("handleWebSocket", () => {
     vi.advanceTimersByTime(30_000);
     // Send pong
     ws._trigger("message", Buffer.from(JSON.stringify({ type: "pong" })));
-    // Wait past deadline — should NOT close
+    // Wait past deadline: should NOT close
     vi.advanceTimersByTime(10_000);
 
     expect(ws.close).not.toHaveBeenCalled();
@@ -1018,7 +1018,7 @@ describe("auto-clear claude-waiting notifications on input", () => {
     const ws = createMockWs();
     handleWebSocket(session.id, ws);
 
-    // Should not throw — error handling is symmetric for all terminal types
+    // Should not throw: error handling is symmetric for all terminal types
     expect(() => {
       ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "ls\n" })));
     }).not.toThrow();
@@ -1172,7 +1172,7 @@ describe("terminal-waiting quiescence detection", () => {
     // User types before quiescence timer fires
     ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "answer\n" })));
 
-    // Timer would have fired here — but it was cancelled by input
+    // Timer would have fired here, but it was cancelled by input
     vi.advanceTimersByTime(2000);
     expect(mockCreateNotification).not.toHaveBeenCalled();
 
@@ -1194,7 +1194,7 @@ describe("terminal-waiting quiescence detection", () => {
     // Terminal emits output then goes idle
     pty._emit("data", "prompt: ");
 
-    // User navigates away before quiescence timer fires — first WS disconnects
+    // User navigates away before quiescence timer fires: first WS disconnects
     // and a new WS connects (handleWebSocket cancels timers then re-arms)
     vi.advanceTimersByTime(1000);
     expect(mockCreateNotification).not.toHaveBeenCalled();
@@ -1243,7 +1243,7 @@ describe("terminal-waiting quiescence detection", () => {
     vi.advanceTimersByTime(2000);
     expect(mockCreateNotification).toHaveBeenCalledTimes(1);
 
-    // Simulate WS reconnect with no further output — the user may have dismissed
+    // Simulate WS reconnect with no further output: the user may have dismissed
     // the notification, but the underlying state has not changed. The reconnect
     // must not fire a fresh notification.
     const ws2 = createMockWs();
@@ -1316,7 +1316,7 @@ describe("terminal-waiting quiescence detection", () => {
   it("skips the dismiss path when the bench has no waiting notifications", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
-    // Default mockGetBench returns notifications: [] — nothing to dismiss
+    // Default mockGetBench returns notifications: [], so nothing to dismiss
     const { createSession } = await loadModule();
 
     createSession("project1", 1, "/workspace", "My Project");
@@ -1340,7 +1340,7 @@ describe("terminal-waiting quiescence detection", () => {
     vi.advanceTimersByTime(2000);
     expect(mockCreateNotification).toHaveBeenCalledTimes(1);
 
-    // User types — this resets lastNotifiedAt so the next idle window can fire
+    // User types: this resets lastNotifiedAt so the next idle window can fire
     // even though the gate would otherwise still be held by the prior notify.
     ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "x" })));
 

@@ -99,7 +99,7 @@ export function computeImpact(
       const added = pendingComponentNames.filter((n) => !savedComponentNames.includes(n));
       const removed = savedComponentNames.filter((n) => !pendingComponentNames.includes(n));
       for (const name of benchComponentNames) {
-        // Skip added/removed — those get dedicated reason strings below
+        // Skip added/removed: those get dedicated reason strings below
         if (added.includes(name) || removed.includes(name)) continue;
         const pendingDef = (pendingConfig.components as Record<string, unknown>)?.[name];
         const savedDef = (savedConfig.components as Record<string, unknown>)?.[name];

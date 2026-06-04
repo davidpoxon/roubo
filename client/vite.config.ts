@@ -17,7 +17,7 @@ export default defineConfig({
             proxy.removeAllListeners("error");
             proxy.on("error", () => {
               console.warn(
-                "[proxy] Server not ready — /api request failed, will retry when server starts",
+                "[proxy] Server not ready: /api request failed, will retry when server starts",
               );
             });
           });
@@ -31,7 +31,7 @@ export default defineConfig({
             proxy.removeAllListeners("error");
             proxy.removeAllListeners("proxyReqWs");
             proxy.on("error", () => {
-              console.warn("[proxy] Server not ready — WebSocket will reconnect automatically");
+              console.warn("[proxy] Server not ready: WebSocket will reconnect automatically");
             });
             proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
               socket.on("error", () => {});

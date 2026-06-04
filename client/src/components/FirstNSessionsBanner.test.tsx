@@ -157,7 +157,7 @@ describe("FirstNSessionsBanner", () => {
 
   it("tracks independent state per routeKey", async () => {
     setStoredEntry("key-a", { count: 5, dismissed: false });
-    // key-b has no entry — should still render
+    // key-b has no entry: should still render
 
     render(
       <FirstNSessionsBanner routeKey="key-b" sessionCount={5}>

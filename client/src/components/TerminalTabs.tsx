@@ -299,7 +299,7 @@ export default function TerminalTabs({
         </div>
 
         <div className="flex items-center gap-0.5 ml-auto px-2 shrink-0">
-          {/* Jig picker — only shown when there are active sessions */}
+          {/* Jig picker: only shown when there are active sessions */}
           {currentSessions.length > 0 && availableJigs.length > 0 && (
             <MenuTrigger>
               <TooltipTrigger delay={500}>
@@ -327,7 +327,7 @@ export default function TerminalTabs({
             </Tooltip>
           </TooltipTrigger>
 
-          {/* Claude Code button — show as split button when jigs exist or auto-inject would fire */}
+          {/* Claude Code button: show as split button when jigs exist or auto-inject would fire */}
           {showClaudeDropdown ? (
             <div className="flex items-center">
               <TooltipTrigger delay={500}>

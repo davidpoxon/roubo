@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// WU-046 / issue #137 — persistent per-plugin enable state. See:
+// WU-046 / issue #137: persistent per-plugin enable state. See:
 //   .specifications/integration-plugins/prd.md (FR-059, FR-060, NFR-019, US-016)
 //   .specifications/integration-plugins/architecture.md (lines 1064-1097)
 

@@ -177,7 +177,7 @@ describe("getClaudeAutoModeInfo", () => {
   });
 
   it("runs detection when cache is empty", async () => {
-    // Cache is reset in beforeEach — getClaudeAutoModeInfo must call detectClaudeAutoMode internally
+    // Cache is reset in beforeEach: getClaudeAutoModeInfo must call detectClaudeAutoMode internally
     vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "2.1.83", stderr: "" });
 
     const result = await getClaudeAutoModeInfo();

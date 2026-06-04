@@ -184,7 +184,7 @@ function renderTab() {
   );
 }
 
-describe("ProjectSettingsTab — clearing the project default jig", () => {
+describe("ProjectSettingsTab: clearing the project default jig", () => {
   it('does not crash when "Use app default" is clicked while a jig is selected', async () => {
     const user = userEvent.setup();
     renderTab();

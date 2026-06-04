@@ -8,13 +8,13 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
-// WU-046 / issue #137 — persistent per-plugin enable state. See:
+// WU-046 / issue #137: persistent per-plugin enable state. See:
 //   .specifications/integration-plugins/prd.md (FR-059, FR-060, NFR-019)
 //   .specifications/integration-plugins/architecture.md (lines 1027, 1064-1097, 1218)
 //
 // Pure persistence module. Reads/writes ~/.roubo/plugins-state.json via the
 // same atomicWrite discipline used by state.json, projects.json, and the
-// permissions/<id>.json files. Never serialised by routes or telemetry —
+// permissions/<id>.json files. Never serialised by routes or telemetry:
 // living outside state.json keeps it structurally absent from any future
 // state-snapshot endpoint (NFR-019).
 
@@ -31,7 +31,7 @@ let lastKnown: PluginEnableState | null = null;
 
 /**
  * Loads `~/.roubo/plugins-state.json`. Returns `null` when the file is
- * absent — callers interpret this as "legacy install, no opt-in seed has run
+ * absent: callers interpret this as "legacy install, no opt-in seed has run
  * yet" and default missing plugin ids to `"enabled"` (see
  * architecture.md:1097).
  *

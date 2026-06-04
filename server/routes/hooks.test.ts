@@ -162,7 +162,7 @@ describe("POST /claude-notification", () => {
     expect(res.body.error).toBe("storage error");
   });
 
-  it("deduplicates — second call still returns ok (notification service handles dedup)", async () => {
+  it("deduplicates: second call still returns ok (notification service handles dedup)", async () => {
     const sessionId = "550e8400-e29b-41d4-a716-446655440000";
     const existingNotification = {
       id: "notif-1",

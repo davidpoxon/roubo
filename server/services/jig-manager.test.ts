@@ -179,7 +179,7 @@ describe("listJigsForProject", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
     const first = listJigsForProject("project-1");
     const second = listJigsForProject("project-1");
-    expect(first).toBe(second); // same reference — cache hit
+    expect(first).toBe(second); // same reference: cache hit
   });
 
   it("re-reads data after cache TTL expires", () => {
@@ -190,7 +190,7 @@ describe("listJigsForProject", () => {
     vi.advanceTimersByTime(61_000);
     invalidateCache(); // simulate TTL expiry by invalidating
     const second = listJigsForProject("project-1");
-    expect(second).not.toBe(first); // new reference — cache miss after invalidation
+    expect(second).not.toBe(first); // new reference: cache miss after invalidation
 
     vi.useRealTimers();
   });
@@ -310,7 +310,7 @@ describe("getJig", () => {
     expect(getJig("project-1", "push")).toBeNull();
   });
 
-  it("returns a copy of the embedded default — mutations do not affect the singleton", () => {
+  it("returns a copy of the embedded default: mutations do not affect the singleton", () => {
     const a = getJig("project-1", "__global_default__");
     const b = getJig("project-1", "__global_default__");
     if (!a || !b) throw new Error("Expected both jigs to be defined");
@@ -352,7 +352,7 @@ describe("getJig", () => {
     vi.mocked(state.getRouboDir).mockReturnValue(tmpDir);
     invalidateCache();
 
-    // Trigger the merge — warning fires here and the reserved id is excluded from the list
+    // Trigger the merge: warning fires here and the reserved id is excluded from the list
     const jigs = listJigsForProject("project-1");
     const entry = jigs.find((p) => p.id === "__global_default__");
     if (!entry) throw new Error("Expected global default to remain in list");
@@ -1006,7 +1006,7 @@ describe("createAppJig", () => {
   });
 
   it("throws DUPLICATE_NAME for case-insensitive name collision when slugs differ", () => {
-    // Write a file with a slug that doesn't match what the current name would produce —
+    // Write a file with a slug that doesn't match what the current name would produce,
     // simulating a jig that was manually renamed on disk.
     const dir = path.join(tmpDir, "jigs");
     fs.mkdirSync(dir, { recursive: true });
@@ -1014,7 +1014,7 @@ describe("createAppJig", () => {
       path.join(dir, "legacy-id.md"),
       "---\nname: My Feature\ndescription: old\nicon: file-text\ncreatedAt: 2024-01-01T00:00:00.000Z\nupdatedAt: 2024-01-01T00:00:00.000Z\n---\nContent.\n",
     );
-    // Attempt to create "my feature" (slug: "my-feature") — different file, same name
+    // Attempt to create "my feature" (slug: "my-feature"): different file, same name
     expect(() => createAppJig({ name: "my feature", description: "d2", content: "c2" })).toThrow(
       expect.objectContaining({ code: "DUPLICATE_NAME" }),
     );
@@ -1445,7 +1445,7 @@ describe("createProjectJig", () => {
     ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
   });
 
-  it("scope isolation — same id can exist in both app and project scopes", () => {
+  it("scope isolation: same id can exist in both app and project scopes", () => {
     // Create app-level jig
     createAppJig({ name: "Shared Name", description: "app desc", content: "app content" });
     const appPath = path.join(tmpDir, "jigs/shared-name.md");

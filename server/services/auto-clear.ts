@@ -105,7 +105,7 @@ export async function checkAndClearDoneBenches(): Promise<void> {
     byProject.set(bench.projectId, group);
   }
 
-  // PR sync for meta-repo work units — runs before auto-clear classification.
+  // PR sync for meta-repo work units: runs before auto-clear classification.
   try {
     await syncAllWorkUnitPRs(byProject);
   } catch (err) {
@@ -286,7 +286,7 @@ async function checkProjectBenches(
     try {
       projectItems = await githubService.fetchProjectItems(repoFullName, projectNumber);
     } catch (err) {
-      // GitHub unavailable or not configured — skip board check, fall through to per-issue check
+      // GitHub unavailable or not configured: skip board check, fall through to per-issue check
       console.error(
         `[auto-clear] Could not fetch project items for ${repoFullName}#${projectNumber}:`,
         err,
@@ -302,7 +302,7 @@ async function checkProjectBenches(
       if (!bench.assignedIssue) continue;
       const issueNumber = bench.assignedIssue.number;
       if (!statusByIssueNumber.has(issueNumber)) {
-        // Not found in project items — may be closed; check via fallback
+        // Not found in project items: may be closed; check via fallback
         continue;
       }
       const status = statusByIssueNumber.get(issueNumber);
@@ -318,7 +318,7 @@ async function checkProjectBenches(
           console.error(`[auto-clear] Could not process bench ${bench.id}:`, err);
         }
       } else if (status != null) {
-        // Issue found in board with a known non-done status — no need for fallback
+        // Issue found in board with a known non-done status: no need for fallback
         needsFallback.delete(bench.id);
       }
       // If status is null/undefined, leave bench in needsFallback for Path 2 to check

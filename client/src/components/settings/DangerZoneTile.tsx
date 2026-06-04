@@ -129,8 +129,8 @@ export default function DangerZoneTile({ projectId }: Props) {
                       <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                       <p className="text-sm text-stone-700 dark:text-stone-300">
                         {benchCount} registered bench
-                        {benchCount === 1 ? "" : "es"} will stop being monitored &mdash; clear them
-                        first if you want Roubo to clean them up.
+                        {benchCount === 1 ? "" : "es"} will stop being monitored; clear them first
+                        if you want Roubo to clean them up.
                       </p>
                     </div>
                   )}

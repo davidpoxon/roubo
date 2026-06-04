@@ -138,7 +138,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // plugin manager BEFORE we bind the HTTP listener. This avoids a startup
   // race where the client could fetch /api/projects/:id/integration during
   // the window between `app.listen()` and `pluginManager.initialize()`
-  // resolving — that returned `installed: false` for a bundled plugin like
+  // resolving, which returned `installed: false` for a bundled plugin like
   // github-com and surfaced the WU-015 missing-plugin dialog spuriously.
   console.log("Initializing project registry...");
   projectRegistry.initialize();

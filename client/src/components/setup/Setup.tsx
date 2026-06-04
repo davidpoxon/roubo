@@ -231,14 +231,14 @@ export default function Setup() {
     );
   }, [mode, rawYaml, state.config, projectId, mutateValidate]);
 
-  // Auto-re-validate after first manual check — YAML mode
+  // Auto-re-validate after first manual check: YAML mode
   useEffect(() => {
     if (!validatedOnce.current || mode !== "yaml") return;
     const timer = setTimeout(runValidate, 600);
     return () => clearTimeout(timer);
   }, [rawYaml, mode, runValidate]);
 
-  // Auto-re-validate after first manual check — Guided mode
+  // Auto-re-validate after first manual check: Guided mode
   useEffect(() => {
     if (!validatedOnce.current || mode !== "guided") return;
     const timer = setTimeout(runValidate, 600);
@@ -303,7 +303,7 @@ export default function Setup() {
                 configSnapshot.current = JSON.stringify(parsed);
               }
             } catch {
-              // parse failure after successful save — non-fatal
+              // parse failure after successful save: non-fatal
             }
             if (isEditMode && projectId) {
               reloadConfig.mutate(projectId);
@@ -409,7 +409,7 @@ export default function Setup() {
         });
         setRawYaml(serialized);
       }
-      // If clean: keep rawYaml untouched (preserves comments — AC#6)
+      // If clean: keep rawYaml untouched (preserves comments: AC#6)
       setMode("yaml");
     } else {
       // YAML → Guided
@@ -425,7 +425,7 @@ export default function Setup() {
         }
         setMode("guided");
       } catch {
-        // YAML has parse errors — prompt discard
+        // YAML has parse errors: prompt discard
         pendingModeRef.current = "guided";
         setShowDiscardDialog(true);
       }

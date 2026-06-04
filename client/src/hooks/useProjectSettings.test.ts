@@ -87,7 +87,7 @@ describe("useProjectSettings", () => {
     });
   });
 
-  it("query key is scoped to projectId — two hooks with different ids do not share cache", async () => {
+  it("query key is scoped to projectId: two hooks with different ids do not share cache", async () => {
     const settingsA: ProjectSettings = {
       worktreeSource: { branchFromDefault: true, pullLatest: true },
     };

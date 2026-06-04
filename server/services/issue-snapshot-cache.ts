@@ -37,7 +37,7 @@ const snapshots = new Map<string, IssueSnapshot>();
 
 /**
  * Record a successful first-page response. Returns silently for non-first-page
- * responses so the caller can call this unconditionally — keeps the route
+ * responses so the caller can call this unconditionally: keeps the route
  * code straightforward.
  */
 export function recordSnapshot(
@@ -50,7 +50,7 @@ export function recordSnapshot(
 ): void {
   if (!isFirstPage) return;
   // Defensive copy so later mutations on the route's `body` don't leak into
-  // the cache. JSON round-trip is fine here — the response is plain data.
+  // the cache. JSON round-trip is fine here: the response is plain data.
   const cloned = JSON.parse(JSON.stringify(response)) as PaginatedIssues;
   // Clear any stale markers the caller may have left set so the next read
   // doesn't double-stamp them when we serve from the cache.

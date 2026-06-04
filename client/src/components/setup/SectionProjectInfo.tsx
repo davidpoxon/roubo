@@ -144,7 +144,7 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
           </p>
         </div>
       ) : (
-        <span className="text-stone-400 dark:text-stone-600 text-sm">—</span>
+        <span className="text-stone-400 dark:text-stone-600 text-sm">·</span>
       )}
     </div>
   );

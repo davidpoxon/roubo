@@ -559,7 +559,7 @@ describe("getDirtyState", () => {
     });
 
     it("preserves legacy no-upstream behavior when branch was never tracked", async () => {
-      // No `config --get branch.main.merge` mock — defaults to empty stdout,
+      // No `config --get branch.main.merge` mock: defaults to empty stdout,
       // which the implementation treats as "never tracked".
       mockGit({
         ...cleanResponses(),

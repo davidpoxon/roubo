@@ -144,12 +144,12 @@ export function initialize() {
     const components: Record<string, ComponentStatus> = {};
 
     if (project?.config) {
-      // Legacy benches (pre-#538) have no componentSetupState at all — those
+      // Legacy benches (pre-#538) have no componentSetupState at all: those
       // were created under the old full-provisioning flow, so setup ran.
       // Coerce every component to setupComplete: true for that whole bench.
       // When componentSetupState is present but lacks an entry for a specific
       // component, the component was added to roubo.yaml after the bench was
-      // created — fall back to the same default createBench applies: !setup.
+      // created, so fall back to the same default createBench applies: !setup.
       const isLegacy = ps.componentSetupState === undefined;
       for (const [name, componentConfig] of Object.entries(project.config.components)) {
         const persistedFlag = ps.componentSetupState?.[name];
@@ -194,7 +194,7 @@ export async function reconcile() {
 
   for (const bench of benches.values()) {
     // Non-operable benches (blank workspacePath, see bench-operability.ts) already
-    // carry their own error state and have no workspace to reconcile — leave them
+    // carry their own error state and have no workspace to reconcile: leave them
     // untouched.
     if (!isBenchOperable(bench)) {
       continue;
@@ -217,7 +217,7 @@ export async function reconcile() {
     if (wtOutput && !wtOutput.includes(bench.workspacePath)) {
       bench.status = "error";
       bench.error =
-        "Worktree directory exists but is not tracked by git — use Cleanup & Retry to fix";
+        "Worktree directory exists but is not tracked by git: use Cleanup & Retry to fix";
       continue;
     }
 
@@ -473,7 +473,7 @@ export function createBench(projectId: string, branch?: string): Bench {
   }
 
   const config = project.config;
-  // No `await` between findNextBenchNumber and benches.set — this guarantees atomic
+  // No `await` between findNextBenchNumber and benches.set: this guarantees atomic
   // bench reservation in Node.js single-threaded event loop. Do not add async
   // operations between here and the benches.set() call below.
   const benchNumber = findNextBenchNumber(projectId, config.benches.max);
@@ -655,7 +655,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "workspace", "running");
 
-    // workspace step is always present — makeWorktreeProvisioningSteps guarantees it as steps[0]
+    // workspace step is always present: makeWorktreeProvisioningSteps guarantees it as steps[0]
     const workspaceStep =
       bench.provisioningSteps.find((s) => s.id === "workspace") ?? bench.provisioningSteps[0];
     const { branchFromDefault, pullLatest } = project.settings.worktreeSource;
@@ -682,7 +682,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     // Capture the source branch for display in the bench detail view. When R1 is
     // on, sourceBranch was already resolved above; when R1 is off, resolve the
     // current HEAD branch of the source repo. Failure (e.g. detached HEAD) is
-    // non-fatal — baseBranch stays undefined rather than aborting provisioning.
+    // non-fatal: baseBranch stays undefined rather than aborting provisioning.
     let headBranch: string | undefined = sourceBranch;
     if (!headBranch) {
       try {
@@ -737,7 +737,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       if (fetchResult.code !== 0) {
         fetchPhase.status = "error";
         throw new Error(
-          `Failed to fetch 'origin/${pullBranch}' — ${fetchResult.stderr.trim() || "git fetch exited non-zero"}. ` +
+          `Failed to fetch 'origin/${pullBranch}': ${fetchResult.stderr.trim() || "git fetch exited non-zero"}. ` +
             `Check your network connection and origin remote, or disable 'Pull latest' in project settings.`,
         );
       }
@@ -754,7 +754,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       if (ffResult.code !== 0) {
         ffPhase.status = "error";
         throw new Error(
-          `Could not fast-forward '${pullBranch}' — your local branch has diverged from origin/${pullBranch}. ` +
+          `Could not fast-forward '${pullBranch}': your local branch has diverged from origin/${pullBranch}. ` +
             `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
         );
       }
@@ -781,7 +781,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
             ? `submodule '${failingSubmodule}'`
             : "a submodule";
           throw new Error(
-            `Failed to update ${subjectClause} to latest — ${detail}. ` +
+            `Failed to update ${subjectClause} to latest: ${detail}. ` +
               `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
           );
         }
@@ -803,7 +803,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
         const detail = removeResult.stderr.trim() || `exit code ${removeResult.code}`;
         console.debug(
           `[bench-manager] Pre-flight worktree remove failed for bench ${bench.id} ` +
-            `at ${bench.workspacePath}: ${detail} — will attempt rmSync fallback`,
+            `at ${bench.workspacePath}: ${detail}, will attempt rmSync fallback`,
         );
       }
       fs.rmSync(bench.workspacePath, { recursive: true, force: true });
@@ -812,7 +812,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     // R1: pass the resolved branch as the base for the new worktree branch so
     // the bench starts from the default branch rather than the current HEAD.
     // The retry path (branch already exists) uses `git worktree add <path> <branch>`
-    // without -b, so it cannot take a base argument — it stays unchanged.
+    // without -b, so it cannot take a base argument: it stays unchanged.
     const wtArgs = sourceBranch
       ? ["worktree", "add", bench.workspacePath, "-b", bench.branch, sourceBranch]
       : ["worktree", "add", bench.workspacePath, "-b", bench.branch];
@@ -842,7 +842,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     const declaredSubmodules = isMetaRepo ? (config.layout.submodules ?? {}) : {};
     if (isMetaRepo) {
       // Validate that all submodules declared in roubo.yaml exist in .gitmodules.
-      // A missing entry is a fatal provisioning error — the bench must not half-initialize.
+      // A missing entry is a fatal provisioning error: the bench must not half-initialize.
       const gitmodulesPath = path.join(bench.workspacePath, ".gitmodules");
       if (!fs.existsSync(gitmodulesPath)) {
         throw new Error(
@@ -863,7 +863,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
 
       // Validate that each submodule's path in .gitmodules matches the path declared in roubo.yaml.
-      // The worktree paths for work units are derived from roubo.yaml — a mismatch would produce
+      // The worktree paths for work units are derived from roubo.yaml: a mismatch would produce
       // paths that don't correspond to actual submodule checkouts.
       for (const [name, relativePath] of Object.entries(declaredSubmodules)) {
         const entry = parsedMap[name];
@@ -893,7 +893,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
 
     // Populate workUnits for meta-repo benches after submodule init
     if (isMetaRepo && gitmodulesMap) {
-      const map = gitmodulesMap; // capture narrowed type — TypeScript doesn't narrow outer lets inside async callbacks
+      const map = gitmodulesMap; // capture narrowed type: TypeScript doesn't narrow outer lets inside async callbacks
       const workUnits: BenchWorkUnit[] = [];
 
       workUnits.push({
@@ -933,7 +933,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     });
 
     // Inject project-level permissions into the workspace before any sessions start.
-    // Failure is non-fatal — the bench can still run without pre-seeded permissions.
+    // Failure is non-fatal: the bench can still run without pre-seeded permissions.
     try {
       injectPermissions(bench.workspacePath, stateService.getProjectPermissions(bench.projectId));
     } catch (err) {
@@ -986,7 +986,7 @@ async function runStartAllBackground(
 
 async function runCreateBenchBackground(bench: Bench, project: RegisteredProject): Promise<void> {
   await runWorktreeProvisioning(bench, project);
-  // Bail if worktree provisioning failed or the bench is being torn down — the
+  // Bail if worktree provisioning failed or the bench is being torn down: the
   // status here may be "error" (provisioning failed) or "clearing" (teardown
   // started while we were awaiting). Either case means we must not chain into
   // component setup/launch.
@@ -1027,7 +1027,7 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
     throw new BenchError(`Bench ${benchId} not found for project '${projectId}'`, "NOT_FOUND");
   }
 
-  // Guard against double teardown — return current state if already in progress
+  // Guard against double teardown: return current state if already in progress
   const hasActiveTeardown =
     bench.teardownSteps.length > 0 && !bench.teardownSteps.some((s) => s.status === "error");
   if (bench.status === "clearing" && hasActiveTeardown) {
@@ -1116,7 +1116,7 @@ async function runTeardownBackground(
       const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
 
       if (wtList.code !== 0) {
-        // Can't determine worktree state — fall back to the original forceful path
+        // Can't determine worktree state: fall back to the original forceful path
         // so we don't risk deleting a valid workspace based on stale assumptions.
         await execGitChecked(
           ["worktree", "remove", "--force", bench.workspacePath],
@@ -1149,7 +1149,7 @@ async function runTeardownBackground(
             );
           }
         }
-        // else: neither on disk nor registered — nothing to remove
+        // else: neither on disk nor registered: nothing to remove
       }
 
       // Best-effort branch delete: tolerate "branch not found" in case the
@@ -1174,7 +1174,7 @@ async function runTeardownBackground(
     stateService.removeBench(projectId, benchId);
     updateStep(bench.teardownSteps, "cleanup", "done");
 
-    // Final removal from memory — after this, GET /bench returns 404
+    // Final removal from memory: after this, GET /bench returns 404
     benches.delete(key);
   } catch (err) {
     const failedStep = bench.teardownSteps.find((s) => s.status === "running");
@@ -1238,7 +1238,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 
   const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
   if (wtList.code !== 0) {
-    // Can't determine worktree state — fall back to the forceful path so we
+    // Can't determine worktree state: fall back to the forceful path so we
     // don't risk leaving a registered worktree behind.
     await execGitChecked(["worktree", "remove", "--force", bench.workspacePath], project.repoPath, {
       benchId,
@@ -1265,7 +1265,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
         );
       }
     }
-    // else: neither registered nor on disk — nothing to remove
+    // else: neither registered nor on disk: nothing to remove
   }
 
   const pruneResult = await execGit(["worktree", "prune"], project.repoPath);
@@ -1300,7 +1300,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 }
 
 /**
- * Pure launch — runs the docker / process steps for a component without doing
+ * Pure launch: runs the docker / process steps for a component without doing
  * any setup. `runComponentsInOrder` is responsible for running setup first when
  * needed; `startComponent` (the route-facing entry point) wraps both steps.
  */
@@ -1380,7 +1380,7 @@ async function launchComponent(
  * never run from a per-component Start.
  */
 // A non-operable bench (blank workspacePath, see bench-operability.ts) cannot be
-// provisioned or started — its only valid action is Clear. Guard the start entry points
+// provisioned or started: its only valid action is Clear. Guard the start entry points
 // so they neither run setup/launch commands against the server's own cwd
 // (path.resolve("", dir) / path.join("", envFile) both root there) nor clear the
 // bench's error state.
@@ -1749,7 +1749,7 @@ export async function refreshComponentStatuses() {
       const componentStatus = bench.components[name];
       if (!componentStatus) continue;
 
-      // Don't override error/stopping states — they must be cleared by an
+      // Don't override error/stopping states: they must be cleared by an
       // explicit startComponent/stopComponent call. Also don't interfere while
       // an active startComponent call is managing the lifecycle (startedAt set).
       if (componentStatus.status === "error" || componentStatus.status === "stopping") continue;

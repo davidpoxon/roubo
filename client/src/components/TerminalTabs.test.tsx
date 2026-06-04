@@ -74,7 +74,7 @@ function setupMocks({
   });
 }
 
-describe("TerminalTabs — autoInject behaviour", () => {
+describe("TerminalTabs: autoInject behaviour", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -225,7 +225,7 @@ describe("TerminalTabs — autoInject behaviour", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
     });
 
-    // Select the "Feature Dev" menu item — calls handleCreate('claude', 'feature-dev')
+    // Select the "Feature Dev" menu item: calls handleCreate('claude', 'feature-dev')
     const menuItem = screen.getByRole("menuitem", { name: "Feature Dev" });
     act(() => {
       fireEvent.click(menuItem);
@@ -534,7 +534,7 @@ describe("TerminalTabs — autoInject behaviour", () => {
   });
 });
 
-describe("TerminalTabs — notification indicators", () => {
+describe("TerminalTabs: notification indicators", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -650,7 +650,7 @@ describe("TerminalTabs — notification indicators", () => {
       />,
     );
 
-    // session-1 is the only/active tab — indicator should be suppressed
+    // session-1 is the only/active tab: indicator should be suppressed
     const session1Tab = screen.getByText("Terminal 1").closest("div");
     expect(session1Tab?.querySelector('[role="img"]')).toBeNull();
   });
@@ -702,7 +702,7 @@ describe("TerminalTabs — notification indicators", () => {
   });
 });
 
-describe("TerminalTabs — mode badge", () => {
+describe("TerminalTabs: mode badge", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -850,7 +850,7 @@ describe("TerminalTabs — mode badge", () => {
   });
 });
 
-describe("TerminalTabs — tab-switch dismiss behaviour", () => {
+describe("TerminalTabs: tab-switch dismiss behaviour", () => {
   const mockDismissNotificationMutate = vi.fn();
 
   beforeEach(() => {
@@ -937,7 +937,7 @@ describe("TerminalTabs — tab-switch dismiss behaviour", () => {
       />,
     );
 
-    // session-a is the active tab on mount — its notification should be dismissed immediately
+    // session-a is the active tab on mount: its notification should be dismissed immediately
     expect(mockDismissNotificationMutate).toHaveBeenCalledWith({
       projectId: "proj",
       benchId: 1,
@@ -1083,7 +1083,7 @@ describe("TerminalTabs — tab-switch dismiss behaviour", () => {
   });
 });
 
-describe("TerminalTabs — terminal session persistence", () => {
+describe("TerminalTabs: terminal session persistence", () => {
   function setupSessionMocks(sessions: { id: string; label: string }[]) {
     vi.mocked(useDestroyTerminal).mockReturnValue({
       mutate: vi.fn(),
@@ -1151,7 +1151,7 @@ describe("TerminalTabs — terminal session persistence", () => {
       <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
     );
 
-    // Terminal 2 (session-b) should be the active tab — its container is visually distinct
+    // Terminal 2 (session-b) should be the active tab: its container is visually distinct
     // because it has no 'hidden' class (the active tab is shown)
     const terminal2Container =
       screen.getByText("Terminal 2").closest("[data-session-id]") ??

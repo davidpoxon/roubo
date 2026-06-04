@@ -31,7 +31,7 @@ export async function detectClaudeAutoMode(): Promise<ClaudeCodeVersionInfo> {
   let result = await runCommand("claude", ["--version"], os.homedir(), undefined, 5000);
 
   if (result.code !== 0) {
-    // Direct spawn failed — retry through a login shell so the binary is found
+    // Direct spawn failed: retry through a login shell so the binary is found
     // even when PATH hasn't propagated to this process (common in Electron GUI
     // launches where shell profile scripts are not sourced).
     result = await runCommand("sh", ["-lc", "claude --version"], os.homedir(), undefined, 5000);

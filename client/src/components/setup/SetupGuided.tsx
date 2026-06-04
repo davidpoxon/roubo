@@ -131,7 +131,7 @@ export default function SetupGuided({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Page header — standalone only, always visible regardless of mode */}
+      {/* Page header: standalone only, always visible regardless of mode */}
       {!embedded && (
         <div className="px-8 pt-5 pb-2 shrink-0">
           <nav
@@ -159,7 +159,7 @@ export default function SetupGuided({
         </div>
       )}
 
-      {/* Mode toggle bar — bottom border anchors the scrolling region below it */}
+      {/* Mode toggle bar: bottom border anchors the scrolling region below it */}
       {!embedded && (
         <div className="flex items-center justify-between gap-4 px-8 py-3 shrink-0 border-b border-stone-200 dark:border-stone-800/40">
           <div className="flex items-center gap-3">
@@ -188,7 +188,7 @@ export default function SetupGuided({
             : "flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 px-8 pb-4 overflow-hidden"
         }
       >
-        {/* Main column — scrolls */}
+        {/* Main column: scrolls */}
         <main className={embedded ? "" : "lg:col-span-8 overflow-auto pr-1"}>
           {mode === "yaml" ? (
             <SetupYaml
@@ -345,7 +345,7 @@ export default function SetupGuided({
           )}
         </main>
 
-        {/* Right column — scrolls independently, standalone only */}
+        {/* Right column: scrolls independently, standalone only */}
         {!embedded && projectId && (
           <aside className="hidden lg:block lg:col-span-4 overflow-y-auto overscroll-contain pl-1">
             <SetupSidebar

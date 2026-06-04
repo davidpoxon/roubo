@@ -83,7 +83,7 @@ export function writeClaudeSettingsLocal(
     delete existing.permissions;
   }
 
-  // Always overwrite hooks — Roubo's notification endpoint must be registered on every
+  // Always overwrite hooks: Roubo's notification endpoint must be registered on every
   // session start. User-defined Notification hooks are intentionally not merged.
   // Catch-all (no matcher): every Notification event Claude Code emits POSTs to Roubo.
   // Over-notification self-corrects via dismissWaitingNotificationsForSession when
@@ -99,7 +99,7 @@ export function writeClaudeSettingsLocal(
 }
 
 // Additive merge: unions project rules with whatever already exists in the bench workspace.
-// Existing rules are never removed — deletion of a project rule only takes effect when the bench is cleared.
+// Existing rules are never removed: deletion of a project rule only takes effect when the bench is cleared.
 export function injectPermissions(workspacePath: string, permissions: ProjectPermissions): void {
   const permAsk = permissions.ask ?? [];
   // Empty project rules means nothing to inject; removal is not propagated by resync.

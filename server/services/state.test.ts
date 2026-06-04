@@ -935,7 +935,7 @@ describe("setProjectPermissions", () => {
     ).toThrow("Invalid projectId");
   });
 
-  it("is idempotent — second write succeeds with same content", () => {
+  it("is idempotent: second write succeeds with same content", () => {
     stateModule.setProjectPermissions("project1", {
       allow: ["tool:Bash"],
       deny: [],

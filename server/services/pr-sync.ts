@@ -12,7 +12,7 @@ type FetchCache = Map<string, ReturnType<typeof githubService.fetchOpenPullReque
 
 /**
  * Syncs PR state for all work units of a single bench. Persists any changes.
- * Safe to call concurrently with the auto-clear tick — the sync is idempotent
+ * Safe to call concurrently with the auto-clear tick: the sync is idempotent
  * (fetches from GitHub, writes state fields).
  */
 export async function syncBenchWorkUnitPRs(projectId: string, bench: Bench): Promise<void> {
@@ -60,7 +60,7 @@ async function syncBenchWorkUnits(
     try {
       // ── Step 1: Refresh branch from HEAD and probe filesystem activity ──
       // Run for all work units so dirty state is always up-to-date. The "."
-      // root work unit only gets a dirty probe — its branch is owned by bench.branch.
+      // root work unit only gets a dirty probe: its branch is owned by bench.branch.
       const probe = await probeWorkUnitState(workUnit.workspacePath);
 
       // Update dirty state (always, for all work units including ".")
@@ -69,13 +69,13 @@ async function syncBenchWorkUnits(
 
       if (workUnit.submodule !== ".") {
         if (probe.branch !== null) {
-          // Submodule HEAD is on a real branch — update and clear detached flag
+          // Submodule HEAD is on a real branch: update and clear detached flag
           if (probe.branch !== workUnit.branch) {
             workUnit.branch = probe.branch;
           }
           workUnit.detached = false;
         } else {
-          // Detached HEAD — record it; preserve last-known branch for display continuity
+          // Detached HEAD: record it; preserve last-known branch for display continuity
           workUnit.detached = true;
         }
       }
@@ -119,7 +119,7 @@ async function syncBenchWorkUnits(
         continue;
       }
 
-      // ── Step 4: Dedup — one request per {repoFullName, branch} per call ──
+      // ── Step 4: Dedup: one request per {repoFullName, branch} per call ──
       const key = `${repoFullName}\0${workUnit.branch}`;
       let fetchPromise = fetchCache.get(key);
       if (!fetchPromise) {
@@ -129,11 +129,11 @@ async function syncBenchWorkUnits(
 
       const { notModified, pr } = await fetchPromise;
 
-      // ETag 304 — nothing changed; skip all state writes
+      // ETag 304: nothing changed; skip all state writes
       if (notModified) continue;
 
       if (pr) {
-        // Open PR found — update tracked state
+        // Open PR found: update tracked state
         const tracked: TrackedPullRequest = {
           repoFullName,
           number: pr.number,
@@ -148,10 +148,10 @@ async function syncBenchWorkUnits(
         workUnit.syncError = undefined;
         notificationService.dismissSyncErrorForWorkUnit(bench, workUnit.submodule);
       } else {
-        // No open PR — check if we had a previous PR that may have transitioned
+        // No open PR: check if we had a previous PR that may have transitioned
         const prev = workUnit.pullRequest;
         if (prev && Date.now() - new Date(prev.updatedAt).getTime() < TWENTY_FOUR_HOURS_MS) {
-          // Previous PR was recently active — fetch direct detail to detect merged/closed
+          // Previous PR was recently active: fetch direct detail to detect merged/closed
           try {
             const detail = await githubService.fetchPullRequestDetail(repoFullName, prev.number);
             workUnit.pullRequest = {
@@ -183,7 +183,7 @@ async function syncBenchWorkUnits(
             );
           }
         } else {
-          // No recent previous PR — clear tracked state
+          // No recent previous PR: clear tracked state
           workUnit.pullRequest = undefined;
           workUnit.lastSyncedAt = new Date().toISOString();
           workUnit.syncError = undefined;

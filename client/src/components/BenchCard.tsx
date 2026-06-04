@@ -345,7 +345,7 @@ export default function BenchCard({
                   setDirtyReasons(err.details.reasons);
                   setForceError(null);
                 } else {
-                  setForceError("Clear failed — please try again.");
+                  setForceError("Clear failed. Please try again.");
                 }
               },
             },

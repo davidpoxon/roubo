@@ -245,7 +245,7 @@ describe("JigPreviewPanel", () => {
     mockUseJigPreview.mockReturnValue({ data: undefined, isPending: false, isError: false });
     renderPanel({ scope: "global" });
     expect(
-      screen.getByRole("option", { name: /My App — Bench 1: feature\/foo/ }),
+      screen.getByRole("option", { name: /My App · Bench 1: feature\/foo/ }),
     ).toBeInTheDocument();
   });
 

@@ -126,11 +126,11 @@ describe("WizardSidebar", () => {
     it("calls onAddComponent with type when Add button under Components is clicked", async () => {
       const onAddComponent = vi.fn();
       renderSidebar("components", {}, { components, onAddComponent });
-      // The Add buttons — first one is under Components section in sidebar order
+      // The Add buttons: first one is under Components section in sidebar order
       const addButtons = screen.getAllByText("Add");
       // components comes before tools in WIZARD_SECTIONS, so first Add = components Add
       await userEvent.click(addButtons[0]);
-      // A type-picker popover should appear — select Database
+      // A type-picker popover should appear: select Database
       await userEvent.click(screen.getByText("Database"));
       expect(onAddComponent).toHaveBeenCalledWith("database");
     });

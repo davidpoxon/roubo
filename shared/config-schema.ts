@@ -150,7 +150,7 @@ export const ToolConfigSchema = z.discriminatedUnion("type", [
   BrowserToolConfigSchema,
   ShellToolConfigSchema,
 ]);
-// Flat type for backward compat — Zod validates using the strict discriminated union above.
+// Flat type for backward compat: Zod validates using the strict discriminated union above.
 export type ToolConfig = {
   type: "browser" | "shell";
   name: string;

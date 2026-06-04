@@ -10,7 +10,7 @@ export default function Terminal({ sessionId, active }: { sessionId: string; act
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  // Only fits when the container has non-zero dimensions — prevents sending
+  // Only fits when the container has non-zero dimensions: prevents sending
   // tiny cols to the PTY when mounted inside a display:none ancestor.
   const safeFitRef = useRef<(() => boolean) | null>(null);
 
@@ -152,7 +152,7 @@ export default function Terminal({ sessionId, active }: { sessionId: string; act
     };
   }, [sessionId, wsRef]);
 
-  // Send initial resize when connected — only if container has real dimensions.
+  // Send initial resize when connected: only if container has real dimensions.
   // If not yet sized, the ResizeObserver will fit once layout settles and
   // term.onResize will forward the correct cols to the PTY automatically.
   useEffect(() => {

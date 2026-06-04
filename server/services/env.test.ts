@@ -170,7 +170,7 @@ describe("resolveShellPath", () => {
     vi.mocked(execFileSync).mockReturnValue("/usr/local/bin:/usr/bin:/bin\n");
     const { resolveShellPath } = await import("./env.js");
     resolveShellPath();
-    // /usr/local/bin is new — prepended; /usr/bin and /bin already present — not duplicated
+    // /usr/local/bin is new: prepended; /usr/bin and /bin already present: not duplicated
     expect(process.env.PATH).toBe("/usr/local/bin:/usr/bin:/bin");
   });
 
@@ -467,11 +467,11 @@ describe("getContextWindow", () => {
     warnSpy.mockRestore();
   });
 
-  it("parses float string as integer (parseInt truncates) — no warning expected", async () => {
+  it("parses float string as integer (parseInt truncates): no warning expected", async () => {
     process.env.ROUBO_CONTEXT_WINDOW = "1.5";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getContextWindow } = await import("./env.js");
-    // parseInt('1.5') === 1 which is a positive integer — treated as valid
+    // parseInt('1.5') === 1 which is a positive integer: treated as valid
     expect(getContextWindow()).toBe(1);
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();

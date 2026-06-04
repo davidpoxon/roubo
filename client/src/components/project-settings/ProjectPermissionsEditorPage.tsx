@@ -247,7 +247,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
               onEdit={handleEdit}
             />
 
-            {/* Resync row — separate from the table card, no border-merge */}
+            {/* Resync row: separate from the table card, no border-merge */}
             <div className="mt-3 flex items-center justify-between">
               <div className="text-[11px] text-stone-500">
                 {rules.length > 0

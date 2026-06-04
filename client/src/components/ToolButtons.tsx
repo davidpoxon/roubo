@@ -106,7 +106,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       </MenuTrigger>
     );
   } else if (!hasMore) {
-    // Single tool — simple button
+    // Single tool: simple button
     toolsContent = (
       <Button
         isDisabled={!primary.enabled}
@@ -118,7 +118,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       </Button>
     );
   } else {
-    // Multiple tools — split button
+    // Multiple tools: split button
     toolsContent = (
       <div className="flex items-center">
         <Button

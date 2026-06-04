@@ -194,7 +194,7 @@ describe("useTerminalConnection", () => {
       vi.advanceTimersByTime(1);
     });
 
-    // Simulate server going down — connections fail without opening
+    // Simulate server going down: connections fail without opening
     autoOpen = false;
 
     // First disconnect triggers reconnection
@@ -217,7 +217,7 @@ describe("useTerminalConnection", () => {
     }
 
     const instanceCountBefore = mockInstances.length;
-    // Wait plenty — should NOT create any more connections
+    // Wait plenty: should NOT create any more connections
     await act(async () => {
       vi.advanceTimersByTime(60_000);
     });

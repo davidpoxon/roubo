@@ -36,7 +36,7 @@ function parseBenchKey(key: string): { projectId: string; benchId: number } | nu
 
 function benchLabel(bench: Bench, projectPrefix: string): string {
   const base = `Bench ${bench.id}: ${bench.branch}`;
-  const label = projectPrefix ? `${projectPrefix} — ${base}` : base;
+  const label = projectPrefix ? `${projectPrefix} · ${base}` : base;
   if (bench.assignedIssue) {
     return `${label} · #${bench.assignedIssue.number} ${bench.assignedIssue.title}`;
   }
@@ -152,7 +152,7 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
         />
       </div>
 
-      {/* Unresolved variable warning — live region always rendered so screen readers
+      {/* Unresolved variable warning: live region always rendered so screen readers
           announce changes when variables appear/disappear as the user types. */}
       <div aria-live="polite">
         {showUnresolved && (

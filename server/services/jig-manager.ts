@@ -22,7 +22,7 @@ import { JIG_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path
 const SOFT_SIZE_LIMIT = 50 * 1024; // 50 KB
 const HARD_SIZE_LIMIT = 200 * 1024; // 200 KB
 
-// Cache TTL — a safety net for cases where file watchers miss events
+// Cache TTL: a safety net for cases where file watchers miss events
 const CACHE_TTL_MS = 60_000;
 
 interface CacheEntry {
@@ -319,7 +319,7 @@ export function resolveEffectiveDefaultJig(
 
   // Tier 1: project-level default from roubo.yaml (jigs.defaultJig).
   // Note: the legacy field project.jigSettings.defaultJigId is intentionally
-  // not checked here — it predates the new hierarchy and no production configs are known
+  // not checked here: it predates the new hierarchy and no production configs are known
   // to use it. findProjectJigReferences still guards it for safe deletion, which
   // means a jig set via the legacy field will block deletion but won't influence
   // resolution. Widen this check if legacy configs ever need to be supported.
@@ -361,7 +361,7 @@ export function resolveJigForIssue(
   if (issueType) {
     const project = projectRegistry.getProject(projectId);
     // Note: legacy field project.jigSettings.issueTypeMappings is intentionally not
-    // checked here (same rationale as resolveEffectiveDefaultJig — no production configs
+    // checked here (same rationale as resolveEffectiveDefaultJig: no production configs
     // are known to use it). findProjectJigReferences still guards it for safe deletion.
     const mapped = project?.config?.jigs?.issueTypeMappings?.[issueType];
     if (mapped) {
@@ -458,7 +458,7 @@ export function stopAllWatchers(): void {
   debounceTimers.clear();
 }
 
-// ── Jig CRUD — shared types and helpers ──
+// ── Jig CRUD: shared types and helpers ──
 
 type JigErrorCode =
   | "NOT_FOUND"
@@ -565,11 +565,11 @@ function _createJigInDir(dir: string, source: JigSource, req: JigCreateRequest):
 
   const id = slugify(req.name.trim());
   if (!id)
-    throw new JigError("name produces an empty slug — use alphanumeric characters", "INVALID_NAME");
+    throw new JigError("name produces an empty slug: use alphanumeric characters", "INVALID_NAME");
   if (id === GLOBAL_DEFAULT_JIG_ID || id === "default")
     throw new JigError(`'${id}' is a reserved jig id`, "RESERVED_ID");
 
-  // Dup checks are scoped to `dir` only — a project jig CAN share an id
+  // Dup checks are scoped to `dir` only: a project jig CAN share an id
   // with an app jig (the project layer overrides at lookup time).
   const existing = loadJigsFromDir(dir, source);
   if (existing.has(id)) {

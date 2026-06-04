@@ -323,7 +323,7 @@ describe("ProjectSettings", () => {
     });
   });
 
-  describe("Jigs tab — interactions", () => {
+  describe("Jigs tab: interactions", () => {
     it("calls updateSettings when auto-inject toggle is clicked", async () => {
       const updateSettings = vi.fn();
       mockedUseSettings.mockReturnValue({
@@ -862,7 +862,7 @@ describe("ProjectSettings", () => {
     });
   });
 
-  describe("Appearance tab — null settings fallback", () => {
+  describe("Appearance tab: null settings fallback", () => {
     it("defaults to dark theme when settings is undefined", async () => {
       mockedUseSettings.mockReturnValue({
         settings: undefined,
@@ -1027,7 +1027,7 @@ describe("ProjectSettings", () => {
       ).toBeInTheDocument();
     });
   });
-  describe("Jigs tab — Duplicate action", () => {
+  describe("Jigs tab: Duplicate action", () => {
     const jigs: JigMeta[] = [
       {
         id: "feature-dev",

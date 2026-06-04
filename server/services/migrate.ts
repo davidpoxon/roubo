@@ -14,11 +14,11 @@ import { saveOverride } from "./integration-overrides.js";
 import * as credentialStore from "./credential-store.js";
 import { saveEnableState } from "./plugin-enable-state.js";
 
-// WU-024 / issue #42 — pre-plugin → plugin migration. See:
+// WU-024 / issue #42: pre-plugin → plugin migration. See:
 //   .specifications/integration-plugins/prd.md (FR-027, FR-028, NFR-009)
 //   .specifications/integration-plugins/test-cases.json (TC-031, TC-049, TC-068, TC-069)
 //
-// WU-046 / issue #137 + WU-047 / issue #138 — plugins-state.json seeding
+// WU-046 / issue #137 + WU-047 / issue #138: plugins-state.json seeding
 // rides the same atomic commit on greenfield only. See FR-059 and
 // architecture.md lines 1027-1097 and 1418-1422. Greenfield installs (no
 // schemaVersion, no auth.json, no registered projects) get all bundled
@@ -79,7 +79,7 @@ function readAuth(): AuthFile | null {
       return { githubToken: (raw as { githubToken: string }).githubToken };
     }
   } catch {
-    // malformed auth.json — treat as missing
+    // malformed auth.json: treat as missing
   }
   return null;
 }
@@ -115,7 +115,7 @@ export async function run(): Promise<MigrationOutcome> {
   }
 
   // Empty migration: bump the gate so we don't retry on every boot, but don't
-  // surface a banner — nothing visible to the user has changed. This is the
+  // surface a banner: nothing visible to the user has changed. This is the
   // greenfield path for WU-046: seed plugins-state.json with every bundled
   // plugin "disabled" before bumping the state.json schemaVersion so a crash
   // between the two writes leaves the install in a re-runnable state.
@@ -128,7 +128,7 @@ export async function run(): Promise<MigrationOutcome> {
   }
 
   // Side-effects with reverse-order rollback. The schemaVersion bump below is
-  // the single commit point — until it happens, every step here must be
+  // the single commit point: until it happens, every step here must be
   // individually undoable, and we must restore the original on-disk shape on
   // any failure.
   const rollback: Array<() => Promise<void> | void> = [];
@@ -195,7 +195,7 @@ export async function run(): Promise<MigrationOutcome> {
   saveState({ ...state, schemaVersion: TARGET_SCHEMA_VERSION, migration: record });
 
   // Post-commit cleanup: remove the legacy auth.json now that the token lives
-  // in the github-com plugin's keychain slot. Best-effort — if this fails the
+  // in the github-com plugin's keychain slot. Best-effort: if this fails the
   // migration has already committed, so we log and move on rather than
   // rolling back.
   if (auth) {
