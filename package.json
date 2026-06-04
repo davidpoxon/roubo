@@ -42,6 +42,7 @@
     "electron:start": "npm run start --prefix electron",
     "electron:make": "npm run build && npm run make --prefix electron",
     "electron:publish": "npm run publish --prefix electron",
+    "release:draft": "node scripts/draft-release.mjs",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
     "format": "prettier --write .",
