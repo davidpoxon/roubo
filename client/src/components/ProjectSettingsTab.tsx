@@ -200,8 +200,11 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
   };
 
   return (
-    <>
-      <div data-testid="project-settings-content" className="w-full p-8 space-y-8">
+    <div className="flex flex-col h-full min-h-0">
+      <div
+        data-testid="project-settings-content"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full p-8 space-y-8"
+      >
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
@@ -351,7 +354,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         onConfirm={() => blocker.proceed?.()}
         onCancel={() => blocker.reset?.()}
       />
-    </>
+    </div>
   );
 }
 

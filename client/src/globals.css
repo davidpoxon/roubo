@@ -60,6 +60,30 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* Lock the app shell to the viewport so only designated inner panes scroll.
+   Without this the document itself can scroll: when a focusable control deep
+   in a pane receives focus, the browser scrolls every scrollable ancestor
+   (including the document) to reveal it, dragging the whole app off-screen and
+   leaving a blank window. The layout already provides inner scrollers (the
+   sidebar's <main overflow-auto> and each pane's overflow-y-auto). */
+html,
+body {
+  height: 100%;
+}
+
+/* Pin the app shell to the viewport so the DOCUMENT can never scroll. Without
+   this, content overflow makes <html> scrollable, and when a focusable control
+   deep in a pane receives focus the browser runs scrollIntoView on every
+   scrollable ancestor (including the document) -- dragging the whole app
+   off-screen and leaving a blank window. Overflow on html/body is unreliable
+   here due to viewport overflow propagation, so we take #root out of flow.
+   All real scrolling happens in inner panes (<main>, each pane's overflow-y). */
+#root {
+  position: fixed;
+  inset: 0;
+  overflow: clip;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

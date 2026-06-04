@@ -14,7 +14,7 @@ export function SettingsSaveBar({ hasAnyDirty, isSaving, saveErrors, onSave, onD
       data-testid="settings-save-bar"
       aria-hidden={!hasAnyDirty}
       className={[
-        "sticky bottom-0 z-10 w-full",
+        "shrink-0 w-full",
         "bg-white dark:bg-stone-950 border-t border-stone-200 dark:border-stone-800/40",
         "transition-opacity duration-200 ease-in-out",
         hasAnyDirty ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden",
