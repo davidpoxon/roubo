@@ -259,4 +259,19 @@ describe("ProjectSettingsTab — clearing the project default jig", () => {
     expect(screen.getByRole("radio", { name: /use app default/i })).toBeChecked();
     expect(screen.getByTestId("settings-save-bar")).toBeInTheDocument();
   });
+
+  // The white-screen bug: the save bar used to be a sticky child INSIDE the
+  // scroll region, so toggling it on dirty perturbed the pane's scroll height
+  // (and, combined with the unlocked document shell, scrolled the whole app
+  // off-screen). It must live OUTSIDE the scroll region as a footer.
+  it("renders the save bar outside the scroll region, not as a child of it", async () => {
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.click(screen.getByText("Use app default"));
+
+    const scroller = screen.getByTestId("project-settings-content");
+    const saveBar = screen.getByTestId("settings-save-bar");
+    expect(scroller.contains(saveBar)).toBe(false);
+  });
 });
