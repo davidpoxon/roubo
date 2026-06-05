@@ -108,6 +108,24 @@ describe("IssueChip", () => {
     expect(desc.className).toContain("sr-only");
   });
 
+  it("bounds a long-label chip to its container and truncates the text span", () => {
+    const longLabel = "Adaptive flow scoping: Phase 2 (per-stage mode/depth contract)";
+    const { container } = render(
+      <IssueChip variant="milestone" tooltip={longLabel}>
+        {longLabel}
+      </IssueChip>,
+    );
+    const chip = container.querySelector('[data-chip-category="milestone"]') as HTMLElement;
+    expect(chip).not.toBeNull();
+    expect(chip.className).toContain("max-w-full");
+    expect(chip.className).toContain("min-w-0");
+    const textSpan = chip.querySelector("span.truncate") as HTMLElement;
+    expect(textSpan).not.toBeNull();
+    expect(textSpan.className).toContain("truncate");
+    expect(textSpan.className).toContain("min-w-0");
+    expect(textSpan.textContent).toBe(longLabel);
+  });
+
   describe("interactive mode (WU-031)", () => {
     it("renders as a non-interactive span when onPress is omitted", () => {
       const { container } = render(
