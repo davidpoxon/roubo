@@ -44,6 +44,8 @@ defaultIntegrationConfig:
     - Done
     - Resolved
     - In Review
+  excludedStatusCategories:
+    - Done
 permissions:
   network:
     # The Jira instance host is user-supplied (configured per project), so the

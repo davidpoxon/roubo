@@ -197,6 +197,9 @@
                   "required": ["externalId"],
                   "properties": {
                     "externalId": { "type": ["string", "number"] },
+                    "project": { "type": "string" },
+                    "boardMode": { "type": "string", "enum": ["active-sprint", "whole-board"] },
+                    "mineScope": { "type": "string", "enum": ["in-project", "anywhere"] },
                     "excludedStatuses": {
                       "type": "array",
                       "items": { "type": "string", "minLength": 1 }
@@ -215,6 +218,11 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Per-project layer of the three-layer excludedStatuses merge. Plugin-global defaults live in plugin manifests; per-source overrides ride on each sources[<cat>][<i>] object entry."
+        },
+        "excludedStatusCategories": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Category-first default exclusion (e.g. \"Done\"), user-editable, ANDed into the JQL alongside excludedStatuses. Plugin-global default is seeded in the plugin manifest."
         }
       }
     },

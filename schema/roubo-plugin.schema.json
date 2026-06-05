@@ -59,6 +59,11 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Default issue statuses to hide from the cut list. Mapped to the provider's native state strings."
+        },
+        "excludedStatusCategories": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Plugin-global default for the category-first status exclusion (e.g. \"Done\"), ANDed into the JQL alongside excludedStatuses."
         }
       }
     },
