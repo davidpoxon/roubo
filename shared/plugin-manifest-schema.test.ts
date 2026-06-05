@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { PluginManifestSchema, type PluginManifest } from "./plugin-manifest-schema.js";
+import {
+  PluginManifestSchema,
+  PluginDefaultIntegrationConfigSchema,
+  type PluginManifest,
+} from "./plugin-manifest-schema.js";
 import { RouboConfigSchema, zodIssuesToValidationErrors } from "./config-schema.js";
 
 function makeManifest(overrides?: Partial<PluginManifest>): PluginManifest {
@@ -310,6 +314,28 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
       "In Review",
     ]);
   });
+
+  it("Jira plugin seeds the category-first excludedStatusCategories default (FR-010)", async () => {
+    const manifest = await loadManifest("jira-self-hosted");
+    expect(manifest.defaultIntegrationConfig?.excludedStatusCategories).toEqual(["Done"]);
+  });
+});
+
+describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (FR-010, TC-003)", () => {
+  it("accepts a defaultIntegrationConfig with excludedStatusCategories", () => {
+    const result = PluginDefaultIntegrationConfigSchema.safeParse({
+      excludedStatuses: ["Done"],
+      excludedStatusCategories: ["Done"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty-string status category", () => {
+    const result = PluginDefaultIntegrationConfigSchema.safeParse({
+      excludedStatusCategories: [""],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("Bundled github.com / GHE plugin manifests declare per-source alert booleans (TC-135, FR-074)", () => {
@@ -412,6 +438,17 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       maxLength: 16384,
     });
     expect((jsonSchema.required as string[]).includes("icon")).toBe(false);
+  });
+
+  it("defaultIntegrationConfig declares both excludedStatuses and excludedStatusCategories (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const defaults = properties.defaultIntegrationConfig as Record<string, unknown>;
+    expect(defaults.additionalProperties).toBe(false);
+    const defaultProps = defaults.properties as Record<string, unknown>;
+    expect(Object.keys(defaultProps).sort()).toEqual([
+      "excludedStatusCategories",
+      "excludedStatuses",
+    ]);
   });
 });
 

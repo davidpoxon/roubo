@@ -19,7 +19,32 @@ export interface SourceCandidateCategory {
   items: SourceCandidateItem[];
 }
 
-export type SourceCandidatesShape = "multi-list" | "categorized-multi-list";
+export type SourceCandidatesShape =
+  | "multi-list"
+  | "categorized-multi-list"
+  | "searchable-categorized";
+
+// One selectable mode within a synthetic category (e.g. "assigned to me":
+// in-project vs anywhere). Distinct from a SourceCandidateItem in that it has
+// no externalId and is not fetched via search; the host renders it inline.
+export interface SourceCategoryOption {
+  id: string;
+  label: string;
+}
+
+// A category declared by the "searchable-categorized" shape. The plugin ships
+// no items here; it only declares which categories exist, their icon, and
+// whether each is gated behind a parent selection. Items arrive later via the
+// host's source-options search RPC.
+export interface SearchableSourceCategory {
+  id: "project" | "board" | "filter" | "epic" | "mine";
+  label: string;
+  icon?: SourceCandidateIcon;
+  // Gate: the category is disabled until the named parent selection exists.
+  scopedBy?: "project";
+  // Inline modes for synthetic categories like "mine".
+  options?: SourceCategoryOption[];
+}
 
 export interface SourceCandidatesResponse {
   shape: SourceCandidatesShape;
@@ -27,6 +52,8 @@ export interface SourceCandidatesResponse {
   items?: SourceCandidateItem[];
   // Present iff shape === "categorized-multi-list".
   categories?: SourceCandidateCategory[];
+  // Present iff shape === "searchable-categorized".
+  searchableCategories?: SearchableSourceCategory[];
   // Reserved for future pagination; v1 plugins return undefined.
   nextCursor?: string | null;
 }

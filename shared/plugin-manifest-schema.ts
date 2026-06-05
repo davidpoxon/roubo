@@ -64,6 +64,9 @@ export type PluginCapabilities = z.infer<typeof PluginCapabilitiesSchema>;
 export const PluginDefaultIntegrationConfigSchema = z
   .object({
     excludedStatuses: z.array(z.string().min(1)).optional(),
+    // Plugin-global default for the category-first status exclusion (FR-010).
+    // Seeded by the plugin manifest (e.g. jira-self-hosted ships ["Done"]).
+    excludedStatusCategories: z.array(z.string().min(1)).optional(),
   })
   .strict();
 export type PluginDefaultIntegrationConfig = z.infer<typeof PluginDefaultIntegrationConfigSchema>;

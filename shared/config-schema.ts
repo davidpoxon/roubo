@@ -227,6 +227,13 @@ export const SourceEntrySchema = z.union([
   z
     .object({
       externalId: z.union([z.string(), z.number()]),
+      // Jira project key the source is scoped to (project-first model). Also
+      // present on the synthetic `mine` source when its scope is in-project.
+      project: z.string().optional(),
+      // Board sources: active sprint only vs the whole board's backing filter.
+      boardMode: z.enum(["active-sprint", "whole-board"]).optional(),
+      // "Assigned to me" synthetic source: scoped to the project or instance-wide.
+      mineScope: z.enum(["in-project", "anywhere"]).optional(),
       excludedStatuses: z.array(z.string().min(1)).optional(),
       includeCodeQLAlerts: z.boolean().optional(),
       includeSecretScanningAlerts: z.boolean().optional(),
@@ -251,6 +258,12 @@ export const IntegrationConfigSchema = z
     // ride alongside `sources[<cat>][<i>]` object entries and are resolved
     // by `applyPerSourceExcludedStatuses`.
     excludedStatuses: z.array(z.string().min(1)).optional(),
+    // Category-first default exclusion (FR-010): a user-editable list of Jira
+    // status *categories* (e.g. "Done") ANDed into the JQL alongside
+    // `excludedStatuses`. Plugin-global default is seeded in the manifest. The
+    // resolution that consumes this is wired by a later slice; the field is
+    // contract-only here.
+    excludedStatusCategories: z.array(z.string().min(1)).optional(),
   })
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;

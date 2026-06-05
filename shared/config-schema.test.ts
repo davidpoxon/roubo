@@ -606,6 +606,86 @@ describe("SourceEntrySchema per-source alert booleans (FR-074, TC-135)", () => {
   });
 });
 
+describe("SourceEntrySchema project-scoped Jira fields (FR-012, TC-012)", () => {
+  it("accepts an object entry with project, boardMode, and mineScope", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "board:482",
+      project: "PLAT",
+      boardMode: "active-sprint",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts the synthetic mine sentinel entry", () => {
+    const entry = { externalId: "mine", mineScope: "in-project", project: "PLAT" };
+    const result = SourceEntrySchema.safeParse(entry);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual(entry);
+  });
+
+  it("accepts an anywhere-scoped mine entry without a project", () => {
+    const result = SourceEntrySchema.safeParse({ externalId: "mine", mineScope: "anywhere" });
+    expect(result.success).toBe(true);
+  });
+
+  it("still accepts the bare string and number primitive forms", () => {
+    expect(SourceEntrySchema.safeParse("PLAT").success).toBe(true);
+    expect(SourceEntrySchema.safeParse(482).success).toBe(true);
+  });
+
+  it("rejects an invalid boardMode enum value", () => {
+    const result = SourceEntrySchema.safeParse({
+      externalId: "board:482",
+      boardMode: "whole-sprint",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an invalid mineScope enum value", () => {
+    const result = SourceEntrySchema.safeParse({ externalId: "mine", mineScope: "everywhere" });
+    expect(result.success).toBe(false);
+  });
+
+  it("parses a mixed-type sources block with project scope preserved per source", () => {
+    const config = makeConfig({
+      integration: {
+        plugin: "jira-self-hosted",
+        instance: "https://jira.acme.com",
+        excludedStatusCategories: ["Done"],
+        sources: {
+          project: [{ externalId: "PLAT", project: "PLAT" }],
+          board: [{ externalId: "board:482", project: "PLAT", boardMode: "active-sprint" }],
+          filter: [{ externalId: "10231", project: "PLAT" }],
+          epic: [{ externalId: "PLAT-1187", project: "PLAT" }],
+          mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+        },
+      },
+    });
+    const parsed = RouboConfigSchema.safeParse(config);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.integration?.sources?.board?.[0]).toEqual({
+      externalId: "board:482",
+      project: "PLAT",
+      boardMode: "active-sprint",
+    });
+    expect(parsed.data.integration?.excludedStatusCategories).toEqual(["Done"]);
+  });
+});
+
+describe("IntegrationConfigSchema excludedStatusCategories (FR-010)", () => {
+  it("accepts a root excludedStatusCategories list", () => {
+    const config = makeConfig({ integration: { excludedStatusCategories: ["Done"] } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("rejects an empty-string status category", () => {
+    const config = makeConfig({ integration: { excludedStatusCategories: [""] } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+});
+
 describe("IntegrationOverrideSchema", () => {
   it("accepts a minimal envelope with an empty integration block", () => {
     expect(IntegrationOverrideSchema.safeParse({ schemaVersion: 1, integration: {} }).success).toBe(
@@ -623,6 +703,26 @@ describe("IntegrationOverrideSchema", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("round-trips a per-user override carrying project-scoped mixed-type sources (TC-012)", () => {
+    const result = IntegrationOverrideSchema.safeParse({
+      schemaVersion: 1,
+      integration: {
+        excludedStatusCategories: ["Done"],
+        sources: {
+          board: [{ externalId: "board:482", project: "PLAT", boardMode: "active-sprint" }],
+          mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.integration.sources?.board?.[0]).toEqual({
+      externalId: "board:482",
+      project: "PLAT",
+      boardMode: "active-sprint",
+    });
   });
 
   it("rejects a missing schemaVersion", () => {
