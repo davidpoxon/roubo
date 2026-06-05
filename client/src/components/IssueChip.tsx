@@ -48,7 +48,7 @@ const SECURITY_CATEGORY_CLASSES: Record<SecurityCategory, string> = {
 };
 
 const BASE_CLASSES =
-  "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium leading-none";
+  "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium leading-none max-w-full min-w-0";
 const INTERACTIVE_CLASSES =
   "cursor-pointer outline-none transition-colors hover:brightness-110 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950";
 
@@ -75,7 +75,7 @@ export default function IssueChip({
   const inner = (
     <>
       {showIcon && Icon ? <Icon size={9} aria-hidden="true" /> : null}
-      <span className="truncate">{children}</span>
+      <span className="truncate min-w-0">{children}</span>
       {actionSuffix}
       {ariaDescription ? (
         <span id={describedById} className="sr-only">
