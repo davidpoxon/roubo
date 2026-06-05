@@ -11,6 +11,7 @@ import {
   Target,
   Flag,
   Flame,
+  Ship,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,6 +30,7 @@ export const JIG_ICONS = [
   "target",
   "flag",
   "flame",
+  "ship",
 ];
 
 export const JIG_ICON_MAP: Record<string, LucideIcon> = {
@@ -44,6 +46,7 @@ export const JIG_ICON_MAP: Record<string, LucideIcon> = {
   target: Target,
   flag: Flag,
   flame: Flame,
+  ship: Ship,
 };
 
 export function getJigIcon(name: string): LucideIcon {
