@@ -40,18 +40,22 @@ build-with-spike — Most pieces have direct prior art (the `getFacetOptions(sea
 ## Risks
 
 ### Technical
+
 - The picker contract has no async-search or cascading-selection precedent; the shape must be designed from scratch and is the spine of the feature. — Resolution: spike a `searchable-categorized` shape + a `getSourceOptions(category, scope, search, cursor)` RPC modeled on the proven `getFacetOptions` path; success = project -> board cascade returns scoped, paginated results with no full-list load.
 - `MultiSelect` cannot do async/search; a new debounced async-search control is needed and React Aria's combobox-with-async patterns are unproven in this codebase. — Resolution: prototype the control against the stubbed-plugin scenarios under `e2e/fixtures/stubbed-plugin/scenarios/`.
 
 ### Integration
+
 - `CATEGORY_TO_KIND` is centrally hardcoded, so every new source category couples the plugin to a host-side edit; out of step with the "plugins advertise their own mapping" direction noted in the file. — Resolution: add the three categories now; optionally file an issue to move mapping into the manifest (per CLAUDE.md, open the ticket and reference its number inline).
 - Picker shape is a shared contract consumed by `github-com`/`ghe` too; a breaking change to `SourceCandidatesResponse` risks those plugins. — Resolution: make the new shape additive (new `shape` literal + optional fields), leaving `multi-list`/`categorized-multi-list` untouched.
 
 ### Non-functional
+
 - "Nothing may load a full list" is a hard constraint, but board-to-filter resolution currently fans out one config call per board; doing this at pick time is fine, doing it at list time is not. — Resolution: resolve a board's filter id only when the user selects it, not while browsing.
 - Double-filtering: if status exclusion moves into JQL but the client `applyFilters` exclusion stays, behavior is still correct but the Status facet UI (`CutListFilterBar.tsx:202`) folds `excludedStatuses` into its options assuming client-side semantics; watermark math in `listIssues` (`plugin.ts:272-280`) also currently counts closed issues that JQL would now remove. — Resolution: decide one source of truth (JQL) and verify the watermark/pagination still advances correctly once closed issues never appear in a page; covered by existing TC-030 watermark test as a guardrail.
 
 ### Data
+
 - Clean break is explicitly approved, so no migration path is required, but old-shape `boards/epics/filters` configs in committed roubo.yaml and per-user overrides will silently produce empty/wrong selections until re-picked. — Resolution: on read, detect old-shape categories and surface a "re-pick your sources" prompt rather than failing silently; product-level decision for PRD.
 - JQL string interpolation of user-typed search and project keys widens the injection surface beyond today's numeric/quoted filter ids. — Resolution: reuse and extend `jqlString` escaping (`jql.ts:49-54`) for every interpolated user value; the `~` (contains) operator on `summary` needs its own escaping review.
 
@@ -63,6 +67,7 @@ build-with-spike — Most pieces have direct prior art (the `getFacetOptions(sea
 - At what page size and concurrency does the real instance stay under a sub-second type-ahead budget? Drives debounce interval and `maxResults`.
 
 Sources:
+
 - [Jira Data Center REST API — filter group](https://developer.atlassian.com/server/jira/platform/rest/v10002/api-group-filter/)
 - [Jira Data Center REST API — projects group](https://developer.atlassian.com/server/jira/platform/rest/v10002/api-group-projects/)
 - [How to filter when using GET /rest/api/2/project/search](https://community.atlassian.com/forums/Jira-questions/How-to-filter-when-using-GET-rest-api-2-project-search/qaq-p/1260429)

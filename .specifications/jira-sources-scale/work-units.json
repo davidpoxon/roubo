@@ -10,19 +10,9 @@
       "schema/roubo-config.schema.json and shared/plugin-manifest-schema.ts are updated to match in the same change",
       "github-com and ghe plugins continue to validate and render unchanged"
     ],
-    "linked_requirement_ids": [
-      "FR-003",
-      "FR-010",
-      "FR-012"
-    ],
-    "linked_user_story_ids": [
-      "US-001",
-      "US-010"
-    ],
-    "linked_test_ids": [
-      "TC-003",
-      "TC-012"
-    ],
+    "linked_requirement_ids": ["FR-003", "FR-010", "FR-012"],
+    "linked_user_story_ids": ["US-001", "US-010"],
+    "linked_test_ids": ["TC-003", "TC-012"],
     "estimate": 3,
     "depends_on": [],
     "issue": {
@@ -45,18 +35,8 @@
       "A new GET .../integration/source-options route proxies to the plugin and a typed client hook consumes it",
       "Every selectable item is reachable by paging the cursor; no page is dropped or duplicated"
     ],
-    "linked_requirement_ids": [
-      "FR-002",
-      "FR-005",
-      "FR-006",
-      "NFR-001",
-      "NFR-004"
-    ],
-    "linked_user_story_ids": [
-      "US-003",
-      "US-004",
-      "US-009"
-    ],
+    "linked_requirement_ids": ["FR-002", "FR-005", "FR-006", "NFR-001", "NFR-004"],
+    "linked_user_story_ids": ["US-003", "US-004", "US-009"],
     "linked_test_ids": [
       "TC-002",
       "TC-005",
@@ -68,18 +48,14 @@
       "TC-042"
     ],
     "estimate": 5,
-    "depends_on": [
-      "WU-001"
-    ],
+    "depends_on": ["WU-001"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/351",
       "id": 351,
       "node_id": "I_kwDOSiX_888AAAABD9fAww",
       "db_id": 4560765123,
-      "blocked_by": [
-        350
-      ],
+      "blocked_by": [350],
       "blocked_by_linked": true
     }
   },
@@ -95,18 +71,8 @@
       "The dropdown is never clipped by the configure modal, regardless of result-list length",
       "The picker is fully keyboard-navigable with visible focus and screen-reader labels (WCAG 2.1 AA)"
     ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-011",
-      "FR-013",
-      "NFR-001",
-      "NFR-002"
-    ],
-    "linked_user_story_ids": [
-      "US-001",
-      "US-004",
-      "US-011"
-    ],
+    "linked_requirement_ids": ["FR-001", "FR-011", "FR-013", "NFR-001", "NFR-002"],
+    "linked_user_story_ids": ["US-001", "US-004", "US-011"],
     "linked_test_ids": [
       "TC-001",
       "TC-011",
@@ -118,20 +84,14 @@
       "TC-043"
     ],
     "estimate": 5,
-    "depends_on": [
-      "WU-001",
-      "WU-002"
-    ],
+    "depends_on": ["WU-001", "WU-002"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/352",
       "id": 352,
       "node_id": "I_kwDOSiX_888AAAABD9fBdg",
       "db_id": 4560765302,
-      "blocked_by": [
-        350,
-        351
-      ],
+      "blocked_by": [350, 351],
       "blocked_by_linked": true
     }
   },
@@ -147,41 +107,18 @@
       "The cut list is the de-duplicated union of all configured sources",
       "The per-source updated>= watermark is preserved and advances only at pagination exhaustion"
     ],
-    "linked_requirement_ids": [
-      "FR-004",
-      "FR-007",
-      "FR-008",
-      "FR-014"
-    ],
-    "linked_user_story_ids": [
-      "US-002",
-      "US-005",
-      "US-008"
-    ],
-    "linked_test_ids": [
-      "TC-004",
-      "TC-007",
-      "TC-008",
-      "TC-014",
-      "TC-031",
-      "TC-032",
-      "TC-041"
-    ],
+    "linked_requirement_ids": ["FR-004", "FR-007", "FR-008", "FR-014"],
+    "linked_user_story_ids": ["US-002", "US-005", "US-008"],
+    "linked_test_ids": ["TC-004", "TC-007", "TC-008", "TC-014", "TC-031", "TC-032", "TC-041"],
     "estimate": 5,
-    "depends_on": [
-      "WU-001",
-      "WU-002"
-    ],
+    "depends_on": ["WU-001", "WU-002"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/353",
       "id": 353,
       "node_id": "I_kwDOSiX_888AAAABD9fCMQ",
       "db_id": 4560765489,
-      "blocked_by": [
-        350,
-        351
-      ],
+      "blocked_by": [350, 351],
       "blocked_by_linked": true
     }
   },
@@ -197,37 +134,18 @@
       "User search terms are escaped/parameterized; a crafted term cannot inject a clause",
       "Logs, metrics, and traces never carry PAT, JQL, search terms, or issue contents"
     ],
-    "linked_requirement_ids": [
-      "FR-009",
-      "FR-010",
-      "NFR-003"
-    ],
-    "linked_user_story_ids": [
-      "US-006",
-      "US-007"
-    ],
-    "linked_test_ids": [
-      "TC-009",
-      "TC-010",
-      "TC-017",
-      "TC-033",
-      "TC-037"
-    ],
+    "linked_requirement_ids": ["FR-009", "FR-010", "NFR-003"],
+    "linked_user_story_ids": ["US-006", "US-007"],
+    "linked_test_ids": ["TC-009", "TC-010", "TC-017", "TC-033", "TC-037"],
     "estimate": 5,
-    "depends_on": [
-      "WU-001",
-      "WU-004"
-    ],
+    "depends_on": ["WU-001", "WU-004"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/354",
       "id": 354,
       "node_id": "I_kwDOSiX_888AAAABD9fC5w",
       "db_id": 4560765671,
-      "blocked_by": [
-        350,
-        353
-      ],
+      "blocked_by": [350, 353],
       "blocked_by_linked": true
     }
   },
@@ -241,31 +159,18 @@
       "A legacy old-shape source config is not silently honored; the user is prompted to re-pick in the new picker",
       "No automatic migration of old-shape configs is performed"
     ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-012"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ],
-    "linked_test_ids": [
-      "TC-036"
-    ],
+    "linked_requirement_ids": ["FR-001", "FR-012"],
+    "linked_user_story_ids": ["US-010"],
+    "linked_test_ids": ["TC-036"],
     "estimate": 3,
-    "depends_on": [
-      "WU-001",
-      "WU-003"
-    ],
+    "depends_on": ["WU-001", "WU-003"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/355",
       "id": 355,
       "node_id": "I_kwDOSiX_888AAAABD9fDkA",
       "db_id": 4560765840,
-      "blocked_by": [
-        350,
-        352
-      ],
+      "blocked_by": [350, 352],
       "blocked_by_linked": true
     }
   },
@@ -295,41 +200,17 @@
       "FR-008",
       "FR-011"
     ],
-    "linked_user_story_ids": [
-      "US-001",
-      "US-002",
-      "US-003",
-      "US-005",
-      "US-008",
-      "US-009",
-      "US-011"
-    ],
-    "linked_test_ids": [
-      "TC-019",
-      "TC-020",
-      "TC-021",
-      "TC-023",
-      "TC-026",
-      "TC-027",
-      "TC-029"
-    ],
+    "linked_user_story_ids": ["US-001", "US-002", "US-003", "US-005", "US-008", "US-009", "US-011"],
+    "linked_test_ids": ["TC-019", "TC-020", "TC-021", "TC-023", "TC-026", "TC-027", "TC-029"],
     "estimate": 8,
-    "depends_on": [
-      "WU-002",
-      "WU-003",
-      "WU-004"
-    ],
+    "depends_on": ["WU-002", "WU-003", "WU-004"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/356",
       "id": 356,
       "node_id": "I_kwDOSiX_888AAAABD9fESg",
       "db_id": 4560766026,
-      "blocked_by": [
-        351,
-        352,
-        353
-      ],
+      "blocked_by": [351, 352, 353],
       "blocked_by_linked": true
     }
   },
@@ -342,32 +223,18 @@
       "Automated test for TC-022 (search instead of scroll) exists, mirrors the steps, and passes in CI.",
       "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
     ],
-    "linked_requirement_ids": [
-      "FR-002",
-      "FR-013",
-      "NFR-001"
-    ],
-    "linked_user_story_ids": [
-      "US-004"
-    ],
-    "linked_test_ids": [
-      "TC-022"
-    ],
+    "linked_requirement_ids": ["FR-002", "FR-013", "NFR-001"],
+    "linked_user_story_ids": ["US-004"],
+    "linked_test_ids": ["TC-022"],
     "estimate": 3,
-    "depends_on": [
-      "WU-002",
-      "WU-003"
-    ],
+    "depends_on": ["WU-002", "WU-003"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/357",
       "id": 357,
       "node_id": "I_kwDOSiX_888AAAABD9fFCA",
       "db_id": 4560766216,
-      "blocked_by": [
-        351,
-        352
-      ],
+      "blocked_by": [351, 352],
       "blocked_by_linked": true
     }
   },
@@ -381,31 +248,18 @@
       "Automated test for TC-025 (edit excluded status categories) exists, mirrors the steps, and passes in CI.",
       "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
     ],
-    "linked_requirement_ids": [
-      "FR-009",
-      "FR-010"
-    ],
-    "linked_user_story_ids": [
-      "US-006",
-      "US-007"
-    ],
-    "linked_test_ids": [
-      "TC-024",
-      "TC-025"
-    ],
+    "linked_requirement_ids": ["FR-009", "FR-010"],
+    "linked_user_story_ids": ["US-006", "US-007"],
+    "linked_test_ids": ["TC-024", "TC-025"],
     "estimate": 5,
-    "depends_on": [
-      "WU-005"
-    ],
+    "depends_on": ["WU-005"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/358",
       "id": 358,
       "node_id": "I_kwDOSiX_888AAAABD9fFpg",
       "db_id": 4560766374,
-      "blocked_by": [
-        354
-      ],
+      "blocked_by": [354],
       "blocked_by_linked": true
     }
   },
@@ -418,30 +272,18 @@
       "Automated test for TC-028 (team default overridden by personal selection) exists, mirrors the steps, and passes in CI.",
       "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
     ],
-    "linked_requirement_ids": [
-      "FR-012"
-    ],
-    "linked_user_story_ids": [
-      "US-010"
-    ],
-    "linked_test_ids": [
-      "TC-028"
-    ],
+    "linked_requirement_ids": ["FR-012"],
+    "linked_user_story_ids": ["US-010"],
+    "linked_test_ids": ["TC-028"],
     "estimate": 3,
-    "depends_on": [
-      "WU-001",
-      "WU-006"
-    ],
+    "depends_on": ["WU-001", "WU-006"],
     "issue": {
       "system": "github",
       "url": "https://github.com/davidpoxon/roubo/issues/359",
       "id": 359,
       "node_id": "I_kwDOSiX_888AAAABD9fGYg",
       "db_id": 4560766562,
-      "blocked_by": [
-        350,
-        355
-      ],
+      "blocked_by": [350, 355],
       "blocked_by_linked": true
     }
   }

@@ -5,6 +5,7 @@
 Clean alignment as of 2026-06-01. No findings.
 
 ## Counts before
+
 - critical: 0
 - high: 0
 - medium: 0
@@ -13,6 +14,7 @@ Clean alignment as of 2026-06-01. No findings.
 - suppressed: 0
 
 ## Checks run (all passed)
+
 - orphan_test: none (all test links resolve to existing FR/NFR/US ids)
 - uncovered_requirement: none (all 14 FRs and 4 NFRs are covered by tests)
 - uncovered_user_story: none (all 11 user stories are covered)
@@ -27,4 +29,5 @@ Clean alignment as of 2026-06-01. No findings.
 - unresolved_refinement_marker: none (no `unknown - flag for refinement` markers remain)
 
 ## Active deferral queue
+
 - (empty)

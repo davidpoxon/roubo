@@ -22,20 +22,20 @@ against a **mock instance of 200 Jira projects with ~700 boards, ~1,200 filters,
 ~4,000 epics**. None of those arrays is ever rendered directly: every picker issues a
 scoped, debounced, paginated search.
 
-| User story | How it shows up |
-|---|---|
-| US-001 Pick a Jira project first | "1 · Jira project scope" gates everything; board/filter/epic pickers are disabled until a project is chosen. |
-| US-002 Add a scrum board | "Board" picker; each board source has an "Active sprint only" toggle (on by default). |
-| US-003 Add a saved filter | "Filter" picker, searched server-side within scope. |
-| US-004 Search instead of scroll | Every picker is a debounced (250ms) type-ahead with "Load more" cursor paging and a per-query latency readout. |
-| US-005 Combine multiple sources | Add several mixed-type sources; the cut list is their union. |
-| US-006 Keep closed issues out | "Done" category excluded by default; the preview shows how many were filtered in-query. |
-| US-007 Tune excluded statuses | Step 3 category checkboxes; the cut list updates live. |
-| US-008 Assigned to me | "Assigned to me" source with In-scoped-projects / Anywhere modes. |
-| US-009 Project-scoped epics | "Epic" picker only searches within the selected project(s); no instance-wide dump or 50-cap. |
-| US-010 Team default + override | Note under the configurator explaining the personal-override model. |
-| US-011 Tell similar sources apart | Every result and source row shows the Jira project key + underlying id in monospace. |
-| FR-013 Dropdown not clipped | The search popover is appended to `<body>` and positioned over the trigger, so it is never clipped by a container. |
+| User story                        | How it shows up                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| US-001 Pick a Jira project first  | "1 · Jira project scope" gates everything; board/filter/epic pickers are disabled until a project is chosen.       |
+| US-002 Add a scrum board          | "Board" picker; each board source has an "Active sprint only" toggle (on by default).                              |
+| US-003 Add a saved filter         | "Filter" picker, searched server-side within scope.                                                                |
+| US-004 Search instead of scroll   | Every picker is a debounced (250ms) type-ahead with "Load more" cursor paging and a per-query latency readout.     |
+| US-005 Combine multiple sources   | Add several mixed-type sources; the cut list is their union.                                                       |
+| US-006 Keep closed issues out     | "Done" category excluded by default; the preview shows how many were filtered in-query.                            |
+| US-007 Tune excluded statuses     | Step 3 category checkboxes; the cut list updates live.                                                             |
+| US-008 Assigned to me             | "Assigned to me" source with In-scoped-projects / Anywhere modes.                                                  |
+| US-009 Project-scoped epics       | "Epic" picker only searches within the selected project(s); no instance-wide dump or 50-cap.                       |
+| US-010 Team default + override    | Note under the configurator explaining the personal-override model.                                                |
+| US-011 Tell similar sources apart | Every result and source row shows the Jira project key + underlying id in monospace.                               |
+| FR-013 Dropdown not clipped       | The search popover is appended to `<body>` and positioned over the trigger, so it is never clipped by a container. |
 
 ## How it is built
 

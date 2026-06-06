@@ -41,13 +41,13 @@ Read-only context the implementer must not re-discover.
   interface GetSourceOptionsParams {
     category: "project" | "board" | "filter" | "epic";
     scope?: { project?: string[] }; // parent selection; project keys
-    search?: string;                // user-typed term, debounced client-side
-    cursor?: string | null;         // opaque; encodes Jira startAt
+    search?: string; // user-typed term, debounced client-side
+    cursor?: string | null; // opaque; encodes Jira startAt
     config?: Record<string, unknown>;
   }
   // result
   interface SourceOptionsResult {
-    items: SourceCandidateItem[];   // reuses shared/integration-types item shape
+    items: SourceCandidateItem[]; // reuses shared/integration-types item shape
     nextCursor: string | null;
   }
   ```
@@ -109,20 +109,28 @@ Read-only context the implementer must not re-discover.
 - **Responsibility**: declare the new searchable/cascading shape and the per-category scope descriptor without touching the existing two shapes.
 - **Reuse vs new**: additive extension. `SourceCandidatesShape` gains `"searchable-categorized"`. `SourceCandidatesResponse` gains an optional `searchableCategories?: SearchableSourceCategory[]`. Plugins still ship no React; this shape only declares which categories are searchable, their icon, and their `scopedBy` parent.
 - **Public interface**:
+
   ```ts
   export type SourceCandidatesShape =
-    | "multi-list" | "categorized-multi-list" | "searchable-categorized";
+    | "multi-list"
+    | "categorized-multi-list"
+    | "searchable-categorized";
 
   export interface SearchableSourceCategory {
     id: "project" | "board" | "filter" | "epic" | "mine";
     label: string;
     icon?: SourceCandidateIcon;
-    scopedBy?: "project";     // gate: disabled until the parent selection exists
+    scopedBy?: "project"; // gate: disabled until the parent selection exists
     options?: SourceCategoryOption[]; // for synthetic categories like "mine" (modes)
   }
-  export interface SourceCategoryOption { id: string; label: string } // e.g. mine: in-project | anywhere
+  export interface SourceCategoryOption {
+    id: string;
+    label: string;
+  } // e.g. mine: in-project | anywhere
   ```
+
   `listSourceCandidates` for jira returns `{ shape: "searchable-categorized", searchableCategories: [project, board(scopedBy project), filter(scopedBy project), epic(scopedBy project), mine(options:[in-project, anywhere])] }`. No items are loaded; items arrive via `getSourceOptions`.
+
 - **Dependencies**: none. The `SourceCandidateIcon` union already includes `project`/`board`/`epic`/`filter` (`:7`).
 
 ### Project-scoped, mixed-type sources schema (shared)
@@ -134,12 +142,12 @@ Read-only context the implementer must not re-discover.
   ```ts
   z.object({
     externalId: z.union([z.string(), z.number()]),
-    project: z.string().optional(),        // NEW: Jira project key the source is scoped to
+    project: z.string().optional(), // NEW: Jira project key the source is scoped to
     boardMode: z.enum(["active-sprint", "whole-board"]).optional(), // NEW: board sources
-    mineScope: z.enum(["in-project", "anywhere"]).optional(),       // NEW: "assigned to me"
-    excludedStatuses: z.array(z.string().min(1)).optional(),        // existing per-source
+    mineScope: z.enum(["in-project", "anywhere"]).optional(), // NEW: "assigned to me"
+    excludedStatuses: z.array(z.string().min(1)).optional(), // existing per-source
     // ...existing GitHub-family booleans unchanged
-  }).strict()
+  }).strict();
   ```
   The "assigned to me" synthetic source serializes under category `mine` as `{ externalId: "mine", mineScope, project? }` (`externalId` is the literal sentinel `"mine"`; `project` present only for `in-project`). Root `IntegrationConfigSchema` additionally gains `excludedStatusCategories?: string[]` (default `["Done"]`) alongside the existing `excludedStatuses`, so exclusion is category-first and user-editable (FR-010).
 - **Dependencies**: zod.
@@ -206,8 +214,8 @@ The roubo.yaml `integration.sources` envelope is unchanged (`Record<category, So
 integration:
   plugin: jira-self-hosted
   instance: https://jira.workday.example
-  excludedStatusCategories: ["Done"]      # NEW: category-first default exclusion (user-editable)
-  excludedStatuses: []                      # existing: optional status-name list, ANDed with category
+  excludedStatusCategories: ["Done"] # NEW: category-first default exclusion (user-editable)
+  excludedStatuses: [] # existing: optional status-name list, ANDed with category
   sources:
     project:
       - { externalId: "PLAT", project: "PLAT" }
@@ -226,7 +234,9 @@ Picker-shape contract types (additive) and the plugin RPC signature:
 ```ts
 // shared/integration-types.ts (additive)
 export type SourceCandidatesShape =
-  | "multi-list" | "categorized-multi-list" | "searchable-categorized";
+  | "multi-list"
+  | "categorized-multi-list"
+  | "searchable-categorized";
 
 export interface SearchableSourceCategory {
   id: "project" | "board" | "filter" | "epic" | "mine";

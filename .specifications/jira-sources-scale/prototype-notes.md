@@ -54,7 +54,7 @@ eyeballed in the browser.
 ## Open questions for the architecture stage
 
 - **Picker-contract shape.** The prototype implies a `getSourceOptions(category, scope,
-  search, cursor)` RPC and a host-rendered "searchable list" picker shape. Architecture
+search, cursor)` RPC and a host-rendered "searchable list" picker shape. Architecture
   should define the exact contract: how scope (parent project selection) is passed, the
   cursor format, and how the existing `categorized-multi-list` shape is deprecated or
   coexists. (Ties to the feasibility spike.)
