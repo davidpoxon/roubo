@@ -11,12 +11,26 @@ import type {
   NormalizedComment,
   NormalizedIssue,
   ProbeAlertCategoriesResult,
+  SourceCandidateItem,
   SourceCandidatesResponse,
 } from "@roubo/plugin-sdk";
 
 export interface ScenarioFacetOptions {
   [facetId: string]: FilterFacetOption[];
 }
+
+// WU-007 (TC-019..TC-029): one selectable option backing the searchable
+// project-first picker. Extends the host-visible `SourceCandidateItem` with an
+// internal `project` key so the stub can honor `scope.project` for the scoped
+// categories (board / filter / epic); `project` is stripped before the item is
+// returned from `getSourceOptions`.
+export interface ScenarioSourceOption extends SourceCandidateItem {
+  project?: string;
+}
+
+export type ScenarioSourceOptions = Partial<
+  Record<"project" | "board" | "filter" | "epic", ScenarioSourceOption[]>
+>;
 
 export interface Scenario {
   pluginId: string;
@@ -62,6 +76,11 @@ export interface Scenario {
   // entry. Drives the "plugin refuses to start" arm of the Enable-prompt
   // failure spec.
   failOnStart?: boolean;
+  // WU-007 (TC-019..TC-029): the result set the stub's `getSourceOptions`
+  // pages through, keyed by searchable category. Present only on scenarios
+  // that declare the `searchable-categorized` shape; the synthetic `mine`
+  // category is inline (no search) so it has no entry here.
+  sourceOptions?: ScenarioSourceOptions;
 }
 
 const SCENARIOS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "scenarios");

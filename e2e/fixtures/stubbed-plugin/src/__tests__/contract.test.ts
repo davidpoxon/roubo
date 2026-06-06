@@ -145,6 +145,53 @@ describe("connectionStatusSequence", () => {
   });
 });
 
+describe("getSourceOptions (WU-007, TC-019..TC-029)", () => {
+  function buildPickerContract() {
+    const scenario = loadScenario("jira-sources-scale-picker");
+    const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario, clock, journal });
+    const getSourceOptions = contract.getSourceOptions;
+    if (typeof getSourceOptions !== "function") {
+      throw new Error("stub did not register getSourceOptions");
+    }
+    return getSourceOptions;
+  }
+
+  it("returns project options whole and strips the internal project marker", () => {
+    const getSourceOptions = buildPickerContract();
+    const page = getSourceOptions({ category: "project" });
+    expect(page.nextCursor).toBeNull();
+    expect(page.items.map((i) => i.externalId)).toEqual(["PLAT", "PAY"]);
+    // The internal `project` key never leaks to the host-facing item.
+    expect(page.items.every((i) => !("project" in i))).toBe(true);
+  });
+
+  it("returns an empty page for a scoped category with no project in scope", () => {
+    const getSourceOptions = buildPickerContract();
+    expect(getSourceOptions({ category: "board" }).items).toEqual([]);
+    expect(getSourceOptions({ category: "board", scope: { project: [] } }).items).toEqual([]);
+  });
+
+  it("confines scoped categories to scope.project and narrows by search", () => {
+    const getSourceOptions = buildPickerContract();
+    const inScope = getSourceOptions({ category: "board", scope: { project: ["PLAT"] } });
+    expect(inScope.items.map((i) => i.externalId)).toEqual(["482"]);
+
+    // A project not present in the scenario yields nothing.
+    const otherScope = getSourceOptions({ category: "board", scope: { project: ["PAY"] } });
+    expect(otherScope.items).toEqual([]);
+
+    // Both near-identical filters match the shared fragment (TC-029).
+    const both = getSourceOptions({
+      category: "filter",
+      scope: { project: ["PLAT"] },
+      search: "team open bugs",
+    });
+    expect(both.items.map((i) => i.externalId)).toEqual(["10231", "10999"]);
+  });
+});
+
 describe("probeAlertCategoriesSequence (TC-167)", () => {
   const PROBE_PARAMS = { sources: [], enabledCategories: ["dependabot"] as const };
 

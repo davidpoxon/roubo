@@ -442,6 +442,54 @@ describe("definePlugin (TC-035)", () => {
     ).rejects.toMatchObject({ code: -32601 });
   });
 
+  // #356: getSourceOptions backs the searchable project-first source picker.
+  // It was added to PluginContract and invoked by the host's source-options
+  // route, but was missing from the dispatch list here, so every plugin's
+  // searchable search failed with "Unhandled method getSourceOptions". This
+  // round-trip guards the registration so the picker search works over RPC.
+  it("registers getSourceOptions so the searchable picker search reaches the plugin", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(
+      definePlugin(
+        {
+          async getSourceOptions({ category, scope, search }) {
+            expect(category).toBe("board");
+            expect(scope).toEqual({ project: ["PLAT"] });
+            const all = [
+              { externalId: "482", label: "PLAT Scrum Board", sublabel: "PLAT · board #482" },
+              { externalId: "9", label: "PLAT Kanban", sublabel: "PLAT · board #9" },
+            ];
+            const items = search
+              ? all.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+              : all;
+            return { items, nextCursor: null };
+          },
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const page = await hostConnection.sendRequest<{
+      items: Array<{ externalId: string }>;
+      nextCursor: string | null;
+    }>("getSourceOptions", { category: "board", scope: { project: ["PLAT"] }, search: "scrum" });
+    expect(page.items.map((i) => i.externalId)).toEqual(["482"]);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("returns MethodNotFound when getSourceOptions is omitted", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    handles.push(definePlugin({}, { streams: pluginStreams }));
+
+    await expect(
+      hostConnection.sendRequest("getSourceOptions", { category: "project" }),
+    ).rejects.toMatchObject({ code: -32601 });
+  });
+
   it("preserves NormalizedIssue.facetValues across the RPC boundary (TC-127)", async () => {
     const { pluginStreams, hostConnection, dispose } = pairedConnection();
     disposes.push(dispose);
