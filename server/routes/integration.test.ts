@@ -1139,6 +1139,36 @@ describe("PUT /:projectId/integration/sources", () => {
     });
   });
 
+  it("preserves Jira project scope and per-kind modifiers on object entries (WU-003)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("jira-self-hosted", "Jira"),
+    ]);
+    vi.mocked(integrationOverrides.saveOverride).mockImplementation((_id, next) => {
+      vi.mocked(integrationOverrides.loadOverride).mockReturnValue(next);
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/sources")
+      .send({
+        sources: {
+          project: ["PLAT"],
+          board: [{ externalId: "board:482", project: "PLAT", boardMode: "active-sprint" }],
+          mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+        },
+      });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.sources).toEqual({
+      project: ["PLAT"],
+      board: [{ externalId: "board:482", project: "PLAT", boardMode: "active-sprint" }],
+      mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+    });
+  });
+
   it("writes the sources block into the override and returns the new state", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
     vi.mocked(pluginManager.listInstalled).mockReturnValue([

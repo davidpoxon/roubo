@@ -235,6 +235,18 @@ function validateSourceSelectionBody(body: unknown): SourceSelection {
         const normalized: Exclude<SourceSelection[string][number], string> = {
           externalId: String(data.externalId),
         };
+        // Jira project-first scope and per-kind modifiers (jira-self-hosted
+        // searchable picker). Preserved verbatim so scoped board / filter /
+        // epic / mine sources round-trip through save.
+        if (data.project !== undefined) {
+          normalized.project = data.project;
+        }
+        if (data.boardMode !== undefined) {
+          normalized.boardMode = data.boardMode;
+        }
+        if (data.mineScope !== undefined) {
+          normalized.mineScope = data.mineScope;
+        }
         if (data.includeCodeQLAlerts !== undefined) {
           normalized.includeCodeQLAlerts = data.includeCodeQLAlerts;
         }

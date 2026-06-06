@@ -94,6 +94,15 @@ export type SourceSelectionEntry =
   | string
   | {
       externalId: string;
+      // Jira project key the source is scoped to (project-first model). Set on
+      // board / filter / epic entries and on the synthetic `mine` source when
+      // scoped in-project, so removing a project can prune its scoped sources.
+      project?: string;
+      // Board sources: active sprint only vs the whole board's backing filter.
+      boardMode?: "active-sprint" | "whole-board";
+      // "Assigned to me" synthetic source: scoped to a project or instance-wide.
+      mineScope?: "in-project" | "anywhere";
+      // GitHub-family toggles (ignored by other plugins).
       includeCodeQLAlerts?: boolean;
       includeSecretScanningAlerts?: boolean;
       includeDependabotAlerts?: boolean;
