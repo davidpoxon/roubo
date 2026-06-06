@@ -49,6 +49,96 @@ describe("buildIssueListJql (TC-030)", () => {
     expect(buildIssueListJql({ sources: [], lastPollIso: null })).toBe("ORDER BY updated ASC");
   });
 
+  it("builds a project clause (TC-008)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+    });
+    expect(jql).toContain('(project = "PLAT")');
+  });
+
+  it("emits a board source's pre-resolved clause verbatim (TC-004)", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        {
+          kind: "board",
+          externalId: "board:482",
+          boardMode: "active-sprint",
+          resolvedClause: "(sprint in openSprints() AND filter = 10231)",
+        },
+      ],
+      lastPollIso: null,
+    });
+    expect(jql).toContain("(sprint in openSprints() AND filter = 10231)");
+  });
+
+  it("drops an unresolved board clause from the union", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        { kind: "board", externalId: "board:482", boardMode: "active-sprint", resolvedClause: "" },
+      ],
+      lastPollIso: null,
+    });
+    // No dangling `( OR ...)`; only the project clause survives.
+    expect(jql).toBe('(project = "PLAT") ORDER BY updated ASC');
+  });
+
+  it("scopes 'assigned to me' to the in-scope projects in in-project mode (TC-007)", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        {
+          kind: "mine",
+          externalId: "mine",
+          mineScope: "in-project",
+          scopeProjectKeys: ["PLAT", "PAY"],
+        },
+      ],
+      lastPollIso: null,
+    });
+    expect(jql).toContain('(assignee = currentUser() AND project in ("PLAT", "PAY"))');
+  });
+
+  it("matches 'assigned to me' anywhere when mineScope is anywhere (TC-007)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "mine", externalId: "mine", mineScope: "anywhere" }],
+      lastPollIso: null,
+    });
+    expect(jql).toContain("(assignee = currentUser())");
+    expect(jql).not.toContain("project in");
+  });
+
+  it("falls back to currentUser() when in-project mode has no scoped projects", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        { kind: "mine", externalId: "mine", mineScope: "in-project", scopeProjectKeys: [] },
+      ],
+      lastPollIso: null,
+    });
+    expect(jql).toContain("(assignee = currentUser())");
+    expect(jql).not.toContain("project in");
+  });
+
+  it("joins mixed-kind sources into a single de-duplicated OR union (TC-008)", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        {
+          kind: "board",
+          externalId: "board:482",
+          boardMode: "active-sprint",
+          resolvedClause: "(sprint in openSprints() AND filter = 10231)",
+        },
+        { kind: "filter", externalId: "555" },
+      ],
+      lastPollIso: "2026-04-01T00:00:00Z",
+    });
+    expect(jql).toBe(
+      '(project = "PLAT" OR (sprint in openSprints() AND filter = 10231) OR filter = 555) ' +
+        'AND updated >= "2026-04-01T00:00:00Z" ORDER BY updated ASC',
+    );
+  });
+
   it("escapes both backslashes and double quotes in quoted identifiers", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "epic", externalId: 'PROJ\\"99' }],

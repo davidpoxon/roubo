@@ -263,4 +263,203 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     // Watermark advances to the highest seen across both pages.
     expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
   });
+
+  /** Prime the in-process config cache so source-bound calls have a context. */
+  async function primeConfig(): Promise<void> {
+    harness.fetchStub.on("/rest/api/2/myself", () => ({ displayName: "Anna" }));
+    await harness.hostConnection.sendRequest("validateConfig", {
+      config: { instance: "https://jira.acme.example", pat: "test-token" },
+    });
+  }
+
+  function captureSearchJql(box: { jql: string }): void {
+    harness.fetchStub.on("/rest/api/2/search", (init) => {
+      box.jql = JSON.parse(init.body ?? "{}").jql ?? "";
+      return { issues: [], total: 0 };
+    });
+  }
+
+  it("listIssues resolves a board source to its active sprint by default (TC-004)", async () => {
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [{ kind: "board", externalId: "board:482", boardMode: "active-sprint" }],
+    });
+
+    expect(box.jql).toContain("(sprint in openSprints() AND filter = 10231)");
+  });
+
+  it("listIssues widens a board source to the whole board (TC-031)", async () => {
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [{ kind: "board", externalId: "board:482", boardMode: "whole-board" }],
+    });
+
+    expect(box.jql).toContain("(filter = 10231)");
+    expect(box.jql).not.toContain("openSprints");
+  });
+
+  it("listIssues scopes 'assigned to me' in-project to the configured projects (TC-007)", async () => {
+    await primeConfig();
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        { kind: "project", externalId: "PAY" },
+        { kind: "mine", externalId: "mine", mineScope: "in-project" },
+      ],
+    });
+
+    expect(box.jql).toContain('(assignee = currentUser() AND project in ("PLAT", "PAY"))');
+  });
+
+  it("listIssues matches 'assigned to me' anywhere when mineScope is anywhere (TC-007)", async () => {
+    await primeConfig();
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [{ kind: "mine", externalId: "mine", mineScope: "anywhere" }],
+    });
+
+    expect(box.jql).toContain("(assignee = currentUser())");
+    expect(box.jql).not.toContain("project in");
+  });
+
+  it("listIssues builds a de-duplicated OR union across mixed source kinds (TC-008)", async () => {
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "board", externalId: "board:482", boardMode: "active-sprint" },
+        { kind: "filter", externalId: "555" },
+      ],
+    });
+
+    // A single OR group (Jira de-duplicates the union), and exactly one each.
+    expect(box.jql).toContain("((sprint in openSprints() AND filter = 10231) OR filter = 555)");
+  });
+
+  it("listIssues preserves the watermark across paged board polls and advances only on the last page (TC-014)", async () => {
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+
+    const originalWatermark = "2026-04-01T00:00:00Z";
+    // The watermark is keyed on board identity + mode, not the resolved sprint.
+    harness.credentials.set(
+      "state",
+      JSON.stringify({ "board:board:482:active-sprint": originalWatermark }),
+    );
+
+    const capturedJql: string[] = [];
+    let call = 0;
+    harness.fetchStub.on("/rest/api/2/search", (init) => {
+      capturedJql.push(JSON.parse(init.body ?? "{}").jql ?? "");
+      call += 1;
+      return {
+        issues: [
+          {
+            key: `PROJ-${call}`,
+            fields: {
+              summary: `p${call}`,
+              status: { name: "Open" },
+              updated: `2026-04-0${call + 4}T00:00:00Z`,
+            },
+          },
+        ],
+        total: 2,
+      };
+    });
+
+    const board = { kind: "board", externalId: "board:482", boardMode: "active-sprint" };
+    const r1 = await harness.hostConnection.sendRequest<{ nextCursor: string | null }>(
+      "listIssues",
+      { cursor: null, pageSize: 1, sources: [board] },
+    );
+    expect(r1.nextCursor).toBe("1");
+    expect(capturedJql[0]).toContain(`updated >= "${originalWatermark}"`);
+    // Watermark must not advance until pagination is exhausted.
+    expect(harness.credentials.get("state")).toContain(originalWatermark);
+
+    const r2 = await harness.hostConnection.sendRequest<{ nextCursor: string | null }>(
+      "listIssues",
+      { cursor: r1.nextCursor, pageSize: 1, sources: [board] },
+    );
+    expect(r2.nextCursor).toBeNull();
+    expect(capturedJql[0]).toBe(capturedJql[1]);
+    expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
+  });
+
+  it("listIssues resets the watermark once when the configured source set changes (TC-041)", async () => {
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+
+    // A watermark exists for a board-only set.
+    harness.credentials.set(
+      "state",
+      JSON.stringify({ "board:board:482:active-sprint": "2026-04-01T00:00:00Z" }),
+    );
+
+    const capturedJql: string[] = [];
+    harness.fetchStub.on("/rest/api/2/search", (init) => {
+      capturedJql.push(JSON.parse(init.body ?? "{}").jql ?? "");
+      return { issues: [], total: 0 };
+    });
+
+    // Adding a filter source changes the union's cache key, so this poll has no
+    // stored watermark and re-fetches in full (no `updated >=`).
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "board", externalId: "board:482", boardMode: "active-sprint" },
+        { kind: "filter", externalId: "555" },
+      ],
+    });
+    expect(capturedJql[0]).not.toContain("updated >=");
+  });
 });

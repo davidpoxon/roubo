@@ -6,16 +6,31 @@
  * highest-`updated` seen on a page is also the last item. That's what
  * `state-store.setLastPoll` writes back after a successful page.
  *
- * Boards are resolved to their backing filter id by the source picker
- * (boards are filters in Jira's data model), so the builder only needs
- * `filter` and `epic` source kinds at this layer.
+ * Source kinds (FR-004/FR-007/FR-008): `filter` and `epic` map straight to a
+ * JQL clause; `project` scopes to a single project key; `board` is resolved to
+ * its active-sprint / whole-board clause at list time (`board-resolve.ts`) and
+ * arrives here pre-resolved on `SourceClause.resolvedClause`; `mine` ("assigned
+ * to me") uses the native `currentUser()` function, optionally narrowed to the
+ * in-scope project keys.
  */
 
-export type SourceKind = "filter" | "epic";
+export type SourceKind = "filter" | "epic" | "project" | "board" | "mine";
 
 export interface SourceClause {
   kind: SourceKind;
   externalId: string;
+  /**
+   * `board` only: the JQL clause produced by `board-resolve.ts` at list time
+   * (active sprint or whole-board backing filter). An empty/absent value means
+   * the board could not be resolved and the clause is dropped from the union.
+   */
+  resolvedClause?: string;
+  /** `board` only: which mode produced `resolvedClause` (for the watermark key). */
+  boardMode?: "active-sprint" | "whole-board";
+  /** `mine` only: in-scoped-projects vs anywhere. */
+  mineScope?: "in-project" | "anywhere";
+  /** `mine` only: the in-scope project keys to narrow `in-project` mode by. */
+  scopeProjectKeys?: string[];
 }
 
 export interface BuildJqlInput {
@@ -24,7 +39,10 @@ export interface BuildJqlInput {
 }
 
 export function buildIssueListJql({ sources, lastPollIso }: BuildJqlInput): string {
-  const sourceClause = sources.length === 0 ? "" : `(${sources.map(toClause).join(" OR ")})`;
+  // Drop empty clauses (e.g. an unresolvable board) before the OR join so the
+  // union never degenerates into `( OR ...)`.
+  const parts = sources.map(toClause).filter((part) => part.length > 0);
+  const sourceClause = parts.length === 0 ? "" : `(${parts.join(" OR ")})`;
   const updatedClause = lastPollIso === null ? "" : `updated >= "${lastPollIso}"`;
 
   const where = [sourceClause, updatedClause].filter((part) => part.length > 0).join(" AND ");
@@ -38,10 +56,23 @@ function toClause(source: SourceClause): string {
       return `filter = ${jqlNumericOrQuoted(source.externalId)}`;
     case "epic":
       return `"Epic Link" = ${jqlString(source.externalId)}`;
+    case "project":
+      return `project = ${jqlString(source.externalId)}`;
+    case "board":
+      // Resolved upstream at list time; an unresolved board contributes nothing.
+      return source.resolvedClause ?? "";
+    case "mine": {
+      const keys = source.scopeProjectKeys ?? [];
+      if (source.mineScope === "in-project" && keys.length > 0) {
+        const list = keys.map(jqlString).join(", ");
+        return `(assignee = currentUser() AND project in (${list}))`;
+      }
+      return "assignee = currentUser()";
+    }
   }
 }
 
-function jqlNumericOrQuoted(value: string): string {
+export function jqlNumericOrQuoted(value: string): string {
   if (/^[0-9]+$/.test(value)) return value;
   return jqlString(value);
 }
