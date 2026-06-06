@@ -4,6 +4,7 @@ import type {
   FilterFacet,
   FilterFacetOption,
   GetFacetOptionsParams,
+  GetSourceOptionsParams,
   IssueTypeOption,
   ListIssueTypesParams,
   ListIssuesParams,
@@ -14,7 +15,9 @@ import type {
   PluginContract,
   ProbeAlertCategoriesResult,
   SetActiveConfigResult,
+  SourceCandidateItem,
   SourceCandidatesResponse,
+  SourceOptionsResult,
   ValidateConfigResult,
 } from "@roubo/plugin-sdk";
 import type { Clock } from "./clock.js";
@@ -176,6 +179,36 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     return { reports: [] };
   };
 
+  // WU-007 (TC-019..TC-029): the scoped, paginated source-option search behind
+  // the searchable project-first picker. Project options are returned whole;
+  // board / filter / epic options are confined to `scope.project` (an empty
+  // page when no project is in scope, matching the host's project-first gate
+  // and the real jira-self-hosted plugin). `search` narrows by label substring.
+  // The internal `project` marker is stripped so the host sees only a
+  // SourceCandidateItem. A single page is enough for these scenarios, so
+  // `nextCursor` is always null (pagination is exercised by TC-022/TC-034).
+  const SCOPED_CATEGORIES = new Set(["board", "filter", "epic"]);
+  const getSourceOptions = (params: GetSourceOptionsParams): SourceOptionsResult => {
+    const all = scenario.sourceOptions?.[params.category] ?? [];
+    const scopeProjects = params.scope?.project ?? [];
+    const scoped = !SCOPED_CATEGORIES.has(params.category)
+      ? all
+      : scopeProjects.length === 0
+        ? []
+        : all.filter((opt) => opt.project !== undefined && scopeProjects.includes(opt.project));
+    const needle = params.search?.toLowerCase();
+    const matched = needle
+      ? scoped.filter((opt) => opt.label.toLowerCase().includes(needle))
+      : scoped;
+    const items: SourceCandidateItem[] = matched.map((opt) => ({
+      externalId: opt.externalId,
+      label: opt.label,
+      ...(opt.sublabel !== undefined ? { sublabel: opt.sublabel } : {}),
+      ...(opt.icon !== undefined ? { icon: opt.icon } : {}),
+    }));
+    return { items, nextCursor: null };
+  };
+
   const filterFacets = (): FilterFacet[] => scenario.facets;
 
   const getFacetOptions = (params: GetFacetOptionsParams): FilterFacetOption[] => {
@@ -189,6 +222,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
 
   const contract: PluginContract = {
     listSourceCandidates,
+    getSourceOptions,
     listIssues,
     getIssue,
     getComments,

@@ -126,3 +126,23 @@ describe("WU-068 scenario packs", () => {
     expect(scenario.connectionStatus.state).toBe("connected");
   });
 });
+
+// WU-007 (TC-019..TC-029): the searchable project-first picker scenario backs
+// the e2e-flow picker specs. It is the only pack on the `searchable-categorized`
+// shape, and the only one that carries `sourceOptions` for the stub's
+// `getSourceOptions` search. The two near-identical filters back TC-029
+// (disambiguating by id), so assert their presence here too.
+describe("WU-007 scenario pack", () => {
+  it("jira-sources-scale-picker exposes the searchable-categorized shape and source options", () => {
+    const scenario = loadScenario("jira-sources-scale-picker");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.sourceCandidates.shape).toBe("searchable-categorized");
+    const categoryIds = (scenario.sourceCandidates.searchableCategories ?? []).map((c) => c.id);
+    expect(categoryIds).toEqual(["project", "board", "filter", "epic", "mine"]);
+    expect(scenario.sourceOptions?.project?.length ?? 0).toBeGreaterThan(0);
+    expect(scenario.sourceOptions?.board?.length ?? 0).toBeGreaterThan(0);
+    expect(scenario.sourceOptions?.epic?.length ?? 0).toBeGreaterThan(0);
+    // TC-029 needs two filters whose names share a fragment and differ only by id.
+    expect(scenario.sourceOptions?.filter?.map((f) => f.externalId)).toEqual(["10231", "10999"]);
+  });
+});

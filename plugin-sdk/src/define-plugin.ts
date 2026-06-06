@@ -15,6 +15,7 @@ import type {
 
 const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "listSourceCandidates",
+  "getSourceOptions",
   "listIssues",
   "getIssue",
   "getComments",

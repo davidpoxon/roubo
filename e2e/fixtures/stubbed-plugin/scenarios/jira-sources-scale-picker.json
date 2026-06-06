@@ -1,0 +1,114 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "jira self-hosted stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "searchable-categorized",
+    "searchableCategories": [
+      { "id": "project", "label": "Projects", "icon": "project" },
+      { "id": "board", "label": "Boards", "icon": "board", "scopedBy": "project" },
+      { "id": "filter", "label": "Filters", "icon": "filter", "scopedBy": "project" },
+      { "id": "epic", "label": "Epics", "icon": "epic", "scopedBy": "project" },
+      {
+        "id": "mine",
+        "label": "Assigned to me",
+        "options": [
+          { "id": "in-project", "label": "In scoped projects" },
+          { "id": "anywhere", "label": "Anywhere" }
+        ]
+      }
+    ]
+  },
+  "sourceOptions": {
+    "project": [
+      { "externalId": "PLAT", "label": "Platform", "sublabel": "PLAT", "icon": "project" },
+      { "externalId": "PAY", "label": "Payments", "sublabel": "PAY", "icon": "project" }
+    ],
+    "board": [
+      {
+        "externalId": "482",
+        "label": "PLAT Scrum Board",
+        "sublabel": "PLAT · board #482",
+        "icon": "board",
+        "project": "PLAT"
+      }
+    ],
+    "filter": [
+      {
+        "externalId": "10231",
+        "label": "Team open bugs",
+        "sublabel": "PLAT · filter #10231",
+        "icon": "filter",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "10999",
+        "label": "Team open bugs (legacy)",
+        "sublabel": "PLAT · filter #10999",
+        "icon": "filter",
+        "project": "PLAT"
+      }
+    ],
+    "epic": [
+      {
+        "externalId": "PLAT-100",
+        "label": "Platform Q2 roadmap",
+        "sublabel": "PLAT-100",
+        "icon": "epic",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "PLAT-220",
+        "label": "Billing migration",
+        "sublabel": "PLAT-220",
+        "icon": "epic",
+        "project": "PLAT"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "PLAT-101",
+      "externalUrl": "https://jira.stub.example/browse/PLAT-101",
+      "title": "Platform onboarding flow regression",
+      "body": "Repro: drop the onboarding cookie.",
+      "currentState": "To Do",
+      "allowedTransitions": ["In Progress", "Done"],
+      "assignees": [{ "externalId": "alice", "displayName": "Alice Stub" }],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-21T10:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "To Do" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Bug", "name": "Bug" },
+    { "id": "Task", "name": "Task" }
+  ],
+  "labels": ["bug", "task"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "To Do", "label": "To Do" },
+        { "value": "In Progress", "label": "In Progress" },
+        { "value": "Done", "label": "Done" }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}
