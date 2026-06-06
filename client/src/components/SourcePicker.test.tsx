@@ -85,4 +85,20 @@ describe("SourcePicker", () => {
 
     expect(onChange).toHaveBeenCalledWith({ epics: ["PROJ-100"] });
   });
+
+  it("renders a neutral notice for the searchable-categorized shape (interim, WU-003 pending)", () => {
+    const candidates: SourceCandidatesResponse = {
+      shape: "searchable-categorized",
+      searchableCategories: [
+        { id: "project", label: "Projects" },
+        { id: "board", label: "Boards", scopedBy: "project" },
+      ],
+    };
+    render(<SourcePicker candidates={candidates} value={{}} onChange={vi.fn()} />);
+
+    expect(screen.getByTestId("source-picker")).toBeInTheDocument();
+    expect(screen.getByText(/not available in this view yet/i)).toBeInTheDocument();
+    // No tab strip is rendered for this shape.
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
 });

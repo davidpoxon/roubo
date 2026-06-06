@@ -104,6 +104,10 @@ export type {
   SourceCandidateCategory,
   SourceCandidatesShape,
   SourceCandidatesResponse,
+  SearchableSourceCategory,
+  SourceCategoryOption,
+  GetSourceOptionsParams,
+  SourceOptionsResult,
   SourceSelection,
   SourceSelectionEntry,
 } from "./integration-types.js";

@@ -54,6 +54,7 @@ import {
   updateSettings,
   fetchEnvKeys,
   startGithubPluginOauth,
+  fetchSourceOptions,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -872,5 +873,35 @@ describe("fetchEnvKeys", () => {
     mockFetch.mockResolvedValue(jsonResponse({ keys: [] }));
     await fetchEnvKeys();
     expect(mockFetch).toHaveBeenCalledWith("/api/settings/env-keys", expect.objectContaining({}));
+  });
+});
+
+describe("fetchSourceOptions", () => {
+  it("encodes category, scope (JSON), search, and cursor into the query string", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    await fetchSourceOptions("p1", {
+      category: "board",
+      scope: { project: ["PLAT"] },
+      search: "back",
+      cursor: "c1",
+    });
+    const url = mockFetch.mock.calls[0][0] as string;
+    const parsed = new URL(url, "http://localhost");
+    expect(parsed.pathname).toBe("/api/projects/p1/integration/source-options");
+    expect(parsed.searchParams.get("category")).toBe("board");
+    expect(parsed.searchParams.get("scope")).toBe(JSON.stringify({ project: ["PLAT"] }));
+    expect(parsed.searchParams.get("search")).toBe("back");
+    expect(parsed.searchParams.get("cursor")).toBe("c1");
+  });
+
+  it("omits scope, search, and cursor when not provided", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    await fetchSourceOptions("p1", { category: "project" });
+    const url = mockFetch.mock.calls[0][0] as string;
+    const parsed = new URL(url, "http://localhost");
+    expect(parsed.searchParams.get("category")).toBe("project");
+    expect(parsed.searchParams.has("scope")).toBe(false);
+    expect(parsed.searchParams.has("search")).toBe(false);
+    expect(parsed.searchParams.has("cursor")).toBe(false);
   });
 });

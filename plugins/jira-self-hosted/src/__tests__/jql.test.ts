@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildIssueListJql } from "../jql.js";
+import { assertProjectKey, buildIssueListJql, jqlSearchTerm } from "../jql.js";
 
 describe("buildIssueListJql (TC-030)", () => {
   it("includes 'updated >= <iso>' when a watermark is provided", () => {
@@ -56,5 +56,42 @@ describe("buildIssueListJql (TC-030)", () => {
     });
     // The backslash and the quote must both be escaped so the literal stays closed.
     expect(jql).toContain('"Epic Link" = "PROJ\\\\\\"99"');
+  });
+});
+
+describe("jqlSearchTerm (NFR-003 injection hardening)", () => {
+  it("returns a quoted literal for a plain term", () => {
+    expect(jqlSearchTerm("platform")).toBe('"platform"');
+  });
+
+  it("escapes embedded quotes so a crafted term cannot break out of the literal", () => {
+    expect(jqlSearchTerm('a" OR x')).toBe('"a\\" OR x"');
+  });
+
+  it("neutralizes JQL wildcard / operator hazards to spaces", () => {
+    expect(jqlSearchTerm("a~*?b")).toBe('"a b"');
+  });
+
+  it("collapses to an empty quoted literal when only hazards are supplied", () => {
+    expect(jqlSearchTerm("~*?")).toBe('""');
+  });
+
+  it("bounds the term length", () => {
+    const inner = jqlSearchTerm("a".repeat(500)).slice(1, -1);
+    expect(inner.length).toBe(100);
+  });
+});
+
+describe("assertProjectKey", () => {
+  it("returns a valid project key unchanged", () => {
+    expect(assertProjectKey("PLAT")).toBe("PLAT");
+    expect(assertProjectKey("PAY_2")).toBe("PAY_2");
+  });
+
+  it("rejects lowercase, hyphenated, single-char, or empty keys", () => {
+    expect(() => assertProjectKey("plat")).toThrow(/Invalid Jira project key/);
+    expect(() => assertProjectKey("bad-key")).toThrow(/Invalid Jira project key/);
+    expect(() => assertProjectKey("X")).toThrow(/Invalid Jira project key/);
+    expect(() => assertProjectKey("")).toThrow(/Invalid Jira project key/);
   });
 });

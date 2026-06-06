@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { listSourceCandidates } from "../source-picker.js";
+import type { SourceCandidatesResponse } from "@roubo/plugin-sdk";
+import type { JiraRequestContext } from "../jira-client.js";
+import { fetchEpicIssues } from "../source-picker.js";
+import { createPluginContract } from "../plugin.js";
 import { installHostHarness, type HostHarness } from "./helpers/host-stub.js";
+import { _resetCacheForTests } from "../state-store.js";
 
-describe("listSourceCandidates", () => {
+const ctx: JiraRequestContext = { instance: "https://jira.acme.example", pat: "tok" };
+
+describe("fetchEpicIssues (cut-list Epic facet loader)", () => {
   let harness: HostHarness;
 
   beforeEach(() => {
@@ -10,54 +16,59 @@ describe("listSourceCandidates", () => {
   });
   afterEach(() => harness.dispose());
 
-  it("returns the categorized-multi-list shape with Boards, Epics, Filters", async () => {
-    harness.fetchStub.on("/rest/agile/1.0/board/1/configuration", () => ({
-      filter: { id: 999 },
-    }));
-    harness.fetchStub.on("/rest/agile/1.0/board", () => ({
-      values: [{ id: 1, name: "PROJ Board" }],
-    }));
+  it("returns unresolved epics that carry a string key", async () => {
     harness.fetchStub.on("/rest/api/2/search", () => ({
-      issues: [{ key: "PROJ-100", fields: { summary: "Platform Q2" } }],
+      issues: [
+        { key: "PROJ-100", fields: { summary: "Platform Q2" } },
+        { fields: { summary: "missing key" } },
+      ],
     }));
-    harness.fetchStub.on("/rest/api/2/filter/favourite", () => ({
-      values: [{ id: 456, name: "My open issues" }],
-    }));
-
-    const response = await listSourceCandidates({
-      instance: "https://jira.acme.example",
-      pat: "tok",
-    });
-
-    expect(response.shape).toBe("categorized-multi-list");
-    expect(response.categories.map((c) => c.id)).toEqual(["boards", "epics", "filters"]);
-    expect(response.categories[0].items).toEqual([
-      { externalId: "999", label: "PROJ Board", icon: "board" },
-    ]);
-    expect(response.categories[1].items[0]).toMatchObject({
-      externalId: "PROJ-100",
-      label: "Platform Q2",
-      icon: "epic",
-    });
-    expect(response.categories[2].items).toEqual([
-      { externalId: "456", label: "My open issues", sublabel: undefined, icon: "filter" },
-    ]);
+    const issues = await fetchEpicIssues(ctx);
+    expect(issues).toEqual([{ key: "PROJ-100", fields: { summary: "Platform Q2" } }]);
   });
 
-  it("surfaces partial results when one endpoint fails", async () => {
-    harness.fetchStub.on("/rest/agile/1.0/board", () => ({ values: [] }));
+  it("returns [] on transport / auth failure", async () => {
     harness.fetchStub.on("/rest/api/2/search", () => {
       throw new Error("forbidden");
     });
-    harness.fetchStub.on("/rest/api/2/filter/favourite", () => ({
-      values: [{ id: 1, name: "Saved" }],
-    }));
+    expect(await fetchEpicIssues(ctx)).toEqual([]);
+  });
+});
 
-    const response = await listSourceCandidates({
-      instance: "https://jira.acme.example",
-      pat: "tok",
-    });
-    expect(response.categories[1].items).toEqual([]);
-    expect(response.categories[2].items).toHaveLength(1);
+describe("listSourceCandidates (searchable-categorized shape, WU-002)", () => {
+  let harness: HostHarness;
+
+  beforeEach(() => {
+    _resetCacheForTests();
+    harness = installHostHarness(createPluginContract());
+  });
+  afterEach(() => {
+    harness.dispose();
+    _resetCacheForTests();
+  });
+
+  it("declares the searchable categories and loads no items inline", async () => {
+    const res = await harness.hostConnection.sendRequest<SourceCandidatesResponse>(
+      "listSourceCandidates",
+      { config: { instance: "https://jira.acme.example" } },
+    );
+
+    expect(res.shape).toBe("searchable-categorized");
+    expect(res.items).toBeUndefined();
+    expect(res.categories).toBeUndefined();
+    expect(res.searchableCategories?.map((c) => c.id)).toEqual([
+      "project",
+      "board",
+      "filter",
+      "epic",
+      "mine",
+    ]);
+
+    const board = res.searchableCategories?.find((c) => c.id === "board");
+    expect(board?.scopedBy).toBe("project");
+
+    const mine = res.searchableCategories?.find((c) => c.id === "mine");
+    expect(mine?.scopedBy).toBeUndefined();
+    expect(mine?.options?.map((o) => o.id)).toEqual(["in-project", "anywhere"]);
   });
 });

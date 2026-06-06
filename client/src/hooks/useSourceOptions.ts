@@ -1,0 +1,85 @@
+import { useEffect, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import type { SourceCandidateItem, SourceOptionsResult } from "@roubo/shared";
+import * as api from "../lib/api";
+
+export type SourceOptionCategory = "project" | "board" | "filter" | "epic";
+
+export interface UseSourceOptionsArgs {
+  projectId: string | undefined;
+  category: SourceOptionCategory;
+  // Parent selection. Board / filter / epic searches are confined to these
+  // Jira project keys; project search ignores it.
+  scope?: { project?: string[] };
+  // User-typed term; debounced internally before it reaches the network.
+  search?: string;
+  // The picker gates scoped categories until a project is selected; pass
+  // `enabled: false` to hold the query until then.
+  enabled?: boolean;
+}
+
+export interface UseSourceOptionsResult {
+  items: SourceCandidateItem[];
+  isLoading: boolean;
+  isFetchingNextPage: boolean;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+  error: Error | null;
+}
+
+const SEARCH_DEBOUNCE_MS = 250;
+
+/**
+ * Paginated, debounced type-ahead source search (WU-002). Wraps
+ * `fetchSourceOptions` in an infinite query keyed by the debounced search term
+ * and scope, so a superseded slow response resolves into an inactive cache
+ * entry and never flickers over the latest results (NFR-001 / NFR-004).
+ */
+export function useSourceOptions({
+  projectId,
+  category,
+  scope,
+  search,
+  enabled = true,
+}: UseSourceOptionsArgs): UseSourceOptionsResult {
+  // Initialise from `search` so an existing term queries immediately on mount;
+  // later keystrokes are debounced via the effect below.
+  const [debouncedSearch, setDebouncedSearch] = useState(search ?? "");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search ?? ""), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Stable, order-independent scope key so reordering selected projects does
+  // not thrash the cache.
+  const scopeKey = scope?.project ? [...scope.project].sort() : [];
+
+  const query = useInfiniteQuery<SourceOptionsResult, Error>({
+    queryKey: ["source-options", projectId ?? null, category, scopeKey, debouncedSearch],
+    enabled: enabled && !!projectId,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.fetchSourceOptions(projectId as string, {
+        category,
+        scope,
+        search: debouncedSearch,
+        cursor: pageParam as string | null,
+      }),
+    getNextPageParam: (last) => last.nextCursor,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const items = (query.data?.pages ?? []).flatMap((p) => p.items);
+
+  return {
+    items,
+    isLoading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: () => {
+      void query.fetchNextPage();
+    },
+    error: query.error,
+  };
+}
