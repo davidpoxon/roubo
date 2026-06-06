@@ -7,8 +7,17 @@
     "type": "functional",
     "preconditions": ["The Jira plugin is connected", "No Jira project is selected yet"],
     "steps": [
-      { "action": "Open the source configurator", "expected": ["The Board, Filter, and Epic add buttons are disabled", "A hint indicates a project must be picked first"] },
-      { "action": "Select one Jira project in the project scope picker", "expected": ["The Board, Filter, and Epic add buttons become enabled"] }
+      {
+        "action": "Open the source configurator",
+        "expected": [
+          "The Board, Filter, and Epic add buttons are disabled",
+          "A hint indicates a project must be picked first"
+        ]
+      },
+      {
+        "action": "Select one Jira project in the project scope picker",
+        "expected": ["The Board, Filter, and Epic add buttons become enabled"]
+      }
     ],
     "tags": ["smoke", "happy-path"],
     "linked_requirement_ids": ["FR-001"],
@@ -22,8 +31,21 @@
     "type": "integration",
     "preconditions": ["The Jira plugin is connected", "At least one Jira project is in scope"],
     "steps": [
-      { "action": "Call GET .../integration/source-options with category=board, scope=[project], search='', cursor=null", "expected": ["A page of at most the page-size board options is returned", "A nextCursor is present when more results exist", "No full instance-wide board list is loaded"] },
-      { "action": "Call the same endpoint with the returned nextCursor", "expected": ["The next page of options is returned", "No options are duplicated across pages"] }
+      {
+        "action": "Call GET .../integration/source-options with category=board, scope=[project], search='', cursor=null",
+        "expected": [
+          "A page of at most the page-size board options is returned",
+          "A nextCursor is present when more results exist",
+          "No full instance-wide board list is loaded"
+        ]
+      },
+      {
+        "action": "Call the same endpoint with the returned nextCursor",
+        "expected": [
+          "The next page of options is returned",
+          "No options are duplicated across pages"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-002"],
@@ -37,7 +59,13 @@
     "type": "functional",
     "preconditions": ["The Jira plugin declares the searchable-categorized picker shape"],
     "steps": [
-      { "action": "Open the configure dialog for the Jira plugin", "expected": ["The host renders a searchable picker with project scope plus board/filter/epic categories", "The plugin ships no React components"] }
+      {
+        "action": "Open the configure dialog for the Jira plugin",
+        "expected": [
+          "The host renders a searchable picker with project scope plus board/filter/epic categories",
+          "The plugin ships no React components"
+        ]
+      }
     ],
     "tags": ["smoke"],
     "linked_requirement_ids": ["FR-003"],
@@ -51,8 +79,17 @@
     "type": "functional",
     "preconditions": ["A project is in scope", "The board has an active sprint and a backlog"],
     "steps": [
-      { "action": "Add a board source and leave the active-sprint-only option at its default", "expected": ["The option is on by default"] },
-      { "action": "Resolve the cut list", "expected": ["Only issues in the board's active sprint are included", "Backlog-only issues are excluded"] }
+      {
+        "action": "Add a board source and leave the active-sprint-only option at its default",
+        "expected": ["The option is on by default"]
+      },
+      {
+        "action": "Resolve the cut list",
+        "expected": [
+          "Only issues in the board's active sprint are included",
+          "Backlog-only issues are excluded"
+        ]
+      }
     ],
     "tags": ["happy-path"],
     "linked_requirement_ids": ["FR-004"],
@@ -66,7 +103,10 @@
     "type": "functional",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Open the Filter picker and type part of a filter name", "expected": ["Matching saved filters in scope are returned via search, not only favourites"] },
+      {
+        "action": "Open the Filter picker and type part of a filter name",
+        "expected": ["Matching saved filters in scope are returned via search, not only favourites"]
+      },
       { "action": "Select a filter", "expected": ["The filter is added as a configured source"] }
     ],
     "tags": ["happy-path"],
@@ -81,7 +121,10 @@
     "type": "functional",
     "preconditions": ["A project with more than 50 epics is in scope"],
     "steps": [
-      { "action": "Open the Epic picker and search for an epic whose rank is beyond the first 50", "expected": ["The epic is found and selectable", "No instance-wide epic enumeration occurs"] }
+      {
+        "action": "Open the Epic picker and search for an epic whose rank is beyond the first 50",
+        "expected": ["The epic is found and selectable", "No instance-wide epic enumeration occurs"]
+      }
     ],
     "tags": ["happy-path", "regression"],
     "linked_requirement_ids": ["FR-006"],
@@ -93,10 +136,19 @@
     "area": "jql",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A project is in scope", "The current user has assigned issues in and outside the scoped project"],
+    "preconditions": [
+      "A project is in scope",
+      "The current user has assigned issues in and outside the scoped project"
+    ],
     "steps": [
-      { "action": "Add an assigned-to-me source in 'in scoped projects' mode and resolve the cut list", "expected": ["Only the user's issues within scoped projects appear"] },
-      { "action": "Switch the source to 'anywhere' mode and resolve again", "expected": ["The user's issues across all projects appear"] }
+      {
+        "action": "Add an assigned-to-me source in 'in scoped projects' mode and resolve the cut list",
+        "expected": ["Only the user's issues within scoped projects appear"]
+      },
+      {
+        "action": "Switch the source to 'anywhere' mode and resolve again",
+        "expected": ["The user's issues across all projects appear"]
+      }
     ],
     "tags": ["happy-path"],
     "linked_requirement_ids": ["FR-007"],
@@ -110,8 +162,17 @@
     "type": "functional",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Add a board source and a saved-filter source", "expected": ["Both appear in the configured-source list"] },
-      { "action": "Resolve the cut list", "expected": ["The cut list is the union (OR) of issues from both sources", "No issue is duplicated"] }
+      {
+        "action": "Add a board source and a saved-filter source",
+        "expected": ["Both appear in the configured-source list"]
+      },
+      {
+        "action": "Resolve the cut list",
+        "expected": [
+          "The cut list is the union (OR) of issues from both sources",
+          "No issue is duplicated"
+        ]
+      }
     ],
     "tags": ["happy-path"],
     "linked_requirement_ids": ["FR-008"],
@@ -125,8 +186,17 @@
     "type": "functional",
     "preconditions": ["A source is configured", "Done-category exclusion is on"],
     "steps": [
-      { "action": "Inspect the JQL issued for the source", "expected": ["The JQL includes a statusCategory exclusion clause"] },
-      { "action": "Resolve the cut list", "expected": ["No closed/done issue is fetched into any page", "Closed issues do not occupy result-page slots"] }
+      {
+        "action": "Inspect the JQL issued for the source",
+        "expected": ["The JQL includes a statusCategory exclusion clause"]
+      },
+      {
+        "action": "Resolve the cut list",
+        "expected": [
+          "No closed/done issue is fetched into any page",
+          "Closed issues do not occupy result-page slots"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-009"],
@@ -140,8 +210,17 @@
     "type": "functional",
     "preconditions": ["A new source config with no custom exclusion"],
     "steps": [
-      { "action": "Open the configurator", "expected": ["The Done status category is excluded by default"] },
-      { "action": "Add the In Progress category to the excluded set and resolve the cut list", "expected": ["In-progress issues are now excluded too", "The change is category-based, not tied to a status name"] }
+      {
+        "action": "Open the configurator",
+        "expected": ["The Done status category is excluded by default"]
+      },
+      {
+        "action": "Add the In Progress category to the excluded set and resolve the cut list",
+        "expected": [
+          "In-progress issues are now excluded too",
+          "The change is category-based, not tied to a status name"
+        ]
+      }
     ],
     "tags": ["happy-path"],
     "linked_requirement_ids": ["FR-010"],
@@ -155,7 +234,13 @@
     "type": "functional",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Open any source picker and view a result row", "expected": ["The full, untruncated name is shown", "A monospace secondary line shows the project key and the underlying item id"] }
+      {
+        "action": "Open any source picker and view a result row",
+        "expected": [
+          "The full, untruncated name is shown",
+          "A monospace secondary line shows the project key and the underlying item id"
+        ]
+      }
     ],
     "tags": ["smoke"],
     "linked_requirement_ids": ["FR-011"],
@@ -169,8 +254,14 @@
     "type": "functional",
     "preconditions": ["A roubo.yaml integration.sources block exists with project-scoped entries"],
     "steps": [
-      { "action": "Parse a roubo.yaml with mixed-type sources carrying a project field", "expected": ["The config parses with project scope preserved per source"] },
-      { "action": "Apply a per-user override that sets sources", "expected": ["The override array replaces the committed array rather than merging"] }
+      {
+        "action": "Parse a roubo.yaml with mixed-type sources carrying a project field",
+        "expected": ["The config parses with project scope preserved per source"]
+      },
+      {
+        "action": "Apply a per-user override that sets sources",
+        "expected": ["The override array replaces the committed array rather than merging"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-012"],
@@ -184,7 +275,10 @@
     "type": "functional",
     "preconditions": ["The configure dialog is open"],
     "steps": [
-      { "action": "Open a source picker near the bottom of the modal", "expected": ["The dropdown renders fully and is not clipped by the modal edge"] }
+      {
+        "action": "Open a source picker near the bottom of the modal",
+        "expected": ["The dropdown renders fully and is not clipped by the modal edge"]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-013"],
@@ -198,8 +292,17 @@
     "type": "functional",
     "preconditions": ["A board source is configured", "A prior poll has set a watermark"],
     "steps": [
-      { "action": "Trigger an incremental poll for the board source", "expected": ["The JQL includes updated >= the per-source watermark", "Only changed issues are re-fetched"] },
-      { "action": "Exhaust pagination", "expected": ["The watermark advances only after the last page"] }
+      {
+        "action": "Trigger an incremental poll for the board source",
+        "expected": [
+          "The JQL includes updated >= the per-source watermark",
+          "Only changed issues are re-fetched"
+        ]
+      },
+      {
+        "action": "Exhaust pagination",
+        "expected": ["The watermark advances only after the last page"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-014"],
@@ -213,7 +316,13 @@
     "type": "performance",
     "preconditions": ["A large mock/staging instance is configured"],
     "steps": [
-      { "action": "Issue 100 debounced type-ahead queries across categories and record latency", "expected": ["p95 query latency is under 500ms", "Input is debounced (~250ms) so keystrokes do not each issue a request"] }
+      {
+        "action": "Issue 100 debounced type-ahead queries across categories and record latency",
+        "expected": [
+          "p95 query latency is under 500ms",
+          "Input is debounced (~250ms) so keystrokes do not each issue a request"
+        ]
+      }
     ],
     "tags": ["performance"],
     "linked_requirement_ids": ["NFR-001"],
@@ -227,7 +336,14 @@
     "type": "accessibility",
     "preconditions": ["The configure dialog is open"],
     "steps": [
-      { "action": "Operate the picker using only the keyboard (type, arrow, select, remove)", "expected": ["Every action is reachable by keyboard", "Focus is visible at each step", "Results carry screen-reader labels"] }
+      {
+        "action": "Operate the picker using only the keyboard (type, arrow, select, remove)",
+        "expected": [
+          "Every action is reachable by keyboard",
+          "Focus is visible at each step",
+          "Results carry screen-reader labels"
+        ]
+      }
     ],
     "tags": ["accessibility"],
     "linked_requirement_ids": ["NFR-002"],
@@ -241,8 +357,18 @@
     "type": "security",
     "preconditions": ["The Jira plugin is connected"],
     "steps": [
-      { "action": "Issue a source search and inspect logs, metrics, and traces", "expected": ["No PAT, JQL string, search term, or issue contents appear; only counts, durations, ids, and category enums"] },
-      { "action": "Submit a search term containing quotes and JQL operators", "expected": ["The term is escaped/parameterized and cannot break out of the quoted literal or inject a clause"] }
+      {
+        "action": "Issue a source search and inspect logs, metrics, and traces",
+        "expected": [
+          "No PAT, JQL string, search term, or issue contents appear; only counts, durations, ids, and category enums"
+        ]
+      },
+      {
+        "action": "Submit a search term containing quotes and JQL operators",
+        "expected": [
+          "The term is escaped/parameterized and cannot break out of the quoted literal or inject a clause"
+        ]
+      }
     ],
     "tags": ["security", "smoke"],
     "linked_requirement_ids": ["NFR-003"],
@@ -256,7 +382,14 @@
     "type": "functional",
     "preconditions": ["A category with more results than one page is in scope"],
     "steps": [
-      { "action": "Page through all results via the cursor to the end", "expected": ["Every matching item is reachable", "No page is dropped or duplicated", "No hard cap silently hides results"] }
+      {
+        "action": "Page through all results via the cursor to the end",
+        "expected": [
+          "Every matching item is reachable",
+          "No page is dropped or duplicated",
+          "No hard cap silently hides results"
+        ]
+      }
     ],
     "tags": ["reliability", "regression"],
     "linked_requirement_ids": ["NFR-004"],
@@ -270,8 +403,14 @@
     "type": "e2e_flow",
     "preconditions": ["The Jira plugin is connected", "No sources configured yet"],
     "steps": [
-      { "action": "Open the source configurator", "expected": ["Project scope is the first and only enabled control"] },
-      { "action": "Search for a project by name and select it", "expected": ["A project chip appears", "Source pickers become enabled"] },
+      {
+        "action": "Open the source configurator",
+        "expected": ["Project scope is the first and only enabled control"]
+      },
+      {
+        "action": "Search for a project by name and select it",
+        "expected": ["A project chip appears", "Source pickers become enabled"]
+      },
       { "action": "Confirm the configuration", "expected": ["The selected project scope is saved"] }
     ],
     "tags": ["e2e", "smoke"],
@@ -284,10 +423,19 @@
     "area": "picker",
     "level": 1,
     "type": "e2e_flow",
-    "preconditions": ["A project is in scope", "The project has a scrum board with an active sprint"],
+    "preconditions": [
+      "A project is in scope",
+      "The project has a scrum board with an active sprint"
+    ],
     "steps": [
-      { "action": "Open the Board picker and search for the project's scrum board", "expected": ["The board is found with project key and id shown"] },
-      { "action": "Select the board", "expected": ["The board is added with active-sprint-only on by default"] },
+      {
+        "action": "Open the Board picker and search for the project's scrum board",
+        "expected": ["The board is found with project key and id shown"]
+      },
+      {
+        "action": "Select the board",
+        "expected": ["The board is added with active-sprint-only on by default"]
+      },
       { "action": "View the cut list preview", "expected": ["Only active-sprint issues appear"] }
     ],
     "tags": ["e2e"],
@@ -302,7 +450,10 @@
     "type": "e2e_flow",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Open the Filter picker and search for a saved filter", "expected": ["Matching filters are returned via search"] },
+      {
+        "action": "Open the Filter picker and search for a saved filter",
+        "expected": ["Matching filters are returned via search"]
+      },
       { "action": "Select the filter", "expected": ["The filter is added as a source"] },
       { "action": "View the cut list preview", "expected": ["Issues matching the filter appear"] }
     ],
@@ -318,8 +469,17 @@
     "type": "e2e_flow",
     "preconditions": ["A large instance is configured", "A project is in scope"],
     "steps": [
-      { "action": "Open a source picker", "expected": ["A search field is focused, no giant pre-loaded list"] },
-      { "action": "Type a few characters", "expected": ["Scoped results appear within the latency target", "A Load more affordance and result count are shown"] },
+      {
+        "action": "Open a source picker",
+        "expected": ["A search field is focused, no giant pre-loaded list"]
+      },
+      {
+        "action": "Type a few characters",
+        "expected": [
+          "Scoped results appear within the latency target",
+          "A Load more affordance and result count are shown"
+        ]
+      },
       { "action": "Select a result", "expected": ["The source is added"] }
     ],
     "tags": ["e2e"],
@@ -334,8 +494,14 @@
     "type": "e2e_flow",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Add a board source and a saved-filter source", "expected": ["Both appear in the configured-source list"] },
-      { "action": "View the cut list preview", "expected": ["The cut list is the union of both sources with no duplicates"] }
+      {
+        "action": "Add a board source and a saved-filter source",
+        "expected": ["Both appear in the configured-source list"]
+      },
+      {
+        "action": "View the cut list preview",
+        "expected": ["The cut list is the union of both sources with no duplicates"]
+      }
     ],
     "tags": ["e2e"],
     "linked_requirement_ids": ["FR-008", "FR-004", "FR-005"],
@@ -349,8 +515,14 @@
     "type": "e2e_flow",
     "preconditions": ["A source whose project has closed and open issues is configured"],
     "steps": [
-      { "action": "Leave Done-category exclusion at its default and resolve the cut list", "expected": ["No Closed/Done/Resolved issue appears"] },
-      { "action": "Confirm via the preview banner", "expected": ["The count of issues filtered out in the query is shown"] }
+      {
+        "action": "Leave Done-category exclusion at its default and resolve the cut list",
+        "expected": ["No Closed/Done/Resolved issue appears"]
+      },
+      {
+        "action": "Confirm via the preview banner",
+        "expected": ["The count of issues filtered out in the query is shown"]
+      }
     ],
     "tags": ["e2e", "smoke"],
     "linked_requirement_ids": ["FR-009", "FR-010"],
@@ -364,8 +536,14 @@
     "type": "e2e_flow",
     "preconditions": ["A source is configured"],
     "steps": [
-      { "action": "Toggle the In Progress category into the excluded set", "expected": ["The cut list updates live to drop in-progress issues"] },
-      { "action": "Toggle Done back on (include it)", "expected": ["Done issues reappear in the cut list"] }
+      {
+        "action": "Toggle the In Progress category into the excluded set",
+        "expected": ["The cut list updates live to drop in-progress issues"]
+      },
+      {
+        "action": "Toggle Done back on (include it)",
+        "expected": ["Done issues reappear in the cut list"]
+      }
     ],
     "tags": ["e2e"],
     "linked_requirement_ids": ["FR-010", "FR-009"],
@@ -377,11 +555,23 @@
     "area": "picker",
     "level": 1,
     "type": "e2e_flow",
-    "preconditions": ["A project is in scope", "The current user is identifiable via getCurrentUser"],
+    "preconditions": [
+      "A project is in scope",
+      "The current user is identifiable via getCurrentUser"
+    ],
     "steps": [
-      { "action": "Add the assigned-to-me source", "expected": ["It defaults to in-scoped-projects mode"] },
-      { "action": "View the cut list preview", "expected": ["Only the user's open issues in scope appear"] },
-      { "action": "Switch to anywhere mode", "expected": ["The user's issues across projects appear"] }
+      {
+        "action": "Add the assigned-to-me source",
+        "expected": ["It defaults to in-scoped-projects mode"]
+      },
+      {
+        "action": "View the cut list preview",
+        "expected": ["Only the user's open issues in scope appear"]
+      },
+      {
+        "action": "Switch to anywhere mode",
+        "expected": ["The user's issues across projects appear"]
+      }
     ],
     "tags": ["e2e"],
     "linked_requirement_ids": ["FR-007"],
@@ -395,7 +585,10 @@
     "type": "e2e_flow",
     "preconditions": ["A project with many epics is in scope"],
     "steps": [
-      { "action": "Open the Epic picker and search for an epic by name", "expected": ["The epic is found within the project without an instance-wide dump"] },
+      {
+        "action": "Open the Epic picker and search for an epic by name",
+        "expected": ["The epic is found within the project without an instance-wide dump"]
+      },
       { "action": "Select the epic", "expected": ["The epic is added as a source"] },
       { "action": "View the cut list preview", "expected": ["Only the epic's open issues appear"] }
     ],
@@ -411,8 +604,17 @@
     "type": "e2e_flow",
     "preconditions": ["roubo.yaml ships a default source set for the project"],
     "steps": [
-      { "action": "Open the configurator as a developer who has not customized sources", "expected": ["The team default sources are shown"] },
-      { "action": "Replace them with a personal selection and save", "expected": ["The personal override is stored in the per-user file", "The committed roubo.yaml is unchanged"] }
+      {
+        "action": "Open the configurator as a developer who has not customized sources",
+        "expected": ["The team default sources are shown"]
+      },
+      {
+        "action": "Replace them with a personal selection and save",
+        "expected": [
+          "The personal override is stored in the per-user file",
+          "The committed roubo.yaml is unchanged"
+        ]
+      }
     ],
     "tags": ["e2e"],
     "linked_requirement_ids": ["FR-012"],
@@ -426,8 +628,16 @@
     "type": "e2e_flow",
     "preconditions": ["The scoped project has two saved filters with near-identical names"],
     "steps": [
-      { "action": "Search for the shared name fragment in the Filter picker", "expected": ["Both filters appear, each with its project key and filter id on the secondary line"] },
-      { "action": "Select the intended filter by its id", "expected": ["The correct filter is added"] }
+      {
+        "action": "Search for the shared name fragment in the Filter picker",
+        "expected": [
+          "Both filters appear, each with its project key and filter id on the secondary line"
+        ]
+      },
+      {
+        "action": "Select the intended filter by its id",
+        "expected": ["The correct filter is added"]
+      }
     ],
     "tags": ["e2e"],
     "linked_requirement_ids": ["FR-011"],
@@ -441,8 +651,14 @@
     "type": "functional",
     "preconditions": ["The Jira plugin is connected"],
     "steps": [
-      { "action": "Select a project, add its scrum board, then add a saved filter", "expected": ["All three are reflected in the configured-source list"] },
-      { "action": "Save and reopen the configurator", "expected": ["The saved sources are restored with project scope and ids intact"] }
+      {
+        "action": "Select a project, add its scrum board, then add a saved filter",
+        "expected": ["All three are reflected in the configured-source list"]
+      },
+      {
+        "action": "Save and reopen the configurator",
+        "expected": ["The saved sources are restored with project scope and ids intact"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-001", "FR-004", "FR-005", "FR-012"],
@@ -456,8 +672,14 @@
     "type": "functional",
     "preconditions": ["A board source with active-sprint-only on is configured"],
     "steps": [
-      { "action": "Turn off active-sprint-only on the board source", "expected": ["The option reflects whole-board mode"] },
-      { "action": "Resolve the cut list", "expected": ["Backlog issues from the board now appear alongside active-sprint issues"] }
+      {
+        "action": "Turn off active-sprint-only on the board source",
+        "expected": ["The option reflects whole-board mode"]
+      },
+      {
+        "action": "Resolve the cut list",
+        "expected": ["Backlog issues from the board now appear alongside active-sprint issues"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-004", "FR-008"],
@@ -472,7 +694,10 @@
     "preconditions": ["The developer works across two Jira projects"],
     "steps": [
       { "action": "Add two projects to scope", "expected": ["Both project chips appear"] },
-      { "action": "Add a board from project A and a filter from project B", "expected": ["Both sources are scoped to their respective projects"] },
+      {
+        "action": "Add a board from project A and a filter from project B",
+        "expected": ["Both sources are scoped to their respective projects"]
+      },
       { "action": "Resolve the cut list", "expected": ["The union spans both projects"] }
     ],
     "tags": ["regression"],
@@ -487,7 +712,13 @@
     "type": "security",
     "preconditions": ["A project is in scope"],
     "steps": [
-      { "action": "Type a search term such as '\" OR project = ADMIN --' into the Epic picker", "expected": ["The term is neutralized; results are limited to legitimate matches in scope", "No broadened or injected query is executed"] }
+      {
+        "action": "Type a search term such as '\" OR project = ADMIN --' into the Epic picker",
+        "expected": [
+          "The term is neutralized; results are limited to legitimate matches in scope",
+          "No broadened or injected query is executed"
+        ]
+      }
     ],
     "tags": ["security", "negative"],
     "linked_requirement_ids": ["NFR-003", "FR-006"],
@@ -501,7 +732,13 @@
     "type": "edge_case",
     "preconditions": ["A scoped project has more than two pages of matching epics"],
     "steps": [
-      { "action": "Search epics and click Load more to the last page", "expected": ["Later pages return distinct epics", "The result count reflects the full match set"] }
+      {
+        "action": "Search epics and click Load more to the last page",
+        "expected": [
+          "Later pages return distinct epics",
+          "The result count reflects the full match set"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-006", "NFR-004"],
@@ -515,7 +752,13 @@
     "type": "edge_case",
     "preconditions": ["The configure dialog is open and scrolled near the bottom"],
     "steps": [
-      { "action": "Open a picker that returns many results", "expected": ["The dropdown opens above or below as needed and is never cut off by the modal", "Internal scrolling handles overflow"] }
+      {
+        "action": "Open a picker that returns many results",
+        "expected": [
+          "The dropdown opens above or below as needed and is never cut off by the modal",
+          "Internal scrolling handles overflow"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-013"],
@@ -529,7 +772,13 @@
     "type": "negative",
     "preconditions": ["A roubo.yaml carries a legacy boards/epics/filters source shape"],
     "steps": [
-      { "action": "Open the configurator with the legacy config present", "expected": ["The legacy sources are not silently honored", "The user is prompted to re-pick sources in the new picker"] }
+      {
+        "action": "Open the configurator with the legacy config present",
+        "expected": [
+          "The legacy sources are not silently honored",
+          "The user is prompted to re-pick sources in the new picker"
+        ]
+      }
     ],
     "tags": ["clean-break", "negative"],
     "linked_requirement_ids": ["FR-012"],
@@ -543,7 +792,13 @@
     "type": "edge_case",
     "preconditions": ["The target Jira instance does not support statusCategory in JQL"],
     "steps": [
-      { "action": "Resolve the cut list with Done-category exclusion configured", "expected": ["The builder enumerates the resolved status names (Closed, Done, Resolved) in the JQL instead", "The cut list still excludes those statuses"] }
+      {
+        "action": "Resolve the cut list with Done-category exclusion configured",
+        "expected": [
+          "The builder enumerates the resolved status names (Closed, Done, Resolved) in the JQL instead",
+          "The cut list still excludes those statuses"
+        ]
+      }
     ],
     "tags": ["regression", "spike-gated"],
     "linked_requirement_ids": ["FR-009", "FR-010"],
@@ -557,7 +812,13 @@
     "type": "edge_case",
     "preconditions": ["The instance does not return an owner for filter search results"],
     "steps": [
-      { "action": "Open the Filter picker and view a result", "expected": ["The secondary line shows the project key and filter id", "The absence of owner does not break or blank the label"] }
+      {
+        "action": "Open the Filter picker and view a result",
+        "expected": [
+          "The secondary line shows the project key and filter id",
+          "The absence of owner does not break or blank the label"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-011"],
@@ -569,9 +830,17 @@
     "area": "picker",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["Two projects are in scope with board sources, plus an assigned-to-me source"],
+    "preconditions": [
+      "Two projects are in scope with board sources, plus an assigned-to-me source"
+    ],
     "steps": [
-      { "action": "Remove one project from scope", "expected": ["Board/filter/epic sources belonging to that project are removed", "The assigned-to-me source remains"] }
+      {
+        "action": "Remove one project from scope",
+        "expected": [
+          "Board/filter/epic sources belonging to that project are removed",
+          "The assigned-to-me source remains"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-001", "FR-007"],
@@ -585,7 +854,13 @@
     "type": "negative",
     "preconditions": ["A picker is open"],
     "steps": [
-      { "action": "Type quickly so an earlier slow response resolves after a later one", "expected": ["Only the latest query's results are shown", "No flicker of stale results from a superseded query"] }
+      {
+        "action": "Type quickly so an earlier slow response resolves after a later one",
+        "expected": [
+          "Only the latest query's results are shown",
+          "No flicker of stale results from a superseded query"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["NFR-001", "NFR-004"],
@@ -599,8 +874,16 @@
     "type": "edge_case",
     "preconditions": ["A source set with an advanced watermark exists"],
     "steps": [
-      { "action": "Add a new source to the set and poll", "expected": ["The union's cache key changes and the watermark resets to a single full re-fetch"] },
-      { "action": "Poll again without changing the set", "expected": ["Incremental updated>= polling resumes"] }
+      {
+        "action": "Add a new source to the set and poll",
+        "expected": [
+          "The union's cache key changes and the watermark resets to a single full re-fetch"
+        ]
+      },
+      {
+        "action": "Poll again without changing the set",
+        "expected": ["Incremental updated>= polling resumes"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-014", "FR-008"],
@@ -614,7 +897,14 @@
     "type": "performance",
     "preconditions": ["A staging instance with thousands of saved filters"],
     "steps": [
-      { "action": "Repeatedly search and page through filter results", "expected": ["The UI never freezes", "Each query stays within the latency target", "Memory does not grow with full-list loads"] }
+      {
+        "action": "Repeatedly search and page through filter results",
+        "expected": [
+          "The UI never freezes",
+          "Each query stays within the latency target",
+          "Memory does not grow with full-list loads"
+        ]
+      }
     ],
     "tags": ["performance", "slow"],
     "linked_requirement_ids": ["NFR-001", "NFR-004"],
@@ -628,7 +918,13 @@
     "type": "accessibility",
     "preconditions": ["A screen reader is active", "The configure dialog is open"],
     "steps": [
-      { "action": "Navigate the picker with a screen reader", "expected": ["Result rows are announced with name plus project key and id", "Adding and removing a source is announced"] }
+      {
+        "action": "Navigate the picker with a screen reader",
+        "expected": [
+          "Result rows are announced with name plus project key and id",
+          "Adding and removing a source is announced"
+        ]
+      }
     ],
     "tags": ["accessibility", "manual"],
     "linked_requirement_ids": ["NFR-002", "FR-011"],
@@ -642,8 +938,14 @@
     "type": "edge_case",
     "preconditions": ["Three projects are in scope"],
     "steps": [
-      { "action": "Add a board, a filter, an epic, and an assigned-to-me source spanning the three projects", "expected": ["All sources coexist with correct per-project scope"] },
-      { "action": "Resolve the cut list", "expected": ["The union is correct, de-duplicated, and excludes done-category issues"] }
+      {
+        "action": "Add a board, a filter, an epic, and an assigned-to-me source spanning the three projects",
+        "expected": ["All sources coexist with correct per-project scope"]
+      },
+      {
+        "action": "Resolve the cut list",
+        "expected": ["The union is correct, de-duplicated, and excludes done-category issues"]
+      }
     ],
     "tags": ["exploratory", "slow"],
     "linked_requirement_ids": ["FR-008", "FR-009"],

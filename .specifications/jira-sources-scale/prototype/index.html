@@ -46,27 +46,75 @@
         --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
         --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       }
-      * { box-sizing: border-box; }
-      html, body { margin: 0; }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
       body {
         font-family: var(--sans);
         background: var(--stone-100);
         color: var(--stone-900);
         -webkit-font-smoothing: antialiased;
       }
-      .mono { font-family: var(--mono); }
+      .mono {
+        font-family: var(--mono);
+      }
 
-      .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 24px; }
-      header h1 { font-size: 18px; font-weight: 600; margin: 0; }
-      .dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; }
-      .dot-amber { background: var(--amber-500); }
-      .dot-emerald { background: var(--emerald-500); }
-      .head-row { display: flex; align-items: center; gap: 8px; }
-      .sub { color: var(--stone-500); font-size: 14px; max-width: 640px; margin: 6px 0 0; line-height: 1.5; }
-      .stats { font-family: var(--mono); font-size: 11px; color: var(--stone-400); margin: 6px 0 0; }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+      header h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 9999px;
+      }
+      .dot-amber {
+        background: var(--amber-500);
+      }
+      .dot-emerald {
+        background: var(--emerald-500);
+      }
+      .head-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sub {
+        color: var(--stone-500);
+        font-size: 14px;
+        max-width: 640px;
+        margin: 6px 0 0;
+        line-height: 1.5;
+      }
+      .stats {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--stone-400);
+        margin: 6px 0 0;
+      }
 
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
-      @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-top: 24px;
+      }
+      @media (max-width: 880px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
 
       .card {
         background: #fff;
@@ -75,9 +123,15 @@
         padding: 20px;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
       }
-      .card + .card { margin-top: 0; }
-      section { margin-bottom: 20px; }
-      section:last-child { margin-bottom: 0; }
+      .card + .card {
+        margin-top: 0;
+      }
+      section {
+        margin-bottom: 20px;
+      }
+      section:last-child {
+        margin-bottom: 0;
+      }
 
       .label {
         font-size: 10px;
@@ -89,7 +143,12 @@
         margin-bottom: 10px;
       }
 
-      .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
 
       /* Buttons */
       .btn {
@@ -105,20 +164,38 @@
         font-weight: 500;
         border-radius: 8px;
         cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
       }
-      .btn:hover { border-color: var(--stone-400); }
-      .btn:focus-visible { outline: 2px solid var(--amber-500); outline-offset: 1px; }
-      .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-      .btn .plus { color: var(--amber-600); font-weight: 600; }
-      .btn .hint { color: var(--stone-400); font-weight: 400; }
+      .btn:hover {
+        border-color: var(--stone-400);
+      }
+      .btn:focus-visible {
+        outline: 2px solid var(--amber-500);
+        outline-offset: 1px;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn .plus {
+        color: var(--amber-600);
+        font-weight: 600;
+      }
+      .btn .hint {
+        color: var(--stone-400);
+        font-weight: 400;
+      }
       .btn-primary {
         background: var(--amber-500);
         border-color: var(--amber-500);
         color: var(--stone-900);
         padding: 8px 16px;
       }
-      .btn-primary:hover { background: var(--amber-600); }
+      .btn-primary:hover {
+        background: var(--amber-600);
+      }
 
       /* Chips (project scope) */
       .chip {
@@ -132,13 +209,29 @@
         padding: 4px 6px 4px 10px;
         font-size: 12px;
       }
-      .chip b { font-weight: 600; }
-      .chip .k { font-family: var(--mono); font-size: 10px; color: var(--indigo-400); }
-      .chip .x, .src .x {
-        cursor: pointer; border: 0; background: transparent; color: var(--indigo-400);
-        border-radius: 9999px; padding: 2px; line-height: 0; font-size: 13px;
+      .chip b {
+        font-weight: 600;
       }
-      .chip .x:hover { background: var(--indigo-200); color: var(--indigo-700); }
+      .chip .k {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--indigo-400);
+      }
+      .chip .x,
+      .src .x {
+        cursor: pointer;
+        border: 0;
+        background: transparent;
+        color: var(--indigo-400);
+        border-radius: 9999px;
+        padding: 2px;
+        line-height: 0;
+        font-size: 13px;
+      }
+      .chip .x:hover {
+        background: var(--indigo-200);
+        color: var(--indigo-700);
+      }
 
       .empty {
         border: 1px dashed var(--stone-200);
@@ -150,92 +243,359 @@
       }
 
       /* Configured source rows */
-      ul.srclist { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+      ul.srclist {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
       .src {
-        display: flex; align-items: center; gap: 12px;
-        border: 1px solid var(--stone-200); border-radius: 8px; padding: 8px 12px; background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--stone-200);
+        border-radius: 8px;
+        padding: 8px 12px;
+        background: #fff;
       }
       .src .ico {
-        width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center;
-        justify-content: center; flex-shrink: 0; font-size: 14px;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 14px;
       }
-      .ico.project { color: var(--indigo-600); background: var(--indigo-50); }
-      .ico.board { color: var(--emerald-600); background: var(--emerald-50); }
-      .ico.filter { color: var(--violet-600); background: var(--violet-50); }
-      .ico.epic { color: var(--amber-600); background: var(--amber-50); }
-      .ico.mine { color: var(--sky-600); background: var(--sky-50); }
-      .src .body { min-width: 0; flex: 1; }
-      .src .name { font-size: 14px; color: var(--stone-800); display: flex; align-items: center; gap: 8px; }
-      .src .name .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .tag { background: var(--stone-100); color: var(--stone-500); font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px; }
-      .src .meta { font-family: var(--mono); font-size: 11px; color: var(--stone-400); margin-top: 1px; }
-      .src .x { color: var(--stone-300); }
-      .src .x:hover { background: var(--stone-100); color: var(--stone-600); }
+      .ico.project {
+        color: var(--indigo-600);
+        background: var(--indigo-50);
+      }
+      .ico.board {
+        color: var(--emerald-600);
+        background: var(--emerald-50);
+      }
+      .ico.filter {
+        color: var(--violet-600);
+        background: var(--violet-50);
+      }
+      .ico.epic {
+        color: var(--amber-600);
+        background: var(--amber-50);
+      }
+      .ico.mine {
+        color: var(--sky-600);
+        background: var(--sky-50);
+      }
+      .src .body {
+        min-width: 0;
+        flex: 1;
+      }
+      .src .name {
+        font-size: 14px;
+        color: var(--stone-800);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .src .name .trunc {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tag {
+        background: var(--stone-100);
+        color: var(--stone-500);
+        font-size: 10px;
+        font-weight: 500;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .src .meta {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--stone-400);
+        margin-top: 1px;
+      }
+      .src .x {
+        color: var(--stone-300);
+      }
+      .src .x:hover {
+        background: var(--stone-100);
+        color: var(--stone-600);
+      }
 
       /* Inline option toggles */
-      .opt { margin-top: 5px; display: inline-flex; gap: 6px; }
+      .opt {
+        margin-top: 5px;
+        display: inline-flex;
+        gap: 6px;
+      }
       .seg {
-        font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: 0; background: transparent; color: var(--stone-400);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 0;
+        background: transparent;
+        color: var(--stone-400);
       }
-      .seg.on { background: var(--sky-100); color: var(--sky-700); }
-      .seg:not(.on):hover { background: var(--stone-100); }
+      .seg.on {
+        background: var(--sky-100);
+        color: var(--sky-700);
+      }
+      .seg:not(.on):hover {
+        background: var(--stone-100);
+      }
 
-      label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--stone-700); margin-right: 8px; }
-      label.check.sm { font-size: 11px; color: var(--stone-500); margin-top: 4px; }
-      .box {
-        width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--stone-300);
-        background: var(--stone-100); display: inline-flex; align-items: center; justify-content: center;
-        color: #fff; font-size: 11px; line-height: 1;
+      label.check {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        color: var(--stone-700);
+        margin-right: 8px;
       }
-      .box.sm { width: 14px; height: 14px; font-size: 9px; }
-      .box.on { background: var(--amber-500); border-color: var(--amber-500); }
-      label.check .cat { color: var(--stone-400); font-size: 11px; margin-left: 4px; }
-      .note { font-size: 11px; color: var(--stone-400); margin: 8px 0 0; line-height: 1.5; }
+      label.check.sm {
+        font-size: 11px;
+        color: var(--stone-500);
+        margin-top: 4px;
+      }
+      .box {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid var(--stone-300);
+        background: var(--stone-100);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 11px;
+        line-height: 1;
+      }
+      .box.sm {
+        width: 14px;
+        height: 14px;
+        font-size: 9px;
+      }
+      .box.on {
+        background: var(--amber-500);
+        border-color: var(--amber-500);
+      }
+      label.check .cat {
+        color: var(--stone-400);
+        font-size: 11px;
+        margin-left: 4px;
+      }
+      .note {
+        font-size: 11px;
+        color: var(--stone-400);
+        margin: 8px 0 0;
+        line-height: 1.5;
+      }
       .modelnote {
-        display: flex; gap: 8px; align-items: flex-start; background: var(--stone-50);
-        border-radius: 8px; padding: 8px 12px; font-size: 11px; color: var(--stone-500); line-height: 1.5;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        background: var(--stone-50);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 11px;
+        color: var(--stone-500);
+        line-height: 1.5;
       }
 
       /* Cut-list preview */
-      .cut-head { display: flex; align-items: center; justify-content: space-between; }
-      .cut-head .count { font-family: var(--mono); font-size: 11px; color: var(--stone-400); }
-      .banner { background: var(--emerald-50); color: var(--emerald-700); border-radius: 8px; padding: 6px 12px; font-size: 11px; margin: 12px 0; }
-      ul.cut { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; }
-      .issue { display: flex; align-items: center; gap: 8px; border: 1px solid var(--stone-100); border-radius: 8px; padding: 8px 10px; }
-      .issue .key { font-family: var(--mono); font-size: 11px; color: var(--stone-400); }
-      .issue .sum { flex: 1; min-width: 0; font-size: 14px; color: var(--stone-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
-      .pill.you { background: var(--sky-50); color: var(--sky-600); }
-      .pill.prog { background: var(--amber-50); color: var(--amber-600); }
-      .pill.todo { background: var(--stone-100); color: var(--stone-500); }
+      .cut-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .cut-head .count {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--stone-400);
+      }
+      .banner {
+        background: var(--emerald-50);
+        color: var(--emerald-700);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 11px;
+        margin: 12px 0;
+      }
+      ul.cut {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 460px;
+        overflow-y: auto;
+      }
+      .issue {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--stone-100);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .issue .key {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--stone-400);
+      }
+      .issue .sum {
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+        color: var(--stone-700);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pill {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .pill.you {
+        background: var(--sky-50);
+        color: var(--sky-600);
+      }
+      .pill.prog {
+        background: var(--amber-50);
+        color: var(--amber-600);
+      }
+      .pill.todo {
+        background: var(--stone-100);
+        color: var(--stone-500);
+      }
 
       /* Search popover (portal-positioned: never clipped, demonstrates FR-013) */
       .pop {
-        position: fixed; z-index: 100; width: 320px; background: #fff;
-        border: 1px solid var(--stone-200); border-radius: 12px;
+        position: fixed;
+        z-index: 100;
+        width: 320px;
+        background: #fff;
+        border: 1px solid var(--stone-200);
+        border-radius: 12px;
         box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25);
         overflow: hidden;
       }
-      .pop .search { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--stone-200); }
-      .pop .search input { flex: 1; border: 0; outline: none; font-family: inherit; font-size: 14px; color: var(--stone-900); background: transparent; }
-      .pop .search input::placeholder { color: var(--stone-400); }
-      .spin { width: 14px; height: 14px; border: 2px solid var(--stone-200); border-top-color: var(--stone-400); border-radius: 9999px; animation: spin 0.7s linear infinite; }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .pop .results { max-height: 288px; overflow-y: auto; padding: 4px 0; }
-      .opt-row {
-        width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer;
-        padding: 8px 12px; display: flex; justify-content: space-between; gap: 8px; align-items: flex-start;
+      .pop .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--stone-200);
       }
-      .opt-row:hover, .opt-row:focus-visible { background: var(--stone-100); outline: none; }
-      .opt-row .ol { min-width: 0; }
-      .opt-row .ol .t { font-size: 14px; color: var(--stone-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-      .opt-row .ol .s { font-family: var(--mono); font-size: 11px; color: var(--stone-400); display: block; margin-top: 1px; }
-      .opt-row .add { color: var(--stone-300); font-size: 13px; }
-      .loadmore { width: 100%; border: 0; background: transparent; color: var(--amber-600); font-size: 12px; font-weight: 500; padding: 8px; cursor: pointer; }
-      .loadmore:hover { background: var(--stone-50); }
-      .pop .footer { display: flex; justify-content: space-between; border-top: 1px solid var(--stone-200); padding: 6px 12px; font-size: 10px; color: var(--stone-400); }
-      .pop .footer .ms { font-family: var(--mono); }
-      .pop .none { padding: 24px 12px; text-align: center; font-size: 12px; color: var(--stone-400); }
+      .pop .search input {
+        flex: 1;
+        border: 0;
+        outline: none;
+        font-family: inherit;
+        font-size: 14px;
+        color: var(--stone-900);
+        background: transparent;
+      }
+      .pop .search input::placeholder {
+        color: var(--stone-400);
+      }
+      .spin {
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--stone-200);
+        border-top-color: var(--stone-400);
+        border-radius: 9999px;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .pop .results {
+        max-height: 288px;
+        overflow-y: auto;
+        padding: 4px 0;
+      }
+      .opt-row {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        padding: 8px 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .opt-row:hover,
+      .opt-row:focus-visible {
+        background: var(--stone-100);
+        outline: none;
+      }
+      .opt-row .ol {
+        min-width: 0;
+      }
+      .opt-row .ol .t {
+        font-size: 14px;
+        color: var(--stone-800);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+      }
+      .opt-row .ol .s {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--stone-400);
+        display: block;
+        margin-top: 1px;
+      }
+      .opt-row .add {
+        color: var(--stone-300);
+        font-size: 13px;
+      }
+      .loadmore {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: var(--amber-600);
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px;
+        cursor: pointer;
+      }
+      .loadmore:hover {
+        background: var(--stone-50);
+      }
+      .pop .footer {
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid var(--stone-200);
+        padding: 6px 12px;
+        font-size: 10px;
+        color: var(--stone-400);
+      }
+      .pop .footer .ms {
+        font-family: var(--mono);
+      }
+      .pop .none {
+        padding: 24px 12px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--stone-400);
+      }
     </style>
   </head>
   <body>
@@ -246,9 +606,8 @@
           <h1>Configure Jira sources</h1>
         </div>
         <p class="sub">
-          Pick the Jira project you work in, then add the boards, filters, or epics inside
-          it. Everything is searched live against the instance, so nothing has to load a
-          full list.
+          Pick the Jira project you work in, then add the boards, filters, or epics inside it.
+          Everything is searched live against the instance, so nothing has to load a full list.
         </p>
         <p class="stats" id="stats"></p>
       </header>
@@ -270,8 +629,8 @@
             <span class="label">3 · Exclude statuses (applied in the query)</span>
             <div class="row" id="excluded-row"></div>
             <p class="note">
-              Defaults to excluding the <b>Done</b> category, so Closed / Done / Resolved
-              never reach the cut list. Category-based, so custom status names are covered.
+              Defaults to excluding the <b>Done</b> category, so Closed / Done / Resolved never
+              reach the cut list. Category-based, so custom status names are covered.
             </p>
           </section>
 
@@ -307,11 +666,24 @@
         return () => (s = (s * 16807) % 2147483647) / 2147483647;
       }
       const PROJECT_NAMES = [
-        "Payroll Core", "Payroll Tax", "Time Tracking", "Absence Management",
-        "Benefits Admin", "Recruiting", "Talent Optimization", "Financials Ledger",
-        "Procurement", "Expenses", "Student Records", "Platform Identity",
-        "Platform Search", "Reporting Engine", "Data Pipeline", "Mobile Shell",
-        "Notifications", "Integrations Hub",
+        "Payroll Core",
+        "Payroll Tax",
+        "Time Tracking",
+        "Absence Management",
+        "Benefits Admin",
+        "Recruiting",
+        "Talent Optimization",
+        "Financials Ledger",
+        "Procurement",
+        "Expenses",
+        "Student Records",
+        "Platform Identity",
+        "Platform Search",
+        "Reporting Engine",
+        "Data Pipeline",
+        "Mobile Shell",
+        "Notifications",
+        "Integrations Hub",
       ];
       const PROJECTS = Array.from({ length: 200 }, (_, i) => {
         const key = "PRJ" + String(i + 1).padStart(3, "0");
@@ -319,18 +691,29 @@
         const v = Math.floor(i / PROJECT_NAMES.length);
         return { key: key, name: v === 0 ? base : base + " " + (v + 1) };
       });
-      const BOARDS = [], FILTERS = [], EPICS = [], ISSUES = [];
+      const BOARDS = [],
+        FILTERS = [],
+        EPICS = [],
+        ISSUES = [];
       const SUMMARIES = [
-        "Fix timezone drift in accrual calc", "Add retry to webhook delivery",
-        "Paginate the audit log endpoint", "Migrate legacy auth tokens",
-        "Reduce p95 on search query", "Handle null assignee in export",
-        "Wire feature flag for new picker", "Backfill missing status categories",
-        "Tighten input validation on import", "Cache org chart lookups",
+        "Fix timezone drift in accrual calc",
+        "Add retry to webhook delivery",
+        "Paginate the audit log endpoint",
+        "Migrate legacy auth tokens",
+        "Reduce p95 on search query",
+        "Handle null assignee in export",
+        "Wire feature flag for new picker",
+        "Backfill missing status categories",
+        "Tighten input validation on import",
+        "Cache org chart lookups",
       ];
       const STATUSES = [
-        { name: "To Do", cat: "todo" }, { name: "In Progress", cat: "in-progress" },
-        { name: "In Review", cat: "in-progress" }, { name: "Done", cat: "done" },
-        { name: "Closed", cat: "done" }, { name: "Resolved", cat: "done" },
+        { name: "To Do", cat: "todo" },
+        { name: "In Progress", cat: "in-progress" },
+        { name: "In Review", cat: "in-progress" },
+        { name: "Done", cat: "done" },
+        { name: "Closed", cat: "done" },
+        { name: "Resolved", cat: "done" },
       ];
       const CURRENT_USER = "you@workday.com";
 
@@ -340,8 +723,13 @@
         for (let b = 0; b < bn; b++) {
           BOARDS.push({
             id: pi * 100 + b + 1,
-            name: b === 0 ? p.name + " Scrum Board"
-              : p.name + " " + ["Kanban", "Bug Triage", "Release", "Backlog Grooming"][b % 4] + " Board",
+            name:
+              b === 0
+                ? p.name + " Scrum Board"
+                : p.name +
+                  " " +
+                  ["Kanban", "Bug Triage", "Release", "Backlog Grooming"][b % 4] +
+                  " Board",
             projectKey: p.key,
             type: b === 0 ? "scrum" : r() > 0.5 ? "kanban" : "scrum",
           });
@@ -350,7 +738,10 @@
         for (let f = 0; f < fn; f++) {
           FILTERS.push({
             id: pi * 1000 + f + 1,
-            name: p.name + " " + ["My Open", "Sprint Work", "Blocked", "Needs Review", "Hotfixes", "Tech Debt"][f % 6],
+            name:
+              p.name +
+              " " +
+              ["My Open", "Sprint Work", "Blocked", "Needs Review", "Hotfixes", "Tech Debt"][f % 6],
             projectKey: p.key,
           });
         }
@@ -358,8 +749,12 @@
         for (let e = 0; e < en; e++) {
           EPICS.push({
             key: p.key + "-" + (e + 1),
-            name: ["Migrate", "Redesign", "Harden", "Instrument", "Localize", "Scale"][e % 6] + " "
-              + p.name + " " + ["service", "UI", "API", "schema", "pipeline"][e % 5],
+            name:
+              ["Migrate", "Redesign", "Harden", "Instrument", "Localize", "Scale"][e % 6] +
+              " " +
+              p.name +
+              " " +
+              ["service", "UI", "API", "schema", "pipeline"][e % 5],
             projectKey: p.key,
           });
         }
@@ -375,7 +770,8 @@
           ISSUES.push({
             key: p.key + "-" + (500 + i),
             summary: SUMMARIES[Math.floor(r() * SUMMARIES.length)],
-            status: st.name, statusCategory: st.cat,
+            status: st.name,
+            statusCategory: st.cat,
             assignee: r() > 0.6 ? CURRENT_USER : "teammate" + i + "@workday.com",
             projectKey: p.key,
             boardIds: bd ? [bd.id] : [],
@@ -393,17 +789,28 @@
         const m = (s) => !q || s.toLowerCase().includes(q);
         let all = [];
         if (category === "project") {
-          all = PROJECTS.filter((p) => m(p.name + " " + p.key))
-            .map((p) => ({ externalId: p.key, label: p.name, projectKey: p.key }));
+          all = PROJECTS.filter((p) => m(p.name + " " + p.key)).map((p) => ({
+            externalId: p.key,
+            label: p.name,
+            projectKey: p.key,
+          }));
         } else if (category === "board") {
-          all = BOARDS.filter((b) => scopeKeys.includes(b.projectKey) && m(b.name))
-            .map((b) => ({ externalId: String(b.id), label: b.name, projectKey: b.projectKey, boardType: b.type }));
+          all = BOARDS.filter((b) => scopeKeys.includes(b.projectKey) && m(b.name)).map((b) => ({
+            externalId: String(b.id),
+            label: b.name,
+            projectKey: b.projectKey,
+            boardType: b.type,
+          }));
         } else if (category === "filter") {
-          all = FILTERS.filter((f) => scopeKeys.includes(f.projectKey) && m(f.name))
-            .map((f) => ({ externalId: String(f.id), label: f.name, projectKey: f.projectKey }));
+          all = FILTERS.filter((f) => scopeKeys.includes(f.projectKey) && m(f.name)).map((f) => ({
+            externalId: String(f.id),
+            label: f.name,
+            projectKey: f.projectKey,
+          }));
         } else if (category === "epic") {
-          all = EPICS.filter((e) => scopeKeys.includes(e.projectKey) && m(e.name + " " + e.key))
-            .map((e) => ({ externalId: e.key, label: e.name, projectKey: e.projectKey }));
+          all = EPICS.filter(
+            (e) => scopeKeys.includes(e.projectKey) && m(e.name + " " + e.key),
+          ).map((e) => ({ externalId: e.key, label: e.name, projectKey: e.projectKey }));
         }
         const start = cursor ? Number(cursor) : 0;
         const slice = all.slice(start, start + PAGE);
@@ -421,12 +828,16 @@
             let hit = false;
             if (s.category === "project") hit = i.projectKey === s.externalId;
             else if (s.category === "board")
-              hit = i.boardIds.includes(Number(s.externalId)) && (s.activeSprintOnly === false || i.inActiveSprint);
+              hit =
+                i.boardIds.includes(Number(s.externalId)) &&
+                (s.activeSprintOnly === false || i.inActiveSprint);
             else if (s.category === "filter") hit = i.filterIds.includes(Number(s.externalId));
             else if (s.category === "epic") hit = i.epicKey === s.externalId;
             else if (s.category === "mine") {
               const sc = s.mineScope || "project";
-              hit = i.assignee === CURRENT_USER && (sc === "anywhere" || scopeKeys().includes(i.projectKey));
+              hit =
+                i.assignee === CURRENT_USER &&
+                (sc === "anywhere" || scopeKeys().includes(i.projectKey));
             }
             if (hit) map.set(i.key, i);
           });
@@ -448,20 +859,30 @@
         excluded: new Set(["done"]),
       };
       const scopeKeys = () => state.scope.map((p) => p.key);
-      const CAT_LABEL = { project: "Project", board: "Board", filter: "Filter", epic: "Epic", mine: "Assigned to me" };
+      const CAT_LABEL = {
+        project: "Project",
+        board: "Board",
+        filter: "Filter",
+        epic: "Epic",
+        mine: "Assigned to me",
+      };
       const CAT_ICON = { project: "▣", board: "▤", filter: "⛃", epic: "◈", mine: "@" };
 
       function el(tag, attrs, children) {
         const e = document.createElement(tag);
-        if (attrs) Object.keys(attrs).forEach((k) => {
-          if (k === "class") e.className = attrs[k];
-          else if (k === "text") e.textContent = attrs[k];
-          else if (k === "html") e.innerHTML = attrs[k];
-          else if (k.startsWith("on") && typeof attrs[k] === "function") e.addEventListener(k.slice(2), attrs[k]);
-          else if (attrs[k] === true) e.setAttribute(k, "");
-          else if (attrs[k] != null && attrs[k] !== false) e.setAttribute(k, attrs[k]);
+        if (attrs)
+          Object.keys(attrs).forEach((k) => {
+            if (k === "class") e.className = attrs[k];
+            else if (k === "text") e.textContent = attrs[k];
+            else if (k === "html") e.innerHTML = attrs[k];
+            else if (k.startsWith("on") && typeof attrs[k] === "function")
+              e.addEventListener(k.slice(2), attrs[k]);
+            else if (attrs[k] === true) e.setAttribute(k, "");
+            else if (attrs[k] != null && attrs[k] !== false) e.setAttribute(k, attrs[k]);
+          });
+        (children || []).forEach((c) => {
+          if (c != null) e.append(c);
         });
-        (children || []).forEach((c) => { if (c != null) e.append(c); });
         return e;
       }
 
@@ -469,9 +890,15 @@
       // Search popover (appended to <body>, so never clipped)
       // ---------------------------------------------------------------------
       let activePop = null;
-      function closePop() { if (activePop) { activePop.remove(); activePop = null; } }
+      function closePop() {
+        if (activePop) {
+          activePop.remove();
+          activePop = null;
+        }
+      }
       document.addEventListener("click", (e) => {
-        if (activePop && !activePop.contains(e.target) && !e.target.closest("[data-pop-trigger]")) closePop();
+        if (activePop && !activePop.contains(e.target) && !e.target.closest("[data-pop-trigger]"))
+          closePop();
       });
 
       function openPop(trigger, opts) {
@@ -481,13 +908,20 @@
         pop.style.left = Math.min(rect.left, window.innerWidth - 332) + "px";
         pop.style.top = rect.bottom + 6 + "px";
 
-        const input = el("input", { placeholder: opts.placeholder, "aria-label": opts.placeholder });
+        const input = el("input", {
+          placeholder: opts.placeholder,
+          "aria-label": opts.placeholder,
+        });
         const spinHolder = el("span");
         const results = el("div", { class: "results", role: "listbox" });
         const showing = el("span");
         const ms = el("span", { class: "ms" });
         pop.append(
-          el("div", { class: "search" }, [el("span", { html: "&#128269;", style: "color:var(--stone-400)" }), input, spinHolder]),
+          el("div", { class: "search" }, [
+            el("span", { html: "&#128269;", style: "color:var(--stone-400)" }),
+            input,
+            spinHolder,
+          ]),
           results,
           el("div", { class: "footer" }, [showing, ms]),
         );
@@ -495,26 +929,55 @@
         activePop = pop;
         input.focus();
 
-        let cursor = null, total = 0, current = [], reqId = 0, timer = null;
+        let cursor = null,
+          total = 0,
+          current = [],
+          reqId = 0,
+          timer = null;
 
         function renderResults() {
           results.innerHTML = "";
           if (current.length === 0) {
-            results.append(el("div", { class: "none", text: input.value ? "No matches" : "Start typing to search" }));
+            results.append(
+              el("div", {
+                class: "none",
+                text: input.value ? "No matches" : "Start typing to search",
+              }),
+            );
           }
           current.forEach((o) => {
             results.append(
-              el("button", { class: "opt-row", role: "option", onclick: () => { opts.onSelect(o); closePop(); } }, [
-                el("span", { class: "ol" }, [
-                  el("span", { class: "t", text: o.label }),
-                  el("span", { class: "s", text: o.projectKey + " · " + o.externalId + (o.boardType ? " · " + o.boardType : "") }),
-                ]),
-                el("span", { class: "add", text: "+" }),
-              ]),
+              el(
+                "button",
+                {
+                  class: "opt-row",
+                  role: "option",
+                  onclick: () => {
+                    opts.onSelect(o);
+                    closePop();
+                  },
+                },
+                [
+                  el("span", { class: "ol" }, [
+                    el("span", { class: "t", text: o.label }),
+                    el("span", {
+                      class: "s",
+                      text:
+                        o.projectKey +
+                        " · " +
+                        o.externalId +
+                        (o.boardType ? " · " + o.boardType : ""),
+                    }),
+                  ]),
+                  el("span", { class: "add", text: "+" }),
+                ],
+              ),
             );
           });
           if (cursor) {
-            results.append(el("button", { class: "loadmore", text: "Load more", onclick: loadMore }));
+            results.append(
+              el("button", { class: "loadmore", text: "Load more", onclick: loadMore }),
+            );
           }
           showing.textContent = "Showing " + current.length + " of " + total.toLocaleString();
         }
@@ -524,19 +987,29 @@
           spinHolder.innerHTML = "";
           spinHolder.append(el("span", { class: "spin" }));
           const started = performance.now();
-          searchSources(opts.category, scopeKeys(), input.value, reset ? null : cursor).then((page) => {
-            if (id !== reqId) return;
-            spinHolder.innerHTML = "";
-            current = reset ? page.options : current.concat(page.options);
-            cursor = page.nextCursor;
-            total = page.total;
-            ms.textContent = Math.round(performance.now() - started) + "ms" + (performance.now() - started < 500 ? " ✓" : "");
-            renderResults();
-          });
+          searchSources(opts.category, scopeKeys(), input.value, reset ? null : cursor).then(
+            (page) => {
+              if (id !== reqId) return;
+              spinHolder.innerHTML = "";
+              current = reset ? page.options : current.concat(page.options);
+              cursor = page.nextCursor;
+              total = page.total;
+              ms.textContent =
+                Math.round(performance.now() - started) +
+                "ms" +
+                (performance.now() - started < 500 ? " ✓" : "");
+              renderResults();
+            },
+          );
         }
-        function loadMore() { fetchPage(false); }
+        function loadMore() {
+          fetchPage(false);
+        }
 
-        input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => fetchPage(true), 250); });
+        input.addEventListener("input", () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => fetchPage(true), 250);
+        });
         fetchPage(true);
       }
 
@@ -544,7 +1017,8 @@
       // Render
       // ---------------------------------------------------------------------
       function addProject(o) {
-        if (!state.scope.some((p) => p.key === o.externalId)) state.scope.push({ key: o.externalId, name: o.label });
+        if (!state.scope.some((p) => p.key === o.externalId))
+          state.scope.push({ key: o.externalId, name: o.label });
         render();
       }
       function removeProject(key) {
@@ -555,34 +1029,67 @@
       function addSource(cat, o) {
         if (state.sources.some((s) => s.category === cat && s.externalId === o.externalId)) return;
         state.sources.push({
-          uid: uid(), category: cat, externalId: o.externalId, label: o.label,
-          projectKey: o.projectKey, activeSprintOnly: cat === "board" ? true : undefined,
+          uid: uid(),
+          category: cat,
+          externalId: o.externalId,
+          label: o.label,
+          projectKey: o.projectKey,
+          activeSprintOnly: cat === "board" ? true : undefined,
         });
         render();
       }
       function addMine() {
-        state.sources.push({ uid: uid(), category: "mine", externalId: "current-user", label: "Assigned to me", projectKey: scopeKeys()[0] || "", mineScope: "project" });
+        state.sources.push({
+          uid: uid(),
+          category: "mine",
+          externalId: "current-user",
+          label: "Assigned to me",
+          projectKey: scopeKeys()[0] || "",
+          mineScope: "project",
+        });
         render();
       }
 
       function render() {
         document.getElementById("stats").textContent =
-          "Mock instance: " + PROJECTS.length + " projects · " + BOARDS.length.toLocaleString()
-          + " boards · " + FILTERS.length.toLocaleString() + " filters · " + EPICS.length.toLocaleString() + " epics";
+          "Mock instance: " +
+          PROJECTS.length +
+          " projects · " +
+          BOARDS.length.toLocaleString() +
+          " boards · " +
+          FILTERS.length.toLocaleString() +
+          " filters · " +
+          EPICS.length.toLocaleString() +
+          " epics";
 
         // Scope row
         const scopeRow = document.getElementById("scope-row");
         scopeRow.innerHTML = "";
         state.scope.forEach((p) => {
-          scopeRow.append(el("span", { class: "chip" }, [
-            el("b", { text: p.name }), el("span", { class: "k", text: p.key }),
-            el("button", { class: "x", "aria-label": "Remove " + p.name, text: "✕", onclick: () => removeProject(p.key) }),
-          ]));
+          scopeRow.append(
+            el("span", { class: "chip" }, [
+              el("b", { text: p.name }),
+              el("span", { class: "k", text: p.key }),
+              el("button", {
+                class: "x",
+                "aria-label": "Remove " + p.name,
+                text: "✕",
+                onclick: () => removeProject(p.key),
+              }),
+            ]),
+          );
         });
         const projBtn = el("button", { class: "btn", "data-pop-trigger": true }, [
-          el("span", { class: "plus", text: "+" }), document.createTextNode(state.scope.length ? "Add project" : "Choose project"),
+          el("span", { class: "plus", text: "+" }),
+          document.createTextNode(state.scope.length ? "Add project" : "Choose project"),
         ]);
-        projBtn.addEventListener("click", () => openPop(projBtn, { category: "project", placeholder: "Search Jira projects…", onSelect: addProject }));
+        projBtn.addEventListener("click", () =>
+          openPop(projBtn, {
+            category: "project",
+            placeholder: "Search Jira projects…",
+            onSelect: addProject,
+          }),
+        );
         scopeRow.append(projBtn);
 
         // Picker row
@@ -595,13 +1102,26 @@
           { cat: "epic", label: "Epic", ph: "Search epics in scope…" },
         ].forEach((d) => {
           const b = el("button", { class: "btn", "data-pop-trigger": true, disabled: !ready }, [
-            el("span", { class: "plus", text: "+" }), document.createTextNode(d.label),
-            !ready && d.cat === "board" ? el("span", { class: "hint", text: "(pick a project first)" }) : null,
+            el("span", { class: "plus", text: "+" }),
+            document.createTextNode(d.label),
+            !ready && d.cat === "board"
+              ? el("span", { class: "hint", text: "(pick a project first)" })
+              : null,
           ]);
-          if (ready) b.addEventListener("click", () => openPop(b, { category: d.cat, placeholder: d.ph, onSelect: (o) => addSource(d.cat, o) }));
+          if (ready)
+            b.addEventListener("click", () =>
+              openPop(b, {
+                category: d.cat,
+                placeholder: d.ph,
+                onSelect: (o) => addSource(d.cat, o),
+              }),
+            );
           pickerRow.append(b);
         });
-        const mineBtn = el("button", { class: "btn", disabled: !ready }, [el("span", { style: "color:var(--sky-600)", text: "@" }), document.createTextNode("Assigned to me")]);
+        const mineBtn = el("button", { class: "btn", disabled: !ready }, [
+          el("span", { style: "color:var(--sky-600)", text: "@" }),
+          document.createTextNode("Assigned to me"),
+        ]);
         if (ready) mineBtn.addEventListener("click", addMine);
         pickerRow.append(mineBtn);
 
@@ -609,13 +1129,25 @@
         const list = document.getElementById("source-list");
         list.innerHTML = "";
         if (state.sources.length === 0) {
-          list.append(el("div", { class: "empty", text: "No sources yet. Your cut list is the union of everything you add here.", style: "margin-top:12px" }));
+          list.append(
+            el("div", {
+              class: "empty",
+              text: "No sources yet. Your cut list is the union of everything you add here.",
+              style: "margin-top:12px",
+            }),
+          );
         } else {
           const ul = el("ul", { class: "srclist" });
           state.sources.forEach((s) => {
             const body = el("div", { class: "body" }, [
-              el("div", { class: "name" }, [el("span", { class: "trunc", text: s.label }), el("span", { class: "tag", text: CAT_LABEL[s.category] })]),
-              el("div", { class: "meta", text: s.projectKey + (s.category !== "mine" ? " · " + s.externalId : "") }),
+              el("div", { class: "name" }, [
+                el("span", { class: "trunc", text: s.label }),
+                el("span", { class: "tag", text: CAT_LABEL[s.category] }),
+              ]),
+              el("div", {
+                class: "meta",
+                text: s.projectKey + (s.category !== "mine" ? " · " + s.externalId : ""),
+              }),
             ]);
             if (s.category === "board") {
               const on = s.activeSprintOnly !== false;
@@ -623,21 +1155,49 @@
                 el("span", { class: "box sm" + (on ? " on" : ""), text: on ? "✓" : "" }),
                 el("span", { text: "Active sprint only" }),
               ]);
-              lbl.addEventListener("click", (e) => { e.preventDefault(); s.activeSprintOnly = !(s.activeSprintOnly !== false); render(); });
+              lbl.addEventListener("click", (e) => {
+                e.preventDefault();
+                s.activeSprintOnly = !(s.activeSprintOnly !== false);
+                render();
+              });
               body.append(lbl);
             }
             if (s.category === "mine") {
               const seg = el("div", { class: "opt" }, [
-                el("button", { class: "seg" + ((s.mineScope || "project") === "project" ? " on" : ""), text: "In scoped projects", onclick: () => { s.mineScope = "project"; render(); } }),
-                el("button", { class: "seg" + (s.mineScope === "anywhere" ? " on" : ""), text: "Anywhere", onclick: () => { s.mineScope = "anywhere"; render(); } }),
+                el("button", {
+                  class: "seg" + ((s.mineScope || "project") === "project" ? " on" : ""),
+                  text: "In scoped projects",
+                  onclick: () => {
+                    s.mineScope = "project";
+                    render();
+                  },
+                }),
+                el("button", {
+                  class: "seg" + (s.mineScope === "anywhere" ? " on" : ""),
+                  text: "Anywhere",
+                  onclick: () => {
+                    s.mineScope = "anywhere";
+                    render();
+                  },
+                }),
               ]);
               body.append(seg);
             }
-            ul.append(el("li", { class: "src" }, [
-              el("span", { class: "ico " + s.category, text: CAT_ICON[s.category] }),
-              body,
-              el("button", { class: "x", "aria-label": "Remove source", text: "✕", onclick: () => { state.sources = state.sources.filter((x) => x.uid !== s.uid); render(); } }),
-            ]));
+            ul.append(
+              el("li", { class: "src" }, [
+                el("span", { class: "ico " + s.category, text: CAT_ICON[s.category] }),
+                body,
+                el("button", {
+                  class: "x",
+                  "aria-label": "Remove source",
+                  text: "✕",
+                  onclick: () => {
+                    state.sources = state.sources.filter((x) => x.uid !== s.uid);
+                    render();
+                  },
+                }),
+              ]),
+            );
           });
           list.append(ul);
         }
@@ -645,15 +1205,23 @@
         // Excluded row
         const exRow = document.getElementById("excluded-row");
         exRow.innerHTML = "";
-        [{ id: "todo", label: "To Do" }, { id: "in-progress", label: "In Progress" }, { id: "done", label: "Done" }].forEach((c) => {
+        [
+          { id: "todo", label: "To Do" },
+          { id: "in-progress", label: "In Progress" },
+          { id: "done", label: "Done" },
+        ].forEach((c) => {
           const on = state.excluded.has(c.id);
           const lbl = el("label", { class: "check" }, [
             el("span", { class: "box" + (on ? " on" : ""), text: on ? "✓" : "" }),
-            el("span", {}, [document.createTextNode(c.label), el("span", { class: "cat", text: "category" })]),
+            el("span", {}, [
+              document.createTextNode(c.label),
+              el("span", { class: "cat", text: "category" }),
+            ]),
           ]);
           lbl.addEventListener("click", (e) => {
             e.preventDefault();
-            if (state.excluded.has(c.id)) state.excluded.delete(c.id); else state.excluded.add(c.id);
+            if (state.excluded.has(c.id)) state.excluded.delete(c.id);
+            else state.excluded.add(c.id);
             render();
           });
           exRow.append(lbl);
@@ -665,10 +1233,25 @@
         const cb = document.getElementById("cut-body");
         cb.innerHTML = "";
         if (excludedCount > 0) {
-          cb.append(el("div", { class: "banner", text: excludedCount + " closed/done issue" + (excludedCount === 1 ? "" : "s") + " filtered out in the query (never reached the cut list)." }));
+          cb.append(
+            el("div", {
+              class: "banner",
+              text:
+                excludedCount +
+                " closed/done issue" +
+                (excludedCount === 1 ? "" : "s") +
+                " filtered out in the query (never reached the cut list).",
+            }),
+          );
         }
         if (state.sources.length === 0) {
-          cb.append(el("div", { class: "empty", text: "Add a source to preview the union of issues.", style: "margin-top:12px;padding:40px 24px" }));
+          cb.append(
+            el("div", {
+              class: "empty",
+              text: "Add a source to preview the union of issues.",
+              style: "margin-top:12px;padding:40px 24px",
+            }),
+          );
         } else {
           const ul = el("ul", { class: "cut" });
           if (issues.length === 0) {
@@ -676,12 +1259,14 @@
           }
           issues.forEach((i) => {
             const pillClass = i.statusCategory === "in-progress" ? "prog" : "todo";
-            ul.append(el("li", { class: "issue" }, [
-              el("span", { class: "key", text: i.key }),
-              el("span", { class: "sum", text: i.summary }),
-              i.assignee === CURRENT_USER ? el("span", { class: "pill you", text: "you" }) : null,
-              el("span", { class: "pill " + pillClass, text: i.status }),
-            ]));
+            ul.append(
+              el("li", { class: "issue" }, [
+                el("span", { class: "key", text: i.key }),
+                el("span", { class: "sum", text: i.summary }),
+                i.assignee === CURRENT_USER ? el("span", { class: "pill you", text: "you" }) : null,
+                el("span", { class: "pill " + pillClass, text: i.status }),
+              ]),
+            );
           });
           cb.append(ul);
         }
