@@ -150,3 +150,9 @@ export const PROJECT_ID_RE = /^(?!\.{1,2}$)[A-Za-z0-9._-]+$/;
 // "test-123". Keep this regex aligned with that public contract so the
 // sanitizer doesn't reject ids the rest of the system has already accepted.
 export const JIG_ID_RE = /^[a-z0-9_-]+$/;
+// Spec slugs name a `.specifications/<slug>/` feature folder and flow into the
+// test-results write path. Modelled on JIG_ID_RE (lowercase kebab/underscore)
+// but, like PROJECT_ID_RE, fronted by a negative lookahead that rejects "." and
+// ".." outright so a slug can never be a traversal segment. The character class
+// excludes "/" and "\0", so a slug can never embed a path separator either.
+export const SPEC_SLUG_RE = /^(?!\.{1,2}$)[a-z0-9_-]+$/;

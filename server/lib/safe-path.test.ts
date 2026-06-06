@@ -14,6 +14,7 @@ import {
   UUID_RE,
   PROJECT_ID_RE,
   JIG_ID_RE,
+  SPEC_SLUG_RE,
 } from "./safe-path.js";
 
 const ROOT = path.resolve("/tmp/safe-path-test-root");
@@ -244,5 +245,20 @@ describe("identifier regexes", () => {
     expect(JIG_ID_RE.test("has space")).toBe(false);
     expect(JIG_ID_RE.test("..")).toBe(false);
     expect(JIG_ID_RE.test("")).toBe(false);
+  });
+
+  it("SPEC_SLUG_RE", () => {
+    expect(SPEC_SLUG_RE.test("testbench")).toBe(true);
+    expect(SPEC_SLUG_RE.test("results-store")).toBe(true);
+    expect(SPEC_SLUG_RE.test("my_spec_1")).toBe(true);
+    expect(SPEC_SLUG_RE.test("123-feature")).toBe(true);
+    expect(SPEC_SLUG_RE.test("..")).toBe(false);
+    expect(SPEC_SLUG_RE.test("../")).toBe(false);
+    expect(SPEC_SLUG_RE.test(".")).toBe(false);
+    expect(SPEC_SLUG_RE.test("")).toBe(false);
+    expect(SPEC_SLUG_RE.test("a/b")).toBe(false);
+    expect(SPEC_SLUG_RE.test("a\\b")).toBe(false);
+    expect(SPEC_SLUG_RE.test("Bad")).toBe(false);
+    expect(SPEC_SLUG_RE.test("has space")).toBe(false);
   });
 });
