@@ -290,6 +290,24 @@ export function sourceExcludedStatuses(
   return rootLevel ? [...rootLevel] : pluginGlobalDefault ? [...pluginGlobalDefault] : undefined;
 }
 
+// Resolve the root-level status exclusion (FR-009/FR-010) for the cut list.
+// Both fields follow the same fallback ladder as `sourceExcludedStatuses`, but
+// at the root: the merged effective value (roubo.yaml ⊕ global ⊕ per-user,
+// already shallow-replaced by `getEffectiveIntegrationConfig`) wins, otherwise
+// the plugin-global manifest default applies, otherwise an empty list. Returns
+// plain arrays so the result is safe to forward into `ListIssuesParams`.
+export function resolveRootExclusion(
+  effective: IntegrationConfig,
+  manifestDefaults:
+    | { excludedStatusCategories?: readonly string[]; excludedStatuses?: readonly string[] }
+    | undefined,
+): { excludedStatusCategories: string[]; excludedStatuses: string[] } {
+  const categories =
+    effective.excludedStatusCategories ?? manifestDefaults?.excludedStatusCategories ?? [];
+  const statuses = effective.excludedStatuses ?? manifestDefaults?.excludedStatuses ?? [];
+  return { excludedStatusCategories: [...categories], excludedStatuses: [...statuses] };
+}
+
 function entryExternalId(entry: SourceEntry): string | number {
   return typeof entry === "object" ? entry.externalId : entry;
 }

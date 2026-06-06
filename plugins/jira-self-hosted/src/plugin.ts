@@ -19,7 +19,12 @@ import type {
   ValidateConfigResult,
 } from "@roubo/plugin-sdk";
 import { parseFormConfig, parseIntegrationConfig, type JiraPluginConfig } from "./config.js";
-import { jiraFetch, JiraApiError, type JiraRequestContext } from "./jira-client.js";
+import {
+  jiraFetch,
+  JiraApiError,
+  isStatusCategoryUnsupportedError,
+  type JiraRequestContext,
+} from "./jira-client.js";
 import { assertProjectKey, buildIssueListJql, type SourceClause, type SourceKind } from "./jql.js";
 import { resolveBoardClause } from "./board-resolve.js";
 import {
@@ -269,33 +274,23 @@ export function createPluginContract(): PluginContract {
       const sources = await prepareSourceClauses(ctx, params.sources);
       const sourceKey = sourcesCacheKey(sources);
       const lastPoll = await getLastPoll(sourceKey);
-      const jql = buildIssueListJql({ sources, lastPollIso: lastPoll });
 
       const startAt = parseCursor(params.cursor);
       const pageSize = params.pageSize ?? 50;
 
-      const search = await jiraFetch<{ issues?: JiraIssueResponse[]; total?: number }>(
-        ctx,
-        "/rest/api/2/search",
-        {
-          method: "POST",
-          body: {
-            jql,
-            startAt,
-            maxResults: pageSize,
-            fields: [
-              "summary",
-              "description",
-              "status",
-              "issuelinks",
-              "assignee",
-              "labels",
-              "issuetype",
-              "updated",
-            ],
-          },
-        },
-      );
+      const buildJql = (statusCategorySupported: boolean): string =>
+        buildIssueListJql({
+          sources,
+          lastPollIso: lastPoll,
+          excludedStatusCategories: params.excludedStatusCategories,
+          excludedStatuses: params.excludedStatuses,
+          statusCategorySupported,
+        });
+
+      const search = await searchWithExclusionFallback(ctx, config.instance, buildJql, {
+        startAt,
+        pageSize,
+      });
 
       const items = (search.issues ?? []).map((i) => normalizeIssue(config, i, config.instance));
 
@@ -453,9 +448,72 @@ export function createPluginContract(): PluginContract {
   return contract as unknown as PluginContract;
 }
 
-/** Test seam: reset the state-store cache (no contract-level state to reset). */
+/**
+ * Per-instance memo of "this Jira does not accept `statusCategory` in JQL".
+ * Populated the first time a category-based exclusion query is rejected with a
+ * `statusCategory` JQL parse error (TC-037); thereafter the builder emits the
+ * status-name fallback directly for that instance, so the 400 round-trip is
+ * paid at most once per process. Keyed by the instance URL.
+ */
+const statusCategoryUnsupportedInstances = new Set<string>();
+
+/** Issue one page against `/rest/api/2/search` for a prebuilt JQL string. */
+function jiraSearch(
+  ctx: JiraRequestContext,
+  jql: string,
+  page: { startAt: number; pageSize: number },
+): Promise<{ issues?: JiraIssueResponse[]; total?: number }> {
+  return jiraFetch<{ issues?: JiraIssueResponse[]; total?: number }>(ctx, "/rest/api/2/search", {
+    method: "POST",
+    body: {
+      jql,
+      startAt: page.startAt,
+      maxResults: page.pageSize,
+      fields: [
+        "summary",
+        "description",
+        "status",
+        "issuelinks",
+        "assignee",
+        "labels",
+        "issuetype",
+        "updated",
+      ],
+    },
+  });
+}
+
+/**
+ * Run the cut-list search with the category-first status exclusion (FR-009),
+ * falling back to status-name exclusion when the instance rejects
+ * `statusCategory` in JQL (TC-037). The fallback flips a per-instance memo so
+ * later pages and polls build the name form directly. The decision is logged
+ * with no JQL, search term, PAT, or issue content (NFR-003).
+ */
+async function searchWithExclusionFallback(
+  ctx: JiraRequestContext,
+  instance: string,
+  buildJql: (statusCategorySupported: boolean) => string,
+  page: { startAt: number; pageSize: number },
+): Promise<{ issues?: JiraIssueResponse[]; total?: number }> {
+  const supported = !statusCategoryUnsupportedInstances.has(instance);
+  try {
+    return await jiraSearch(ctx, buildJql(supported), page);
+  } catch (err) {
+    if (!supported || !isStatusCategoryUnsupportedError(err)) throw err;
+    statusCategoryUnsupportedInstances.add(instance);
+    host.logger.info({
+      message: "Jira instance does not support statusCategory in JQL; excluding by status name.",
+      data: { resolvedKind: "status-names-fallback" },
+    });
+    return jiraSearch(ctx, buildJql(false), page);
+  }
+}
+
+/** Test seam: reset the state-store cache and the statusCategory-support memo. */
 export function _resetForTests(): void {
   _resetCacheForTests();
+  statusCategoryUnsupportedInstances.clear();
 }
 
 /**

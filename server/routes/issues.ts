@@ -8,7 +8,7 @@ import type {
   PaginatedIssues,
 } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
-import { resolveSources } from "../services/plugin-activation.js";
+import { resolveSources, resolveExclusion } from "../services/plugin-activation.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
@@ -53,11 +53,14 @@ router.get("/:projectId/issues", async (req, res) => {
   let params: ListIssuesParams | undefined;
   try {
     await awaitPendingIntegrationSetup(req.params.projectId);
+    const exclusion = resolveExclusion(req.params.projectId);
     params = {
       sources: resolveSources(req.params.projectId),
       cursor: requestCursor,
       pageSize,
       filters: Object.keys(filters).length > 0 ? filters : undefined,
+      excludedStatusCategories: exclusion.excludedStatusCategories,
+      excludedStatuses: exclusion.excludedStatuses,
     };
     raw = await pluginManager.invoke<{
       items: NormalizedIssue[];

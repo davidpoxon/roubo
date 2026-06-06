@@ -259,10 +259,11 @@ export const IntegrationConfigSchema = z
     // by `applyPerSourceExcludedStatuses`.
     excludedStatuses: z.array(z.string().min(1)).optional(),
     // Category-first default exclusion (FR-010): a user-editable list of Jira
-    // status *categories* (e.g. "Done") ANDed into the JQL alongside
-    // `excludedStatuses`. Plugin-global default is seeded in the manifest. The
-    // resolution that consumes this is wired by a later slice; the field is
-    // contract-only here.
+    // status *categories* (e.g. "Done") applied in the query so excluded issues
+    // never reach a result page. Plugin-global default is seeded in the manifest
+    // and resolved at the root level by `resolveRootExclusion`; the jira plugin
+    // emits `statusCategory not in (...)` and falls back to `excludedStatuses`
+    // names when the instance does not support `statusCategory` in JQL.
     excludedStatusCategories: z.array(z.string().min(1)).optional(),
   })
   .strict();

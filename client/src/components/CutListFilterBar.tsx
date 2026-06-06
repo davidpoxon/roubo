@@ -8,7 +8,6 @@ import {
   ListBoxItem,
   TextField,
   Input,
-  Checkbox,
 } from "react-aria-components";
 import { ListFilter, X, Check, Search } from "lucide-react";
 import type { FilterFacet, FilterFacetOption } from "@roubo/shared";
@@ -29,12 +28,6 @@ interface CutListFilterBarProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   facets: FilterFacet[];
-  /**
-   * Resolved root-level excludedStatuses for the active project. Drives the
-   * "Hidden by default" pill in the Status section. Pass `[]` when no plugin
-   * is active or when the project hasn't opted into excluding any statuses.
-   */
-  excludedStatuses: string[];
   projectId: string;
   pluginId: string | null;
   /**
@@ -50,13 +43,12 @@ export default function CutListFilterBar({
   filters,
   onFiltersChange,
   facets,
-  excludedStatuses,
   projectId,
   pluginId,
   derivedOptions,
 }: CutListFilterBarProps) {
   const count = activeFilterCount(filters);
-  const hasFilters = !isFiltersEmpty(filters) || filters.includeHiddenStatuses;
+  const hasFilters = !isFiltersEmpty(filters);
   const hasOptions = facets.length > 0;
 
   return (
@@ -133,7 +125,6 @@ export default function CutListFilterBar({
                       facet={facet}
                       filters={filters}
                       onFiltersChange={onFiltersChange}
-                      excludedStatuses={excludedStatuses}
                       projectId={projectId}
                       pluginId={pluginId}
                       derivedOptions={derivedOptions[facet.id] ?? []}
@@ -154,7 +145,6 @@ interface FacetSectionProps {
   facet: FilterFacet;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  excludedStatuses: string[];
   projectId: string;
   pluginId: string | null;
   derivedOptions: string[];
@@ -165,13 +155,11 @@ function FacetSection({
   facet,
   filters,
   onFiltersChange,
-  excludedStatuses,
   projectId,
   pluginId,
   derivedOptions,
   isLast,
 }: FacetSectionProps) {
-  const isStatus = facet.id === "status";
   // `enum-async` facets fetch their options via `getFacetOptions` as soon as
   // the popover renders this section. The panel also prefetches these on load
   // (see usePrefetchFacetOptions), so the query usually resolves instantly from
@@ -186,24 +174,13 @@ function FacetSection({
 
   // Resolve the option universe for this facet. Precedence: inline options
   // from the plugin, then a lazy-fetched list, then options derived from
-  // currently-loaded issues. The Status facet folds in `excludedStatuses`
-  // so hidden statuses can be surfaced and pre-tagged even when no visible
-  // issue currently sits in that state.
+  // currently-loaded issues.
   const options = useMemo<FilterFacetOption[]>(() => {
     const fromInline = facet.options;
     const fromAsync = asyncQuery.data;
     const fromDerived = derivedOptions.map((v) => ({ value: v, label: v }));
-    const base: FilterFacetOption[] = fromInline ?? fromAsync ?? fromDerived;
-
-    if (!isStatus) return base;
-
-    const merged = new Map<string, FilterFacetOption>();
-    for (const opt of base) merged.set(opt.value, opt);
-    for (const value of excludedStatuses) {
-      if (!merged.has(value)) merged.set(value, { value, label: value });
-    }
-    return [...merged.values()];
-  }, [facet.options, asyncQuery.data, derivedOptions, isStatus, excludedStatuses]);
+    return fromInline ?? fromAsync ?? fromDerived;
+  }, [facet.options, asyncQuery.data, derivedOptions]);
 
   const clearSelection = () => onFiltersChange(setFacetSelection(filters, facet.id, new Set()));
 
@@ -213,7 +190,6 @@ function FacetSection({
     onFiltersChange(setFacetSelection(filters, facet.id, next));
   };
 
-  const excludedSet = useMemo(() => new Set(excludedStatuses), [excludedStatuses]);
   const showEmpty = options.length === 0 && !asyncQuery.isLoading;
 
   return (
@@ -232,21 +208,6 @@ function FacetSection({
           </Button>
         )}
       </div>
-
-      {isStatus && excludedStatuses.length > 0 && (
-        <div className="px-3 py-1.5">
-          <Checkbox
-            isSelected={filters.includeHiddenStatuses}
-            onChange={(checked) => onFiltersChange({ ...filters, includeHiddenStatuses: checked })}
-            className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-400 outline-none cursor-pointer group"
-          >
-            <div className="w-3.5 h-3.5 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500">
-              {filters.includeHiddenStatuses && <Check size={10} className="text-white" />}
-            </div>
-            <span>Include hidden statuses in this view</span>
-          </Checkbox>
-        </div>
-      )}
 
       {asyncQuery.isLoading && (
         <div className="px-3 py-3 flex items-center gap-2 text-[11px] text-stone-500">
@@ -270,29 +231,21 @@ function FacetSection({
           onSelectionChange={(keys) => handleSelectionChange(keys as Iterable<string | number>)}
           className="outline-none pb-1"
         >
-          {options.map((opt) => {
-            const hidden = isStatus && excludedSet.has(opt.value);
-            return (
-              <ListBoxItem
-                key={opt.value}
-                id={opt.value}
-                textValue={opt.label}
-                className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="truncate">{opt.label}</span>
-                  {hidden && (
-                    <span className="shrink-0 px-1.5 py-px rounded-full bg-stone-100 dark:bg-stone-800 text-[9px] uppercase tracking-wider text-stone-500 dark:text-stone-500 border border-stone-200 dark:border-stone-700/60">
-                      Hidden by default
-                    </span>
-                  )}
-                </span>
-                {selection.has(opt.value) && (
-                  <Check size={14} className="text-stone-500 dark:text-stone-400 shrink-0" />
-                )}
-              </ListBoxItem>
-            );
-          })}
+          {options.map((opt) => (
+            <ListBoxItem
+              key={opt.value}
+              id={opt.value}
+              textValue={opt.label}
+              className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="truncate">{opt.label}</span>
+              </span>
+              {selection.has(opt.value) && (
+                <Check size={14} className="text-stone-500 dark:text-stone-400 shrink-0" />
+              )}
+            </ListBoxItem>
+          ))}
         </ListBox>
       )}
 

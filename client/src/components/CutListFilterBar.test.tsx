@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, type MockInstance } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CutListFilterBar from "./CutListFilterBar";
 import { createEmptyFilters, getFacetSelection } from "../lib/cut-list-filters";
@@ -40,7 +40,6 @@ function renderBar(props: Partial<React.ComponentProps<typeof CutListFilterBar>>
       { id: "type", label: "Type", type: "enum" },
       { id: "label", label: "Label", type: "enum" },
     ],
-    excludedStatuses: [],
     projectId: "proj-1",
     pluginId: "github-com",
     derivedOptions: { type: ["Bug", "Feature"], label: ["frontend", "backend"] },
@@ -147,53 +146,19 @@ describe("CutListFilterBar", () => {
     });
   });
 
-  describe("status exclusion (TC-173 / issue body cites TC-118)", () => {
+  describe("status exclusion is no longer a client concern (FR-009)", () => {
     const statusFacets: FilterFacet[] = [{ id: "status", label: "Status", type: "enum" }];
 
-    it("tags excluded statuses with a 'Hidden by default' pill", async () => {
+    it("renders status options without a 'Hidden by default' pill or include-hidden toggle", async () => {
+      // Exclusion moved into the query; the client neither folds excluded
+      // statuses into the facet nor offers a toggle to reveal them.
       renderBar({
         facets: statusFacets,
-        excludedStatuses: ["Closed", "Done"],
         derivedOptions: { status: ["Open", "In progress"] },
       });
       await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
-      const closedOption = screen.getByRole("option", { name: /Closed/ });
-      expect(within(closedOption).getByText("Hidden by default")).toBeInTheDocument();
-      const openOption = screen.getByRole("option", { name: /^Open$/ });
-      expect(within(openOption).queryByText("Hidden by default")).not.toBeInTheDocument();
-    });
-
-    it("hides the 'Include hidden statuses' checkbox when no statuses are excluded", async () => {
-      renderBar({
-        facets: statusFacets,
-        excludedStatuses: [],
-        derivedOptions: { status: ["Open"] },
-      });
-      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
+      expect(screen.queryByText("Hidden by default")).not.toBeInTheDocument();
       expect(screen.queryByText(/Include hidden statuses/i)).not.toBeInTheDocument();
-    });
-
-    it("shows the 'Include hidden statuses' checkbox when statuses are excluded", async () => {
-      renderBar({
-        facets: statusFacets,
-        excludedStatuses: ["Closed"],
-        derivedOptions: { status: ["Open"] },
-      });
-      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
-      expect(screen.getByText(/Include hidden statuses/i)).toBeInTheDocument();
-    });
-
-    it("toggling 'Include hidden statuses' emits includeHiddenStatuses=true", async () => {
-      const { onFiltersChange } = renderBar({
-        facets: statusFacets,
-        excludedStatuses: ["Closed"],
-        derivedOptions: { status: ["Open"] },
-      });
-      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
-      await userEvent.click(screen.getByText(/Include hidden statuses/i));
-      expect(onFiltersChange).toHaveBeenCalledWith(
-        expect.objectContaining({ includeHiddenStatuses: true }),
-      );
     });
   });
 
@@ -207,7 +172,6 @@ describe("CutListFilterBar", () => {
       ];
       renderBar({
         facets: fallback,
-        excludedStatuses: [],
         derivedOptions: {
           status: ["Open"],
           label: ["frontend"],

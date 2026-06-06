@@ -505,3 +505,49 @@ describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
     expect(mod.applyPerSourceExcludedStatuses(input, GH_DEFAULTS)).toBe(input);
   });
 });
+
+describe("resolveRootExclusion (FR-009/FR-010)", () => {
+  const JIRA_DEFAULTS = {
+    excludedStatusCategories: ["Done"],
+    excludedStatuses: ["Closed", "Done", "Resolved"],
+  };
+
+  it("falls back to the manifest defaults when the effective config is silent", () => {
+    const result = mod.resolveRootExclusion({ plugin: "jira-self-hosted" }, JIRA_DEFAULTS);
+    expect(result).toEqual({
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Done", "Resolved"],
+    });
+  });
+
+  it("prefers the merged effective value over the manifest default", () => {
+    const result = mod.resolveRootExclusion(
+      { plugin: "jira-self-hosted", excludedStatusCategories: ["Done", "In Progress"] },
+      JIRA_DEFAULTS,
+    );
+    // Effective categories win; statuses fall through to the manifest default.
+    expect(result.excludedStatusCategories).toEqual(["Done", "In Progress"]);
+    expect(result.excludedStatuses).toEqual(["Closed", "Done", "Resolved"]);
+  });
+
+  it("treats an explicit empty list as 'exclude nothing', not 'use the default'", () => {
+    const result = mod.resolveRootExclusion(
+      { plugin: "jira-self-hosted", excludedStatusCategories: [] },
+      JIRA_DEFAULTS,
+    );
+    expect(result.excludedStatusCategories).toEqual([]);
+  });
+
+  it("returns empty lists when neither effective nor manifest has an opinion", () => {
+    expect(mod.resolveRootExclusion({ plugin: "ghe" }, undefined)).toEqual({
+      excludedStatusCategories: [],
+      excludedStatuses: [],
+    });
+  });
+
+  it("returns fresh copies, not references into the inputs", () => {
+    const result = mod.resolveRootExclusion({ plugin: "jira-self-hosted" }, JIRA_DEFAULTS);
+    result.excludedStatusCategories.push("Mutated");
+    expect(JIRA_DEFAULTS.excludedStatusCategories).toEqual(["Done"]);
+  });
+});

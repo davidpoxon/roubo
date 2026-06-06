@@ -32,6 +32,19 @@ export class JiraApiError extends Error {
 }
 
 /**
+ * True when an error is Jira rejecting a JQL query because it does not
+ * understand the `statusCategory` field (DC versions that predate it). Jira
+ * returns HTTP 400 with a JQL-parse message naming the field; we match that to
+ * trigger the status-name fallback in `listIssues` (TC-037). We check both the
+ * raw 400 body and the formatted message so it works regardless of which Jira
+ * surfaced the field name.
+ */
+export function isStatusCategoryUnsupportedError(err: unknown): boolean {
+  if (!(err instanceof JiraApiError) || err.status !== 400) return false;
+  return /statuscategory/i.test(`${err.body} ${err.message}`);
+}
+
+/**
  * Thin wrapper over `host.fetch`. Joins paths to the configured instance
  * URL, attaches the PAT, and turns non-2xx responses into structured
  * errors that surface Jira's own message verbatim (TC-063 relies on this

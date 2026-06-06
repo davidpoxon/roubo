@@ -44,11 +44,7 @@ vi.mock("./CutListFilterBar", () => ({
   default: ({
     onFiltersChange,
   }: {
-    onFiltersChange: (f: {
-      search: string;
-      facetValues: Record<string, Set<string>>;
-      includeHiddenStatuses: boolean;
-    }) => void;
+    onFiltersChange: (f: { search: string; facetValues: Record<string, Set<string>> }) => void;
   }) => (
     <div data-testid="filter-bar">
       <button
@@ -56,7 +52,6 @@ vi.mock("./CutListFilterBar", () => ({
           onFiltersChange({
             search: "",
             facetValues: { type: new Set(["Bug"]) },
-            includeHiddenStatuses: false,
           })
         }
       >

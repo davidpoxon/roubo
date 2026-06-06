@@ -34,12 +34,11 @@ describe("createEmptyFilters", () => {
     const f = createEmptyFilters();
     expect(f.search).toBe("");
     expect(Object.keys(f.facetValues)).toHaveLength(0);
-    expect(f.includeHiddenStatuses).toBe(false);
   });
 });
 
 describe("isFiltersEmpty", () => {
-  it("is empty when no facets, no search, no toggle", () => {
+  it("is empty when no facets and no search", () => {
     expect(isFiltersEmpty(createEmptyFilters())).toBe(true);
   });
 
@@ -51,22 +50,16 @@ describe("isFiltersEmpty", () => {
   it("is non-empty when search is set", () => {
     expect(isFiltersEmpty({ ...createEmptyFilters(), search: "fix" })).toBe(false);
   });
-
-  it("treats the include-hidden toggle as not-a-filter (it widens the view)", () => {
-    expect(isFiltersEmpty({ ...createEmptyFilters(), includeHiddenStatuses: true })).toBe(true);
-  });
 });
 
 describe("activeFilterCount", () => {
-  it("counts each non-empty facet selection plus the include-hidden toggle", () => {
+  it("counts each non-empty facet selection", () => {
     let f = createEmptyFilters();
     expect(activeFilterCount(f)).toBe(0);
     f = setFacetSelection(f, "type", new Set(["Bug"]));
     expect(activeFilterCount(f)).toBe(1);
     f = setFacetSelection(f, "label", new Set(["frontend", "backend"]));
     expect(activeFilterCount(f)).toBe(2);
-    f = { ...f, includeHiddenStatuses: true };
-    expect(activeFilterCount(f)).toBe(3);
   });
 
   it("does not count the search field", () => {
@@ -121,23 +114,12 @@ describe("applyFilters", () => {
     expect(out.map((i) => i.externalId)).toEqual(["1", "3"]);
   });
 
-  it("excludes statuses by default when excludedStatuses is set", () => {
-    const out = applyFilters(issues, createEmptyFilters(), {
-      excludedStatuses: ["Closed", "Done"],
-    });
-    expect(out.map((i) => i.externalId)).toEqual(["1", "2"]);
-  });
-
-  it("includes excluded statuses when includeHiddenStatuses is true", () => {
-    const filters = { ...createEmptyFilters(), includeHiddenStatuses: true };
-    const out = applyFilters(issues, filters, { excludedStatuses: ["Closed", "Done"] });
+  it("does not exclude any status client-side (exclusion is applied in the query)", () => {
+    // Status exclusion moved into the query (FR-009): every fetched issue is
+    // shown, so a Closed/Done issue that reaches the client is rendered rather
+    // than silently dropped. The query is now the single source of truth.
+    const out = applyFilters(issues, createEmptyFilters());
     expect(out.map((i) => i.externalId)).toEqual(["1", "2", "3", "4"]);
-  });
-
-  it("status exclusion stacks with facet selections", () => {
-    const filters = setFacetSelection(createEmptyFilters(), "type", new Set(["Bug"]));
-    const out = applyFilters(issues, filters, { excludedStatuses: ["Closed"] });
-    expect(out.map((i) => i.externalId)).toEqual(["1"]);
   });
 
   it("search filters by title and externalId", () => {
@@ -178,7 +160,7 @@ describe("applyFilters", () => {
     const samples: number[] = [];
     for (let run = 0; run < 5; run++) {
       const t0 = performance.now();
-      applyFilters(big, filters, { excludedStatuses: ["Closed"] });
+      applyFilters(big, filters);
       samples.push(performance.now() - t0);
     }
     const worst = Math.max(...samples);

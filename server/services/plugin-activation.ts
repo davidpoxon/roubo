@@ -3,6 +3,7 @@ import * as projectRegistry from "./project-registry.js";
 import {
   getEffectiveWithGlobal,
   loadOverride,
+  resolveRootExclusion,
   IntegrationOverrideError,
 } from "./integration-overrides.js";
 import * as pluginManager from "./plugin-manager.js";
@@ -104,6 +105,36 @@ export function resolveSources(projectId: string): ConfiguredSource[] {
       );
     },
   });
+}
+
+/**
+ * Resolve the root-level status exclusion for a project's cut list (FR-009 /
+ * FR-010): the merged effective `excludedStatusCategories` / `excludedStatuses`
+ * with the active plugin's manifest `defaultIntegrationConfig` as the final
+ * fallback. Forwarded into `listIssues` so exclusion happens in the query. A
+ * project with no config (or a plugin that ships no defaults) yields empty
+ * lists, which the JQL builder treats as "exclude nothing".
+ */
+export function resolveExclusion(projectId: string): {
+  excludedStatusCategories: string[];
+  excludedStatuses: string[];
+} {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) return { excludedStatusCategories: [], excludedStatuses: [] };
+
+  let override = null;
+  try {
+    override = loadOverride(projectId);
+  } catch (err) {
+    if (!(err instanceof IntegrationOverrideError)) throw err;
+  }
+
+  const effective = getEffectiveWithGlobal(project.config.integration, override);
+  const manifestDefaults = effective.plugin
+    ? (pluginManager.listInstalled().find((r) => r.id === effective.plugin)?.manifest
+        ?.defaultIntegrationConfig ?? undefined)
+    : undefined;
+  return resolveRootExclusion(effective, manifestDefaults);
 }
 
 /**

@@ -1106,6 +1106,16 @@ export interface ListIssuesParams {
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
+  /**
+   * Status exclusion resolved by the host from the three-layer merge (FR-009,
+   * FR-010). Applied in the query so excluded issues never occupy a result
+   * page. `excludedStatusCategories` is the category-first default (e.g.
+   * `["Done"]`); `excludedStatuses` is the status-name list used by a plugin
+   * as the fallback when the instance does not support `statusCategory` in its
+   * query language. A plugin that does not do server-side exclusion ignores both.
+   */
+  excludedStatusCategories?: string[];
+  excludedStatuses?: string[];
 }
 
 /**
