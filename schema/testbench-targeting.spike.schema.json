@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "css"
+                  },
+                  "selector": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "selector"],
+                "additionalProperties": false,
+                "description": "Target an element by CSS selector."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "role"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "role", "name"],
+                "additionalProperties": false,
+                "description": "Target an element by ARIA role and accessible name."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "exact": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["kind", "text"],
+                "additionalProperties": false,
+                "description": "Target an element by a visible-text anchor."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "route"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "path"],
+                "additionalProperties": false,
+                "description": "Scope targeting to a route/URL context."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "region"
+                  },
+                  "region": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "region"],
+                "additionalProperties": false,
+                "description": "Scope targeting to a named page region or landmark."
+              }
+            ],
+            "description": "An optional, additive guided-execution targeting selector (FR-019): one of a CSS selector, ARIA role + accessible name, visible-text anchor, route/URL context, or named region."
+          }
+        },
+        "required": ["instruction"],
+        "additionalProperties": false
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observe": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "css"
+                  },
+                  "selector": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "selector"],
+                "additionalProperties": false,
+                "description": "Target an element by CSS selector."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "role"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "role", "name"],
+                "additionalProperties": false,
+                "description": "Target an element by ARIA role and accessible name."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "exact": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["kind", "text"],
+                "additionalProperties": false,
+                "description": "Target an element by a visible-text anchor."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "route"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "path"],
+                "additionalProperties": false,
+                "description": "Scope targeting to a route/URL context."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "region"
+                  },
+                  "region": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["kind", "region"],
+                "additionalProperties": false,
+                "description": "Scope targeting to a named page region or landmark."
+              }
+            ],
+            "description": "An optional, additive guided-execution targeting selector (FR-019): one of a CSS selector, ARIA role + accessible name, visible-text anchor, route/URL context, or named region."
+          }
+        },
+        "required": ["prompt"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["steps", "observations"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/testbench-targeting.spike/v0.1.0.json",
+  "title": "TestBench Targeting (spike)",
+  "description": "Spike #408 fixture proving z.toJSONSchema() output quality for the FR-019 optional per-step `target` and per-observation `observe` targeting unions. Not the authored TestBench contract (#6)."
+}
