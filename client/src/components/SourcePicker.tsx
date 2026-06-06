@@ -140,6 +140,17 @@ function SearchableSourcePicker({
   const projectKeys = (value.project ?? []).map(entryExternalId);
   const scope = { project: projectKeys };
 
+  // Clean-break detection (WU-006, #355): a persisted source set whose keys are
+  // all legacy old-shape categories (e.g. `boards`/`epics`/`filters` from the
+  // retired flat-tab picker) no longer translates host-side, so it would silently
+  // yield an empty cut list. When the config has source keys but none survive the
+  // plugin's currently-declared categories, prompt the user to re-pick rather than
+  // honoring the stale shape. No migration is attempted.
+  const validCategoryIds = new Set<string>(categories.map((category) => category.id));
+  const persistedKeys = Object.keys(value);
+  const isStaleConfig =
+    persistedKeys.length > 0 && persistedKeys.every((key) => !validCategoryIds.has(key));
+
   // Apply a batch of additions / removals for the project scope in one update.
   // Removing a project also prunes every board / filter / epic source scoped to
   // it (FR-001 / TC-039), rebuilding the record without empty categories.
@@ -181,6 +192,16 @@ function SearchableSourcePicker({
 
   return (
     <div className="flex flex-col gap-4">
+      {isStaleConfig && (
+        <p
+          className="text-xs text-amber-600 dark:text-amber-500"
+          role="status"
+          data-testid="stale-sources-notice"
+        >
+          Your saved sources use the old format and can no longer be used. Re-pick your sources
+          below.
+        </p>
+      )}
       {categories
         .filter((category) => isScopedSearchCategory(category))
         .map((category) => {
