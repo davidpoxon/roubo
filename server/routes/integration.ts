@@ -7,6 +7,7 @@ import type {
   PluginRecord,
   ProjectIntegrationState,
   SourceCandidatesResponse,
+  SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
 import { IntegrationConfigSchema, SourceEntrySchema } from "@roubo/shared";
@@ -143,7 +144,11 @@ function validateSourceCandidatesResponse(raw: unknown): SourceCandidatesRespons
   }
   const obj = raw as Record<string, unknown>;
   const shape = obj.shape;
-  if (shape !== "multi-list" && shape !== "categorized-multi-list") {
+  if (
+    shape !== "multi-list" &&
+    shape !== "categorized-multi-list" &&
+    shape !== "searchable-categorized"
+  ) {
     throw new Error(`plugin returned unknown shape: ${JSON.stringify(shape)}`);
   }
   if (shape === "multi-list") {
@@ -160,7 +165,7 @@ function validateSourceCandidatesResponse(raw: unknown): SourceCandidatesRespons
         throw new Error("multi-list item missing required externalId or label");
       }
     }
-  } else {
+  } else if (shape === "categorized-multi-list") {
     if (!Array.isArray(obj.categories)) {
       throw new Error("categorized-multi-list response must include a categories array");
     }
@@ -173,6 +178,23 @@ function validateSourceCandidatesResponse(raw: unknown): SourceCandidatesRespons
         !Array.isArray((cat as Record<string, unknown>).items)
       ) {
         throw new Error("category missing required id, label, or items");
+      }
+    }
+  } else {
+    // searchable-categorized: no items inline; the plugin declares which
+    // categories are searchable. Each category's options arrive via the
+    // source-options RPC.
+    if (!Array.isArray(obj.searchableCategories)) {
+      throw new Error("searchable-categorized response must include a searchableCategories array");
+    }
+    for (const cat of obj.searchableCategories) {
+      if (
+        cat === null ||
+        typeof cat !== "object" ||
+        typeof (cat as Record<string, unknown>).id !== "string" ||
+        typeof (cat as Record<string, unknown>).label !== "string"
+      ) {
+        throw new Error("searchable category missing required id or label");
       }
     }
   }
@@ -537,6 +559,78 @@ router.get("/:projectId/integration/facet-options", async (req, res) => {
     res.json(options);
   } catch (err) {
     res.status(502).json({ error: `Plugin getFacetOptions failed: ${errorMessage(err)}` });
+  }
+});
+
+// Scoped, paginated, type-ahead source search (WU-002). Mirrors the
+// facet-options route's validate-and-forward shape, adding category / scope /
+// cursor. The active plugin's `getSourceOptions` does the per-category Jira
+// search; the host stays a thin proxy.
+const SOURCE_OPTION_CATEGORIES = new Set(["project", "board", "filter", "epic"]);
+
+router.get("/:projectId/integration/source-options", async (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const category = req.query.category;
+  if (typeof category !== "string" || !SOURCE_OPTION_CATEGORIES.has(category)) {
+    res.status(400).json({ error: "category must be one of: project, board, filter, epic" });
+    return;
+  }
+  const search = req.query.search;
+  if (search !== undefined && typeof search !== "string") {
+    res.status(400).json({ error: "search must be a string" });
+    return;
+  }
+  const cursorParam = req.query.cursor;
+  if (cursorParam !== undefined && typeof cursorParam !== "string") {
+    res.status(400).json({ error: "cursor must be a string" });
+    return;
+  }
+  let scope: { project?: string[] } | undefined;
+  const scopeParam = req.query.scope;
+  if (scopeParam !== undefined) {
+    if (typeof scopeParam !== "string") {
+      res.status(400).json({ error: "scope must be a JSON string" });
+      return;
+    }
+    try {
+      scope = JSON.parse(scopeParam) as { project?: string[] };
+    } catch {
+      res.status(400).json({ error: "scope must be valid JSON" });
+      return;
+    }
+  }
+
+  const committed: IntegrationConfig | null = project.config?.integration ?? null;
+  const overrideEnvelope = loadOverride(req.params.projectId);
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
+
+  if (!effective.plugin) {
+    res.status(409).json({ error: "No active integration plugin for this project" });
+    return;
+  }
+
+  try {
+    await awaitPendingIntegrationSetup(req.params.projectId);
+    const result = await pluginManager.invoke<SourceOptionsResult>(
+      effective.plugin,
+      "getSourceOptions",
+      {
+        category,
+        ...(scope !== undefined ? { scope } : {}),
+        ...(typeof search === "string" && search.length > 0 ? { search } : {}),
+        ...(typeof cursorParam === "string" ? { cursor: cursorParam } : {}),
+        config: effective,
+      },
+      { timeoutMs: 5_000 },
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: `Plugin getSourceOptions failed: ${errorMessage(err)}` });
   }
 });
 

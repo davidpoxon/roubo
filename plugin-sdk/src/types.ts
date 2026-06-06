@@ -187,7 +187,32 @@ export interface SourceCandidateCategory {
   items: SourceCandidateItem[];
 }
 
-export type SourceCandidatesShape = "multi-list" | "categorized-multi-list";
+export type SourceCandidatesShape =
+  | "multi-list"
+  | "categorized-multi-list"
+  | "searchable-categorized";
+
+// One selectable mode within a synthetic searchable category (e.g. "assigned to
+// me": in-project vs anywhere). Distinct from a SourceCandidateItem in that it
+// has no externalId and is not fetched via search; the host renders it inline.
+export interface SourceCategoryOption {
+  id: string;
+  label: string;
+}
+
+// A category declared by the "searchable-categorized" shape. The plugin ships
+// no items here; it only declares which categories exist, their icon, and
+// whether each is gated behind a parent selection. Items arrive later via the
+// host's `getSourceOptions` search RPC.
+export interface SearchableSourceCategory {
+  id: "project" | "board" | "filter" | "epic" | "mine";
+  label: string;
+  icon?: SourceCandidateIcon;
+  // Gate: the category is disabled until the named parent selection exists.
+  scopedBy?: "project";
+  // Inline modes for synthetic categories like "mine".
+  options?: SourceCategoryOption[];
+}
 
 /**
  * Declarative source-picker payload returned by `listSourceCandidates`. Roubo's
@@ -200,8 +225,35 @@ export interface SourceCandidatesResponse {
   items?: SourceCandidateItem[];
   // Present iff shape === "categorized-multi-list".
   categories?: SourceCandidateCategory[];
+  // Present iff shape === "searchable-categorized". Each category's items are
+  // fetched lazily via `getSourceOptions`, never shipped inline here.
+  searchableCategories?: SearchableSourceCategory[];
   // Reserved for future pagination; v1 plugins return undefined.
   nextCursor?: string | null;
+}
+
+/**
+ * Params for the scoped, paginated source-option search (`getSourceOptions`).
+ * Generalizes `getFacetOptions` with a parent `scope` (e.g. the Jira project
+ * keys a board/filter/epic search is confined to) and an opaque `cursor`.
+ * `search` is the optional user-typed term (debounced client-side); plugins
+ * MAY ignore it. Scoped categories with no `scope.project` return an empty page.
+ */
+export interface GetSourceOptionsParams {
+  category: "project" | "board" | "filter" | "epic";
+  scope?: { project?: string[] };
+  search?: string;
+  cursor?: string | null;
+}
+
+/**
+ * One page of source options. `nextCursor` is an opaque token the host passes
+ * back verbatim to fetch the following page; `null` means the result set is
+ * exhausted (NFR-004: every item reachable, no page dropped or duplicated).
+ */
+export interface SourceOptionsResult {
+  items: SourceCandidateItem[];
+  nextCursor: string | null;
 }
 
 export interface CurrentUser {
@@ -354,6 +406,15 @@ export interface PluginContract {
   getFacetOptions?: (
     params: GetFacetOptionsParams,
   ) => Promise<FilterFacetOption[]> | FilterFacetOption[];
+  /**
+   * Scoped, paginated, type-ahead search over a plugin's selectable source
+   * categories (project / board / filter / epic). The host calls this from the
+   * searchable source picker as the user types and pages; the plugin stays
+   * stateless across calls (the parent `scope` is supplied each time).
+   */
+  getSourceOptions?: (
+    params: GetSourceOptionsParams,
+  ) => Promise<SourceOptionsResult> | SourceOptionsResult;
 }
 
 export type ContractMethodName = keyof PluginContract;

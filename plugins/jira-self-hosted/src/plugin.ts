@@ -6,12 +6,16 @@ import type {
   FilterFacet,
   FilterFacetOption,
   GetFacetOptionsParams,
+  GetSourceOptionsParams,
   ListIssuesParams,
   ListIssuesResult,
   NormalizedComment,
   NormalizedIssue,
   PluginContract,
+  SearchableSourceCategory,
   SetActiveConfigResult,
+  SourceCandidatesResponse,
+  SourceOptionsResult,
   ValidateConfigResult,
 } from "@roubo/plugin-sdk";
 import { parseFormConfig, parseIntegrationConfig, type JiraPluginConfig } from "./config.js";
@@ -23,10 +27,32 @@ import {
   type JiraCommentResponse,
   type JiraIssueResponse,
 } from "./normalize.js";
-import { fetchEpicIssues, listSourceCandidates } from "./source-picker.js";
+import { fetchEpicIssues } from "./source-picker.js";
+import { getSourceOptions as runGetSourceOptions } from "./source-options.js";
 import { applyTransition as runApplyTransition } from "./transitions.js";
 import { assignIssue as runAssignIssue, unassignIssue as runUnassignIssue } from "./assignment.js";
 import { getLastPoll, setLastPoll, _resetCacheForTests } from "./state-store.js";
+
+/**
+ * The declarative source-picker categories the Jira plugin exposes. Items are
+ * never shipped inline; the host loads each category lazily via
+ * `getSourceOptions`. Board / filter / epic are gated behind a project scope
+ * (project-first cascade); "assigned to me" offers in-project vs anywhere modes.
+ */
+const SEARCHABLE_CATEGORIES: SearchableSourceCategory[] = [
+  { id: "project", label: "Projects", icon: "project" },
+  { id: "board", label: "Boards", icon: "board", scopedBy: "project" },
+  { id: "filter", label: "Filters", icon: "filter", scopedBy: "project" },
+  { id: "epic", label: "Epics", icon: "epic", scopedBy: "project" },
+  {
+    id: "mine",
+    label: "Assigned to me",
+    options: [
+      { id: "in-project", label: "In scoped projects" },
+      { id: "anywhere", label: "Anywhere" },
+    ],
+  },
+];
 
 /**
  * Build the plugin contract object. Kept as a factory so tests can
@@ -217,10 +243,22 @@ export function createPluginContract(): PluginContract {
       };
     },
 
-    async listSourceCandidates(params: unknown): Promise<unknown> {
+    async listSourceCandidates(params: unknown): Promise<SourceCandidatesResponse> {
+      // The Jira picker is the declarative `searchable-categorized` shape: no
+      // items are loaded here (no instance-wide board / epic / filter scan).
+      // The host renders one type-ahead per category and fetches matches lazily
+      // through `getSourceOptions`. We still adopt config so later source-bound
+      // calls can recall the connection details, but make no Jira request.
+      await adoptOrRecallConfig(params);
+      return { shape: "searchable-categorized", searchableCategories: SEARCHABLE_CATEGORIES };
+    },
+
+    async getSourceOptions(
+      params: GetSourceOptionsParams & { config?: Record<string, unknown> },
+    ): Promise<SourceOptionsResult> {
       const config = await adoptOrRecallConfig(params);
       const ctx = await ctxFor(config);
-      return listSourceCandidates(ctx);
+      return runGetSourceOptions(ctx, params);
     },
 
     async listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {

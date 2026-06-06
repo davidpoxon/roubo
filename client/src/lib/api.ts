@@ -53,6 +53,7 @@ import type {
   InstallSource,
   MigrationRecord,
   SourceCandidatesResponse,
+  SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
 
@@ -843,6 +844,25 @@ export function fetchFacetOptions(
   const params = new URLSearchParams({ facetId });
   if (search && search.length > 0) params.set("search", search);
   return request(`/projects/${projectId}/integration/facet-options?${params.toString()}`);
+}
+
+// Scoped, paginated source search (WU-002). `scope` carries the parent
+// selection (e.g. the Jira project keys a board/filter/epic search is confined
+// to); `cursor` is the opaque token from the previous page's `nextCursor`.
+export function fetchSourceOptions(
+  projectId: string,
+  opts: {
+    category: "project" | "board" | "filter" | "epic";
+    scope?: { project?: string[] };
+    search?: string;
+    cursor?: string | null;
+  },
+): Promise<SourceOptionsResult> {
+  const params = new URLSearchParams({ category: opts.category });
+  if (opts.scope !== undefined) params.set("scope", JSON.stringify(opts.scope));
+  if (opts.search && opts.search.length > 0) params.set("search", opts.search);
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  return request(`/projects/${projectId}/integration/source-options?${params.toString()}`);
 }
 
 // Global plugin integration (Plugins settings page)

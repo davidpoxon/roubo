@@ -1332,3 +1332,129 @@ describe("GET /:projectId/integration/facet-options", () => {
     expect(res.body.error).toMatch(/rate limited/);
   });
 });
+
+describe("GET /:projectId/integration/source-options", () => {
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/missing/integration/source-options?category=project");
+
+    expect(res.status).toBe(404);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the category is missing or unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+
+    const missing = await request(app).get("/demo/integration/source-options");
+    expect(missing.status).toBe(400);
+    expect(missing.body.error).toMatch(/category/);
+
+    const unknown = await request(app).get("/demo/integration/source-options?category=sprint");
+    expect(unknown.status).toBe(400);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when scope is not valid JSON", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+
+    const res = await request(app).get(
+      "/demo/integration/source-options?category=board&scope=not-json",
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/scope/);
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when no active plugin is set", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).get("/demo/integration/source-options?category=project");
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no active/i);
+  });
+
+  it("forwards category, scope, search, and cursor to the plugin (TC-002)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [{ externalId: "board:1", label: "Alpha", icon: "board" }],
+      nextCursor: "c2",
+    });
+
+    const scope = encodeURIComponent(JSON.stringify({ project: ["PLAT"] }));
+    const res = await request(app).get(
+      `/demo/integration/source-options?category=board&scope=${scope}&search=back&cursor=c1`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      items: [{ externalId: "board:1", label: "Alpha", icon: "board" }],
+      nextCursor: "c2",
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "jira-self-hosted",
+      "getSourceOptions",
+      {
+        category: "board",
+        scope: { project: ["PLAT"] },
+        search: "back",
+        cursor: "c1",
+        config: { plugin: "jira-self-hosted" },
+      },
+      expect.objectContaining({ timeoutMs: 5_000 }),
+    );
+  });
+
+  it("returns 502 when the plugin throws", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("upstream down"));
+
+    const res = await request(app).get("/demo/integration/source-options?category=project");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/upstream down/);
+  });
+});
+
+describe("GET /:projectId/integration/sources (searchable-categorized shape)", () => {
+  it("accepts and returns a searchable-categorized response", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      shape: "searchable-categorized",
+      searchableCategories: [
+        { id: "project", label: "Projects" },
+        { id: "board", label: "Boards", scopedBy: "project" },
+      ],
+    });
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(200);
+    expect(res.body.shape).toBe("searchable-categorized");
+    expect(res.body.searchableCategories).toHaveLength(2);
+  });
+
+  it("rejects a searchable-categorized response missing the categories array (502)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ shape: "searchable-categorized" });
+
+    const res = await request(app).get("/demo/integration/sources");
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/searchableCategories/);
+  });
+});

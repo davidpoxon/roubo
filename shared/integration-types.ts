@@ -59,6 +59,30 @@ export interface SourceCandidatesResponse {
 }
 
 /**
+ * Params for the scoped, paginated source-option search (`getSourceOptions`).
+ * Generalizes facet-option search with a parent `scope` (the Jira project keys a
+ * board/filter/epic search is confined to) and an opaque `cursor`. `search` is
+ * the optional user-typed term (debounced client-side). Scoped categories with
+ * no `scope.project` return an empty page.
+ */
+export interface GetSourceOptionsParams {
+  category: "project" | "board" | "filter" | "epic";
+  scope?: { project?: string[] };
+  search?: string;
+  cursor?: string | null;
+}
+
+/**
+ * One page of source options returned by `getSourceOptions`. `nextCursor` is an
+ * opaque token the host passes back verbatim to fetch the next page; `null`
+ * means exhausted (NFR-004: every item reachable, no page dropped or duplicated).
+ */
+export interface SourceOptionsResult {
+  items: SourceCandidateItem[];
+  nextCursor: string | null;
+}
+
+/**
  * One persisted source entry. The primitive `string` form is the externalId;
  * the object form carries per-source toggles (currently only the GitHub-family
  * Code Scanning / Secret Scanning / Dependabot booleans, ignored by other

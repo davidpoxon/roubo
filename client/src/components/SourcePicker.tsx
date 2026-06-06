@@ -38,6 +38,20 @@ export default function SourcePicker({ candidates, value, onChange }: SourcePick
     );
   }
 
+  if (candidates.shape === "searchable-categorized") {
+    // The async type-ahead picker that consumes this shape arrives in a
+    // follow-up slice (WU-003, #352). Until then, render a neutral notice
+    // rather than an empty tab strip so the configure dialog stays coherent.
+    return (
+      <div className="flex flex-col gap-2" data-testid="source-picker">
+        <SectionLabel>Sources</SectionLabel>
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          Source selection for this integration is not available in this view yet.
+        </p>
+      </div>
+    );
+  }
+
   const categories = candidates.categories ?? [];
   return (
     <div className="flex flex-col gap-2" data-testid="source-picker">
