@@ -82,7 +82,7 @@ These two cases together pin both the all-omitted and the populated ends of the 
 
   Rationale for this shape:
   - An `https://` URI (not a bare path) is the JSON Schema idiom for `$id` and gives external consumers a stable, dereferenceable-looking identity even before any document is actually hosted there. The URI is an identity, not a fetch requirement; it does not commit Roubo to serving the document at that address.
-  - `schemas.roubo.dev` is a project-owned namespace placeholder. If Roubo does not control `roubo.dev`, the schema author should substitute the canonical project domain at authoring time; the spike fixes the *shape* (host + `/testbench/<file>/v<semver>.json`), not the literal hostname.
+  - `schemas.roubo.dev` is a project-owned namespace placeholder. If Roubo does not control `roubo.dev`, the schema author should substitute the canonical project domain at authoring time; the spike fixes the _shape_ (host + `/testbench/<file>/v<semver>.json`), not the literal hostname.
   - The full `v<major>.<minor>.<patch>` segment embeds the complete semver so the `$id` is unique per published version (the file-per-version requirement) and the major segment is mechanically inspectable (TC-063 step 1 inspects the major segment of the semver in `$id`).
   - The `testbench/<file>/` path segments scope the schema to this feature and distinguish the two files, leaving room for sibling schemas under the same host without collision.
 
