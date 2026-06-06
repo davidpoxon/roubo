@@ -47,6 +47,7 @@
     "lint:fix": "eslint . --fix --max-warnings 0",
     "lint:em-dash": "node scripts/check-em-dashes.mjs",
     "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
+    "generate:schema": "tsx scripts/generate-schema.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/jira-self-hosted tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit"
@@ -88,6 +89,7 @@
     "jsdom": "29.1.1",
     "prettier": "3.8.3",
     "supertest": "7.2.2",
+    "tsx": "4.21.0",
     "typescript-eslint": "8.59.2",
     "vitest": "4.1.5",
     "vitest-axe": "0.1.0"
