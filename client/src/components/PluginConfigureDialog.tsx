@@ -596,6 +596,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             {showSourcePicker && (
               <SourcePickerSection
                 query={sourceCandidatesQuery}
+                projectId={sourcesProjectId}
                 value={sources}
                 onChange={setSources}
               />
@@ -933,10 +934,12 @@ function GithubOauthSection({
 
 function SourcePickerSection({
   query,
+  projectId,
   value,
   onChange,
 }: {
   query: ReturnType<typeof useSourceCandidates>;
+  projectId: string;
   value: SourceSelection;
   onChange: (next: SourceSelection) => void;
 }) {
@@ -955,7 +958,9 @@ function SourcePickerSection({
       </p>
     );
   }
-  return <SourcePicker candidates={query.data} value={value} onChange={onChange} />;
+  return (
+    <SourcePicker candidates={query.data} value={value} onChange={onChange} projectId={projectId} />
+  );
 }
 
 function DerivedSourcesPreview({
