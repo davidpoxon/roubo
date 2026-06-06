@@ -263,5 +263,34 @@ describe("SourcePicker", () => {
         filter: [{ externalId: "10231" }],
       });
     });
+
+    it("prompts to re-pick when the saved config is entirely old-shape (TC-036, WU-006)", () => {
+      render(
+        <SourcePicker
+          candidates={SEARCHABLE}
+          value={{ boards: ["789"], epics: ["PROJ-100"], filters: ["456"] }}
+          onChange={vi.fn()}
+          projectId="p1"
+        />,
+      );
+
+      // The legacy categories survive none of the plugin's declared categories,
+      // so the user is told to re-pick rather than seeing a silent empty list.
+      expect(screen.getByTestId("stale-sources-notice")).toBeInTheDocument();
+      // The live picker still renders so the user can re-pick in place.
+      expect(screen.getByRole("button", { name: "Add projects" })).toBeInTheDocument();
+    });
+
+    it("does not prompt to re-pick when the saved config uses current categories", () => {
+      render(
+        <SourcePicker
+          candidates={SEARCHABLE}
+          value={{ project: ["PLAT"] }}
+          onChange={vi.fn()}
+          projectId="p1"
+        />,
+      );
+      expect(screen.queryByTestId("stale-sources-notice")).not.toBeInTheDocument();
+    });
   });
 });

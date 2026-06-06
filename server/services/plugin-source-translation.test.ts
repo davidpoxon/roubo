@@ -77,17 +77,33 @@ describe("translateSources", () => {
     ]);
   });
 
-  it("maps Jira filters / epics / boards into plugin-internal kinds", () => {
+  it("maps the new Jira singular source categories into plugin-internal kinds (WU-006)", () => {
     const result = translateSources({
-      filters: ["456"],
-      epics: ["PROJ-100"],
-      boards: ["789"],
+      project: ["PLAT"],
+      board: ["board:482"],
+      filter: ["456"],
+      epic: ["PLAT-1187"],
+      mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
     });
     expect(result).toEqual([
+      { kind: "project", externalId: "PLAT" },
+      { kind: "board", externalId: "board:482" },
       { kind: "filter", externalId: "456" },
-      { kind: "epic", externalId: "PROJ-100" },
-      { kind: "filter", externalId: "789" },
+      { kind: "epic", externalId: "PLAT-1187" },
+      { kind: "mine", externalId: "mine" },
     ]);
+  });
+
+  it("drops legacy old-shape Jira categories rather than silently honoring them (WU-006 clean break)", () => {
+    const onUnknownCategory = vi.fn();
+    const result = translateSources(
+      { boards: ["789"], epics: ["PROJ-100"], filters: ["456"] },
+      { onUnknownCategory },
+    );
+    expect(result).toEqual([]);
+    expect(onUnknownCategory).toHaveBeenCalledWith("boards", ["789"]);
+    expect(onUnknownCategory).toHaveBeenCalledWith("epics", ["PROJ-100"]);
+    expect(onUnknownCategory).toHaveBeenCalledWith("filters", ["456"]);
   });
 
   it("omits absent alert booleans rather than emitting undefined fields", () => {

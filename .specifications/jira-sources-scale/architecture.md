@@ -100,7 +100,7 @@ Read-only context the implementer must not re-discover.
 
 - **Path**: `server/services/plugin-source-translation.ts:36` (modified).
 - **Responsibility**: map the new picker categories to plugin kinds.
-- **Reuse vs new**: in-place edit of `CATEGORY_TO_KIND`. Add `project → "project"`, `board → "board"`, `mine → "mine"`; keep `filters → "filter"`, `epics → "epic"`. The `boards` category is retired (boards are no longer pre-resolved to filter ids at browse time); the new `board` category carries `board:<id>` externalIds resolved at list time. This file stays the host-side mapping for this slug; moving the map into the manifest is recommended but deferred (see `risks_and_alternatives`).
+- **Reuse vs new**: in-place edit of `CATEGORY_TO_KIND`. The picker now emits singular category ids, so add `project → "project"`, `board → "board"`, `filter → "filter"`, `epic → "epic"`, `mine → "mine"`. The legacy plural categories (`boards`, `epics`, `filters`) from the old flat-tab picker are all retired (boards are no longer pre-resolved to filter ids at browse time); the new `board` category carries `board:<id>` externalIds resolved at list time. A clean break: any old-shape config no longer translates and surfaces the re-pick prompt. This file stays the host-side mapping for this slug; moving the map into the manifest is recommended but deferred (see `risks_and_alternatives`).
 - **Dependencies**: none.
 
 ### Searchable picker shape contract (shared, additive)

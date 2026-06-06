@@ -20,25 +20,30 @@ export interface PluginSourceEntry {
 
 /**
  * Map from a `SourceSelection` category id (as returned by the plugin's
- * `listSourceCandidates`, e.g. `"Repository"`, `"Project"`, `"boards"`)
+ * `listSourceCandidates`, e.g. `"Repository"`, `"Project"`, `"project"`)
  * to the `kind` string the plugin expects under each `ConfiguredSource.kind`
  * (e.g. `"repo"`, `"project"`, `"filter"`).
  *
  * Still hard-coded centrally; the longer-term direction is to let each
- * plugin advertise its own mapping in `roubo-plugin.yaml`. Until then,
- * adding a new plugin family means adding its categories here.
+ * plugin advertise its own mapping in `roubo-plugin.yaml` (tracked in #349).
+ * Until then, adding a new plugin family means adding its categories here.
  *
- * Jira: the source picker returns `boards`, `epics`, and `filters`
- * categories; boards are resolved to backing filter ids before they reach
- * the host (see `plugins/jira-self-hosted/src/source-picker.ts`), so both
- * `boards` and `filters` map to plugin-internal kind `"filter"`.
+ * Jira: the project-first searchable picker returns the singular categories
+ * `project`, `board`, `filter`, `epic`, and `mine`, each translating to the
+ * matching plugin-internal kind (see `plugins/jira-self-hosted/src/plugin.ts`
+ * `SEARCHABLE_CATEGORIES` and the `SourceKind` union in `jql.ts`). The legacy
+ * plural categories (`boards`/`epics`/`filters`) from the old flat-tab picker
+ * are intentionally absent: this is a clean break, so an old-shape config no
+ * longer translates and the user is prompted to re-pick (no migration).
  */
 const CATEGORY_TO_KIND: Record<string, string> = {
   Repository: "repo",
   Project: "project",
-  boards: "filter",
-  epics: "epic",
-  filters: "filter",
+  project: "project",
+  board: "board",
+  filter: "filter",
+  epic: "epic",
+  mine: "mine",
 };
 
 export interface TranslateSourcesOptions {
