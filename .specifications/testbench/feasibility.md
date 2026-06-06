@@ -6,11 +6,11 @@
 
 ## Per-dimension summary
 
-| Dimension | Verdict | Confidence | Top risk | Mitigation |
-|-----------|---------|------------|----------|------------|
-| Technical | feasible-with-conditions | high | External-repo `test-results.json` writes trip CodeQL path-injection unless routed through a recognised sanitizer | Model writes on `resolveWithin(repoPath, '.specifications', slug, file)` + a JIG_ID_RE-style slug allowlist (`server/lib/safe-path.ts`) |
-| Effort | feasible-with-conditions | medium | Targeting-field schema shape unresolved; publishing then breaking it fails the "stable contract" goal from day one | Lock the targeting-field shape as a blocking pre-implementation spike, not a follow-up |
-| Operational | feasible-with-conditions | medium | Reconcile silently discards authored marks/notes when a case is removed from the plan | Orphan (never delete) result entries for absent cases; surface as archived, exclude from rollup |
+| Dimension   | Verdict                  | Confidence | Top risk                                                                                                           | Mitigation                                                                                                                              |
+| ----------- | ------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Technical   | feasible-with-conditions | high       | External-repo `test-results.json` writes trip CodeQL path-injection unless routed through a recognised sanitizer   | Model writes on `resolveWithin(repoPath, '.specifications', slug, file)` + a JIG_ID_RE-style slug allowlist (`server/lib/safe-path.ts`) |
+| Effort      | feasible-with-conditions | medium     | Targeting-field schema shape unresolved; publishing then breaking it fails the "stable contract" goal from day one | Lock the targeting-field shape as a blocking pre-implementation spike, not a follow-up                                                  |
+| Operational | feasible-with-conditions | medium     | Reconcile silently discards authored marks/notes when a case is removed from the plan                              | Orphan (never delete) result entries for absent cases; surface as archived, exclude from rollup                                         |
 
 ## Dimension detail
 

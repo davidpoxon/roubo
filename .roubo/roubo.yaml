@@ -1,56 +1,56 @@
 project:
-  name: "roubo"
-  displayName: "Roubo"
-  type: "web"
-  repo: "davidpoxon/roubo"
+  name: roubo
+  displayName: Roubo
+  type: web
+  repo: davidpoxon/roubo
   github:
     project: 1
 layout:
-  type: "single-repo"
+  type: single-repo
 components:
   server:
-    type: "process"
-    command: "npx tsx watch server/index.ts"
+    type: process
+    command: npx tsx watch server/index.ts
     env:
       ROUBO_PORT: "{{ports.server}}"
   client:
-    type: "process"
+    type: process
     dependsOn:
-      - "server"
-    command: "npm run dev"
+      - server
+    command: npm run dev
     env:
       DEV_PORT: "{{ports.client}}"
       DEV_API_PORT: "{{ports.server}}"
-    directory: "client"
+    directory: client
 ports:
   server:
     base: 4100
   client:
     base: 4200
 tools:
-  - type: "browser"
-    name: "Web App"
-    icon: "globe"
+  - type: browser
+    name: Web App
+    icon: globe
     url: "{{urls.client}}"
-    requires: "client"
-  - type: "shell"
-    name: "VS Code"
-    icon: "code"
-    command: "code \"{{workspace}}\""
+    requires: client
+  - type: shell
+    name: VS Code
+    icon: code
+    command: code "{{workspace}}"
 inspection:
-  framework: "vitest"
-  directory: "."
-  command: "npx vitest run"
+  framework: vitest
+  directory: .
+  command: npx vitest run
 benches:
   max: 6
-  setup: "npm ci"
+  setup: npm ci
 integration:
-  plugin: "github-com"
+  plugin: github-com
   sources:
     Repository:
-      - externalId: "davidpoxon/roubo"
+      - externalId: davidpoxon/roubo
         includeCodeQLAlerts: true
         includeSecretScanningAlerts: true
         includeDependabotAlerts: true
     Project:
-      - externalId: "davidpoxon/#1"
+      - externalId: davidpoxon/#1

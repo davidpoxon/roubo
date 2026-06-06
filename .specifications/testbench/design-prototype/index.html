@@ -1,584 +1,1648 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TestBench prototype</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-<style>
-  /* Tokens mirrored from DESIGN.md (warm stone spine, single amber accent). No off-token values. */
-  :root{
-    --white:#FFFFFF;--stone-50:#FAFAF9;--stone-100:#F5F5F4;--stone-200:#E7E5E4;--stone-300:#D6D3D1;
-    --stone-400:#A8A29E;--stone-500:#78716C;--stone-600:#57534E;--stone-700:#44403C;--stone-800:#292524;
-    --stone-900:#1C1917;--stone-950:#0C0A09;
-    --amber-50:#FFFBEB;--amber-100:#FEF3C7;--amber-200:#FDE68A;--amber-400:#FBBF24;--amber-500:#F59E0B;--amber-600:#D97706;--amber-800:#92400E;
-    --red-50:#FEF2F2;--red-100:#FEE2E2;--red-500:#EF4444;--red-600:#DC2626;--red-700:#B91C1C;
-    --green-50:#F0FDF4;--green-200:#BBF7D0;--green-500:#22C55E;--green-600:#16A34A;--green-800:#166534;
-    --font-ui:'Inter',system-ui,sans-serif;
-    --font-mono:'JetBrains Mono',ui-monospace,monospace;
-    --r1:4px;--r2:6px;--r3:8px;--r4:12px;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{font-family:var(--font-ui);color:var(--stone-700);background:var(--stone-50);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-  .mono{font-family:var(--font-mono)}
-  button{font-family:inherit;cursor:pointer}
-  :focus-visible{outline:none;box-shadow:0 0 0 2px var(--white),0 0 0 4px var(--amber-500);border-radius:var(--r2)}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TestBench prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens mirrored from DESIGN.md (warm stone spine, single amber accent). No off-token values. */
+      :root {
+        --white: #ffffff;
+        --stone-50: #fafaf9;
+        --stone-100: #f5f5f4;
+        --stone-200: #e7e5e4;
+        --stone-300: #d6d3d1;
+        --stone-400: #a8a29e;
+        --stone-500: #78716c;
+        --stone-600: #57534e;
+        --stone-700: #44403c;
+        --stone-800: #292524;
+        --stone-900: #1c1917;
+        --stone-950: #0c0a09;
+        --amber-50: #fffbeb;
+        --amber-100: #fef3c7;
+        --amber-200: #fde68a;
+        --amber-400: #fbbf24;
+        --amber-500: #f59e0b;
+        --amber-600: #d97706;
+        --amber-800: #92400e;
+        --red-50: #fef2f2;
+        --red-100: #fee2e2;
+        --red-500: #ef4444;
+        --red-600: #dc2626;
+        --red-700: #b91c1c;
+        --green-50: #f0fdf4;
+        --green-200: #bbf7d0;
+        --green-500: #22c55e;
+        --green-600: #16a34a;
+        --green-800: #166534;
+        --font-ui: "Inter", system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+        --r1: 4px;
+        --r2: 6px;
+        --r3: 8px;
+        --r4: 12px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family: var(--font-ui);
+        color: var(--stone-700);
+        background: var(--stone-50);
+        font-size: 14px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono {
+        font-family: var(--font-mono);
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: none;
+        box-shadow:
+          0 0 0 2px var(--white),
+          0 0 0 4px var(--amber-500);
+        border-radius: var(--r2);
+      }
 
-  /* App chrome */
-  .app{display:flex;flex-direction:column;height:100%}
-  .topbar{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--white);border-bottom:1px solid var(--stone-200);flex-shrink:0}
-  .brand{display:flex;align-items:baseline;gap:8px;font-weight:600;color:var(--stone-900)}
-  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--amber-500);align-self:center}
-  .brand .crumb{color:var(--stone-400);font-weight:500;font-size:12px}
-  .switcher{margin-left:auto;display:flex;gap:2px;background:var(--stone-100);padding:3px;border-radius:var(--r3)}
-  .switcher button{border:0;background:transparent;color:var(--stone-600);font-weight:500;font-size:13px;padding:6px 12px;border-radius:var(--r2)}
-  .switcher button[aria-pressed="true"]{background:var(--white);color:var(--stone-900);box-shadow:inset 0 0 0 1px var(--stone-200)}
+      /* App chrome */
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 20px;
+        background: var(--white);
+        border-bottom: 1px solid var(--stone-200);
+        flex-shrink: 0;
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-weight: 600;
+        color: var(--stone-900);
+      }
+      .brand .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--amber-500);
+        align-self: center;
+      }
+      .brand .crumb {
+        color: var(--stone-400);
+        font-weight: 500;
+        font-size: 12px;
+      }
+      .switcher {
+        margin-left: auto;
+        display: flex;
+        gap: 2px;
+        background: var(--stone-100);
+        padding: 3px;
+        border-radius: var(--r3);
+      }
+      .switcher button {
+        border: 0;
+        background: transparent;
+        color: var(--stone-600);
+        font-weight: 500;
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: var(--r2);
+      }
+      .switcher button[aria-pressed="true"] {
+        background: var(--white);
+        color: var(--stone-900);
+        box-shadow: inset 0 0 0 1px var(--stone-200);
+      }
 
-  /* Bench tabs (TestBench is the first tab; others retained) */
-  .benchtabs{display:flex;gap:4px;padding:0 20px;background:var(--white);border-bottom:1px solid var(--stone-200);flex-shrink:0}
-  .benchtabs .tab{padding:10px 12px;font-size:13px;font-weight:500;color:var(--stone-500);border-bottom:2px solid transparent;margin-bottom:-1px}
-  .benchtabs .tab.active{color:var(--stone-900);border-bottom-color:var(--amber-500)}
-  .benchtabs .tab .accent{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber-500);margin-right:6px;vertical-align:middle}
+      /* Bench tabs (TestBench is the first tab; others retained) */
+      .benchtabs {
+        display: flex;
+        gap: 4px;
+        padding: 0 20px;
+        background: var(--white);
+        border-bottom: 1px solid var(--stone-200);
+        flex-shrink: 0;
+      }
+      .benchtabs .tab {
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--stone-500);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .benchtabs .tab.active {
+        color: var(--stone-900);
+        border-bottom-color: var(--amber-500);
+      }
+      .benchtabs .tab .accent {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--amber-500);
+        margin-right: 6px;
+        vertical-align: middle;
+      }
 
-  .view{flex:1;min-height:0;overflow:hidden}
-  .hidden{display:none !important}
+      .view {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .hidden {
+        display: none !important;
+      }
 
-  /* Review header strip */
-  .review{display:flex;flex-direction:column;height:100%}
-  .reviewhead{display:flex;align-items:center;gap:20px;padding:16px 20px;background:var(--white);border-bottom:1px solid var(--stone-200);flex-wrap:wrap}
-  .spectitle{font-size:18px;font-weight:600;color:var(--stone-900)}
-  .specpath{font-size:12px;color:var(--stone-500)}
-  .progresswrap{margin-left:auto;min-width:260px;display:flex;flex-direction:column;gap:6px}
-  .progresslabel{font-size:12px;color:var(--stone-600);display:flex;gap:10px;justify-content:flex-end}
-  .progresslabel b{color:var(--stone-800);font-weight:600}
-  .pbar{height:8px;border-radius:999px;background:var(--stone-200);display:flex;overflow:hidden}
-  .pbar i{display:block;height:100%}
-  .pbar .pass{background:var(--green-500)}
-  .pbar .fail{background:var(--red-500)}
-  .pbar .prog{background:var(--amber-500)}
+      /* Review header strip */
+      .review {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .reviewhead {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 16px 20px;
+        background: var(--white);
+        border-bottom: 1px solid var(--stone-200);
+        flex-wrap: wrap;
+      }
+      .spectitle {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--stone-900);
+      }
+      .specpath {
+        font-size: 12px;
+        color: var(--stone-500);
+      }
+      .progresswrap {
+        margin-left: auto;
+        min-width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .progresslabel {
+        font-size: 12px;
+        color: var(--stone-600);
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+      .progresslabel b {
+        color: var(--stone-800);
+        font-weight: 600;
+      }
+      .pbar {
+        height: 8px;
+        border-radius: 999px;
+        background: var(--stone-200);
+        display: flex;
+        overflow: hidden;
+      }
+      .pbar i {
+        display: block;
+        height: 100%;
+      }
+      .pbar .pass {
+        background: var(--green-500);
+      }
+      .pbar .fail {
+        background: var(--red-500);
+      }
+      .pbar .prog {
+        background: var(--amber-500);
+      }
 
-  /* Attention banner */
-  .banner{display:flex;align-items:center;gap:12px;margin:12px 20px 0;padding:10px 14px;background:var(--amber-50);border:1px solid var(--amber-200);border-radius:var(--r3);color:var(--amber-800);font-size:13px}
-  .banner svg{flex-shrink:0}
-  .banner .msg{flex:1}
-  .banner button{border:0;background:transparent;color:var(--amber-800);font-weight:600;padding:6px 10px;border-radius:var(--r2)}
-  .banner button:hover{background:var(--amber-100)}
-  .banner button:active{background:var(--amber-200)}
+      /* Attention banner */
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 12px 20px 0;
+        padding: 10px 14px;
+        background: var(--amber-50);
+        border: 1px solid var(--amber-200);
+        border-radius: var(--r3);
+        color: var(--amber-800);
+        font-size: 13px;
+      }
+      .banner svg {
+        flex-shrink: 0;
+      }
+      .banner .msg {
+        flex: 1;
+      }
+      .banner button {
+        border: 0;
+        background: transparent;
+        color: var(--amber-800);
+        font-weight: 600;
+        padding: 6px 10px;
+        border-radius: var(--r2);
+      }
+      .banner button:hover {
+        background: var(--amber-100);
+      }
+      .banner button:active {
+        background: var(--amber-200);
+      }
 
-  /* Two-pane */
-  .panes{flex:1;min-height:0;display:grid;grid-template-columns:380px 1fr 300px}
-  .listpane{border-right:1px solid var(--stone-200);overflow:auto;background:var(--white)}
-  .detailpane{overflow:auto;background:var(--white);padding:24px 28px}
-  .notespane{border-left:1px solid var(--stone-200);background:var(--stone-50);display:flex;flex-direction:column;min-height:0}
+      /* Two-pane */
+      .panes {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 380px 1fr 300px;
+      }
+      .listpane {
+        border-right: 1px solid var(--stone-200);
+        overflow: auto;
+        background: var(--white);
+      }
+      .detailpane {
+        overflow: auto;
+        background: var(--white);
+        padding: 24px 28px;
+      }
+      .notespane {
+        border-left: 1px solid var(--stone-200);
+        background: var(--stone-50);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
 
-  .group{padding:24px 16px 4px}
-  .grouplabel{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--stone-500);display:flex;align-items:center;gap:8px}
-  .grouplabel .gd{width:6px;height:6px;border-radius:50%;background:var(--amber-500)}
-  .caserow{display:flex;align-items:center;gap:10px;padding:9px 16px;border:0;background:transparent;width:100%;text-align:left;border-left:2px solid transparent}
-  .caserow:hover{background:var(--stone-50)}
-  .caserow[aria-selected="true"]{background:var(--amber-50);border-left-color:var(--amber-500)}
-  .caserow[aria-selected="true"] .ctitle{color:var(--stone-900)}
-  .ctitle{flex:1;font-size:13px;font-weight:500;color:var(--stone-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cid{font-family:var(--font-mono);font-size:11px;color:var(--stone-400)}
+      .group {
+        padding: 24px 16px 4px;
+      }
+      .grouplabel {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--stone-500);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .grouplabel .gd {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--amber-500);
+      }
+      .caserow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 16px;
+        border: 0;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+        border-left: 2px solid transparent;
+      }
+      .caserow:hover {
+        background: var(--stone-50);
+      }
+      .caserow[aria-selected="true"] {
+        background: var(--amber-50);
+        border-left-color: var(--amber-500);
+      }
+      .caserow[aria-selected="true"] .ctitle {
+        color: var(--stone-900);
+      }
+      .ctitle {
+        flex: 1;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--stone-700);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cid {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--stone-400);
+      }
 
-  /* Status indicator (dot + label, never colour alone) */
-  .status{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--stone-700);white-space:nowrap}
-  .status .sd{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-  .st-not_started .sd{background:var(--stone-400)}
-  .st-not_started{color:var(--stone-500)}
-  .st-in_progress .sd{background:var(--amber-500)}
-  .st-passed .sd{background:var(--green-500)}
-  .st-failed .sd{background:var(--red-500)}
-  .st-blocked .sd{background:var(--stone-700)}
+      /* Status indicator (dot + label, never colour alone) */
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--stone-700);
+        white-space: nowrap;
+      }
+      .status .sd {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .st-not_started .sd {
+        background: var(--stone-400);
+      }
+      .st-not_started {
+        color: var(--stone-500);
+      }
+      .st-in_progress .sd {
+        background: var(--amber-500);
+      }
+      .st-passed .sd {
+        background: var(--green-500);
+      }
+      .st-failed .sd {
+        background: var(--red-500);
+      }
+      .st-blocked .sd {
+        background: var(--stone-700);
+      }
 
-  /* Case detail */
-  .casehead{display:flex;align-items:flex-start;gap:16px;margin-bottom:4px}
-  .casehead h2{font-size:20px;font-weight:600;color:var(--stone-900);margin:0 0 4px}
-  .casemeta{font-family:var(--font-mono);font-size:12px;color:var(--stone-500);display:flex;gap:10px;flex-wrap:wrap}
-  .ovr{margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-  .ovrlabel{font-size:11px;color:var(--stone-500);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.05em}
-  select.ovrsel{font-family:var(--font-ui);font-size:13px;color:var(--stone-900);border:1px solid var(--stone-200);border-radius:var(--r2);padding:6px 8px;background:var(--white)}
-  select.ovrsel:hover{border-color:var(--stone-300)}
-  select.ovrsel:focus-visible{border-color:var(--amber-500)}
-  .ovrmark{font-size:11px;color:var(--amber-800);background:var(--amber-50);border:1px solid var(--amber-200);border-radius:999px;padding:1px 8px;display:none}
-  .ovrmark.on{display:inline-block}
+      /* Case detail */
+      .casehead {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 4px;
+      }
+      .casehead h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--stone-900);
+        margin: 0 0 4px;
+      }
+      .casemeta {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--stone-500);
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .ovr {
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-end;
+      }
+      .ovrlabel {
+        font-size: 11px;
+        color: var(--stone-500);
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      select.ovrsel {
+        font-family: var(--font-ui);
+        font-size: 13px;
+        color: var(--stone-900);
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r2);
+        padding: 6px 8px;
+        background: var(--white);
+      }
+      select.ovrsel:hover {
+        border-color: var(--stone-300);
+      }
+      select.ovrsel:focus-visible {
+        border-color: var(--amber-500);
+      }
+      .ovrmark {
+        font-size: 11px;
+        color: var(--amber-800);
+        background: var(--amber-50);
+        border: 1px solid var(--amber-200);
+        border-radius: 999px;
+        padding: 1px 8px;
+        display: none;
+      }
+      .ovrmark.on {
+        display: inline-block;
+      }
 
-  .seclabel{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--stone-500);margin:24px 0 8px}
-  .pre{margin:0;padding:0;list-style:none;color:var(--stone-600);font-size:13px}
-  .pre li{padding:3px 0 3px 16px;position:relative}
-  .pre li::before{content:"";position:absolute;left:0;top:10px;width:5px;height:5px;border-radius:50%;background:var(--stone-300)}
+      .seclabel {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--stone-500);
+        margin: 24px 0 8px;
+      }
+      .pre {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        color: var(--stone-600);
+        font-size: 13px;
+      }
+      .pre li {
+        padding: 3px 0 3px 16px;
+        position: relative;
+      }
+      .pre li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 10px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--stone-300);
+      }
 
-  .step{padding:14px 0;border-top:1px solid var(--stone-100)}
-  .stephead{display:flex;gap:10px;align-items:baseline}
-  .stepnum{font-family:var(--font-mono);font-size:12px;color:var(--stone-400)}
-  .stepinstr{color:var(--stone-700);font-weight:500}
-  .obs{margin:10px 0 0 26px;display:flex;flex-direction:column;gap:8px}
-  .obsrow{display:flex;align-items:center;gap:12px}
-  .obsexp{flex:1;color:var(--stone-700);font-size:13px}
-  .obsts{font-family:var(--font-mono);font-size:11px;color:var(--stone-400);min-width:64px;text-align:right}
+      .step {
+        padding: 14px 0;
+        border-top: 1px solid var(--stone-100);
+      }
+      .stephead {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .stepnum {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--stone-400);
+      }
+      .stepinstr {
+        color: var(--stone-700);
+        font-weight: 500;
+      }
+      .obs {
+        margin: 10px 0 0 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .obsrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .obsexp {
+        flex: 1;
+        color: var(--stone-700);
+        font-size: 13px;
+      }
+      .obsts {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--stone-400);
+        min-width: 64px;
+        text-align: right;
+      }
 
-  /* Observation mark control (segmented pass/fail) */
-  .mark{display:inline-flex;border:1px solid var(--stone-200);border-radius:var(--r2);overflow:hidden}
-  .mark button{border:0;background:var(--white);color:var(--stone-500);padding:5px 9px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;border-right:1px solid var(--stone-200)}
-  .mark button:last-child{border-right:0}
-  .mark button:hover{background:var(--stone-100)}
-  .mark button.sel-pass{background:var(--green-50);color:var(--green-800)}
-  .mark button.sel-fail{background:var(--red-50);color:var(--red-700)}
-  .mark button:focus-visible{position:relative;z-index:1}
+      /* Observation mark control (segmented pass/fail) */
+      .mark {
+        display: inline-flex;
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r2);
+        overflow: hidden;
+      }
+      .mark button {
+        border: 0;
+        background: var(--white);
+        color: var(--stone-500);
+        padding: 5px 9px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        font-weight: 500;
+        border-right: 1px solid var(--stone-200);
+      }
+      .mark button:last-child {
+        border-right: 0;
+      }
+      .mark button:hover {
+        background: var(--stone-100);
+      }
+      .mark button.sel-pass {
+        background: var(--green-50);
+        color: var(--green-800);
+      }
+      .mark button.sel-fail {
+        background: var(--red-50);
+        color: var(--red-700);
+      }
+      .mark button:focus-visible {
+        position: relative;
+        z-index: 1;
+      }
 
-  /* Notes rail */
-  .noteshead{padding:16px 16px 8px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--stone-500)}
-  .notelist{flex:1;overflow:auto;padding:0 16px;display:flex;flex-direction:column;gap:12px}
-  .note{border-left:2px solid var(--stone-200);padding:2px 0 2px 12px}
-  .notemeta{font-family:var(--font-mono);font-size:11px;color:var(--stone-500);display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
-  .notebody{color:var(--stone-700);font-size:13px}
-  .noteadd{padding:12px 16px;border-top:1px solid var(--stone-200);display:flex;flex-direction:column;gap:8px}
-  textarea{font-family:var(--font-ui);font-size:13px;color:var(--stone-900);border:1px solid var(--stone-200);border-radius:var(--r2);padding:8px;resize:vertical;min-height:52px}
-  textarea:hover{border-color:var(--stone-300)}
-  textarea:focus-visible{border-color:var(--amber-500)}
+      /* Notes rail */
+      .noteshead {
+        padding: 16px 16px 8px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--stone-500);
+      }
+      .notelist {
+        flex: 1;
+        overflow: auto;
+        padding: 0 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .note {
+        border-left: 2px solid var(--stone-200);
+        padding: 2px 0 2px 12px;
+      }
+      .notemeta {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--stone-500);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 3px;
+        flex-wrap: wrap;
+      }
+      .notebody {
+        color: var(--stone-700);
+        font-size: 13px;
+      }
+      .noteadd {
+        padding: 12px 16px;
+        border-top: 1px solid var(--stone-200);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      textarea {
+        font-family: var(--font-ui);
+        font-size: 13px;
+        color: var(--stone-900);
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r2);
+        padding: 8px;
+        resize: vertical;
+        min-height: 52px;
+      }
+      textarea:hover {
+        border-color: var(--stone-300);
+      }
+      textarea:focus-visible {
+        border-color: var(--amber-500);
+      }
 
-  /* Buttons */
-  .btn{border:0;border-radius:var(--r2);padding:8px 14px;font-weight:600;font-size:13px}
-  .btn-primary{background:var(--amber-500);color:var(--stone-950)}
-  .btn-primary:hover{background:var(--amber-400)}
-  .btn-primary:active{background:var(--amber-600)}
-  .btn-primary:disabled{opacity:.3;cursor:not-allowed}
-  .btn-secondary{background:var(--stone-100);color:var(--stone-700)}
-  .btn-secondary:hover{background:var(--stone-200)}
+      /* Buttons */
+      .btn {
+        border: 0;
+        border-radius: var(--r2);
+        padding: 8px 14px;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .btn-primary {
+        background: var(--amber-500);
+        color: var(--stone-950);
+      }
+      .btn-primary:hover {
+        background: var(--amber-400);
+      }
+      .btn-primary:active {
+        background: var(--amber-600);
+      }
+      .btn-primary:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        background: var(--stone-100);
+        color: var(--stone-700);
+      }
+      .btn-secondary:hover {
+        background: var(--stone-200);
+      }
 
-  /* Modal */
-  .scrim{position:fixed;inset:0;background:rgba(28,25,23,.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
-  .dialog{background:var(--white);border:1px solid var(--stone-200);border-radius:var(--r4);width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:24px}
-  .dialog h2{margin:0 0 2px;font-size:18px;color:var(--stone-900)}
-  .dialog .sub{color:var(--stone-500);font-size:13px;margin-bottom:18px}
-  .speclist{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-  .specopt{display:flex;align-items:center;gap:12px;border:1px solid var(--stone-200);border-radius:var(--r3);padding:12px;background:var(--white);text-align:left;width:100%}
-  .specopt:hover{border-color:var(--stone-300)}
-  .specopt[aria-pressed="true"]{border-color:var(--amber-500);background:var(--amber-50)}
-  .specopt .sslug{font-weight:500;color:var(--stone-700)}
-  .specopt .spath{font-family:var(--font-mono);font-size:11px;color:var(--stone-500)}
-  .specopt .scount{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--stone-400)}
-  .orline{color:var(--stone-400);font-size:12px;text-align:center;margin:6px 0 12px;font-family:var(--font-mono)}
-  .field label{font-size:12px;color:var(--stone-600);display:block;margin-bottom:6px}
-  .pathinput{display:flex;align-items:center;gap:8px;border:1px solid var(--stone-200);border-radius:var(--r2);padding:8px 10px;background:var(--white)}
-  .pathinput.invalid{border-color:var(--red-500)}
-  .pathinput.valid{border-color:var(--green-600)}
-  .pathinput input{border:0;outline:0;flex:1;font-family:var(--font-mono);font-size:12px;color:var(--stone-900);background:transparent}
-  .help{font-size:12px;margin-top:6px}
-  .help.invalid{color:var(--red-600)}
-  .help.valid{color:var(--green-800)}
-  .dialogfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+      /* Modal */
+      .scrim {
+        position: fixed;
+        inset: 0;
+        background: rgba(28, 25, 23, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 50;
+      }
+      .dialog {
+        background: var(--white);
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r4);
+        width: 560px;
+        max-width: 100%;
+        max-height: 90vh;
+        overflow: auto;
+        padding: 24px;
+      }
+      .dialog h2 {
+        margin: 0 0 2px;
+        font-size: 18px;
+        color: var(--stone-900);
+      }
+      .dialog .sub {
+        color: var(--stone-500);
+        font-size: 13px;
+        margin-bottom: 18px;
+      }
+      .speclist {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+      .specopt {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r3);
+        padding: 12px;
+        background: var(--white);
+        text-align: left;
+        width: 100%;
+      }
+      .specopt:hover {
+        border-color: var(--stone-300);
+      }
+      .specopt[aria-pressed="true"] {
+        border-color: var(--amber-500);
+        background: var(--amber-50);
+      }
+      .specopt .sslug {
+        font-weight: 500;
+        color: var(--stone-700);
+      }
+      .specopt .spath {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--stone-500);
+      }
+      .specopt .scount {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--stone-400);
+      }
+      .orline {
+        color: var(--stone-400);
+        font-size: 12px;
+        text-align: center;
+        margin: 6px 0 12px;
+        font-family: var(--font-mono);
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--stone-600);
+        display: block;
+        margin-bottom: 6px;
+      }
+      .pathinput {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r2);
+        padding: 8px 10px;
+        background: var(--white);
+      }
+      .pathinput.invalid {
+        border-color: var(--red-500);
+      }
+      .pathinput.valid {
+        border-color: var(--green-600);
+      }
+      .pathinput input {
+        border: 0;
+        outline: 0;
+        flex: 1;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--stone-900);
+        background: transparent;
+      }
+      .help {
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      .help.invalid {
+        color: var(--red-600);
+      }
+      .help.valid {
+        color: var(--green-800);
+      }
+      .dialogfoot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 22px;
+      }
 
-  .empty{color:var(--stone-500);font-size:13px;background:var(--stone-50);border:1px dashed var(--stone-200);border-radius:var(--r3);padding:14px}
+      .empty {
+        color: var(--stone-500);
+        font-size: 13px;
+        background: var(--stone-50);
+        border: 1px dashed var(--stone-200);
+        border-radius: var(--r3);
+        padding: 14px;
+      }
 
-  /* Settings */
-  .settings{padding:28px;max-width:720px;margin:0 auto;overflow:auto;height:100%}
-  .settingstabs{display:flex;gap:4px;border-bottom:1px solid var(--stone-200);margin-bottom:24px}
-  .settingstabs .tab{padding:10px 12px;font-size:13px;font-weight:500;color:var(--stone-500);border-bottom:2px solid transparent;margin-bottom:-1px}
-  .settingstabs .tab.active{color:var(--stone-900);border-bottom-color:var(--amber-500)}
-  .tile{display:flex;align-items:center;gap:16px;background:var(--white);border:1px solid var(--stone-200);border-radius:var(--r4);padding:18px 20px}
-  .tile .tx{flex:1}
-  .tile h3{margin:0 0 2px;font-size:15px;color:var(--stone-900)}
-  .tile p{margin:0;color:var(--stone-500);font-size:13px}
-  .switch{width:42px;height:24px;border-radius:999px;background:var(--stone-300);border:0;position:relative;transition:background .18s ease;flex-shrink:0}
-  .switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--white);transition:left .18s ease}
-  .switch[aria-checked="true"]{background:var(--amber-500)}
-  .switch[aria-checked="true"]::after{left:20px}
-  .settinghint{color:var(--stone-500);font-size:12px;margin-top:10px}
+      /* Settings */
+      .settings {
+        padding: 28px;
+        max-width: 720px;
+        margin: 0 auto;
+        overflow: auto;
+        height: 100%;
+      }
+      .settingstabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--stone-200);
+        margin-bottom: 24px;
+      }
+      .settingstabs .tab {
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--stone-500);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .settingstabs .tab.active {
+        color: var(--stone-900);
+        border-bottom-color: var(--amber-500);
+      }
+      .tile {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: var(--white);
+        border: 1px solid var(--stone-200);
+        border-radius: var(--r4);
+        padding: 18px 20px;
+      }
+      .tile .tx {
+        flex: 1;
+      }
+      .tile h3 {
+        margin: 0 0 2px;
+        font-size: 15px;
+        color: var(--stone-900);
+      }
+      .tile p {
+        margin: 0;
+        color: var(--stone-500);
+        font-size: 13px;
+      }
+      .switch {
+        width: 42px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--stone-300);
+        border: 0;
+        position: relative;
+        transition: background 0.18s ease;
+        flex-shrink: 0;
+      }
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--white);
+        transition: left 0.18s ease;
+      }
+      .switch[aria-checked="true"] {
+        background: var(--amber-500);
+      }
+      .switch[aria-checked="true"]::after {
+        left: 20px;
+      }
+      .settinghint {
+        color: var(--stone-500);
+        font-size: 12px;
+        margin-top: 10px;
+      }
 
-  /* Reconcile dialog rows */
-  .recrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--stone-100);font-size:13px}
-  .rectag{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:2px 6px;border-radius:999px}
-  .rectag.added{background:var(--green-50);color:var(--green-800)}
-  .rectag.changed{background:var(--amber-50);color:var(--amber-800)}
-  .rectag.orphan{background:var(--stone-100);color:var(--stone-600)}
-  .reccase{flex:1;color:var(--stone-700)}
-  .recnote{color:var(--stone-500);font-size:12px}
+      /* Reconcile dialog rows */
+      .recrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-top: 1px solid var(--stone-100);
+        font-size: 13px;
+      }
+      .rectag {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 6px;
+        border-radius: 999px;
+      }
+      .rectag.added {
+        background: var(--green-50);
+        color: var(--green-800);
+      }
+      .rectag.changed {
+        background: var(--amber-50);
+        color: var(--amber-800);
+      }
+      .rectag.orphan {
+        background: var(--stone-100);
+        color: var(--stone-600);
+      }
+      .reccase {
+        flex: 1;
+        color: var(--stone-700);
+      }
+      .recnote {
+        color: var(--stone-500);
+        font-size: 12px;
+      }
 
-  /* Responsive reflow (tokens fixed, layout changes) */
-  @media (max-width:1024px){
-    .panes{grid-template-columns:300px 1fr}
-    .notespane{display:none}
-    .notesinline{display:block !important}
-  }
-  @media (max-width:768px){
-    .panes{grid-template-columns:1fr}
-    .listpane{display:block}
-    .panes.detailopen .listpane{display:none}
-    .panes:not(.detailopen) .detailpane{display:none}
-    .backbtn{display:inline-flex !important}
-    .progresswrap{min-width:0;margin-left:0;width:100%}
-  }
-  .notesinline{display:none;margin-top:24px;border-top:1px solid var(--stone-100);padding-top:12px}
-  .backbtn{display:none;align-items:center;gap:6px;border:0;background:transparent;color:var(--stone-600);font-weight:500;font-size:13px;padding:6px 0;margin-bottom:8px}
-</style>
-</head>
-<body>
-<div class="app">
-  <div class="topbar">
-    <div class="brand"><span class="dot"></span>Roubo <span class="crumb">/ checkout-flow / Bench 3</span></div>
-    <div class="switcher" role="group" aria-label="Prototype views">
-      <button data-view="review" aria-pressed="true">Review tab</button>
-      <button data-view="create" aria-pressed="false">Create a TestBench</button>
-      <button data-view="settings" aria-pressed="false">Settings</button>
-    </div>
-  </div>
-
-  <!-- bench tabs: TestBench is the first tab; existing tabs retained -->
-  <div class="benchtabs" id="benchtabs">
-    <div class="tab active"><span class="accent"></span>TestBench</div>
-    <div class="tab">Components</div>
-    <div class="tab">Terminal</div>
-    <div class="tab">Inspection</div>
-    <div class="tab">Info</div>
-  </div>
-
-  <!-- REVIEW VIEW -->
-  <div class="view review" id="view-review">
-    <div class="reviewhead">
-      <div>
-        <div class="spectitle">Checkout flow</div>
-        <div class="specpath mono">.specifications/checkout-flow/test-cases.json</div>
-      </div>
-      <div class="progresswrap">
-        <div class="progresslabel" id="progresslabel"></div>
-        <div class="pbar" id="pbar"></div>
-      </div>
-    </div>
-
-    <div class="banner hidden" id="banner">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-      <span class="msg">The underlying test plan changed since these results were recorded. Recorded marks are preserved.</span>
-      <button id="reconcileBtn">Reconcile</button>
-    </div>
-
-    <div class="panes" id="panes">
-      <div class="listpane" id="listpane"></div>
-      <div class="detailpane" id="detailpane"></div>
-      <div class="notespane">
-        <div class="noteshead">Notes</div>
-        <div class="notelist" id="notelist-rail"></div>
-        <div class="noteadd">
-          <textarea id="noteinput-rail" placeholder="Add a note (append-only, stamped with author + time + status)"></textarea>
-          <button class="btn btn-primary" id="noteadd-rail">Add note</button>
+      /* Responsive reflow (tokens fixed, layout changes) */
+      @media (max-width: 1024px) {
+        .panes {
+          grid-template-columns: 300px 1fr;
+        }
+        .notespane {
+          display: none;
+        }
+        .notesinline {
+          display: block !important;
+        }
+      }
+      @media (max-width: 768px) {
+        .panes {
+          grid-template-columns: 1fr;
+        }
+        .listpane {
+          display: block;
+        }
+        .panes.detailopen .listpane {
+          display: none;
+        }
+        .panes:not(.detailopen) .detailpane {
+          display: none;
+        }
+        .backbtn {
+          display: inline-flex !important;
+        }
+        .progresswrap {
+          min-width: 0;
+          margin-left: 0;
+          width: 100%;
+        }
+      }
+      .notesinline {
+        display: none;
+        margin-top: 24px;
+        border-top: 1px solid var(--stone-100);
+        padding-top: 12px;
+      }
+      .backbtn {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        background: transparent;
+        color: var(--stone-600);
+        font-weight: 500;
+        font-size: 13px;
+        padding: 6px 0;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">
+          <span class="dot"></span>Roubo <span class="crumb">/ checkout-flow / Bench 3</span>
+        </div>
+        <div class="switcher" role="group" aria-label="Prototype views">
+          <button data-view="review" aria-pressed="true">Review tab</button>
+          <button data-view="create" aria-pressed="false">Create a TestBench</button>
+          <button data-view="settings" aria-pressed="false">Settings</button>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- CREATE VIEW (modal over a dimmed review) -->
-  <div class="view hidden" id="view-create">
-    <div class="scrim">
-      <div class="dialog" role="dialog" aria-label="Create a TestBench">
-        <h2>Create a TestBench</h2>
-        <div class="sub">Pick a spec to review. A TestBench binds one focused spec to this bench.</div>
-        <div class="seclabel" style="margin-top:0">Discovered specs</div>
-        <div class="speclist" id="speclist"></div>
-        <div class="orline">or</div>
-        <div class="field">
-          <label for="pathinput">Point at a test-cases.json by path</label>
-          <div class="pathinput" id="pathwrap">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--stone-400)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-            <input id="pathinput" placeholder="path/to/test-cases.json" autocomplete="off" />
-            <span id="pathicon"></span>
+      <!-- bench tabs: TestBench is the first tab; existing tabs retained -->
+      <div class="benchtabs" id="benchtabs">
+        <div class="tab active"><span class="accent"></span>TestBench</div>
+        <div class="tab">Components</div>
+        <div class="tab">Terminal</div>
+        <div class="tab">Inspection</div>
+        <div class="tab">Info</div>
+      </div>
+
+      <!-- REVIEW VIEW -->
+      <div class="view review" id="view-review">
+        <div class="reviewhead">
+          <div>
+            <div class="spectitle">Checkout flow</div>
+            <div class="specpath mono">.specifications/checkout-flow/test-cases.json</div>
           </div>
-          <div class="help" id="pathhelp"></div>
+          <div class="progresswrap">
+            <div class="progresslabel" id="progresslabel"></div>
+            <div class="pbar" id="pbar"></div>
+          </div>
         </div>
+
+        <div class="banner hidden" id="banner">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
+            />
+          </svg>
+          <span class="msg"
+            >The underlying test plan changed since these results were recorded. Recorded marks are
+            preserved.</span
+          >
+          <button id="reconcileBtn">Reconcile</button>
+        </div>
+
+        <div class="panes" id="panes">
+          <div class="listpane" id="listpane"></div>
+          <div class="detailpane" id="detailpane"></div>
+          <div class="notespane">
+            <div class="noteshead">Notes</div>
+            <div class="notelist" id="notelist-rail"></div>
+            <div class="noteadd">
+              <textarea
+                id="noteinput-rail"
+                placeholder="Add a note (append-only, stamped with author + time + status)"
+              ></textarea>
+              <button class="btn btn-primary" id="noteadd-rail">Add note</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CREATE VIEW (modal over a dimmed review) -->
+      <div class="view hidden" id="view-create">
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-label="Create a TestBench">
+            <h2>Create a TestBench</h2>
+            <div class="sub">
+              Pick a spec to review. A TestBench binds one focused spec to this bench.
+            </div>
+            <div class="seclabel" style="margin-top: 0">Discovered specs</div>
+            <div class="speclist" id="speclist"></div>
+            <div class="orline">or</div>
+            <div class="field">
+              <label for="pathinput">Point at a test-cases.json by path</label>
+              <div class="pathinput" id="pathwrap">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--stone-400)"
+                  stroke-width="2"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                </svg>
+                <input id="pathinput" placeholder="path/to/test-cases.json" autocomplete="off" />
+                <span id="pathicon"></span>
+              </div>
+              <div class="help" id="pathhelp"></div>
+            </div>
+            <div class="dialogfoot">
+              <button class="btn btn-secondary" data-view="review">Cancel</button>
+              <button class="btn btn-primary" id="createConfirm" disabled>Create TestBench</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div class="view hidden settings" id="view-settings">
+        <div class="settingstabs">
+          <div class="tab">General</div>
+          <div class="tab">Benches</div>
+          <div class="tab active">TestBench</div>
+          <div class="tab">Integrations</div>
+        </div>
+        <div class="tile">
+          <div class="tx">
+            <h3>TestBench</h3>
+            <p>
+              A manual test-review surface as a bench variant. Walk a focused spec's test plan and
+              record granular results.
+            </p>
+          </div>
+          <button
+            class="switch"
+            id="tbswitch"
+            role="switch"
+            aria-checked="true"
+            aria-label="Enable TestBench"
+          ></button>
+        </div>
+        <div class="settinghint" id="tbhint"></div>
+      </div>
+    </div>
+
+    <!-- Reconcile dialog -->
+    <div class="scrim hidden" id="recscrim">
+      <div class="dialog" role="dialog" aria-label="Reconcile results">
+        <h2>Reconcile results</h2>
+        <div class="sub">
+          The plan changed. Removed cases keep their results as archived orphans and are excluded
+          from the rollup. Nothing is deleted.
+        </div>
+        <div id="reclist"></div>
         <div class="dialogfoot">
-          <button class="btn btn-secondary" data-view="review">Cancel</button>
-          <button class="btn btn-primary" id="createConfirm" disabled>Create TestBench</button>
+          <button class="btn btn-secondary" id="recCancel">Cancel</button>
+          <button class="btn btn-primary" id="recApply">Apply (keep orphans)</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- SETTINGS VIEW -->
-  <div class="view hidden settings" id="view-settings">
-    <div class="settingstabs">
-      <div class="tab">General</div>
-      <div class="tab">Benches</div>
-      <div class="tab active">TestBench</div>
-      <div class="tab">Integrations</div>
-    </div>
-    <div class="tile">
-      <div class="tx">
-        <h3>TestBench</h3>
-        <p>A manual test-review surface as a bench variant. Walk a focused spec's test plan and record granular results.</p>
-      </div>
-      <button class="switch" id="tbswitch" role="switch" aria-checked="true" aria-label="Enable TestBench"></button>
-    </div>
-    <div class="settinghint" id="tbhint"></div>
-  </div>
-</div>
+    <script>
+      // ---- Mock test plan (shape mirrors a product-dev test-cases.json) ----
+      const PLAN = [
+        {
+          id: "TC-001",
+          title: "Reviewer creates a TestBench and binds a focused spec",
+          level: "E2E",
+          priority: "P0",
+          pre: ["Project registered in Roubo", "At least one spec with a test-cases.json"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Open an empty bench slot menu",
+              obs: [{ id: "o1", expected: 'A "Create a TestBench" option is visible' }],
+            },
+            {
+              n: 2,
+              instruction: "Pick a discovered spec and confirm",
+              obs: [
+                { id: "o2", expected: "The spec list shows slug, path and case count" },
+                { id: "o3", expected: "Create is disabled until a spec is selected" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "TC-002",
+          title: "Mark each observation pass or fail",
+          level: "E2E",
+          priority: "P0",
+          pre: ["A TestBench is bound to a plan"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Select a case from the list",
+              obs: [
+                { id: "o1", expected: "The case detail shows steps and expected observations" },
+              ],
+            },
+            {
+              n: 2,
+              instruction: "Mark an observation pass, then fail",
+              obs: [
+                { id: "o2", expected: "Each mark is timestamped" },
+                { id: "o3", expected: "The per-case status updates from the marks" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "TC-003",
+          title: "Override a derived status to blocked",
+          level: "Integration",
+          priority: "P0",
+          pre: ["A case has at least one mark"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Open the status override control",
+              obs: [{ id: "o1", expected: "All five statuses are selectable" }],
+            },
+            {
+              n: 2,
+              instruction: "Set the status to blocked",
+              obs: [
+                {
+                  id: "o2",
+                  expected: "An override marker is shown, distinct from the derived value",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "TC-004",
+          title: "Append an authored note",
+          level: "Integration",
+          priority: "P0",
+          pre: ["A case is selected"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Type a note and add it",
+              obs: [
+                { id: "o1", expected: "The note is stamped with author, time and status-at-write" },
+                { id: "o2", expected: "No edit or delete affordance is present" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "TC-005",
+          title: "Results persist without mutating the source plan",
+          level: "Integration",
+          priority: "P1",
+          pre: ["Marks were recorded"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Reload the bench",
+              obs: [{ id: "o1", expected: "Recorded marks and notes are still present" }],
+            },
+            {
+              n: 2,
+              instruction: "Inspect the source test-cases.json",
+              obs: [{ id: "o2", expected: "The source file is unchanged" }],
+            },
+          ],
+        },
+        {
+          id: "TC-006",
+          title: "Stale results are flagged and reconciled safely",
+          level: "E2E",
+          priority: "P0",
+          pre: ["Recorded results exist", "The source plan changed"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Open the bench after the plan changed",
+              obs: [{ id: "o1", expected: "A staleness banner appears" }],
+            },
+            {
+              n: 2,
+              instruction: "Reconcile",
+              obs: [
+                { id: "o2", expected: "Removed cases become archived orphans, not deleted" },
+                { id: "o3", expected: "Surviving results are retained" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "TC-007",
+          title: "Progress rollup reflects marks per level and overall",
+          level: "Unit",
+          priority: "P1",
+          pre: ["Some cases are marked"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Read the rollup",
+              obs: [{ id: "o1", expected: "Per-level and overall counts are shown" }],
+            },
+          ],
+        },
+        {
+          id: "TC-008",
+          title: "Disabling the feature hides the surface",
+          level: "Unit",
+          priority: "P1",
+          pre: ["TestBench is enabled"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Toggle the app-settings TestBench switch off",
+              obs: [{ id: "o1", expected: "The create option and surface are hidden" }],
+            },
+          ],
+        },
+        {
+          id: "TC-009",
+          title: "Manual path is validated before binding",
+          level: "Integration",
+          priority: "P1",
+          pre: ["Create dialog open"],
+          steps: [
+            {
+              n: 1,
+              instruction: "Paste a non-conforming path",
+              obs: [{ id: "o1", expected: "An actionable validation error is shown" }],
+            },
+            {
+              n: 2,
+              instruction: "Paste a valid test-cases.json path",
+              obs: [{ id: "o2", expected: "Create becomes enabled" }],
+            },
+          ],
+        },
+      ];
 
-<!-- Reconcile dialog -->
-<div class="scrim hidden" id="recscrim">
-  <div class="dialog" role="dialog" aria-label="Reconcile results">
-    <h2>Reconcile results</h2>
-    <div class="sub">The plan changed. Removed cases keep their results as archived orphans and are excluded from the rollup. Nothing is deleted.</div>
-    <div id="reclist"></div>
-    <div class="dialogfoot">
-      <button class="btn btn-secondary" id="recCancel">Cancel</button>
-      <button class="btn btn-primary" id="recApply">Apply (keep orphans)</button>
-    </div>
-  </div>
-</div>
+      const STATUS_LABEL = {
+        not_started: "Not started",
+        in_progress: "In progress",
+        passed: "Passed",
+        failed: "Failed",
+        blocked: "Blocked",
+      };
+      const STATUS_ORDER = ["not_started", "in_progress", "passed", "failed", "blocked"];
 
-<script>
-// ---- Mock test plan (shape mirrors a product-dev test-cases.json) ----
-const PLAN = [
-  {id:'TC-001', title:'Reviewer creates a TestBench and binds a focused spec', level:'E2E', priority:'P0',
-   pre:['Project registered in Roubo','At least one spec with a test-cases.json'],
-   steps:[
-     {n:1, instruction:'Open an empty bench slot menu', obs:[{id:'o1',expected:'A "Create a TestBench" option is visible'}]},
-     {n:2, instruction:'Pick a discovered spec and confirm', obs:[{id:'o2',expected:'The spec list shows slug, path and case count'},{id:'o3',expected:'Create is disabled until a spec is selected'}]}
-   ]},
-  {id:'TC-002', title:'Mark each observation pass or fail', level:'E2E', priority:'P0',
-   pre:['A TestBench is bound to a plan'],
-   steps:[
-     {n:1, instruction:'Select a case from the list', obs:[{id:'o1',expected:'The case detail shows steps and expected observations'}]},
-     {n:2, instruction:'Mark an observation pass, then fail', obs:[{id:'o2',expected:'Each mark is timestamped'},{id:'o3',expected:'The per-case status updates from the marks'}]}
-   ]},
-  {id:'TC-003', title:'Override a derived status to blocked', level:'Integration', priority:'P0',
-   pre:['A case has at least one mark'],
-   steps:[
-     {n:1, instruction:'Open the status override control', obs:[{id:'o1',expected:'All five statuses are selectable'}]},
-     {n:2, instruction:'Set the status to blocked', obs:[{id:'o2',expected:'An override marker is shown, distinct from the derived value'}]}
-   ]},
-  {id:'TC-004', title:'Append an authored note', level:'Integration', priority:'P0',
-   pre:['A case is selected'],
-   steps:[
-     {n:1, instruction:'Type a note and add it', obs:[{id:'o1',expected:'The note is stamped with author, time and status-at-write'},{id:'o2',expected:'No edit or delete affordance is present'}]}
-   ]},
-  {id:'TC-005', title:'Results persist without mutating the source plan', level:'Integration', priority:'P1',
-   pre:['Marks were recorded'],
-   steps:[
-     {n:1, instruction:'Reload the bench', obs:[{id:'o1',expected:'Recorded marks and notes are still present'}]},
-     {n:2, instruction:'Inspect the source test-cases.json', obs:[{id:'o2',expected:'The source file is unchanged'}]}
-   ]},
-  {id:'TC-006', title:'Stale results are flagged and reconciled safely', level:'E2E', priority:'P0',
-   pre:['Recorded results exist','The source plan changed'],
-   steps:[
-     {n:1, instruction:'Open the bench after the plan changed', obs:[{id:'o1',expected:'A staleness banner appears'}]},
-     {n:2, instruction:'Reconcile', obs:[{id:'o2',expected:'Removed cases become archived orphans, not deleted'},{id:'o3',expected:'Surviving results are retained'}]}
-   ]},
-  {id:'TC-007', title:'Progress rollup reflects marks per level and overall', level:'Unit', priority:'P1',
-   pre:['Some cases are marked'],
-   steps:[
-     {n:1, instruction:'Read the rollup', obs:[{id:'o1',expected:'Per-level and overall counts are shown'}]}
-   ]},
-  {id:'TC-008', title:'Disabling the feature hides the surface', level:'Unit', priority:'P1',
-   pre:['TestBench is enabled'],
-   steps:[
-     {n:1, instruction:'Toggle the app-settings TestBench switch off', obs:[{id:'o1',expected:'The create option and surface are hidden'}]}
-   ]},
-  {id:'TC-009', title:'Manual path is validated before binding', level:'Integration', priority:'P1',
-   pre:['Create dialog open'],
-   steps:[
-     {n:1, instruction:'Paste a non-conforming path', obs:[{id:'o1',expected:'An actionable validation error is shown'}]},
-     {n:2, instruction:'Paste a valid test-cases.json path', obs:[{id:'o2',expected:'Create becomes enabled'}]}
-   ]}
-];
+      // results: per case { marks:{obsId:'pass'|'fail'+ts}, override:null|status, notes:[] }
+      const RESULTS = {};
+      PLAN.forEach((c) => (RESULTS[c.id] = { marks: {}, override: null, notes: [] }));
+      // pre-seed a little realistic history
+      RESULTS["TC-002"].marks = {
+        o1: { r: "pass", ts: "09:41" },
+        o2: { r: "pass", ts: "09:42" },
+        o3: { r: "fail", ts: "09:43" },
+      };
+      RESULTS["TC-002"].notes = [
+        {
+          author: "david@poxon.au",
+          ts: "2026-06-06 09:43",
+          status: "failed",
+          text: "Status did not flip to failed after the fail mark on the third observation. Filed for follow-up.",
+        },
+      ];
+      RESULTS["TC-005"].marks = { o1: { r: "pass", ts: "09:50" }, o2: { r: "pass", ts: "09:51" } };
+      RESULTS["TC-007"].marks = { o1: { r: "pass", ts: "09:55" } };
+      RESULTS["TC-003"].override = "blocked";
+      RESULTS["TC-003"].notes = [
+        {
+          author: "david@poxon.au",
+          ts: "2026-06-06 09:30",
+          status: "blocked",
+          text: "Blocked: the override picker is gated behind a missing endpoint in this bench.",
+        },
+      ];
 
-const STATUS_LABEL = {not_started:'Not started', in_progress:'In progress', passed:'Passed', failed:'Failed', blocked:'Blocked'};
-const STATUS_ORDER = ['not_started','in_progress','passed','failed','blocked'];
+      let selected = "TC-002";
 
-// results: per case { marks:{obsId:'pass'|'fail'+ts}, override:null|status, notes:[] }
-const RESULTS = {};
-PLAN.forEach(c => RESULTS[c.id] = {marks:{}, override:null, notes:[]});
-// pre-seed a little realistic history
-RESULTS['TC-002'].marks = {o1:{r:'pass',ts:'09:41'}, o2:{r:'pass',ts:'09:42'}, o3:{r:'fail',ts:'09:43'}};
-RESULTS['TC-002'].notes = [{author:'david@poxon.au', ts:'2026-06-06 09:43', status:'failed', text:'Status did not flip to failed after the fail mark on the third observation. Filed for follow-up.'}];
-RESULTS['TC-005'].marks = {o1:{r:'pass',ts:'09:50'}, o2:{r:'pass',ts:'09:51'}};
-RESULTS['TC-007'].marks = {o1:{r:'pass',ts:'09:55'}};
-RESULTS['TC-003'].override = 'blocked';
-RESULTS['TC-003'].notes = [{author:'david@poxon.au', ts:'2026-06-06 09:30', status:'blocked', text:'Blocked: the override picker is gated behind a missing endpoint in this bench.'}];
+      function obsCount(c) {
+        return c.steps.reduce((n, s) => n + s.obs.length, 0);
+      }
+      function deriveStatus(cid) {
+        const c = PLAN.find((x) => x.id === cid);
+        const r = RESULTS[cid];
+        const total = obsCount(c);
+        const marks = Object.values(r.marks);
+        if (marks.length === 0) return "not_started";
+        if (marks.length < total) return "in_progress";
+        return marks.some((m) => m.r === "fail") ? "failed" : "passed";
+      }
+      function effectiveStatus(cid) {
+        return RESULTS[cid].override || deriveStatus(cid);
+      }
 
-let selected = 'TC-002';
+      function statusChip(status) {
+        return `<span class="status st-${status}"><span class="sd"></span>${STATUS_LABEL[status]}</span>`;
+      }
 
-function obsCount(c){return c.steps.reduce((n,s)=>n+s.obs.length,0);}
-function deriveStatus(cid){
-  const c = PLAN.find(x=>x.id===cid); const r = RESULTS[cid];
-  const total = obsCount(c); const marks = Object.values(r.marks);
-  if(marks.length===0) return 'not_started';
-  if(marks.length<total) return 'in_progress';
-  return marks.some(m=>m.r==='fail') ? 'failed' : 'passed';
-}
-function effectiveStatus(cid){ return RESULTS[cid].override || deriveStatus(cid); }
-
-function statusChip(status){
-  return `<span class="status st-${status}"><span class="sd"></span>${STATUS_LABEL[status]}</span>`;
-}
-
-function renderList(){
-  const groups = {};
-  PLAN.forEach(c=>{const k=`${c.level} · ${c.priority}`; (groups[k]=groups[k]||[]).push(c);});
-  let html='';
-  Object.keys(groups).forEach(k=>{
-    html+=`<div class="group"><div class="grouplabel"><span class="gd"></span>${k}</div></div>`;
-    groups[k].forEach(c=>{
-      const st=effectiveStatus(c.id);
-      html+=`<button class="caserow" data-case="${c.id}" aria-selected="${c.id===selected}">
+      function renderList() {
+        const groups = {};
+        PLAN.forEach((c) => {
+          const k = `${c.level} · ${c.priority}`;
+          (groups[k] = groups[k] || []).push(c);
+        });
+        let html = "";
+        Object.keys(groups).forEach((k) => {
+          html += `<div class="group"><div class="grouplabel"><span class="gd"></span>${k}</div></div>`;
+          groups[k].forEach((c) => {
+            const st = effectiveStatus(c.id);
+            html += `<button class="caserow" data-case="${c.id}" aria-selected="${c.id === selected}">
         ${statusChip(st)}<span class="ctitle">${c.title}</span><span class="cid">${c.id}</span></button>`;
-    });
-  });
-  document.getElementById('listpane').innerHTML=html;
-  document.querySelectorAll('.caserow').forEach(b=>b.onclick=()=>{selected=b.dataset.case;document.getElementById('panes').classList.add('detailopen');renderAll();});
-}
+          });
+        });
+        document.getElementById("listpane").innerHTML = html;
+        document.querySelectorAll(".caserow").forEach(
+          (b) =>
+            (b.onclick = () => {
+              selected = b.dataset.case;
+              document.getElementById("panes").classList.add("detailopen");
+              renderAll();
+            }),
+        );
+      }
 
-function renderProgress(){
-  const counts={passed:0,failed:0,in_progress:0,not_started:0,blocked:0};
-  PLAN.forEach(c=>counts[effectiveStatus(c.id)]++);
-  const total=PLAN.length;
-  const pct=n=>`${(n/total*100).toFixed(1)}%`;
-  document.getElementById('pbar').innerHTML=
-    `<i class="pass" style="width:${pct(counts.passed)}"></i>`+
-    `<i class="fail" style="width:${pct(counts.failed)}"></i>`+
-    `<i class="prog" style="width:${pct(counts.in_progress+counts.blocked)}"></i>`;
-  document.getElementById('progresslabel').innerHTML=
-    `<span><b>${counts.passed}</b> passed</span><span><b>${counts.failed}</b> failed</span>`+
-    `<span><b>${counts.in_progress+counts.blocked}</b> open</span><span class="mono">${counts.passed+counts.failed}/${total}</span>`;
-}
+      function renderProgress() {
+        const counts = { passed: 0, failed: 0, in_progress: 0, not_started: 0, blocked: 0 };
+        PLAN.forEach((c) => counts[effectiveStatus(c.id)]++);
+        const total = PLAN.length;
+        const pct = (n) => `${((n / total) * 100).toFixed(1)}%`;
+        document.getElementById("pbar").innerHTML =
+          `<i class="pass" style="width:${pct(counts.passed)}"></i>` +
+          `<i class="fail" style="width:${pct(counts.failed)}"></i>` +
+          `<i class="prog" style="width:${pct(counts.in_progress + counts.blocked)}"></i>`;
+        document.getElementById("progresslabel").innerHTML =
+          `<span><b>${counts.passed}</b> passed</span><span><b>${counts.failed}</b> failed</span>` +
+          `<span><b>${counts.in_progress + counts.blocked}</b> open</span><span class="mono">${counts.passed + counts.failed}/${total}</span>`;
+      }
 
-function renderDetail(){
-  const c=PLAN.find(x=>x.id===selected); const r=RESULTS[selected];
-  const derived=deriveStatus(selected); const eff=effectiveStatus(selected);
-  let steps='';
-  c.steps.forEach(s=>{
-    let obs='';
-    s.obs.forEach(o=>{
-      const m=r.marks[o.id];
-      obs+=`<div class="obsrow"><span class="obsexp">${o.expected}</span>
-        <span class="obsts">${m?m.ts:''}</span>
+      function renderDetail() {
+        const c = PLAN.find((x) => x.id === selected);
+        const r = RESULTS[selected];
+        const derived = deriveStatus(selected);
+        const eff = effectiveStatus(selected);
+        let steps = "";
+        c.steps.forEach((s) => {
+          let obs = "";
+          s.obs.forEach((o) => {
+            const m = r.marks[o.id];
+            obs += `<div class="obsrow"><span class="obsexp">${o.expected}</span>
+        <span class="obsts">${m ? m.ts : ""}</span>
         <span class="mark" data-obs="${o.id}">
-          <button class="mk ${m&&m.r==='pass'?'sel-pass':''}" data-r="pass" aria-label="Pass">
+          <button class="mk ${m && m.r === "pass" ? "sel-pass" : ""}" data-r="pass" aria-label="Pass">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>Pass</button>
-          <button class="mk ${m&&m.r==='fail'?'sel-fail':''}" data-r="fail" aria-label="Fail">
+          <button class="mk ${m && m.r === "fail" ? "sel-fail" : ""}" data-r="fail" aria-label="Fail">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>Fail</button>
         </span></div>`;
-    });
-    steps+=`<div class="step"><div class="stephead"><span class="stepnum">${s.n}</span><span class="stepinstr">${s.instruction}</span></div><div class="obs">${obs}</div></div>`;
-  });
-  const opts=STATUS_ORDER.map(s=>`<option value="${s}" ${r.override===s?'selected':''}>${STATUS_LABEL[s]}${!r.override&&s===derived?' (derived)':''}</option>`).join('');
-  document.getElementById('detailpane').innerHTML=
-    `<button class="backbtn" id="backbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>All cases</button>
+          });
+          steps += `<div class="step"><div class="stephead"><span class="stepnum">${s.n}</span><span class="stepinstr">${s.instruction}</span></div><div class="obs">${obs}</div></div>`;
+        });
+        const opts = STATUS_ORDER.map(
+          (s) =>
+            `<option value="${s}" ${r.override === s ? "selected" : ""}>${STATUS_LABEL[s]}${!r.override && s === derived ? " (derived)" : ""}</option>`,
+        ).join("");
+        document.getElementById("detailpane").innerHTML =
+          `<button class="backbtn" id="backbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>All cases</button>
      <div class="casehead">
        <div><h2>${c.title}</h2><div class="casemeta"><span>${c.id}</span><span>${c.level}</span><span>${c.priority}</span></div></div>
        <div class="ovr"><span class="ovrlabel">Status</span>
          <select class="ovrsel" id="ovrsel">${opts}</select>
-         <span class="ovrmark ${r.override?'on':''}">override active</span></div>
+         <span class="ovrmark ${r.override ? "on" : ""}">override active</span></div>
      </div>
      <div class="seclabel">Preconditions</div>
-     <ul class="pre">${c.pre.map(p=>`<li>${p}</li>`).join('')}</ul>
+     <ul class="pre">${c.pre.map((p) => `<li>${p}</li>`).join("")}</ul>
      <div class="seclabel">Steps and expected observations</div>
      ${steps}
      <div class="notesinline" id="notesinline"></div>`;
-  // interactions
-  document.querySelectorAll('#detailpane .mark').forEach(mk=>{
-    mk.querySelectorAll('.mk').forEach(btn=>btn.onclick=()=>{
-      const oid=mk.dataset.obs, res=btn.dataset.r;
-      const cur=RESULTS[selected].marks[oid];
-      if(cur&&cur.r===res){delete RESULTS[selected].marks[oid];}
-      else{RESULTS[selected].marks[oid]={r:res,ts:nowTime()};}
-      renderAll();
-    });
-  });
-  document.getElementById('ovrsel').onchange=e=>{
-    const v=e.target.value; RESULTS[selected].override=(v===deriveStatus(selected)?null:v); renderAll();
-  };
-  const back=document.getElementById('backbtn'); if(back) back.onclick=()=>{document.getElementById('panes').classList.remove('detailopen');};
-  // inline notes (narrow screens)
-  document.getElementById('notesinline').innerHTML=
-    `<div class="seclabel">Notes</div>`+notesHtml(selected)+
-    `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        // interactions
+        document.querySelectorAll("#detailpane .mark").forEach((mk) => {
+          mk.querySelectorAll(".mk").forEach(
+            (btn) =>
+              (btn.onclick = () => {
+                const oid = mk.dataset.obs,
+                  res = btn.dataset.r;
+                const cur = RESULTS[selected].marks[oid];
+                if (cur && cur.r === res) {
+                  delete RESULTS[selected].marks[oid];
+                } else {
+                  RESULTS[selected].marks[oid] = { r: res, ts: nowTime() };
+                }
+                renderAll();
+              }),
+          );
+        });
+        document.getElementById("ovrsel").onchange = (e) => {
+          const v = e.target.value;
+          RESULTS[selected].override = v === deriveStatus(selected) ? null : v;
+          renderAll();
+        };
+        const back = document.getElementById("backbtn");
+        if (back)
+          back.onclick = () => {
+            document.getElementById("panes").classList.remove("detailopen");
+          };
+        // inline notes (narrow screens)
+        document.getElementById("notesinline").innerHTML =
+          `<div class="seclabel">Notes</div>` +
+          notesHtml(selected) +
+          `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
        <textarea id="noteinput-inline" placeholder="Add a note"></textarea>
        <button class="btn btn-primary" id="noteadd-inline" style="align-self:flex-start">Add note</button></div>`;
-  const ai=document.getElementById('noteadd-inline'); if(ai) ai.onclick=()=>addNote('noteinput-inline');
-}
+        const ai = document.getElementById("noteadd-inline");
+        if (ai) ai.onclick = () => addNote("noteinput-inline");
+      }
 
-function notesHtml(cid){
-  const notes=RESULTS[cid].notes;
-  if(!notes.length) return `<div class="empty">No notes yet. Notes are append-only and stamped.</div>`;
-  return notes.map(n=>`<div class="note"><div class="notemeta">
+      function notesHtml(cid) {
+        const notes = RESULTS[cid].notes;
+        if (!notes.length)
+          return `<div class="empty">No notes yet. Notes are append-only and stamped.</div>`;
+        return notes
+          .map(
+            (n) => `<div class="note"><div class="notemeta">
       <span class="status st-${n.status}"><span class="sd"></span></span>
       <span>${n.author}</span><span>·</span><span>${n.ts}</span><span>·</span><span>${STATUS_LABEL[n.status]}</span>
-    </div><div class="notebody">${n.text}</div></div>`).join('');
-}
-function renderNotesRail(){ document.getElementById('notelist-rail').innerHTML=notesHtml(selected); }
+    </div><div class="notebody">${n.text}</div></div>`,
+          )
+          .join("");
+      }
+      function renderNotesRail() {
+        document.getElementById("notelist-rail").innerHTML = notesHtml(selected);
+      }
 
-function addNote(inputId){
-  const el=document.getElementById(inputId); const text=(el.value||'').trim(); if(!text) return;
-  RESULTS[selected].notes.push({author:'david@poxon.au', ts:'2026-06-06 '+nowTime(), status:effectiveStatus(selected), text});
-  el.value=''; renderAll();
-}
-function nowTime(){const base=10*60+0+Object.keys(RESULTS).reduce((n,k)=>n+RESULTS[k].notes.length+Object.keys(RESULTS[k].marks).length,0);const h=Math.floor(base/60),m=base%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;}
+      function addNote(inputId) {
+        const el = document.getElementById(inputId);
+        const text = (el.value || "").trim();
+        if (!text) return;
+        RESULTS[selected].notes.push({
+          author: "david@poxon.au",
+          ts: "2026-06-06 " + nowTime(),
+          status: effectiveStatus(selected),
+          text,
+        });
+        el.value = "";
+        renderAll();
+      }
+      function nowTime() {
+        const base =
+          10 * 60 +
+          0 +
+          Object.keys(RESULTS).reduce(
+            (n, k) => n + RESULTS[k].notes.length + Object.keys(RESULTS[k].marks).length,
+            0,
+          );
+        const h = Math.floor(base / 60),
+          m = base % 60;
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
 
-function renderAll(){renderList();renderProgress();renderDetail();renderNotesRail();}
+      function renderAll() {
+        renderList();
+        renderProgress();
+        renderDetail();
+        renderNotesRail();
+      }
 
-// ---- view switching ----
-function show(view){
-  document.querySelectorAll('.switcher button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.view===view)));
-  document.getElementById('view-review').classList.toggle('hidden', view==='settings');
-  document.getElementById('view-create').classList.toggle('hidden', view!=='create');
-  document.getElementById('view-settings').classList.toggle('hidden', view!=='settings');
-  document.getElementById('benchtabs').classList.toggle('hidden', view==='settings');
-  if(view==='review'){document.getElementById('view-review').classList.remove('hidden');}
-}
-document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+      // ---- view switching ----
+      function show(view) {
+        document
+          .querySelectorAll(".switcher button")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
+        document.getElementById("view-review").classList.toggle("hidden", view === "settings");
+        document.getElementById("view-create").classList.toggle("hidden", view !== "create");
+        document.getElementById("view-settings").classList.toggle("hidden", view !== "settings");
+        document.getElementById("benchtabs").classList.toggle("hidden", view === "settings");
+        if (view === "review") {
+          document.getElementById("view-review").classList.remove("hidden");
+        }
+      }
+      document
+        .querySelectorAll("[data-view]")
+        .forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
 
-// notes rail add
-document.getElementById('noteadd-rail').onclick=()=>addNote('noteinput-rail');
+      // notes rail add
+      document.getElementById("noteadd-rail").onclick = () => addNote("noteinput-rail");
 
-// staleness + reconcile
-document.getElementById('banner').classList.add('hidden');
-setTimeout(()=>{document.getElementById('banner').classList.remove('hidden');}, 1200);
-document.getElementById('reconcileBtn').onclick=()=>{
-  document.getElementById('reclist').innerHTML=
-    `<div class="recrow"><span class="rectag added">added</span><span class="reccase">TC-010 Bulk-mark all observations in a step</span><span class="recnote">new</span></div>
+      // staleness + reconcile
+      document.getElementById("banner").classList.add("hidden");
+      setTimeout(() => {
+        document.getElementById("banner").classList.remove("hidden");
+      }, 1200);
+      document.getElementById("reconcileBtn").onclick = () => {
+        document.getElementById("reclist").innerHTML =
+          `<div class="recrow"><span class="rectag added">added</span><span class="reccase">TC-010 Bulk-mark all observations in a step</span><span class="recnote">new</span></div>
      <div class="recrow"><span class="rectag changed">changed</span><span class="reccase">TC-002 Mark each observation pass or fail</span><span class="recnote">steps edited</span></div>
      <div class="recrow"><span class="rectag orphan">orphan</span><span class="reccase">TC-009 Manual path is validated before binding</span><span class="recnote">removed from plan, 2 marks kept as archived</span></div>`;
-  document.getElementById('recscrim').classList.remove('hidden');
-};
-document.getElementById('recCancel').onclick=()=>document.getElementById('recscrim').classList.add('hidden');
-document.getElementById('recApply').onclick=()=>{document.getElementById('recscrim').classList.add('hidden');document.getElementById('banner').classList.add('hidden');};
+        document.getElementById("recscrim").classList.remove("hidden");
+      };
+      document.getElementById("recCancel").onclick = () =>
+        document.getElementById("recscrim").classList.add("hidden");
+      document.getElementById("recApply").onclick = () => {
+        document.getElementById("recscrim").classList.add("hidden");
+        document.getElementById("banner").classList.add("hidden");
+      };
 
-// create modal: spec picker + manual path validation
-const SPECS=[
-  {slug:'checkout-flow', path:'.specifications/checkout-flow/test-cases.json', count:9},
-  {slug:'team-invites', path:'.specifications/team-invites/test-cases.json', count:14},
-  {slug:'jira-sources-scale', path:'.specifications/jira-sources-scale/test-cases.json', count:21}
-];
-let pickedSpec=null;
-function renderSpecs(){
-  document.getElementById('speclist').innerHTML=SPECS.map(s=>
-    `<button class="specopt" data-slug="${s.slug}" aria-pressed="${pickedSpec===s.slug}">
+      // create modal: spec picker + manual path validation
+      const SPECS = [
+        { slug: "checkout-flow", path: ".specifications/checkout-flow/test-cases.json", count: 9 },
+        { slug: "team-invites", path: ".specifications/team-invites/test-cases.json", count: 14 },
+        {
+          slug: "jira-sources-scale",
+          path: ".specifications/jira-sources-scale/test-cases.json",
+          count: 21,
+        },
+      ];
+      let pickedSpec = null;
+      function renderSpecs() {
+        document.getElementById("speclist").innerHTML = SPECS.map(
+          (s) =>
+            `<button class="specopt" data-slug="${s.slug}" aria-pressed="${pickedSpec === s.slug}">
        <span><div class="sslug">${s.slug}</div><div class="spath">${s.path}</div></span>
-       <span class="scount">${s.count} cases</span></button>`).join('');
-  document.querySelectorAll('.specopt').forEach(b=>b.onclick=()=>{pickedSpec=b.dataset.slug;document.getElementById('pathinput').value='';validateCreate();renderSpecs();});
-}
-const pathInput=document.getElementById('pathinput');
-pathInput.addEventListener('input',()=>{if(pathInput.value)pickedSpec=null;renderSpecs();validateCreate();});
-function validateCreate(){
-  const wrap=document.getElementById('pathwrap'), help=document.getElementById('pathhelp'), icon=document.getElementById('pathicon');
-  const v=pathInput.value.trim();
-  let valid=false;
-  if(pickedSpec){ wrap.className='pathinput'; help.className='help'; help.textContent=''; icon.innerHTML=''; valid=true; }
-  else if(v===''){ wrap.className='pathinput'; help.className='help'; help.textContent=''; icon.innerHTML=''; }
-  else if(/test-cases\.json$/.test(v)){ wrap.className='pathinput valid'; help.className='help valid'; help.textContent='Valid against the published schema.'; icon.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>'; valid=true; }
-  else { wrap.className='pathinput invalid'; help.className='help invalid'; help.textContent='Must point at a test-cases.json that validates against the schema.'; icon.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-600)" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>'; }
-  document.getElementById('createConfirm').disabled=!valid;
-}
-document.getElementById('createConfirm').onclick=()=>show('review');
+       <span class="scount">${s.count} cases</span></button>`,
+        ).join("");
+        document.querySelectorAll(".specopt").forEach(
+          (b) =>
+            (b.onclick = () => {
+              pickedSpec = b.dataset.slug;
+              document.getElementById("pathinput").value = "";
+              validateCreate();
+              renderSpecs();
+            }),
+        );
+      }
+      const pathInput = document.getElementById("pathinput");
+      pathInput.addEventListener("input", () => {
+        if (pathInput.value) pickedSpec = null;
+        renderSpecs();
+        validateCreate();
+      });
+      function validateCreate() {
+        const wrap = document.getElementById("pathwrap"),
+          help = document.getElementById("pathhelp"),
+          icon = document.getElementById("pathicon");
+        const v = pathInput.value.trim();
+        let valid = false;
+        if (pickedSpec) {
+          wrap.className = "pathinput";
+          help.className = "help";
+          help.textContent = "";
+          icon.innerHTML = "";
+          valid = true;
+        } else if (v === "") {
+          wrap.className = "pathinput";
+          help.className = "help";
+          help.textContent = "";
+          icon.innerHTML = "";
+        } else if (/test-cases\.json$/.test(v)) {
+          wrap.className = "pathinput valid";
+          help.className = "help valid";
+          help.textContent = "Valid against the published schema.";
+          icon.innerHTML =
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
+          valid = true;
+        } else {
+          wrap.className = "pathinput invalid";
+          help.className = "help invalid";
+          help.textContent = "Must point at a test-cases.json that validates against the schema.";
+          icon.innerHTML =
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red-600)" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+        }
+        document.getElementById("createConfirm").disabled = !valid;
+      }
+      document.getElementById("createConfirm").onclick = () => show("review");
 
-// settings switch
-const sw=document.getElementById('tbswitch'), hint=document.getElementById('tbhint');
-function renderSwitch(){const on=sw.getAttribute('aria-checked')==='true';hint.textContent=on?'':'Disabled. The create-TestBench option and the TestBench surface are hidden.';}
-sw.onclick=()=>{sw.setAttribute('aria-checked',String(sw.getAttribute('aria-checked')!=='true'));renderSwitch();};
+      // settings switch
+      const sw = document.getElementById("tbswitch"),
+        hint = document.getElementById("tbhint");
+      function renderSwitch() {
+        const on = sw.getAttribute("aria-checked") === "true";
+        hint.textContent = on
+          ? ""
+          : "Disabled. The create-TestBench option and the TestBench surface are hidden.";
+      }
+      sw.onclick = () => {
+        sw.setAttribute("aria-checked", String(sw.getAttribute("aria-checked") !== "true"));
+        renderSwitch();
+      };
 
-renderSpecs();validateCreate();renderSwitch();renderAll();show('review');
-</script>
-</body>
+      renderSpecs();
+      validateCreate();
+      renderSwitch();
+      renderAll();
+      show("review");
+    </script>
+  </body>
 </html>
