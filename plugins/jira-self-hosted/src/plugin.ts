@@ -20,7 +20,8 @@ import type {
 } from "@roubo/plugin-sdk";
 import { parseFormConfig, parseIntegrationConfig, type JiraPluginConfig } from "./config.js";
 import { jiraFetch, JiraApiError, type JiraRequestContext } from "./jira-client.js";
-import { buildIssueListJql, type SourceClause, type SourceKind } from "./jql.js";
+import { assertProjectKey, buildIssueListJql, type SourceClause, type SourceKind } from "./jql.js";
+import { resolveBoardClause } from "./board-resolve.js";
 import {
   normalizeComment,
   normalizeIssue,
@@ -265,7 +266,7 @@ export function createPluginContract(): PluginContract {
       const config = await adoptOrRecallConfig(params);
       const ctx = await ctxFor(config);
 
-      const sources = toSourceClauses(params.sources);
+      const sources = await prepareSourceClauses(ctx, params.sources);
       const sourceKey = sourcesCacheKey(sources);
       const lastPoll = await getLastPoll(sourceKey);
       const jql = buildIssueListJql({ sources, lastPollIso: lastPoll });
@@ -458,27 +459,81 @@ export function _resetForTests(): void {
 }
 
 /**
- * Narrow the host's flat `ConfiguredSource[]` (which carries an opaque
- * `kind` string) to Jira-understood `SourceClause`s. Entries whose `kind`
- * is anything other than `"filter"` or `"epic"` are dropped silently; the
- * host already logged a warning for unknown categories upstream in
- * `server/services/plugin-source-translation.ts`.
+ * Narrow the host's flat `ConfiguredSource[]` (which carries an opaque `kind`
+ * string) to Jira-understood `SourceClause`s, resolving `board` sources to
+ * their active-sprint / whole-board JQL at list time and narrowing the `mine`
+ * preset to the in-scope project keys. Entries whose `kind` is not a Jira kind
+ * are dropped silently; the host already logged a warning for unknown
+ * categories upstream in `server/services/plugin-source-translation.ts`.
+ *
+ * The in-scope project set (used to narrow `mine` in-project mode) is derived
+ * from the sources themselves: every `project`-kind externalId plus any
+ * source's `project` field, validated as Jira project keys. A malformed key is
+ * dropped rather than interpolated (defense-in-depth alongside the picker).
  */
-function toSourceClauses(sources: ConfiguredSource[] | undefined): SourceClause[] {
+async function prepareSourceClauses(
+  ctx: JiraRequestContext,
+  sources: ConfiguredSource[] | undefined,
+): Promise<SourceClause[]> {
   if (!Array.isArray(sources)) return [];
+
+  const jiraSources = sources.filter(
+    (s): s is ConfiguredSource =>
+      Boolean(s) &&
+      typeof s.externalId === "string" &&
+      s.externalId.length > 0 &&
+      isJiraSourceKind(s.kind),
+  );
+
+  const scopeProjectKeys = inScopeProjectKeys(jiraSources);
+
   const clauses: SourceClause[] = [];
-  for (const source of sources) {
-    if (!source || typeof source.externalId !== "string" || source.externalId.length === 0) {
+  for (const source of jiraSources) {
+    const kind = source.kind as SourceKind;
+    if (kind === "board") {
+      const boardMode = source.boardMode ?? "active-sprint";
+      const boardId = source.externalId.startsWith("board:")
+        ? source.externalId.slice("board:".length)
+        : source.externalId;
+      const resolvedClause = await resolveBoardClause(ctx, boardId, boardMode);
+      clauses.push({ kind, externalId: source.externalId, boardMode, resolvedClause });
       continue;
     }
-    if (!isJiraSourceKind(source.kind)) continue;
-    clauses.push({ kind: source.kind, externalId: source.externalId });
+    if (kind === "mine") {
+      const mineScope = source.mineScope ?? "anywhere";
+      clauses.push({ kind, externalId: source.externalId, mineScope, scopeProjectKeys });
+      continue;
+    }
+    clauses.push({ kind, externalId: source.externalId });
   }
   return clauses;
 }
 
+/** Validated union of every project key in scope across the source set. */
+function inScopeProjectKeys(sources: ConfiguredSource[]): string[] {
+  const keys = new Set<string>();
+  for (const source of sources) {
+    const candidates = [source.kind === "project" ? source.externalId : undefined, source.project];
+    for (const raw of candidates) {
+      if (typeof raw !== "string" || raw.length === 0) continue;
+      try {
+        keys.add(assertProjectKey(raw));
+      } catch {
+        // Drop malformed keys rather than interpolate them.
+      }
+    }
+  }
+  return [...keys];
+}
+
 function isJiraSourceKind(kind: unknown): kind is SourceKind {
-  return kind === "filter" || kind === "epic";
+  return (
+    kind === "filter" ||
+    kind === "epic" ||
+    kind === "project" ||
+    kind === "board" ||
+    kind === "mine"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -491,10 +546,27 @@ function parseCursor(cursor: string | null): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+/**
+ * Stable per-source-set key the watermark is stored under. It captures
+ * everything that changes a result set (kind, id, board mode, mine scope) but
+ * NOT the volatile resolved sprint clause, so the watermark survives a sprint
+ * rollover (TC-014) yet resets once when the configured set changes, including
+ * a board widen or a mine-scope change (TC-031 / TC-041).
+ */
 function sourcesCacheKey(sources: SourceClause[]): string {
   if (sources.length === 0) return "__all__";
-  return sources
-    .map((s) => `${s.kind}:${s.externalId}`)
-    .sort()
-    .join("|");
+  return sources.map(clauseCacheKey).sort().join("|");
+}
+
+function clauseCacheKey(source: SourceClause): string {
+  switch (source.kind) {
+    case "board":
+      return `board:${source.externalId}:${source.boardMode ?? "active-sprint"}`;
+    case "mine": {
+      const keys = [...(source.scopeProjectKeys ?? [])].sort().join(",");
+      return `mine:${source.mineScope ?? "anywhere"}:${keys}`;
+    }
+    default:
+      return `${source.kind}:${source.externalId}`;
+  }
 }

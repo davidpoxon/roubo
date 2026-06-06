@@ -1021,6 +1021,21 @@ export interface ConfiguredSource {
   kind: string;
   externalId: string;
   /**
+   * Jira self-hosted only: the project key this source is scoped to under the
+   * project-first selection model. Other plugins ignore.
+   */
+  project?: string;
+  /**
+   * Jira self-hosted only: for a `board` source, resolve to the active sprint
+   * (default) or the whole board's backing filter.
+   */
+  boardMode?: "active-sprint" | "whole-board";
+  /**
+   * Jira self-hosted only: for the synthetic `mine` source, scope to the
+   * in-scope projects or match anywhere.
+   */
+  mineScope?: "in-project" | "anywhere";
+  /**
    * GitHub family only: per-source toggles for Code Scanning, Secret Scanning,
    * and Dependabot alerts. Default false on each. Other plugins ignore.
    */

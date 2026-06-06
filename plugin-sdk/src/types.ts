@@ -91,6 +91,21 @@ export interface ConfiguredSource {
   kind: string;
   externalId: string;
   /**
+   * Jira self-hosted only: the project key this source is scoped to under the
+   * project-first selection model. Plugins outside the Jira family ignore it.
+   */
+  project?: string;
+  /**
+   * Jira self-hosted only: for a `board` source, whether to resolve to the
+   * board's active sprint (default) or the whole board's backing filter.
+   */
+  boardMode?: "active-sprint" | "whole-board";
+  /**
+   * Jira self-hosted only: for the synthetic `mine` ("assigned to me") source,
+   * whether it is scoped to the in-scope projects or matches anywhere.
+   */
+  mineScope?: "in-project" | "anywhere";
+  /**
    * github.com / GHE only: per-source toggles for the GitHub Advanced Security
    * alert categories surfaced as security-* issue types. Plugins outside the
    * GitHub family ignore these fields. Default false on each.
