@@ -18,11 +18,10 @@
 //   2. the PR body.
 //
 // Run with: npm run lint:no-ai-coauthor
-// In CI the workflow passes BASE_SHA / HEAD_SHA and the PR body (PR_BODY env or
-// PR_BODY_FILE); locally it falls back to scanning origin/main..HEAD.
+// In CI the workflow passes BASE_SHA / HEAD_SHA and the PR body via the PR_BODY
+// env var; locally it falls back to scanning origin/main..HEAD.
 
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 // Tool-agnostic denylist of AI-agent co-author signatures. Each entry is a
 // case-insensitive regex tested against the value of a `Co-Authored-By:` (or
@@ -136,19 +135,34 @@ export function collectSources({ baseSha, headSha, prBody } = {}) {
 
   let shas;
   try {
-    shas = execSync(`git log --no-merges --format=%H ${range}`, {
+    // execFileSync (not execSync) runs git directly without a shell, so the
+    // range and SHA values are passed as argv elements and can never be
+    // interpreted as shell syntax. `--` terminates option parsing so a value
+    // that happens to start with `-` is still treated as a revision, not a flag.
+    shas = execFileSync("git", ["log", "--no-merges", "--format=%H", range, "--"], {
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
+      // Capture git's stderr (in err.stderr below) instead of letting it leak
+      // to the parent process; an invalid range surfaces via the thrown Error.
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   } catch (err) {
-    // A missing range (e.g. origin/main not fetched locally) should be a loud,
-    // actionable failure rather than a silent pass.
-    throw new Error(`Failed to list commits for range "${range}": ${err.message}`, { cause: err });
+    // A missing or invalid range (e.g. origin/main not fetched locally, or a
+    // bad revision) should be a loud, actionable failure rather than a silent
+    // pass. Surface git's own stderr, which carries the precise reason.
+    const detail = (err.stderr ?? "").toString().trim() || err.message;
+    throw new Error(`Failed to list commits for range "${range}": ${detail}`, { cause: err });
   }
 
   for (const sha of shas.split("\n").filter(Boolean)) {
-    const subject = execSync(`git log -1 --format=%s ${sha}`, { encoding: "utf8" }).trim();
-    const body = execSync(`git log -1 --format=%B ${sha}`, { encoding: "utf8" });
+    const subject = execFileSync("git", ["log", "-1", "--format=%s", sha, "--"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const body = execFileSync("git", ["log", "-1", "--format=%B", sha, "--"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     const short = sha.slice(0, 7);
     sources.push({ label: `commit ${short} (${subject})`, text: body });
   }
@@ -161,16 +175,12 @@ export function collectSources({ baseSha, headSha, prBody } = {}) {
 }
 
 function readPrBody() {
+  // The PR body arrives via the PR_BODY env var, set by the workflow from
+  // github.event.pull_request.body. There is intentionally no file-path input:
+  // reading an env-supplied path would be a needless injection sink, and the
+  // body is always small enough to pass through the environment directly.
   if (typeof process.env.PR_BODY === "string" && process.env.PR_BODY !== "") {
     return process.env.PR_BODY;
-  }
-  const file = process.env.PR_BODY_FILE;
-  if (file) {
-    try {
-      return readFileSync(file, "utf8");
-    } catch {
-      return "";
-    }
   }
   return "";
 }

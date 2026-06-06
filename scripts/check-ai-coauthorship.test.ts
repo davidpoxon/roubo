@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { findAiCoauthorViolations } from "./check-ai-coauthorship.mjs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { collectSources, findAiCoauthorViolations } from "./check-ai-coauthorship.mjs";
 
 function violationsFor(text: string) {
   return findAiCoauthorViolations([{ label: "test", text }]);
@@ -89,5 +94,79 @@ describe("findAiCoauthorViolations", () => {
   it("ignores sources whose text is not a string", () => {
     // @ts-expect-error exercising the defensive guard
     expect(findAiCoauthorViolations([{ label: "x", text: 42 }, null])).toEqual([]);
+  });
+});
+
+describe("collectSources", () => {
+  // collectSources runs `git log` in the process cwd, so each test builds a
+  // throwaway repo with known commits and chdirs into it. This keeps the tests
+  // hermetic and independent of how the host repo is cloned (CI uses a shallow
+  // checkout, so relying on this repo's own HEAD~1 would be flaky).
+  let repoDir: string;
+  let originalCwd: string;
+
+  function git(args: string[]): void {
+    execFileSync("git", args, { cwd: repoDir, stdio: ["ignore", "ignore", "ignore"] });
+  }
+
+  function commit(subject: string): string {
+    execFileSync("git", ["commit", "--allow-empty", "-m", subject], {
+      cwd: repoDir,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoDir, encoding: "utf8" }).trim();
+  }
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+    repoDir = mkdtempSync(join(tmpdir(), "roubo-coauthor-"));
+    git(["init", "-q"]);
+    git(["config", "user.email", "tester@example.com"]);
+    git(["config", "user.name", "Tester"]);
+    git(["config", "commit.gpgsign", "false"]);
+    process.chdir(repoDir);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("collects one source per commit in a single-commit range plus the PR body", () => {
+    const base = commit("chore: base commit");
+    const head = commit("feat: add a thing");
+
+    const sources = collectSources({
+      baseSha: base,
+      headSha: head,
+      prBody: "This is the PR body.",
+    });
+
+    const commitSources = sources.filter((s) => s.label.startsWith("commit "));
+    expect(commitSources).toHaveLength(1);
+    expect(commitSources[0].label).toMatch(/^commit [0-9a-f]{7} \(feat: add a thing\)$/);
+    expect(commitSources[0].text).toContain("feat: add a thing");
+
+    const bodySources = sources.filter((s) => s.label === "PR body");
+    expect(bodySources).toHaveLength(1);
+    expect(bodySources[0].text).toBe("This is the PR body.");
+  });
+
+  it("omits the PR body source when the body is empty or whitespace", () => {
+    const base = commit("chore: base commit");
+    const head = commit("feat: add a thing");
+
+    const sources = collectSources({ baseSha: base, headSha: head, prBody: "   " });
+    expect(sources.some((s) => s.label === "PR body")).toBe(false);
+    expect(sources.filter((s) => s.label.startsWith("commit "))).toHaveLength(1);
+  });
+
+  it("treats a range value as a single git revision argument (no shell injection)", () => {
+    // A shell-meta payload as the range must not execute: with execFileSync it
+    // is one argv element, so git rejects it as an unknown revision and the
+    // function throws rather than running the injected command.
+    expect(() => collectSources({ baseSha: "HEAD; touch roubo-injection-probe" })).toThrow(
+      /Failed to list commits for range/,
+    );
   });
 });
