@@ -1,0 +1,125 @@
+name: no-ai-coauthorship
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Read-only by design. On an external (fork) PR, `pull_request` runs the PR
+# head's own workflow + code, so this job must never hold write permissions.
+# It only produces a verdict artifact and goes red on a violation. The sticky
+# comment is posted by the privileged no-ai-coauthorship-comment workflow, which
+# is triggered via workflow_run and runs in the trusted base-repo context. That
+# split is what lets fork PRs receive a comment despite their read-only
+# pull_request GITHUB_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  no-ai-coauthor-check:
+    name: No AI co-authorship
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check for AI coding agent co-authorship
+        id: verify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Fetch the base branch with full history (not --depth=1) so
+          # BASE_SHA's ancestry is known to git. A shallow fetch of just
+          # BASE_SHA treats it as having no ancestors, which makes
+          # `BASE_SHA..HEAD` incorrectly include commits that are on the base
+          # branch, flagging other contributors' commits.
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+          # The PR number is advisory only: the follow-up comment workflow
+          # re-derives the PR from the run's head SHA in its trusted context and
+          # does not trust this value.
+          printf '%s\n' "$PR_NUMBER" > pr-number.txt
+
+          # Scan every commit message in BASE_SHA..HEAD plus the PR body. The
+          # matcher prints violations and exits 1 when any commit or the body
+          # credits an AI coding agent.
+          set +e
+          node scripts/check-ai-coauthorship.mjs > ai-coauthor-output.txt 2>&1
+          status=$?
+          set -e
+
+          cat ai-coauthor-output.txt
+
+          if [ "$status" -eq 0 ]; then
+            printf 'ok\n' > result.txt
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf 'violation\n' > result.txt
+          echo "result=violation" >> "$GITHUB_OUTPUT"
+
+          # Build the sticky failure comment from the matcher's reported lines.
+          # The comment is posted later by the no-ai-coauthorship-comment
+          # workflow; this job only produces it as an artifact.
+          {
+            echo "<!-- no-ai-coauthor-sticky-comment -->"
+            echo "## AI coding agent co-authorship detected"
+            echo ""
+            echo "Roubo commits and pull requests carry the human author's identity only. One or more commit messages or the PR body credits an AI coding agent as a co-author, or carries an AI-attribution footer."
+            echo ""
+            echo '```'
+            cat ai-coauthor-output.txt
+            echo '```'
+            echo ""
+            echo "### How to fix"
+            echo ""
+            echo "Remove the offending \`Co-Authored-By:\` trailer or attribution footer (for example a robot-emoji \`Generated with ...\` line)."
+            echo ""
+            echo "If only the most recent commit is affected:"
+            echo ""
+            echo '```bash'
+            echo "git commit --amend"
+            echo "git push --force-with-lease"
+            echo '```'
+            echo ""
+            echo "If multiple commits in this pull request are affected, rebase and reword them:"
+            echo ""
+            echo '```bash'
+            echo "git rebase -i origin/${BASE_REF}"
+            echo "git push --force-with-lease"
+            echo '```'
+            echo ""
+            echo "If the PR body is the source, edit the PR description to remove the credit."
+          } > ai-coauthor-comment.md
+
+          cat ai-coauthor-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::AI coding agent co-authorship detected. See the job summary, and the PR comment posted by the follow-up workflow, for the list and the fix."
+
+      - name: Upload verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-coauthor-verdict
+          path: |
+            result.txt
+            pr-number.txt
+            ai-coauthor-comment.md
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Fail on violation
+        if: steps.verify.outputs.result == 'violation'
+        run: exit 1

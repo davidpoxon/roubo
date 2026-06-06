@@ -7,19 +7,21 @@ concurrency:
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
+
+# Read-only by design. On an external (fork) PR, `pull_request` runs the PR
+# head's own workflow + code, so this job must never hold write permissions. It
+# only produces a verdict artifact and goes red when a commit is missing its DCO
+# sign-off. The sticky comment is posted by the privileged dco-comment workflow,
+# which is triggered via workflow_run and runs in the trusted base-repo context.
+# That split is what lets fork PRs receive a comment despite their read-only
+# pull_request GITHUB_TOKEN.
+permissions:
+  contents: read
 
 jobs:
   dco-check:
     name: DCO sign-off
     runs-on: ubuntu-latest
-    # NOTE: `pull-requests: write` lets us post/update/delete the sticky failure
-    # comment. For PRs from forks the `pull_request` GITHUB_TOKEN is read-only
-    # regardless of this declaration; if we ever take external contributions,
-    # move the comment step into a `workflow_run` follow-up workflow.
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -35,6 +37,7 @@ jobs:
           HEAD_REF_SHA: ${{ github.event.pull_request.head.sha }}
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
@@ -46,10 +49,16 @@ jobs:
           # belong to other contributors entirely.
           git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
+          # The PR number is advisory only: the follow-up comment workflow
+          # re-derives the PR from the run's head SHA in its trusted context and
+          # does not trust this value.
+          printf '%s\n' "$PR_NUMBER" > pr-number.txt
+
           commits=$(git log --no-merges --format='%H' "${BASE_SHA}".."${HEAD_SHA}")
 
           if [ -z "$commits" ]; then
             echo "No non-merge commits to check."
+            printf 'ok\n' > result.txt
             echo "result=ok" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -100,12 +109,13 @@ jobs:
 
           if [ ${#missing[@]} -eq 0 ]; then
             echo "All commits have a valid DCO sign-off."
+            printf 'ok\n' > result.txt
             echo "result=ok" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           # Build the failure body once and reuse it for both the job summary
-          # and the sticky PR comment posted by the next step.
+          # and the sticky PR comment posted by the dco-comment workflow.
           {
             echo "<!-- dco-sticky-comment -->"
             echo "## DCO sign-off missing"
@@ -139,61 +149,22 @@ jobs:
 
           cat dco-comment.md >> "$GITHUB_STEP_SUMMARY"
 
+          printf 'missing\n' > result.txt
           echo "result=missing" >> "$GITHUB_OUTPUT"
-          echo "::error::One or more commits are missing DCO sign-off. See the job summary and the PR comment for the list and the fix."
+          echo "::error::One or more commits are missing DCO sign-off. See the job summary, and the PR comment posted by the follow-up workflow, for the list and the fix."
 
-      - name: Post or update sticky failure comment
+      - name: Upload verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dco-verdict
+          path: |
+            result.txt
+            pr-number.txt
+            dco-comment.md
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Fail on missing sign-off
         if: steps.verify.outputs.result == 'missing'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-
-          marker='<!-- dco-sticky-comment -->'
-          existing_id=$(gh api \
-            --paginate \
-            "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-            --jq "map(select(.body | contains(\"${marker}\"))) | .[0].id // empty")
-
-          if [ -n "$existing_id" ]; then
-            gh api \
-              --method PATCH \
-              "repos/${REPO}/issues/comments/${existing_id}" \
-              -F body=@dco-comment.md > /dev/null
-            echo "Updated existing sticky comment id=${existing_id}."
-          else
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file dco-comment.md
-            echo "Posted new sticky comment."
-          fi
-
-          # The verify step already emitted ::error::; fail the job here so the
-          # comment is in place before the red check renders.
-          exit 1
-
-      - name: Clear stale sticky comment on success
-        if: steps.verify.outputs.result == 'ok' && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-
-          marker='<!-- dco-sticky-comment -->'
-          existing_id=$(gh api \
-            --paginate \
-            "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-            --jq "map(select(.body | contains(\"${marker}\"))) | .[0].id // empty")
-
-          if [ -n "$existing_id" ]; then
-            # Best-effort: don't fail the job if the API hiccups.
-            if gh api --method DELETE "repos/${REPO}/issues/comments/${existing_id}" > /dev/null; then
-              echo "Deleted stale sticky comment id=${existing_id}."
-            else
-              echo "::warning::Failed to delete stale sticky comment id=${existing_id}."
-            fi
-          else
-            echo "No stale sticky comment to clear."
-          fi
+        run: exit 1
