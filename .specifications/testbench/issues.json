@@ -1,0 +1,625 @@
+[
+  {
+    "number": 405,
+    "url": "https://github.com/davidpoxon/roubo/issues/405",
+    "node_id": "I_kwDOSiX_888AAAABEnwL2w",
+    "title": "spike: Lock the published-schema contract (targeting fields, $id/semver, multi-bench layout)",
+    "type": "spike",
+    "milestone": "TestBench: Phase 0 De-risking spikes",
+    "labels": [
+      "P0",
+      "spike"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-019",
+        "FR-020",
+        "NFR-005"
+      ],
+      "user_story_ids": [
+        "US-011"
+      ],
+      "test_case_ids": [
+        "TC-059",
+        "TC-060",
+        "TC-062",
+        "TC-063"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 406,
+    "url": "https://github.com/davidpoxon/roubo/issues/406",
+    "node_id": "I_kwDOSiX_888AAAABEnwMMQ",
+    "title": "spike: Results-store safe-path + EXDEV write (resolveWithin + slug allowlist, CodeQL-clean)",
+    "type": "spike",
+    "milestone": "TestBench: Phase 0 De-risking spikes",
+    "labels": [
+      "P0",
+      "spike"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "NFR-001",
+        "NFR-003"
+      ],
+      "user_story_ids": [
+        "US-008"
+      ],
+      "test_case_ids": [
+        "TC-050",
+        "TC-051",
+        "TC-052"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 407,
+    "url": "https://github.com/davidpoxon/roubo/issues/407",
+    "node_id": "I_kwDOSiX_888AAAABEnwNAw",
+    "title": "spike: Canonical staleness hash + orphan-not-delete reconcile semantics",
+    "type": "spike",
+    "milestone": "TestBench: Phase 0 De-risking spikes",
+    "labels": [
+      "P0",
+      "spike"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-016",
+        "FR-017",
+        "NFR-003"
+      ],
+      "user_story_ids": [
+        "US-009"
+      ],
+      "test_case_ids": [
+        "TC-045",
+        "TC-049"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 408,
+    "url": "https://github.com/davidpoxon/roubo/issues/408",
+    "node_id": "I_kwDOSiX_888AAAABEnwNUg",
+    "title": "spike: zod to JSON-Schema generate + CI drift guard wiring",
+    "type": "spike",
+    "milestone": "TestBench: Phase 0 De-risking spikes",
+    "labels": [
+      "P0",
+      "spike"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-023",
+        "NFR-006"
+      ],
+      "user_story_ids": [
+        "US-011"
+      ],
+      "test_case_ids": [
+        "TC-056",
+        "TC-064"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 409,
+    "url": "https://github.com/davidpoxon/roubo/issues/409",
+    "node_id": "I_kwDOSiX_888AAAABEnwNqw",
+    "title": "spike: git-identity helper with sentinel fallback",
+    "type": "spike",
+    "milestone": "TestBench: Phase 0 De-risking spikes",
+    "labels": [
+      "P1",
+      "spike"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-012"
+      ],
+      "user_story_ids": [
+        "US-006"
+      ],
+      "test_case_ids": [
+        "TC-033"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 410,
+    "url": "https://github.com/davidpoxon/roubo/issues/410",
+    "node_id": "I_kwDOSiX_888AAAABEnwN9Q",
+    "title": "testbench-contracts: zod schemas + validators (reserved optional targeting fields)",
+    "type": "task",
+    "milestone": "TestBench: Phase 1 Contracts & domain",
+    "labels": [
+      "P0",
+      "task"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-019",
+        "FR-020",
+        "FR-021"
+      ],
+      "user_story_ids": [
+        "US-011"
+      ],
+      "test_case_ids": [
+        "TC-054",
+        "TC-055",
+        "TC-057",
+        "TC-059",
+        "TC-060",
+        "TC-065"
+      ]
+    },
+    "blocked_by": [
+      405
+    ]
+  },
+  {
+    "number": 411,
+    "url": "https://github.com/davidpoxon/roubo/issues/411",
+    "node_id": "I_kwDOSiX_888AAAABEnwOQQ",
+    "title": "Schema generate script + CI drift guard",
+    "type": "task",
+    "milestone": "TestBench: Phase 1 Contracts & domain",
+    "labels": [
+      "P0",
+      "task"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-023",
+        "NFR-006"
+      ],
+      "user_story_ids": [
+        "US-011"
+      ],
+      "test_case_ids": [
+        "TC-056",
+        "TC-064"
+      ]
+    },
+    "blocked_by": [
+      410,
+      408
+    ]
+  },
+  {
+    "number": 412,
+    "url": "https://github.com/davidpoxon/roubo/issues/412",
+    "node_id": "I_kwDOSiX_888AAAABEnwOjw",
+    "title": "testbench-domain: derived-status state machine + canonicalize hash (pure)",
+    "type": "task",
+    "milestone": "TestBench: Phase 1 Contracts & domain",
+    "labels": [
+      "P0",
+      "task"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-009",
+        "FR-016"
+      ],
+      "user_story_ids": [
+        "US-005",
+        "US-009"
+      ],
+      "test_case_ids": [
+        "TC-023",
+        "TC-024",
+        "TC-025",
+        "TC-026",
+        "TC-045"
+      ]
+    },
+    "blocked_by": [
+      405,
+      407
+    ]
+  },
+  {
+    "number": 413,
+    "url": "https://github.com/davidpoxon/roubo/issues/413",
+    "node_id": "I_kwDOSiX_888AAAABEnwO4w",
+    "title": "testbench-domain: deterministic reconcile algorithm (orphan-not-delete)",
+    "type": "task",
+    "milestone": "TestBench: Phase 1 Contracts & domain",
+    "labels": [
+      "P0",
+      "task"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-017"
+      ],
+      "user_story_ids": [
+        "US-009"
+      ],
+      "test_case_ids": [
+        "TC-042",
+        "TC-049"
+      ]
+    },
+    "blocked_by": [
+      410,
+      407
+    ]
+  },
+  {
+    "number": 414,
+    "url": "https://github.com/davidpoxon/roubo/issues/414",
+    "node_id": "I_kwDOSiX_888AAAABEnwPvA",
+    "title": "Extend Bench/PersistedBench (variant + focusedSpecPath), BenchTabId, UserPreferences toggle",
+    "type": "task",
+    "milestone": "TestBench: Phase 2 Server",
+    "labels": [
+      "P0",
+      "task"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-004",
+        "FR-005",
+        "FR-018"
+      ],
+      "user_story_ids": [
+        "US-001",
+        "US-002",
+        "US-010"
+      ],
+      "test_case_ids": [
+        "TC-005",
+        "TC-017",
+        "TC-066"
+      ]
+    },
+    "blocked_by": []
+  },
+  {
+    "number": 415,
+    "url": "https://github.com/davidpoxon/roubo/issues/415",
+    "node_id": "I_kwDOSiX_888AAAABEnwQCA",
+    "title": "testbench-store: validated sidecar read/write (atomic/EXDEV/fail-open/hash) + git-identity",
+    "type": "feature",
+    "milestone": "TestBench: Phase 2 Server",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-012",
+        "FR-014",
+        "FR-015",
+        "FR-016",
+        "NFR-001",
+        "NFR-003"
+      ],
+      "user_story_ids": [
+        "US-006",
+        "US-008",
+        "US-009"
+      ],
+      "test_case_ids": [
+        "TC-038",
+        "TC-039",
+        "TC-040",
+        "TC-046",
+        "TC-047",
+        "TC-048",
+        "TC-050",
+        "TC-051",
+        "TC-052",
+        "TC-053"
+      ]
+    },
+    "blocked_by": [
+      410,
+      412,
+      406,
+      409
+    ]
+  },
+  {
+    "number": 416,
+    "url": "https://github.com/davidpoxon/roubo/issues/416",
+    "node_id": "I_kwDOSiX_888AAAABEnwQXQ",
+    "title": "testbench REST routes (create, discover, validate-path, plan, mark, status, note, reconcile, re-point)",
+    "type": "feature",
+    "milestone": "TestBench: Phase 2 Server",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-008",
+        "FR-010",
+        "FR-011",
+        "FR-017",
+        "FR-022",
+        "FR-024"
+      ],
+      "user_story_ids": [
+        "US-001",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-009",
+        "US-012",
+        "US-013"
+      ],
+      "test_case_ids": [
+        "TC-012",
+        "TC-013",
+        "TC-014",
+        "TC-042",
+        "TC-044",
+        "TC-049",
+        "TC-065"
+      ]
+    },
+    "blocked_by": [
+      414,
+      415,
+      413
+    ]
+  },
+  {
+    "number": 417,
+    "url": "https://github.com/davidpoxon/roubo/issues/417",
+    "node_id": "I_kwDOSiX_888AAAABEnwQvA",
+    "title": "App-settings TestBench tab + enable/disable toggle",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P1",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-018"
+      ],
+      "user_story_ids": [
+        "US-010"
+      ],
+      "test_case_ids": [
+        "TC-066",
+        "TC-067",
+        "TC-068",
+        "TC-069",
+        "TC-070",
+        "TC-071",
+        "TC-072",
+        "TC-073"
+      ]
+    },
+    "blocked_by": [
+      414
+    ]
+  },
+  {
+    "number": 418,
+    "url": "https://github.com/davidpoxon/roubo/issues/418",
+    "node_id": "I_kwDOSiX_888AAAABEnwRCw",
+    "title": "Create-a-TestBench flow: empty-slot option + spec-picker modal",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "NFR-007"
+      ],
+      "user_story_ids": [
+        "US-001",
+        "US-012"
+      ],
+      "test_case_ids": [
+        "TC-001",
+        "TC-002",
+        "TC-003",
+        "TC-004",
+        "TC-006",
+        "TC-008",
+        "TC-009",
+        "TC-010",
+        "TC-015",
+        "TC-016"
+      ]
+    },
+    "blocked_by": [
+      416,
+      417
+    ]
+  },
+  {
+    "number": 419,
+    "url": "https://github.com/davidpoxon/roubo/issues/419",
+    "node_id": "I_kwDOSiX_888AAAABEnwR2Q",
+    "title": "Review tab shell: grouped virtualised case list + progress rollup",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-005",
+        "FR-006",
+        "FR-013",
+        "NFR-002",
+        "NFR-004"
+      ],
+      "user_story_ids": [
+        "US-002",
+        "US-003",
+        "US-007"
+      ],
+      "test_case_ids": [
+        "TC-005",
+        "TC-018",
+        "TC-029",
+        "TC-030",
+        "TC-035",
+        "TC-037"
+      ]
+    },
+    "blocked_by": [
+      416,
+      414
+    ]
+  },
+  {
+    "number": 420,
+    "url": "https://github.com/davidpoxon/roubo/issues/420",
+    "node_id": "I_kwDOSiX_888AAAABEnwSPw",
+    "title": "Case detail + observation mark control + derived/override status",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "NFR-004"
+      ],
+      "user_story_ids": [
+        "US-003",
+        "US-004",
+        "US-005"
+      ],
+      "test_case_ids": [
+        "TC-019",
+        "TC-021",
+        "TC-022",
+        "TC-023",
+        "TC-024",
+        "TC-025",
+        "TC-026",
+        "TC-027",
+        "TC-031",
+        "TC-034",
+        "TC-036"
+      ]
+    },
+    "blocked_by": [
+      416
+    ]
+  },
+  {
+    "number": 421,
+    "url": "https://github.com/davidpoxon/roubo/issues/421",
+    "node_id": "I_kwDOSiX_888AAAABEnwShw",
+    "title": "Append-only notes rail + author stamping",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-011",
+        "FR-012"
+      ],
+      "user_story_ids": [
+        "US-006"
+      ],
+      "test_case_ids": [
+        "TC-028",
+        "TC-032",
+        "TC-033"
+      ]
+    },
+    "blocked_by": [
+      416
+    ]
+  },
+  {
+    "number": 422,
+    "url": "https://github.com/davidpoxon/roubo/issues/422",
+    "node_id": "I_kwDOSiX_888AAAABEnwS0A",
+    "title": "Staleness banner + reconcile dialog UI",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P0",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-016",
+        "FR-017",
+        "NFR-003"
+      ],
+      "user_story_ids": [
+        "US-009"
+      ],
+      "test_case_ids": [
+        "TC-041",
+        "TC-042",
+        "TC-043",
+        "TC-044"
+      ]
+    },
+    "blocked_by": [
+      416,
+      413
+    ]
+  },
+  {
+    "number": 423,
+    "url": "https://github.com/davidpoxon/roubo/issues/423",
+    "node_id": "I_kwDOSiX_888AAAABEnwTGw",
+    "title": "Re-point focused spec from the TestBench header",
+    "type": "feature",
+    "milestone": "TestBench: Phase 3 Client surface",
+    "labels": [
+      "P1",
+      "feature"
+    ],
+    "implements": {
+      "requirement_ids": [
+        "FR-024"
+      ],
+      "user_story_ids": [
+        "US-013"
+      ],
+      "test_case_ids": [
+        "TC-007",
+        "TC-011",
+        "TC-014"
+      ]
+    },
+    "blocked_by": [
+      416,
+      418,
+      419
+    ]
+  }
+]
