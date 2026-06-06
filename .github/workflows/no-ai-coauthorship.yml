@@ -1,0 +1,150 @@
+name: no-ai-coauthorship
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  no-ai-coauthor-check:
+    name: No AI co-authorship
+    runs-on: ubuntu-latest
+    # NOTE: `pull-requests: write` lets us post/update/delete the sticky failure
+    # comment. For PRs from forks the `pull_request` GITHUB_TOKEN is read-only
+    # regardless of this declaration; the check still fails on a fork, only the
+    # sticky comment cannot post. If we ever take external contributions, move
+    # the comment step into a `workflow_run` follow-up workflow (same constraint
+    # the dco workflow documents).
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check for AI coding agent co-authorship
+        id: verify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+
+          # Fetch the base branch with full history (not --depth=1) so
+          # BASE_SHA's ancestry is known to git. A shallow fetch of just
+          # BASE_SHA treats it as having no ancestors, which makes
+          # `BASE_SHA..HEAD` incorrectly include commits that are on the base
+          # branch, flagging other contributors' commits.
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+          # Scan every commit message in BASE_SHA..HEAD plus the PR body. The
+          # matcher prints violations and exits 1 when any commit or the body
+          # credits an AI coding agent.
+          if node scripts/check-ai-coauthorship.mjs > ai-coauthor-output.txt 2>&1; then
+            cat ai-coauthor-output.txt
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cat ai-coauthor-output.txt
+
+          # Build the sticky failure comment from the matcher's reported lines.
+          {
+            echo "<!-- no-ai-coauthor-sticky-comment -->"
+            echo "## AI coding agent co-authorship detected"
+            echo ""
+            echo "Roubo commits and pull requests carry the human author's identity only. One or more commit messages or the PR body credits an AI coding agent as a co-author, or carries an AI-attribution footer."
+            echo ""
+            echo '```'
+            cat ai-coauthor-output.txt
+            echo '```'
+            echo ""
+            echo "### How to fix"
+            echo ""
+            echo "Remove the offending \`Co-Authored-By:\` trailer or attribution footer (for example a \`🤖 Generated with ...\` line)."
+            echo ""
+            echo "If only the most recent commit is affected:"
+            echo ""
+            echo '```bash'
+            echo "git commit --amend"
+            echo "git push --force-with-lease"
+            echo '```'
+            echo ""
+            echo "If multiple commits in this pull request are affected, rebase and reword them:"
+            echo ""
+            echo '```bash'
+            echo "git rebase -i origin/${BASE_REF}"
+            echo "git push --force-with-lease"
+            echo '```'
+            echo ""
+            echo "If the PR body is the source, edit the PR description to remove the credit."
+          } > ai-coauthor-comment.md
+
+          cat ai-coauthor-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+          echo "result=violation" >> "$GITHUB_OUTPUT"
+          echo "::error::AI coding agent co-authorship detected. See the job summary and the PR comment for the list and the fix."
+
+      - name: Post or update sticky failure comment
+        if: steps.verify.outputs.result == 'violation'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          marker='<!-- no-ai-coauthor-sticky-comment -->'
+          existing_id=$(gh api \
+            --paginate \
+            "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq "map(select(.body | contains(\"${marker}\"))) | .[0].id // empty")
+
+          if [ -n "$existing_id" ]; then
+            gh api \
+              --method PATCH \
+              "repos/${REPO}/issues/comments/${existing_id}" \
+              -F body=@ai-coauthor-comment.md > /dev/null
+            echo "Updated existing sticky comment id=${existing_id}."
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file ai-coauthor-comment.md
+            echo "Posted new sticky comment."
+          fi
+
+          # The verify step already emitted ::error::; fail the job here so the
+          # comment is in place before the red check renders.
+          exit 1
+
+      - name: Clear stale sticky comment on success
+        if: steps.verify.outputs.result == 'ok' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          marker='<!-- no-ai-coauthor-sticky-comment -->'
+          existing_id=$(gh api \
+            --paginate \
+            "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq "map(select(.body | contains(\"${marker}\"))) | .[0].id // empty")
+
+          if [ -n "$existing_id" ]; then
+            # Best-effort: don't fail the job if the API hiccups.
+            if gh api --method DELETE "repos/${REPO}/issues/comments/${existing_id}" > /dev/null; then
+              echo "Deleted stale sticky comment id=${existing_id}."
+            else
+              echo "::warning::Failed to delete stale sticky comment id=${existing_id}."
+            fi
+          else
+            echo "No stale sticky comment to clear."
+          fi

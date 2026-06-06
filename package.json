@@ -46,6 +46,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
     "lint:em-dash": "node scripts/check-em-dashes.mjs",
+    "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/jira-self-hosted tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit"
