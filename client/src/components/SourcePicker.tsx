@@ -182,7 +182,7 @@ function SearchableSourcePicker({
   }
 
   // The synthetic `mine` source is a single collective entry: toggling the
-  // control on writes `{ externalId: "mine", mineScope }` (no project key — its
+  // control on writes `{ externalId: "mine", mineScope }` (no project key; its
   // in-project scope is derived from the project sources at resolution time),
   // and toggling it off drops the category.
   function changeMine(entry: SourceSelectionEntry | null) {
