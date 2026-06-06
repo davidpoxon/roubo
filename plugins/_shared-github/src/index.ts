@@ -69,3 +69,4 @@ export {
   decodeCompositeCursor,
   type CompositeCursor,
 } from "./composite-cursor.js";
+export { isStatusExcluded } from "./status-exclusion.js";

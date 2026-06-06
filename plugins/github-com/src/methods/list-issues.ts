@@ -17,7 +17,11 @@ import {
   rawToNormalizedIssue,
 } from "../normalize.js";
 import { fetchRepoAlerts, type AlertFlags } from "../alerts-runtime.js";
-import { decodeCompositeCursor, encodeCompositeCursor } from "@roubo/shared-github";
+import {
+  decodeCompositeCursor,
+  encodeCompositeCursor,
+  isStatusExcluded,
+} from "@roubo/shared-github";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -142,7 +146,7 @@ async function listFromProject(
   // is null and the repo filter is skipped, but closed issues are still dropped.
   const repoOf = (node: (typeof page.nodes)[number]): string =>
     node.content?.repository?.nameWithOwner ?? `${owner}/unknown`;
-  const issueNodes = page.nodes.filter((node) => {
+  const scopedNodes = page.nodes.filter((node) => {
     const content = node.content;
     if (!content || !content.number) return false;
     if (content.__typename && content.__typename !== "Issue") return false;
@@ -151,10 +155,19 @@ async function listFromProject(
     return true;
   });
 
+  // Server-side status exclusion (issue #399): drop board items whose Projects
+  // v2 "Status" column is in the host-resolved excludedStatuses list, before
+  // pagination so an excluded item never occupies a result-page slot. Alerts
+  // still fan out over `scopedNodes` (below), so a repo whose issues are all
+  // excluded keeps surfacing its GHAS alerts.
+  const visibleNodes = scopedNodes.filter(
+    (node) => !isStatusExcluded(node.fieldValueByName?.name, params.excludedStatuses),
+  );
+
   const offset = decodeRepoCursor(params.cursor) - 1;
   const pageNumber = offset + 1;
-  const slice = issueNodes.slice(offset * pageSize, (offset + 1) * pageSize);
-  const hasMore = (offset + 1) * pageSize < issueNodes.length;
+  const slice = visibleNodes.slice(offset * pageSize, (offset + 1) * pageSize);
+  const hasMore = (offset + 1) * pageSize < visibleNodes.length;
 
   // Group issue numbers by their owning repo so we can batch one
   // blocking-relationships query per repo (the GraphQL helper is repo-scoped).
@@ -211,16 +224,18 @@ async function listFromProject(
   };
 
   // Alerts fan out across every distinct repo the project surfaces. Only on
-  // page 1; see note in listFromRepo. Walk the full `issueNodes`, not just
+  // page 1; see note in listFromRepo. Walk the full `scopedNodes`, not just
   // `slice`, so repos that first appear past the page-1 issue slice still
   // get their alerts pulled. Skipping them would silently hide GHAS warnings
   // for whole repos in a project that spans more than `pageSize` items.
-  // `issueNodes` is already scoped to the project's configured repos, so we
-  // never fetch alerts for a foreign repo that merely shares the board.
+  // `scopedNodes` is already scoped to the project's configured repos, so we
+  // never fetch alerts for a foreign repo that merely shares the board. It is
+  // deliberately the pre-status-exclusion set: a repo whose issues are all in
+  // an excluded status still surfaces its security alerts (issue #399).
   if (pageNumber === 1) {
     const alertFlags = alertFlagsOf(source);
     const reposForAlerts = new Set<string>();
-    for (const node of issueNodes) {
+    for (const node of scopedNodes) {
       reposForAlerts.add(repoOf(node));
     }
     const perRepo = await Promise.all(

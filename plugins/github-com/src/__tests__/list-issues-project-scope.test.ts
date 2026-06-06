@@ -20,7 +20,12 @@ import { decodeCompositeCursor } from "@roubo/shared-github";
 import { listIssues } from "../methods/list-issues.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
-function projectItemNode(opts: { number: number; repo: string; state: "open" | "closed" }) {
+function projectItemNode(opts: {
+  number: number;
+  repo: string;
+  state: "open" | "closed";
+  status?: string;
+}) {
   return {
     content: {
       __typename: "Issue",
@@ -38,7 +43,7 @@ function projectItemNode(opts: { number: number; repo: string; state: "open" | "
       comments: { totalCount: 0 },
       url: `https://github.com/${opts.repo}/issues/${opts.number}`,
     },
-    fieldValueByName: null,
+    fieldValueByName: opts.status === undefined ? null : { name: opts.status },
   };
 }
 
@@ -151,6 +156,95 @@ describe("listIssues project-board scoping", () => {
     const page2 = await listIssues({ sources, cursor: page1.nextCursor, pageSize: 1 });
 
     expect(page2.items.map((i) => i.externalId)).toEqual(["acme/web#102"]);
+    expect(page2.nextCursor).toBeNull();
+  });
+
+  // Issue #399: server-side status exclusion for the github family. The board
+  // item's Projects v2 "Status" column is matched (case-insensitively) against
+  // the host-resolved excludedStatuses list inside the plugin.
+  it("excludes board items whose Status column is in excludedStatuses, matching case-insensitively", async () => {
+    const sources: ConfiguredSource[] = [{ kind: "project", externalId: "davidpoxon/#1" }];
+
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(
+      projectItemsResponse([
+        projectItemNode({
+          number: 1,
+          repo: "davidpoxon/roubo",
+          state: "open",
+          status: "In progress",
+        }),
+        projectItemNode({
+          number: 2,
+          repo: "davidpoxon/roubo",
+          state: "open",
+          status: "in REVIEW",
+        }),
+        projectItemNode({ number: 3, repo: "davidpoxon/roubo", state: "open", status: "Done" }),
+        projectItemNode({ number: 4, repo: "davidpoxon/roubo", state: "open" }),
+      ]),
+    );
+    // Blocking lookup covers only the two surviving issues (#1, #4) in one repo.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      repository: {
+        issue_1: {
+          blockedBy: { nodes: [] },
+          blocking: { nodes: [], pageInfo: { hasNextPage: false } },
+        },
+        issue_4: {
+          blockedBy: { nodes: [] },
+          blocking: { nodes: [], pageInfo: { hasNextPage: false } },
+        },
+      },
+    });
+
+    const result = await listIssues({
+      sources,
+      cursor: null,
+      pageSize: 50,
+      excludedStatuses: ["In review", "Done"],
+    });
+
+    // #2 ("in REVIEW") and #3 ("Done") are excluded; the null-status #4 is kept.
+    expect(result.items.map((i) => i.externalId)).toEqual([
+      "davidpoxon/roubo#1",
+      "davidpoxon/roubo#4",
+    ]);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("never lets an excluded board item occupy a result-page slot", async () => {
+    const sources: ConfiguredSource[] = [{ kind: "project", externalId: "davidpoxon/#1" }];
+
+    // An excluded item is wedged between two visible ones; with pageSize 1 it
+    // must not consume the single slot.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(
+      projectItemsResponse([
+        projectItemNode({ number: 10, repo: "davidpoxon/roubo", state: "open" }),
+        projectItemNode({ number: 11, repo: "davidpoxon/roubo", state: "open", status: "Done" }),
+        projectItemNode({ number: 12, repo: "davidpoxon/roubo", state: "open" }),
+      ]),
+    );
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(noBlocking(10)); // page 1 blocking
+
+    const page1 = await listIssues({
+      sources,
+      cursor: null,
+      pageSize: 1,
+      excludedStatuses: ["Done"],
+    });
+    expect(page1.items.map((i) => i.externalId)).toEqual(["davidpoxon/roubo#10"]);
+    expect(decodeCompositeCursor(page1.nextCursor as string)).toEqual({ "davidpoxon/#1": "2" });
+
+    // Page 2 is served from cache; only #12's blocking lookup is queued. The
+    // excluded #11 left no gap, so #12 is the next (and last) item.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(noBlocking(12));
+    const page2 = await listIssues({
+      sources,
+      cursor: page1.nextCursor,
+      pageSize: 1,
+      excludedStatuses: ["Done"],
+    });
+    expect(page2.items.map((i) => i.externalId)).toEqual(["davidpoxon/roubo#12"]);
     expect(page2.nextCursor).toBeNull();
   });
 });
