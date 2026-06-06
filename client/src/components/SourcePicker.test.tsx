@@ -168,11 +168,6 @@ describe("SourcePicker", () => {
       expect(screen.queryByText("Pick a project first.")).not.toBeInTheDocument();
     });
 
-    it("does not render the synthetic 'mine' category (deferred to WU-004)", () => {
-      render(<SourcePicker candidates={SEARCHABLE} value={{}} onChange={vi.fn()} projectId="p1" />);
-      expect(screen.queryByRole("button", { name: /assigned to me/i })).not.toBeInTheDocument();
-    });
-
     it("stamps the scoped project onto a picked board entry", async () => {
       const user = userEvent.setup();
       const onChange = vi.fn<(next: SourceSelection) => void>();
@@ -291,6 +286,167 @@ describe("SourcePicker", () => {
         />,
       );
       expect(screen.queryByTestId("stale-sources-notice")).not.toBeInTheDocument();
+    });
+
+    describe("mine source control (#396)", () => {
+      it("renders the 'Assigned to me' category with the switch off when unset", () => {
+        render(
+          <SourcePicker candidates={SEARCHABLE} value={{}} onChange={vi.fn()} projectId="p1" />,
+        );
+        const toggle = screen.getByRole("switch", { name: "Include assigned to me" });
+        expect(toggle).toBeInTheDocument();
+        expect(toggle).not.toBeChecked();
+        // No mode radios while the source is off.
+        expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+      });
+
+      it("enables an in-project mine by default when a project is in scope", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ project: ["PLAT"] }}
+            onChange={onChange}
+            projectId="p1"
+          />,
+        );
+
+        await user.click(screen.getByRole("switch", { name: "Include assigned to me" }));
+
+        expect(onChange).toHaveBeenCalledWith({
+          project: ["PLAT"],
+          mine: [{ externalId: "mine", mineScope: "in-project" }],
+        });
+      });
+
+      it("enables an anywhere mine and gates in-project when no project is in scope", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker candidates={SEARCHABLE} value={{}} onChange={onChange} projectId="p1" />,
+        );
+
+        await user.click(screen.getByRole("switch", { name: "Include assigned to me" }));
+
+        // With no project in scope, enabling defaults to the anywhere scope.
+        expect(onChange).toHaveBeenCalledWith({
+          mine: [{ externalId: "mine", mineScope: "anywhere" }],
+        });
+      });
+
+      it("disables the in-project mode with a hint until a project is in scope", () => {
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ mine: [{ externalId: "mine", mineScope: "anywhere" }] }}
+            onChange={vi.fn()}
+            projectId="p1"
+          />,
+        );
+
+        expect(screen.getByRole("radio", { name: "In scoped projects" })).toBeDisabled();
+        expect(screen.getByRole("radio", { name: "Anywhere" })).toBeEnabled();
+        // The gated scoped controls (board/filter/epic) and the mine control all
+        // surface the same hint while no project is in scope.
+        expect(screen.getAllByText("Pick a project first.").length).toBeGreaterThan(0);
+      });
+
+      it("switches the mine mode via the radio group", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ project: ["PLAT"], mine: [{ externalId: "mine", mineScope: "in-project" }] }}
+            onChange={onChange}
+            projectId="p1"
+          />,
+        );
+
+        await user.click(screen.getByRole("radio", { name: "Anywhere" }));
+
+        expect(onChange).toHaveBeenCalledWith({
+          project: ["PLAT"],
+          mine: [{ externalId: "mine", mineScope: "anywhere" }],
+        });
+      });
+
+      it("removes the mine source when the switch is turned off", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ project: ["PLAT"], mine: [{ externalId: "mine", mineScope: "in-project" }] }}
+            onChange={onChange}
+            projectId="p1"
+          />,
+        );
+
+        await user.click(screen.getByRole("switch", { name: "Include assigned to me" }));
+
+        // The mine key is dropped; the project selection is untouched.
+        expect(onChange).toHaveBeenCalledWith({ project: ["PLAT"] });
+      });
+
+      it("keeps the mine source when one of several projects leaves scope (TC-039)", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{
+              project: ["PLAT", "OPS"],
+              board: [{ externalId: "board:482", project: "PLAT" }],
+              mine: [{ externalId: "mine", mineScope: "in-project" }],
+            }}
+            onChange={onChange}
+            projectId="p1"
+          />,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Remove Platform" }));
+
+        // The PLAT-scoped board is pruned; the collective mine source survives
+        // because OPS is still in scope.
+        expect(onChange).toHaveBeenCalledWith({
+          project: ["OPS"],
+          mine: [{ externalId: "mine", mineScope: "in-project" }],
+        });
+      });
+
+      it("drops an in-project mine but keeps an anywhere mine when the last project leaves", async () => {
+        const user = userEvent.setup();
+        const onInProject = vi.fn<(next: SourceSelection) => void>();
+        const { unmount } = render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ project: ["PLAT"], mine: [{ externalId: "mine", mineScope: "in-project" }] }}
+            onChange={onInProject}
+            projectId="p1"
+          />,
+        );
+        await user.click(screen.getByRole("button", { name: "Remove Platform" }));
+        // No projects remain, so the in-project mine has no scope and is dropped.
+        expect(onInProject).toHaveBeenCalledWith({});
+        unmount();
+
+        const onAnywhere = vi.fn<(next: SourceSelection) => void>();
+        render(
+          <SourcePicker
+            candidates={SEARCHABLE}
+            value={{ project: ["PLAT"], mine: [{ externalId: "mine", mineScope: "anywhere" }] }}
+            onChange={onAnywhere}
+            projectId="p1"
+          />,
+        );
+        await user.click(screen.getByRole("button", { name: "Remove Platform" }));
+        // An anywhere mine has no project dependency and survives.
+        expect(onAnywhere).toHaveBeenCalledWith({
+          mine: [{ externalId: "mine", mineScope: "anywhere" }],
+        });
+      });
     });
   });
 });
