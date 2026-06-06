@@ -19,6 +19,9 @@ const {
   probeDirtyCounts,
   probeUnpushedCount,
   probeWorkUnitState,
+  resolveGitIdentity,
+  SENTINEL_AUTHOR_NAME,
+  SENTINEL_AUTHOR_EMAIL,
 } = await import("./git-helpers.js");
 
 const REPO = "/home/user/my-project";
@@ -525,5 +528,86 @@ describe("probeWorkUnitState", () => {
     const result = await probeWorkUnitState(REPO);
 
     expect(result.dirty).toEqual({ modifiedCount: 0, untrackedCount: 0, unpushedCommits: 0 });
+  });
+});
+
+describe("resolveGitIdentity", () => {
+  it("returns { name, email } with no isSentinel when both values are set", async () => {
+    vi.mocked(execModule.runCommand)
+      .mockResolvedValueOnce({ code: 0, stdout: "Ada Lovelace\n", stderr: "" })
+      .mockResolvedValueOnce({ code: 0, stdout: "ada@example.com\n", stderr: "" });
+
+    const result = await resolveGitIdentity(REPO);
+
+    expect(result).toEqual({ name: "Ada Lovelace", email: "ada@example.com" });
+    expect(result.isSentinel).toBeUndefined();
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      ["config", "user.name"],
+      REPO,
+      undefined,
+      5_000,
+    );
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      ["config", "user.email"],
+      REPO,
+      undefined,
+      5_000,
+    );
+  });
+
+  it("returns the sentinel author with isSentinel when user.name is unset/empty", async () => {
+    vi.mocked(execModule.runCommand)
+      .mockResolvedValueOnce({ code: 0, stdout: "\n", stderr: "" })
+      .mockResolvedValueOnce({ code: 0, stdout: "ada@example.com\n", stderr: "" });
+
+    const result = await resolveGitIdentity(REPO);
+
+    expect(result).toEqual({
+      name: SENTINEL_AUTHOR_NAME,
+      email: SENTINEL_AUTHOR_EMAIL,
+      isSentinel: true,
+    });
+  });
+
+  it("returns the sentinel author with isSentinel when user.email is unset/empty", async () => {
+    vi.mocked(execModule.runCommand)
+      .mockResolvedValueOnce({ code: 0, stdout: "Ada Lovelace\n", stderr: "" })
+      .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" });
+
+    const result = await resolveGitIdentity(REPO);
+
+    expect(result).toEqual({
+      name: SENTINEL_AUTHOR_NAME,
+      email: SENTINEL_AUTHOR_EMAIL,
+      isSentinel: true,
+    });
+  });
+
+  it("returns the sentinel author without throwing when a git command exits non-zero", async () => {
+    vi.mocked(execModule.runCommand)
+      .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ code: 0, stdout: "ada@example.com\n", stderr: "" });
+
+    const result = await resolveGitIdentity(REPO);
+
+    expect(result).toEqual({
+      name: SENTINEL_AUTHOR_NAME,
+      email: SENTINEL_AUTHOR_EMAIL,
+      isSentinel: true,
+    });
+  });
+
+  it("returns the sentinel author without throwing when runCommand rejects", async () => {
+    vi.mocked(execModule.runCommand).mockRejectedValue(new Error("spawn failed"));
+
+    const result = await resolveGitIdentity(REPO);
+
+    expect(result).toEqual({
+      name: SENTINEL_AUTHOR_NAME,
+      email: SENTINEL_AUTHOR_EMAIL,
+      isSentinel: true,
+    });
   });
 });
