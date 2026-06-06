@@ -14,7 +14,12 @@ import { decodeCompositeCursor } from "@roubo/shared-github";
 import { listIssues } from "../methods/list-issues.js";
 import { installMocks, okResponse, teardownMocks } from "./helpers.js";
 
-function projectItemNode(opts: { number: number; repo: string; state: "open" | "closed" }) {
+function projectItemNode(opts: {
+  number: number;
+  repo: string;
+  state: "open" | "closed";
+  status?: string;
+}) {
   return {
     content: {
       __typename: "Issue",
@@ -32,7 +37,7 @@ function projectItemNode(opts: { number: number; repo: string; state: "open" | "
       comments: { totalCount: 0 },
       url: `https://example.com/${opts.repo}/issues/${opts.number}`,
     },
-    fieldValueByName: null,
+    fieldValueByName: opts.status === undefined ? null : { name: opts.status },
   };
 }
 
@@ -122,6 +127,66 @@ describe("listIssues project-board scoping", () => {
     const page2 = await listIssues({ sources, cursor: page1.nextCursor, pageSize: 1 });
 
     expect(page2.items.map((i) => i.externalId)).toEqual(["acme/web#102"]);
+    expect(page2.nextCursor).toBeNull();
+  });
+
+  // Issue #399: server-side status exclusion for the github family, reusing the
+  // shared `isStatusExcluded` helper. The board item's Projects v2 "Status"
+  // column is matched case-insensitively against the resolved excludedStatuses.
+  it("excludes board items whose Status column is in excludedStatuses, matching case-insensitively", async () => {
+    const sources: ConfiguredSource[] = [{ kind: "project", externalId: "acme/#1" }];
+
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(
+      projectItemsResponse([
+        projectItemNode({ number: 1, repo: "acme/svc", state: "open", status: "In progress" }),
+        projectItemNode({ number: 2, repo: "acme/svc", state: "open", status: "in REVIEW" }),
+        projectItemNode({ number: 3, repo: "acme/svc", state: "open", status: "Done" }),
+        projectItemNode({ number: 4, repo: "acme/svc", state: "open" }),
+      ]),
+    );
+
+    const result = await listIssues({
+      sources,
+      cursor: null,
+      pageSize: 50,
+      excludedStatuses: ["In review", "Done"],
+    });
+
+    // #2 ("in REVIEW") and #3 ("Done") are excluded; the null-status #4 is kept.
+    expect(result.items.map((i) => i.externalId)).toEqual(["acme/svc#1", "acme/svc#4"]);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("never lets an excluded board item occupy a result-page slot", async () => {
+    const sources: ConfiguredSource[] = [{ kind: "project", externalId: "acme/#1" }];
+
+    // An excluded item is wedged between two visible ones; with pageSize 1 it
+    // must not consume the single slot.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce(
+      projectItemsResponse([
+        projectItemNode({ number: 10, repo: "acme/svc", state: "open" }),
+        projectItemNode({ number: 11, repo: "acme/svc", state: "open", status: "Done" }),
+        projectItemNode({ number: 12, repo: "acme/svc", state: "open" }),
+      ]),
+    );
+
+    const page1 = await listIssues({
+      sources,
+      cursor: null,
+      pageSize: 1,
+      excludedStatuses: ["Done"],
+    });
+    expect(page1.items.map((i) => i.externalId)).toEqual(["acme/svc#10"]);
+    expect(decodeCompositeCursor(page1.nextCursor as string)).toEqual({ "acme/#1": "2" });
+
+    // Page 2 is served from cache; the excluded #11 left no gap, so #12 is next.
+    const page2 = await listIssues({
+      sources,
+      cursor: page1.nextCursor,
+      pageSize: 1,
+      excludedStatuses: ["Done"],
+    });
+    expect(page2.items.map((i) => i.externalId)).toEqual(["acme/svc#12"]);
     expect(page2.nextCursor).toBeNull();
   });
 });

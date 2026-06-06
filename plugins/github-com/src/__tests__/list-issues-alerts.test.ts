@@ -272,6 +272,65 @@ describe("listIssues + alerts (WU-030)", () => {
     expect(seenUrls).toContain(CODE_URL_2);
   });
 
+  it("keeps a repo's alerts even when all its board issues are status-excluded (issue #399)", async () => {
+    // The board's only issue is in an excluded Status column, so no issue
+    // reaches the cut list. Alerts fan out over the pre-exclusion repo set, so
+    // the repo's code-scanning alert must still surface.
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({
+      organization: {
+        projectV2: {
+          title: "P",
+          items: {
+            nodes: [
+              {
+                content: {
+                  __typename: "Issue",
+                  number: 1,
+                  title: "done item",
+                  body: null,
+                  state: "open",
+                  repository: { nameWithOwner: "foo/bar" },
+                  labels: { nodes: [] },
+                  assignees: { nodes: [] },
+                  milestone: null,
+                  issueType: null,
+                  createdAt: "x",
+                  updatedAt: "x",
+                  comments: { totalCount: 0 },
+                  url: "u1",
+                },
+                fieldValueByName: { name: "Done" },
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    });
+    // No blocking graphql call: the only issue is excluded, so the slice is empty.
+
+    queueHostResponses({
+      [CODE_URL]: {
+        status: 200,
+        headers: {},
+        body: JSON.stringify([{ number: 7, html_url: "code-url", state: "open", created_at: "t" }]),
+      },
+    });
+
+    const sources: ConfiguredSource[] = [
+      { kind: "project", externalId: "foo/#1", includeCodeQLAlerts: true },
+    ];
+    const result = await listIssues({
+      sources,
+      cursor: null,
+      pageSize: 50,
+      excludedStatuses: ["Done"],
+    });
+
+    expect(mocks.mockHost.fetch).toHaveBeenCalled();
+    expect(result.items.map((i) => i.externalId)).toEqual(["foo/bar#code-scanning-7"]);
+  });
+
   it("dedupes project warnings by (category, cause) across repos in the project", async () => {
     // Two repos sharing the same 404 cause should produce a single warning.
     mocks.mockOctokit.graphql.mockResolvedValueOnce({
