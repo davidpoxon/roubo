@@ -91,10 +91,7 @@ function PerfHarness({ issues, onReady }: { issues: NormalizedIssue[]; onReady: 
   }, [onReady]);
   // Mirrors the useMemo recompute pattern in client/src/components/IssueQueuePanel.tsx
   // (the source-of-truth recompute edge under test).
-  const filtered = useMemo(
-    () => applyFilters(issues, filters, { excludedStatuses: ["Closed"] }),
-    [issues, filters],
-  );
+  const filtered = useMemo(() => applyFilters(issues, filters), [issues, filters]);
   return (
     <ul>
       {filtered.map((issue) => (
@@ -115,10 +112,7 @@ function FetchInvariantHarness({ projectId, onReady }: { projectId: string; onRe
   useEffect(() => {
     onReady(setFilters);
   }, [onReady]);
-  const filtered = useMemo(
-    () => applyFilters(issues, filters, { excludedStatuses: ["Closed"] }),
-    [issues, filters],
-  );
+  const filtered = useMemo(() => applyFilters(issues, filters), [issues, filters]);
   return (
     <ul>
       {filtered.map((issue) => (

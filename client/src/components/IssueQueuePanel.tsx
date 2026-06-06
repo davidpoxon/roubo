@@ -66,10 +66,6 @@ export default function IssueQueuePanel({
   // manifest the integration endpoint already returns; if unavailable we skip
   // the banner rather than render "from undefined".
   const activePluginName = integrationQuery.data?.plugin?.manifest?.name ?? null;
-  const excludedStatuses = useMemo(
-    () => integrationQuery.data?.effective?.excludedStatuses ?? [],
-    [integrationQuery.data],
-  );
   const facetsQuery = useFilterFacets(projectId, activePluginId);
   const facets: FilterFacet[] = useMemo(() => facetsQuery.data ?? [], [facetsQuery.data]);
   // Warm the option cache for async facets so the filter popover shows options
@@ -166,10 +162,7 @@ export default function IssueQueuePanel({
     return out;
   }, [baseItems]);
 
-  const filteredItems = useMemo(
-    () => applyFilters(baseItems, filters, { excludedStatuses }),
-    [baseItems, filters, excludedStatuses],
-  );
+  const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
 
   const groups = useMemo(() => {
     if (!isGroupingActive(grouping)) return [];
@@ -239,7 +232,6 @@ export default function IssueQueuePanel({
               filters={filters}
               onFiltersChange={updateFilters}
               facets={facets}
-              excludedStatuses={excludedStatuses}
               projectId={projectId}
               pluginId={activePluginId}
               derivedOptions={derivedOptions}

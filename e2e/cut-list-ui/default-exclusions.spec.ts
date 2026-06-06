@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { loadAppShell, resetWithScenario } from "../e2e-flow/_support/scenario.js";
+import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, unregisterTestProject } from "./_support/project.js";
 
-// TC-173 (US-018/US-019, FR-062/063/064, NFR-018): the cut-list hides issues
-// whose currentState is in the resolved root-level `excludedStatuses` (here
-// "Closed" + "In review", set by the fixture project's roubo.yaml). Toggling
-// "Include hidden statuses in this view" in the filter popover widens the in-
-// session view. Rewriting the root-level list via PUT /config/raw exercises
-// the three-layer merge wired up by WU-048: the new effective list flows back
-// through the integration endpoint and the cut-list reflects it after a
-// React Query refetch.
+// TC-173 (US-018/US-019, FR-062/063/064): the root-level `excludedStatuses`
+// (here "Closed" + "In review", set by the fixture project's roubo.yaml)
+// resolves through the three-layer merge and flows back through the
+// integration endpoint. Rewriting it via PUT /config/raw re-flows the new
+// effective list.
+//
+// NOTE (#354 / WU-005): status exclusion is no longer applied client-side. It
+// moved into the query (FR-009), so there is no "Include hidden statuses"
+// toggle and the cut-list UI no longer hides issues on its own. The
+// server-side cut-list exclusion UI journeys (closed issues never appear,
+// editing the excluded categories) are covered by WU-009 (#358). The config
+// resolution that this file still asserts remains valid and unchanged.
 
 const SCENARIO = "cut-list-exclusions";
 const NOW = "2026-05-26T09:00:00.000Z";
@@ -101,28 +105,5 @@ test.describe("TC-173: cut-list default exclusions + override", () => {
     expect(res.status()).toBe(200);
     const body = (await res.json()) as { effective: { excludedStatuses?: string[] } };
     expect(body.effective.excludedStatuses).toEqual(["Closed"]);
-  });
-
-  test("cut-list hides excluded statuses by default and widens when toggled", async ({ page }) => {
-    await loadAppShell(page);
-    await page.goto(`/projects/${projectId}`);
-
-    // The four scenario issues are #1 Open, #2 In progress, #3 In review, #4 Closed.
-    // Default excludedStatuses hide #3 and #4; #1 and #2 remain visible.
-    await expect(page.getByText("#1", { exact: true })).toBeVisible();
-    await expect(page.getByText("#2", { exact: true })).toBeVisible();
-    await expect(page.getByText("#3", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("#4", { exact: true })).toHaveCount(0);
-
-    await page.getByRole("button", { name: /^Filter cut list/ }).click();
-    // Click the visible checkbox label (React Aria Checkbox renders the input
-    // behind a styled <div> overlay; clicking the input directly is
-    // intercepted by that overlay).
-    await page.getByText("Include hidden statuses in this view").click();
-
-    await expect(page.getByText("#1", { exact: true })).toBeVisible();
-    await expect(page.getByText("#2", { exact: true })).toBeVisible();
-    await expect(page.getByText("#3", { exact: true })).toBeVisible();
-    await expect(page.getByText("#4", { exact: true })).toBeVisible();
   });
 });

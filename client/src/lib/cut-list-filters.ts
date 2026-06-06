@@ -5,17 +5,19 @@ import type { NormalizedIssue } from "@roubo/shared";
  * holds one selection set per facet id returned by the active plugin's
  * `filterFacets` RPC (host-API 1.1.0+). Selections are uniformly multi-valued
  * sets even for single-select facets, so the same matching logic works for
- * `enum`, `enum-async`, and `multi-enum` shapes. `includeHiddenStatuses` is
- * the session-scoped toggle that pulls excluded statuses back into view.
+ * `enum`, `enum-async`, and `multi-enum` shapes.
+ *
+ * Status exclusion is no longer a client concern: it is applied in the query
+ * (FR-009, e.g. the Jira plugin's `statusCategory not in (...)` JQL), so
+ * excluded issues never reach a page and there is nothing to hide or reveal here.
  */
 export interface FilterState {
   search: string;
   facetValues: Record<string, Set<string>>;
-  includeHiddenStatuses: boolean;
 }
 
 export function createEmptyFilters(): FilterState {
-  return { search: "", facetValues: {}, includeHiddenStatuses: false };
+  return { search: "", facetValues: {} };
 }
 
 /** Read the current selection set for one facet without mutating state. */
@@ -46,17 +48,12 @@ export function isFiltersEmpty(filters: FilterState): boolean {
   for (const set of Object.values(filters.facetValues)) {
     if (set.size > 0) return false;
   }
-  // includeHiddenStatuses toggle deliberately does not count as "filter active";
-  // it widens visibility rather than narrowing it. activeFilterCount surfaces
-  // it separately so the trigger badge still reflects the toggle.
   return true;
 }
 
 /**
  * Count of structured selections currently active. Powers the trigger-button
- * badge: one increment per non-empty facet selection plus one when the
- * include-hidden-statuses toggle is on (it changes what the list shows, so
- * the user should see it reflected in the badge).
+ * badge: one increment per non-empty facet selection.
  *
  * Search is intentionally excluded; it has its own input affordance.
  */
@@ -65,17 +62,7 @@ export function activeFilterCount(filters: FilterState): number {
   for (const set of Object.values(filters.facetValues)) {
     if (set.size > 0) count++;
   }
-  if (filters.includeHiddenStatuses) count++;
   return count;
-}
-
-export interface ApplyFiltersOptions {
-  /**
-   * Resolved root-level `excludedStatuses` for the active project. When
-   * `filters.includeHiddenStatuses` is false, issues whose status matches one
-   * of these values are dropped. Empty array means "exclude nothing".
-   */
-  excludedStatuses?: readonly string[];
 }
 
 /**
@@ -83,23 +70,13 @@ export interface ApplyFiltersOptions {
  * network, no caching, no side effects. Designed to run on every keystroke
  * for ~500 issues well under the 50 ms p95 budget (TC-139).
  */
-export function applyFilters(
-  issues: NormalizedIssue[],
-  filters: FilterState,
-  opts: ApplyFiltersOptions = {},
-): NormalizedIssue[] {
-  const excluded = opts.excludedStatuses ?? [];
-  const hideExcluded = !filters.includeHiddenStatuses && excluded.length > 0;
-  const excludedSet = hideExcluded ? new Set(excluded) : null;
-
+export function applyFilters(issues: NormalizedIssue[], filters: FilterState): NormalizedIssue[] {
   const facetEntries = Object.entries(filters.facetValues).filter(([, set]) => set.size > 0);
   const search = filters.search.trim().toLowerCase();
 
-  if (!hideExcluded && facetEntries.length === 0 && !search) return issues;
+  if (facetEntries.length === 0 && !search) return issues;
 
   return issues.filter((issue) => {
-    if (excludedSet && excludedSet.has(issueStatus(issue))) return false;
-
     for (const [facetId, selection] of facetEntries) {
       const values = issueFacetValues(issue, facetId);
       if (values.length === 0) return false;
@@ -146,10 +123,4 @@ export function issueFacetValues(issue: NormalizedIssue, facetId: string): strin
     default:
       return [];
   }
-}
-
-function issueStatus(issue: NormalizedIssue): string {
-  const raw = issue.facetValues?.status;
-  if (raw !== undefined) return Array.isArray(raw) ? (raw[0] ?? "") : raw;
-  return issue.currentState ?? "";
 }

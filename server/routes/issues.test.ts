@@ -23,6 +23,7 @@ vi.mock("../services/plugin-activation.js", () => ({
   forgetProjectActivation: vi.fn(),
   forgetPluginActivation: vi.fn(),
   resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
+  resolveExclusion: vi.fn().mockReturnValue({ excludedStatusCategories: [], excludedStatuses: [] }),
 }));
 
 vi.mock("../services/integration-migrations.js", () => ({
@@ -77,6 +78,10 @@ beforeEach(() => {
   vi.mocked(pluginActivation.resolveSources).mockReturnValue([
     { kind: "repo", externalId: "foo/bar" },
   ]);
+  vi.mocked(pluginActivation.resolveExclusion).mockReturnValue({
+    excludedStatusCategories: [],
+    excludedStatuses: [],
+  });
   vi.mocked(integrationMigrations.awaitPendingIntegrationSetup).mockResolvedValue(undefined);
 });
 
@@ -109,7 +114,26 @@ describe("GET /:projectId/issues", () => {
       cursor: "c1",
       pageSize: 50,
       filters: { labels: ["bug", "feature"], search: "login" },
+      excludedStatusCategories: [],
+      excludedStatuses: [],
     });
+  });
+
+  it("threads the resolved status exclusion into listIssues (FR-009)", async () => {
+    vi.mocked(pluginActivation.resolveExclusion).mockReturnValueOnce({
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Done", "Resolved"],
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
+    await request(app).get("/p1/issues");
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "github-com",
+      "listIssues",
+      expect.objectContaining({
+        excludedStatusCategories: ["Done"],
+        excludedStatuses: ["Closed", "Done", "Resolved"],
+      }),
+    );
   });
 
   it("awaits any pending integration setup before resolving sources for listIssues", async () => {

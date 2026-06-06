@@ -39,13 +39,16 @@ configSchema:
       default: false
       description: Trust self-signed or internal-CA certificates for this instance. Only enable for an on-prem Jira whose certificate you trust; it disables certificate verification for every request to this instance.
 defaultIntegrationConfig:
+  # Category-first exclusion is the default and source of truth: the JQL builder
+  # emits `statusCategory not in ("Done")`. The status-name list below is the
+  # fallback used only when an instance does not support `statusCategory` in
+  # JQL; it names the Done-category statuses so the fallback matches the intent.
+  excludedStatusCategories:
+    - Done
   excludedStatuses:
     - Closed
     - Done
     - Resolved
-    - In Review
-  excludedStatusCategories:
-    - Done
 permissions:
   network:
     # The Jira instance host is user-supplied (configured per project), so the

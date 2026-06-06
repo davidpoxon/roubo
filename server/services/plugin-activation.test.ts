@@ -24,6 +24,7 @@ import {
   forgetPluginActivation,
   forgetProjectActivation,
   resolveSources,
+  resolveExclusion,
 } from "./plugin-activation.js";
 import * as projectRegistry from "./project-registry.js";
 import { loadOverride } from "./integration-overrides.js";
@@ -357,5 +358,54 @@ describe("resolveSources", () => {
     );
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(GITHUB_PLUGIN));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(PROJECT_ID));
+  });
+});
+
+describe("resolveExclusion (FR-009/FR-010)", () => {
+  const JIRA_PLUGIN = "jira-self-hosted";
+  const JIRA_MANIFEST = {
+    id: JIRA_PLUGIN,
+    configSchema: { type: "object", properties: { instance: { type: "string" } } },
+    defaultIntegrationConfig: {
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Done", "Resolved"],
+    },
+  };
+
+  function mockJiraProject(integration: Record<string, unknown>): void {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { integration: { plugin: JIRA_PLUGIN, ...integration } },
+    } as never);
+    vi.mocked(loadOverride).mockReturnValue(null);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      { id: JIRA_PLUGIN, manifest: JIRA_MANIFEST },
+    ] as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses the plugin manifest defaults when the project config is silent", () => {
+    mockJiraProject({});
+    expect(resolveExclusion(PROJECT_ID)).toEqual({
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Done", "Resolved"],
+    });
+  });
+
+  it("lets the project config override the manifest category default", () => {
+    mockJiraProject({ excludedStatusCategories: ["In Progress"] });
+    const result = resolveExclusion(PROJECT_ID);
+    expect(result.excludedStatusCategories).toEqual(["In Progress"]);
+    expect(result.excludedStatuses).toEqual(["Closed", "Done", "Resolved"]);
+  });
+
+  it("returns empty lists when the project is unknown", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    expect(resolveExclusion(PROJECT_ID)).toEqual({
+      excludedStatusCategories: [],
+      excludedStatuses: [],
+    });
   });
 });

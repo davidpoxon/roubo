@@ -149,6 +149,94 @@ describe("buildIssueListJql (TC-030)", () => {
   });
 });
 
+describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
+  it("ANDs a statusCategory exclusion clause across the whole union (TC-009)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ["Done"],
+    });
+    expect(jql).toBe('(project = "PLAT") AND statusCategory not in ("Done") ORDER BY updated ASC');
+  });
+
+  it("places the exclusion clause before the watermark and ORDER BY (TC-009)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "filter", externalId: "555" }],
+      lastPollIso: "2026-04-01T00:00:00Z",
+      excludedStatusCategories: ["Done"],
+    });
+    expect(jql).toBe(
+      '(filter = 555) AND statusCategory not in ("Done") ' +
+        'AND updated >= "2026-04-01T00:00:00Z" ORDER BY updated ASC',
+    );
+  });
+
+  it("emits no exclusion clause when the category list is empty (TC-009)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: [],
+    });
+    expect(jql).not.toContain("statusCategory");
+    expect(jql).not.toContain("status not in");
+  });
+
+  it("excludes multiple categories, category-based not name-based (TC-010)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ["Done", "In Progress"],
+    });
+    expect(jql).toContain('statusCategory not in ("Done", "In Progress")');
+    expect(jql).not.toContain("status not in");
+  });
+
+  it("ignores the status-name list on the supported path (names are fallback-only)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Resolved"],
+    });
+    expect(jql).toContain('statusCategory not in ("Done")');
+    expect(jql).not.toContain("status not in");
+  });
+
+  it("falls back to status-name enumeration when statusCategory is unsupported (TC-037)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: ["Closed", "Done", "Resolved"],
+      statusCategorySupported: false,
+    });
+    expect(jql).toBe(
+      '(project = "PLAT") AND status not in ("Closed", "Done", "Resolved") ORDER BY updated ASC',
+    );
+  });
+
+  it("emits no clause on the fallback path when no status names are configured (TC-037)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ["Done"],
+      excludedStatuses: [],
+      statusCategorySupported: false,
+    });
+    expect(jql).not.toContain("statusCategory");
+    expect(jql).not.toContain("status not in");
+  });
+
+  it("escapes status names so a crafted category cannot inject a clause (NFR-003)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      lastPollIso: null,
+      excludedStatusCategories: ['Done") OR (1=1'],
+    });
+    expect(jql).toContain('statusCategory not in ("Done\\") OR (1=1")');
+  });
+});
+
 describe("jqlSearchTerm (NFR-003 injection hardening)", () => {
   it("returns a quoted literal for a plain term", () => {
     expect(jqlSearchTerm("platform")).toBe('"platform"');

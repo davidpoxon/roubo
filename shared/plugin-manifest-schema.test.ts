@@ -305,13 +305,15 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
     );
   });
 
-  it("Jira plugin ships defaults using Jira-native state strings", async () => {
+  it("Jira plugin ships status-name fallback defaults using Jira-native state strings", async () => {
+    // Category-first exclusion is the default source of truth; this name list is
+    // the fallback used only when an instance rejects `statusCategory` in JQL,
+    // so it names the Done-category statuses (no "In Review", which is not Done).
     const manifest = await loadManifest("jira-self-hosted");
     expect(manifest.defaultIntegrationConfig?.excludedStatuses).toEqual([
       "Closed",
       "Done",
       "Resolved",
-      "In Review",
     ]);
   });
 

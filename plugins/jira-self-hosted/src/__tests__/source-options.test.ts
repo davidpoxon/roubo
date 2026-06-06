@@ -183,6 +183,27 @@ describe("getSourceOptions (jira-self-hosted, WU-002)", () => {
       });
       expect(jql).not.toContain("summary ~");
     });
+
+    it("a crafted term cannot inject a JQL clause (TC-033, NFR-003)", async () => {
+      let jql = "";
+      harness.fetchStub.on("/rest/api/2/search", (init) => {
+        jql = String((JSON.parse(init.body ?? "{}") as { jql?: string }).jql);
+        return { issues: [], total: 0 };
+      });
+      await getSourceOptions(ctx, {
+        category: "epic",
+        scope: { project: ["PLAT"] },
+        search: '" OR project = ADMIN --',
+      });
+      // The scope is unchanged: still bound to PLAT, never widened to ADMIN.
+      expect(jql).toContain("project in (PLAT)");
+      // The whole crafted term stays inside one quoted summary literal: the
+      // leading quote is escaped to `\"` so it cannot close the literal early,
+      // and the `--` comment hazard is stripped. The `OR project = ADMIN` text
+      // survives only as harmless search content, never as its own clause.
+      expect(jql).toContain('summary ~ "\\" OR project = ADMIN"');
+      expect(jql).not.toContain("--");
+    });
   });
 
   describe("board category", () => {

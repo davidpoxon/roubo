@@ -36,18 +36,73 @@ export interface SourceClause {
 export interface BuildJqlInput {
   sources: SourceClause[];
   lastPollIso: string | null;
+  /**
+   * Category-first status exclusion (FR-009/FR-010). When the instance supports
+   * `statusCategory` in JQL (the default), a non-empty list emits a top-level
+   * `statusCategory not in (...)` clause ANDed across the whole union so
+   * excluded issues never occupy a result page.
+   */
+  excludedStatusCategories?: string[];
+  /**
+   * Status-name fallback list. Only consulted when `statusCategorySupported` is
+   * false (the instance rejected `statusCategory`): emits `status not in (...)`
+   * instead. Ignored on the supported path so the default behaviour is exactly
+   * "exclude the configured categories" (TC-037).
+   */
+  excludedStatuses?: string[];
+  /**
+   * Whether the target instance accepts `statusCategory` in JQL. Defaults to
+   * true; the plugin flips it to false (per instance) after a `statusCategory`
+   * JQL parse error and rebuilds with the name list.
+   */
+  statusCategorySupported?: boolean;
 }
 
-export function buildIssueListJql({ sources, lastPollIso }: BuildJqlInput): string {
+export function buildIssueListJql({
+  sources,
+  lastPollIso,
+  excludedStatusCategories,
+  excludedStatuses,
+  statusCategorySupported = true,
+}: BuildJqlInput): string {
   // Drop empty clauses (e.g. an unresolvable board) before the OR join so the
   // union never degenerates into `( OR ...)`.
   const parts = sources.map(toClause).filter((part) => part.length > 0);
   const sourceClause = parts.length === 0 ? "" : `(${parts.join(" OR ")})`;
+  const exclusionClause = buildExclusionClause(
+    excludedStatusCategories,
+    excludedStatuses,
+    statusCategorySupported,
+  );
   const updatedClause = lastPollIso === null ? "" : `updated >= "${lastPollIso}"`;
 
-  const where = [sourceClause, updatedClause].filter((part) => part.length > 0).join(" AND ");
+  const where = [sourceClause, exclusionClause, updatedClause]
+    .filter((part) => part.length > 0)
+    .join(" AND ");
   const tail = "ORDER BY updated ASC";
   return where.length > 0 ? `${where} ${tail}` : tail;
+}
+
+/**
+ * Build the top-level status-exclusion clause (FR-009/FR-010). Category-first:
+ * on the supported path emit `statusCategory not in (...)` from the category
+ * list and ignore the name list; on the fallback path (instance rejected
+ * `statusCategory`) emit `status not in (...)` from the resolved name list.
+ * Returns "" when the active list is empty so the AND-join drops it.
+ */
+function buildExclusionClause(
+  categories: string[] | undefined,
+  statuses: string[] | undefined,
+  statusCategorySupported: boolean,
+): string {
+  if (statusCategorySupported) {
+    const list = (categories ?? []).filter((c) => c.length > 0);
+    if (list.length === 0) return "";
+    return `statusCategory not in (${list.map(jqlString).join(", ")})`;
+  }
+  const list = (statuses ?? []).filter((s) => s.length > 0);
+  if (list.length === 0) return "";
+  return `status not in (${list.map(jqlString).join(", ")})`;
 }
 
 function toClause(source: SourceClause): string {
@@ -113,7 +168,7 @@ function stripControlChars(value: string): string {
  * boolean characters (`* ? + - & | ! ( ) { } [ ] ^ ~ :`), so they are
  * neutralized to spaces; the term is also length-bounded. Returns a fully
  * quoted JQL string literal (NFR-003: a crafted term cannot break out of the
- * quoted literal or inject a clause). WU-005 may harden this further.
+ * quoted literal or inject a clause).
  */
 export function jqlSearchTerm(raw: string): string {
   const bounded = String(raw ?? "").slice(0, SEARCH_TERM_MAX_LENGTH);
