@@ -1,10 +1,10 @@
 # PRD: TestBench (in-app manual test-review surface)
 
-| | |
-|---|---|
-| **Slug** | testbench |
-| **Status** | draft |
-| **Brief** | ./brief.md |
+|                 |                  |
+| --------------- | ---------------- |
+| **Slug**        | testbench        |
+| **Status**      | draft            |
+| **Brief**       | ./brief.md       |
 | **Feasibility** | ./feasibility.md |
 
 ## Problem statement
@@ -91,19 +91,19 @@ Each NFR has a measurable target and a verification method.
 
 ### Leading
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| TestBenches created (per active project) | 0 (new) | >= 1 within first week of enabling | Roubo state / TestBench create events | US-001, FR-001 |
-| Plans completed in-app without editing source | 0 | >= 1 full plan marked end-to-end via the UI | `test-results.json` completion state | US-004, US-008, FR-008, FR-014 |
-| Time-to-first-mark | n/a | <= 5 interactions from create | UI walkthrough instrumentation | US-001, NFR-007 |
-| Schema validation pass rate on load | n/a | 100% of bound plans load without opaque failure | validator surfaced errors | US-011, FR-021 |
+| Indicator                                     | Baseline | Target                                          | Source                                | Validates                      |
+| --------------------------------------------- | -------- | ----------------------------------------------- | ------------------------------------- | ------------------------------ |
+| TestBenches created (per active project)      | 0 (new)  | >= 1 within first week of enabling              | Roubo state / TestBench create events | US-001, FR-001                 |
+| Plans completed in-app without editing source | 0        | >= 1 full plan marked end-to-end via the UI     | `test-results.json` completion state  | US-004, US-008, FR-008, FR-014 |
+| Time-to-first-mark                            | n/a      | <= 5 interactions from create                   | UI walkthrough instrumentation        | US-001, NFR-007                |
+| Schema validation pass rate on load           | n/a      | 100% of bound plans load without opaque failure | validator surfaced errors             | US-011, FR-021                 |
 
 ### Lagging
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Sustained adoption over hand-editing JSON | hand-editing today | reviewers use TestBench as the default recording surface | recurring `test-results.json` writes vs manual edits | the feature |
-| Published-schema stability across the extension launch | n/a | 0 breaking changes when `testbench-guide-extension` ships | schema version history + compat corpus | US-011, NFR-005 |
+| Indicator                                              | Baseline           | Target                                                    | Source                                               | Validates       |
+| ------------------------------------------------------ | ------------------ | --------------------------------------------------------- | ---------------------------------------------------- | --------------- |
+| Sustained adoption over hand-editing JSON              | hand-editing today | reviewers use TestBench as the default recording surface  | recurring `test-results.json` writes vs manual edits | the feature     |
+| Published-schema stability across the extension launch | n/a                | 0 breaking changes when `testbench-guide-extension` ships | schema version history + compat corpus               | US-011, NFR-005 |
 
 ## Dependencies & assumptions
 

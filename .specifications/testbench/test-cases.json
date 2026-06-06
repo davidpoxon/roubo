@@ -13,12 +13,48 @@
     ],
     "steps": [
       { "action": "Open the option menu on an empty bench slot" },
-      { "action": "Click 'Create a TestBench' from the option menu", "expected": ["Spec-picker modal opens", "'Create a TestBench' option is present in the menu"] },
-      { "action": "Observe the discovered-specs list in the modal", "expected": ["Each discovered spec row shows slug, file path, and case count", "At least one row matches a .specifications/*/test-cases.json file in the repo"] },
-      { "action": "Click a spec row to select it", "expected": ["Row is highlighted as selected", "Create button becomes enabled"] },
-      { "action": "Click the Create button", "expected": ["Modal closes", "Bench is created with a worktree bound to the selected spec", "Bench detail view opens"] },
-      { "action": "Observe the tabs in the bench detail view", "expected": ["A 'TestBench' tab is the first tab with an amber accent dot", "Standard tabs (Components, Terminal, Info) are also present", "Inspection tab is present if previously configured"] },
-      { "action": "Click the TestBench tab", "expected": ["TestBench content loads", "The focused spec slug and path are displayed", "The results panel is visible"] }
+      {
+        "action": "Click 'Create a TestBench' from the option menu",
+        "expected": [
+          "Spec-picker modal opens",
+          "'Create a TestBench' option is present in the menu"
+        ]
+      },
+      {
+        "action": "Observe the discovered-specs list in the modal",
+        "expected": [
+          "Each discovered spec row shows slug, file path, and case count",
+          "At least one row matches a .specifications/*/test-cases.json file in the repo"
+        ]
+      },
+      {
+        "action": "Click a spec row to select it",
+        "expected": ["Row is highlighted as selected", "Create button becomes enabled"]
+      },
+      {
+        "action": "Click the Create button",
+        "expected": [
+          "Modal closes",
+          "Bench is created with a worktree bound to the selected spec",
+          "Bench detail view opens"
+        ]
+      },
+      {
+        "action": "Observe the tabs in the bench detail view",
+        "expected": [
+          "A 'TestBench' tab is the first tab with an amber accent dot",
+          "Standard tabs (Components, Terminal, Info) are also present",
+          "Inspection tab is present if previously configured"
+        ]
+      },
+      {
+        "action": "Click the TestBench tab",
+        "expected": [
+          "TestBench content loads",
+          "The focused spec slug and path are displayed",
+          "The results panel is visible"
+        ]
+      }
     ],
     "tags": ["smoke", "happy-path", "e2e", "critical-path"],
     "linked_requirement_ids": ["FR-001", "FR-002", "FR-004", "FR-005"],
@@ -30,9 +66,19 @@
     "area": "bench-variant",
     "level": 1,
     "type": "functional",
-    "preconditions": ["TestBench feature is disabled in settings", "At least one bench slot is empty", "User is on the bench list view"],
+    "preconditions": [
+      "TestBench feature is disabled in settings",
+      "At least one bench slot is empty",
+      "User is on the bench list view"
+    ],
     "steps": [
-      { "action": "Open the option menu on an empty bench slot", "expected": ["'Create a TestBench' option is NOT present", "Normal bench setup options remain visible"] }
+      {
+        "action": "Open the option menu on an empty bench slot",
+        "expected": [
+          "'Create a TestBench' option is NOT present",
+          "Normal bench setup options remain visible"
+        ]
+      }
     ],
     "tags": ["smoke", "feature-flag"],
     "linked_requirement_ids": ["FR-001"],
@@ -44,9 +90,20 @@
     "area": "bench-variant",
     "level": 2,
     "type": "functional",
-    "preconditions": ["TestBench feature is enabled", "The repo contains .specifications/alpha/test-cases.json, .specifications/beta/test-cases.json, .specifications/gamma/test-cases.json", "User has opened the Create a TestBench modal"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "The repo contains .specifications/alpha/test-cases.json, .specifications/beta/test-cases.json, .specifications/gamma/test-cases.json",
+      "User has opened the Create a TestBench modal"
+    ],
     "steps": [
-      { "action": "Observe the discovered-specs list", "expected": ["Exactly three rows: alpha, beta, gamma", "Each row shows slug, relative path, and case count", "No rows from outside .specifications/ are shown"] }
+      {
+        "action": "Observe the discovered-specs list",
+        "expected": [
+          "Exactly three rows: alpha, beta, gamma",
+          "Each row shows slug, relative path, and case count",
+          "No rows from outside .specifications/ are shown"
+        ]
+      }
     ],
     "tags": ["happy-path", "discovery"],
     "linked_requirement_ids": ["FR-002"],
@@ -58,11 +115,24 @@
     "area": "bench-variant",
     "level": 2,
     "type": "functional",
-    "preconditions": ["TestBench feature is enabled", "User has opened the Create a TestBench modal", "No spec is selected and the manual-path input is empty"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "User has opened the Create a TestBench modal",
+      "No spec is selected and the manual-path input is empty"
+    ],
     "steps": [
-      { "action": "Observe the Create button state", "expected": ["Create button is visually disabled and cannot be clicked"] },
-      { "action": "Click the Create button without making a selection", "expected": ["No bench is created", "Modal remains open"] },
-      { "action": "Select a spec row from the discovered list", "expected": ["Create button becomes enabled"] }
+      {
+        "action": "Observe the Create button state",
+        "expected": ["Create button is visually disabled and cannot be clicked"]
+      },
+      {
+        "action": "Click the Create button without making a selection",
+        "expected": ["No bench is created", "Modal remains open"]
+      },
+      {
+        "action": "Select a spec row from the discovered list",
+        "expected": ["Create button becomes enabled"]
+      }
     ],
     "tags": ["happy-path", "disabled-state"],
     "linked_requirement_ids": ["FR-001", "FR-002"],
@@ -74,10 +144,26 @@
     "area": "bench-variant",
     "level": 2,
     "type": "functional",
-    "preconditions": ["TestBench feature is enabled", "A TestBench has been created and bound to a spec", "The bench has Components, Terminal, Inspection, and Info tabs configured"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "A TestBench has been created and bound to a spec",
+      "The bench has Components, Terminal, Inspection, and Info tabs configured"
+    ],
     "steps": [
-      { "action": "Navigate to the bench detail view for the TestBench", "expected": ["The first tab is 'TestBench' with an amber accent dot", "Components, Terminal, Inspection, and Info tabs are present", "Tab order is TestBench, then the existing tabs in their original order"] },
-      { "action": "Click each standard tab (Components, Terminal, Inspection, Info)", "expected": ["Each tab opens and displays its normal content without interference from TestBench"] }
+      {
+        "action": "Navigate to the bench detail view for the TestBench",
+        "expected": [
+          "The first tab is 'TestBench' with an amber accent dot",
+          "Components, Terminal, Inspection, and Info tabs are present",
+          "Tab order is TestBench, then the existing tabs in their original order"
+        ]
+      },
+      {
+        "action": "Click each standard tab (Components, Terminal, Inspection, Info)",
+        "expected": [
+          "Each tab opens and displays its normal content without interference from TestBench"
+        ]
+      }
     ],
     "tags": ["happy-path", "tab-layout"],
     "linked_requirement_ids": ["FR-005"],
@@ -89,12 +175,34 @@
     "area": "bench-variant",
     "level": 2,
     "type": "e2e_flow",
-    "preconditions": ["TestBench feature is enabled", "An empty bench slot exists", "A valid test-cases.json exists at a known path within the registered project repo", "User has opened the Create a TestBench modal"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "An empty bench slot exists",
+      "A valid test-cases.json exists at a known path within the registered project repo",
+      "User has opened the Create a TestBench modal"
+    ],
     "steps": [
       { "action": "Locate the manual-path input field in the modal" },
-      { "action": "Type a valid path to a test-cases.json within the project repo", "expected": ["Input shows a validating indicator while the path is validated"] },
-      { "action": "Wait for validation to complete", "expected": ["Input shows a green check (valid state)", "Create button becomes enabled", "No error message is shown"] },
-      { "action": "Click the Create button", "expected": ["Modal closes", "TestBench is created bound to the manually specified spec", "Bench detail opens with the TestBench tab showing the correct spec path"] }
+      {
+        "action": "Type a valid path to a test-cases.json within the project repo",
+        "expected": ["Input shows a validating indicator while the path is validated"]
+      },
+      {
+        "action": "Wait for validation to complete",
+        "expected": [
+          "Input shows a green check (valid state)",
+          "Create button becomes enabled",
+          "No error message is shown"
+        ]
+      },
+      {
+        "action": "Click the Create button",
+        "expected": [
+          "Modal closes",
+          "TestBench is created bound to the manually specified spec",
+          "Bench detail opens with the TestBench tab showing the correct spec path"
+        ]
+      }
     ],
     "tags": ["happy-path", "manual-path"],
     "linked_requirement_ids": ["FR-003", "FR-004"],
@@ -106,13 +214,41 @@
     "area": "bench-variant",
     "level": 2,
     "type": "e2e_flow",
-    "preconditions": ["A TestBench is bound to spec-A", "At least one result has been recorded against spec-A on this bench", "Spec-B is discoverable in the same project repo", "User is on the TestBench tab"],
+    "preconditions": [
+      "A TestBench is bound to spec-A",
+      "At least one result has been recorded against spec-A on this bench",
+      "Spec-B is discoverable in the same project repo",
+      "User is on the TestBench tab"
+    ],
     "steps": [
       { "action": "Click the 'Change focused spec' (re-point) action in the TestBench tab header" },
-      { "action": "Observe the spec-picker modal", "expected": ["Modal opens", "Current spec (spec-A) is shown as active", "Other discovered specs including spec-B are listed"] },
-      { "action": "Select spec-B from the discovered list", "expected": ["Spec-B row is highlighted", "Confirm button becomes enabled"] },
-      { "action": "Confirm the re-point action", "expected": ["Modal closes", "TestBench header now shows spec-B as the focused spec", "Staleness is re-evaluated against the newly focused plan"] },
-      { "action": "Re-open the spec-picker and switch back to spec-A", "expected": ["Spec-A results recorded before the re-point are fully preserved and displayed", "No results from spec-B are mixed into spec-A's result set"] }
+      {
+        "action": "Observe the spec-picker modal",
+        "expected": [
+          "Modal opens",
+          "Current spec (spec-A) is shown as active",
+          "Other discovered specs including spec-B are listed"
+        ]
+      },
+      {
+        "action": "Select spec-B from the discovered list",
+        "expected": ["Spec-B row is highlighted", "Confirm button becomes enabled"]
+      },
+      {
+        "action": "Confirm the re-point action",
+        "expected": [
+          "Modal closes",
+          "TestBench header now shows spec-B as the focused spec",
+          "Staleness is re-evaluated against the newly focused plan"
+        ]
+      },
+      {
+        "action": "Re-open the spec-picker and switch back to spec-A",
+        "expected": [
+          "Spec-A results recorded before the re-point are fully preserved and displayed",
+          "No results from spec-B are mixed into spec-A's result set"
+        ]
+      }
     ],
     "tags": ["happy-path", "re-point", "results-isolation"],
     "linked_requirement_ids": ["FR-024", "FR-004"],
@@ -124,9 +260,21 @@
     "area": "bench-variant",
     "level": 3,
     "type": "negative",
-    "preconditions": ["TestBench feature is enabled", "The repo contains no files matching .specifications/*/test-cases.json", "An empty bench slot exists", "User has opened the Create a TestBench modal"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "The repo contains no files matching .specifications/*/test-cases.json",
+      "An empty bench slot exists",
+      "User has opened the Create a TestBench modal"
+    ],
     "steps": [
-      { "action": "Observe the discovered-specs list", "expected": ["An explicit empty-state message is shown (e.g. 'No spec files found in .specifications/')", "The manual-path input is still available", "Create remains disabled until a valid manual path is entered"] }
+      {
+        "action": "Observe the discovered-specs list",
+        "expected": [
+          "An explicit empty-state message is shown (e.g. 'No spec files found in .specifications/')",
+          "The manual-path input is still available",
+          "Create remains disabled until a valid manual path is entered"
+        ]
+      }
     ],
     "tags": ["negative", "empty-state", "edge"],
     "linked_requirement_ids": ["FR-002", "NFR-007"],
@@ -138,10 +286,29 @@
     "area": "bench-variant",
     "level": 3,
     "type": "security",
-    "preconditions": ["TestBench feature is enabled", "The registered project repo is at /home/user/projects/myrepo", "A valid test-cases.json exists outside the registered repo", "User has opened the Create a TestBench modal"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "The registered project repo is at /home/user/projects/myrepo",
+      "A valid test-cases.json exists outside the registered repo",
+      "User has opened the Create a TestBench modal"
+    ],
     "steps": [
-      { "action": "Enter an out-of-repo path (/home/user/other-repo/.specifications/suite/test-cases.json)", "expected": ["Validation fails with a red helper indicating the path must be within the registered repo", "Input shows invalid state", "Create remains disabled"] },
-      { "action": "Attempt traversal using /../ to escape the repo root", "expected": ["The canonicalized path is rejected as outside the repo root", "A red helper error is shown", "Create remains disabled"] }
+      {
+        "action": "Enter an out-of-repo path (/home/user/other-repo/.specifications/suite/test-cases.json)",
+        "expected": [
+          "Validation fails with a red helper indicating the path must be within the registered repo",
+          "Input shows invalid state",
+          "Create remains disabled"
+        ]
+      },
+      {
+        "action": "Attempt traversal using /../ to escape the repo root",
+        "expected": [
+          "The canonicalized path is rejected as outside the repo root",
+          "A red helper error is shown",
+          "Create remains disabled"
+        ]
+      }
     ],
     "tags": ["security", "path-traversal", "negative"],
     "linked_requirement_ids": ["FR-003", "NFR-001"],
@@ -153,10 +320,24 @@
     "area": "bench-variant",
     "level": 3,
     "type": "negative",
-    "preconditions": ["TestBench feature is enabled", "A file inside the repo contains JSON that fails the published test-cases.json schema", "User has opened the Create a TestBench modal"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "A file inside the repo contains JSON that fails the published test-cases.json schema",
+      "User has opened the Create a TestBench modal"
+    ],
     "steps": [
-      { "action": "Enter the path to the schema-invalid file", "expected": ["Input shows a validating state briefly"] },
-      { "action": "Wait for validation to complete", "expected": ["Input transitions to the invalid/red state", "Red helper text explains the file does not conform to the schema", "Create remains disabled"] }
+      {
+        "action": "Enter the path to the schema-invalid file",
+        "expected": ["Input shows a validating state briefly"]
+      },
+      {
+        "action": "Wait for validation to complete",
+        "expected": [
+          "Input transitions to the invalid/red state",
+          "Red helper text explains the file does not conform to the schema",
+          "Create remains disabled"
+        ]
+      }
     ],
     "tags": ["negative", "schema-validation", "manual-path"],
     "linked_requirement_ids": ["FR-003"],
@@ -170,8 +351,16 @@
     "type": "functional",
     "preconditions": ["A TestBench is bound to spec-A", "User is on the TestBench tab"],
     "steps": [
-      { "action": "Click the 'Change focused spec' action", "expected": ["The spec-picker opens; a confirmed selection is required before any change takes effect"] },
-      { "action": "Close the spec-picker without selecting a different spec (cancel)", "expected": ["The TestBench still shows spec-A", "No change is made to the bench binding"] }
+      {
+        "action": "Click the 'Change focused spec' action",
+        "expected": [
+          "The spec-picker opens; a confirmed selection is required before any change takes effect"
+        ]
+      },
+      {
+        "action": "Close the spec-picker without selecting a different spec (cancel)",
+        "expected": ["The TestBench still shows spec-A", "No change is made to the bench binding"]
+      }
     ],
     "tags": ["explicit-action", "re-point", "negative"],
     "linked_requirement_ids": ["FR-024"],
@@ -183,9 +372,20 @@
     "area": "bench-variant",
     "level": 2,
     "type": "integration",
-    "preconditions": ["TestBench feature is enabled", "An empty bench slot exists", "A valid spec path is known within the registered repo"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "An empty bench slot exists",
+      "A valid spec path is known within the registered repo"
+    ],
     "steps": [
-      { "action": "Send POST /api/projects/:projectId/benches with body { variant: 'testbench', focusedSpecPath: '<valid-path>' }", "expected": ["HTTP 201 Created", "Response includes bench id, worktree path, variant 'testbench', and the focused spec path", "GET of the bench returns variant 'testbench'"] }
+      {
+        "action": "Send POST /api/projects/:projectId/benches with body { variant: 'testbench', focusedSpecPath: '<valid-path>' }",
+        "expected": [
+          "HTTP 201 Created",
+          "Response includes bench id, worktree path, variant 'testbench', and the focused spec path",
+          "GET of the bench returns variant 'testbench'"
+        ]
+      }
     ],
     "tags": ["integration", "rest"],
     "linked_requirement_ids": ["FR-022", "FR-004"],
@@ -197,9 +397,19 @@
     "area": "bench-variant",
     "level": 2,
     "type": "integration",
-    "preconditions": ["The repo contains .specifications/suite-a/test-cases.json and .specifications/suite-b/test-cases.json", "TestBench feature is enabled"],
+    "preconditions": [
+      "The repo contains .specifications/suite-a/test-cases.json and .specifications/suite-b/test-cases.json",
+      "TestBench feature is enabled"
+    ],
     "steps": [
-      { "action": "Send GET /api/projects/:projectId/testbench/specs", "expected": ["HTTP 200 OK", "Response is an array of two spec objects each with slug, path, caseCount", "Slugs are 'suite-a' and 'suite-b'"] }
+      {
+        "action": "Send GET /api/projects/:projectId/testbench/specs",
+        "expected": [
+          "HTTP 200 OK",
+          "Response is an array of two spec objects each with slug, path, caseCount",
+          "Slugs are 'suite-a' and 'suite-b'"
+        ]
+      }
     ],
     "tags": ["integration", "rest", "discovery"],
     "linked_requirement_ids": ["FR-022", "FR-002"],
@@ -211,9 +421,20 @@
     "area": "bench-variant",
     "level": 2,
     "type": "integration",
-    "preconditions": ["A TestBench is bound to spec-A", "Spec-B is a valid discoverable spec in the same project"],
+    "preconditions": [
+      "A TestBench is bound to spec-A",
+      "Spec-B is a valid discoverable spec in the same project"
+    ],
     "steps": [
-      { "action": "Send PUT /api/projects/:projectId/benches/:id/testbench/focus with body { focusedSpecPath: '<spec-B-path>' }", "expected": ["HTTP 200 OK", "Response shows the focused spec updated to spec-B", "GET of the bench confirms spec-B", "Spec-A's results file is untouched"] }
+      {
+        "action": "Send PUT /api/projects/:projectId/benches/:id/testbench/focus with body { focusedSpecPath: '<spec-B-path>' }",
+        "expected": [
+          "HTTP 200 OK",
+          "Response shows the focused spec updated to spec-B",
+          "GET of the bench confirms spec-B",
+          "Spec-A's results file is untouched"
+        ]
+      }
     ],
     "tags": ["integration", "rest", "re-point"],
     "linked_requirement_ids": ["FR-022", "FR-024"],
@@ -225,13 +446,36 @@
     "area": "bench-variant",
     "level": 2,
     "type": "functional",
-    "preconditions": ["TestBench feature is enabled", "An empty bench slot exists", "At least one spec is discoverable", "User is on the bench list view"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "An empty bench slot exists",
+      "At least one spec is discoverable",
+      "User is on the bench list view"
+    ],
     "steps": [
-      { "action": "Interaction 1: open the empty-slot menu and click 'Create a TestBench'", "expected": ["Spec-picker opens with discovered specs listed"] },
-      { "action": "Interaction 2: click a spec row to select it", "expected": ["Row is selected; Create is enabled"] },
-      { "action": "Interaction 3: click Create", "expected": ["Bench is created; bench detail opens with the TestBench tab active"] },
-      { "action": "Interaction 4: click a case row to open its observations", "expected": ["The observation controls are shown for that case"] },
-      { "action": "Interaction 5: mark an observation pass", "expected": ["The mark is saved and reflected in the case", "First recorded observation is reached in exactly 5 interactions, satisfying NFR-007"] }
+      {
+        "action": "Interaction 1: open the empty-slot menu and click 'Create a TestBench'",
+        "expected": ["Spec-picker opens with discovered specs listed"]
+      },
+      {
+        "action": "Interaction 2: click a spec row to select it",
+        "expected": ["Row is selected; Create is enabled"]
+      },
+      {
+        "action": "Interaction 3: click Create",
+        "expected": ["Bench is created; bench detail opens with the TestBench tab active"]
+      },
+      {
+        "action": "Interaction 4: click a case row to open its observations",
+        "expected": ["The observation controls are shown for that case"]
+      },
+      {
+        "action": "Interaction 5: mark an observation pass",
+        "expected": [
+          "The mark is saved and reflected in the case",
+          "First recorded observation is reached in exactly 5 interactions, satisfying NFR-007"
+        ]
+      }
     ],
     "tags": ["usability", "interaction-budget"],
     "linked_requirement_ids": ["NFR-007", "FR-001", "FR-002"],
@@ -243,12 +487,32 @@
     "area": "bench-variant",
     "level": 3,
     "type": "accessibility",
-    "preconditions": ["TestBench feature is enabled", "An empty bench slot exists", "At least one spec is discoverable"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "An empty bench slot exists",
+      "At least one spec is discoverable"
+    ],
     "steps": [
-      { "action": "Using keyboard only, focus the empty-slot option-menu trigger", "expected": ["The trigger is reachable and focusable"] },
-      { "action": "Open the menu and activate 'Create a TestBench' via keyboard", "expected": ["Spec-picker opens and focus moves into the modal"] },
-      { "action": "Navigate the discovered-specs list and select a row via keyboard", "expected": ["A spec row is selected; focus is managed within the list"] },
-      { "action": "Move to the Create button and activate it via keyboard", "expected": ["Bench is created", "Focus moves to the bench detail", "No focus trap remains in the modal"] }
+      {
+        "action": "Using keyboard only, focus the empty-slot option-menu trigger",
+        "expected": ["The trigger is reachable and focusable"]
+      },
+      {
+        "action": "Open the menu and activate 'Create a TestBench' via keyboard",
+        "expected": ["Spec-picker opens and focus moves into the modal"]
+      },
+      {
+        "action": "Navigate the discovered-specs list and select a row via keyboard",
+        "expected": ["A spec row is selected; focus is managed within the list"]
+      },
+      {
+        "action": "Move to the Create button and activate it via keyboard",
+        "expected": [
+          "Bench is created",
+          "Focus moves to the bench detail",
+          "No focus trap remains in the modal"
+        ]
+      }
     ],
     "tags": ["accessibility", "keyboard"],
     "linked_requirement_ids": ["FR-001", "FR-002", "NFR-004"],
@@ -260,9 +524,18 @@
     "area": "bench-variant",
     "level": 3,
     "type": "negative",
-    "preconditions": ["TestBench feature is enabled", "A standard (non-TestBench-variant) bench exists for the project"],
+    "preconditions": [
+      "TestBench feature is enabled",
+      "A standard (non-TestBench-variant) bench exists for the project"
+    ],
     "steps": [
-      { "action": "Navigate to the bench detail view for the standard bench", "expected": ["No 'TestBench' tab is present", "Standard tabs (Components, Terminal, Info, and Inspection if configured) are shown as normal"] }
+      {
+        "action": "Navigate to the bench detail view for the standard bench",
+        "expected": [
+          "No 'TestBench' tab is present",
+          "Standard tabs (Components, Terminal, Info, and Inspection if configured) are shown as normal"
+        ]
+      }
     ],
     "tags": ["negative", "tab-layout"],
     "linked_requirement_ids": ["FR-005"],
@@ -274,11 +547,28 @@
     "area": "review-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plan with at least one case per level (L1-L4) is loaded", "The review tab is accessible"],
+    "preconditions": [
+      "A plan with at least one case per level (L1-L4) is loaded",
+      "The review tab is accessible"
+    ],
     "steps": [
       { "action": "Navigate to the TestBench review tab for the loaded plan" },
-      { "action": "Observe the left-pane case list", "expected": ["Cases are grouped by level/priority with visible group headings", "Each row shows a status indicator (dot and label)", "Raw JSON is not exposed"] },
-      { "action": "Observe the header area", "expected": ["A segmented progress bar (passed/failed/open) is visible", "Mono counts are displayed", "Overall progress reflects the initial not_started state"] }
+      {
+        "action": "Observe the left-pane case list",
+        "expected": [
+          "Cases are grouped by level/priority with visible group headings",
+          "Each row shows a status indicator (dot and label)",
+          "Raw JSON is not exposed"
+        ]
+      },
+      {
+        "action": "Observe the header area",
+        "expected": [
+          "A segmented progress bar (passed/failed/open) is visible",
+          "Mono counts are displayed",
+          "Overall progress reflects the initial not_started state"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-006", "FR-013"],
@@ -290,10 +580,24 @@
     "area": "review-ui",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case that has preconditions, multiple steps, and expected observations per step", "The review UI is open"],
+    "preconditions": [
+      "A plan is loaded with a case that has preconditions, multiple steps, and expected observations per step",
+      "The review UI is open"
+    ],
     "steps": [
       { "action": "Click a case row in the left pane" },
-      { "action": "Observe the right detail pane", "expected": ["Case title is displayed", "Case id, level, and priority are shown", "Preconditions list is rendered in order", "Ordered steps are displayed sequentially", "Each step shows its expected observations", "Each observation has a pass/fail mark control", "Raw JSON is not visible"] }
+      {
+        "action": "Observe the right detail pane",
+        "expected": [
+          "Case title is displayed",
+          "Case id, level, and priority are shown",
+          "Preconditions list is rendered in order",
+          "Ordered steps are displayed sequentially",
+          "Each step shows its expected observations",
+          "Each observation has a pass/fail mark control",
+          "Raw JSON is not visible"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-007"],
@@ -305,18 +609,67 @@
     "area": "review-ui",
     "level": 2,
     "type": "e2e_flow",
-    "preconditions": ["A plan with two cases is loaded (case A two observations, case B one observation)", "Git identity is configured on the bench", "The review tab is open with all cases not_started"],
+    "preconditions": [
+      "A plan with two cases is loaded (case A two observations, case B one observation)",
+      "Git identity is configured on the bench",
+      "The review tab is open with all cases not_started"
+    ],
     "steps": [
       { "action": "Click case A in the left pane" },
-      { "action": "Observe the detail-pane status", "expected": ["Status shows not_started", "Progress bar shows all cases open"] },
-      { "action": "Mark the first observation of case A pass", "expected": ["The mark is recorded as pass with a timestamp", "Case A status updates to in_progress"] },
-      { "action": "Mark the second observation of case A pass", "expected": ["Both observations are pass", "Case A derives to passed", "Progress bar shows one passed case"] },
-      { "action": "Select case B and mark its observation fail", "expected": ["Observation marked fail with a timestamp", "Case B derives to failed", "Progress shows one passed and one failed"] },
-      { "action": "Type a note for case B and submit", "expected": ["Note appears as an append-only entry", "Note shows author, timestamp, and status-at-write (failed)", "No edit or delete controls are present"] },
-      { "action": "Observe the overall progress rollup", "expected": ["Progress shows 1 passed, 1 failed, 0 open", "Per-level counts are correct", "Orphaned results are excluded"] }
+      {
+        "action": "Observe the detail-pane status",
+        "expected": ["Status shows not_started", "Progress bar shows all cases open"]
+      },
+      {
+        "action": "Mark the first observation of case A pass",
+        "expected": [
+          "The mark is recorded as pass with a timestamp",
+          "Case A status updates to in_progress"
+        ]
+      },
+      {
+        "action": "Mark the second observation of case A pass",
+        "expected": [
+          "Both observations are pass",
+          "Case A derives to passed",
+          "Progress bar shows one passed case"
+        ]
+      },
+      {
+        "action": "Select case B and mark its observation fail",
+        "expected": [
+          "Observation marked fail with a timestamp",
+          "Case B derives to failed",
+          "Progress shows one passed and one failed"
+        ]
+      },
+      {
+        "action": "Type a note for case B and submit",
+        "expected": [
+          "Note appears as an append-only entry",
+          "Note shows author, timestamp, and status-at-write (failed)",
+          "No edit or delete controls are present"
+        ]
+      },
+      {
+        "action": "Observe the overall progress rollup",
+        "expected": [
+          "Progress shows 1 passed, 1 failed, 0 open",
+          "Per-level counts are correct",
+          "Orphaned results are excluded"
+        ]
+      }
     ],
     "tags": ["e2e", "regression", "happy-path"],
-    "linked_requirement_ids": ["FR-006", "FR-007", "FR-008", "FR-009", "FR-011", "FR-012", "FR-013"],
+    "linked_requirement_ids": [
+      "FR-006",
+      "FR-007",
+      "FR-008",
+      "FR-009",
+      "FR-011",
+      "FR-012",
+      "FR-013"
+    ],
     "linked_user_story_ids": ["US-003", "US-004", "US-005", "US-006", "US-007"]
   },
   {
@@ -325,10 +678,21 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with an unmarked case having at least one observation", "Git identity is configured", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with an unmarked case having at least one observation",
+      "Git identity is configured",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
       { "action": "Locate an unmarked observation in the step detail" },
-      { "action": "Click the pass segment of the mark control", "expected": ["Observation is marked pass", "A timestamp is displayed adjacent to the mark", "The mark persists on re-render without reload"] }
+      {
+        "action": "Click the pass segment of the mark control",
+        "expected": [
+          "Observation is marked pass",
+          "A timestamp is displayed adjacent to the mark",
+          "The mark persists on re-render without reload"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-008"],
@@ -340,9 +704,20 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with an unmarked case having at least one observation", "Git identity is configured", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with an unmarked case having at least one observation",
+      "Git identity is configured",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
-      { "action": "Click the fail segment of the mark control on an unmarked observation", "expected": ["Observation is marked fail", "A timestamp is displayed", "The fail mark is visually distinct from a pass mark"] }
+      {
+        "action": "Click the fail segment of the mark control on an unmarked observation",
+        "expected": [
+          "Observation is marked fail",
+          "A timestamp is displayed",
+          "The fail mark is visually distinct from a pass mark"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-008"],
@@ -354,9 +729,18 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case whose observations are all unmarked", "Review tab is open"],
+    "preconditions": [
+      "A plan is loaded with a case whose observations are all unmarked",
+      "Review tab is open"
+    ],
     "steps": [
-      { "action": "Select the case with no marked observations", "expected": ["Status label shows not_started", "Status indicator reflects not_started styling"] }
+      {
+        "action": "Select the case with no marked observations",
+        "expected": [
+          "Status label shows not_started",
+          "Status indicator reflects not_started styling"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-009"],
@@ -368,10 +752,19 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case that has two observations, both unmarked", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with a case that has two observations, both unmarked",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
-      { "action": "Mark the first observation pass", "expected": ["Status updates to in_progress", "Progress bar updates accordingly"] },
-      { "action": "Confirm the second observation remains unmarked", "expected": ["Status remains in_progress (not passed, not failed)"] }
+      {
+        "action": "Mark the first observation pass",
+        "expected": ["Status updates to in_progress", "Progress bar updates accordingly"]
+      },
+      {
+        "action": "Confirm the second observation remains unmarked",
+        "expected": ["Status remains in_progress (not passed, not failed)"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-009"],
@@ -383,9 +776,18 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case having exactly two observations, both unmarked", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with a case having exactly two observations, both unmarked",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
-      { "action": "Mark both observations pass", "expected": ["Status derives to passed after the final mark", "Status indicator updates immediately"] }
+      {
+        "action": "Mark both observations pass",
+        "expected": [
+          "Status derives to passed after the final mark",
+          "Status indicator updates immediately"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-009"],
@@ -397,9 +799,19 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case having two observations: one marked pass, one unmarked", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with a case having two observations: one marked pass, one unmarked",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
-      { "action": "Mark the second observation fail", "expected": ["All observations are marked", "Status derives to failed (not passed) because at least one mark is fail", "Status indicator updates to failed styling"] }
+      {
+        "action": "Mark the second observation fail",
+        "expected": [
+          "All observations are marked",
+          "Status derives to failed (not passed) because at least one mark is fail",
+          "Status indicator updates to failed styling"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-009"],
@@ -411,11 +823,24 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with a case in not_started derived status", "Review tab is open with the case selected"],
+    "preconditions": [
+      "A plan is loaded with a case in not_started derived status",
+      "Review tab is open with the case selected"
+    ],
     "steps": [
       { "action": "Open the status override select" },
-      { "action": "Select blocked", "expected": ["Displayed status changes to blocked", "An 'override active' marker is shown", "The derived value is preserved internally and does not change"] },
-      { "action": "Observe the case row in the left pane", "expected": ["Status reflects the override value (blocked), not the derived value"] }
+      {
+        "action": "Select blocked",
+        "expected": [
+          "Displayed status changes to blocked",
+          "An 'override active' marker is shown",
+          "The derived value is preserved internally and does not change"
+        ]
+      },
+      {
+        "action": "Observe the case row in the left pane",
+        "expected": ["Status reflects the override value (blocked), not the derived value"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-010"],
@@ -427,11 +852,27 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A case is selected with status in_progress", "Git identity is configured on the bench", "The notes rail is visible"],
+    "preconditions": [
+      "A case is selected with status in_progress",
+      "Git identity is configured on the bench",
+      "The notes rail is visible"
+    ],
     "steps": [
       { "action": "Focus the add-note field", "expected": ["Input is focused and ready"] },
-      { "action": "Type a note and submit", "expected": ["Note appears as a new entry in the rail", "Note shows author from git user.name", "Note shows a timestamp near the current time", "Note shows status-at-write (in_progress)", "Note text matches what was typed"] },
-      { "action": "Observe the note entry", "expected": ["No edit control is present", "No delete control is present"] }
+      {
+        "action": "Type a note and submit",
+        "expected": [
+          "Note appears as a new entry in the rail",
+          "Note shows author from git user.name",
+          "Note shows a timestamp near the current time",
+          "Note shows status-at-write (in_progress)",
+          "Note text matches what was typed"
+        ]
+      },
+      {
+        "action": "Observe the note entry",
+        "expected": ["No edit control is present", "No delete control is present"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-011", "FR-012"],
@@ -443,13 +884,37 @@
     "area": "review-ui",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A plan is loaded with cases across multiple levels (L1, L2, L3)", "All cases are initially not_started", "Review tab is open"],
+    "preconditions": [
+      "A plan is loaded with cases across multiple levels (L1, L2, L3)",
+      "All cases are initially not_started",
+      "Review tab is open"
+    ],
     "steps": [
-      { "action": "Observe the initial progress bar and per-level counts", "expected": ["Overall shows 0 passed, 0 failed, all cases open", "Per-level sections show 0 passed, 0 failed"] },
+      {
+        "action": "Observe the initial progress bar and per-level counts",
+        "expected": [
+          "Overall shows 0 passed, 0 failed, all cases open",
+          "Per-level sections show 0 passed, 0 failed"
+        ]
+      },
       { "action": "Mark all observations for one L1 case pass" },
-      { "action": "Observe the progress rollup", "expected": ["L1 passed increments by 1", "Overall passed increments by 1", "Open decrements by 1"] },
+      {
+        "action": "Observe the progress rollup",
+        "expected": [
+          "L1 passed increments by 1",
+          "Overall passed increments by 1",
+          "Open decrements by 1"
+        ]
+      },
       { "action": "Mark all observations for one L2 case fail" },
-      { "action": "Observe the progress rollup", "expected": ["L2 failed increments by 1", "Overall failed increments by 1", "The segmented bar reflects new proportions"] }
+      {
+        "action": "Observe the progress rollup",
+        "expected": [
+          "L2 failed increments by 1",
+          "Overall failed increments by 1",
+          "The segmented bar reflects new proportions"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-013"],
@@ -461,9 +926,19 @@
     "area": "review-ui",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["A plan has been executed and results stored", "The plan was updated to remove one case, creating an orphaned result", "Review tab is open"],
+    "preconditions": [
+      "A plan has been executed and results stored",
+      "The plan was updated to remove one case, creating an orphaned result",
+      "Review tab is open"
+    ],
     "steps": [
-      { "action": "Observe the progress rollup counts and bar", "expected": ["The orphaned result (for the removed case) is not counted in passed, failed, or open", "Only results for cases currently in the plan are included"] }
+      {
+        "action": "Observe the progress rollup counts and bar",
+        "expected": [
+          "The orphaned result (for the removed case) is not counted in passed, failed, or open",
+          "Only results for cases currently in the plan are included"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["FR-013", "FR-017"],
@@ -475,10 +950,20 @@
     "area": "review-ui",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["A case has a manual override of blocked set", "The case has one unmarked observation"],
+    "preconditions": [
+      "A case has a manual override of blocked set",
+      "The case has one unmarked observation"
+    ],
     "steps": [
       { "action": "Mark the observation pass (all observations now pass)" },
-      { "action": "Observe the displayed status", "expected": ["Status still shows blocked (the override), not passed", "The override active marker remains visible", "The derived value updates internally to passed but is not displayed"] }
+      {
+        "action": "Observe the displayed status",
+        "expected": [
+          "Status still shows blocked (the override), not passed",
+          "The override active marker remains visible",
+          "The derived value updates internally to passed but is not displayed"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["FR-009", "FR-010"],
@@ -492,8 +977,18 @@
     "type": "negative",
     "preconditions": ["A case is selected in the detail pane", "The notes rail is visible"],
     "steps": [
-      { "action": "Focus the add-note field without typing", "expected": ["Add-note input is focused"] },
-      { "action": "Attempt to submit the empty note", "expected": ["No new note entry is created", "The submit control is disabled or an inline validation message prevents submission", "Existing notes are unchanged"] }
+      {
+        "action": "Focus the add-note field without typing",
+        "expected": ["Add-note input is focused"]
+      },
+      {
+        "action": "Attempt to submit the empty note",
+        "expected": [
+          "No new note entry is created",
+          "The submit control is disabled or an inline validation message prevents submission",
+          "Existing notes are unchanged"
+        ]
+      }
     ],
     "tags": ["negative", "regression"],
     "linked_requirement_ids": ["FR-011"],
@@ -505,10 +1000,27 @@
     "area": "review-ui",
     "level": 3,
     "type": "negative",
-    "preconditions": ["The bench has no git user.name and no git user.email configured", "A case is selected"],
+    "preconditions": [
+      "The bench has no git user.name and no git user.email configured",
+      "A case is selected"
+    ],
     "steps": [
-      { "action": "Mark an observation pass or fail", "expected": ["The mark write succeeds (does not error or crash)", "A UI warning indicates git identity is not set", "The mark is attributed to a sentinel author"] },
-      { "action": "Add a note", "expected": ["The note write succeeds", "The note author shows the sentinel value, not an empty string", "The warning remains visible"] }
+      {
+        "action": "Mark an observation pass or fail",
+        "expected": [
+          "The mark write succeeds (does not error or crash)",
+          "A UI warning indicates git identity is not set",
+          "The mark is attributed to a sentinel author"
+        ]
+      },
+      {
+        "action": "Add a note",
+        "expected": [
+          "The note write succeeds",
+          "The note author shows the sentinel value, not an empty string",
+          "The warning remains visible"
+        ]
+      }
     ],
     "tags": ["negative", "edge-case", "regression"],
     "linked_requirement_ids": ["FR-012"],
@@ -520,10 +1032,20 @@
     "area": "review-ui",
     "level": 2,
     "type": "performance",
-    "preconditions": ["A plan is loaded with at least one unmarked case", "Typical CI or local-dev conditions", "Performance instrumentation is active"],
+    "preconditions": [
+      "A plan is loaded with at least one unmarked case",
+      "Typical CI or local-dev conditions",
+      "Performance instrumentation is active"
+    ],
     "steps": [
       { "action": "Record the timestamp immediately before clicking a mark control" },
-      { "action": "Click the mark control and wait for the persisted confirmation", "expected": ["The click-to-persisted round-trip completes under 150ms at p95", "No UI jank or blocking is observed"] }
+      {
+        "action": "Click the mark control and wait for the persisted confirmation",
+        "expected": [
+          "The click-to-persisted round-trip completes under 150ms at p95",
+          "No UI jank or blocking is observed"
+        ]
+      }
     ],
     "tags": ["performance", "nfr"],
     "linked_requirement_ids": ["NFR-002"],
@@ -535,10 +1057,21 @@
     "area": "review-ui",
     "level": 2,
     "type": "performance",
-    "preconditions": ["A synthetic plan of exactly 500 cases across all levels is prepared", "A render-timing harness is active", "No prior render of this plan is cached"],
+    "preconditions": [
+      "A synthetic plan of exactly 500 cases across all levels is prepared",
+      "A render-timing harness is active",
+      "No prior render of this plan is cached"
+    ],
     "steps": [
       { "action": "Trigger data load for the 500-case plan and start timing" },
-      { "action": "Measure the time from data-load completion to the case list being interactive", "expected": ["p95 render time is under 300ms", "List virtualisation is active: only a windowed subset of DOM nodes is rendered (not all 500)", "Scrolling is smooth without layout thrash"] }
+      {
+        "action": "Measure the time from data-load completion to the case list being interactive",
+        "expected": [
+          "p95 render time is under 300ms",
+          "List virtualisation is active: only a windowed subset of DOM nodes is rendered (not all 500)",
+          "Scrolling is smooth without layout thrash"
+        ]
+      }
     ],
     "tags": ["performance", "nfr"],
     "linked_requirement_ids": ["NFR-002"],
@@ -550,11 +1083,28 @@
     "area": "review-ui",
     "level": 2,
     "type": "accessibility",
-    "preconditions": ["A plan is loaded with at least two cases, each with unmarked observations", "Keyboard-only navigation is in use", "Review tab is focused"],
+    "preconditions": [
+      "A plan is loaded with at least two cases, each with unmarked observations",
+      "Keyboard-only navigation is in use",
+      "Review tab is focused"
+    ],
     "steps": [
-      { "action": "Tab through the case list rows", "expected": ["Each row receives a visible focus indicator", "Focus order is logical"] },
-      { "action": "Activate a case via keyboard and move to the detail pane", "expected": ["Detail pane opens and focus moves to the first interactive element"] },
-      { "action": "Tab to a pass/fail mark control and mark it via keyboard", "expected": ["The mark control shows a visible focus ring", "The observation is marked without a mouse", "Keyboard activation is equivalent to clicking"] }
+      {
+        "action": "Tab through the case list rows",
+        "expected": ["Each row receives a visible focus indicator", "Focus order is logical"]
+      },
+      {
+        "action": "Activate a case via keyboard and move to the detail pane",
+        "expected": ["Detail pane opens and focus moves to the first interactive element"]
+      },
+      {
+        "action": "Tab to a pass/fail mark control and mark it via keyboard",
+        "expected": [
+          "The mark control shows a visible focus ring",
+          "The observation is marked without a mouse",
+          "Keyboard activation is equivalent to clicking"
+        ]
+      }
     ],
     "tags": ["accessibility", "keyboard", "nfr"],
     "linked_requirement_ids": ["NFR-004"],
@@ -566,10 +1116,16 @@
     "area": "review-ui",
     "level": 2,
     "type": "accessibility",
-    "preconditions": ["A plan with several cases across levels is loaded", "vitest-axe is configured"],
+    "preconditions": [
+      "A plan with several cases across levels is loaded",
+      "vitest-axe is configured"
+    ],
     "steps": [
       { "action": "Render the review UI with a populated plan in the test harness" },
-      { "action": "Run vitest-axe against the rendered tree", "expected": ["Zero accessibility violations are reported", "WCAG 2.1 AA ruleset is applied"] }
+      {
+        "action": "Run vitest-axe against the rendered tree",
+        "expected": ["Zero accessibility violations are reported", "WCAG 2.1 AA ruleset is applied"]
+      }
     ],
     "tags": ["accessibility", "nfr"],
     "linked_requirement_ids": ["NFR-004"],
@@ -581,12 +1137,24 @@
     "area": "persistence-staleness",
     "level": 1,
     "type": "functional",
-    "preconditions": ["A project is registered and its roubo.yaml is valid", "A spec exists at .specifications/<slug>/test-cases.json with at least two cases", "TestBench is open for the spec on bench-1", "No prior test-results.json exists"],
+    "preconditions": [
+      "A project is registered and its roubo.yaml is valid",
+      "A spec exists at .specifications/<slug>/test-cases.json with at least two cases",
+      "TestBench is open for the spec on bench-1",
+      "No prior test-results.json exists"
+    ],
     "steps": [
       { "action": "Mark TC-001 pass and TC-002 fail using the result controls" },
       { "action": "Reload the browser tab" },
       { "action": "Re-open the TestBench tab for the same spec and bench" },
-      { "action": "Observe the result state", "expected": ["TC-001 shows pass", "TC-002 shows fail", "No data-loss error or recovery prompt is shown"] }
+      {
+        "action": "Observe the result state",
+        "expected": [
+          "TC-001 shows pass",
+          "TC-002 shows fail",
+          "No data-loss error or recovery prompt is shown"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-014", "FR-015"],
@@ -598,11 +1166,27 @@
     "area": "persistence-staleness",
     "level": 1,
     "type": "integration",
-    "preconditions": ["A project is registered with repoPath /path/to/project", "A spec slug 'checkout-flow' exists under .specifications/checkout-flow/", "TestBench is open for this spec on bench-2"],
+    "preconditions": [
+      "A project is registered with repoPath /path/to/project",
+      "A spec slug 'checkout-flow' exists under .specifications/checkout-flow/",
+      "TestBench is open for this spec on bench-2"
+    ],
     "steps": [
       { "action": "Mark any case pass" },
-      { "action": "Inspect the filesystem for the created results file", "expected": ["/path/to/project/.specifications/checkout-flow/test-results.json is created", "No test-results.json appears anywhere under ~/.roubo"] },
-      { "action": "Verify the file structure", "expected": ["The JSON root contains a key matching 'bench-2' (the active bench)", "That entry contains result records keyed by case id"] }
+      {
+        "action": "Inspect the filesystem for the created results file",
+        "expected": [
+          "/path/to/project/.specifications/checkout-flow/test-results.json is created",
+          "No test-results.json appears anywhere under ~/.roubo"
+        ]
+      },
+      {
+        "action": "Verify the file structure",
+        "expected": [
+          "The JSON root contains a key matching 'bench-2' (the active bench)",
+          "That entry contains result records keyed by case id"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-015", "NFR-001"],
@@ -614,11 +1198,20 @@
     "area": "persistence-staleness",
     "level": 1,
     "type": "security",
-    "preconditions": ["A spec with test-cases.json exists under .specifications/my-spec/", "The SHA-256 checksum of test-cases.json is recorded before the run"],
+    "preconditions": [
+      "A spec with test-cases.json exists under .specifications/my-spec/",
+      "The SHA-256 checksum of test-cases.json is recorded before the run"
+    ],
     "steps": [
       { "action": "Mark several cases pass and fail and add notes" },
       { "action": "Edit the plan to trigger staleness and apply reconcile" },
-      { "action": "Verify the SHA-256 checksum of test-cases.json against the recorded value", "expected": ["Checksum is identical: test-cases.json has zero bytes changed", "Only test-results.json was written or modified"] }
+      {
+        "action": "Verify the SHA-256 checksum of test-cases.json against the recorded value",
+        "expected": [
+          "Checksum is identical: test-cases.json has zero bytes changed",
+          "Only test-results.json was written or modified"
+        ]
+      }
     ],
     "tags": ["smoke", "security", "regression"],
     "linked_requirement_ids": ["FR-014", "NFR-001"],
@@ -630,11 +1223,23 @@
     "area": "persistence-staleness",
     "level": 2,
     "type": "functional",
-    "preconditions": ["A spec has test-results.json recorded against a known plan hash", "TestBench is open and clean (no banner)"],
+    "preconditions": [
+      "A spec has test-results.json recorded against a known plan hash",
+      "TestBench is open and clean (no banner)"
+    ],
     "steps": [
       { "action": "Edit test-cases.json to add a new case (plan update)" },
-      { "action": "Refresh or re-open the TestBench tab", "expected": ["An amber staleness banner is displayed", "The banner indicates the source plan changed"] },
-      { "action": "Observe the banner call-to-action", "expected": ["A 'Reconcile' action button is visible"] }
+      {
+        "action": "Refresh or re-open the TestBench tab",
+        "expected": [
+          "An amber staleness banner is displayed",
+          "The banner indicates the source plan changed"
+        ]
+      },
+      {
+        "action": "Observe the banner call-to-action",
+        "expected": ["A 'Reconcile' action button is visible"]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-016"],
@@ -646,11 +1251,32 @@
     "area": "persistence-staleness",
     "level": 2,
     "type": "functional",
-    "preconditions": ["test-cases.json updated: one case added, one title changed, one removed", "test-results.json has results for all original cases including the removed one", "Staleness banner is visible"],
+    "preconditions": [
+      "test-cases.json updated: one case added, one title changed, one removed",
+      "test-results.json has results for all original cases including the removed one",
+      "Staleness banner is visible"
+    ],
     "steps": [
       { "action": "Click 'Reconcile' on the banner" },
-      { "action": "Observe the reconcile dialog", "expected": ["The added case appears in an 'Added' section", "The title-changed case appears in a 'Changed' section", "The removed case appears in an 'Orphan' section with its marks preserved", "No case is silently deleted"] },
-      { "action": "Click 'Apply (keep orphans)'", "expected": ["The added case appears with no prior result", "The changed case shows its updated title", "The orphaned case is visible as archived with its marks intact", "Archived cases are excluded from the rollup", "No purge prompt has appeared yet"] }
+      {
+        "action": "Observe the reconcile dialog",
+        "expected": [
+          "The added case appears in an 'Added' section",
+          "The title-changed case appears in a 'Changed' section",
+          "The removed case appears in an 'Orphan' section with its marks preserved",
+          "No case is silently deleted"
+        ]
+      },
+      {
+        "action": "Click 'Apply (keep orphans)'",
+        "expected": [
+          "The added case appears with no prior result",
+          "The changed case shows its updated title",
+          "The orphaned case is visible as archived with its marks intact",
+          "Archived cases are excluded from the rollup",
+          "No purge prompt has appeared yet"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-017", "FR-016"],
@@ -662,16 +1288,48 @@
     "area": "persistence-staleness",
     "level": 2,
     "type": "e2e_flow",
-    "preconditions": ["A project is registered with a valid roubo.yaml", "Spec 'auth-flow' has cases TC-A, TC-B, TC-C", "TestBench is open for auth-flow on bench-1", "No prior test-results.json exists"],
+    "preconditions": [
+      "A project is registered with a valid roubo.yaml",
+      "Spec 'auth-flow' has cases TC-A, TC-B, TC-C",
+      "TestBench is open for auth-flow on bench-1",
+      "No prior test-results.json exists"
+    ],
     "steps": [
       { "action": "Mark TC-A pass, TC-B fail with note 'broken redirect', TC-C pass" },
-      { "action": "Reload the TestBench tab and confirm results persisted", "expected": ["TC-A pass, TC-B fail with note, TC-C pass"] },
+      {
+        "action": "Reload the TestBench tab and confirm results persisted",
+        "expected": ["TC-A pass, TC-B fail with note, TC-C pass"]
+      },
       { "action": "Edit test-cases.json: remove TC-B, add TC-D" },
-      { "action": "Navigate away from and back to the TestBench tab", "expected": ["An amber staleness banner is shown"] },
+      {
+        "action": "Navigate away from and back to the TestBench tab",
+        "expected": ["An amber staleness banner is shown"]
+      },
       { "action": "Click 'Reconcile' on the banner" },
-      { "action": "Inspect the reconcile dialog", "expected": ["TC-D is listed as Added", "TC-B is listed as Orphan with its fail mark and note preserved"] },
-      { "action": "Click 'Apply (keep orphans)'", "expected": ["TC-A and TC-C remain active with their pass marks", "TC-D appears active with no mark", "TC-B appears archived with its fail mark and note", "The rollup counts only TC-A and TC-C", "The staleness banner is dismissed"] },
-      { "action": "Inspect .specifications/auth-flow/test-results.json on disk", "expected": ["The file contains a bench-1 key with results for TC-A, TC-B (archived), TC-C", "test-cases.json checksum is unchanged"] }
+      {
+        "action": "Inspect the reconcile dialog",
+        "expected": [
+          "TC-D is listed as Added",
+          "TC-B is listed as Orphan with its fail mark and note preserved"
+        ]
+      },
+      {
+        "action": "Click 'Apply (keep orphans)'",
+        "expected": [
+          "TC-A and TC-C remain active with their pass marks",
+          "TC-D appears active with no mark",
+          "TC-B appears archived with its fail mark and note",
+          "The rollup counts only TC-A and TC-C",
+          "The staleness banner is dismissed"
+        ]
+      },
+      {
+        "action": "Inspect .specifications/auth-flow/test-results.json on disk",
+        "expected": [
+          "The file contains a bench-1 key with results for TC-A, TC-B (archived), TC-C",
+          "test-cases.json checksum is unchanged"
+        ]
+      }
     ],
     "tags": ["regression", "e2e"],
     "linked_requirement_ids": ["FR-014", "FR-015", "FR-016", "FR-017", "NFR-003"],
@@ -687,9 +1345,24 @@
     "steps": [
       { "action": "Locate the archived (orphaned) case" },
       { "action": "Initiate purge via the purge control" },
-      { "action": "Observe whether the case is removed immediately", "expected": ["The case is NOT immediately removed", "A confirmation prompt asks the user to confirm the purge"] },
-      { "action": "Cancel the confirmation", "expected": ["The archived case is still present with its marks intact"] },
-      { "action": "Re-open the purge confirmation and confirm", "expected": ["The archived case is removed from the list", "Removal is reflected in test-results.json on disk"] }
+      {
+        "action": "Observe whether the case is removed immediately",
+        "expected": [
+          "The case is NOT immediately removed",
+          "A confirmation prompt asks the user to confirm the purge"
+        ]
+      },
+      {
+        "action": "Cancel the confirmation",
+        "expected": ["The archived case is still present with its marks intact"]
+      },
+      {
+        "action": "Re-open the purge confirmation and confirm",
+        "expected": [
+          "The archived case is removed from the list",
+          "Removal is reflected in test-results.json on disk"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-017", "NFR-003"],
@@ -701,11 +1374,21 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["test-cases.json has saved results and a stored plan hash", "TestBench shows no staleness banner"],
+    "preconditions": [
+      "test-cases.json has saved results and a stored plan hash",
+      "TestBench shows no staleness banner"
+    ],
     "steps": [
-      { "action": "Reformat test-cases.json (trailing newline, reindentation) without changing any case content or ids" },
+      {
+        "action": "Reformat test-cases.json (trailing newline, reindentation) without changing any case content or ids"
+      },
       { "action": "Reload the TestBench tab" },
-      { "action": "Observe the banner", "expected": ["No staleness banner is shown (the canonicalised hash normalises whitespace/formatting)"] }
+      {
+        "action": "Observe the banner",
+        "expected": [
+          "No staleness banner is shown (the canonicalised hash normalises whitespace/formatting)"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["FR-016"],
@@ -717,9 +1400,20 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "negative",
-    "preconditions": ["A spec has a test-results.json intentionally corrupted with invalid JSON bytes", "TestBench is opened for that spec"],
+    "preconditions": [
+      "A spec has a test-results.json intentionally corrupted with invalid JSON bytes",
+      "TestBench is opened for that spec"
+    ],
     "steps": [
-      { "action": "Navigate to the TestBench tab for the spec with the corrupt results file", "expected": ["The tab loads without crashing or an unhandled error boundary", "A recovery prompt indicates the results file could not be read", "The case list still renders from test-cases.json with marks cleared", "No data from the corrupt file is partially applied"] }
+      {
+        "action": "Navigate to the TestBench tab for the spec with the corrupt results file",
+        "expected": [
+          "The tab loads without crashing or an unhandled error boundary",
+          "A recovery prompt indicates the results file could not be read",
+          "The case list still renders from test-cases.json with marks cleared",
+          "No data from the corrupt file is partially applied"
+        ]
+      }
     ],
     "tags": ["negative", "regression"],
     "linked_requirement_ids": ["NFR-003"],
@@ -731,9 +1425,20 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "negative",
-    "preconditions": ["A spec has a valid test-cases.json", "No test-results.json is present beside it"],
+    "preconditions": [
+      "A spec has a valid test-cases.json",
+      "No test-results.json is present beside it"
+    ],
     "steps": [
-      { "action": "Open TestBench for the spec", "expected": ["All cases render with no marks (clean slate)", "No error or crash is shown", "No recovery prompt is shown (a missing file is a valid initial state)", "The user can immediately begin marking"] }
+      {
+        "action": "Open TestBench for the spec",
+        "expected": [
+          "All cases render with no marks (clean slate)",
+          "No error or crash is shown",
+          "No recovery prompt is shown (a missing file is a valid initial state)",
+          "The user can immediately begin marking"
+        ]
+      }
     ],
     "tags": ["negative", "regression"],
     "linked_requirement_ids": ["NFR-003"],
@@ -745,9 +1450,20 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "negative",
-    "preconditions": ["test-results.json has a schemaVersion higher than the implementation understands", "The file is otherwise structurally valid JSON"],
+    "preconditions": [
+      "test-results.json has a schemaVersion higher than the implementation understands",
+      "The file is otherwise structurally valid JSON"
+    ],
     "steps": [
-      { "action": "Open TestBench for the spec with the future-versioned results file", "expected": ["A recovery prompt indicates the results format is from a newer version", "The tab does not crash", "Cases render from test-cases.json with marks cleared", "The user can discard the unreadable results and start fresh"] }
+      {
+        "action": "Open TestBench for the spec with the future-versioned results file",
+        "expected": [
+          "A recovery prompt indicates the results format is from a newer version",
+          "The tab does not crash",
+          "Cases render from test-cases.json with marks cleared",
+          "The user can discard the unreadable results and start fresh"
+        ]
+      }
     ],
     "tags": ["negative", "regression"],
     "linked_requirement_ids": ["NFR-003", "NFR-005"],
@@ -759,13 +1475,35 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "functional",
-    "preconditions": ["Case TC-X has a pass mark and a note recorded in test-results.json", "TC-X is then removed from test-cases.json", "The staleness banner has appeared"],
+    "preconditions": [
+      "Case TC-X has a pass mark and a note recorded in test-results.json",
+      "TC-X is then removed from test-cases.json",
+      "The staleness banner has appeared"
+    ],
     "steps": [
       { "action": "Click 'Reconcile' on the banner" },
-      { "action": "Observe the orphan section", "expected": ["TC-X is listed as an orphan, not silently absent", "TC-X's pass mark and note are displayed"] },
+      {
+        "action": "Observe the orphan section",
+        "expected": [
+          "TC-X is listed as an orphan, not silently absent",
+          "TC-X's pass mark and note are displayed"
+        ]
+      },
       { "action": "Click 'Apply (keep orphans)'" },
-      { "action": "Inspect test-results.json", "expected": ["TC-X's entry is still present, tagged archived", "The pass mark and note are not deleted"] },
-      { "action": "Inspect the rollup", "expected": ["TC-X is excluded from the pass/fail rollup", "TC-X is visible in an archived section and has not been purged"] }
+      {
+        "action": "Inspect test-results.json",
+        "expected": [
+          "TC-X's entry is still present, tagged archived",
+          "The pass mark and note are not deleted"
+        ]
+      },
+      {
+        "action": "Inspect the rollup",
+        "expected": [
+          "TC-X is excluded from the pass/fail rollup",
+          "TC-X is visible in an archived section and has not been purged"
+        ]
+      }
     ],
     "tags": ["regression", "data-integrity"],
     "linked_requirement_ids": ["FR-017", "NFR-003"],
@@ -777,10 +1515,20 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["The repo workspace and the OS temp directory are on different filesystems (simulated)", "A result is ready to persist"],
+    "preconditions": [
+      "The repo workspace and the OS temp directory are on different filesystems (simulated)",
+      "A result is ready to persist"
+    ],
     "steps": [
       { "action": "Mark a case result, triggering a write of test-results.json" },
-      { "action": "Observe the write when a cross-device rename would raise EXDEV", "expected": ["The write completes using a same-directory temp file then rename strategy", "test-results.json contains the expected result", "No EXDEV error is surfaced"] },
+      {
+        "action": "Observe the write when a cross-device rename would raise EXDEV",
+        "expected": [
+          "The write completes using a same-directory temp file then rename strategy",
+          "test-results.json contains the expected result",
+          "No EXDEV error is surfaced"
+        ]
+      },
       { "action": "Reload TestBench", "expected": ["The marked result is still present"] }
     ],
     "tags": ["edge-case", "regression"],
@@ -793,10 +1541,23 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "security",
-    "preconditions": ["The results write endpoint accepts a spec slug parameter", "A registered project has repoPath /path/to/project"],
+    "preconditions": [
+      "The results write endpoint accepts a spec slug parameter",
+      "A registered project has repoPath /path/to/project"
+    ],
     "steps": [
-      { "action": "Send a write request using slug '../../etc/evil' or '../outside-spec'", "expected": ["The server returns a 4xx error", "No file is written outside /path/to/project", "The error indicates an invalid or disallowed slug"] },
-      { "action": "Confirm via filesystem inspection", "expected": ["Zero new files exist outside /path/to/project"] }
+      {
+        "action": "Send a write request using slug '../../etc/evil' or '../outside-spec'",
+        "expected": [
+          "The server returns a 4xx error",
+          "No file is written outside /path/to/project",
+          "The error indicates an invalid or disallowed slug"
+        ]
+      },
+      {
+        "action": "Confirm via filesystem inspection",
+        "expected": ["Zero new files exist outside /path/to/project"]
+      }
     ],
     "tags": ["security", "regression"],
     "linked_requirement_ids": ["NFR-001"],
@@ -808,10 +1569,22 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "security",
-    "preconditions": ["A project is registered with repoPath /workspace/myproject", "A second directory /workspace/other exists on the same machine"],
+    "preconditions": [
+      "A project is registered with repoPath /workspace/myproject",
+      "A second directory /workspace/other exists on the same machine"
+    ],
     "steps": [
-      { "action": "Attempt to persist results via a resolved path that escapes repoPath (e.g. a symlink pointing outside)", "expected": ["The server resolves the absolute path and checks it is within /workspace/myproject", "If outside, the server returns 403 and does not write"] },
-      { "action": "Verify no file was created outside /workspace/myproject", "expected": ["Zero files written outside the registered repoPath"] }
+      {
+        "action": "Attempt to persist results via a resolved path that escapes repoPath (e.g. a symlink pointing outside)",
+        "expected": [
+          "The server resolves the absolute path and checks it is within /workspace/myproject",
+          "If outside, the server returns 403 and does not write"
+        ]
+      },
+      {
+        "action": "Verify no file was created outside /workspace/myproject",
+        "expected": ["Zero files written outside the registered repoPath"]
+      }
     ],
     "tags": ["security", "regression"],
     "linked_requirement_ids": ["NFR-001"],
@@ -823,12 +1596,25 @@
     "area": "persistence-staleness",
     "level": 3,
     "type": "integration",
-    "preconditions": ["A project has spec 'my-spec' with TC-1, TC-2, TC-3", "bench-1 and bench-2 are both active for the project"],
+    "preconditions": [
+      "A project has spec 'my-spec' with TC-1, TC-2, TC-3",
+      "bench-1 and bench-2 are both active for the project"
+    ],
     "steps": [
       { "action": "On bench-1, mark TC-1 pass and TC-2 fail" },
       { "action": "On bench-2, mark TC-1 fail and TC-3 pass" },
-      { "action": "Inspect .specifications/my-spec/test-results.json", "expected": ["A 'bench-1' key holds TC-1 pass, TC-2 fail", "A 'bench-2' key holds TC-1 fail, TC-3 pass", "The two bench entries are independent with no cross-contamination"] },
-      { "action": "Reload TestBench on bench-1", "expected": ["bench-1 still shows TC-1 pass and TC-2 fail, unaffected by bench-2"] }
+      {
+        "action": "Inspect .specifications/my-spec/test-results.json",
+        "expected": [
+          "A 'bench-1' key holds TC-1 pass, TC-2 fail",
+          "A 'bench-2' key holds TC-1 fail, TC-3 pass",
+          "The two bench entries are independent with no cross-contamination"
+        ]
+      },
+      {
+        "action": "Reload TestBench on bench-1",
+        "expected": ["bench-1 still shows TC-1 pass and TC-2 fail, unaffected by bench-2"]
+      }
     ],
     "tags": ["regression", "integration"],
     "linked_requirement_ids": ["FR-015"],
@@ -840,9 +1626,18 @@
     "area": "schema-contracts",
     "level": 1,
     "type": "functional",
-    "preconditions": ["The zod source for the test-cases schema is compiled and exported", "A well-formed test-cases.json fixture exists with all required fields populated"],
+    "preconditions": [
+      "The zod source for the test-cases schema is compiled and exported",
+      "A well-formed test-cases.json fixture exists with all required fields populated"
+    ],
     "steps": [
-      { "action": "Load the conforming test-cases.json fixture through the validator", "expected": ["Validation returns success with zero errors", "The parsed result matches the input fixture"] }
+      {
+        "action": "Load the conforming test-cases.json fixture through the validator",
+        "expected": [
+          "Validation returns success with zero errors",
+          "The parsed result matches the input fixture"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-019", "FR-021"],
@@ -854,9 +1649,19 @@
     "area": "schema-contracts",
     "level": 1,
     "type": "functional",
-    "preconditions": ["The zod source for the test-results schema is compiled and exported", "A well-formed test-results.json fixture references case ids present in the corresponding test-cases.json", "The results file requires no edits to test-cases.json to be valid"],
+    "preconditions": [
+      "The zod source for the test-results schema is compiled and exported",
+      "A well-formed test-results.json fixture references case ids present in the corresponding test-cases.json",
+      "The results file requires no edits to test-cases.json to be valid"
+    ],
     "steps": [
-      { "action": "Load the conforming test-results.json fixture through the validator", "expected": ["Validation returns success with zero errors", "All result entries and referenced case ids are preserved"] }
+      {
+        "action": "Load the conforming test-results.json fixture through the validator",
+        "expected": [
+          "Validation returns success with zero errors",
+          "All result entries and referenced case ids are preserved"
+        ]
+      }
     ],
     "tags": ["smoke", "regression"],
     "linked_requirement_ids": ["FR-020", "FR-021"],
@@ -868,14 +1673,32 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "e2e_flow",
-    "preconditions": ["The repo is checked out with dependencies installed", "The zod-to-JSON-Schema generate script exists", "No prior schema/ output files exist (clean state)"],
+    "preconditions": [
+      "The repo is checked out with dependencies installed",
+      "The zod-to-JSON-Schema generate script exists",
+      "No prior schema/ output files exist (clean state)"
+    ],
     "steps": [
       { "action": "Run the generate script targeting the test-cases schema" },
-      { "action": "Confirm schema/test-cases.schema.json is written", "expected": ["The file exists", "It contains a $id with a semver-versioned URI"] },
+      {
+        "action": "Confirm schema/test-cases.schema.json is written",
+        "expected": ["The file exists", "It contains a $id with a semver-versioned URI"]
+      },
       { "action": "Run the generate script targeting the test-results schema" },
-      { "action": "Confirm schema/test-results.schema.json is written", "expected": ["The file exists", "It contains a $id with a semver-versioned URI"] },
-      { "action": "Validate a conforming test-cases.json fixture against the generated test-cases schema" },
-      { "action": "Validate a conforming test-results.json fixture against the generated test-results schema", "expected": ["Both validations pass with zero errors", "The results file references case ids without requiring edits to test-cases.json"] }
+      {
+        "action": "Confirm schema/test-results.schema.json is written",
+        "expected": ["The file exists", "It contains a $id with a semver-versioned URI"]
+      },
+      {
+        "action": "Validate a conforming test-cases.json fixture against the generated test-cases schema"
+      },
+      {
+        "action": "Validate a conforming test-results.json fixture against the generated test-results schema",
+        "expected": [
+          "Both validations pass with zero errors",
+          "The results file references case ids without requiring edits to test-cases.json"
+        ]
+      }
     ],
     "tags": ["regression", "e2e"],
     "linked_requirement_ids": ["FR-019", "FR-020", "FR-021", "FR-023", "NFR-006"],
@@ -887,9 +1710,20 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "negative",
-    "preconditions": ["The validator is initialised with the published test-cases schema", "A malformed fixture omits the required 'title' field from one case"],
+    "preconditions": [
+      "The validator is initialised with the published test-cases schema",
+      "A malformed fixture omits the required 'title' field from one case"
+    ],
     "steps": [
-      { "action": "Load the malformed test-cases.json fixture", "expected": ["Validation fails", "The error names the missing field ('title')", "The error identifies the affected case by index or id", "No opaque or unhandled exception is thrown"] }
+      {
+        "action": "Load the malformed test-cases.json fixture",
+        "expected": [
+          "Validation fails",
+          "The error names the missing field ('title')",
+          "The error identifies the affected case by index or id",
+          "No opaque or unhandled exception is thrown"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-021"],
@@ -901,9 +1735,19 @@
     "area": "schema-contracts",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["The validator is initialised", "A test-results.json fixture references case id 'TC-999' not present in the known test-cases corpus"],
+    "preconditions": [
+      "The validator is initialised",
+      "A test-results.json fixture references case id 'TC-999' not present in the known test-cases corpus"
+    ],
     "steps": [
-      { "action": "Load the fixture with the test-cases corpus provided", "expected": ["Validation returns a failure or warning", "The error names the unresolvable id ('TC-999')", "The orphaned result entry is not silently discarded"] }
+      {
+        "action": "Load the fixture with the test-cases corpus provided",
+        "expected": [
+          "Validation returns a failure or warning",
+          "The error names the unresolvable id ('TC-999')",
+          "The orphaned result entry is not silently discarded"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["FR-020", "FR-021"],
@@ -915,9 +1759,18 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "functional",
-    "preconditions": ["The validator is initialised", "A fixture has no case using the optional 'target' or 'observe' targeting fields"],
+    "preconditions": [
+      "The validator is initialised",
+      "A fixture has no case using the optional 'target' or 'observe' targeting fields"
+    ],
     "steps": [
-      { "action": "Load the fixture", "expected": ["Validation returns success", "The absence of optional targeting fields is not an error"] }
+      {
+        "action": "Load the fixture",
+        "expected": [
+          "Validation returns success",
+          "The absence of optional targeting fields is not an error"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-019", "NFR-005"],
@@ -929,9 +1782,19 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "functional",
-    "preconditions": ["The validator is initialised", "A fixture has at least one step with a 'target' (CSS selector, ARIA role + name, visible-text anchor, route context) and one observation with an 'observe' target"],
+    "preconditions": [
+      "The validator is initialised",
+      "A fixture has at least one step with a 'target' (CSS selector, ARIA role + name, visible-text anchor, route context) and one observation with an 'observe' target"
+    ],
     "steps": [
-      { "action": "Load the fixture", "expected": ["Validation returns success", "All targeting sub-fields are accepted", "No error is raised for any combination of CSS selector, ARIA role + name, visible-text, route, or region"] }
+      {
+        "action": "Load the fixture",
+        "expected": [
+          "Validation returns success",
+          "All targeting sub-fields are accepted",
+          "No error is raised for any combination of CSS selector, ARIA role + name, visible-text, route, or region"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-019"],
@@ -943,10 +1806,20 @@
     "area": "schema-contracts",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["The in-app TestBench UI is running", "A test-cases.json fixture contains an unknown optional field not present in the current schema"],
+    "preconditions": [
+      "The in-app TestBench UI is running",
+      "A test-cases.json fixture contains an unknown optional field not present in the current schema"
+    ],
     "steps": [
       { "action": "Load the fixture with the unknown optional field into the in-app UI" },
-      { "action": "Inspect the UI rendering of the affected case", "expected": ["The case renders without error or crash", "The unknown field is ignored in the display", "No validation error is surfaced to the user for the unknown optional field"] }
+      {
+        "action": "Inspect the UI rendering of the affected case",
+        "expected": [
+          "The case renders without error or crash",
+          "The unknown field is ignored in the display",
+          "No validation error is surfaced to the user for the unknown optional field"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["NFR-005"],
@@ -958,9 +1831,20 @@
     "area": "schema-contracts",
     "level": 3,
     "type": "functional",
-    "preconditions": ["A backward-compat corpus contains a test-cases.json valid under schema v1.0", "The schema has been updated to a v1.x minor version (additive only)", "The new validator is initialised"],
+    "preconditions": [
+      "A backward-compat corpus contains a test-cases.json valid under schema v1.0",
+      "The schema has been updated to a v1.x minor version (additive only)",
+      "The new validator is initialised"
+    ],
     "steps": [
-      { "action": "Load the v1.0 corpus through the v1.x validator", "expected": ["Validation succeeds for all fixtures", "Zero previously-valid files are now rejected", "No breaking change is introduced by the minor bump"] }
+      {
+        "action": "Load the v1.0 corpus through the v1.x validator",
+        "expected": [
+          "Validation succeeds for all fixtures",
+          "Zero previously-valid files are now rejected",
+          "No breaking change is introduced by the minor bump"
+        ]
+      }
     ],
     "tags": ["regression", "backward-compat"],
     "linked_requirement_ids": ["NFR-005"],
@@ -972,11 +1856,29 @@
     "area": "schema-contracts",
     "level": 3,
     "type": "functional",
-    "preconditions": ["A breaking change to a schema has been proposed (a required field renamed or removed)", "The schema $id has been updated"],
+    "preconditions": [
+      "A breaking change to a schema has been proposed (a required field renamed or removed)",
+      "The schema $id has been updated"
+    ],
     "steps": [
-      { "action": "Inspect the $id of the updated schema", "expected": ["The major version segment of the semver in $id has incremented"] },
-      { "action": "Check for a migration document covering existing test-results.json files", "expected": ["A migration guide describes how to update files from the prior major version", "It is referenced from the changelog or release notes"] },
-      { "action": "Validate a prior-major test-results.json against the new schema", "expected": ["Validation fails with a clear version-mismatch error", "The error references the migration guide"] }
+      {
+        "action": "Inspect the $id of the updated schema",
+        "expected": ["The major version segment of the semver in $id has incremented"]
+      },
+      {
+        "action": "Check for a migration document covering existing test-results.json files",
+        "expected": [
+          "A migration guide describes how to update files from the prior major version",
+          "It is referenced from the changelog or release notes"
+        ]
+      },
+      {
+        "action": "Validate a prior-major test-results.json against the new schema",
+        "expected": [
+          "Validation fails with a clear version-mismatch error",
+          "The error references the migration guide"
+        ]
+      }
     ],
     "tags": ["regression", "backward-compat"],
     "linked_requirement_ids": ["NFR-005"],
@@ -988,9 +1890,20 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "integration",
-    "preconditions": ["The generate script and CI drift guard are configured", "The zod source has been edited to add a field", "The schema/ JSON Schema files have NOT been regenerated (drift)"],
+    "preconditions": [
+      "The generate script and CI drift guard are configured",
+      "The zod source has been edited to add a field",
+      "The schema/ JSON Schema files have NOT been regenerated (drift)"
+    ],
     "steps": [
-      { "action": "Trigger the CI drift guard (regenerate then git-diff against checked-in files)", "expected": ["The step detects a diff between generated output and checked-in files", "The build fails with a non-zero exit code", "The log identifies the drifted schema file(s)"] }
+      {
+        "action": "Trigger the CI drift guard (regenerate then git-diff against checked-in files)",
+        "expected": [
+          "The step detects a diff between generated output and checked-in files",
+          "The build fails with a non-zero exit code",
+          "The log identifies the drifted schema file(s)"
+        ]
+      }
     ],
     "tags": ["ci", "regression"],
     "linked_requirement_ids": ["FR-023", "NFR-006"],
@@ -1002,9 +1915,19 @@
     "area": "schema-contracts",
     "level": 2,
     "type": "functional",
-    "preconditions": ["The results writer is initialised", "A results payload is prepared that is non-conforming (a missing required field)"],
+    "preconditions": [
+      "The results writer is initialised",
+      "A results payload is prepared that is non-conforming (a missing required field)"
+    ],
     "steps": [
-      { "action": "Invoke the test-results.json write with the non-conforming payload", "expected": ["The write is rejected before any data is written to disk", "An actionable error identifies the schema violation", "Any existing test-results.json is not overwritten or corrupted"] }
+      {
+        "action": "Invoke the test-results.json write with the non-conforming payload",
+        "expected": [
+          "The write is rejected before any data is written to disk",
+          "An actionable error identifies the schema violation",
+          "Any existing test-results.json is not overwritten or corrupted"
+        ]
+      }
     ],
     "tags": ["regression"],
     "linked_requirement_ids": ["FR-020", "FR-021"],
@@ -1016,10 +1939,20 @@
     "area": "settings",
     "level": 1,
     "type": "functional",
-    "preconditions": ["Roubo is running", "No prior UserPreferences entry for the TestBench toggle exists (fresh state)"],
+    "preconditions": [
+      "Roubo is running",
+      "No prior UserPreferences entry for the TestBench toggle exists (fresh state)"
+    ],
     "steps": [
       { "action": "Open app settings" },
-      { "action": "Click the 'TestBench' tab", "expected": ["A 'TestBench' tile is shown with a label, description, and a switch", "The switch is ON (enabled) by default", "No 'Disabled' helper text is shown"] }
+      {
+        "action": "Click the 'TestBench' tab",
+        "expected": [
+          "A 'TestBench' tile is shown with a label, description, and a switch",
+          "The switch is ON (enabled) by default",
+          "No 'Disabled' helper text is shown"
+        ]
+      }
     ],
     "tags": ["smoke", "happy-path", "regression"],
     "linked_requirement_ids": ["FR-018"],
@@ -1034,8 +1967,20 @@
     "preconditions": ["Roubo is running", "TestBench is currently enabled (toggle ON)"],
     "steps": [
       { "action": "Open app settings and navigate to the 'TestBench' tab" },
-      { "action": "Click the switch to toggle TestBench OFF", "expected": ["The switch turns OFF (stone track)", "Helper text 'Disabled. The create-TestBench option and the TestBench surface are hidden.' appears"] },
-      { "action": "Close settings and inspect the main UI", "expected": ["The create-TestBench option is no longer visible", "The TestBench feature surface is no longer accessible"] }
+      {
+        "action": "Click the switch to toggle TestBench OFF",
+        "expected": [
+          "The switch turns OFF (stone track)",
+          "Helper text 'Disabled. The create-TestBench option and the TestBench surface are hidden.' appears"
+        ]
+      },
+      {
+        "action": "Close settings and inspect the main UI",
+        "expected": [
+          "The create-TestBench option is no longer visible",
+          "The TestBench feature surface is no longer accessible"
+        ]
+      }
     ],
     "tags": ["happy-path", "regression"],
     "linked_requirement_ids": ["FR-018", "FR-001"],
@@ -1050,8 +1995,17 @@
     "preconditions": ["Roubo is running", "TestBench is currently disabled (toggle OFF)"],
     "steps": [
       { "action": "Open app settings and navigate to the 'TestBench' tab" },
-      { "action": "Click the switch to toggle TestBench ON", "expected": ["The switch turns ON (amber)", "The disabled helper text is no longer shown"] },
-      { "action": "Close settings and inspect the main UI", "expected": ["The create-TestBench option is visible", "The TestBench feature surface is accessible"] }
+      {
+        "action": "Click the switch to toggle TestBench ON",
+        "expected": ["The switch turns ON (amber)", "The disabled helper text is no longer shown"]
+      },
+      {
+        "action": "Close settings and inspect the main UI",
+        "expected": [
+          "The create-TestBench option is visible",
+          "The TestBench feature surface is accessible"
+        ]
+      }
     ],
     "tags": ["happy-path", "regression"],
     "linked_requirement_ids": ["FR-018", "FR-001"],
@@ -1063,15 +2017,40 @@
     "area": "settings",
     "level": 1,
     "type": "e2e_flow",
-    "preconditions": ["Roubo is running", "TestBench is enabled (toggle ON)", "The main UI shows the create-TestBench option and surface"],
+    "preconditions": [
+      "Roubo is running",
+      "TestBench is enabled (toggle ON)",
+      "The main UI shows the create-TestBench option and surface"
+    ],
     "steps": [
       { "action": "Open app settings" },
       { "action": "Navigate to the 'TestBench' tab" },
-      { "action": "Observe the switch state", "expected": ["Switch is ON (amber) with no disabled helper text"] },
-      { "action": "Click the switch to toggle OFF", "expected": ["Switch turns OFF", "The disabled helper text appears"] },
-      { "action": "Close app settings and inspect the main UI", "expected": ["The create-TestBench option is absent", "The TestBench surface is not accessible"] },
-      { "action": "Re-open settings, navigate to the 'TestBench' tab, and toggle ON", "expected": ["Switch turns ON", "The disabled helper text is removed"] },
-      { "action": "Close settings and inspect the main UI", "expected": ["The create-TestBench option is visible again", "The TestBench feature surface is accessible again"] }
+      {
+        "action": "Observe the switch state",
+        "expected": ["Switch is ON (amber) with no disabled helper text"]
+      },
+      {
+        "action": "Click the switch to toggle OFF",
+        "expected": ["Switch turns OFF", "The disabled helper text appears"]
+      },
+      {
+        "action": "Close app settings and inspect the main UI",
+        "expected": [
+          "The create-TestBench option is absent",
+          "The TestBench surface is not accessible"
+        ]
+      },
+      {
+        "action": "Re-open settings, navigate to the 'TestBench' tab, and toggle ON",
+        "expected": ["Switch turns ON", "The disabled helper text is removed"]
+      },
+      {
+        "action": "Close settings and inspect the main UI",
+        "expected": [
+          "The create-TestBench option is visible again",
+          "The TestBench feature surface is accessible again"
+        ]
+      }
     ],
     "tags": ["smoke", "e2e", "regression"],
     "linked_requirement_ids": ["FR-018", "FR-001"],
@@ -1086,10 +2065,28 @@
     "preconditions": ["Roubo is running", "TestBench is currently enabled"],
     "steps": [
       { "action": "Open app settings, navigate to 'TestBench', and toggle OFF" },
-      { "action": "Verify the preference is written to UserPreferences (not settings.json)", "expected": ["The UserPreferences store records the TestBench toggle as false", "No TestBench entry exists in any settings.json"] },
+      {
+        "action": "Verify the preference is written to UserPreferences (not settings.json)",
+        "expected": [
+          "The UserPreferences store records the TestBench toggle as false",
+          "No TestBench entry exists in any settings.json"
+        ]
+      },
       { "action": "Restart Roubo" },
-      { "action": "Open app settings and the 'TestBench' tab", "expected": ["The switch is OFF, reflecting the persisted preference", "The disabled helper text is shown"] },
-      { "action": "Inspect the main UI without changing the setting", "expected": ["The create-TestBench option remains hidden after restart", "The surface remains inaccessible"] }
+      {
+        "action": "Open app settings and the 'TestBench' tab",
+        "expected": [
+          "The switch is OFF, reflecting the persisted preference",
+          "The disabled helper text is shown"
+        ]
+      },
+      {
+        "action": "Inspect the main UI without changing the setting",
+        "expected": [
+          "The create-TestBench option remains hidden after restart",
+          "The surface remains inaccessible"
+        ]
+      }
     ],
     "tags": ["regression", "integration", "persistence"],
     "linked_requirement_ids": ["FR-018"],
@@ -1101,11 +2098,24 @@
     "area": "settings",
     "level": 3,
     "type": "edge_case",
-    "preconditions": ["Roubo is running", "TestBench is enabled", "A TestBench exists and its detail view is open"],
+    "preconditions": [
+      "Roubo is running",
+      "TestBench is enabled",
+      "A TestBench exists and its detail view is open"
+    ],
     "steps": [
       { "action": "With the TestBench detail open, navigate to app settings 'TestBench'" },
-      { "action": "Toggle the switch OFF", "expected": ["Switch transitions to OFF", "The disabled helper text appears"] },
-      { "action": "Return to the main UI", "expected": ["The create-TestBench option is hidden", "The TestBench surface entry point is no longer rendered"] }
+      {
+        "action": "Toggle the switch OFF",
+        "expected": ["Switch transitions to OFF", "The disabled helper text appears"]
+      },
+      {
+        "action": "Return to the main UI",
+        "expected": [
+          "The create-TestBench option is hidden",
+          "The TestBench surface entry point is no longer rendered"
+        ]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["FR-018", "FR-001"],
@@ -1117,11 +2127,31 @@
     "area": "settings",
     "level": 3,
     "type": "accessibility",
-    "preconditions": ["Roubo is running", "App settings 'TestBench' tab is open", "Keyboard-only navigation is in use"],
+    "preconditions": [
+      "Roubo is running",
+      "App settings 'TestBench' tab is open",
+      "Keyboard-only navigation is in use"
+    ],
     "steps": [
-      { "action": "Tab to the TestBench switch", "expected": ["The switch receives a visible focus indicator", "A screen reader announces the switch label and current state"] },
-      { "action": "Press Space to toggle OFF", "expected": ["The switch transitions to OFF", "The new state is announced", "The disabled helper text becomes visible"] },
-      { "action": "Press Space again to toggle ON", "expected": ["The switch transitions to ON", "The new state is announced"] }
+      {
+        "action": "Tab to the TestBench switch",
+        "expected": [
+          "The switch receives a visible focus indicator",
+          "A screen reader announces the switch label and current state"
+        ]
+      },
+      {
+        "action": "Press Space to toggle OFF",
+        "expected": [
+          "The switch transitions to OFF",
+          "The new state is announced",
+          "The disabled helper text becomes visible"
+        ]
+      },
+      {
+        "action": "Press Space again to toggle ON",
+        "expected": ["The switch transitions to ON", "The new state is announced"]
+      }
     ],
     "tags": ["accessibility", "keyboard", "nfr"],
     "linked_requirement_ids": ["FR-018", "NFR-004"],
@@ -1136,7 +2166,13 @@
     "preconditions": ["Roubo is running", "App settings 'TestBench' tab is open"],
     "steps": [
       { "action": "Toggle the TestBench switch OFF" },
-      { "action": "Inspect all settings.json files in the project and ~/.roubo/", "expected": ["No TestBench toggle key exists in any settings.json", "The change is recorded only in the UserPreferences store"] }
+      {
+        "action": "Inspect all settings.json files in the project and ~/.roubo/",
+        "expected": [
+          "No TestBench toggle key exists in any settings.json",
+          "The change is recorded only in the UserPreferences store"
+        ]
+      }
     ],
     "tags": ["negative", "regression", "storage"],
     "linked_requirement_ids": ["FR-018"],

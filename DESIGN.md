@@ -1,6 +1,6 @@
 # Roubo Design System
 
-`schema_version: 1`. This file was reverse-engineered from the existing UI via `/ui-design:init`, then validated by `conform.py` (structural gate plus per-context WCAG AA contrast). Extracted values carry no marker; values supplied by a question because the repo held no source evidence are marked *(question-filled)* next to where they appear, and listed in `filled_tokens[]` in the token block.
+`schema_version: 1`. This file was reverse-engineered from the existing UI via `/ui-design:init`, then validated by `conform.py` (structural gate plus per-context WCAG AA contrast). Extracted values carry no marker; values supplied by a question because the repo held no source evidence are marked _(question-filled)_ next to where they appear, and listed in `filled_tokens[]` in the token block.
 
 ## Aesthetic direction
 
@@ -9,6 +9,7 @@
 **References.** The roubo brand guide (`CLAUDE.md`, `docs/brand.md`), the Roubo workbench, and a warm stone foundation carrying a single amber accent.
 
 **Chosen dimensions.**
+
 - **Typography.** Inter for UI text, JetBrains Mono for code and technical values (ports, paths, commands). Hierarchy comes from weight, size, tracking, and opacity, not decoration.
 - **Colour.** A warm stone neutral spine with one amber-500 accent for primary actions, active states, and focus indicators. Red for danger, green for success.
 - **Hierarchy.** Whitespace and small coloured accent markers over divider lines.
@@ -21,41 +22,40 @@
 
 Faithfully extracted from ranked Tailwind utility usage. The neutral `stone` ramp is the spine (3,435 uses); `amber-500` is the single brand accent (443 uses); `red-500` is danger (338 uses); `green-500` is success. Two off-palette families surfaced during extraction (`violet`, ~16 uses; `emerald`, ~3 uses) and were dropped as incidental, not design tokens.
 
-| Role | Token spine | Notes |
-| --- | --- | --- |
-| Surface | `white`, `stone-50`, `stone-100` | App and panel backgrounds |
-| Border | `stone-200`, `stone-300` | Hairlines, input borders, dividers |
-| Text (muted) | `stone-400`, `stone-500` | `stone-500` is the lightest that clears AA body on white (4.8:1); `stone-400` is for large/UI use, not body text |
-| Text (secondary) | `stone-600` | Secondary copy |
-| Text | `stone-700` | Body |
-| Text (strong) | `stone-800`, `stone-900`, `stone-950` | Headings, on-accent label |
-| Primary | `amber-50` … `amber-800` | **`amber-500` `#F59E0B`** is the accent anchor |
-| Danger | `red-50` … `red-900` | **`red-500` `#EF4444`**; `red-600` for danger text on white (4.83:1) |
-| Success | `green-50` … `green-800` | **`green-500` `#22C55E`** is the status anchor; use `green-800` for success text on light surfaces (`green-600` fails AA body) |
+| Role             | Token spine                           | Notes                                                                                                                          |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Surface          | `white`, `stone-50`, `stone-100`      | App and panel backgrounds                                                                                                      |
+| Border           | `stone-200`, `stone-300`              | Hairlines, input borders, dividers                                                                                             |
+| Text (muted)     | `stone-400`, `stone-500`              | `stone-500` is the lightest that clears AA body on white (4.8:1); `stone-400` is for large/UI use, not body text               |
+| Text (secondary) | `stone-600`                           | Secondary copy                                                                                                                 |
+| Text             | `stone-700`                           | Body                                                                                                                           |
+| Text (strong)    | `stone-800`, `stone-900`, `stone-950` | Headings, on-accent label                                                                                                      |
+| Primary          | `amber-50` … `amber-800`              | **`amber-500` `#F59E0B`** is the accent anchor                                                                                 |
+| Danger           | `red-50` … `red-900`                  | **`red-500` `#EF4444`**; `red-600` for danger text on white (4.83:1)                                                           |
+| Success          | `green-50` … `green-800`              | **`green-500` `#22C55E`** is the status anchor; use `green-800` for success text on light surfaces (`green-600` fails AA body) |
 
 Dark mode exists in the app via a `.dark` class variant, but no distinct per-mode colour pairs were extractable from utility usage, so no `-dark` sibling tokens were fabricated.
 
 ## Type
 
-- **Family.** `Inter, system-ui, sans-serif` for UI text *(question-filled: only `--font-mono` was present in `@theme`; Inter confirmed from the brand guide)*. `JetBrains Mono` (extracted from `@theme --font-mono`) is the technical/monospace face for ports, paths, and commands.
-- **Scale (px).** `12, 14, 16, 18, 20, 24, 30, 36` *(question-filled: Tailwind default text-size scale, inferred from the utility-based UI)*.
-- **Weights.** `400, 500, 600, 700` *(question-filled)*.
+- **Family.** `Inter, system-ui, sans-serif` for UI text _(question-filled: only `--font-mono` was present in `@theme`; Inter confirmed from the brand guide)_. `JetBrains Mono` (extracted from `@theme --font-mono`) is the technical/monospace face for ports, paths, and commands.
+- **Scale (px).** `12, 14, 16, 18, 20, 24, 30, 36` _(question-filled: Tailwind default text-size scale, inferred from the utility-based UI)_.
+- **Weights.** `400, 500, 600, 700` _(question-filled)_.
 
 ## Spacing, radius & elevation
 
-- **Spacing (px).** `4, 8, 12, 16, 24, 32, 48, 64` *(question-filled: Tailwind default spacing scale; the UI is built entirely on Tailwind utilities)*.
-- **Radius (px).** `4, 6, 8, 12, 16` *(question-filled: Tailwind default radius scale)*.
+- **Spacing (px).** `4, 8, 12, 16, 24, 32, 48, 64` _(question-filled: Tailwind default spacing scale; the UI is built entirely on Tailwind utilities)_.
+- **Radius (px).** `4, 6, 8, 12, 16` _(question-filled: Tailwind default radius scale)_.
 - **Elevation.** Empty by design: nothing in the sweep used shadows, and the brand favours whitespace and accent markers over depth.
 
 ## Components
 
-Interaction states for the secondary button, input field, and card are *(question-filled)* (the repo defines styling through Tailwind utilities, not static `cva` variants, so no machine-readable state set existed). The **primary button** is code-evidenced, not question-filled: its states are taken from the live class set at `client/src/components/BenchCard.tsx:238`.
+Interaction states for the secondary button, input field, and card are _(question-filled)_ (the repo defines styling through Tailwind utilities, not static `cva` variants, so no machine-readable state set existed). The **primary button** is code-evidenced, not question-filled: its states are taken from the live class set at `client/src/components/BenchCard.tsx:238`.
 
 - **Primary button** (`primary action`). Container + label. `amber-500` background with a `stone-950` label (9.2:1). Hover `amber-400`, active `amber-600`, focus a 2px `amber-500` ring offset 2px, disabled at 30% opacity.
-- **Secondary button** (`secondary action`). Container + label. `stone-100` background, `stone-700` label. Hover `stone-100`, active `stone-200`, focus a 2px `amber-500` ring, disabled `stone-100` background with `stone-300` label. *(question-filled)*
-- **Input field** (`text input`). Container + value + placeholder. `stone-200` border, `stone-900` value, `stone-500` placeholder. Focus `amber-500` border and ring, hover `stone-300` border, active `amber-500` border, disabled `stone-100` background. *(question-filled)*
-- **Card** (`container surface`). Container + content. `white` background, `stone-200` border. Hover `stone-300` border, active `stone-400` border, focus a 2px `amber-500` ring when interactive, disabled reduced opacity. *(question-filled)*
-
+- **Secondary button** (`secondary action`). Container + label. `stone-100` background, `stone-700` label. Hover `stone-100`, active `stone-200`, focus a 2px `amber-500` ring, disabled `stone-100` background with `stone-300` label. _(question-filled)_
+- **Input field** (`text input`). Container + value + placeholder. `stone-200` border, `stone-900` value, `stone-500` placeholder. Focus `amber-500` border and ring, hover `stone-300` border, active `amber-500` border, disabled `stone-100` background. _(question-filled)_
+- **Card** (`container surface`). Container + content. `white` background, `stone-200` border. Hover `stone-300` border, active `stone-400` border, focus a 2px `amber-500` ring when interactive, disabled reduced opacity. _(question-filled)_
 
 TestBench adds these components in Update mode (additive; they reference only existing tokens, no new colour/type/spacing tokens were introduced).
 
@@ -76,6 +76,7 @@ One token layer drives both platforms; there is no per-platform token fork.
 ## Tokens (machine-checkable)
 
 <!-- ui-design:tokens v1 -->
+
 ```json
 {
   "schema_version": 1,
@@ -235,48 +236,16 @@ One token layer drives both platforms; there is no per-platform token fork.
   },
   "type": {
     "family": "Inter, system-ui, sans-serif",
-    "scale": [
-      12,
-      14,
-      16,
-      18,
-      20,
-      24,
-      30,
-      36
-    ],
-    "weights": [
-      400,
-      500,
-      600,
-      700
-    ]
+    "scale": [12, 14, 16, 18, 20, 24, 30, 36],
+    "weights": [400, 500, 600, 700]
   },
-  "spacing": [
-    4,
-    8,
-    12,
-    16,
-    24,
-    32,
-    48,
-    64
-  ],
-  "radius": [
-    4,
-    6,
-    8,
-    12,
-    16
-  ],
+  "spacing": [4, 8, 12, 16, 24, 32, 48, 64],
+  "radius": [4, 6, 8, 12, 16],
   "elevation": [],
   "components": [
     {
       "name": "Primary button",
-      "anatomy": [
-        "container",
-        "label"
-      ],
+      "anatomy": ["container", "label"],
       "states": {
         "focus": "2px amber-500 focus ring, offset 2px (ring-offset white / stone-950 dark)",
         "hover": "background amber-400",
@@ -294,10 +263,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Secondary button",
-      "anatomy": [
-        "container",
-        "label"
-      ],
+      "anatomy": ["container", "label"],
       "states": {
         "focus": "2px amber-500 focus ring, offset 2px",
         "hover": "background stone-100",
@@ -316,11 +282,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Input field",
-      "anatomy": [
-        "container",
-        "value",
-        "placeholder"
-      ],
+      "anatomy": ["container", "value", "placeholder"],
       "states": {
         "focus": "border amber-500, 2px amber-500 ring",
         "hover": "border stone-300",
@@ -340,10 +302,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Card",
-      "anatomy": [
-        "container",
-        "content"
-      ],
+      "anatomy": ["container", "content"],
       "states": {
         "focus": "2px amber-500 focus ring when interactive",
         "hover": "border stone-300",
@@ -361,11 +320,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Status indicator",
-      "anatomy": [
-        "dot",
-        "label",
-        "icon"
-      ],
+      "anatomy": ["dot", "label", "icon"],
       "states": {
         "focus": "2px amber-500 ring when used as an interactive filter chip, offset 2px",
         "hover": "row background stone-100 when interactive",
@@ -383,10 +338,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Observation mark control",
-      "anatomy": [
-        "pass-segment",
-        "fail-segment"
-      ],
+      "anatomy": ["pass-segment", "fail-segment"],
       "states": {
         "focus": "2px amber-500 ring on the focused segment, offset 2px",
         "hover": "segment background stone-100",
@@ -409,11 +361,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Status override control",
-      "anatomy": [
-        "trigger",
-        "value",
-        "override-marker"
-      ],
+      "anatomy": ["trigger", "value", "override-marker"],
       "states": {
         "focus": "border amber-500, 2px amber-500 ring",
         "hover": "border stone-300",
@@ -456,11 +404,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Attention banner",
-      "anatomy": [
-        "container",
-        "message",
-        "action"
-      ],
+      "anatomy": ["container", "message", "action"],
       "states": {
         "focus": "2px amber-500 ring on the action, offset 2px",
         "hover": "action background amber-100",
@@ -479,10 +423,7 @@ One token layer drives both platforms; there is no per-platform token fork.
     },
     {
       "name": "Timeline note entry",
-      "anatomy": [
-        "meta",
-        "body"
-      ],
+      "anatomy": ["meta", "body"],
       "states": {
         "focus": "2px amber-500 ring when the entry is focusable, offset 2px",
         "hover": "background stone-50",
