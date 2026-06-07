@@ -54,7 +54,7 @@ export default function AsyncSourceSearch({
     if (!open) setSearch("");
   }
 
-  const { items, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, error } =
+  const { items, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, error, durationMs } =
     useSourceOptions({ projectId, category, scope, search, enabled: enabled && isOpen });
 
   // Remember the items the user picks this session so the chips keep their full
@@ -176,16 +176,32 @@ export default function AsyncSourceSearch({
           {!error && !isLoading && items.length === 0 && (
             <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-600">No matches.</p>
           )}
-          {!error && items.length > 0 && (
-            <p
+          {/* Always-present live region so the readout's first appearance and
+              every later update announce reliably (NFR-002); empty until a page
+              loads, with no padding so it adds no gap above the empty/loading
+              messages. */}
+          {!error && (
+            <div
               role="status"
               aria-live="polite"
-              data-testid="source-search-result-count"
-              className="px-3 pb-1 text-[11px] text-stone-400 dark:text-stone-600"
+              className={
+                items.length > 0
+                  ? "flex items-baseline gap-1 px-3 pb-1 text-[11px] text-stone-400 dark:text-stone-600"
+                  : "sr-only"
+              }
             >
-              {items.length}
-              {hasNextPage ? "+" : ""} results
-            </p>
+              {items.length > 0 && (
+                <>
+                  <span data-testid="source-search-result-count">
+                    {items.length}
+                    {hasNextPage ? "+" : ""} results
+                  </span>
+                  {durationMs != null && (
+                    <span data-testid="source-search-latency">· {durationMs}ms</span>
+                  )}
+                </>
+              )}
+            </div>
           )}
           {!error && items.length > 0 && (
             <ListBox

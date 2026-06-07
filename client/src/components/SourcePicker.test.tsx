@@ -55,6 +55,7 @@ beforeEach(() => {
     hasNextPage: false,
     fetchNextPage: vi.fn(),
     error: null,
+    durationMs: null,
   }));
 });
 
