@@ -41,6 +41,27 @@ const OWNING_SLICES = "#405, #408, #410, #411";
 // A semver-versioned $id URI ends in /vX.Y.Z.json (the #408 spike decision).
 const SEMVER_ID = /\/v\d+\.\d+\.\d+\.json$/;
 
+// Canonical TC-056 step labels, declared once as the single source of truth.
+// They are both the labels the journey runs under and the expected sequence the
+// terminal drift guard asserts against (AC5): if a step is dropped or reordered,
+// the recorded run no longer equals TC056_SEQUENCE and the test fails.
+const TC056_STEPS = {
+  generateCases:
+    "Run the generate script targeting the test-cases schema, then confirm schema/test-cases.schema.json is written",
+  generateResults:
+    "Run the generate script targeting the test-results schema, then confirm schema/test-results.schema.json is written",
+  validateCases:
+    "Validate a conforming test-cases.json fixture against the generated test-cases schema",
+  validateResults:
+    "Validate a conforming test-results.json fixture against the generated test-results schema",
+} as const;
+const TC056_SEQUENCE = [
+  TC056_STEPS.generateCases,
+  TC056_STEPS.generateResults,
+  TC056_STEPS.validateCases,
+  TC056_STEPS.validateResults,
+];
+
 // ── Conforming fixtures (AC3, AC4) ──
 //
 // The results fixture references a case id present in the plan fixture, and is
@@ -143,10 +164,24 @@ async function generateInto(
 
 describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => {
   it("runs the full journey end to end and matches TC-056", async () => {
+    // Record each step as it completes, so the terminal assertion can guard the
+    // executed sequence against the canonical TC-056 order (AC5), not merely the
+    // presence of the output files.
+    const executed: string[] = [];
+    const track = async <T>(
+      label: string,
+      expectation: string,
+      body: () => T | Promise<T>,
+    ): Promise<T> => {
+      const result = await step(label, expectation, body);
+      executed.push(label);
+      return result;
+    };
+
     // Step 1 + 2: generate the test-cases schema; confirm it is written with a
     // semver-versioned $id (AC1).
-    const casesPath = await step(
-      "Run the generate script targeting the test-cases schema, then confirm schema/test-cases.schema.json is written",
+    const casesPath = await track(
+      TC056_STEPS.generateCases,
       "The file exists and contains a $id with a semver-versioned URI",
       async () => {
         const outPath = await generateInto(TestCasesPlanSchema, "test-cases.schema.json");
@@ -159,8 +194,8 @@ describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => 
     );
 
     // Step 3 + 4: same for the test-results schema (AC2).
-    const resultsPath = await step(
-      "Run the generate script targeting the test-results schema, then confirm schema/test-results.schema.json is written",
+    const resultsPath = await track(
+      TC056_STEPS.generateResults,
       "The file exists and contains a $id with a semver-versioned URI",
       async () => {
         const outPath = await generateInto(TestResultsFileSchema, "test-results.schema.json");
@@ -174,21 +209,17 @@ describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => 
 
     // Step 5: validate a conforming test-cases fixture, zero errors (AC3).
     const plan = makePlan();
-    await step(
-      "Validate a conforming test-cases.json fixture against the generated test-cases schema",
-      "Validation passes with zero errors",
-      () => {
-        const result = validateTestCases(plan);
-        // On failure surface the actual field errors as the actual value.
-        if (!result.ok) throw new Error(result.errors.join("; "));
-        expect(result.ok).toBe(true);
-      },
-    );
+    await track(TC056_STEPS.validateCases, "Validation passes with zero errors", () => {
+      const result = validateTestCases(plan);
+      // On failure surface the actual field errors as the actual value.
+      if (!result.ok) throw new Error(result.errors.join("; "));
+      expect(result.ok).toBe(true);
+    });
 
     // Step 6: validate a conforming test-results fixture, zero errors, and
     // confirm it references the plan's case ids without editing the plan (AC4).
-    await step(
-      "Validate a conforming test-results.json fixture against the generated test-results schema",
+    await track(
+      TC056_STEPS.validateResults,
       "Validation passes with zero errors and the results reference case ids without requiring edits to test-cases.json",
       () => {
         const planSnapshot = JSON.stringify(plan);
@@ -204,8 +235,10 @@ describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => 
     );
 
     // Step 7 (AC5): the integrated run matches TC-056's step sequence end to
-    // end. Both generated files are on disk with semver $ids and both fixtures
-    // validated; assert the journey's terminal state to guard against drift.
+    // end. Assert the recorded steps equal the canonical TC-056 order (so a
+    // dropped or reordered step fails the drift guard), and that both generated
+    // files are on disk as the journey's terminal state.
+    expect(executed).toEqual(TC056_SEQUENCE);
     expect(existsSync(casesPath)).toBe(true);
     expect(existsSync(resultsPath)).toBe(true);
   });
