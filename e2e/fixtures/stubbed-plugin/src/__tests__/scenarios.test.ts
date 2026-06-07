@@ -146,3 +146,19 @@ describe("WU-007 scenario pack", () => {
     expect(scenario.sourceOptions?.filter?.map((f) => f.externalId)).toEqual(["10231", "10999"]);
   });
 });
+
+// WU-008 (TC-022): the source-search pack scopes more boards to one project than
+// fit in a single page, so the stub's getSourceOptions returns a "Load more"
+// cursor and the picker surfaces its result-count readout. Assert the pack loads
+// with enough scoped boards to force paging before Playwright spins up.
+describe("WU-008 scenario pack", () => {
+  it("jira-sources-scale-search scopes more than one page of boards to a project", () => {
+    const scenario = loadScenario("jira-sources-scale-search");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.sourceCandidates.shape).toBe("searchable-categorized");
+    const boards = scenario.sourceOptions?.board ?? [];
+    // More than the stub's PAGE_SIZE (10) so the first page leaves a remainder.
+    expect(boards.length).toBeGreaterThan(10);
+    expect(boards.every((b) => b.project === "PLAT")).toBe(true);
+  });
+});

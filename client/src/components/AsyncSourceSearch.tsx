@@ -177,6 +177,17 @@ export default function AsyncSourceSearch({
             <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-600">No matches.</p>
           )}
           {!error && items.length > 0 && (
+            <p
+              role="status"
+              aria-live="polite"
+              data-testid="source-search-result-count"
+              className="px-3 pb-1 text-[11px] text-stone-400 dark:text-stone-600"
+            >
+              {items.length}
+              {hasNextPage ? "+" : ""} results
+            </p>
+          )}
+          {!error && items.length > 0 && (
             <ListBox
               selectionMode="multiple"
               selectionBehavior="toggle"

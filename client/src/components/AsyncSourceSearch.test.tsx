@@ -147,6 +147,39 @@ describe("AsyncSourceSearch", () => {
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a result count, with a + when more pages remain (TC-022)", async () => {
+    const user = userEvent.setup();
+    // First page of a larger set: the readout flags that more results exist.
+    mockHook({ items: BOARDS, hasNextPage: true });
+    const { rerender } = render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2+ results");
+
+    // Once the set is exhausted the "+" drops and the count is the exact total.
+    mockHook({ items: BOARDS, hasNextPage: false });
+    rerender(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
+  });
+
   it("is operable by keyboard: opens, exposes a labeled search field and results", async () => {
     const user = userEvent.setup();
     mockHook({ items: BOARDS });

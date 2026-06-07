@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
-import { registerTestProject } from "../project-settings/_support/test-project.js";
+import { addSource, externalIds, openConfigure, readSources, save } from "./_support/picker.js";
 
 // WU-007 (#356): the picker-area end-to-end journeys for the searchable,
 // project-first Jira source picker. These mirror the seven `e2e_flow` picker
@@ -24,88 +24,10 @@ import { registerTestProject } from "../project-settings/_support/test-project.j
 
 const SCENARIO = "jira-sources-scale-picker";
 const NOW = "2026-05-21T13:00:00.000Z";
-const INSTANCE = "https://jira.stub.example";
 
 test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
-
-// Register the fixture project pinned to the stub (with an instance so the tile
-// renders its configured variant and the connection pill resolves to the
-// scenario's "connected" state), open Configure, and return the picker locator.
-async function openConfigure(
-  page: Page,
-  request: APIRequestContext,
-  projectId: string,
-): Promise<{ dialog: Locator; picker: Locator }> {
-  await registerTestProject(request, {
-    projectId,
-    plugin: "e2e-stub",
-    integrationConfig: { instance: INSTANCE },
-  });
-
-  await page.goto(`/projects/${projectId}/settings`);
-
-  const tile = page.getByTestId("issue-source-tile");
-  await expect(tile).toBeVisible();
-  await page.getByTestId("issue-source-primary-action").click();
-
-  // Scope to the Configure modal by its accessible name: the source-search
-  // popover also carries role="dialog", so a bare getByRole("dialog") is
-  // ambiguous once a picker is opened.
-  const dialog = page.getByRole("dialog", { name: /Configure .*Roubo E2E Stub|Roubo E2E Stub/ });
-  await expect(dialog.getByTestId("plugin-configure-dialog-header")).toBeVisible();
-
-  const picker = dialog.getByTestId("source-picker");
-  await expect(picker).toBeVisible();
-  return { dialog, picker };
-}
-
-// Drive an AsyncSourceSearch control: open its popover, type a term, pick a
-// result by accessible name, then close the popover by re-clicking the trigger.
-// (The popover stays open on select and its overlay would otherwise intercept
-// later clicks; Escape is avoided because it also dismisses the surrounding
-// Configure modal in React Aria.) The popover portals to the body, so results
-// are queried from `page`, not the picker.
-async function addSource(
-  page: Page,
-  picker: Locator,
-  category: "projects" | "boards" | "filters" | "epics",
-  opts: { search: string; option: RegExp },
-): Promise<void> {
-  const trigger = picker.getByRole("button", { name: new RegExp(`^Add ${category}$`, "i") });
-  await trigger.click();
-  await page
-    .getByRole("searchbox", { name: new RegExp(`^Search ${category}$`, "i") })
-    .fill(opts.search);
-  await page.getByRole("option", { name: opts.option }).click();
-  // The Popover excludes its own trigger from outside-press handling, so this
-  // toggles it shut cleanly. force: the just-opened popover may overlap it.
-  await trigger.click({ force: true });
-}
-
-// Read the persisted SourceSelection back through the host endpoint. Project
-// entries are bare strings; board/filter/epic/mine entries are objects.
-async function readSources(
-  request: APIRequestContext,
-  projectId: string,
-): Promise<Record<string, Array<string | { externalId: string; [k: string]: unknown }>>> {
-  const res = await request.get(`/api/projects/${projectId}/integration`);
-  expect(res.status()).toBe(200);
-  const body = (await res.json()) as {
-    effective?: { sources?: Record<string, Array<string | { externalId: string }>> };
-  };
-  return body.effective?.sources ?? {};
-}
-
-function externalIds(entries: Array<string | { externalId: string }> | undefined): string[] {
-  return (entries ?? []).map((e) => (typeof e === "object" ? e.externalId : String(e)));
-}
-
-async function save(dialog: Locator): Promise<void> {
-  await dialog.getByTestId("save-config").click();
-  await expect(dialog).toBeHidden();
-}
 
 test("TC-019: a developer scopes to a Jira project before adding sources", async ({
   page,

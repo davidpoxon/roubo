@@ -185,9 +185,16 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
   // page when no project is in scope, matching the host's project-first gate
   // and the real jira-self-hosted plugin). `search` narrows by label substring.
   // The internal `project` marker is stripped so the host sees only a
-  // SourceCandidateItem. A single page is enough for these scenarios, so
-  // `nextCursor` is always null (pagination is exercised by TC-022/TC-034).
+  // SourceCandidateItem.
+  //
+  // WU-008 (TC-022): page the matched set with a `PAGE_SIZE` window so the
+  // searchable picker's "Load more" affordance and result-count readout are
+  // exercised end-to-end. `cursor` is an opaque integer offset; `nextCursor`
+  // advances by `PAGE_SIZE` until the set is exhausted (then null). Result sets
+  // that fit in one page (every WU-007 scenario) keep `nextCursor: null`, so the
+  // picker-area specs are unaffected.
   const SCOPED_CATEGORIES = new Set(["board", "filter", "epic"]);
+  const PAGE_SIZE = 10;
   const getSourceOptions = (params: GetSourceOptionsParams): SourceOptionsResult => {
     const all = scenario.sourceOptions?.[params.category] ?? [];
     const scopeProjects = params.scope?.project ?? [];
@@ -200,13 +207,21 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     const matched = needle
       ? scoped.filter((opt) => opt.label.toLowerCase().includes(needle))
       : scoped;
-    const items: SourceCandidateItem[] = matched.map((opt) => ({
+    // Parse the opaque cursor as a numeric offset; treat a missing or malformed
+    // cursor as the first page so a bad token never throws inside the stub.
+    const offset =
+      params.cursor != null && Number.isInteger(Number(params.cursor))
+        ? Math.max(0, Number(params.cursor))
+        : 0;
+    const page = matched.slice(offset, offset + PAGE_SIZE);
+    const nextOffset = offset + PAGE_SIZE;
+    const items: SourceCandidateItem[] = page.map((opt) => ({
       externalId: opt.externalId,
       label: opt.label,
       ...(opt.sublabel !== undefined ? { sublabel: opt.sublabel } : {}),
       ...(opt.icon !== undefined ? { icon: opt.icon } : {}),
     }));
-    return { items, nextCursor: null };
+    return { items, nextCursor: nextOffset < matched.length ? String(nextOffset) : null };
   };
 
   const filterFacets = (): FilterFacet[] => scenario.facets;
