@@ -83,6 +83,18 @@ function projectCase(testCase: Case): Record<string, unknown> {
   return projected;
 }
 
+// Produce the deterministic canonical string for a SINGLE case (spike-407 AC1,
+// the per-case projection). This is the per-case unit that `canonicalize(plan)`
+// composes over the whole case set, exported so `testbench-domain.reconcile`
+// can compare one plan case's canonical body against the snapshot stored on a
+// recorded result, sharing one canonicalisation authority (no second copy of
+// the projection rules). Applies the same projection + normalisation + fixed
+// key order as the plan-level canonicalize: drops every TargetingField and
+// unknown field, sorts steps/observations by id, preserves preconditions order.
+export function canonicalizeCase(testCase: Case): string {
+  return JSON.stringify(projectCase(testCase));
+}
+
 // Produce the deterministic canonical string for a plan (spike-407 AC1).
 //
 // Rules, in order:
