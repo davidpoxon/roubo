@@ -60,12 +60,21 @@ test("TC-022: a developer finds a source by searching instead of scrolling", asy
   // shows only one capped page rather than dumping the whole instance.
   await expect(results.getByRole("option")).toHaveCount(PAGE_SIZE);
 
-  // Step 2 - type a few characters. Scoped results appear within the latency
-  // budget, with a Load more affordance and a result count.
+  // Step 2 - type a few characters. Wait for the debounced search query to
+  // settle (its first page carries no cursor) before asserting, so nothing
+  // races the picker's ~250ms input debounce: until that query lands it would
+  // reset the result list back to page one. Scoped results must arrive within
+  // the latency budget.
+  const firstPage = page.waitForResponse(
+    (r) =>
+      r.url().includes("/integration/source-options") &&
+      r.url().includes("category=board") &&
+      r.url().includes("search=Board") &&
+      !r.url().includes("cursor="),
+  );
   const started = Date.now();
   await searchbox.fill("Board");
-  await expect(resultCount).toBeVisible();
-  await expect(results.getByRole("option").first()).toBeVisible();
+  await firstPage;
   expect(Date.now() - started).toBeLessThan(LATENCY_BUDGET_MS);
 
   // All 15 boards match "Board", but the first page is capped: 10 results with
@@ -80,9 +89,14 @@ test("TC-022: a developer finds a source by searching instead of scrolling", asy
   await expect(dialog.getByRole("listbox", { name: /Boards results/i })).toHaveCount(0);
   await expect(results).toBeVisible();
 
-  // Paging in the rest of the set drops the Load more affordance and settles the
-  // count on the exhausted total.
+  // Paging in the rest of the set: wait for the next-page response (it carries
+  // the cursor) so the count assertion can't race the fetch. The search has
+  // already settled, so no debounced query resets the list back to page one.
+  const secondPage = page.waitForResponse(
+    (r) => r.url().includes("category=board") && r.url().includes("cursor=10"),
+  );
   await loadMore.click();
+  await secondPage;
   await expect(results.getByRole("option")).toHaveCount(15);
   await expect(resultCount).toHaveText("15 results");
   // The button is conditionally rendered, so an exhausted set removes it from
