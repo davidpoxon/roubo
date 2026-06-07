@@ -25,6 +25,14 @@ export interface UseSourceOptionsResult {
   hasNextPage: boolean;
   fetchNextPage: () => void;
   error: Error | null;
+  // Measured round-trip latency (ms) of the most recently fetched page, or
+  // null before any page has resolved. Backs the NFR-001 budget visibly (#432).
+  durationMs: number | null;
+}
+
+// One page plus the client-measured round-trip latency that produced it.
+interface SourceOptionsPage extends SourceOptionsResult {
+  durationMs: number;
 }
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -54,23 +62,30 @@ export function useSourceOptions({
   // not thrash the cache.
   const scopeKey = scope?.project ? [...scope.project].sort() : [];
 
-  const query = useInfiniteQuery<SourceOptionsResult, Error>({
+  const query = useInfiniteQuery<SourceOptionsPage, Error>({
     queryKey: ["source-options", projectId ?? null, category, scopeKey, debouncedSearch],
     enabled: enabled && !!projectId,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      api.fetchSourceOptions(projectId as string, {
+    queryFn: async ({ pageParam }) => {
+      const start = performance.now();
+      const page = await api.fetchSourceOptions(projectId as string, {
         category,
         scope,
         search: debouncedSearch,
         cursor: pageParam as string | null,
-      }),
+      });
+      return { ...page, durationMs: Math.round(performance.now() - start) };
+    },
     getNextPageParam: (last) => last.nextCursor,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  const items = (query.data?.pages ?? []).flatMap((p) => p.items);
+  const pages = query.data?.pages ?? [];
+  const items = pages.flatMap((p) => p.items);
+  // Surface the latency of the page fetched most recently (the latest query, or
+  // the just-loaded "Load more" page) so the readout tracks the current query.
+  const durationMs = pages.length > 0 ? pages[pages.length - 1].durationMs : null;
 
   return {
     items,
@@ -81,5 +96,6 @@ export function useSourceOptions({
       void query.fetchNextPage();
     },
     error: query.error,
+    durationMs,
   };
 }

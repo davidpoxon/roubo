@@ -22,6 +22,7 @@ function mockHook(overrides: Partial<UseSourceOptionsResult> = {}) {
     hasNextPage: false,
     fetchNextPage,
     error: null,
+    durationMs: null,
     ...overrides,
   });
 }
@@ -178,6 +179,68 @@ describe("AsyncSourceSearch", () => {
       />,
     );
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
+  });
+
+  it("shows the per-query latency next to the count without altering the count text (#432)", async () => {
+    const user = userEvent.setup();
+    mockHook({ items: BOARDS, durationMs: 142 });
+    render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    // The latency reads alongside the count, and the count testid stays an exact
+    // "N results" so the TC-022 e2e exact-match assertion keeps holding.
+    expect(screen.getByTestId("source-search-latency")).toHaveTextContent("· 142ms");
+    expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
+  });
+
+  it("omits the latency readout until a duration is measured (#432)", async () => {
+    const user = userEvent.setup();
+    mockHook({ items: BOARDS, durationMs: null });
+    render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    expect(screen.queryByTestId("source-search-latency")).not.toBeInTheDocument();
+    expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
+  });
+
+  it("keeps the readout live region present before results arrive so updates announce (#432)", async () => {
+    const user = userEvent.setup();
+    // No results yet: the region exists (empty) so its first populated update is
+    // announced, rather than the region being inserted fresh on arrival.
+    mockHook({ items: [] });
+    render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    const region = screen.getByRole("status");
+    expect(region).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
   });
 
   it("is operable by keyboard: opens, exposes a labeled search field and results", async () => {
