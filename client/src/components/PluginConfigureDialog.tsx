@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Button,
+  Checkbox,
   Dialog,
   Heading,
   Input,
@@ -10,6 +11,7 @@ import {
   TextField,
 } from "react-aria-components";
 import {
+  Check,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -68,10 +70,19 @@ const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com", "ghe"]);
 // its consolidation work unit.
 const PLUGINS_WITHOUT_SOURCE_PICKER = new Set(["github-com", "ghe"]);
 
+// FR-010 (issue #435): Jira's three system status categories. The Configure
+// dialog's exclusion toggle offers these by default; any category already
+// present in the saved/default set is unioned in so a custom value stays
+// visible and removable. A plugin opts in by declaring
+// `defaultIntegrationConfig.excludedStatusCategories` in its manifest.
+const CANONICAL_STATUS_CATEGORIES = ["To Do", "In Progress", "Done"];
+
 const STRINGS = {
   titlePrefix: "Configure ",
   globalSuffix: "(global defaults)",
   integrationFieldsHeading: "Repository & metadata",
+  statusExclusionHeading: "Excluded status categories",
+  statusExclusionHelp: "Issues in checked categories are hidden from the cut list.",
   repositoryLabel: "Repository",
   repositoryPlaceholder: "org/repo-name",
   verify: "Verify",
@@ -384,6 +395,39 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   };
   const isMetaRepo = fields.layoutType === "meta-repo";
 
+  // FR-010 (issue #435): project-scoped status-category exclusion toggle. A
+  // plugin opts in by declaring `defaultIntegrationConfig.excludedStatusCategories`.
+  // Seed from the effective override if set, otherwise the manifest default, so
+  // the checked state matches what the cut list actually excludes today.
+  const manifestDefaultCategories = manifest?.defaultIntegrationConfig?.excludedStatusCategories;
+  const showStatusExclusion = mode === "project" && manifestDefaultCategories !== undefined;
+  const seededCategories = useMemo(
+    () => effective.excludedStatusCategories ?? manifestDefaultCategories ?? [],
+    [effective.excludedStatusCategories, manifestDefaultCategories],
+  );
+  const [excludedCategories, setExcludedCategories] = useState<string[]>(seededCategories);
+  const categoryOptions = useMemo(
+    () => [...new Set([...CANONICAL_STATUS_CATEGORIES, ...seededCategories])],
+    [seededCategories],
+  );
+  // Diff against the seed captured at open, not the live-computed one: a parent
+  // re-render that refetches `effective` must not, on its own, flip "changed" to
+  // true and cause an untouched set to be written on the next Save. A useState
+  // initializer captures the first-render seed once (and is render-safe, unlike
+  // reading a ref during render).
+  const [initialCategories] = useState(seededCategories);
+  const excludedCategoriesChanged = useMemo(
+    () =>
+      JSON.stringify([...excludedCategories].sort()) !==
+      JSON.stringify([...initialCategories].sort()),
+    [excludedCategories, initialCategories],
+  );
+  function toggleCategory(category: string, excluded: boolean) {
+    setExcludedCategories((prev) =>
+      excluded ? [...new Set([...prev, category])] : prev.filter((c) => c !== category),
+    );
+  }
+
   const passwordKeys = useMemo(
     () => new Set(passwordFieldKeys(manifest?.configSchema)),
     [manifest?.configSchema],
@@ -447,6 +491,12 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     };
     if (instance !== undefined) update.instance = instance;
     if (Object.keys(advanced).length > 0) update.advanced = advanced;
+    // Only persist the exclusion set when the user actually changed it, so
+    // merely verifying an untouched dialog doesn't convert the implicit
+    // manifest default into an explicit stored override (issue #435).
+    if (showStatusExclusion && excludedCategoriesChanged) {
+      update.excludedStatusCategories = excludedCategories;
+    }
     return update;
   }
 
@@ -600,6 +650,45 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                 value={sources}
                 onChange={setSources}
               />
+            )}
+
+            {showStatusExclusion && (
+              <div className="flex flex-col gap-2.5" data-testid="status-exclusion-section">
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                    {STRINGS.statusExclusionHeading}
+                  </span>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
+                    {STRINGS.statusExclusionHelp}
+                  </p>
+                </div>
+                {categoryOptions.map((category) => (
+                  <Checkbox
+                    key={category}
+                    isSelected={excludedCategories.includes(category)}
+                    onChange={(next) => toggleCategory(category, next)}
+                    aria-label={category}
+                    className="flex items-center gap-2 cursor-pointer group"
+                  >
+                    {({ isSelected }) => (
+                      <>
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                            isSelected
+                              ? "bg-stone-600 border-stone-500"
+                              : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                          }`}
+                        >
+                          {isSelected && <Check size={10} className="text-stone-100" />}
+                        </div>
+                        <span className="text-sm text-stone-700 dark:text-stone-300">
+                          {category}
+                        </span>
+                      </>
+                    )}
+                  </Checkbox>
+                ))}
+              </div>
             )}
           </>
         )}

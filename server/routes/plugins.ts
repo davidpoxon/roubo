@@ -277,6 +277,7 @@ function buildGlobalState(pluginId: string): GlobalPluginIntegrationState | null
             name: record.manifest.name,
             configSchema: record.manifest.configSchema,
             permissions: record.manifest.permissions,
+            defaultIntegrationConfig: record.manifest.defaultIntegrationConfig,
           }
         : null,
     },
