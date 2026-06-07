@@ -49,6 +49,7 @@ router.get("/:projectId/issues", async (req, res) => {
     items: NormalizedIssue[];
     nextCursor: string | null;
     warnings?: ListIssuesWarning[];
+    excludedCount?: number;
   };
   let params: ListIssuesParams | undefined;
   try {
@@ -66,6 +67,7 @@ router.get("/:projectId/issues", async (req, res) => {
       items: NormalizedIssue[];
       nextCursor: string | null;
       warnings?: ListIssuesWarning[];
+      excludedCount?: number;
     }>(active.pluginId, "listIssues", params);
   } catch (err) {
     // FR-014: when the active plugin is `errored` or `disabled` and we have a
@@ -114,6 +116,12 @@ router.get("/:projectId/issues", async (req, res) => {
   };
   if (raw.warnings && raw.warnings.length > 0) {
     body.warnings = raw.warnings;
+  }
+  // Pass through the plugin's in-query excluded count (FR-009/FR-010) so the
+  // cut list can show how many issues the query dropped. Undefined-safe: a
+  // plugin that can't cheaply count simply omits it.
+  if (typeof raw.excludedCount === "number") {
+    body.excludedCount = raw.excludedCount;
   }
   // FR-014: capture every successful first-page response so the errored /
   // disabled fallback above has something to serve. The cache normalizes the

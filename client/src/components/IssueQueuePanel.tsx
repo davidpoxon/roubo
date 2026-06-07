@@ -49,6 +49,7 @@ export default function IssueQueuePanel({
     fetchNextPage,
     stalled,
     stale,
+    excludedCount,
   } = useIssues(projectId);
   const refreshItems = useRefreshIssues();
   const integrationQuery = useProjectIntegration(projectId);
@@ -269,6 +270,16 @@ export default function IssueQueuePanel({
           className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
         >
           Plugin paging appears stuck. Try a refresh.
+        </div>
+      )}
+
+      {excludedCount > 0 && (
+        <div
+          role="status"
+          data-testid="excluded-count-note"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-stone-100 dark:bg-stone-800/40 text-[11px] text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700/60"
+        >
+          {excludedCount} filtered out by status
         </div>
       )}
 

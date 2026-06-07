@@ -231,6 +231,27 @@ describe("GET /:projectId/issues", () => {
     expect(res.body.warnings).toBeUndefined();
   });
 
+  it("passes the plugin's excludedCount through on the response body (#358)", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "1" })],
+      nextCursor: null,
+      excludedCount: 3,
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.excludedCount).toBe(3);
+  });
+
+  it("omits excludedCount when the plugin does not report one", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "1" })],
+      nextCursor: null,
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.excludedCount).toBeUndefined();
+  });
+
   it("maps plugin-not-enabled to 503", async () => {
     vi.mocked(pluginManager.invoke).mockRejectedValue(
       Object.assign(new Error("disabled"), { code: "plugin-not-enabled" }),

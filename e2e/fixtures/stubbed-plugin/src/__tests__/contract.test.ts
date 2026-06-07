@@ -304,6 +304,54 @@ describe("probeAlertCategoriesSequence (TC-167)", () => {
   });
 });
 
+describe("listIssues status exclusion (WU-009, TC-024/TC-025)", () => {
+  function buildCutListContract() {
+    const scenario = loadScenario("jira-sources-scale-cut-list");
+    const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
+    const journal = createJournal();
+    return buildContract({ scenario, clock, journal });
+  }
+
+  const BASE = { sources: [], cursor: null, pageSize: 50 } as const;
+
+  it("drops issues in the excluded status categories and reports the count", () => {
+    const contract = buildCutListContract();
+    const result = contract.listIssues({ ...BASE, excludedStatusCategories: ["Done"] });
+    // To Do / In Progress survive; the three Done-category issues are dropped.
+    expect(result.items.map((i) => i.externalId)).toEqual(["acme/widgets#101", "acme/widgets#102"]);
+    expect(result.excludedCount).toBe(3);
+  });
+
+  it("excludes by category, not status name (a Done-category 'Closed' is dropped)", () => {
+    const contract = buildCutListContract();
+    const result = contract.listIssues({ ...BASE, excludedStatusCategories: ["Done"] });
+    const kept = result.items.map((i) => i.externalId);
+    // #104 is named "Closed" and #105 "Resolved", but both are Done-category.
+    expect(kept).not.toContain("acme/widgets#104");
+    expect(kept).not.toContain("acme/widgets#105");
+  });
+
+  it("supports the status-name fallback set", () => {
+    const contract = buildCutListContract();
+    const result = contract.listIssues({ ...BASE, excludedStatuses: ["In Progress"] });
+    expect(result.items.map((i) => i.externalId)).not.toContain("acme/widgets#102");
+    expect(result.excludedCount).toBe(1);
+  });
+
+  it("returns every issue with a zero count when nothing is excluded", () => {
+    const contract = buildCutListContract();
+    const result = contract.listIssues({ ...BASE });
+    expect(result.items).toHaveLength(5);
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("strips the fixture-only statusCategory from returned issues", () => {
+    const contract = buildCutListContract();
+    const result = contract.listIssues({ ...BASE });
+    expect(result.items.every((i) => !("statusCategory" in i))).toBe(true);
+  });
+});
+
 describe("argv parsing", () => {
   it("defaults to scenario=default and a pinned ISO date when no flags given", () => {
     const { scenario, now } = parseArgs([]);

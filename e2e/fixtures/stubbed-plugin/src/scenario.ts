@@ -32,6 +32,15 @@ export type ScenarioSourceOptions = Partial<
   Record<"project" | "board" | "filter" | "epic", ScenarioSourceOption[]>
 >;
 
+// TC-024/TC-025 (#358): a fixture-only status category attached to a scenario
+// issue so the stub's `listIssues` can mirror the real plugin's in-query
+// status-category exclusion (FR-009/FR-010). The host-visible `NormalizedIssue`
+// carries no category because the production plugin excludes server-side in JQL;
+// `statusCategory` is stripped before an issue is returned from the contract.
+export interface ScenarioIssue extends NormalizedIssue {
+  statusCategory?: string;
+}
+
 export interface Scenario {
   pluginId: string;
   currentUser: CurrentUser;
@@ -42,7 +51,7 @@ export interface Scenario {
   // the stub process.
   connectionStatusSequence?: ConnectionStatus[];
   sourceCandidates: SourceCandidatesResponse;
-  issues: NormalizedIssue[];
+  issues: ScenarioIssue[];
   // WU-069: per-call warnings returned alongside the static `issues` page.
   // When `listIssuesSequence` is set, this field is ignored.
   listIssuesWarnings?: ListIssuesWarning[];

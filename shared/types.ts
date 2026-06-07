@@ -1139,6 +1139,12 @@ export interface PaginatedIssues {
   stale?: boolean;
   /** ISO timestamp of the cached response, present iff `stale` is true. */
   snapshotCapturedAt?: string;
+  /**
+   * Count of issues the active plugin dropped in-query (e.g. status-category
+   * exclusion, FR-009/FR-010). Passed through from the plugin's
+   * `ListIssuesResult`; omitted when the plugin can't cheaply report it.
+   */
+  excludedCount?: number;
 }
 
 /** Server response to `GET /api/projects/:projectId/issue-types` (WU-016). */

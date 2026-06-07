@@ -22,7 +22,7 @@ import type {
 } from "@roubo/plugin-sdk";
 import type { Clock } from "./clock.js";
 import type { Journal } from "./journal.js";
-import type { Scenario } from "./scenario.js";
+import type { Scenario, ScenarioIssue } from "./scenario.js";
 
 interface BuildContractDeps {
   scenario: Scenario;
@@ -30,7 +30,7 @@ interface BuildContractDeps {
   journal: Journal;
 }
 
-function projectIssue(issue: NormalizedIssue, journal: Journal): NormalizedIssue {
+function projectIssue(issue: ScenarioIssue, journal: Journal): NormalizedIssue {
   const { added, removed } = journal.assigneesFor(issue.externalId);
   const transition = journal.transitionFor(issue.externalId);
 
@@ -41,14 +41,19 @@ function projectIssue(issue: NormalizedIssue, journal: Journal): NormalizedIssue
       .map((id) => ({ externalId: id, displayName: id })),
   ].sort((a, b) => a.externalId.localeCompare(b.externalId));
 
-  return {
+  const projected: ScenarioIssue = {
     ...issue,
     assignees,
     currentState: transition ?? issue.currentState,
   };
+  // Strip the fixture-only category so the returned issue matches the real
+  // NormalizedIssue shape (the production plugin excludes server-side, so the
+  // host never sees a status category).
+  delete projected.statusCategory;
+  return projected;
 }
 
-function findIssue(scenario: Scenario, externalId: string): NormalizedIssue {
+function findIssue(scenario: Scenario, externalId: string): ScenarioIssue {
   const issue = scenario.issues.find((i) => i.externalId === externalId);
   if (!issue) {
     throw new Error(`Unknown externalId "${externalId}" in scenario "${scenario.pluginId}".`);
@@ -65,7 +70,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
   // single scenario can model that transition without restarting the stub.
   const listIssuesSeq = scenario.listIssuesSequence;
   let listIssuesIndex = 0;
-  const listIssues = (_params: ListIssuesParams): ListIssuesResult => {
+  const listIssues = (params: ListIssuesParams): ListIssuesResult => {
     if (listIssuesSeq && listIssuesSeq.length > 0) {
       const index = Math.min(listIssuesIndex, listIssuesSeq.length - 1);
       listIssuesIndex += 1;
@@ -76,9 +81,21 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
         ...(step.warnings && step.warnings.length > 0 ? { warnings: step.warnings } : {}),
       };
     }
+    // TC-024/TC-025 (#358): mirror the real plugin's in-query status exclusion
+    // (FR-009/FR-010). The host resolves the effective excluded set from the
+    // three-layer merge and passes it in; we drop issues whose fixture
+    // `statusCategory` is excluded (or whose `currentState` is in the
+    // name-based fallback set) and report how many were filtered out.
+    const excludedCategories = new Set(params.excludedStatusCategories ?? []);
+    const excludedStatuses = new Set(params.excludedStatuses ?? []);
+    const isExcluded = (issue: ScenarioIssue): boolean =>
+      (issue.statusCategory !== undefined && excludedCategories.has(issue.statusCategory)) ||
+      excludedStatuses.has(issue.currentState);
+    const kept = scenario.issues.filter((issue) => !isExcluded(issue));
     return {
-      items: scenario.issues.map((issue) => projectIssue(issue, journal)),
+      items: kept.map((issue) => projectIssue(issue, journal)),
       nextCursor: null,
+      excludedCount: scenario.issues.length - kept.length,
       ...(scenario.listIssuesWarnings && scenario.listIssuesWarnings.length > 0
         ? { warnings: scenario.listIssuesWarnings }
         : {}),
