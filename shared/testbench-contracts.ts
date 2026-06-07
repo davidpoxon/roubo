@@ -6,10 +6,9 @@
 // actionable, field-named errors.
 //
 // Scope note: this module authors the zod source schemas, the inferred types,
-// the runtime validators, and the versioned `$id` constants. The zod ->
-// JSON-Schema generate script + CI drift guard (FR-023, #7) and the store IO
-// (#11) are out of scope here; the `$id` constants are defined but no
-// `z.toJSONSchema()` call is wired.
+// the runtime validators, and the versioned `$id` constants. The roots carry
+// `.meta({ $id })` so the generate script + CI drift guard (FR-023, #411) can
+// emit versioned JSON Schema from them; the store IO (#11) is out of scope here.
 
 import { z } from "zod";
 
@@ -109,7 +108,11 @@ export const TestCasesPlanSchema = z
     specSlug: z.string(),
     cases: z.array(CaseSchema),
   })
-  .strict();
+  .strict()
+  // Pass the literal `$id` key through `.meta()` so `z.toJSONSchema()` emits a
+  // top-level `$id` carrying the versioned identifier (NFR-005). The generate
+  // script + CI drift guard (FR-023) consume this.
+  .meta({ $id: TEST_CASES_SCHEMA_ID });
 export type TestCasesPlan = z.infer<typeof TestCasesPlanSchema>;
 
 // ── test-results.json (the sidecar; references cases by stable id) ──
@@ -178,7 +181,11 @@ export const TestResultsFileSchema = z
     // Keyed by bench id: the chosen multi-bench layout, one sidecar per spec.
     benches: z.record(z.string(), BenchResultsSchema),
   })
-  .strict();
+  .strict()
+  // Pass the literal `$id` key through `.meta()` so `z.toJSONSchema()` emits a
+  // top-level `$id` carrying the versioned identifier (NFR-005). The generate
+  // script + CI drift guard (FR-023) consume this.
+  .meta({ $id: TEST_RESULTS_SCHEMA_ID });
 export type TestResultsFile = z.infer<typeof TestResultsFileSchema>;
 
 // ── Runtime validators ──

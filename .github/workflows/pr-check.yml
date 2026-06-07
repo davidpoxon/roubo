@@ -42,11 +42,13 @@ jobs:
       - run: npx -w client tsc --noEmit
       - run: npx -w server tsc --noEmit
 
-  # Spike #408 (FR-023): prove the zod -> JSON Schema generate pipeline cannot
-  # drift from its source. Regenerate the spike schema and fail if the committed
-  # output differs. Scoped to the spike artifact only; running the generator
-  # over the real authored schemas in production CI is #7 (out of scope here),
-  # so this guard does NOT gate on schema/roubo-*.json.
+  # FR-023: prove the zod -> JSON Schema generate pipeline cannot drift from its
+  # source. Regenerate every generated schema and fail if any committed output
+  # differs. This now guards the real authored TestBench contracts
+  # (schema/test-cases.schema.json, schema/test-results.schema.json) as well as
+  # the retained #408 spike artifact. The roubo-config/roubo-plugin schemas are
+  # hand-authored, not generated, so this guard does NOT gate on
+  # schema/roubo-*.json (the diff would always fire on them).
   schema-drift:
     runs-on: ubuntu-latest
     permissions:
@@ -60,8 +62,11 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run generate:schema
-      - name: Fail if the generated schema drifted from the zod source
-        run: git diff --exit-code -- schema/testbench-targeting.spike.schema.json
+      - name: Fail if any generated schema drifted from the zod source
+        # The generator only writes the generated artifacts, so a clean tree
+        # over all of schema/ means no drift. The hand-authored roubo-*.json
+        # files are never touched by the generator, so they never trip this.
+        run: git diff --exit-code -- schema/
 
   build:
     runs-on: ubuntu-latest

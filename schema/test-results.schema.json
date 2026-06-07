@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "string"
+    },
+    "planHash": {
+      "type": "string"
+    },
+    "benches": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "caseResults": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "observationMarks": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "result": {
+                        "type": "string",
+                        "enum": ["pass", "fail"]
+                      },
+                      "author": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "isSentinel": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": ["name", "email"],
+                        "additionalProperties": false
+                      },
+                      "timestamp": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["result", "author", "timestamp"],
+                    "additionalProperties": false
+                  }
+                },
+                "derivedStatus": {
+                  "type": "string",
+                  "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+                },
+                "statusOverride": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+                    },
+                    "author": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "isSentinel": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": ["name", "email"],
+                      "additionalProperties": false
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "author", "timestamp"],
+                  "additionalProperties": false
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "isSentinel": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": ["name", "email"],
+                        "additionalProperties": false
+                      },
+                      "timestamp": {
+                        "type": "string"
+                      },
+                      "statusAtWrite": {
+                        "type": "string",
+                        "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+                      }
+                    },
+                    "required": ["id", "text", "author", "timestamp", "statusAtWrite"],
+                    "additionalProperties": false
+                  }
+                },
+                "orphaned": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["observationMarks", "derivedStatus", "notes"],
+              "additionalProperties": false
+            }
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": ["caseResults", "updatedAt"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["$schema", "schemaVersion", "planHash", "benches"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/testbench/test-results/v1.0.0.json"
+}

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "string"
+    },
+    "specSlug": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "instruction": {
+                  "type": "string"
+                },
+                "observations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "expected": {
+                        "type": "string"
+                      },
+                      "observe": {
+                        "type": "object",
+                        "properties": {
+                          "cssSelector": {
+                            "type": "string"
+                          },
+                          "ariaRole": {
+                            "type": "string"
+                          },
+                          "ariaName": {
+                            "type": "string"
+                          },
+                          "textAnchor": {
+                            "type": "string"
+                          },
+                          "routeContext": {
+                            "type": "string"
+                          },
+                          "region": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["id", "expected"],
+                    "additionalProperties": false
+                  }
+                },
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "cssSelector": {
+                      "type": "string"
+                    },
+                    "ariaRole": {
+                      "type": "string"
+                    },
+                    "ariaName": {
+                      "type": "string"
+                    },
+                    "textAnchor": {
+                      "type": "string"
+                    },
+                    "routeContext": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "instruction", "observations"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["id", "title", "level", "priority", "steps"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["$schema", "schemaVersion", "specSlug", "cases"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json"
+}
