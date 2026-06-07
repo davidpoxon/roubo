@@ -1,0 +1,237 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "jira self-hosted stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "searchable-categorized",
+    "searchableCategories": [
+      {
+        "id": "project",
+        "label": "Projects",
+        "icon": "project"
+      },
+      {
+        "id": "board",
+        "label": "Boards",
+        "icon": "board",
+        "scopedBy": "project"
+      },
+      {
+        "id": "filter",
+        "label": "Filters",
+        "icon": "filter",
+        "scopedBy": "project"
+      },
+      {
+        "id": "epic",
+        "label": "Epics",
+        "icon": "epic",
+        "scopedBy": "project"
+      },
+      {
+        "id": "mine",
+        "label": "Assigned to me",
+        "options": [
+          {
+            "id": "in-project",
+            "label": "In scoped projects"
+          },
+          {
+            "id": "anywhere",
+            "label": "Anywhere"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceOptions": {
+    "project": [
+      {
+        "externalId": "PLAT",
+        "label": "Platform",
+        "sublabel": "PLAT",
+        "icon": "project"
+      },
+      {
+        "externalId": "PAY",
+        "label": "Payments",
+        "sublabel": "PAY",
+        "icon": "project"
+      }
+    ],
+    "board": [
+      {
+        "externalId": "601",
+        "label": "Platform Board 01",
+        "sublabel": "PLAT · board #601",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "602",
+        "label": "Platform Board 02",
+        "sublabel": "PLAT · board #602",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "603",
+        "label": "Platform Board 03",
+        "sublabel": "PLAT · board #603",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "604",
+        "label": "Platform Board 04",
+        "sublabel": "PLAT · board #604",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "605",
+        "label": "Platform Board 05",
+        "sublabel": "PLAT · board #605",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "606",
+        "label": "Platform Board 06",
+        "sublabel": "PLAT · board #606",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "607",
+        "label": "Platform Board 07",
+        "sublabel": "PLAT · board #607",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "608",
+        "label": "Platform Board 08",
+        "sublabel": "PLAT · board #608",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "609",
+        "label": "Platform Board 09",
+        "sublabel": "PLAT · board #609",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "610",
+        "label": "Platform Board 10",
+        "sublabel": "PLAT · board #610",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "611",
+        "label": "Platform Board 11",
+        "sublabel": "PLAT · board #611",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "612",
+        "label": "Platform Board 12",
+        "sublabel": "PLAT · board #612",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "613",
+        "label": "Platform Board 13",
+        "sublabel": "PLAT · board #613",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "614",
+        "label": "Platform Board 14",
+        "sublabel": "PLAT · board #614",
+        "icon": "board",
+        "project": "PLAT"
+      },
+      {
+        "externalId": "615",
+        "label": "Platform Board 15",
+        "sublabel": "PLAT · board #615",
+        "icon": "board",
+        "project": "PLAT"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "PLAT-101",
+      "externalUrl": "https://jira.stub.example/browse/PLAT-101",
+      "title": "Platform onboarding flow regression",
+      "body": "Repro: drop the onboarding cookie.",
+      "currentState": "To Do",
+      "allowedTransitions": ["In Progress", "Done"],
+      "assignees": [
+        {
+          "externalId": "alice",
+          "displayName": "Alice Stub"
+        }
+      ],
+      "labels": ["bug"],
+      "issueType": "Bug",
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-21T10:00:00.000Z",
+      "raw": null,
+      "facetValues": {
+        "status": "To Do"
+      }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    {
+      "id": "Bug",
+      "name": "Bug"
+    },
+    {
+      "id": "Task",
+      "name": "Task"
+    }
+  ],
+  "labels": ["bug", "task"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        {
+          "value": "To Do",
+          "label": "To Do"
+        },
+        {
+          "value": "In Progress",
+          "label": "In Progress"
+        },
+        {
+          "value": "Done",
+          "label": "Done"
+        }
+      ]
+    }
+  ],
+  "facetOptions": {}
+}

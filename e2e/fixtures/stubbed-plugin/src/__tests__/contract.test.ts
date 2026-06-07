@@ -192,6 +192,67 @@ describe("getSourceOptions (WU-007, TC-019..TC-029)", () => {
   });
 });
 
+describe("getSourceOptions pagination (WU-008, TC-022)", () => {
+  function buildSearchContract() {
+    const scenario = loadScenario("jira-sources-scale-search");
+    const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
+    const journal = createJournal();
+    const contract = buildContract({ scenario, clock, journal });
+    const getSourceOptions = contract.getSourceOptions;
+    if (typeof getSourceOptions !== "function") {
+      throw new Error("stub did not register getSourceOptions");
+    }
+    return getSourceOptions;
+  }
+
+  const SCOPE = { project: ["PLAT"] } as const;
+
+  it("caps the first page and advances the cursor when more results remain", () => {
+    const getSourceOptions = buildSearchContract();
+    const first = getSourceOptions({ category: "board", scope: { project: [...SCOPE.project] } });
+    // The scenario scopes 15 boards to PLAT; the first page is capped at 10.
+    expect(first.items).toHaveLength(10);
+    expect(first.items[0].externalId).toBe("601");
+    expect(first.nextCursor).toBe("10");
+  });
+
+  it("returns the remainder and a null cursor when the set is exhausted", () => {
+    const getSourceOptions = buildSearchContract();
+    const second = getSourceOptions({
+      category: "board",
+      scope: { project: [...SCOPE.project] },
+      cursor: "10",
+    });
+    expect(second.items.map((i) => i.externalId)).toEqual(["611", "612", "613", "614", "615"]);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it("treats a missing or malformed cursor as the first page", () => {
+    const getSourceOptions = buildSearchContract();
+    const noCursor = getSourceOptions({
+      category: "board",
+      scope: { project: [...SCOPE.project] },
+    });
+    const badCursor = getSourceOptions({
+      category: "board",
+      scope: { project: [...SCOPE.project] },
+      cursor: "not-a-number",
+    });
+    expect(badCursor.items.map((i) => i.externalId)).toEqual(
+      noCursor.items.map((i) => i.externalId),
+    );
+    expect(badCursor.nextCursor).toBe("10");
+  });
+
+  it("keeps nextCursor null for a result set that fits in one page", () => {
+    const getSourceOptions = buildSearchContract();
+    // Two projects fit well under the page cap, so paging never engages.
+    const projects = getSourceOptions({ category: "project" });
+    expect(projects.items.map((i) => i.externalId)).toEqual(["PLAT", "PAY"]);
+    expect(projects.nextCursor).toBeNull();
+  });
+});
+
 describe("probeAlertCategoriesSequence (TC-167)", () => {
   const PROBE_PARAMS = { sources: [], enabledCategories: ["dependabot"] as const };
 
