@@ -1,0 +1,27 @@
+project:
+  name: e2e-config-flow
+  displayName: E2E Config Flow
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4930
+benches:
+  max: 1
+# The committed team default for TC-028: a single-category source set scoped to
+# the PLAT project. The personal selection in the spec swaps it to PAY, so the
+# whole `project` array is replaced wholesale (no other category to leak through
+# the per-category merge). `instance` mirrors the picker specs so the e2e-stub
+# connection resolves to "connected" and the source picker renders.
+integration:
+  plugin: e2e-stub
+  instance: https://jira.stub.example
+  sources:
+    project:
+      - "PLAT"

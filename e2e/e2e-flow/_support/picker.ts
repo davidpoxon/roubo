@@ -25,7 +25,18 @@ export async function openConfigure(
     plugin: "e2e-stub",
     integrationConfig: { instance: INSTANCE },
   });
+  return openConfigureDialog(page, projectId);
+}
 
+// Open the Configure dialog for an ALREADY-registered project and return the
+// dialog + picker locators. Split out of `openConfigure` so specs that register
+// their project a different way (e.g. TC-028 needs committed team-default
+// sources in roubo.yaml, which `registerTestProject` can't seed since it writes
+// a per-user override) can still reuse the open / locate boilerplate.
+export async function openConfigureDialog(
+  page: Page,
+  projectId: string,
+): Promise<{ dialog: Locator; picker: Locator }> {
   await page.goto(`/projects/${projectId}/settings`);
 
   const tile = page.getByTestId("issue-source-tile");
@@ -82,6 +93,32 @@ export async function readSources(
 
 export function externalIds(entries: Array<string | { externalId: string }> | undefined): string[] {
   return (entries ?? []).map((e) => (typeof e === "object" ? e.externalId : String(e)));
+}
+
+type SourceSelection = Record<string, Array<string | { externalId: string; [k: string]: unknown }>>;
+
+// Read the three integration layers the host exposes for a project: the
+// committed roubo.yaml config, the per-user override file, and the merged
+// effective result. TC-028 asserts all three at once (team default unchanged,
+// personal override stored, personal wins), so the helper returns each layer's
+// `sources` (defaulting to {}) rather than just the effective one `readSources`
+// returns.
+export async function readIntegrationState(
+  request: APIRequestContext,
+  projectId: string,
+): Promise<{ committed: SourceSelection; override: SourceSelection; effective: SourceSelection }> {
+  const res = await request.get(`/api/projects/${projectId}/integration`);
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as {
+    committed?: { sources?: SourceSelection } | null;
+    override?: { sources?: SourceSelection } | null;
+    effective?: { sources?: SourceSelection };
+  };
+  return {
+    committed: body.committed?.sources ?? {},
+    override: body.override?.sources ?? {},
+    effective: body.effective?.sources ?? {},
+  };
 }
 
 export async function save(dialog: Locator): Promise<void> {
