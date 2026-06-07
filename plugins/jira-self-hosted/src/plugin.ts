@@ -313,7 +313,52 @@ export function createPluginContract(): PluginContract {
         }
       }
 
-      return { items, nextCursor };
+      // excludedCount (#434): the status exclusion runs server-side in the JQL,
+      // so the filtered `search.total` cannot reveal what was dropped. A
+      // count-only companion query with the same sources/watermark but no
+      // exclusion clause gives the unfiltered total; the difference is the
+      // dropped count. Compute it once on the first page (the host sums
+      // `excludedCount` across pages, so a single whole-result-set total there
+      // keeps that sum correct) and only when an exclusion is actually
+      // configured. Best-effort: any failure just omits the count.
+      //
+      // Mirror the JQL builder's category-first branch so we only fire the
+      // companion when the main query actually applied an exclusion: a
+      // category-supported instance excludes by category and ignores the name
+      // list, and vice-versa on the fallback path. Checking the wrong list
+      // would fire a pointless count query that always returns 0.
+      const categorySupported = !statusCategoryUnsupportedInstances.has(config.instance);
+      const hasExclusion = categorySupported
+        ? (params.excludedStatusCategories?.length ?? 0) > 0
+        : (params.excludedStatuses?.length ?? 0) > 0;
+      let excludedCount: number | undefined;
+      if (startAt === 0 && hasExclusion && typeof search.total === "number") {
+        try {
+          const unfilteredJql = buildIssueListJql({
+            sources,
+            lastPollIso: lastPoll,
+            excludedStatusCategories: [],
+            excludedStatuses: [],
+            statusCategorySupported: true,
+          });
+          const unfilteredTotal = await jiraCount(ctx, unfilteredJql);
+          if (typeof unfilteredTotal === "number") {
+            excludedCount = Math.max(0, unfilteredTotal - search.total);
+          }
+        } catch {
+          // The banner is best-effort; a failed companion count just leaves the
+          // count unknown. Logged with the safe enum only (no JQL/PAT/content,
+          // per NFR-003).
+          host.logger.info({
+            message: "Could not compute the excluded count; omitting it from this page.",
+            data: { resolvedKind: "excluded-count-unavailable" },
+          });
+        }
+      }
+
+      return excludedCount === undefined
+        ? { items, nextCursor }
+        : { items, nextCursor, excludedCount };
     },
 
     async getIssue(params: {
@@ -481,6 +526,21 @@ function jiraSearch(
       ],
     },
   });
+}
+
+/**
+ * Count-only companion query (#434): ask Jira how many issues match `jql`
+ * without fetching any bodies (`maxResults: 0`). Used to derive how many issues
+ * the status-exclusion clause dropped, by differencing this unfiltered total
+ * against the filtered search total. Returns undefined when Jira omits a
+ * numeric `total`.
+ */
+async function jiraCount(ctx: JiraRequestContext, jql: string): Promise<number | undefined> {
+  const res = await jiraFetch<{ total?: number }>(ctx, "/rest/api/2/search", {
+    method: "POST",
+    body: { jql, startAt: 0, maxResults: 0 },
+  });
+  return typeof res.total === "number" ? res.total : undefined;
 }
 
 /**
