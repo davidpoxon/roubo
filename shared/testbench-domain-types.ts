@@ -73,3 +73,53 @@ export interface TestCasesPlan {
   specSlug: string;
   cases: Case[];
 }
+
+// ── Result-side input shapes (consumed by testbench-domain.reconcile) ──
+//
+// These mirror the architecture.md data model and the canonical zod shapes in
+// testbench-contracts.ts (NoteSchema, StatusOverrideSchema, CaseResultSchema,
+// BenchResultsSchema). They are local copies for the same reason as the shapes
+// above: testbench-contracts owns the canonical types, and these should be
+// aligned with (or replaced by) its exports when this module consolidates.
+
+// An explicit status override, recorded distinctly from derivedStatus (FR-010).
+export interface StatusOverride {
+  status: CaseStatus;
+  author: Author;
+  timestamp: string;
+}
+
+// An append-only note (FR-011). statusAtWrite captures the effective status at
+// the moment the note was written.
+export interface Note {
+  id: string;
+  text: string;
+  author: Author;
+  timestamp: string;
+  statusAtWrite: CaseStatus;
+}
+
+// A recorded result for one case, keyed by case id in BenchResults.caseResults.
+//
+// caseCanon is the per-case canonical body snapshot reconcile compares against
+// the live plan to classify changed vs unchanged. It is NOT yet on the
+// published contract's CaseResultSchema (which is .strict()); carrying it here
+// keeps issue #413 scoped and data-loss-safe (a result with no stored snapshot
+// is conservatively classified changed). Aligning the published contract to
+// persist caseCanon is tracked in #447.
+export interface CaseResult {
+  observationMarks: Record<string, ObservationMark>;
+  derivedStatus: CaseStatus;
+  statusOverride?: StatusOverride;
+  notes: Note[];
+  // A removed case's result is flagged orphaned and retained, never deleted,
+  // and excluded from the rollup (FR-013, FR-017).
+  orphaned?: true;
+  caseCanon?: string;
+}
+
+// One bench's recorded results, keyed by case id.
+export interface BenchResults {
+  caseResults: Record<string, CaseResult>;
+  updatedAt: string;
+}
