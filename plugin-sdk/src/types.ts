@@ -196,12 +196,13 @@ export interface ListIssuesResult {
   /** Absent or empty means "no per-category problems on this page." */
   warnings?: ListIssuesWarning[];
   /**
-   * Count of issues the plugin dropped in-query on this page (e.g. the
-   * status-category exclusion of FR-009/FR-010), surfaced so the cut list can
-   * show "N filtered out by status". Additive and optional: plugins that
-   * exclude server-side without a cheap count (the jira-self-hosted plugin
-   * excludes in JQL) omit it, and the host treats absence as "unknown".
-   * Wiring a real count for the jira-self-hosted plugin is tracked in #434.
+   * Count of issues the plugin dropped in-query (e.g. the status-category
+   * exclusion of FR-009/FR-010), surfaced so the cut list can show "N filtered
+   * out by status". Additive and optional: the host sums it across pages and
+   * treats absence as "unknown". Plugins that filter in memory report it
+   * per page; the jira-self-hosted plugin excludes server-side in JQL, so it
+   * reports the whole-result-set count once on the first page via a count-only
+   * companion query (and omits it when the companion count is unavailable).
    */
   excludedCount?: number;
 }
