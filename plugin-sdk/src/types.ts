@@ -195,6 +195,15 @@ export interface ListIssuesResult {
   nextCursor: string | null;
   /** Absent or empty means "no per-category problems on this page." */
   warnings?: ListIssuesWarning[];
+  /**
+   * Count of issues the plugin dropped in-query on this page (e.g. the
+   * status-category exclusion of FR-009/FR-010), surfaced so the cut list can
+   * show "N filtered out by status". Additive and optional: plugins that
+   * exclude server-side without a cheap count (the jira-self-hosted plugin
+   * excludes in JQL) omit it, and the host treats absence as "unknown".
+   * Wiring a real count for the jira-self-hosted plugin is tracked in #434.
+   */
+  excludedCount?: number;
 }
 
 export type SourceCandidateIcon = "repo" | "project" | "board" | "epic" | "filter";

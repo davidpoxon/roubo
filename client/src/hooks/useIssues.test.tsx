@@ -92,6 +92,41 @@ describe("useIssues", () => {
     expect(result.current.stalled).toBe(true);
   });
 
+  it("sums excludedCount across fetched pages, treating absence as zero (#358)", async () => {
+    mockedFetch
+      .mockResolvedValueOnce({
+        items: [makeIssue("1")],
+        nextCursor: "c1",
+        excludedCount: 2,
+      } as PaginatedIssues)
+      .mockResolvedValueOnce({
+        items: [makeIssue("2")],
+        nextCursor: null,
+      } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.excludedCount).toBe(2);
+
+    await act(async () => {
+      result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.issues).toHaveLength(2));
+    // Second page reported no count; the total stays at the first page's 2.
+    expect(result.current.excludedCount).toBe(2);
+  });
+
+  it("defaults excludedCount to zero when no page reports one (#358)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: null,
+    } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.excludedCount).toBe(0);
+  });
+
   it("does not fetch when projectId is undefined", () => {
     renderHookWithProviders(() => useIssues(undefined));
     expect(mockedFetch).not.toHaveBeenCalled();

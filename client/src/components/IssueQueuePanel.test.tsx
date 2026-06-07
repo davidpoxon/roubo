@@ -91,6 +91,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     stalled: false,
     stale: false,
     snapshotCapturedAt: null,
+    excludedCount: 0,
     ...overrides,
   };
 }
@@ -231,6 +232,22 @@ describe("IssueQueuePanel", () => {
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
     );
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
+  });
+
+  it("shows the excluded-count note when issues were filtered out in-query (#358)", () => {
+    mockedUseIssues.mockReturnValue(defaultResult({ excludedCount: 3 }));
+    renderWithProviders(
+      <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+    );
+    expect(screen.getByTestId("excluded-count-note")).toHaveTextContent("3 filtered out by status");
+  });
+
+  it("hides the excluded-count note when nothing was filtered out (#358)", () => {
+    mockedUseIssues.mockReturnValue(defaultResult({ excludedCount: 0 }));
+    renderWithProviders(
+      <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+    );
+    expect(screen.queryByTestId("excluded-count-note")).toBeNull();
   });
 
   describe("FR-014 / TC-016: stale-snapshot banner", () => {

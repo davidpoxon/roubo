@@ -1,0 +1,21 @@
+project:
+  name: e2e-cut-list-flow
+  displayName: E2E Cut-List Flow
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4920
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  sources:
+    Repository:
+      - "acme/widgets"

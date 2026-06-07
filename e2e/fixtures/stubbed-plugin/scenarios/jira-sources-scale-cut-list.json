@@ -1,0 +1,115 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "jira-sources-scale-cut-list",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#101",
+      "externalUrl": "https://stub.example/acme/widgets/issues/101",
+      "title": "Wire the cut list",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#102",
+      "externalUrl": "https://stub.example/acme/widgets/issues/102",
+      "title": "Refactor the picker",
+      "body": null,
+      "currentState": "In Progress",
+      "statusCategory": "In Progress",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#103",
+      "externalUrl": "https://stub.example/acme/widgets/issues/103",
+      "title": "Ship the banner",
+      "body": null,
+      "currentState": "Done",
+      "statusCategory": "Done",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#104",
+      "externalUrl": "https://stub.example/acme/widgets/issues/104",
+      "title": "Old auth bug",
+      "body": null,
+      "currentState": "Closed",
+      "statusCategory": "Done",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#105",
+      "externalUrl": "https://stub.example/acme/widgets/issues/105",
+      "title": "Stale flake",
+      "body": null,
+      "currentState": "Resolved",
+      "statusCategory": "Done",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {}
+}

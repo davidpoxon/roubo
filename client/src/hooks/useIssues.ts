@@ -24,6 +24,12 @@ export interface UseIssuesResult {
   stale: boolean;
   /** ISO timestamp of the cached snapshot when `stale` is true, else null. */
   snapshotCapturedAt: string | null;
+  /**
+   * Total issues the active plugin dropped in-query across fetched pages
+   * (status-category exclusion, FR-009/FR-010), or 0 when no page reported a
+   * count. Drives the cut list's "N filtered out by status" banner.
+   */
+  excludedCount: number;
 }
 
 /**
@@ -61,6 +67,7 @@ export function useIssues(
   const stalePage = pages.find((p) => p.stale === true);
   const stale = stalePage !== undefined;
   const snapshotCapturedAt = stalePage?.snapshotCapturedAt ?? null;
+  const excludedCount = pages.reduce((sum, p) => sum + (p.excludedCount ?? 0), 0);
 
   return {
     issues,
@@ -74,6 +81,7 @@ export function useIssues(
     stalled,
     stale,
     snapshotCapturedAt,
+    excludedCount,
   };
 }
 

@@ -21,6 +21,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     stalled: false,
     stale: false,
     snapshotCapturedAt: null,
+    excludedCount: 0,
     ...overrides,
   };
 }
