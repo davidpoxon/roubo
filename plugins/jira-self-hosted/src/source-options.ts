@@ -91,42 +91,49 @@ export async function getSourceOptions(
   }
 }
 
-interface ProjectSearchResponse {
-  values?: Array<{ key?: string; name?: string }>;
-  total?: number;
-  isLast?: boolean;
+interface ProjectListItem {
+  key?: string;
+  name?: string;
 }
 
 async function searchProjects(
   ctx: JiraRequestContext,
   params: GetSourceOptionsParams,
 ): Promise<SourceOptionsResult> {
-  // Project is the root scope: `scope` is ignored here.
+  // Jira Data Center does not implement the paginated `/rest/api/2/project/search`
+  // resource (that is Jira Cloud / newer-only); on DC it 404s because `search` is
+  // parsed as a project key. The universally available endpoint is
+  // `/rest/api/2/project`, which returns every visible project in a single array
+  // with no server-side `query` or pagination. We therefore filter by `search`
+  // and paginate client-side to preserve the type-ahead + cursor contract the
+  // host's dropdown expects. Project is the root scope, so `scope` is ignored.
   const { startAt = 0 } = decodeCursor(params.cursor);
-  const data = await jiraFetch<ProjectSearchResponse>(ctx, "/rest/api/2/project/search", {
-    query: {
-      query: emptyToUndefined(params.search),
-      startAt,
-      maxResults: SOURCE_OPTIONS_PAGE_SIZE,
-    },
-  });
-  const values = data.values ?? [];
-  const items: SourceCandidateItem[] = values
+  const data = await jiraFetch<ProjectListItem[]>(ctx, "/rest/api/2/project");
+  const all = Array.isArray(data) ? data : [];
+  const term = (params.search ?? "").trim().toLowerCase();
+  const matched = all
     .filter((p): p is { key: string; name?: string } => typeof p.key === "string")
-    .map((p) => ({
-      externalId: p.key,
-      label: p.name ?? p.key,
-      sublabel: p.key,
-      icon: "project",
-    }));
-  const next = nextStartAt({
-    isLast: data.isLast,
-    total: data.total,
-    startAt,
-    returned: values.length,
-    pageSize: SOURCE_OPTIONS_PAGE_SIZE,
-  });
-  return { items, nextCursor: next === null ? null : encodeCursor({ startAt: next }) };
+    .filter(
+      (p) =>
+        term.length === 0 ||
+        p.key.toLowerCase().includes(term) ||
+        (p.name ?? "").toLowerCase().includes(term),
+    )
+    // Stable, name-then-key ordering so client-side slicing yields the same
+    // page boundaries across cursor continuations (NFR-004: no dropped or
+    // duplicated rows). Mirrors the name-sorted default of `/project/search`.
+    .sort((a, b) => (a.name ?? a.key).localeCompare(b.name ?? b.key) || a.key.localeCompare(b.key));
+
+  const page = matched.slice(startAt, startAt + SOURCE_OPTIONS_PAGE_SIZE);
+  const items: SourceCandidateItem[] = page.map((p) => ({
+    externalId: p.key,
+    label: p.name ?? p.key,
+    sublabel: p.key,
+    icon: "project",
+  }));
+  const consumed = startAt + page.length;
+  const nextCursor = consumed < matched.length ? encodeCursor({ startAt: consumed }) : null;
+  return { items, nextCursor };
 }
 
 interface BoardSearchResponse {

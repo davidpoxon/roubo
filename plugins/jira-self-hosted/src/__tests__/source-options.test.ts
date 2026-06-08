@@ -36,41 +36,77 @@ describe("getSourceOptions (jira-self-hosted, WU-002)", () => {
   });
 
   describe("project category", () => {
-    it("forwards the search term and returns mapped, paginated items", async () => {
-      let seenUrl = "";
-      harness.fetchStub.on("/rest/api/2/project/search", (_init, url) => {
-        seenUrl = url;
-        return {
-          values: [
-            { key: "PLAT", name: "Platform" },
-            { key: "PAY", name: "Payments" },
-          ],
-          total: 5,
-          isLast: false,
-        };
+    it("lists projects via /rest/api/2/project (not the Cloud /search resource) and filters client-side", async () => {
+      // Jira Data Center 404s on `/project/search` (it parses `search` as a
+      // project key, #468). The loader must hit the plain `/rest/api/2/project`
+      // list endpoint with no server-side query/pagination params, then filter
+      // and sort client-side. Match is case-insensitive over key OR name.
+      let seenPath = "";
+      let seenSearch = "";
+      harness.fetchStub.on("/rest/api/2/project", (_init, url) => {
+        const u = new URL(url);
+        seenPath = u.pathname;
+        seenSearch = u.search;
+        // Returned unsorted to prove the loader sorts by name.
+        return [
+          { key: "PLAT", name: "Platform" },
+          { key: "ZED", name: "Payroll" }, // matches "pay" by name only
+          { key: "PAY", name: "Payments" }, // matches "pay" by key
+          { key: "BILL", name: "Billing" }, // no match
+        ];
       });
 
-      const page = await getSourceOptions(ctx, { category: "project", search: "p" });
+      const page = await getSourceOptions(ctx, { category: "project", search: "pay" });
 
-      const parsed = new URL(seenUrl);
-      expect(parsed.searchParams.get("query")).toBe("p");
-      expect(parsed.searchParams.get("maxResults")).toBe(String(SOURCE_OPTIONS_PAGE_SIZE));
+      expect(seenPath).toBe("/rest/api/2/project");
+      expect(seenSearch).toBe("");
+      // Only the two matches, sorted by name ("Payments" < "Payroll").
       expect(page.items).toEqual([
-        { externalId: "PLAT", label: "Platform", sublabel: "PLAT", icon: "project" },
         { externalId: "PAY", label: "Payments", sublabel: "PAY", icon: "project" },
+        { externalId: "ZED", label: "Payroll", sublabel: "ZED", icon: "project" },
       ]);
-      // More results exist (consumed 2 < total 5): a cursor is returned.
-      expect(page.nextCursor).not.toBeNull();
-      expect(decodeCursor(page.nextCursor)).toEqual({ startAt: 2 });
+      expect(page.nextCursor).toBeNull();
     });
 
-    it("returns a null cursor when the page is the last", async () => {
-      harness.fetchStub.on("/rest/api/2/project/search", () => ({
-        values: [{ key: "PLAT", name: "Platform" }],
-        isLast: true,
+    it("paginates client-side with no dropped or duplicated rows (NFR-004)", async () => {
+      const projects = Array.from({ length: SOURCE_OPTIONS_PAGE_SIZE + 5 }, (_, i) => ({
+        key: `P${String(i).padStart(2, "0")}`,
+        name: `Project ${String(i).padStart(2, "0")}`,
       }));
+      harness.fetchStub.on("/rest/api/2/project", () => projects);
+
+      const page1 = await getSourceOptions(ctx, { category: "project" });
+      expect(page1.items).toHaveLength(SOURCE_OPTIONS_PAGE_SIZE);
+      expect(page1.items[0].externalId).toBe("P00");
+      expect(decodeCursor(page1.nextCursor)).toEqual({ startAt: SOURCE_OPTIONS_PAGE_SIZE });
+
+      const page2 = await getSourceOptions(ctx, {
+        category: "project",
+        cursor: page1.nextCursor,
+      });
+      expect(page2.items).toHaveLength(5);
+      expect(page2.nextCursor).toBeNull();
+
+      const all = [...page1.items, ...page2.items].map((i) => i.externalId);
+      expect(new Set(all).size).toBe(all.length); // no duplicates
+      expect(all).toHaveLength(SOURCE_OPTIONS_PAGE_SIZE + 5); // no drops
+    });
+
+    it("returns an empty page when nothing matches the search term", async () => {
+      harness.fetchStub.on("/rest/api/2/project", () => [{ key: "PLAT", name: "Platform" }]);
+      const page = await getSourceOptions(ctx, { category: "project", search: "zzz" });
+      expect(page).toEqual({ items: [], nextCursor: null });
+    });
+
+    it("skips entries without a string key", async () => {
+      harness.fetchStub.on("/rest/api/2/project", () => [
+        { name: "No key" },
+        { key: "OK", name: "Okay" },
+      ]);
       const page = await getSourceOptions(ctx, { category: "project" });
-      expect(page.nextCursor).toBeNull();
+      expect(page.items).toEqual([
+        { externalId: "OK", label: "Okay", sublabel: "OK", icon: "project" },
+      ]);
     });
   });
 
