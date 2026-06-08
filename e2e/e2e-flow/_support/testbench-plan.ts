@@ -201,3 +201,67 @@ export const OWNING_SLICES: Record<string, string> = {
   variantTabs: "#416 (bench-variant create: TestBench-first tab surface)",
   reviewPanel: "#419 (TestBench review tab: focused slug/path + results panel)",
 };
+
+// TC-069 (#441): the authoritative `e2e_flow` case the toggle-off-and-on journey
+// drift-guards against, restated verbatim from `.specifications/testbench/test-cases.json`
+// TC-069 (id, title, preconditions, and per-step expected observations). The e2e
+// spec walks each leg against this object so a journey change moves the case and
+// the spec together. Unlike TC_001_PLAN this is NOT seeded into a fixture repo
+// (the journey never discovers specs or creates a bench), so it is kept as a
+// plain documentation object rather than a schema-valid TestCasesPlan.
+export const TC_069 = {
+  id: "TC-069",
+  title: "E2E: toggle TestBench off, verify hidden, toggle on, verify restored",
+  area: "settings",
+  type: "e2e_flow",
+  preconditions: [
+    "Roubo is running",
+    "TestBench is enabled (toggle ON)",
+    "The main UI shows the create-TestBench option and surface",
+  ],
+  steps: [
+    { action: "Open app settings" },
+    { action: "Navigate to the 'TestBench' tab" },
+    {
+      action: "Observe the switch state",
+      expected: ["Switch is ON (amber) with no disabled helper text"],
+    },
+    {
+      action: "Click the switch to toggle OFF",
+      expected: ["Switch turns OFF", "The disabled helper text appears"],
+    },
+    {
+      action: "Close app settings and inspect the main UI",
+      expected: [
+        "The create-TestBench option is absent",
+        "The TestBench surface is not accessible",
+      ],
+    },
+    {
+      action: "Re-open settings, navigate to the 'TestBench' tab, and toggle ON",
+      expected: ["Switch turns ON", "The disabled helper text is removed"],
+    },
+    {
+      action: "Close settings and inspect the main UI",
+      expected: [
+        "The create-TestBench option is visible again",
+        "The TestBench feature surface is accessible again",
+      ],
+    },
+  ],
+} as const;
+
+// The slices that own each leg of the TC-069 journey, surfaced in a failing run so
+// the divergence localises to an attributable slice (FR-020 / AC6). The mapping is
+// this work unit's `blocked_by` / `covers` set from issue #441:
+//   #414 the app-settings TestBench tab + enable toggle,
+//   #416 the bench-variant wiring that derives the gated surface from the toggle,
+//   #417 the UserPreferences testBench.enabled persistence the toggle round-trips,
+//   #418 the create-a-TestBench entry point gated on the toggle.
+export const TC_069_OWNING_SLICES = {
+  toggle: "#414 (app-settings TestBench tab + enable toggle)",
+  helperText: "#414 (app-settings TestBench tab: disabled helper text)",
+  persistence: "#417 (UserPreferences testBench.enabled persistence)",
+  gatedSurface: "#418 (create-a-TestBench entry point gated on the toggle)",
+  surfaceWiring: "#416 (bench-variant wiring: testBenchEnabled derived from settings)",
+} as const;
