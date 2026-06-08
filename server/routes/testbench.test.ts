@@ -51,6 +51,10 @@ app.use(express.json());
 app.use("/", router);
 
 const REPO = "/repo";
+// The bench's own worktree root: the store IO roots here as of #493, so every
+// store call passes WORKTREE (not REPO) as the root. The slug is still resolved
+// against REPO, where the focused spec was picked.
+const WORKTREE = "/worktree/bench-1";
 const FOCUSED = "/repo/.specifications/testbench/test-cases.json";
 
 beforeEach(() => {
@@ -63,6 +67,7 @@ beforeEach(() => {
     id: 1,
     variant: "testbench",
     focusedSpecPath: FOCUSED,
+    workspacePath: WORKTREE,
   } as never);
   vi.mocked(discovery.resolveFocusedSpec).mockReturnValue({
     slug: "testbench",
@@ -138,7 +143,7 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     expect(res.status).toBe(200);
     expect(res.body.planHash).toBe("abc");
     expect(res.body.recovered).toBe(true);
-    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(REPO, "testbench", "bench-1");
+    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(WORKTREE, "testbench");
   });
 
   it("returns 400 for a non-numeric bench id", async () => {
@@ -156,6 +161,20 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ id: 1 } as never);
     const res = await request(app).get("/p1/benches/1/testbench/plan");
     expect(res.status).toBe(400);
+  });
+
+  // #493: an error-state bench with a blank workspacePath must fail cleanly (400),
+  // never write to / read from a bogus root.
+  it("returns 400 when the bench has no workspace path", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      id: 1,
+      variant: "testbench",
+      focusedSpecPath: FOCUSED,
+      workspacePath: "",
+    } as never);
+    const res = await request(app).get("/p1/benches/1/testbench/plan");
+    expect(res.status).toBe(400);
+    expect(testbenchStore.readPlanAndResults).not.toHaveBeenCalled();
   });
 
   it("maps MissingPlanError to 404", async () => {
@@ -178,9 +197,8 @@ describe("PUT mark observation", () => {
     expect(res.status).toBe(200);
     expect(res.body.derivedStatus).toBe("passed");
     expect(testbenchStore.markObservation).toHaveBeenCalledWith(
-      REPO,
+      WORKTREE,
       "testbench",
-      "bench-1",
       "TC-001",
       "O1",
       "pass",
@@ -204,9 +222,8 @@ describe("PUT set status override", () => {
     const res = await request(app).put(url).send({ override: "blocked" });
     expect(res.status).toBe(200);
     expect(testbenchStore.setStatusOverride).toHaveBeenCalledWith(
-      REPO,
+      WORKTREE,
       "testbench",
-      "bench-1",
       "TC-001",
       "blocked",
     );
@@ -217,9 +234,8 @@ describe("PUT set status override", () => {
     const res = await request(app).put(url).send({ override: null });
     expect(res.status).toBe(200);
     expect(testbenchStore.setStatusOverride).toHaveBeenCalledWith(
-      REPO,
+      WORKTREE,
       "testbench",
-      "bench-1",
       "TC-001",
       null,
     );
@@ -266,7 +282,7 @@ describe("POST reconcile", () => {
     expect(res.status).toBe(200);
     expect(res.body.applied).toBe(false);
     expect(res.body.classification.removed).toEqual(["TC-099"]);
-    expect(testbenchStore.reconcile).toHaveBeenCalledWith(REPO, "testbench", "bench-1", {
+    expect(testbenchStore.reconcile).toHaveBeenCalledWith(WORKTREE, "testbench", {
       confirm: undefined,
       purgeOrphans: undefined,
     });
@@ -277,7 +293,7 @@ describe("POST reconcile", () => {
     const res = await request(app).post(url).send({ confirm: true });
     expect(res.status).toBe(200);
     expect(res.body.applied).toBe(true);
-    expect(testbenchStore.reconcile).toHaveBeenCalledWith(REPO, "testbench", "bench-1", {
+    expect(testbenchStore.reconcile).toHaveBeenCalledWith(WORKTREE, "testbench", {
       confirm: true,
       purgeOrphans: undefined,
     });
@@ -287,7 +303,7 @@ describe("POST reconcile", () => {
     vi.mocked(testbenchStore.reconcile).mockResolvedValue({ classification, applied: true });
     const res = await request(app).post(url).send({ confirm: true, purgeOrphans: true });
     expect(res.status).toBe(200);
-    expect(testbenchStore.reconcile).toHaveBeenCalledWith(REPO, "testbench", "bench-1", {
+    expect(testbenchStore.reconcile).toHaveBeenCalledWith(WORKTREE, "testbench", {
       confirm: true,
       purgeOrphans: true,
     });

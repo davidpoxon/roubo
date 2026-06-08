@@ -11,7 +11,7 @@
     "planHash": {
       "type": "string"
     },
-    "benches": {
+    "caseResults": {
       "type": "object",
       "propertyNames": {
         "type": "string"
@@ -19,7 +19,7 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "caseResults": {
+          "observationMarks": {
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -27,140 +27,127 @@
             "additionalProperties": {
               "type": "object",
               "properties": {
-                "observationMarks": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                      "result": {
-                        "type": "string",
-                        "enum": ["pass", "fail"]
-                      },
-                      "author": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "email": {
-                            "type": "string"
-                          },
-                          "isSentinel": {
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": ["name", "email"],
-                        "additionalProperties": false
-                      },
-                      "timestamp": {
-                        "type": "string"
-                      }
-                    },
-                    "required": ["result", "author", "timestamp"],
-                    "additionalProperties": false
-                  }
-                },
-                "derivedStatus": {
+                "result": {
                   "type": "string",
-                  "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+                  "enum": ["pass", "fail"]
                 },
-                "statusOverride": {
+                "author": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
-                    },
-                    "author": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "isSentinel": {
-                          "type": "boolean",
-                          "const": true
-                        }
-                      },
-                      "required": ["name", "email"],
-                      "additionalProperties": false
-                    },
-                    "timestamp": {
+                    "name": {
                       "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "isSentinel": {
+                      "type": "boolean",
+                      "const": true
                     }
                   },
-                  "required": ["status", "author", "timestamp"],
+                  "required": ["name", "email"],
                   "additionalProperties": false
                 },
-                "notes": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "text": {
-                        "type": "string"
-                      },
-                      "author": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "email": {
-                            "type": "string"
-                          },
-                          "isSentinel": {
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": ["name", "email"],
-                        "additionalProperties": false
-                      },
-                      "timestamp": {
-                        "type": "string"
-                      },
-                      "statusAtWrite": {
-                        "type": "string",
-                        "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
-                      }
-                    },
-                    "required": ["id", "text", "author", "timestamp", "statusAtWrite"],
-                    "additionalProperties": false
-                  }
-                },
-                "orphaned": {
-                  "type": "boolean",
-                  "const": true
-                },
-                "caseCanon": {
+                "timestamp": {
                   "type": "string"
                 }
               },
-              "required": ["observationMarks", "derivedStatus", "notes"],
+              "required": ["result", "author", "timestamp"],
               "additionalProperties": false
             }
           },
-          "updatedAt": {
+          "derivedStatus": {
+            "type": "string",
+            "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+          },
+          "statusOverride": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+              },
+              "author": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "isSentinel": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": ["name", "email"],
+                "additionalProperties": false
+              },
+              "timestamp": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "author", "timestamp"],
+            "additionalProperties": false
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "isSentinel": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": ["name", "email"],
+                  "additionalProperties": false
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "statusAtWrite": {
+                  "type": "string",
+                  "enum": ["not_started", "in_progress", "passed", "failed", "blocked"]
+                }
+              },
+              "required": ["id", "text", "author", "timestamp", "statusAtWrite"],
+              "additionalProperties": false
+            }
+          },
+          "orphaned": {
+            "type": "boolean",
+            "const": true
+          },
+          "caseCanon": {
             "type": "string"
           }
         },
-        "required": ["caseResults", "updatedAt"],
+        "required": ["observationMarks", "derivedStatus", "notes"],
         "additionalProperties": false
       }
+    },
+    "updatedAt": {
+      "type": "string"
     }
   },
-  "required": ["$schema", "schemaVersion", "planHash", "benches"],
+  "required": ["$schema", "schemaVersion", "planHash", "caseResults", "updatedAt"],
   "additionalProperties": false,
-  "$id": "https://roubo.dev/schema/testbench/test-results/v1.0.0.json"
+  "$id": "https://roubo.dev/schema/testbench/test-results/v2.0.0.json"
 }

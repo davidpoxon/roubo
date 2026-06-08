@@ -23,8 +23,8 @@ import { z } from "zod";
 export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json";
 export const TEST_CASES_SCHEMA_VERSION = "1.1.0";
 
-export const TEST_RESULTS_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-results/v1.0.0.json";
-export const TEST_RESULTS_SCHEMA_VERSION = "1.0.0";
+export const TEST_RESULTS_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-results/v2.0.0.json";
+export const TEST_RESULTS_SCHEMA_VERSION = "2.0.0";
 
 // ── Shared leaf schemas ──
 
@@ -206,6 +206,12 @@ export const CaseResultSchema = z
   .strict();
 export type CaseResult = z.infer<typeof CaseResultSchema>;
 
+// The recorded-results body for a single spec: case results keyed by case id,
+// plus a write timestamp. As of the v2.0.0 flatten (#493), one results file
+// lives per worktree (sibling of test-cases.json), so there is exactly one of
+// these per file and it sits at the top level. This stays a named type because
+// it is also the API result shape the client reads (the route projects the file
+// body down to it), so keeping the name avoids client churn.
 export const BenchResultsSchema = z
   .object({
     // Keyed by case id.
@@ -220,8 +226,11 @@ export const TestResultsFileSchema = z
     $schema: z.string(),
     schemaVersion: z.string(),
     planHash: z.string(),
-    // Keyed by bench id: the chosen multi-bench layout, one sidecar per spec.
-    benches: z.record(z.string(), BenchResultsSchema),
+    // Flattened in v2.0.0 (#493): one results file per worktree means exactly
+    // one bench per file, so case results sit at the top level rather than
+    // nested under a per-bench `benches` map. Keyed by case id.
+    caseResults: z.record(z.string(), CaseResultSchema),
+    updatedAt: z.string(),
   })
   .strict()
   // Pass the literal `$id` key through `.meta()` so `z.toJSONSchema()` emits a
