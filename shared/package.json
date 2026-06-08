@@ -18,7 +18,10 @@
   "main": "./types.ts",
   "types": "./types.ts",
   "exports": {
-    ".": "./types.ts"
+    ".": "./types.ts",
+    "./testbench-contracts": "./testbench-contracts.ts",
+    "./testbench-canonicalize": "./testbench-canonicalize.ts",
+    "./testbench-domain": "./testbench-domain.ts"
   },
   "dependencies": {
     "yaml": "2.8.4",
