@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { openConfigureDialog, save } from "./_support/picker.js";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
 // WU-009 (#358): the cut-list-area end-to-end journeys for category-first status
@@ -29,40 +30,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_PATH = path.resolve(__dirname, "..", "fixtures", "cut-list-flow-project");
 const PROJECT_ID = "e2e-cut-list-flow";
 
-// The committed fixture config: e2e-stub plugin, one repository source, and no
-// root exclusion of its own, so the stub manifest's default (`["Done"]`) is what
-// "leave Done-category exclusion at its default" resolves to. TC-025 rewrites
-// this via PUT /config/raw and `afterEach` restores it so reruns are clean.
-const BASE_YAML = `project:
-  name: e2e-cut-list-flow
-  displayName: E2E Cut-List Flow
-  type: web
-  repo: acme/widgets
-layout:
-  type: single-repo
-components:
-  app:
-    type: process
-    command: "echo noop"
-ports:
-  app:
-    base: 4920
-benches:
-  max: 1
-integration:
-  plugin: e2e-stub
-  sources:
-    Repository:
-      - "acme/widgets"
-`;
-
-// roubo.yaml with the given excludedStatusCategories spliced into the integration
-// block, used to drive TC-025's "edit which categories are excluded" steps.
-function yamlWithExcluded(categories: string[]): string {
-  const lines = categories.map((c) => `    - "${c}"`).join("\n");
-  return `${BASE_YAML}  excludedStatusCategories:\n${lines}\n`;
-}
-
+// The committed fixture config (e2e/fixtures/cut-list-flow-project/roubo.yaml):
+// e2e-stub plugin, one repository source, and no root exclusion of its own, so
+// the stub manifest's default (`["Done"]`) is what "leave Done-category
+// exclusion at its default" resolves to. TC-025 edits the excluded set through
+// the Configure dialog, which writes a per-user integration override; the
+// `beforeEach` reset (`/test/__reset`) wipes that override so reruns are clean.
 async function registerProject(request: APIRequestContext): Promise<void> {
   const cleanup = await request.delete(`/api/projects/${PROJECT_ID}?force=true`);
   expect([204, 404]).toContain(cleanup.status());
@@ -70,6 +43,17 @@ async function registerProject(request: APIRequestContext): Promise<void> {
   expect(res.status(), "register cut-list fixture project").toBe(201);
   const body = (await res.json()) as { id: string };
   expect(body.id).toBe(PROJECT_ID);
+
+  // Pin the plugin in a per-user override so the Configure dialog's Save
+  // (PUT /integration/config) is accepted: that route refuses to write config
+  // for a project with no active integration in its override (it 409s on a
+  // committed-only project). The override carries only the plugin, so the
+  // committed sources and the manifest's default `["Done"]` exclusion still
+  // resolve through the merge (TC-024's baseline of 3 filtered is unchanged).
+  const override = await request.put(`/api/projects/${PROJECT_ID}/integration/override`, {
+    data: { plugin: "e2e-stub" },
+  });
+  expect(override.status(), "pin e2e-stub override").toBe(200);
 }
 
 test.beforeEach(async ({ request }) => {
@@ -78,9 +62,9 @@ test.beforeEach(async ({ request }) => {
 });
 
 test.afterEach(async ({ request }) => {
-  // Restore the committed baseline so a mutated roubo.yaml doesn't leak into the
-  // next run (the dev server is reused locally), then unregister.
-  await request.put(`/api/projects/${PROJECT_ID}/config/raw`, { data: { yaml: BASE_YAML } });
+  // Unregister the fixture project. The exclusion edits live in a per-user
+  // integration override (not roubo.yaml), and `beforeEach`'s reset wipes that
+  // override, so no baseline restore is needed.
   await request.delete(`/api/projects/${PROJECT_ID}?force=true`);
 });
 
@@ -106,38 +90,41 @@ test("TC-024: closed issues never appear in the cut list", async ({ page }) => {
   await expect(page.getByTestId("excluded-count-note")).toHaveText("3 filtered out by status");
 });
 
-test("TC-025: a developer edits which status categories are excluded", async ({
-  page,
-  request,
-}) => {
+test("TC-025: a developer edits which status categories are excluded", async ({ page }) => {
   await loadAppShell(page);
   await page.goto(`/projects/${PROJECT_ID}`);
 
   // Baseline (default Done exclusion): the in-progress issue is present.
   await expect(page.getByText("#102", { exact: true })).toBeVisible();
 
-  // Step 1 - toggle the In Progress category into the excluded set. The cut list
-  // drops in-progress issues (Done stays excluded too). Driven through the
-  // existing config-edit path; a full navigation re-resolves the cut list.
-  const put1 = await request.put(`/api/projects/${PROJECT_ID}/config/raw`, {
-    data: { yaml: yamlWithExcluded(["Done", "In Progress"]) },
-  });
-  expect(put1.status()).toBe(200);
-  await page.goto(`/projects/${PROJECT_ID}`);
+  // Step 1 - add the In Progress category to the excluded set through the
+  // Configure dialog's status-exclusion toggle (no PUT /config/raw, AC1). Save
+  // runs Verify implicitly; the scenario's connected pill lets it close. The
+  // exclusion lands in the per-user override, so a full navigation re-resolves
+  // the cut list (Done stays excluded too: In Progress + Done).
+  const open1 = await openConfigureDialog(page, PROJECT_ID, { waitForPicker: false });
+  await expect(open1.dialog.getByTestId("status-exclusion-section")).toBeVisible();
+  // force: React Aria renders the checkbox as a visually-hidden input wrapped
+  // in a label, so the role element isn't hit-testable; the native click still
+  // fires its onChange (same pattern as the picker switch/radio specs).
+  await open1.dialog.getByRole("checkbox", { name: "In Progress" }).click({ force: true });
+  await save(open1.dialog);
 
+  await page.goto(`/projects/${PROJECT_ID}`);
   await expect(page.getByText("#101", { exact: true })).toBeVisible();
   await expect(page.getByText("#102", { exact: true })).toHaveCount(0);
   await expect(page.getByText("#103", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("excluded-count-note")).toHaveText("4 filtered out by status");
 
-  // Step 2 - toggle Done back on (include it): only In Progress stays excluded,
-  // so Done issues reappear in the cut list while in-progress stays gone.
-  const put2 = await request.put(`/api/projects/${PROJECT_ID}/config/raw`, {
-    data: { yaml: yamlWithExcluded(["In Progress"]) },
-  });
-  expect(put2.status()).toBe(200);
-  await page.goto(`/projects/${PROJECT_ID}`);
+  // Step 2 - untoggle Done (include it again) through the dialog: only In
+  // Progress stays excluded, so Done issues reappear while in-progress stays
+  // gone. The reopened dialog seeds from the saved override, so Done reads
+  // checked.
+  const open2 = await openConfigureDialog(page, PROJECT_ID, { waitForPicker: false });
+  await open2.dialog.getByRole("checkbox", { name: "Done" }).click({ force: true });
+  await save(open2.dialog);
 
+  await page.goto(`/projects/${PROJECT_ID}`);
   await expect(page.getByText("#103", { exact: true })).toBeVisible();
   await expect(page.getByText("#104", { exact: true })).toBeVisible();
   await expect(page.getByText("#102", { exact: true })).toHaveCount(0);

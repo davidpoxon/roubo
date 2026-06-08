@@ -33,10 +33,18 @@ export async function openConfigure(
 // their project a different way (e.g. TC-028 needs committed team-default
 // sources in roubo.yaml, which `registerTestProject` can't seed since it writes
 // a per-user override) can still reuse the open / locate boilerplate.
+//
+// `waitForPicker` (default true) waits for the source-picker to render before
+// returning. The picker only renders when the connection pill resolves
+// "connected", so specs that drive a picker-independent surface (e.g. TC-025's
+// status-category exclusion toggle, #452) pass `false` to avoid hanging on a
+// picker they never touch.
 export async function openConfigureDialog(
   page: Page,
   projectId: string,
+  opts: { waitForPicker?: boolean } = {},
 ): Promise<{ dialog: Locator; picker: Locator }> {
+  const { waitForPicker = true } = opts;
   await page.goto(`/projects/${projectId}/settings`);
 
   const tile = page.getByTestId("issue-source-tile");
@@ -50,7 +58,9 @@ export async function openConfigureDialog(
   await expect(dialog.getByTestId("plugin-configure-dialog-header")).toBeVisible();
 
   const picker = dialog.getByTestId("source-picker");
-  await expect(picker).toBeVisible();
+  if (waitForPicker) {
+    await expect(picker).toBeVisible();
+  }
   return { dialog, picker };
 }
 
