@@ -374,6 +374,79 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     expect(box.jql).toContain("((sprint in openSprints() AND filter = 10231) OR filter = 555)");
   });
 
+  it("demotes a project to scope-only when a board scoped to it is also picked", async () => {
+    // Sources OR-union, so a blanket `project = PLAT` would swallow the board's
+    // sprint. The project becomes scope-only and emits no clause, so the board
+    // actually narrows the cut list.
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        { kind: "board", externalId: "board:482", boardMode: "active-sprint", project: "PLAT" },
+      ],
+    });
+
+    expect(box.jql).toContain("((sprint in openSprints() AND filter = 10231))");
+    expect(box.jql).not.toContain("project = ");
+  });
+
+  it("demotes every in-scope project when 'assigned to me' is scoped in-project", async () => {
+    await primeConfig();
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        { kind: "mine", externalId: "mine", mineScope: "in-project" },
+      ],
+    });
+
+    expect(box.jql).toContain('((assignee = currentUser() AND project in ("PLAT")))');
+    expect(box.jql).not.toContain("project = ");
+  });
+
+  it("keeps a project as a full source when no narrower source is scoped to it (cross-project union)", async () => {
+    // PLAT is narrowed by its board; PAY has no narrower source, so it stays a
+    // full `project = "PAY"` source and the two union.
+    await primeConfig();
+    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
+      filter: { id: 10231 },
+    }));
+    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
+      values: [{ id: 99, state: "active" }],
+    }));
+    const box = { jql: "" };
+    captureSearchJql(box);
+
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [
+        { kind: "project", externalId: "PLAT" },
+        { kind: "board", externalId: "board:482", boardMode: "active-sprint", project: "PLAT" },
+        { kind: "project", externalId: "PAY" },
+      ],
+    });
+
+    expect(box.jql).toContain("(sprint in openSprints() AND filter = 10231)");
+    expect(box.jql).toContain('project = "PAY"');
+    expect(box.jql).not.toContain('project = "PLAT"');
+  });
+
   it("listIssues preserves the watermark across paged board polls and advances only on the last page (TC-014)", async () => {
     await primeConfig();
     harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({

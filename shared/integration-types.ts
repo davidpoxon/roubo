@@ -94,6 +94,12 @@ export type SourceSelectionEntry =
   | string
   | {
       externalId: string;
+      // Human-readable display name and secondary line for the source, captured
+      // when the user picks it so chips and the Settings tile can show the name
+      // instead of the raw id on reload (no re-fetch). Display only: the plugin
+      // and `translateSources` ignore them.
+      label?: string;
+      sublabel?: string;
       // Jira project key the source is scoped to (project-first model). Set on
       // board / filter / epic entries and on the synthetic `mine` source when
       // scoped in-project, so removing a project can prune its scoped sources.

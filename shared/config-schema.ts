@@ -227,6 +227,11 @@ export const SourceEntrySchema = z.union([
   z
     .object({
       externalId: z.union([z.string(), z.number()]),
+      // Human-readable display name + secondary line, captured at pick time so
+      // the UI can show the source's name on reload without re-fetching. Display
+      // only; the plugin ignores them.
+      label: z.string().optional(),
+      sublabel: z.string().optional(),
       // Jira project key the source is scoped to (project-first model). Also
       // present on the synthetic `mine` source when its scope is in-project.
       project: z.string().optional(),

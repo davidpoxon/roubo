@@ -196,14 +196,30 @@ function ConfiguredBody({
                 {titleCase(key)}
               </dt>
               <dd className="flex flex-wrap gap-1.5">
-                {(values ?? []).map((v, i) => (
-                  <span
-                    key={`${key}-${i}`}
-                    className="px-2 py-0.5 rounded-md text-[11px] font-mono text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
-                  >
-                    {typeof v === "object" ? String(v.externalId) : String(v)}
-                  </span>
-                ))}
+                {(values ?? []).map((v, i) => {
+                  // Prefer the display label captured at pick time; the raw id /
+                  // sublabel becomes the mono secondary line beneath it.
+                  const primary = typeof v === "object" ? (v.label ?? v.externalId) : String(v);
+                  const secondary =
+                    typeof v === "object"
+                      ? v.label
+                        ? (v.sublabel ?? v.externalId)
+                        : v.sublabel
+                      : undefined;
+                  return (
+                    <span
+                      key={`${key}-${i}`}
+                      className="flex flex-col gap-0.5 px-2 py-0.5 rounded-md text-[11px] text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
+                    >
+                      <span>{primary}</span>
+                      {secondary && (
+                        <span className="font-mono text-stone-400 dark:text-stone-600">
+                          {secondary}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </dd>
             </div>
           ))}

@@ -111,17 +111,27 @@ describe("getSourceOptions (jira-self-hosted, WU-002)", () => {
   });
 
   describe("filter category", () => {
-    it("searches saved filters (not favourites) and maps owner into the sublabel", async () => {
-      let seenUrl = "";
-      harness.fetchStub.on("/rest/api/2/filter/search", (_init, url) => {
-        seenUrl = url;
-        return {
-          values: [
-            { id: 10231, name: "Open bugs", owner: { displayName: "Anna" } },
-            { id: 10232, name: "My team" },
-          ],
-          isLast: true,
-        };
+    it("lists the user's favourite filters via /filter/favourite (not the Cloud /filter/search resource) and maps owner into the sublabel", async () => {
+      // Jira Data Center 404s on `/rest/api/2/filter/search` (Cloud-only, #469).
+      // The loader must hit `/rest/api/2/filter/favourite` (a bare array, no
+      // server query/pagination) and filter + sort by name client-side.
+      let seenPath = "";
+      let seenSearch = "";
+      let searchCalled = false;
+      harness.fetchStub.on("/rest/api/2/filter/search", () => {
+        searchCalled = true;
+        return { values: [] };
+      });
+      harness.fetchStub.on("/rest/api/2/filter/favourite", (_init, url) => {
+        const u = new URL(url);
+        seenPath = u.pathname;
+        seenSearch = u.search;
+        // Returned unsorted to prove the loader sorts by name; "My team" is
+        // filtered out by the "open" search term.
+        return [
+          { id: 10232, name: "My team" },
+          { id: 10231, name: "Open bugs", owner: { displayName: "Anna" } },
+        ];
       });
 
       const page = await getSourceOptions(ctx, {
@@ -130,7 +140,9 @@ describe("getSourceOptions (jira-self-hosted, WU-002)", () => {
         search: "open",
       });
 
-      expect(new URL(seenUrl).searchParams.get("filterName")).toBe("open");
+      expect(searchCalled).toBe(false);
+      expect(seenPath).toBe("/rest/api/2/filter/favourite");
+      expect(seenSearch).toBe("");
       expect(page.items).toEqual([
         {
           externalId: "10231",
@@ -138,8 +150,35 @@ describe("getSourceOptions (jira-self-hosted, WU-002)", () => {
           sublabel: "Anna · filter #10231",
           icon: "filter",
         },
-        { externalId: "10232", label: "My team", sublabel: "filter #10232", icon: "filter" },
       ]);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    it("paginates favourites client-side with no dropped or duplicated rows (NFR-004)", async () => {
+      const favourites = Array.from({ length: SOURCE_OPTIONS_PAGE_SIZE + 3 }, (_, i) => ({
+        id: 20000 + i,
+        name: `Filter ${String(i).padStart(2, "0")}`,
+      }));
+      harness.fetchStub.on("/rest/api/2/filter/favourite", () => favourites);
+
+      const page1 = await getSourceOptions(ctx, {
+        category: "filter",
+        scope: { project: ["PLAT"] },
+      });
+      expect(page1.items).toHaveLength(SOURCE_OPTIONS_PAGE_SIZE);
+      expect(decodeCursor(page1.nextCursor)).toEqual({ startAt: SOURCE_OPTIONS_PAGE_SIZE });
+
+      const page2 = await getSourceOptions(ctx, {
+        category: "filter",
+        scope: { project: ["PLAT"] },
+        cursor: page1.nextCursor,
+      });
+      expect(page2.items).toHaveLength(3);
+      expect(page2.nextCursor).toBeNull();
+
+      const all = [...page1.items, ...page2.items].map((i) => i.externalId);
+      expect(new Set(all).size).toBe(all.length); // no duplicates
+      expect(all).toHaveLength(SOURCE_OPTIONS_PAGE_SIZE + 3); // no drops
     });
 
     it("returns an empty page when no project scope is selected (cascade gate)", async () => {

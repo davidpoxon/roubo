@@ -237,6 +237,15 @@ function validateSourceSelectionBody(body: unknown): SourceSelection {
         const normalized: Exclude<SourceSelection[string][number], string> = {
           externalId: String(data.externalId),
         };
+        // Display label + secondary line captured at pick time, preserved so the
+        // chips and Settings tile render the source's name (not its raw id) on
+        // reload without a re-fetch.
+        if (data.label !== undefined) {
+          normalized.label = data.label;
+        }
+        if (data.sublabel !== undefined) {
+          normalized.sublabel = data.sublabel;
+        }
         // Jira project-first scope and per-kind modifiers (jira-self-hosted
         // searchable picker). Preserved verbatim so scoped board / filter /
         // epic / mine sources round-trip through save.

@@ -27,6 +27,18 @@ interface AsyncSourceSearchProps {
 }
 
 /**
+ * Reconstruct a display item from a persisted entry, using the label/sublabel
+ * captured at pick time when the object form carries them, so a reopened dialog
+ * renders the source's name rather than its raw id without re-fetching.
+ */
+function entryToItem(entry: SourceSelectionEntry, id: string): SourceCandidateItem {
+  if (typeof entry === "object" && typeof entry.label === "string" && entry.label.length > 0) {
+    return { externalId: id, label: entry.label, sublabel: entry.sublabel };
+  }
+  return { externalId: id, label: id };
+}
+
+/**
  * Debounced async type-ahead for a single source category (WU-003, #352). The
  * results render inside a React Aria `Popover`, which portals to the document
  * body and so is never clipped by the configure modal (FR-013). Selecting a
@@ -88,9 +100,12 @@ export default function AsyncSourceSearch({
     onChange(added, removed);
   }
 
+  // Prefer the item picked this session, then a freshly loaded result, then the
+  // label/sublabel persisted on the entry itself (so a reopened dialog shows the
+  // name without a fetch), and only fall back to the bare id when none exist.
   const selectedItems = value.map((entry) => {
     const id = entryExternalId(entry);
-    return picked.get(id) ?? itemsById.get(id) ?? { externalId: id, label: id };
+    return picked.get(id) ?? itemsById.get(id) ?? entryToItem(entry, id);
   });
 
   return (

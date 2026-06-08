@@ -158,8 +158,9 @@ function SearchableSourcePicker({
     let projects = (value.project ?? []).filter((e) => !removed.includes(entryExternalId(e)));
     for (const item of added) {
       if (!projects.some((e) => entryExternalId(e) === item.externalId)) {
-        // Project entries carry just the key; the cascade derives scope from them.
-        projects = [...projects, item.externalId];
+        // The cascade derives scope from the entry's externalId; the captured
+        // label/sublabel let the chip show the project name on reload.
+        projects = [...projects, sourceEntryFromItem(item)];
       }
     }
     const next: SourceSelection = {};
@@ -186,7 +187,11 @@ function SearchableSourcePicker({
   // in-project scope is derived from the project sources at resolution time),
   // and toggling it off drops the category.
   function changeMine(entry: SourceSelectionEntry | null) {
-    onChange(setCategoryEntries(value, "mine", entry ? [entry] : []));
+    // Stamp the synthetic source's display name so the chip / tile reads
+    // "Assigned to me" rather than the bare "mine" sentinel on reload.
+    const stamped =
+      entry && typeof entry === "object" ? { ...entry, label: "Assigned to me" } : entry;
+    onChange(setCategoryEntries(value, "mine", stamped ? [stamped] : []));
   }
 
   // Apply a batch for a scoped category (board / filter / epic) in one update,
@@ -197,10 +202,7 @@ function SearchableSourcePicker({
     for (const item of added) {
       if (entries.some((e) => entryExternalId(e) === item.externalId)) continue;
       const project = attributeProject(item, projectKeys);
-      entries = [
-        ...entries,
-        project ? { externalId: item.externalId, project } : { externalId: item.externalId },
-      ];
+      entries = [...entries, sourceEntryFromItem(item, project)];
     }
     onChange(setCategoryEntries(value, category, entries));
   }
@@ -217,6 +219,12 @@ function SearchableSourcePicker({
         >
           Your saved sources use the old format and can no longer be used. Re-pick your sources
           below.
+        </p>
+      )}
+      {projectKeys.length > 0 && (
+        <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+          A project pulls all its issues unless you narrow it with a board, filter, epic, or
+          "Assigned to me" below.
         </p>
       )}
       {categories
@@ -401,6 +409,24 @@ function attributeProject(item: SourceCandidateItem, projectKeys: string[]): str
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Build a persisted object entry from a picked candidate, capturing its display
+ * `label` / `sublabel` (so chips and the Settings tile show the name on reload
+ * without re-fetching) and optionally the project key it was scoped under. The
+ * label is dropped when it just repeats the externalId, keeping the stored entry
+ * minimal.
+ */
+function sourceEntryFromItem(
+  item: SourceCandidateItem,
+  project?: string,
+): Exclude<SourceSelectionEntry, string> {
+  const entry: Exclude<SourceSelectionEntry, string> = { externalId: item.externalId };
+  if (item.label && item.label !== item.externalId) entry.label = item.label;
+  if (item.sublabel) entry.sublabel = item.sublabel;
+  if (project) entry.project = project;
+  return entry;
 }
 
 function setCategoryEntries(

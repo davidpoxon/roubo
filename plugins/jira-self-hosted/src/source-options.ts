@@ -195,56 +195,58 @@ async function searchBoards(
   return { items, nextCursor };
 }
 
-interface FilterSearchResponse {
-  values?: Array<{ id?: number | string; name?: string; owner?: { displayName?: string } }>;
-  total?: number;
-  isLast?: boolean;
+interface FavouriteFilter {
+  id?: number | string;
+  name?: string;
+  owner?: { displayName?: string };
 }
 
 async function searchFilters(
   ctx: JiraRequestContext,
   params: GetSourceOptionsParams,
 ): Promise<SourceOptionsResult> {
-  // Honor the project-first cascade gate, but note: `/rest/api/2/filter/search`
-  // scopes by numeric projectId, not project key, so v1 searches saved filters
-  // by name across those visible to the user (replacing the favourites-only
-  // load) without hard project scoping. Filter `owner` is appended to the
-  // sublabel only when the instance returns it.
+  // Honor the project-first cascade gate. Jira Data Center has no general
+  // paginated filter-search resource (`/rest/api/2/filter/search` is Cloud-only
+  // and 404s on DC, see #469), so we list the user's favourite filters via
+  // `/rest/api/2/filter/favourite` and filter + paginate by name client-side,
+  // mirroring `searchProjects`. Favourites are the signed-in user's, not
+  // project-scoped, so the project gate only controls when the Filters control
+  // is revealed (it does not narrow the favourites list). Filter `owner` is
+  // appended to the sublabel only when the instance returns it.
   const projectKeys = scopedProjectKeys(params);
   if (projectKeys.length === 0) return { items: [], nextCursor: null };
 
   const { startAt = 0 } = decodeCursor(params.cursor);
-  const data = await jiraFetch<FilterSearchResponse>(ctx, "/rest/api/2/filter/search", {
-    query: {
-      filterName: emptyToUndefined(params.search),
-      expand: "owner",
-      startAt,
-      maxResults: SOURCE_OPTIONS_PAGE_SIZE,
-    },
-  });
-  const values = data.values ?? [];
-  const items: SourceCandidateItem[] = values
+  const data = await jiraFetch<FavouriteFilter[]>(ctx, "/rest/api/2/filter/favourite");
+  const all = Array.isArray(data) ? data : [];
+  const term = (params.search ?? "").trim().toLowerCase();
+  const matched = all
     .filter(
       (f): f is { id: number | string; name?: string; owner?: { displayName?: string } } =>
         f !== null && typeof f === "object" && f.id !== undefined,
     )
-    .map((f) => {
-      const owner = f.owner?.displayName;
-      return {
-        externalId: String(f.id),
-        label: String(f.name ?? `Filter ${f.id}`),
-        sublabel: owner ? `${owner} · filter #${f.id}` : `filter #${f.id}`,
-        icon: "filter",
-      };
-    });
-  const next = nextStartAt({
-    isLast: data.isLast,
-    total: data.total,
-    startAt,
-    returned: values.length,
-    pageSize: SOURCE_OPTIONS_PAGE_SIZE,
+    .filter((f) => term.length === 0 || (f.name ?? "").toLowerCase().includes(term))
+    // Stable name-then-id ordering so client-side slicing yields the same page
+    // boundaries across cursor continuations (NFR-004: no dropped/duplicated rows).
+    .sort(
+      (a, b) =>
+        (a.name ?? String(a.id)).localeCompare(b.name ?? String(b.id)) ||
+        String(a.id).localeCompare(String(b.id)),
+    );
+
+  const page = matched.slice(startAt, startAt + SOURCE_OPTIONS_PAGE_SIZE);
+  const items: SourceCandidateItem[] = page.map((f) => {
+    const owner = f.owner?.displayName;
+    return {
+      externalId: String(f.id),
+      label: String(f.name ?? `Filter ${f.id}`),
+      sublabel: owner ? `${owner} · filter #${f.id}` : `filter #${f.id}`,
+      icon: "filter",
+    };
   });
-  return { items, nextCursor: next === null ? null : encodeCursor({ startAt: next }) };
+  const consumed = startAt + page.length;
+  const nextCursor = consumed < matched.length ? encodeCursor({ startAt: consumed }) : null;
+  return { items, nextCursor };
 }
 
 interface IssueSearchResponse {
