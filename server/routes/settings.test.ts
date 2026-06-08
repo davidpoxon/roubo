@@ -550,6 +550,56 @@ describe("PUT /", () => {
     expect(res.status).toBe(200);
     expect(res.body.claudeCode).toEqual(existingClaudeCode);
   });
+
+  it("saves valid testBench settings alongside theme", async () => {
+    const testBench = { enabled: false };
+    const res = await request(app).put("/").send({ theme: "dark", testBench });
+    expect(res.status).toBe(200);
+    expect(res.body.testBench).toEqual(testBench);
+    expect(state.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ theme: "dark", testBench }),
+    );
+  });
+
+  it("persists testBench.enabled: true round-trip", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", testBench: { enabled: true } });
+    expect(res.status).toBe(200);
+    expect(res.body.testBench).toEqual({ enabled: true });
+  });
+
+  it("returns 400 when testBench.enabled is not a boolean", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", testBench: { enabled: "yes" } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid testBench/i);
+  });
+
+  it("returns 400 when testBench.enabled is missing", async () => {
+    const res = await request(app).put("/").send({ theme: "dark", testBench: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid testBench/i);
+  });
+
+  it("returns 400 when testBench is null", async () => {
+    const res = await request(app).put("/").send({ theme: "dark", testBench: null });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid testBench/i);
+  });
+
+  it("preserves existing testBench settings when not provided in request", async () => {
+    const existingTestBench = { enabled: false };
+    vi.mocked(state.loadSettings).mockReturnValue({
+      theme: "dark",
+      testBench: existingTestBench,
+    });
+
+    const res = await request(app).put("/").send({ theme: "light" });
+    expect(res.status).toBe(200);
+    expect(res.body.testBench).toEqual(existingTestBench);
+  });
 });
 
 describe("POST /claude-code/recheck", () => {

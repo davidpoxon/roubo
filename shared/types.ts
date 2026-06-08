@@ -1447,7 +1447,7 @@ export interface TestBenchSettings {
 }
 
 export const DEFAULT_TESTBENCH_SETTINGS: TestBenchSettings = {
-  enabled: false,
+  enabled: true,
 };
 
 export interface ClaudeCodeSettings {

@@ -141,7 +141,7 @@ const DEFAULT_BENCH_SETTINGS = {
   workUnitAutoClear: true,
   autoStartComponents: false,
 };
-const DEFAULT_TESTBENCH_SETTINGS = { enabled: false };
+const DEFAULT_TESTBENCH_SETTINGS = { enabled: true };
 const DEFAULT_CLAUDE_CODE_SETTINGS = {
   enableAutoMode: false,
   startInPlanMode: false,
@@ -380,6 +380,12 @@ describe("loadSettings", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", testBench: { enabled: true } }));
     expect(stateModule.loadSettings().testBench).toEqual({ enabled: true });
+  });
+
+  it("preserves an explicit testBench.enabled false from file (overrides the enabled-by-default)", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", testBench: { enabled: false } }));
+    expect(stateModule.loadSettings().testBench).toEqual({ enabled: false });
   });
 
   it("preserves custom github settings from file", () => {
