@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, type KeyboardEvent } from "react";
+import { useRef, useState, useCallback, useMemo, useLayoutEffect, type KeyboardEvent } from "react";
 import type { FlatRow } from "./rollup";
 import { useWindowedRows } from "./useWindowedRows";
 import CaseRow from "./CaseRow";
@@ -26,6 +26,10 @@ function rowSize(row: FlatRow): number {
 
 export default function CaseList({ rows }: { rows: FlatRow[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Set when a keyboard navigation should move DOM focus onto the focused row.
+  // Gates the focus effect so it only fires for keyboard nav, never on initial
+  // mount or when focus arrives natively from a tab/click.
+  const pendingFocusRef = useRef(false);
 
   // Indices of the case rows, in order: the only focusable rows.
   const caseIndices = useMemo(
@@ -41,11 +45,40 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
     sizeAt,
   );
 
+  // Clamp to a row that actually exists. focusedIndex is state that survives a
+  // rows change (the plan can refetch to a smaller plan while this list stays
+  // mounted), so a stale index could point past the new case list. Falling back
+  // to the first case keeps the render path (and the always-mounted focused row
+  // below) from ever referencing a row that no longer exists. The stored state
+  // resyncs on the next keyboard navigation (onKeyDown clamps via indexOf) or
+  // when the list is tabbed into (onFocus updates it), so no effect is needed.
+  const activeFocusIndex = caseIndices.includes(focusedIndex)
+    ? focusedIndex
+    : (caseIndices[0] ?? -1);
+
+  // Always mount the focused row, even when a large Home/End jump leaves it
+  // outside the current scroll window. Keyboard focus must be able to land on it
+  // synchronously after the next commit; relying on the scroll-driven window to
+  // re-render and mount it first is a race (the scroll event is async and is not
+  // guaranteed to land before focus is applied), so the row would otherwise not
+  // exist when focus runs. The windowed rows cover the visible case; this appends
+  // the focused row only when the window does not already include it.
+  const renderedRows = useMemo(() => {
+    if (activeFocusIndex < 0 || virtualRows.some((r) => r.index === activeFocusIndex)) {
+      return virtualRows;
+    }
+    const start = offsetForIndex(activeFocusIndex);
+    const size = offsetForIndex(activeFocusIndex + 1) - start;
+    return [...virtualRows, { index: activeFocusIndex, start, size }];
+  }, [virtualRows, activeFocusIndex, offsetForIndex]);
+
   const moveFocus = useCallback(
     (target: number) => {
       if (target < 0) return;
+      pendingFocusRef.current = true;
       setFocusedIndex(target);
-      // Scroll the target into view so the virtualiser mounts it, then focus.
+      // Scroll the target into view. Focus itself is handled by the layout effect
+      // below, which fires after the row (always mounted via renderedRows) commits.
       const el = scrollRef.current;
       if (el) {
         const top = offsetForIndex(target);
@@ -53,14 +86,23 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
         if (top < el.scrollTop) el.scrollTop = top;
         else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
       }
-      // Defer focus until the row is mounted by the virtualiser.
-      requestAnimationFrame(() => {
-        const node = scrollRef.current?.querySelector<HTMLElement>(`[data-row-index="${target}"]`);
-        node?.focus();
-      });
     },
     [offsetForIndex],
   );
+
+  // Move DOM focus onto the focused row after it renders. Because the focused row
+  // is always mounted (renderedRows), this lands synchronously on commit with no
+  // dependence on requestAnimationFrame or scroll-event timing.
+  useLayoutEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const node = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-row-index="${focusedIndex}"]`,
+    );
+    if (node) {
+      node.focus();
+      pendingFocusRef.current = false;
+    }
+  }, [focusedIndex]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -86,8 +128,6 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
     [caseIndices, focusedIndex, moveFocus],
   );
 
-  const activeFocusIndex = focusedIndex >= 0 ? focusedIndex : (caseIndices[0] ?? -1);
-
   return (
     <div
       ref={scrollRef}
@@ -97,7 +137,7 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
       onKeyDown={onKeyDown}
     >
       <div className="relative w-full" style={{ height: `${totalSize}px` }}>
-        {virtualRows.map((item) => {
+        {renderedRows.map((item) => {
           const row = rows[item.index];
           const common = {
             key: row.key,

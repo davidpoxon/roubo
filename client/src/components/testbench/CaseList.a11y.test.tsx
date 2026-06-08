@@ -147,6 +147,24 @@ describe("CaseList keyboard navigation", () => {
     expect(focusable.length).toBe(1);
   });
 
+  it("lands DOM focus on the last case row on End, even when it starts outside the window", () => {
+    const rows = rowsFor(60);
+    render(<CaseList rows={rows} />);
+    const list = screen.getByRole("group");
+    const lastIndex = rows.length - 1;
+    // The final flat row is a case row (the last case of the last group).
+    expect(rows[lastIndex].kind).toBe("case");
+
+    fireEvent.keyDown(list, { key: "End" });
+
+    // Focus actually moved onto the last case row, not silently lost: the row is
+    // mounted even though it began outside the scroll window, and it both holds
+    // the single tab stop and is the active element.
+    const active = document.activeElement as HTMLElement | null;
+    expect(active?.getAttribute("data-row-index")).toBe(String(lastIndex));
+    expect(active?.getAttribute("tabindex")).toBe("0");
+  });
+
   it("ignores keystrokes when there are no cases", () => {
     render(<CaseList rows={[]} />);
     const list = screen.getByRole("group");
@@ -154,6 +172,22 @@ describe("CaseList keyboard navigation", () => {
     fireEvent.keyDown(list, { key: "ArrowDown" });
     fireEvent.keyDown(list, { key: "End" });
     expect(within(list).queryAllByTestId("case-row").length).toBe(0);
+  });
+
+  it("does not crash when the plan shrinks below the focused row", () => {
+    const big = rowsFor(60);
+    const { rerender } = render(<CaseList rows={big} />);
+    const list = screen.getByRole("group");
+    // Move focus deep into the list, then shrink the plan under it: the stored
+    // focus index now points past the new (shorter) case list.
+    fireEvent.keyDown(list, { key: "End" });
+    const small = rowsFor(3);
+    expect(() => rerender(<CaseList rows={small} />)).not.toThrow();
+    // The tab stop is re-clamped to a row that still exists (exactly one stop).
+    const focusable = within(screen.getByRole("group"))
+      .getAllByTestId("case-row")
+      .filter((el) => el.getAttribute("tabindex") === "0");
+    expect(focusable.length).toBe(1);
   });
 });
 
