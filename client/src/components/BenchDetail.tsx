@@ -77,6 +77,7 @@ import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
 import IssueAssignControl from "./IssueAssignControl";
 import { securityCategoryFor } from "../lib/chip-mapping";
+import TestBenchPanel from "./testbench/TestBenchPanel";
 
 const ALERT_BENCH_DISABLED_TRANSITION_COPY =
   "Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.";
@@ -861,15 +862,19 @@ export default function BenchDetail() {
   const hasDatabaseComponent = !!databaseComponentName;
   const hasInsepection = !!project?.config?.inspection;
 
+  const isTestbench = bench?.variant === "testbench";
+
   const { activeTab, setActiveTab } = useBenchViewState(projectId, benchId);
   const availableTabIds: BenchTabId[] = [
+    ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
     "components",
     "terminal",
     ...(hasInsepection ? (["inspection"] as BenchTabId[]) : []),
     "info",
   ];
+  const defaultTab: BenchTabId = availableTabIds[0];
   const selectedTab: BenchTabId =
-    activeTab && availableTabIds.includes(activeTab) ? activeTab : "components";
+    activeTab && availableTabIds.includes(activeTab) ? activeTab : defaultTab;
 
   if (isLoading) {
     return (
@@ -1054,6 +1059,11 @@ export default function BenchDetail() {
         }}
       >
         <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-6">
+          {isTestbench && (
+            <Tab id="testbench" className={tabClassName}>
+              TestBench
+            </Tab>
+          )}
           <Tab id="components" className={tabClassName}>
             Components
           </Tab>
@@ -1072,6 +1082,12 @@ export default function BenchDetail() {
             Info
           </Tab>
         </TabList>
+
+        {isTestbench && (
+          <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
+            <TestBenchPanel projectId={projectId} benchId={benchId} />
+          </TabPanel>
+        )}
 
         <TabPanel id="components" className="outline-none overflow-auto flex-1">
           {isTearingDown && <StepList steps={bench.teardownSteps} />}
