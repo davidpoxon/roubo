@@ -757,16 +757,17 @@ router.get("/__plugin-enable-state", (_req: Request, res: Response) => {
 
 // TC-043 (#440): resolve the on-disk `.specifications/<slug>/` directory for a
 // provisioned TestBench, mirroring how the live TestBench routes (testbench.ts)
-// resolve it. The bench's focused spec (its plan + results sidecar) lives under
-// the REGISTERED PROJECT repoPath, not the worktree: the create flow validates
-// `focusedSpecPath` against `project.repoPath` and the store reads/writes the
-// plan + results from `<repoPath>/.specifications/<slug>/`. Resolving the same
-// way keeps the e2e harness faithful to the real read/write path. Returns the
-// repoPath + slug, or an error string the caller maps to an HTTP status.
+// resolve it. As of #493 the bench's focused spec (its plan + results sidecar) is
+// read and written under the bench's OWN WORKTREE (`bench.workspacePath`), not
+// the registered project repoPath. The slug is still resolved against the project
+// repoPath, where `focusedSpecPath` was picked and validated, exactly as the live
+// route does. Resolving the same way keeps the e2e harness faithful to the real
+// read/write path. Returns the worktree root + slug, or an error string the
+// caller maps to an HTTP status.
 function resolveBenchSpecDir(
   projectId: string,
   benchId: number,
-): { repoPath: string; slug: string } | { status: number; error: string } {
+): { rootPath: string; slug: string } | { status: number; error: string } {
   const project = projectRegistry.getProject(projectId);
   if (!project || !project.config) {
     return { status: 404, error: `Project '${projectId}' not found` };
@@ -778,13 +779,19 @@ function resolveBenchSpecDir(
   if (bench.variant !== "testbench" || bench.focusedSpecPath === undefined) {
     return { status: 400, error: "Bench is not a testbench or has no focused spec" };
   }
+  // An error-state bench with a blank workspacePath must fail cleanly rather than
+  // resolve to a bogus root, matching the live route's 400 (#493).
+  const rootPath = bench.workspacePath;
+  if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
+    return { status: 400, error: "Bench has no workspace path" };
+  }
   let slug: string;
   try {
     slug = resolveFocusedSpec(project.repoPath, bench.focusedSpecPath).slug;
   } catch (err) {
     return { status: 400, error: `Invalid focusedSpecPath: ${(err as Error).message}` };
   }
-  return { repoPath: project.repoPath, slug };
+  return { rootPath, slug };
 }
 
 // Parse + validate the { projectId, benchId } pair shared by the two TestBench
@@ -807,10 +814,10 @@ function parseBenchTarget(body: {
 // test-cases.json for a provisioned TestBench, so the persist -> staleness ->
 // reconcile e2e spec can drive a mid-test PLAN edit (remove a case, add a case)
 // the create-a-TestBench UI does not expose. The path is resolved from the
-// bench's focused spec (see resolveBenchSpecDir), and the slug is re-validated
+// bench's worktree (see resolveBenchSpecDir), and the slug is re-validated
 // through the same containment barrier the live routes use, so the write stays
-// inside `<repoPath>/.specifications/<slug>/`. Gated by ROUBO_E2E; production
-// builds 404 the URL.
+// inside `<workspacePath>/.specifications/<slug>/` (#493). Gated by ROUBO_E2E;
+// production builds 404 the URL.
 //
 // Body: { projectId: string, benchId: number, testCases: object }.
 router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
@@ -835,10 +842,11 @@ router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
   }
   try {
     // The slug came back through resolveFocusedSpec's SPEC_SLUG_RE barrier, so
-    // the join stays inside the repo's `.specifications` tree (matching
-    // writeSeededSpecs above).
+    // the join stays inside the worktree's `.specifications` tree (matching
+    // writeSeededSpecs above). Writing here (not repoPath) is what makes the
+    // bench's next plan load observe the staleness edit (#493).
     const casesPath = path.join(
-      resolved.repoPath,
+      resolved.rootPath,
       ".specifications",
       resolved.slug,
       "test-cases.json",
@@ -854,11 +862,12 @@ router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
 
 // GET /test/__read-spec-results (#440): read the focused spec's
 // test-results.json sidecar for a provisioned TestBench so the e2e spec can
-// assert the on-disk integrity invariant (NFR-003): bench-keyed results retain
+// assert the on-disk integrity invariant (NFR-003): the flattened results retain
 // the archived (orphaned) case after reconcile. Returns the parsed sidecar plus
 // the source test-cases.json sha256 so the spec can prove the source plan's
 // checksum is unchanged by reconcile (reconcile only ever writes results).
-// Resolves the same way as the rewrite endpoint. Gated by ROUBO_E2E.
+// Resolves the same way as the rewrite endpoint (rooted at the worktree, #493).
+// Gated by ROUBO_E2E.
 //
 // Query: ?projectId=<id>&benchId=<n>.
 router.get("/__read-spec-results", (req: Request, res: Response) => {
@@ -878,7 +887,7 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
     return res.status(resolved.status).json({ error: resolved.error });
   }
   try {
-    const specDir = path.join(resolved.repoPath, ".specifications", resolved.slug);
+    const specDir = path.join(resolved.rootPath, ".specifications", resolved.slug);
     const resultsPath = path.join(specDir, "test-results.json");
     const casesPath = path.join(specDir, "test-cases.json");
     let results: unknown = null;

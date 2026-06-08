@@ -154,9 +154,10 @@ export async function fetchConnectionStateLog(
  * the ROUBO_E2E-gated `/test/__rewrite-spec-cases` endpoint. The create-a-
  * TestBench UI does not expose a plan editor, so the persist -> staleness ->
  * reconcile spec drives the mid-test plan edit (remove a case, add a case)
- * through this harness write. The server resolves the spec directory from the
- * bench's focused spec (the same path the live TestBench routes read/write), so
- * the next plan load detects staleness against the rewritten source.
+ * through this harness write. As of #493 the server resolves the spec directory
+ * from the bench's own worktree (the same path the live TestBench routes
+ * read/write), so the next plan load detects staleness against the rewritten
+ * source.
  */
 export async function rewriteSpecTestCases(
   request: APIRequestContext,
@@ -170,9 +171,9 @@ export async function rewriteSpecTestCases(
  * TC-043 (#440): read a provisioned TestBench's on-disk test-results.json sidecar
  * (plus the source test-cases.json sha256) via `/test/__read-spec-results`. The
  * spec uses this to assert the NFR-003 integrity invariant directly against disk:
- * the bench-keyed results retain the archived (orphaned) case after reconcile,
- * and the source plan's checksum is unchanged (reconcile never rewrites the
- * source plan).
+ * the flattened results (#493) retain the archived (orphaned) case after
+ * reconcile, and the source plan's checksum is unchanged (reconcile never
+ * rewrites the source plan).
  */
 export async function readTestResults(
   request: APIRequestContext,

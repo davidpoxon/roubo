@@ -1128,22 +1128,31 @@ describe("POST /test/__crash-plugin (TC-163, #240)", () => {
   });
 });
 
-// TC-043 (#440): the two TestBench harness endpoints. Both resolve the focused
-// spec directory from the registered project repoPath + the bench's
-// focusedSpecPath (mirroring the live TestBench routes), so the tests seed a real
-// tmp repo with a `.specifications/<slug>/test-cases.json` and point getProject /
-// getBench at it.
+// TC-043 (#440): the two TestBench harness endpoints. As of #493 they resolve the
+// focused spec directory from the bench's OWN WORKTREE (bench.workspacePath),
+// while the slug is still derived from the registered project repoPath + the
+// bench's focusedSpecPath (mirroring the live TestBench routes). The tests seed a
+// real tmp worktree with a `.specifications/<slug>/test-cases.json`, keep a
+// separate repoPath that anchors focusedSpecPath, and point getProject / getBench
+// at both. `specDir` is the worktree's spec dir, where all spec-file IO lands.
 describe("TestBench harness endpoints (#440)", () => {
   const SLUG = "testbench";
   const PROJECT_ID = "tc-043-fixture";
   const BENCH_ID = 1;
 
   let repoPath: string;
+  let workspacePath: string;
   let specDir: string;
 
   function seedRepo(planJson: string): void {
     repoPath = fs.mkdtempSync(path.join(TEST_TMP_ROOT, "tb-"));
-    specDir = path.join(repoPath, ".specifications", SLUG);
+    // focusedSpecPath anchors against repoPath, so the slug derives from a spec
+    // dir under the repo (resolveFocusedSpec checks structure, not existence).
+    fs.mkdirSync(path.join(repoPath, ".specifications", SLUG), { recursive: true });
+    // The bench's worktree is where the live route (and now the harness) reads the
+    // plan and reads/writes the results sidecar (#493). Seed the plan there.
+    workspacePath = fs.mkdtempSync(path.join(TEST_TMP_ROOT, "tb-wt-"));
+    specDir = path.join(workspacePath, ".specifications", SLUG);
     fs.mkdirSync(specDir, { recursive: true });
     fs.writeFileSync(path.join(specDir, "test-cases.json"), planJson, "utf-8");
   }
@@ -1175,7 +1184,10 @@ describe("TestBench harness endpoints (#440)", () => {
       id: BENCH_ID,
       projectId: PROJECT_ID,
       variant: "testbench",
-      focusedSpecPath: path.join(specDir, "test-cases.json"),
+      workspacePath,
+      // focusedSpecPath anchors against repoPath (slug derivation), so it points
+      // at the repo's spec dir, not the worktree where IO lands (#493).
+      focusedSpecPath: path.join(repoPath, ".specifications", SLUG, "test-cases.json"),
     } as never);
   }
 
@@ -1183,6 +1195,10 @@ describe("TestBench harness endpoints (#440)", () => {
     if (repoPath) {
       fs.rmSync(repoPath, { recursive: true, force: true });
       repoPath = "";
+    }
+    if (workspacePath) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+      workspacePath = "";
     }
   });
 
@@ -1273,11 +1289,14 @@ describe("TestBench harness endpoints (#440)", () => {
       // A testbench whose focusedSpecPath points outside the project repo: the
       // resolveFocusedSpec containment barrier rejects it, exercising the
       // "Invalid focusedSpecPath" branch of resolveBenchSpecDir (the
-      // security-relevant path-traversal rejection).
+      // security-relevant path-traversal rejection). A non-blank workspacePath is
+      // supplied so resolution reaches the slug barrier rather than the earlier
+      // blank-workspace 400 (#493).
       vi.mocked(benchManager.getBench).mockReturnValue({
         id: BENCH_ID,
         projectId: PROJECT_ID,
         variant: "testbench",
+        workspacePath,
         focusedSpecPath: "/etc/passwd",
       } as never);
       process.env.ROUBO_E2E = "1";
@@ -1331,11 +1350,15 @@ describe("TestBench harness endpoints (#440)", () => {
     it("returns the parsed sidecar when one exists", async () => {
       seedRepo(VALID_PLAN);
       pointMocksAtRepo();
+      // v2.0.0 flattened shape (#493): caseResults + updatedAt at the top level,
+      // no per-bench `benches` map. The harness reads and returns the sidecar
+      // verbatim, so this fixture documents the contract the e2e spec now asserts.
       const resultsFile = {
         $schema: "x",
-        schemaVersion: "1.0.0",
+        schemaVersion: "2.0.0",
         planHash: "abc",
-        benches: { "bench-1": { caseResults: {}, updatedAt: "2026-06-08T09:00:00.000Z" } },
+        caseResults: {},
+        updatedAt: "2026-06-08T09:00:00.000Z",
       };
       fs.writeFileSync(
         path.join(specDir, "test-results.json"),
