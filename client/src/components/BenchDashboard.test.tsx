@@ -122,12 +122,16 @@ vi.mock("./EmptyBenchCard", () => ({
     position,
     onCreateBlank,
     onPickIssue,
+    testBenchEnabled,
+    onCreateTestBench,
   }: {
     position: number;
     onCreateBlank: () => void;
     onPickIssue: (position: number) => void;
+    testBenchEnabled?: boolean;
+    onCreateTestBench?: (position: number) => void;
   }) => (
-    <div data-testid="empty-bench-card">
+    <div data-testid="empty-bench-card" data-testbench-enabled={String(!!testBenchEnabled)}>
       {position}
       <button data-testid={`pick-issue-${position}`} onClick={() => onPickIssue(position)}>
         Pick Issue
@@ -135,8 +139,43 @@ vi.mock("./EmptyBenchCard", () => ({
       <button data-testid={`create-blank-${position}`} onClick={onCreateBlank}>
         Create Blank
       </button>
+      {testBenchEnabled && onCreateTestBench && (
+        <button
+          data-testid={`create-testbench-${position}`}
+          onClick={() => onCreateTestBench(position)}
+        >
+          Create TestBench
+        </button>
+      )}
     </div>
   ),
+}));
+vi.mock("./testbench/SpecPickerModal", () => ({
+  default: ({
+    isOpen,
+    onClose,
+    onCreate,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onCreate: (path: string) => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="spec-picker">
+        <button
+          data-testid="spec-picker-create"
+          onClick={() => onCreate("/repos/proj-1/.specifications/testbench/test-cases.json")}
+        >
+          Create
+        </button>
+        <button data-testid="spec-picker-close" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+}));
+vi.mock("../hooks/useSettings", () => ({
+  useSettings: vi.fn(() => ({ settings: undefined, isLoading: false, updateSettings: vi.fn() })),
 }));
 vi.mock("./PendingBenchCard", () => ({
   default: () => <div data-testid="pending-bench-card" />,
@@ -328,6 +367,7 @@ import { useProjects } from "../hooks/useProjects";
 import { useProjectBenches, useCreateBench } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { useSettings } from "../hooks/useSettings";
 import BenchDashboard from "./BenchDashboard";
 import BenchesTab from "./BenchesTab";
 import ProjectSettingsTab from "./ProjectSettingsTab";
@@ -337,6 +377,7 @@ const mockedUseProjectBenches = vi.mocked(useProjectBenches);
 const mockedUseCreateBench = vi.mocked(useCreateBench);
 const mockedUseToast = vi.mocked(useToast);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
+const mockedUseSettings = vi.mocked(useSettings);
 
 type MutateOptions = {
   onSuccess?: (result: unknown) => void;
@@ -1415,6 +1456,90 @@ describe("BenchDashboard", () => {
       stubDefaults({ projects: [makeProject()], benches: [] });
       renderDashboard();
       expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    });
+  });
+
+  describe("TestBench create flow (#418)", () => {
+    function setTestBench(enabled: boolean) {
+      mockedUseSettings.mockReturnValue({
+        settings: { theme: "system", testBench: { enabled } },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      } as unknown as ReturnType<typeof useSettings>);
+    }
+
+    it("enables the empty-slot TestBench option when the feature is on", () => {
+      setTestBench(true);
+      stubDefaults({ projects: [makeProject()], benches: [] });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getAllByTestId("empty-bench-card")[0]).toHaveAttribute(
+        "data-testbench-enabled",
+        "true",
+      );
+    });
+
+    it("disables the empty-slot TestBench option when the feature is off", () => {
+      setTestBench(false);
+      stubDefaults({ projects: [makeProject()], benches: [] });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getAllByTestId("empty-bench-card")[0]).toHaveAttribute(
+        "data-testbench-enabled",
+        "false",
+      );
+    });
+
+    it("opens the spec picker from the empty-slot option", async () => {
+      setTestBench(true);
+      stubDefaults({ projects: [makeProject()], benches: [] });
+      renderDashboard("/projects/proj-1");
+      expect(screen.queryByTestId("spec-picker")).toBeNull();
+      await userEvent.click(screen.getAllByTestId("create-testbench-1")[0]);
+      expect(screen.getByTestId("spec-picker")).toBeInTheDocument();
+    });
+
+    it("creates a TestBench, opens it on the testbench tab, and navigates to the bench", async () => {
+      setTestBench(true);
+      const { createMutate, getCapturedOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      mockNavigate.mockClear();
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getAllByTestId("create-testbench-1")[0]);
+      await userEvent.click(screen.getByTestId("spec-picker-create"));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "proj-1",
+          variant: "testbench",
+          focusedSpecPath: "/repos/proj-1/.specifications/testbench/test-cases.json",
+        }),
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+
+      // Drive the success path: the bench should open on the testbench tab and
+      // navigate to the bench detail.
+      act(() => {
+        getCapturedOptions().onSuccess?.(makeBench({ id: 2 }));
+      });
+      const store = JSON.parse(localStorage.getItem("roubo-bench-view-state") ?? "{}");
+      expect(store["proj-1:2"].activeTab).toBe("testbench");
+      expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/benches/2");
+    });
+
+    it("surfaces a toast when TestBench creation fails", async () => {
+      setTestBench(true);
+      const { getCapturedOptions, addToast } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getAllByTestId("create-testbench-1")[0]);
+      await userEvent.click(screen.getByTestId("spec-picker-create"));
+      act(() => {
+        getCapturedOptions().onError?.(new Error("nope"));
+      });
+      expect(addToast).toHaveBeenCalledWith("nope", expect.objectContaining({ duration: 8000 }));
     });
   });
 });

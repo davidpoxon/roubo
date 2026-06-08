@@ -36,6 +36,10 @@ import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import MissingPluginDialog from "./MissingPluginDialog";
 import EnablePluginPromptModal from "./EnablePluginPromptModal";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
+import { useSettings } from "../hooks/useSettings";
+import { DEFAULT_TESTBENCH_SETTINGS } from "@roubo/shared";
+import SpecPickerModal from "./testbench/SpecPickerModal";
+import { setBenchActiveTab } from "../hooks/useBenchViewState";
 
 export type ProjectOutletContext = {
   benchPositions: Array<{ position: number; bench?: Bench }> | null;
@@ -43,6 +47,10 @@ export type ProjectOutletContext = {
   isLoading: boolean;
   openCreateBench: () => void;
   pickIssueForBench: (position: number) => void;
+  // TestBench create flow (#418). Only offered when the feature is enabled; the
+  // handler opens the spec-picker modal for the empty slot.
+  testBenchEnabled: boolean;
+  onCreateTestBench: (position: number) => void;
   hasGitHub: boolean;
   benches: Bench[];
   projectConfig: RouboConfig;
@@ -73,9 +81,12 @@ export default function BenchDashboard() {
   const { data: integration } = useProjectIntegration(projectId);
   const createBench = useCreateBench();
   const { addToast } = useToast();
+  const { settings } = useSettings();
+  const testBenchEnabled = settings?.testBench?.enabled ?? DEFAULT_TESTBENCH_SETTINGS.enabled;
 
   const [showCreate, setShowCreate] = useState(false);
   const [showIssuePicker, setShowIssuePicker] = useState(false);
+  const [showSpecPicker, setShowSpecPicker] = useState(false);
   const { open: openRegisterModal } = useRegisterProjectModal();
   const [branchConflict, setBranchConflict] = useState<
     (BranchConflictInfo & { externalId: string; issueNumber: number | null }) | null
@@ -293,6 +304,36 @@ export default function BenchDashboard() {
     setShowIssuePicker(true);
   }, []);
 
+  const handleCreateTestBench = useCallback(() => {
+    setShowSpecPicker(true);
+  }, []);
+
+  // Create a TestBench bound to the focused spec (#418). On success the bench is
+  // marked to open on its "testbench" tab, then we navigate into the bench detail.
+  const handleSpecPickerCreate = useCallback(
+    (focusedSpecPath: string) => {
+      if (!projectId) return;
+      createBench.mutate(
+        { projectId, variant: "testbench", focusedSpecPath },
+        {
+          onSuccess: (result) => {
+            setShowSpecPicker(false);
+            const bench = result as Bench;
+            setBenchActiveTab(projectId, bench.id, "testbench");
+            navigate(`/projects/${projectId}/benches/${bench.id}`);
+          },
+          onError: (err) => {
+            addToast(
+              err instanceof Error && err.message ? err.message : "Failed to create TestBench",
+              { duration: 8000 },
+            );
+          },
+        },
+      );
+    },
+    [projectId, createBench, navigate, addToast],
+  );
+
   const outletContext = useMemo(
     () =>
       ({
@@ -301,6 +342,8 @@ export default function BenchDashboard() {
         isLoading,
         openCreateBench,
         pickIssueForBench: handleEmptyBenchPickIssue,
+        testBenchEnabled,
+        onCreateTestBench: handleCreateTestBench,
         hasGitHub,
         benches: benches ?? [],
         projectConfig: currentProject?.config as RouboConfig,
@@ -319,6 +362,8 @@ export default function BenchDashboard() {
       isLoading,
       openCreateBench,
       handleEmptyBenchPickIssue,
+      testBenchEnabled,
+      handleCreateTestBench,
       hasGitHub,
       benches,
       currentProject?.config,
@@ -514,6 +559,16 @@ export default function BenchDashboard() {
             benches={benches ?? []}
             pendingIssueExternalIds={pendingIssueExternalIds}
           />
+
+          {projectId && (
+            <SpecPickerModal
+              isOpen={showSpecPicker}
+              onClose={() => setShowSpecPicker(false)}
+              projectId={projectId}
+              onCreate={handleSpecPickerCreate}
+              isCreating={createBench.isPending}
+            />
+          )}
 
           {branchConflict && (
             <BranchConflictDialog

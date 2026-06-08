@@ -27,6 +27,14 @@ function writeEntry(benchKey: string, patch: Partial<BenchViewEntry>): void {
   }
 }
 
+// Imperatively set a bench's active tab in storage without mounting the hook.
+// Used when a bench is created and we want it to open on a specific tab before
+// BenchDetail renders (e.g. a freshly created TestBench opening on the "testbench"
+// tab, #418). Writing the persisted entry is enough: BenchDetail reads it on mount.
+export function setBenchActiveTab(projectId: string, benchId: number, tab: BenchTabId): void {
+  writeEntry(`${projectId}:${benchId}`, { activeTab: tab });
+}
+
 export function useBenchViewState(projectId: string, benchId: number) {
   const benchKey = `${projectId}:${benchId}`;
 

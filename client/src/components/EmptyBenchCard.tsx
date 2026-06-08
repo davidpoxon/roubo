@@ -1,16 +1,23 @@
 import { useState } from "react";
 import { Button, Popover, DialogTrigger } from "react-aria-components";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, ListTodo } from "lucide-react";
+import { Plus, ListTodo, FlaskConical } from "lucide-react";
 
 export default function EmptyBenchCard({
   position,
   onCreateBlank,
   onPickIssue,
+  testBenchEnabled = false,
+  onCreateTestBench,
 }: {
   position: number;
   onCreateBlank: () => void;
   onPickIssue: (position: number) => void;
+  // When true (and a handler is supplied), the menu offers a "Create a TestBench"
+  // option (#418). Kept presentational: the parent reads the feature flag and owns
+  // the spec-picker modal.
+  testBenchEnabled?: boolean;
+  onCreateTestBench?: (position: number) => void;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -63,6 +70,18 @@ export default function EmptyBenchCard({
               <ListTodo size={14} className="text-stone-400 dark:text-stone-500" />
               Pick an issue
             </Button>
+            {testBenchEnabled && onCreateTestBench && (
+              <Button
+                onPress={() => {
+                  setPopoverOpen(false);
+                  onCreateTestBench(position);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
+              >
+                <FlaskConical size={14} className="text-stone-400 dark:text-stone-500" />
+                Create a TestBench
+              </Button>
+            )}
           </div>
         </Popover>
       </DialogTrigger>

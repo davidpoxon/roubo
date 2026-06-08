@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useBenchViewState } from "./useBenchViewState";
+import { useBenchViewState, setBenchActiveTab } from "./useBenchViewState";
 
 const STORAGE_KEY = "roubo-bench-view-state";
 
@@ -14,6 +14,25 @@ describe("useBenchViewState", () => {
     const { result } = renderHook(() => useBenchViewState("proj", 1));
     expect(result.current.activeTab).toBeUndefined();
     expect(result.current.activeTerminalSessionId).toBeUndefined();
+  });
+
+  it("setBenchActiveTab writes the active tab into storage without mounting the hook", () => {
+    setBenchActiveTab("proj", 7, "testbench");
+    const store = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(store["proj:7"].activeTab).toBe("testbench");
+  });
+
+  it("setBenchActiveTab preserves other persisted fields for the bench", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ "proj:7": { activeTerminalSessionId: "sess-1" } }),
+    );
+    setBenchActiveTab("proj", 7, "testbench");
+    const store = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(store["proj:7"]).toEqual({
+      activeTerminalSessionId: "sess-1",
+      activeTab: "testbench",
+    });
   });
 
   it("setActiveTab writes to localStorage and updates state", () => {

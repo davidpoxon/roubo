@@ -618,7 +618,7 @@ describe("BenchDetail", () => {
     });
   });
 
-  describe("TestBench variant tab (#419)", () => {
+  describe("TestBench variant tab (#418, #419)", () => {
     const testbenchBench = {
       ...baseBench,
       variant: "testbench",
@@ -648,6 +648,31 @@ describe("BenchDetail", () => {
     it("does not render the TestBench tab for a non-testbench bench", () => {
       renderBench();
       expect(screen.queryByRole("tab", { name: /testbench/i })).not.toBeInTheDocument();
+    });
+
+    it("opens on the TestBench tab when it is the persisted active tab (#418)", () => {
+      localStorage.setItem(
+        "roubo-bench-view-state",
+        JSON.stringify({ "proj-1:1": { activeTab: "testbench" } }),
+      );
+      renderBench(testbenchBench as never);
+      expect(screen.getByRole("tab", { name: /testbench/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByTestId("testbench-panel")).toBeInTheDocument();
+    });
+
+    it("ignores a persisted testbench tab for a non-testbench bench (#418)", () => {
+      localStorage.setItem(
+        "roubo-bench-view-state",
+        JSON.stringify({ "proj-1:1": { activeTab: "testbench" } }),
+      );
+      renderBench();
+      expect(screen.getByRole("tab", { name: /components/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
     });
   });
 
