@@ -53,6 +53,7 @@ import type {
   InstallSource,
   MigrationRecord,
   SourceCandidatesResponse,
+  StatusCategoriesResponse,
   SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
@@ -820,6 +821,10 @@ export function fetchDerivedGithubSources(projectId: string): Promise<DerivedGit
 // `categorized-multi-list`) drives which picker the client renders.
 export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
   return request(`/projects/${projectId}/integration/sources`);
+}
+
+export function fetchStatusCategories(projectId: string): Promise<StatusCategoriesResponse> {
+  return request(`/projects/${projectId}/integration/status-categories`);
 }
 
 export function saveIntegrationSources(

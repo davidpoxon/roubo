@@ -69,6 +69,19 @@ export function useSourceCandidates(projectId: string, enabled: boolean) {
   });
 }
 
+// Live status-category discovery (issue #453). Fetched lazily, only when the
+// Configure dialog's exclusion section is shown, since it requires a live
+// plugin connection. The endpoint never errors: it returns `supported: false`
+// on any failure so the dialog falls back to its canonical set.
+export function useStatusCategories(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["integration-status-categories", projectId],
+    queryFn: () => api.fetchStatusCategories(projectId),
+    enabled: enabled && !!projectId,
+    staleTime: 30_000,
+  });
+}
+
 export function useSaveIntegrationSources(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({

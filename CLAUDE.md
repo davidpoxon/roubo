@@ -117,6 +117,7 @@ DELETE /api/projects/:projectId/issues/:externalId/assign   Unassign issue from 
 GET    /api/projects/:projectId/permissions   Get project Claude Code tool permissions
 PUT    /api/projects/:projectId/permissions   Replace project Claude Code tool permissions
 POST   /api/projects/:projectId/permissions/resync   Re-inject current permission set into all non-clearing bench workspaces
+GET    /api/projects/:projectId/integration/status-categories   Discover the connected instance's live status categories (graceful fallback when unsupported)
 GET    /api/projects/:projectId/issue-types   Fetch issue types for project's linked GitHub Project
 GET    /api/projects/:projectId/jigs/issue-type-mappings   Get issue-type → jig mappings
 PUT    /api/projects/:projectId/jigs/issue-type-mappings   Replace issue-type → jig mappings { mappings }

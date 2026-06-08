@@ -1563,3 +1563,86 @@ describe("GET /:projectId/integration/sources (searchable-categorized shape)", (
     expect(res.body.error).toMatch(/searchableCategories/);
   });
 });
+
+describe("GET /:projectId/integration/status-categories (issue #453)", () => {
+  it("returns 404 when the project is unknown", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/missing/integration/status-categories");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns supported:false with no categories when no active plugin", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: false, categories: [] });
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+  });
+
+  it("returns supported:true with the plugin's discovered categories", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue(["To Do", "In Progress", "Done"]);
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: true, categories: ["To Do", "In Progress", "Done"] });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "listStatusCategories", {
+      config: { plugin: "jira-self-hosted" },
+    });
+  });
+
+  it("falls back to supported:false when the plugin does not implement discovery", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
+    vi.mocked(pluginManager.invoke).mockRejectedValue({ code: "MethodNotFound" });
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: false, categories: [] });
+  });
+
+  it("falls back to supported:false on any plugin error", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("upstream down"));
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: false, categories: [] });
+  });
+
+  it("falls back to supported:false when the override file is corrupt", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockImplementation(() => {
+      throw new Error("corrupt override yaml");
+    });
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: false, categories: [] });
+  });
+
+  it("falls back to supported:false when the plugin returns a non-string[] payload", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue([{ name: "Done" }]);
+
+    const res = await request(app).get("/demo/integration/status-categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ supported: false, categories: [] });
+  });
+});

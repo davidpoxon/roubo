@@ -518,6 +518,52 @@ router.get("/:projectId/integration/sources", async (req, res) => {
   }
 });
 
+// Discover the connected instance's live status categories (issue #453) to
+// seed the Configure dialog's exclusion toggle. Always returns 200 with a
+// `supported` flag: any failure (no active plugin, MethodNotFound, network /
+// auth error) yields `{ supported: false, categories: [] }` so the dialog
+// falls back to its canonical set and stays usable. Caching/refresh of this
+// list is deferred (#460).
+router.get("/:projectId/integration/status-categories", async (req, res) => {
+  const project = projectRegistry.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  // A corrupt override file or an unsafe projectId makes loadOverride throw;
+  // treat it as "no override" so discovery still falls back gracefully rather
+  // than 500ing the dialog.
+  let overrideEnvelope: IntegrationOverride | null;
+  try {
+    overrideEnvelope = loadOverride(req.params.projectId);
+  } catch {
+    overrideEnvelope = null;
+  }
+  const committed: IntegrationConfig | null = project.config?.integration ?? null;
+  const effective = getEffectiveWithGlobal(committed ?? undefined, overrideEnvelope);
+
+  if (!effective.plugin) {
+    res.json({ supported: false, categories: [] });
+    return;
+  }
+
+  try {
+    const raw = await pluginManager.invoke<unknown>(effective.plugin, "listStatusCategories", {
+      config: effective,
+    });
+    // Enforce the string[] contract at the untyped JSON-RPC boundary so a
+    // misbehaving plugin can never leak non-string values into the toggle.
+    if (!Array.isArray(raw) || !raw.every((c): c is string => typeof c === "string")) {
+      res.json({ supported: false, categories: [] });
+      return;
+    }
+    res.json({ supported: true, categories: raw });
+  } catch {
+    res.json({ supported: false, categories: [] });
+  }
+});
+
 router.get("/:projectId/integration/filter-facets", async (req, res) => {
   const project = projectRegistry.getProject(req.params.projectId);
   if (!project) {

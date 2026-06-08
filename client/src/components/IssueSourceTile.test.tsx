@@ -36,6 +36,7 @@ vi.mock("../hooks/useProjectIntegration", () => ({
     isPending: false,
   })),
   useSourceCandidates: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useStatusCategories: vi.fn(() => ({ data: undefined, isLoading: false })),
   useSaveIntegrationSources: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,

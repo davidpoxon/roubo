@@ -11,6 +11,7 @@ import {
   useTestIntegrationConnection,
   useSaveIntegrationConfig,
   useSourceCandidates,
+  useStatusCategories,
 } from "../hooks/useProjectIntegration";
 import { useIntegrationFields, useSaveIntegrationFields } from "../hooks/useIntegrationFields";
 import { useDerivedGithubSources } from "../hooks/useDerivedGithubSources";
@@ -23,6 +24,7 @@ vi.mock("../hooks/useProjectIntegration", () => ({
   useTestIntegrationConnection: vi.fn(),
   useSaveIntegrationConfig: vi.fn(),
   useSourceCandidates: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useStatusCategories: vi.fn(() => ({ data: undefined, isLoading: false })),
   useSaveIntegrationSources: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
@@ -88,6 +90,7 @@ const mockedUseFields = vi.mocked(useIntegrationFields);
 const mockedUseSaveFields = vi.mocked(useSaveIntegrationFields);
 const mockedUseDerivedSources = vi.mocked(useDerivedGithubSources);
 const mockedUseSourceCandidates = vi.mocked(useSourceCandidates);
+const mockedUseStatusCategories = vi.mocked(useStatusCategories);
 
 function inputIn(testId: string): HTMLInputElement {
   const wrapper = screen.getByTestId(testId);
@@ -421,6 +424,55 @@ describe("PluginConfigureDialog", () => {
       await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
 
       expect(save.mock.calls[0][0].excludedStatusCategories).toBeUndefined();
+    });
+  });
+
+  describe("live status-category discovery (issue #453)", () => {
+    const jiraPlugin = () =>
+      makePlugin({
+        name: "Jira",
+        configSchema: { type: "object", properties: { instance: { type: "string" } } },
+        defaultIntegrationConfig: { excludedStatusCategories: ["Done"] },
+      });
+    const setDiscovery = (data: { supported: boolean; categories: string[] } | undefined) =>
+      mockedUseStatusCategories.mockReturnValue({
+        data,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useStatusCategories>);
+
+    it("renders the discovered categories when discovery succeeds", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery({ supported: true, categories: ["Backlog", "In Review", "Complete"] });
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.getByRole("checkbox", { name: "Backlog" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "In Review" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Complete" })).toBeInTheDocument();
+      // Canonical-only names are not offered when discovery supplies the list.
+      expect(screen.queryByRole("checkbox", { name: "To Do" })).not.toBeInTheDocument();
+    });
+
+    it("falls back to the canonical set when discovery is unsupported", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery({ supported: false, categories: [] });
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.getByRole("checkbox", { name: "To Do" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "In Progress" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Done" })).toBeInTheDocument();
+    });
+
+    it("keeps a seeded category visible even when discovery omits it", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery({ supported: true, categories: ["Backlog", "Complete"] });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: { plugin: "jira-self-hosted", excludedStatusCategories: ["Legacy"] },
+      });
+
+      const legacy = screen.getByRole("checkbox", { name: "Legacy" });
+      expect(legacy).toBeInTheDocument();
+      expect(legacy).toBeChecked();
     });
   });
 
