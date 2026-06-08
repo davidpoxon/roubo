@@ -32,7 +32,13 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { assertSafeIdentifier, resolveWithin, SPEC_SLUG_RE, UnsafePathError } from "./safe-path.js";
+import {
+  assertSafeIdentifier,
+  assertSafeMapKey,
+  resolveWithin,
+  SPEC_SLUG_RE,
+  UnsafePathError,
+} from "./safe-path.js";
 import { writeResults } from "./testbench-results-write.js";
 import {
   TEST_RESULTS_SCHEMA_ID,
@@ -268,6 +274,11 @@ export function readPlanAndResults(
   slug: string,
   benchId: string,
 ): PlanAndResults {
+  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
+  // Reject prototype-polluting keys so a "__proto__" id can never read back the
+  // Object prototype as if it were a bench's results (CWE-1321).
+  assertSafeMapKey(benchId, "bench id");
+
   const planTarget = planPath(repoPath, slug);
 
   let planRaw: string;
@@ -319,6 +330,13 @@ async function mutateCaseResult(
   caseId: string,
   mutate: (caseResult: CaseResult, author: Author, plan: TestCasesPlan) => void,
 ): Promise<CaseResult> {
+  // benchId and caseId are user-controlled and used as computed object keys
+  // below (file.benches[benchId], bench.caseResults[caseId]). Reject the
+  // prototype-polluting keys before any lookup so a crafted "__proto__" id can
+  // never mutate Object.prototype (CWE-1321).
+  assertSafeMapKey(benchId, "bench id");
+  assertSafeMapKey(caseId, "case id");
+
   const planTarget = planPath(repoPath, slug);
   let planParsed: unknown;
   try {
@@ -474,6 +492,10 @@ export async function reconcile(
   benchId: string,
   options: ReconcileOptions = {},
 ): Promise<ReconcileOutcome> {
+  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
+  // Reject prototype-polluting keys before any lookup or write (CWE-1321).
+  assertSafeMapKey(benchId, "bench id");
+
   const { plan, planHash } = (() => {
     const planTarget = planPath(repoPath, slug);
     let planParsed: unknown;

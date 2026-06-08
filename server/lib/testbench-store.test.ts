@@ -217,6 +217,53 @@ describe("path safety (NFR-001)", () => {
   });
 });
 
+describe("prototype pollution (CWE-1321)", () => {
+  // benchId and caseId are user-controlled and used as computed object keys. A
+  // crafted "__proto__"/"constructor"/"prototype" id must be rejected before any
+  // lookup so it can never mutate Object.prototype.
+  beforeEach(() => {
+    writePlan(planFor());
+  });
+
+  it("rejects a prototype-polluting benchId on reads", () => {
+    for (const bad of ["__proto__", "constructor", "prototype"]) {
+      expect(() => readPlanAndResults(repo, SLUG, bad)).toThrow(UnsafePathError);
+    }
+  });
+
+  it("rejects a prototype-polluting benchId on every write path", async () => {
+    for (const bad of ["__proto__", "constructor", "prototype"]) {
+      await expect(markObservation(repo, SLUG, bad, "TC-001", "O1", "pass")).rejects.toThrow(
+        UnsafePathError,
+      );
+      await expect(setStatusOverride(repo, SLUG, bad, "TC-001", "blocked")).rejects.toThrow(
+        UnsafePathError,
+      );
+      await expect(appendNote(repo, SLUG, bad, "TC-001", "hi")).rejects.toThrow(UnsafePathError);
+      await expect(reconcile(repo, SLUG, bad)).rejects.toThrow(UnsafePathError);
+    }
+  });
+
+  it("rejects a prototype-polluting caseId on write paths", async () => {
+    for (const bad of ["__proto__", "constructor", "prototype"]) {
+      await expect(markObservation(repo, SLUG, BENCH, bad, "O1", "pass")).rejects.toThrow(
+        UnsafePathError,
+      );
+      await expect(setStatusOverride(repo, SLUG, BENCH, bad, "blocked")).rejects.toThrow(
+        UnsafePathError,
+      );
+      await expect(appendNote(repo, SLUG, BENCH, bad, "hi")).rejects.toThrow(UnsafePathError);
+    }
+  });
+
+  it("leaves Object.prototype unpolluted after a rejected write", async () => {
+    await expect(markObservation(repo, SLUG, "__proto__", "TC-001", "O1", "pass")).rejects.toThrow(
+      UnsafePathError,
+    );
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
 describe("markObservation", () => {
   beforeEach(() => writePlan(planFor()));
 

@@ -137,6 +137,21 @@ export function assertSafeIdentifier(value: unknown, pattern: RegExp, label: str
   }
 }
 
+// Property names that, when used as a computed object key, mutate the built-in
+// Object prototype instead of the target map (prototype pollution, CWE-1321).
+const PROTOTYPE_POLLUTING_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+// Guard a user-controlled value before it is used as a computed object key (e.g.
+// `record[key] = value`). Rejects non-strings and the prototype-polluting keys
+// `__proto__`, `constructor`, and `prototype`, so an attacker-supplied key can
+// never escalate to mutating Object.prototype. Reuses UnsafePathError so callers
+// already handling sanitizer failures need no new branch.
+export function assertSafeMapKey(value: unknown, label: string): void {
+  if (typeof value !== "string" || PROTOTYPE_POLLUTING_KEYS.has(value)) {
+    throw new UnsafePathError(`Invalid ${label}: ${String(value)}`);
+  }
+}
+
 // Reusable regexes for identifiers that appear as path segments.
 export const PLUGIN_ID_RE = /^[a-z][a-z0-9-]*$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

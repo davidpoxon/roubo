@@ -9,6 +9,7 @@ import {
   assertSafeWorkspacePath,
   isInside,
   assertSafeIdentifier,
+  assertSafeMapKey,
   UnsafePathError,
   PLUGIN_ID_RE,
   UUID_RE,
@@ -210,6 +211,26 @@ describe("assertSafeIdentifier", () => {
       UnsafePathError,
     );
     expect(() => assertSafeIdentifier(42, PLUGIN_ID_RE, "pluginId")).toThrow(UnsafePathError);
+  });
+});
+
+describe("assertSafeMapKey", () => {
+  it("accepts ordinary string keys", () => {
+    expect(() => assertSafeMapKey("bench-1", "bench id")).not.toThrow();
+    expect(() => assertSafeMapKey("TC-001", "case id")).not.toThrow();
+    expect(() => assertSafeMapKey("", "case id")).not.toThrow();
+  });
+
+  it("rejects the prototype-polluting keys", () => {
+    expect(() => assertSafeMapKey("__proto__", "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey("constructor", "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey("prototype", "bench id")).toThrow(UnsafePathError);
+  });
+
+  it("rejects non-strings", () => {
+    expect(() => assertSafeMapKey(undefined, "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey(42, "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey(null, "bench id")).toThrow(UnsafePathError);
   });
 });
 
