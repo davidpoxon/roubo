@@ -23,23 +23,51 @@ type Selection =
   | { kind: "manual"; slug: string; path: string }
   | null;
 
-// Create-a-TestBench spec picker (#418, FR-001/FR-002/FR-003). Lists the discovered
-// specs and offers a manual-path escape hatch with live validation. Create stays
-// disabled until a valid selection exists; on confirm it calls onCreate with the
-// chosen focusedSpecPath and the host owns the create + navigate flow.
+// Copy that differs between the two flows the picker drives. `create` (#418) binds
+// a brand-new bench to a focused spec; `repoint` (#423, FR-024) re-points an active
+// TestBench to a different focused spec. The selection UI and explicit-confirm
+// contract are identical; only the title, helper text, and button labels change.
+const MODE_COPY = {
+  create: {
+    title: "Create a TestBench",
+    description:
+      "Choose a discovered spec or point at a test-cases.json by hand. The TestBench binds to the focused spec.",
+    confirmLabel: "Create TestBench",
+    busyLabel: "Creating...",
+  },
+  repoint: {
+    title: "Change focused spec",
+    description:
+      "Re-point this TestBench to a different focused spec. The current spec's results are preserved and reload intact if you switch back.",
+    confirmLabel: "Re-point TestBench",
+    busyLabel: "Re-pointing...",
+  },
+} as const;
+
+export type SpecPickerMode = keyof typeof MODE_COPY;
+
+// Spec picker shared by the create flow (#418, FR-001/FR-002/FR-003) and the
+// re-point flow (#423, FR-024). Lists the discovered specs and offers a manual-path
+// escape hatch with live validation. Confirm stays disabled until a valid selection
+// exists; on confirm it calls onCreate with the chosen focusedSpecPath and the host
+// owns the create / re-point flow. Dismissal (Cancel / overlay / Escape) never calls
+// onCreate, so the focused spec is only ever changed explicitly.
 export default function SpecPickerModal({
   isOpen,
   onClose,
   projectId,
   onCreate,
   isCreating = false,
+  mode = "create",
 }: {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   onCreate: (focusedSpecPath: string) => void;
   isCreating?: boolean;
+  mode?: SpecPickerMode;
 }) {
+  const copy = MODE_COPY[mode];
   const { data: specs, isLoading, isError, error } = useTestbenchSpecs(projectId, isOpen);
   const [manualPath, setManualPath] = useState("");
   const [selectedDiscoveredPath, setSelectedDiscoveredPath] = useState<string | null>(null);
@@ -97,11 +125,10 @@ export default function SpecPickerModal({
                   className="flex items-center gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100"
                 >
                   <FlaskConical size={15} className="text-amber-500" />
-                  Create a TestBench
+                  {copy.title}
                 </Heading>
                 <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-                  Choose a discovered spec or point at a test-cases.json by hand. The TestBench
-                  binds to the focused spec.
+                  {copy.description}
                 </p>
               </div>
 
@@ -253,7 +280,7 @@ export default function SpecPickerModal({
                   isDisabled={!canCreate}
                   className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
                 >
-                  {isCreating ? "Creating..." : "Create TestBench"}
+                  {isCreating ? copy.busyLabel : copy.confirmLabel}
                 </Button>
               </div>
             </>

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor } from "@testing-library/react";
-import { renderHookWithProviders } from "../test/renderWithProviders";
-import { useTestbenchPlan, testbenchPlanQueryKey } from "./useTestbenchPlan";
+import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
+import { useTestbenchPlan, useSetTestbenchFocus, testbenchPlanQueryKey } from "./useTestbenchPlan";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
@@ -41,5 +41,39 @@ describe("useTestbenchPlan", () => {
 describe("testbenchPlanQueryKey", () => {
   it("namespaces the cache by project and bench", () => {
     expect(testbenchPlanQueryKey("p1", 3)).toEqual(["testbenchPlan", "p1", 3]);
+  });
+});
+
+describe("useSetTestbenchFocus", () => {
+  it("PUTs the focus endpoint with the chosen spec path", async () => {
+    mockedApi.setTestbenchFocus.mockResolvedValue({} as never);
+    const { result } = renderHookWithProviders(() => useSetTestbenchFocus());
+    result.current.mutate({
+      projectId: "p1",
+      benchId: 3,
+      focusedSpecPath: "/repo/.specifications/billing/test-cases.json",
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.setTestbenchFocus).toHaveBeenCalledWith(
+      "p1",
+      3,
+      "/repo/.specifications/billing/test-cases.json",
+    );
+  });
+
+  it("invalidates the plan, bench-detail, and bench-list queries on success", async () => {
+    mockedApi.setTestbenchFocus.mockResolvedValue({} as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useSetTestbenchFocus(), { queryClient });
+    result.current.mutate({
+      projectId: "p1",
+      benchId: 3,
+      focusedSpecPath: "/repo/.specifications/billing/test-cases.json",
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["testbenchPlan", "p1", 3] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bench", "p1", 3] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["benches"] });
   });
 });

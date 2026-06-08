@@ -151,4 +151,39 @@ describe("SpecPickerModal", () => {
     renderModal({ isCreating: true });
     expect(screen.getByRole("button", { name: "Creating..." })).toBeInTheDocument();
   });
+
+  describe("re-point mode (#423)", () => {
+    it("uses the re-point title, helper text, and confirm label", () => {
+      renderModal({ mode: "repoint" });
+      expect(screen.getByText("Change focused spec")).toBeInTheDocument();
+      expect(screen.getByText(/Re-point this TestBench/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Re-point TestBench/ })).toBeInTheDocument();
+      // The create copy must not leak into re-point mode.
+      expect(screen.queryByText("Create a TestBench")).not.toBeInTheDocument();
+    });
+
+    it("shows the re-pointing busy label while a re-point is in flight", () => {
+      renderModal({ mode: "repoint", isCreating: true });
+      expect(screen.getByRole("button", { name: "Re-pointing..." })).toBeInTheDocument();
+    });
+
+    it("confirms a re-point with the chosen spec path", async () => {
+      const onCreate = vi.fn();
+      renderModal({ mode: "repoint", onCreate });
+      await userEvent.click(screen.getByText("billing"));
+      await userEvent.click(screen.getByRole("button", { name: /Re-point TestBench/ }));
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/billing/test-cases.json");
+    });
+
+    it("dismissing via Cancel leaves the focused spec unchanged (no onCreate, explicit only)", async () => {
+      const onCreate = vi.fn();
+      const onClose = vi.fn();
+      renderModal({ mode: "repoint", onCreate, onClose });
+      // Pick a spec but then cancel instead of confirming.
+      await userEvent.click(screen.getByText("billing"));
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(onCreate).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
 });

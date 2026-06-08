@@ -20,6 +20,7 @@ expect.extend({ toHaveNoViolations });
 
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: vi.fn(),
+  useSetTestbenchFocus: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 import { useTestbenchPlan } from "../../hooks/useTestbenchPlan";
 import TestBenchPanel from "./TestBenchPanel";
