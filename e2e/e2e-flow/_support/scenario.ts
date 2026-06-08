@@ -117,6 +117,15 @@ export async function registerFixtureProject(
     // mutation (e.g. an integration switch) without paying the cost of the
     // real bench-provisioning flow.
     seedBenches?: Array<{ assignedIssue: AssignedIssue }>;
+    // TC-001 (#438): optional specs to seed into the fixture repo as
+    // `.specifications/<slug>/test-cases.json`, so TestBench spec discovery and
+    // the create flow run against real files. Each `testCases` value is written
+    // verbatim as the spec's plan JSON.
+    seedSpecs?: Array<{ slug: string; testCases: unknown }>;
+    // TC-001 (#438): when true, the server `git init`s + commits the fixture
+    // repo and pins its worktree source to the local HEAD, so a real TestBench
+    // worktree can be provisioned without an `origin` remote.
+    gitInit?: boolean;
   },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });

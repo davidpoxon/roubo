@@ -42,6 +42,7 @@ vi.mock("../services/project-registry.js", () => ({
     configValid: true,
     settings: {},
   })),
+  updateProjectSettings: vi.fn(),
   unregisterProject: vi.fn(),
   __test: {
     reset: vi.fn(),
@@ -215,6 +216,9 @@ describe("POST /test/__reset", () => {
     expect(pluginManager.shutdown).toHaveBeenCalledTimes(1);
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
+    // TC-001 (#438): the bench-manager Map is re-hydrated from the wiped
+    // state.json so a previous spec's real-create bench cannot survive a reset.
+    expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
     // No body: setE2EConfig still fires with null/null so any prior pinning is
     // cleared on a plain reset.
@@ -771,7 +775,7 @@ describe("POST /test/__register-fixture-project", () => {
       expect(state.addBench).not.toHaveBeenCalled();
     });
 
-    it("rolls back seeded workspace tmpdirs when a later step throws", async () => {
+    it("rolls back seeded workspace tmpdirs when a later step throws (seedBenches)", async () => {
       process.env.ROUBO_E2E = "1";
       // Capture the tmpdir paths the route mints before the throw so we can
       // assert they were rm'd.
@@ -807,6 +811,130 @@ describe("POST /test/__register-fixture-project", () => {
       // The rollback path rm'd the seeded workspace tmpdir.
       expect(fs.existsSync(seededPaths[0])).toBe(false);
       consoleSpy.mockRestore();
+    });
+  });
+
+  // TC-001 (#438): optional seedSpecs writes `.specifications/<slug>/test-cases.json`
+  // into the fixture repo so TestBench spec discovery + the create flow run
+  // against real files; optional gitInit makes the repo a real git repository so
+  // a spec-bound worktree can be provisioned without an origin remote.
+  describe("seedSpecs + gitInit options (TC-001, #438)", () => {
+    const PLAN = {
+      $schema: "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json",
+      schemaVersion: "1.0.0",
+      specSlug: "testbench",
+      cases: [],
+    };
+
+    it("writes each seeded spec's test-cases.json under .specifications/<slug>/", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001", seedSpecs: [{ slug: "testbench", testCases: PLAN }] });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+
+      const specPath = `${res.body.repoPath}/.specifications/testbench/test-cases.json`;
+      expect(fs.existsSync(specPath)).toBe(true);
+      expect(JSON.parse(fs.readFileSync(specPath, "utf-8"))).toEqual(PLAN);
+    });
+
+    it("does not write any spec files when seedSpecs is omitted", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001-no-specs" });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+      expect(fs.existsSync(`${res.body.repoPath}/.specifications`)).toBe(false);
+    });
+
+    it("git-inits + commits the repo and pins worktreeSource away from fetch when gitInit: true", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({
+          projectId: "tc-001-git",
+          gitInit: true,
+          seedSpecs: [{ slug: "testbench", testCases: PLAN }],
+        });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+
+      // A real git repo with one commit was created.
+      expect(fs.existsSync(`${res.body.repoPath}/.git`)).toBe(true);
+
+      // worktreeSource was pinned to local HEAD so provisioning needs no remote.
+      expect(projectRegistry.updateProjectSettings).toHaveBeenCalledTimes(1);
+      const settings = vi.mocked(projectRegistry.updateProjectSettings).mock.calls[0][1];
+      expect(settings.worktreeSource).toEqual({ branchFromDefault: false, pullLatest: false });
+    });
+
+    it("does not git-init or update settings when gitInit is omitted", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001-no-git" });
+
+      expect(res.status).toBe(200);
+      createdTmpdirs.push(res.body.repoPath);
+      expect(fs.existsSync(`${res.body.repoPath}/.git`)).toBe(false);
+      expect(projectRegistry.updateProjectSettings).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when seedSpecs is not an array", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001", seedSpecs: "nope" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/seedSpecs/);
+      expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when a seedSpecs entry has a non-kebab-case slug", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001", seedSpecs: [{ slug: "Bad_Slug", testCases: PLAN }] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/slug/);
+      expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when a seedSpecs entry omits testCases", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001", seedSpecs: [{ slug: "testbench" }] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/testCases/);
+      expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when gitInit is not a boolean", async () => {
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app)
+        .post("/test/__register-fixture-project")
+        .send({ projectId: "tc-001", gitInit: "yes" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/gitInit/);
+      expect(projectRegistry.registerProject).not.toHaveBeenCalled();
     });
   });
 });
