@@ -55,6 +55,8 @@ import {
   fetchEnvKeys,
   startGithubPluginOauth,
   fetchSourceOptions,
+  fetchTestbenchPlan,
+  reconcileTestbench,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -903,5 +905,72 @@ describe("fetchSourceOptions", () => {
     expect(parsed.searchParams.has("scope")).toBe(false);
     expect(parsed.searchParams.has("search")).toBe(false);
     expect(parsed.searchParams.has("cursor")).toBe(false);
+  });
+});
+
+describe("fetchTestbenchPlan", () => {
+  it("sends GET to /api/projects/:id/benches/:id/testbench/plan and returns the staleness view", async () => {
+    const response = {
+      plan: { $schema: "x", schemaVersion: "1.0.0", specSlug: "demo", cases: [] },
+      results: null,
+      stale: true,
+      planHash: "abc123",
+      recovered: false,
+    };
+    mockFetch.mockResolvedValue(jsonResponse(response));
+    const result = await fetchTestbenchPlan("p1", 3);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/3/testbench/plan",
+      expect.objectContaining({}),
+    );
+    expect(result).toEqual(response);
+  });
+});
+
+describe("reconcileTestbench", () => {
+  it("POSTs an empty body for a preview (no confirm)", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        classification: { added: [], unchanged: [], changed: [], removed: [] },
+        applied: false,
+      }),
+    );
+    await reconcileTestbench("p1", 3);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/3/testbench/reconcile",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+  });
+
+  it("POSTs confirm:true to apply while keeping orphans", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        classification: { added: [], unchanged: [], changed: [], removed: ["TC-9"] },
+        applied: true,
+      }),
+    );
+    const result = await reconcileTestbench("p1", 3, { confirm: true });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/3/testbench/reconcile",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ confirm: true }) }),
+    );
+    expect(result.applied).toBe(true);
+  });
+
+  it("POSTs confirm + purgeOrphans to physically drop orphans", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        classification: { added: [], unchanged: [], changed: [], removed: ["TC-9"] },
+        applied: true,
+      }),
+    );
+    await reconcileTestbench("p1", 3, { confirm: true, purgeOrphans: true });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/3/testbench/reconcile",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ confirm: true, purgeOrphans: true }),
+      }),
+    );
   });
 });
