@@ -221,12 +221,6 @@ function SearchableSourcePicker({
           below.
         </p>
       )}
-      {projectKeys.length > 0 && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
-          A project pulls all its issues unless you narrow it with a board, filter, epic, or
-          "Assigned to me" below.
-        </p>
-      )}
       {categories
         .filter((category) => isScopedSearchCategory(category))
         .map((category) => {
