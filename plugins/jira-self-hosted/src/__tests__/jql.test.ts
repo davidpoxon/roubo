@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertProjectKey, buildIssueListJql, jqlSearchTerm } from "../jql.js";
+import { assertProjectKey, buildIssueListJql, formatJqlDateTime, jqlSearchTerm } from "../jql.js";
 
 describe("buildIssueListJql (TC-030)", () => {
   it("includes 'updated >= <iso>' when a watermark is provided", () => {
@@ -7,7 +7,7 @@ describe("buildIssueListJql (TC-030)", () => {
       sources: [{ kind: "filter", externalId: "456" }],
       lastPollIso: "2026-04-01T00:00:00Z",
     });
-    expect(jql).toContain('updated >= "2026-04-01T00:00:00Z"');
+    expect(jql).toContain('updated >= "2026-04-01 00:00"');
   });
 
   it("omits the updated clause on the first poll (lastPollIso === null)", () => {
@@ -135,7 +135,7 @@ describe("buildIssueListJql (TC-030)", () => {
     });
     expect(jql).toBe(
       '(project = "PLAT" OR (sprint in openSprints() AND filter = 10231) OR filter = 555) ' +
-        'AND updated >= "2026-04-01T00:00:00Z" ORDER BY updated ASC',
+        'AND updated >= "2026-04-01 00:00" ORDER BY updated ASC',
     );
   });
 
@@ -146,6 +146,36 @@ describe("buildIssueListJql (TC-030)", () => {
     });
     // The backslash and the quote must both be escaped so the literal stays closed.
     expect(jql).toContain('"Epic Link" = "PROJ\\\\\\"99"');
+  });
+
+  it("renders a full ISO watermark with an offset as a JQL-accepted date (regression)", () => {
+    // The watermark is stored as the raw Jira `updated` value; Jira JQL rejects
+    // full ISO timestamps, so the builder must emit `yyyy-MM-dd HH:mm`.
+    const jql = buildIssueListJql({
+      sources: [{ kind: "filter", externalId: "456" }],
+      lastPollIso: "2026-06-08T15:27:11.000-0700",
+    });
+    expect(jql).toContain('updated >= "2026-06-08 15:27"');
+    expect(jql).not.toContain("T15:27");
+  });
+});
+
+describe("formatJqlDateTime", () => {
+  it("strips offset and seconds from the reported failing value (regression)", () => {
+    expect(formatJqlDateTime("2026-06-08T15:27:11.000-0700")).toBe("2026-06-08 15:27");
+  });
+
+  it("converts a Z-suffixed UTC timestamp to minute precision", () => {
+    expect(formatJqlDateTime("2026-04-05T00:00:00Z")).toBe("2026-04-05 00:00");
+  });
+
+  it("keeps the wall-clock time for a positive offset (offset dropped, not applied)", () => {
+    expect(formatJqlDateTime("2026-06-08T15:27:11.000+0530")).toBe("2026-06-08 15:27");
+  });
+
+  it("passes through a value that is already a JQL date or relative period", () => {
+    expect(formatJqlDateTime("2026-06-08 15:27")).toBe("2026-06-08 15:27");
+    expect(formatJqlDateTime("-5d")).toBe("-5d");
   });
 });
 
@@ -167,7 +197,7 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
     });
     expect(jql).toBe(
       '(filter = 555) AND statusCategory not in ("Done") ' +
-        'AND updated >= "2026-04-01T00:00:00Z" ORDER BY updated ASC',
+        'AND updated >= "2026-04-01 00:00" ORDER BY updated ASC',
     );
   });
 
