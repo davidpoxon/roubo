@@ -122,7 +122,10 @@ export type {
 } from "./plugin-runtime-types.js";
 
 import type { CapturedUserId, IntegrationConfig } from "./config-schema.js";
-import type { PluginPermissions } from "./plugin-manifest-schema.js";
+import type {
+  PluginPermissions,
+  PluginDefaultIntegrationConfig,
+} from "./plugin-manifest-schema.js";
 import type { PluginStatus } from "./plugin-runtime-types.js";
 import type { PluginManifest } from "./plugin-manifest-schema.js";
 
@@ -198,6 +201,12 @@ export interface ProjectIntegrationState {
        * `credentials.slots[*].description` to label password fields.
        */
       permissions?: PluginPermissions;
+      /**
+       * Plugin-global default integration config (FR-064). The Configure dialog
+       * reads `excludedStatusCategories` to seed and gate the status-category
+       * exclusion control without a second fetch.
+       */
+      defaultIntegrationConfig?: PluginDefaultIntegrationConfig;
     } | null;
   } | null;
   captionKey: IntegrationCaptionKey;
@@ -356,6 +365,13 @@ export interface IntegrationConfigUpdate {
   sources?: Record<string, Array<string | number>>;
   advanced?: Record<string, unknown>;
   capturedUserId?: CapturedUserId;
+  /**
+   * Root-level status-category exclusion (FR-010), editable from the Configure
+   * dialog. Shallow-replaces the committed value in the per-project override;
+   * an empty array means "exclude nothing", distinct from omitting the key
+   * (which leaves the existing override untouched).
+   */
+  excludedStatusCategories?: string[];
 }
 
 /**

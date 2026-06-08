@@ -80,6 +80,7 @@ function makePlugin(
   name = id,
   status: PluginRecord["status"] = "enabled",
   configSchema?: Record<string, unknown>,
+  defaultIntegrationConfig?: Record<string, unknown>,
 ): PluginRecord {
   return {
     id,
@@ -98,6 +99,7 @@ function makePlugin(
         processes: false,
       },
       ...(configSchema ? { configSchema } : {}),
+      ...(defaultIntegrationConfig ? { defaultIntegrationConfig } : {}),
     },
     manifestPath: "/tmp/manifest.yaml",
     pluginDir: "/tmp/plugin",
@@ -205,6 +207,26 @@ describe("GET /:projectId/integration", () => {
     expect(res.body.effective.plugin).toBe("jira-self-hosted");
     expect(res.body.committed).toBeNull();
     expect(res.body.override).toEqual({ plugin: "jira-self-hosted" });
+  });
+
+  it("exposes the plugin's defaultIntegrationConfig in the manifest snapshot (issue #435)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "jira-self-hosted" },
+    });
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      makePlugin("jira-self-hosted", "Jira", "enabled", undefined, {
+        excludedStatusCategories: ["Done"],
+      }),
+    ]);
+
+    const res = await request(app).get("/demo/integration");
+
+    expect(res.status).toBe(200);
+    expect(res.body.plugin.manifest.defaultIntegrationConfig).toEqual({
+      excludedStatusCategories: ["Done"],
+    });
   });
 
   it("captionKey = yaml-and-override when both blocks are non-empty", async () => {
@@ -943,6 +965,59 @@ describe("PUT /:projectId/integration/config", () => {
 
     const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
     expect(saved.integration.sources).toEqual({ repos: ["org/c"] });
+  });
+
+  it("persists excludedStatusCategories into the per-project override (FR-010, issue #435)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "jira-self-hosted" },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: ["Done", "In Progress"] });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.excludedStatusCategories).toEqual(["Done", "In Progress"]);
+  });
+
+  it("accepts an empty excludedStatusCategories array (exclude nothing)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "jira-self-hosted", excludedStatusCategories: ["Done"] },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: [] });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.excludedStatusCategories).toEqual([]);
+  });
+
+  it("rejects a non-string-array excludedStatusCategories with 400", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "jira-self-hosted" },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: "Done" });
+
+    expect(res.status).toBe(400);
+    expect(integrationOverrides.saveOverride).not.toHaveBeenCalled();
   });
 
   it("returns 400 when saveOverride throws an IntegrationOverrideError", async () => {

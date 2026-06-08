@@ -340,6 +340,90 @@ describe("PluginConfigureDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  describe("status-category exclusion (issue #435)", () => {
+    const verifyOk = () => vi.fn().mockResolvedValue({ ok: true, identity: { externalId: "u-1" } });
+    const jiraPlugin = () =>
+      makePlugin({
+        name: "Jira",
+        configSchema: { type: "object", properties: { instance: { type: "string" } } },
+        defaultIntegrationConfig: { excludedStatusCategories: ["Done"] },
+      });
+
+    it("renders the canonical categories with the manifest default checked", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.getByTestId("status-exclusion-section")).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Done" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "To Do" })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "In Progress" })).not.toBeChecked();
+    });
+
+    it("seeds the checked state from the effective override (empty = exclude nothing)", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: { plugin: "jira-self-hosted", excludedStatusCategories: [] },
+      });
+
+      expect(screen.getByRole("checkbox", { name: "Done" })).not.toBeChecked();
+    });
+
+    it("does not render the section for a plugin without category-exclusion support", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog();
+
+      expect(screen.queryByTestId("status-exclusion-section")).not.toBeInTheDocument();
+    });
+
+    it("persists the edited set on Save when changed", async () => {
+      const user = userEvent.setup();
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({ test: verifyOk(), save });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: { plugin: "jira-self-hosted", instance: "https://jira.acme.com" },
+      });
+
+      await user.click(screen.getByRole("checkbox", { name: "In Progress" }));
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+      expect(save.mock.calls[0][0].excludedStatusCategories).toEqual(["Done", "In Progress"]);
+    });
+
+    it("persists an empty set when the user clears every category", async () => {
+      const user = userEvent.setup();
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({ test: verifyOk(), save });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: { plugin: "jira-self-hosted", instance: "https://jira.acme.com" },
+      });
+
+      await user.click(screen.getByRole("checkbox", { name: "Done" }));
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+      expect(save.mock.calls[0][0].excludedStatusCategories).toEqual([]);
+    });
+
+    it("omits excludedStatusCategories from the payload when untouched", async () => {
+      const user = userEvent.setup();
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({ test: verifyOk(), save });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: { plugin: "jira-self-hosted", instance: "https://jira.acme.com" },
+      });
+
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+      expect(save.mock.calls[0][0].excludedStatusCategories).toBeUndefined();
+    });
+  });
+
   it("bails out of Save when the implicit Verify fails, and renders the auth-error strip", async () => {
     const user = userEvent.setup();
     const test = vi.fn().mockResolvedValue({

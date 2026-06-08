@@ -75,6 +75,7 @@ function buildState(projectId: string): ProjectIntegrationState {
             name: record.manifest.name,
             configSchema: record.manifest.configSchema,
             permissions: record.manifest.permissions,
+            defaultIntegrationConfig: record.manifest.defaultIntegrationConfig,
           }
         : null,
     };
@@ -129,6 +130,7 @@ const IntegrationConfigUpdateSchema = IntegrationConfigSchema.pick({
   sources: true,
   advanced: true,
   capturedUserId: true,
+  excludedStatusCategories: true,
 }).strict();
 
 class ProjectNotFoundError extends Error {
@@ -463,6 +465,12 @@ router.put("/:projectId/integration/config", (req, res) => {
     }
     if (update.capturedUserId !== undefined) {
       nextIntegration.capturedUserId = update.capturedUserId;
+    }
+    if (update.excludedStatusCategories !== undefined) {
+      // FR-010: the Configure dialog's status-category toggle. Shallow-replaces
+      // the committed value in the per-project override; the next GET /issues
+      // re-resolves the cut list because we forget the cached activation below.
+      nextIntegration.excludedStatusCategories = update.excludedStatusCategories;
     }
 
     const next: IntegrationOverride = {

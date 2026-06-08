@@ -50,6 +50,9 @@ export function useSaveIntegrationConfig(projectId: string) {
     mutationFn: (update: IntegrationConfigUpdate) => api.saveIntegrationConfig(projectId, update),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
+      // The status-category exclusion lives in this config and shapes the cut
+      // list in-query, so refresh the cut list live after a save (issue #435).
+      void queryClient.invalidateQueries({ queryKey: ["issues"] });
     },
   });
 }
