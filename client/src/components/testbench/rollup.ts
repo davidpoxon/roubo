@@ -54,6 +54,11 @@ export interface RollupModel {
   overall: StatusCounts;
 }
 
+// Display label for cases with no `priority` (optional in the merged v1.1.0
+// shape: canonical product-dev authors do not emit a priority). They are bucketed
+// together under one group rather than dropped, so every case is always grouped.
+export const NO_PRIORITY_LABEL = "Unprioritized";
+
 function emptyCounts(): StatusCounts {
   return { total: 0, not_started: 0, in_progress: 0, passed: 0, failed: 0, blocked: 0 };
 }
@@ -75,15 +80,20 @@ export function buildRollup(cases: Case[], results: BenchResults | null): Rollup
 
   for (const c of cases) {
     const status = effectiveCaseStatus(c.id, results);
-    let priorityMap = levelMap.get(c.level);
+    // level is an integer in the merged shape; key the group by its string form
+    // so the existing numeric-aware ordering and string-keyed maps still apply.
+    const levelKey = String(c.level);
+    // priority is optional; cases without one share a single sentinel bucket.
+    const priorityKey = c.priority ?? NO_PRIORITY_LABEL;
+    let priorityMap = levelMap.get(levelKey);
     if (!priorityMap) {
       priorityMap = new Map<string, CaseRowModel[]>();
-      levelMap.set(c.level, priorityMap);
+      levelMap.set(levelKey, priorityMap);
     }
-    let rows = priorityMap.get(c.priority);
+    let rows = priorityMap.get(priorityKey);
     if (!rows) {
       rows = [];
-      priorityMap.set(c.priority, rows);
+      priorityMap.set(priorityKey, rows);
     }
     rows.push({ case: c, status });
   }

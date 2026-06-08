@@ -53,7 +53,18 @@ const SPECS: DiscoveredSpec[] = [
 ];
 
 function makeCase(id: string): Case {
-  return { id, title: `case ${id}`, level: "unit", priority: "P0", steps: [] };
+  return {
+    id,
+    title: `case ${id}`,
+    area: "test-area",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    steps: [],
+    tags: [],
+    linked_requirement_ids: ["FR-001"],
+    linked_user_story_ids: [],
+  };
 }
 
 function plan(cases: Case[]): TestCasesPlan {
@@ -78,7 +89,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockUseSetTestbenchFocus.mockReturnValue({ mutate: mockMutate, isPending: false });
   mockUseTestbenchSpecs.mockReturnValue({
-    data: SPECS,
+    data: { specs: SPECS, invalid: [] },
     isLoading: false,
     isError: false,
     error: null,

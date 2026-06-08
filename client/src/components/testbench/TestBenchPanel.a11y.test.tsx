@@ -35,8 +35,19 @@ import TestBenchPanel from "./TestBenchPanel";
 
 const mockUseTestbenchPlan = vi.mocked(useTestbenchPlan);
 
-function makeCase(id: string, level: string, priority: string, title: string): Case {
-  return { id, title, level, priority, steps: [] };
+function makeCase(id: string, level: number, priority: string, title: string): Case {
+  return {
+    id,
+    title,
+    area: "test-area",
+    level,
+    type: "functional",
+    priority,
+    steps: [],
+    tags: [],
+    linked_requirement_ids: ["FR-001"],
+    linked_user_story_ids: [],
+  };
 }
 
 function plan(cases: Case[]): TestCasesPlan {
@@ -99,9 +110,9 @@ describe("TestBenchPanel", () => {
   it("renders grouped cases with status indicators and no axe violations", async () => {
     setData({
       plan: plan([
-        makeCase("c1", "e2e", "P0", "Sign in flow"),
-        makeCase("c2", "e2e", "P1", "Sign out flow"),
-        makeCase("c3", "unit", "P0", "Token parser"),
+        makeCase("c1", 1, "P0", "Sign in flow"),
+        makeCase("c2", 1, "P1", "Sign out flow"),
+        makeCase("c3", 2, "P0", "Token parser"),
       ]),
       results: results({
         c1: { observationMarks: {}, derivedStatus: "passed", notes: [] },
@@ -122,7 +133,7 @@ describe("TestBenchPanel", () => {
 
   it("never serialises raw plan/result JSON into the DOM", () => {
     setData({
-      plan: plan([makeCase("c1", "e2e", "P0", "Sign in flow")]),
+      plan: plan([makeCase("c1", 1, "P0", "Sign in flow")]),
       results: results({
         c1: {
           observationMarks: {

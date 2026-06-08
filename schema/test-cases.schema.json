@@ -22,8 +22,17 @@
           "title": {
             "type": "string"
           },
-          "level": {
+          "area": {
             "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
           },
           "priority": {
             "type": "string"
@@ -113,14 +122,43 @@
               "required": ["id", "instruction", "observations"],
               "additionalProperties": false
             }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "linked_requirement_ids": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "linked_user_story_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "required": ["id", "title", "level", "priority", "steps"],
+        "required": [
+          "id",
+          "title",
+          "area",
+          "level",
+          "type",
+          "steps",
+          "tags",
+          "linked_requirement_ids",
+          "linked_user_story_ids"
+        ],
         "additionalProperties": false
       }
     }
   },
   "required": ["$schema", "schemaVersion", "specSlug", "cases"],
   "additionalProperties": false,
-  "$id": "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json"
+  "$id": "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json"
 }

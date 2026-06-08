@@ -1085,14 +1085,27 @@ export interface DiscoveredSpec {
   caseCount: number;
 }
 
+// A spec folder whose test-cases.json exists but failed to parse/validate, with
+// its human-readable errors. Surfaced so the picker can explain a schema mismatch
+// instead of falsely reporting "No specs found".
+export interface InvalidSpec {
+  slug: string;
+  path: string;
+  errors: string[];
+}
+
 // Result of validating a manual path: on success the resolved slug + case count,
 // on failure a flat list of human-readable error messages.
 export type ManualPathValidation =
   | { ok: true; slug: string; caseCount: number }
   | { ok: false; errors: string[] };
 
-// GET /testbench/specs: enumerate every contract-valid spec under the project repo.
-export function fetchSpecs(projectId: string): Promise<{ specs: DiscoveredSpec[] }> {
+// GET /testbench/specs: enumerate specs under the project repo. Returns the
+// usable `specs` plus any present-but-invalid spec files (`invalid`) with their
+// validation errors, so the UI can tell a schema mismatch apart from an empty repo.
+export function fetchSpecs(
+  projectId: string,
+): Promise<{ specs: DiscoveredSpec[]; invalid: InvalidSpec[] }> {
   return request(`/projects/${projectId}/testbench/specs`);
 }
 

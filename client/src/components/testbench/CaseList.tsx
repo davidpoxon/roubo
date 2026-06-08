@@ -170,7 +170,7 @@ export default function CaseList({
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                     <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
-                      {row.level}
+                      Level {row.level}
                     </span>
                   </span>
                   <div className="flex-1 min-w-0">

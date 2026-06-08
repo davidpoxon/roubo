@@ -23,7 +23,9 @@ function makePlan(): TestCasesPlan {
       {
         id: "TC-001",
         title: "Reviewer marks an observation",
-        level: "e2e_flow",
+        area: "testbench",
+        level: 1,
+        type: "e2e_flow",
         priority: "P0",
         preconditions: ["A focused spec is bound to the bench"],
         steps: [
@@ -33,6 +35,9 @@ function makePlan(): TestCasesPlan {
             observations: [{ id: "O1", expected: "The case list renders" }],
           },
         ],
+        tags: ["smoke"],
+        linked_requirement_ids: ["FR-001"],
+        linked_user_story_ids: ["US-001"],
       },
     ],
   };
@@ -105,6 +110,39 @@ describe("validateTestCases", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors.some((e) => e.startsWith("cases.0.steps.0.observations:"))).toBe(true);
+    }
+  });
+
+  it("accepts a merged case with no priority (priority is optional in v1.1.0)", () => {
+    const plan = makePlan();
+    delete plan.cases[0].priority;
+    expect(plan.cases[0].priority).toBeUndefined();
+    expect(validateTestCases(plan).ok).toBe(true);
+  });
+
+  it("rejects a level outside the 1-4 range with a field-named error", () => {
+    const plan = makePlan();
+    plan.cases[0].level = 5;
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.startsWith("cases.0.level:"))).toBe(true);
+    }
+  });
+
+  it("accepts any non-empty type string (e.g. reliability/structural in real specs)", () => {
+    const plan = makePlan();
+    plan.cases[0].type = "reliability";
+    expect(validateTestCases(plan).ok).toBe(true);
+  });
+
+  it("requires at least one linked requirement id", () => {
+    const plan = makePlan();
+    plan.cases[0].linked_requirement_ids = [];
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.startsWith("cases.0.linked_requirement_ids:"))).toBe(true);
     }
   });
 

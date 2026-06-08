@@ -77,8 +77,10 @@ export default function CaseDetail({
           </h2>
           <div className="flex items-center gap-3 mt-1 font-mono text-[11px] text-stone-400 dark:text-stone-600">
             <span>{testCase.id}</span>
-            <span>{testCase.level}</span>
-            <span>{testCase.priority}</span>
+            <span>L{testCase.level}</span>
+            <span>{testCase.type}</span>
+            <span>{testCase.area}</span>
+            {testCase.priority && <span>{testCase.priority}</span>}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">

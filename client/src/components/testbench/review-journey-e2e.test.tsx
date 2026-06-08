@@ -84,7 +84,9 @@ function makeCases(): Case[] {
     {
       id: CASE_A_ID,
       title: "Case A",
-      level: "e2e_flow",
+      area: "test-area",
+      level: 1,
+      type: "e2e_flow",
       priority: "P0",
       steps: [
         {
@@ -96,11 +98,16 @@ function makeCases(): Case[] {
           ],
         },
       ],
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
     },
     {
       id: CASE_B_ID,
       title: "Case B",
-      level: "e2e_flow",
+      area: "test-area",
+      level: 1,
+      type: "e2e_flow",
       priority: "P0",
       steps: [
         {
@@ -109,6 +116,9 @@ function makeCases(): Case[] {
           observations: [{ id: "O1", expected: "Only observation holds" }],
         },
       ],
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
     },
   ];
 }
@@ -346,10 +356,10 @@ describe("TestBench review-UI E2E (TC-020): open plan -> mark -> status -> note 
         expect(rollup.overall.in_progress).toBe(0);
         expect(rollup.overall.blocked).toBe(0);
 
-        // Per-level counts: a single e2e_flow level holding both cases.
+        // Per-level counts: a single level (both cases are L1) holding both cases.
         expect(rollup.levels).toHaveLength(1);
         const level = rollup.levels[0];
-        expect(level.level).toBe("e2e_flow");
+        expect(level.level).toBe("1");
         expect(level.counts.total).toBe(2);
         expect(level.counts.passed).toBe(1);
         expect(level.counts.failed).toBe(1);

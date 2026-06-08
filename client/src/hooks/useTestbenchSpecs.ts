@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../lib/api";
-import type { DiscoveredSpec, ManualPathValidation } from "../lib/api";
+import type { DiscoveredSpec, InvalidSpec, ManualPathValidation } from "../lib/api";
 
 // Discovery query for the spec-picker (#418, FR-001/FR-002). Enumerates every
-// contract-valid `.specifications/<slug>/test-cases.json` under the project repo.
-// Gated on `enabled` so the modal only fetches while it is open (and the feature
-// is on). Stale-while-revalidate keeps the list fresh across reopens.
+// `.specifications/<slug>/test-cases.json` under the project repo, returning both
+// the usable `specs` and any present-but-invalid spec files (`invalid`) with their
+// validation errors, so the picker can distinguish a schema mismatch from a
+// genuinely empty project. Gated on `enabled` so the modal only fetches while it
+// is open (and the feature is on). Stale-while-revalidate keeps the list fresh
+// across reopens.
 export function useTestbenchSpecs(projectId: string, enabled: boolean) {
-  return useQuery<{ specs: DiscoveredSpec[] }, Error, DiscoveredSpec[]>({
+  return useQuery<{ specs: DiscoveredSpec[]; invalid: InvalidSpec[] }, Error>({
     queryKey: ["testbenchSpecs", projectId],
     queryFn: () => api.fetchSpecs(projectId),
-    select: (data) => data.specs,
     enabled: enabled && projectId.length > 0,
     staleTime: 0,
   });

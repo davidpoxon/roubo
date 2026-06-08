@@ -113,8 +113,10 @@ function handleError(res: import("express").Response, err: unknown): void {
 router.get("/:projectId/testbench/specs", (req, res) => {
   try {
     const repoPath = resolveRepoPath(req.params.projectId);
-    const specs = discoverSpecs(repoPath);
-    res.json({ specs });
+    // Returns { specs, invalid }: usable specs plus any present-but-invalid spec
+    // files (with their validation errors) so the UI can distinguish a schema
+    // mismatch from a genuinely empty project.
+    res.json(discoverSpecs(repoPath));
   } catch (err) {
     handleError(res, err);
   }

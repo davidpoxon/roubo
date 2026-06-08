@@ -79,7 +79,9 @@ function makePlan(): TestCasesPlan {
       {
         id: PLAN_CASE_ID,
         title: "Reviewer marks an observation",
-        level: "e2e_flow",
+        area: "testbench",
+        level: 1,
+        type: "e2e_flow",
         priority: "P0",
         preconditions: ["A focused spec is bound to the bench"],
         steps: [
@@ -89,6 +91,9 @@ function makePlan(): TestCasesPlan {
             observations: [{ id: "O1", expected: "The case list renders" }],
           },
         ],
+        tags: ["smoke"],
+        linked_requirement_ids: ["FR-001"],
+        linked_user_story_ids: [],
       },
     ],
   };
