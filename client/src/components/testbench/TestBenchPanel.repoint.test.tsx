@@ -34,6 +34,14 @@ vi.mock("../../hooks/useTestbenchSpecs", () => ({
   useManualPathValidation: (projectId: string, path: string, enabled?: boolean) =>
     mockUseManualPathValidation(projectId, path, enabled),
 }));
+// The panel now mounts the staleness/reconcile surface (#440 integration), which
+// pulls in the reconcile mutation hooks; mock them so the panel renders without a
+// QueryClientProvider.
+vi.mock("../../hooks/useReconcile", () => ({
+  useReconcilePreview: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+  useReconcileApply: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+  useReconcilePurge: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+}));
 
 import TestBenchPanel from "./TestBenchPanel";
 

@@ -4,6 +4,7 @@ import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import StatusIndicator from "./StatusIndicator";
 import ObservationMarkControl from "./ObservationMarkControl";
 import StatusOverrideControl from "./StatusOverrideControl";
+import { NotesRail } from "./NotesRail";
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
 
 // Case detail pane (#420, FR-007/FR-008/FR-009/FR-010, US-003/US-004/US-005).
@@ -156,6 +157,14 @@ export default function CaseDetail({
           </li>
         ))}
       </ol>
+
+      <div className={SECTION_LABEL}>Notes</div>
+      <NotesRail
+        projectId={projectId}
+        benchId={benchId}
+        caseId={testCase.id}
+        notes={result?.notes ?? []}
+      />
     </div>
   );
 }

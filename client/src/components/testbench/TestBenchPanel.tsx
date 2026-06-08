@@ -1,12 +1,21 @@
 import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
 import { FileText, Pencil } from "lucide-react";
+import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 import { useTestbenchPlan, useSetTestbenchFocus } from "../../hooks/useTestbenchPlan";
+import {
+  useReconcilePreview,
+  useReconcileApply,
+  useReconcilePurge,
+} from "../../hooks/useReconcile";
 import { buildRollup, flattenRollup } from "./rollup";
 import CaseList from "./CaseList";
 import CaseDetail from "./CaseDetail";
 import ProgressBar from "./ProgressBar";
 import SpecPickerModal from "./SpecPickerModal";
+import StalenessBanner from "./StalenessBanner";
+import ReconcileDialog from "./ReconcileDialog";
+import ArchivedCases from "./ArchivedCases";
 import Spinner from "../Spinner";
 
 // Render the focused-spec identity from its test-cases.json path: the slug is the
@@ -44,6 +53,49 @@ export default function TestBenchPanel({
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const setFocus = useSetTestbenchFocus();
+
+  // Reconcile (#422/#413, FR-016/FR-017, NFR-003). The server computes staleness
+  // and the add/changed/orphan classification; this panel only renders them and
+  // dispatches the preview/apply/purge calls. The classification is fetched via a
+  // preview (no write) when the dialog opens, then Apply persists the
+  // orphan-not-delete results and the plan-query invalidation clears the banner.
+  const [isReconcileOpen, setIsReconcileOpen] = useState(false);
+  const [classification, setClassification] = useState<ReconcileClassification | null>(null);
+  const reconcilePreview = useReconcilePreview();
+  const reconcileApply = useReconcileApply();
+  const reconcilePurge = useReconcilePurge();
+
+  const openReconcile = () => {
+    reconcilePreview.mutate(
+      { projectId, benchId },
+      {
+        onSuccess: (response) => {
+          setClassification(response.classification);
+          setIsReconcileOpen(true);
+        },
+      },
+    );
+  };
+
+  const closeReconcile = () => {
+    setIsReconcileOpen(false);
+    setClassification(null);
+  };
+
+  const handleApply = () => {
+    reconcileApply.mutate({ projectId, benchId }, { onSuccess: () => closeReconcile() });
+  };
+
+  const handlePurge = () => {
+    reconcilePurge.mutate({ projectId, benchId }, { onSuccess: () => closeReconcile() });
+  };
+
+  const reconcileError =
+    reconcileApply.error instanceof Error
+      ? reconcileApply.error.message
+      : reconcilePurge.error instanceof Error
+        ? reconcilePurge.error.message
+        : null;
 
   const model = useMemo(() => (data ? buildRollup(data.plan.cases, data.results) : null), [data]);
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
@@ -149,6 +201,7 @@ export default function TestBenchPanel({
 
   return frame(
     <>
+      <StalenessBanner stale={data.stale} onReconcile={openReconcile} />
       <div className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3">
         <ProgressBar counts={model.overall} label="Overall" />
       </div>
@@ -168,6 +221,19 @@ export default function TestBenchPanel({
           </div>
         )}
       </div>
+      <ArchivedCases results={data.results} />
+      {classification && (
+        <ReconcileDialog
+          isOpen={isReconcileOpen}
+          onClose={closeReconcile}
+          classification={classification}
+          onApply={handleApply}
+          onPurge={handlePurge}
+          isApplying={reconcileApply.isPending}
+          isPurging={reconcilePurge.isPending}
+          error={reconcileError}
+        />
+      )}
     </>,
   );
 }

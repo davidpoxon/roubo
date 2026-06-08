@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +9,7 @@ import { BUNDLED_PLUGIN_IDS, DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
+import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
@@ -751,6 +753,150 @@ router.get("/__plugin-enable-state", (_req: Request, res: Response) => {
   }
   const state = pluginEnableState.loadEnableState();
   res.status(200).json({ plugins: state?.plugins ?? {} });
+});
+
+// TC-043 (#440): resolve the on-disk `.specifications/<slug>/` directory for a
+// provisioned TestBench, mirroring how the live TestBench routes (testbench.ts)
+// resolve it. The bench's focused spec (its plan + results sidecar) lives under
+// the REGISTERED PROJECT repoPath, not the worktree: the create flow validates
+// `focusedSpecPath` against `project.repoPath` and the store reads/writes the
+// plan + results from `<repoPath>/.specifications/<slug>/`. Resolving the same
+// way keeps the e2e harness faithful to the real read/write path. Returns the
+// repoPath + slug, or an error string the caller maps to an HTTP status.
+function resolveBenchSpecDir(
+  projectId: string,
+  benchId: number,
+): { repoPath: string; slug: string } | { status: number; error: string } {
+  const project = projectRegistry.getProject(projectId);
+  if (!project || !project.config) {
+    return { status: 404, error: `Project '${projectId}' not found` };
+  }
+  const bench = benchManager.getBench(projectId, benchId);
+  if (!bench) {
+    return { status: 404, error: "Bench not found" };
+  }
+  if (bench.variant !== "testbench" || bench.focusedSpecPath === undefined) {
+    return { status: 400, error: "Bench is not a testbench or has no focused spec" };
+  }
+  let slug: string;
+  try {
+    slug = resolveFocusedSpec(project.repoPath, bench.focusedSpecPath).slug;
+  } catch (err) {
+    return { status: 400, error: `Invalid focusedSpecPath: ${(err as Error).message}` };
+  }
+  return { repoPath: project.repoPath, slug };
+}
+
+// Parse + validate the { projectId, benchId } pair shared by the two TestBench
+// harness endpoints below.
+function parseBenchTarget(body: {
+  projectId?: unknown;
+  benchId?: unknown;
+}): { projectId: string; benchId: number } | string {
+  const { projectId, benchId } = body;
+  if (typeof projectId !== "string" || !FIXTURE_PROJECT_ID_RE.test(projectId)) {
+    return "projectId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/";
+  }
+  if (typeof benchId !== "number" || !Number.isInteger(benchId) || benchId < 1) {
+    return "benchId must be a positive integer";
+  }
+  return { projectId, benchId };
+}
+
+// POST /test/__rewrite-spec-cases (#440): overwrite the focused spec's
+// test-cases.json for a provisioned TestBench, so the persist -> staleness ->
+// reconcile e2e spec can drive a mid-test PLAN edit (remove a case, add a case)
+// the create-a-TestBench UI does not expose. The path is resolved from the
+// bench's focused spec (see resolveBenchSpecDir), and the slug is re-validated
+// through the same containment barrier the live routes use, so the write stays
+// inside `<repoPath>/.specifications/<slug>/`. Gated by ROUBO_E2E; production
+// builds 404 the URL.
+//
+// Body: { projectId: string, benchId: number, testCases: object }.
+router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { projectId?: unknown; benchId?: unknown; testCases?: unknown };
+  const target = parseBenchTarget(body);
+  if (typeof target === "string") {
+    return res.status(400).json({ error: target });
+  }
+  if (
+    body.testCases === null ||
+    typeof body.testCases !== "object" ||
+    Array.isArray(body.testCases)
+  ) {
+    return res.status(400).json({ error: "testCases must be an object" });
+  }
+  const resolved = resolveBenchSpecDir(target.projectId, target.benchId);
+  if ("error" in resolved) {
+    return res.status(resolved.status).json({ error: resolved.error });
+  }
+  try {
+    // The slug came back through resolveFocusedSpec's SPEC_SLUG_RE barrier, so
+    // the join stays inside the repo's `.specifications` tree (matching
+    // writeSeededSpecs above).
+    const casesPath = path.join(
+      resolved.repoPath,
+      ".specifications",
+      resolved.slug,
+      "test-cases.json",
+    );
+    fs.writeFileSync(casesPath, `${JSON.stringify(body.testCases, null, 2)}\n`, "utf-8");
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__rewrite-spec-cases failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /test/__read-spec-results (#440): read the focused spec's
+// test-results.json sidecar for a provisioned TestBench so the e2e spec can
+// assert the on-disk integrity invariant (NFR-003): bench-keyed results retain
+// the archived (orphaned) case after reconcile. Returns the parsed sidecar plus
+// the source test-cases.json sha256 so the spec can prove the source plan's
+// checksum is unchanged by reconcile (reconcile only ever writes results).
+// Resolves the same way as the rewrite endpoint. Gated by ROUBO_E2E.
+//
+// Query: ?projectId=<id>&benchId=<n>.
+router.get("/__read-spec-results", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const benchIdRaw = req.query.benchId;
+  const target = parseBenchTarget({
+    projectId: req.query.projectId,
+    benchId: typeof benchIdRaw === "string" ? Number(benchIdRaw) : benchIdRaw,
+  });
+  if (typeof target === "string") {
+    return res.status(400).json({ error: target });
+  }
+  const resolved = resolveBenchSpecDir(target.projectId, target.benchId);
+  if ("error" in resolved) {
+    return res.status(resolved.status).json({ error: resolved.error });
+  }
+  try {
+    const specDir = path.join(resolved.repoPath, ".specifications", resolved.slug);
+    const resultsPath = path.join(specDir, "test-results.json");
+    const casesPath = path.join(specDir, "test-cases.json");
+    let results: unknown = null;
+    try {
+      results = JSON.parse(fs.readFileSync(resultsPath, "utf-8"));
+    } catch {
+      // No results sidecar yet (or unreadable): report null rather than 500.
+      results = null;
+    }
+    const casesChecksum = createHash("sha256")
+      .update(fs.readFileSync(casesPath, "utf-8"), "utf-8")
+      .digest("hex");
+    res.status(200).json({ results, casesChecksum });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__read-spec-results failed:", message);
+    res.status(500).json({ error: message });
+  }
 });
 
 export default router;

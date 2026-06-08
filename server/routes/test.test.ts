@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
@@ -21,6 +22,15 @@ const { TEST_TMP_ROOT, TEST_ROUBO_DIR } = vi.hoisted(() => {
 // factory only needs the path string, so a deferred mkdir is fine.
 fs.mkdirSync(TEST_ROUBO_DIR, { recursive: true });
 
+// The router installs an express-rate-limit middleware (120 req/min/IP). This
+// suite fires well over 120 requests in a single Vitest window, so without
+// stubbing the limiter later tests start returning 429. Replace it with a
+// pass-through middleware; the limiter's presence is asserted by CodeQL on the
+// source, not exercised here.
+vi.mock("express-rate-limit", () => ({
+  default: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 vi.mock("../services/plugin-manager.js", () => ({
   shutdown: vi.fn().mockResolvedValue(undefined),
   initialize: vi.fn().mockResolvedValue(undefined),
@@ -42,6 +52,7 @@ vi.mock("../services/project-registry.js", () => ({
     configValid: true,
     settings: {},
   })),
+  getProject: vi.fn(),
   updateProjectSettings: vi.fn(),
   unregisterProject: vi.fn(),
   __test: {
@@ -82,6 +93,7 @@ vi.mock("../services/integration-overrides.js", () => ({
 }));
 
 vi.mock("../services/bench-manager.js", () => ({
+  getBench: vi.fn(),
   __test: {
     reloadFromState: vi.fn(),
   },
@@ -1113,5 +1125,249 @@ describe("POST /test/__crash-plugin (TC-163, #240)", () => {
     const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "e2e-stub" });
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/not running/);
+  });
+});
+
+// TC-043 (#440): the two TestBench harness endpoints. Both resolve the focused
+// spec directory from the registered project repoPath + the bench's
+// focusedSpecPath (mirroring the live TestBench routes), so the tests seed a real
+// tmp repo with a `.specifications/<slug>/test-cases.json` and point getProject /
+// getBench at it.
+describe("TestBench harness endpoints (#440)", () => {
+  const SLUG = "testbench";
+  const PROJECT_ID = "tc-043-fixture";
+  const BENCH_ID = 1;
+
+  let repoPath: string;
+  let specDir: string;
+
+  function seedRepo(planJson: string): void {
+    repoPath = fs.mkdtempSync(path.join(TEST_TMP_ROOT, "tb-"));
+    specDir = path.join(repoPath, ".specifications", SLUG);
+    fs.mkdirSync(specDir, { recursive: true });
+    fs.writeFileSync(path.join(specDir, "test-cases.json"), planJson, "utf-8");
+  }
+
+  const VALID_PLAN = JSON.stringify({
+    $schema: "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json",
+    schemaVersion: "1.0.0",
+    specSlug: SLUG,
+    cases: [
+      {
+        id: "TC-A",
+        title: "A",
+        level: "1",
+        priority: "P0",
+        steps: [{ id: "S1", instruction: "do", observations: [{ id: "O1", expected: "ok" }] }],
+      },
+    ],
+  });
+
+  function pointMocksAtRepo(): void {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: PROJECT_ID,
+      repoPath,
+      config: {} as never,
+      configValid: true,
+      settings: {} as never,
+    } as never);
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      id: BENCH_ID,
+      projectId: PROJECT_ID,
+      variant: "testbench",
+      focusedSpecPath: path.join(specDir, "test-cases.json"),
+    } as never);
+  }
+
+  afterEach(() => {
+    if (repoPath) {
+      fs.rmSync(repoPath, { recursive: true, force: true });
+      repoPath = "";
+    }
+  });
+
+  describe("POST /test/__rewrite-spec-cases", () => {
+    it("returns 404 when ROUBO_E2E is unset", async () => {
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: { a: 1 } });
+      expect(res.status).toBe(404);
+      expect(res.text).toBe("");
+    });
+
+    it("overwrites the focused spec's test-cases.json on the happy path", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      process.env.ROUBO_E2E = "1";
+
+      const nextPlan = { ...JSON.parse(VALID_PLAN), specSlug: SLUG, cases: [] };
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: nextPlan });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      const onDisk = JSON.parse(fs.readFileSync(path.join(specDir, "test-cases.json"), "utf-8"));
+      expect(onDisk.cases).toEqual([]);
+    });
+
+    it("returns 400 when projectId is malformed", async () => {
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: "Bad_Id", benchId: BENCH_ID, testCases: {} });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/projectId/);
+    });
+
+    it("returns 400 when testCases is not an object", async () => {
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: [] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/testCases/);
+    });
+
+    it("returns 404 when the project is unknown", async () => {
+      vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: {} });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toMatch(/not found/);
+    });
+
+    it("returns 400 when the bench is not a testbench", async () => {
+      seedRepo(VALID_PLAN);
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        id: PROJECT_ID,
+        repoPath,
+        config: {} as never,
+        configValid: true,
+        settings: {} as never,
+      } as never);
+      vi.mocked(benchManager.getBench).mockReturnValue({
+        id: BENCH_ID,
+        projectId: PROJECT_ID,
+        variant: "standard",
+      } as never);
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: {} });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/not a testbench/);
+    });
+
+    it("returns 500 and logs when the write fails", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      process.env.ROUBO_E2E = "1";
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementationOnce(() => {
+        throw new Error("disk full");
+      });
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: { specSlug: SLUG } });
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe("disk full");
+      expect(consoleSpy).toHaveBeenCalledWith("/test/__rewrite-spec-cases failed:", "disk full");
+      writeSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("GET /test/__read-spec-results", () => {
+    it("returns 404 when ROUBO_E2E is unset", async () => {
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(404);
+      expect(res.text).toBe("");
+    });
+
+    it("returns null results + the source checksum when no sidecar exists", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.results).toBeNull();
+      expect(res.body.casesChecksum).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("returns the parsed sidecar when one exists", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      const resultsFile = {
+        $schema: "x",
+        schemaVersion: "1.0.0",
+        planHash: "abc",
+        benches: { "bench-1": { caseResults: {}, updatedAt: "2026-06-08T09:00:00.000Z" } },
+      };
+      fs.writeFileSync(
+        path.join(specDir, "test-results.json"),
+        JSON.stringify(resultsFile),
+        "utf-8",
+      );
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.results).toEqual(resultsFile);
+    });
+
+    it("returns 400 when benchId is not a positive integer", async () => {
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=0`,
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/benchId/);
+    });
+
+    it("returns 404 when the bench is unknown", async () => {
+      seedRepo(VALID_PLAN);
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        id: PROJECT_ID,
+        repoPath,
+        config: {} as never,
+        configValid: true,
+        settings: {} as never,
+      } as never);
+      vi.mocked(benchManager.getBench).mockReturnValue(undefined);
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(404);
+      expect(res.body.error).toMatch(/Bench not found/);
+    });
+
+    it("returns 500 and logs when reading the source plan fails", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      process.env.ROUBO_E2E = "1";
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      // Force the source-plan read (the second readFileSync, after the results
+      // read returns null via its own try/catch) to throw.
+      const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation(() => {
+        throw new Error("read error");
+      });
+      const res = await request(app).get(
+        `/test/__read-spec-results?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe("read error");
+      expect(consoleSpy).toHaveBeenCalledWith("/test/__read-spec-results failed:", "read error");
+      readSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
   });
 });
