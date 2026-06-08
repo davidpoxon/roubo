@@ -59,6 +59,7 @@ export default function SpecPickerModal({
   onCreate,
   isCreating = false,
   mode = "create",
+  activePath,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -66,6 +67,10 @@ export default function SpecPickerModal({
   onCreate: (focusedSpecPath: string) => void;
   isCreating?: boolean;
   mode?: SpecPickerMode;
+  // Re-point only (#423/#444, TC-007 step 2): the currently focused spec's
+  // path, so the matching discovered row is flagged as the active spec. Unset
+  // in create mode (no bench is bound yet).
+  activePath?: string;
 }) {
   const copy = MODE_COPY[mode];
   const { data: specs, isLoading, isError, error } = useTestbenchSpecs(projectId, isOpen);
@@ -189,6 +194,7 @@ export default function SpecPickerModal({
                       {specs?.map((spec) => {
                         const isSelected =
                           manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
+                        const isActive = mode === "repoint" && spec.path === activePath;
                         return (
                           <ToggleButton
                             key={spec.path}
@@ -204,8 +210,13 @@ export default function SpecPickerModal({
                               className="text-stone-400 dark:text-stone-500 shrink-0 mt-0.5"
                             />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-stone-800 dark:text-stone-200">
-                                {spec.slug}
+                              <p className="flex items-center gap-1.5 text-sm font-medium text-stone-800 dark:text-stone-200">
+                                <span className="truncate">{spec.slug}</span>
+                                {isActive && (
+                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/40 rounded-full px-1.5 py-0.5">
+                                    Active
+                                  </span>
+                                )}
                               </p>
                               <p className="text-[11px] font-mono text-stone-400 dark:text-stone-500 truncate">
                                 {spec.path}

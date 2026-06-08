@@ -104,6 +104,7 @@ export default function TestBenchPanel({
       onCreate={handleRepoint}
       isCreating={setFocus.isPending}
       mode="repoint"
+      activePath={focusedSpecPath}
     />
   ) : null;
 
