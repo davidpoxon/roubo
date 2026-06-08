@@ -186,6 +186,27 @@ describe("validateTestResults", () => {
     expect(validateTestResults(results).ok).toBe(true);
   });
 
+  it("accepts an optional per-case caseCanon snapshot (#447)", () => {
+    const results = makeResults();
+    results.benches["bench-1"].caseResults["TC-001"].caseCanon = "canon-snapshot";
+    expect(validateTestResults(results).ok).toBe(true);
+  });
+
+  it("still rejects an unknown key on a case result with a field-named error", () => {
+    const results = makeResults();
+    (results.benches["bench-1"].caseResults["TC-001"] as unknown as Record<string, unknown>).bogus =
+      true;
+    const result = validateTestResults(results);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("benches.bench-1.caseResults.TC-001:") && e.includes("bogus"),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("rejects a results file missing the planHash with a field-named error", () => {
     const results = makeResults() as unknown as Record<string, unknown>;
     delete results.planHash;

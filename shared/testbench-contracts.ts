@@ -160,6 +160,12 @@ export const CaseResultSchema = z
     // A removed case's result is marked orphaned and retained, never deleted,
     // and excluded from the rollup (FR-013, FR-017).
     orphaned: z.literal(true).optional(),
+    // The per-case canonical body snapshot reconcile compares against the live
+    // plan to classify changed vs unchanged (#413, spike-407 AC3). Optional so a
+    // result with no stored snapshot still parses and is conservatively
+    // classified changed; persisting it lets the signal survive a round-trip to
+    // disk (#447).
+    caseCanon: z.string().optional(),
   })
   .strict();
 export type CaseResult = z.infer<typeof CaseResultSchema>;

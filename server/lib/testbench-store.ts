@@ -166,32 +166,15 @@ function loadFile(
   return { file: validation.data, recovered: false };
 }
 
-// Strip any field the published strict contract does not yet persist before a
-// write. testbench-domain.reconcile stamps a per-case `caseCanon` snapshot (used
-// for cross-run changed/unchanged classification) onto changed cases, but the
-// published CaseResultSchema is `.strict()` and does not declare `caseCanon`
-// (aligning the contract to persist it is tracked in #447). Writing it verbatim
-// would make the next strict `loadFile` read reject the whole file and fail open,
-// silently discarding every recorded result. Dropping it here keeps the file
-// round-trippable through strict validation; until #447 lands, a result with no
-// stored snapshot is conservatively classified `changed` on reconcile (a
-// re-review prompt that loses nothing), the documented safe fallback.
-function toContractFile(file: TestResultsFile): TestResultsFile {
-  for (const bench of Object.values(file.benches)) {
-    for (const caseResult of Object.values(bench.caseResults)) {
-      delete (caseResult as { caseCanon?: string }).caseCanon;
-    }
-  }
-  return file;
-}
-
 // Persist a results file atomically (same-directory temp+rename, EXDEV-safe) via
 // the #406 write primitive. The slug is re-validated inside writeResults, so this
-// path is safe even though the file object itself carries no slug. The file is
-// reduced to the published-contract shape first, so what lands on disk always
-// re-validates (no fail-open data loss on the next read).
+// path is safe even though the file object itself carries no slug. The published
+// CaseResultSchema now declares the per-case `caseCanon` snapshot (#447), so the
+// reconcile-stamped field is serialized verbatim and re-validates on the next
+// strict read (no fail-open data loss, and the changed/unchanged signal survives
+// the round-trip to disk).
 function persist(repoPath: string, slug: string, file: TestResultsFile): void {
-  writeResults(repoPath, slug, JSON.stringify(toContractFile(file), null, 2));
+  writeResults(repoPath, slug, JSON.stringify(file, null, 2));
 }
 
 // Build an empty results file. planHash is filled by the caller after the plan is
