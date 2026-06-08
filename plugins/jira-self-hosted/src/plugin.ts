@@ -264,7 +264,25 @@ export function createPluginContract(): PluginContract {
     ): Promise<SourceOptionsResult> {
       const config = await adoptOrRecallConfig(params);
       const ctx = await ctxFor(config);
-      return runGetSourceOptions(ctx, params);
+      try {
+        return await runGetSourceOptions(ctx, params);
+      } catch (err) {
+        // Surface the real failure in the plugin log stream. The host turns a
+        // rejected `getSourceOptions` into a generic 502 and the dropdown only
+        // shows "Could not load results", so without this nothing is recorded
+        // to diagnose from (e.g. a category whose endpoint 404s on this Jira
+        // instance). Log the category and Jira status/message only; never the
+        // PAT or the user's raw search term (NFR-003).
+        host.logger.error({
+          message: `getSourceOptions failed for category "${params.category}".`,
+          data: {
+            category: params.category,
+            ...(err instanceof JiraApiError ? { status: err.status } : {}),
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
+        throw err;
+      }
     },
 
     async listIssues(params: ListIssuesParams): Promise<ListIssuesResult> {

@@ -462,4 +462,37 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     });
     expect(capturedJql[0]).not.toContain("updated >=");
   });
+
+  it("logs getSourceOptions failures to the plugin log stream, then re-throws (#468)", async () => {
+    // Without this the host turns the rejection into a generic 502 and the
+    // dropdown only shows "Could not load results", with nothing recorded to
+    // diagnose from. The category and Jira status must be logged; the PAT and
+    // the user's raw search term must not (NFR-003).
+    await harness.hostConnection.sendRequest("setActiveConfig", {
+      config: { instance: "https://jira.acme.example" },
+    });
+
+    const errorLogs: unknown[] = [];
+    // Replace the harness no-op so we can inspect what the plugin logged.
+    harness.hostConnection.onNotification("host.logger.error", (p) => errorLogs.push(p));
+
+    harness.fetchStub.on("/rest/api/2/project", () =>
+      StubResponse.jiraError(404, "No project could be found with key 'search'."),
+    );
+
+    await expect(
+      harness.hostConnection.sendRequest("getSourceOptions", {
+        category: "project",
+        search: "secret-term",
+      }),
+    ).rejects.toBeDefined();
+
+    const serialized = JSON.stringify(errorLogs);
+    expect(serialized).toContain("getSourceOptions failed");
+    expect(serialized).toContain("project");
+    expect(serialized).toContain("404");
+    // Nothing sensitive leaks: no PAT, no raw search term.
+    expect(serialized).not.toContain("test-token");
+    expect(serialized).not.toContain("secret-term");
+  });
 });
