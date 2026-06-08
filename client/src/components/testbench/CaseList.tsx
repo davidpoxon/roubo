@@ -24,7 +24,19 @@ function rowSize(row: FlatRow): number {
   return ROW_HEIGHT;
 }
 
-export default function CaseList({ rows }: { rows: FlatRow[] }) {
+export default function CaseList({
+  rows,
+  onSelect,
+  selectedCaseId,
+}: {
+  rows: FlatRow[];
+  // Lift the active case up to the host (#420): fired when a case row is
+  // activated (click or Enter/Space) so the host can render its detail pane.
+  onSelect?: (caseId: string) => void;
+  // The case currently shown in the detail pane, highlighted distinctly from
+  // the roving keyboard focus.
+  selectedCaseId?: string;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Set when a keyboard navigation should move DOM focus onto the focused row.
   // Gates the focus effect so it only fires for keyboard nav, never on initial
@@ -123,9 +135,16 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
       } else if (e.key === "End") {
         e.preventDefault();
         moveFocus(caseIndices[caseIndices.length - 1]);
+      } else if (e.key === "Enter" || e.key === " ") {
+        // Activate the focused case: open its detail pane (#420).
+        const row = rows[focusedIndex];
+        if (row?.kind === "case") {
+          e.preventDefault();
+          onSelect?.(row.row.case.id);
+        }
       }
     },
-    [caseIndices, focusedIndex, moveFocus],
+    [caseIndices, focusedIndex, moveFocus, onSelect, rows],
   );
 
   return (
@@ -178,17 +197,23 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
           }
 
           const isFocused = item.index === activeFocusIndex;
+          const isSelected = row.row.case.id === selectedCaseId;
           return (
             <div key={row.key} {...common}>
               <div
                 data-row-index={item.index}
                 data-testid="case-row"
+                role="button"
+                aria-pressed={isSelected}
                 tabIndex={isFocused ? 0 : -1}
                 onFocus={() => setFocusedIndex(item.index)}
-                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-default transition-colors ${
+                onClick={() => onSelect?.(row.row.case.id)}
+                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors ${
                   isFocused
                     ? "ring-2 ring-amber-500 ring-inset bg-stone-100 dark:bg-stone-800/60"
-                    : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
+                    : isSelected
+                      ? "bg-amber-50 dark:bg-amber-950/30"
+                      : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
                 }`}
               >
                 <div className="w-full">

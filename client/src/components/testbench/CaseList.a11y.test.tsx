@@ -191,6 +191,33 @@ describe("CaseList keyboard navigation", () => {
   });
 });
 
+describe("CaseList selection (#420)", () => {
+  it("lifts the activated case id to onSelect on click and on Enter", () => {
+    const onSelect = vi.fn();
+    render(<CaseList rows={rowsFor(20)} onSelect={onSelect} />);
+    const list = screen.getByRole("group");
+
+    // Click activates the case under the row.
+    fireEvent.click(within(list).getAllByTestId("case-row")[0]);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+
+    // Enter on the focused row also activates it.
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks the selected case row distinctly via aria-pressed", () => {
+    const rows = rowsFor(20);
+    const firstCase = rows.find((r) => r.kind === "case");
+    const selectedId = firstCase?.kind === "case" ? firstCase.row.case.id : undefined;
+    render(<CaseList rows={rows} selectedCaseId={selectedId} />);
+    const pressed = screen
+      .getAllByTestId("case-row")
+      .filter((el) => el.getAttribute("aria-pressed") === "true");
+    expect(pressed.length).toBe(1);
+  });
+});
+
 describe("CaseList a11y", () => {
   it("has no axe violations", async () => {
     const { container } = render(<CaseList rows={rowsFor(30)} />);
