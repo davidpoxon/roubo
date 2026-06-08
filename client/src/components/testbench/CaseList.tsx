@@ -140,14 +140,13 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
         {renderedRows.map((item) => {
           const row = rows[item.index];
           const common = {
-            key: row.key,
             className: "absolute top-0 left-0 w-full",
             style: { height: `${item.size}px`, transform: `translateY(${item.start}px)` },
           } as const;
 
           if (row.kind === "level") {
             return (
-              <div {...common}>
+              <div key={row.key} {...common}>
                 <div className="flex items-center gap-3 px-4 py-2 h-full bg-stone-100/80 dark:bg-stone-900/60">
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
@@ -165,7 +164,7 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
 
           if (row.kind === "priority") {
             return (
-              <div {...common}>
+              <div key={row.key} {...common}>
                 <div className="flex items-center gap-2 px-4 py-1.5 pl-8 h-full">
                   <span className="text-[10px] uppercase tracking-wider font-medium text-stone-400 dark:text-stone-600">
                     {row.priority}
@@ -180,7 +179,7 @@ export default function CaseList({ rows }: { rows: FlatRow[] }) {
 
           const isFocused = item.index === activeFocusIndex;
           return (
-            <div {...common}>
+            <div key={row.key} {...common}>
               <div
                 data-row-index={item.index}
                 data-testid="case-row"
