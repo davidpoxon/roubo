@@ -57,6 +57,7 @@ import type {
   SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
+import type { Note } from "@roubo/shared/testbench-contracts";
 
 export interface MigrationStatusResponse {
   schemaVersion: number | null;
@@ -997,4 +998,22 @@ export type { InstallPreview, InstallSource };
 // Migration (WU-024 / issue #42)
 export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
   return request("/migration/status");
+}
+
+// TestBench notes (#421). Append-only: POST returns the stamped Note (author +
+// timestamp + status-at-write captured server-side). A blank or whitespace-only
+// body is rejected server-side with 400 (surfaced here as an ApiError).
+export function appendNote(
+  projectId: string,
+  benchId: number,
+  caseId: string,
+  text: string,
+): Promise<Note> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(caseId)}/notes`,
+    {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    },
+  );
 }
