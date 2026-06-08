@@ -1088,7 +1088,11 @@ export default function BenchDetail() {
 
         {isTestbench && (
           <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
-            <TestBenchPanel projectId={projectId} benchId={benchId} />
+            <TestBenchPanel
+              projectId={projectId}
+              benchId={benchId}
+              focusedSpecPath={bench.focusedSpecPath}
+            />
           </TabPanel>
         )}
 

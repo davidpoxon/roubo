@@ -497,6 +497,21 @@ export function fetchTestbenchPlan(
   return request(`/projects/${projectId}/benches/${benchId}/testbench/plan`);
 }
 
+// PUT /testbench/focus: re-point an active TestBench to a different focused spec
+// (#423, FR-024). The re-point is explicit: the server preserves the prior spec's
+// results untouched and re-evaluates staleness on the next plan load. Returns the
+// updated Bench (with the new focusedSpecPath).
+export function setTestbenchFocus(
+  projectId: string,
+  benchId: number,
+  focusedSpecPath: string,
+): Promise<Bench> {
+  return request(`/projects/${projectId}/benches/${benchId}/testbench/focus`, {
+    method: "PUT",
+    body: JSON.stringify({ focusedSpecPath }),
+  });
+}
+
 export function reconcileTestbench(
   projectId: string,
   benchId: number,
