@@ -389,4 +389,24 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
     const file: TestResultsFile = JSON.parse(fs.readFileSync(resultsFilePath(), "utf8"));
     expect(file.planHash).toBe(computePlanHash(planFor()));
   });
+
+  // NFR-003: a confirmed reconcile of a marked, in-plan case must round-trip
+  // through the strict published contract. testbench-domain stamps a per-case
+  // caseCanon snapshot the strict CaseResultSchema does not declare; if it were
+  // persisted, the next strict read would fail open and silently discard every
+  // recorded result. The persist boundary strips it, so results survive the read.
+  it("preserves recorded results when re-read after a confirmed reconcile (no fail-open data loss)", async () => {
+    await markObservation(repo, SLUG, BENCH, "TC-001", "O1", "pass");
+    await reconcile(repo, SLUG, BENCH, { confirm: true });
+
+    // The persisted file carries no non-contract caseCanon field.
+    const onDisk = JSON.parse(fs.readFileSync(resultsFilePath(), "utf8"));
+    expect(onDisk.benches[BENCH].caseResults["TC-001"]).not.toHaveProperty("caseCanon");
+
+    // The store re-reads it cleanly: results are retained, not recovered-away.
+    const view = readPlanAndResults(repo, SLUG, BENCH);
+    expect(view.recovered).toBe(false);
+    expect(view.results).not.toBeNull();
+    expect(view.results?.caseResults["TC-001"].observationMarks.O1.result).toBe("pass");
+  });
 });
