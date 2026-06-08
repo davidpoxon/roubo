@@ -57,7 +57,13 @@ import type {
   SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
-import type { Note, TestCasesPlan, BenchResults } from "@roubo/shared/testbench-contracts";
+import type {
+  Note,
+  TestCasesPlan,
+  BenchResults,
+  CaseResult,
+  CaseStatus,
+} from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 
 export interface MigrationStatusResponse {
@@ -1108,6 +1114,46 @@ export function appendNote(
     {
       method: "POST",
       body: JSON.stringify({ text }),
+    },
+  );
+}
+
+// TestBench observation mark (#420, FR-007/FR-008). PUT records a pass/fail mark
+// for one observation and returns the updated CaseResult: the server stamps the
+// author + timestamp and recomputes derivedStatus (server is source of truth).
+export function markObservation(
+  projectId: string,
+  benchId: number,
+  caseId: string,
+  observationId: string,
+  result: "pass" | "fail",
+): Promise<CaseResult> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(
+      caseId,
+    )}/observations/${encodeURIComponent(observationId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ result }),
+    },
+  );
+}
+
+// TestBench status override (#420, FR-010). PUT sets an explicit override (one of
+// the five CaseStatus values) or clears it (override: null). Returns the updated
+// CaseResult with statusOverride set or absent. The override is recorded
+// distinctly from derivedStatus and takes precedence over later marks.
+export function setStatusOverride(
+  projectId: string,
+  benchId: number,
+  caseId: string,
+  override: CaseStatus | null,
+): Promise<CaseResult> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(caseId)}/status`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ override }),
     },
   );
 }
