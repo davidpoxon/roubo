@@ -67,8 +67,40 @@ router.get("/:projectId/benches", (req, res) => {
 });
 
 router.post("/:projectId/benches", async (req, res) => {
-  const { branch, issueNumber, externalId, branchConflictResolution } =
+  const { branch, issueNumber, externalId, branchConflictResolution, variant, focusedSpecPath } =
     req.body as CreateBenchRequest;
+
+  // TestBench-variant create (#416). A TestBench has no issue/branch coupling: it
+  // binds a focused spec instead. Validation + containment of focusedSpecPath
+  // happens inside bench-manager.createBench (BenchError "INVALID_FOCUS" -> 400).
+  if (variant === "testbench") {
+    if (typeof focusedSpecPath !== "string" || focusedSpecPath.length === 0) {
+      res
+        .status(400)
+        .json({ error: "focusedSpecPath must be a non-empty string for a testbench variant" });
+      return;
+    }
+    try {
+      const bench = benchManager.createBench(req.params.projectId, undefined, {
+        variant: "testbench",
+        focusedSpecPath,
+      });
+      res.status(201).json(bench);
+    } catch (err) {
+      if (err instanceof BenchError) {
+        const status =
+          err.code === "PROJECT_NOT_FOUND"
+            ? 404
+            : err.code === "NO_BENCHES" || err.code === "GLOBAL_CAP_REACHED"
+              ? 409
+              : 400;
+        res.status(status).json({ error: err.message, code: err.code });
+      } else {
+        res.status(500).json({ error: (err as Error).message });
+      }
+    }
+    return;
+  }
 
   // Combined create-and-assign flow (plain GitHub issue, by number)
   if (issueNumber !== undefined) {

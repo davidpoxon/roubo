@@ -175,6 +175,49 @@ describe("POST /:projectId/benches", () => {
   });
 });
 
+describe("POST /:projectId/benches with variant=testbench", () => {
+  const FOCUS = "/repos/my-project/.specifications/testbench/test-cases.json";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates a testbench and returns 201", async () => {
+    const bench = { id: 2, projectId: "my-project", variant: "testbench", focusedSpecPath: FOCUS };
+    vi.mocked(benchManager.createBench).mockReturnValue(bench as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ variant: "testbench", focusedSpecPath: FOCUS });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual(bench);
+    expect(benchManager.createBench).toHaveBeenCalledWith("my-project", undefined, {
+      variant: "testbench",
+      focusedSpecPath: FOCUS,
+    });
+  });
+
+  it("returns 400 when focusedSpecPath is missing", async () => {
+    const res = await request(app).post("/my-project/benches").send({ variant: "testbench" });
+    expect(res.status).toBe(400);
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when createBench rejects the path with INVALID_FOCUS", async () => {
+    vi.mocked(benchManager.createBench).mockImplementation(() => {
+      throw new BenchError("Invalid focusedSpecPath: escapes repo", "INVALID_FOCUS");
+    });
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ variant: "testbench", focusedSpecPath: "/etc/passwd" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_FOCUS");
+  });
+});
+
 describe("POST /:projectId/benches with issueNumber", () => {
   it("returns 400 when issueNumber is not a number", async () => {
     const res = await request(app)
