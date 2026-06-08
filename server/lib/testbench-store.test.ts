@@ -47,7 +47,9 @@ function planFor(): TestCasesPlan {
       {
         id: "TC-001",
         title: "Login works",
-        level: "e2e_flow",
+        area: "auth",
+        level: 1,
+        type: "e2e_flow",
         priority: "P0",
         steps: [
           {
@@ -59,6 +61,9 @@ function planFor(): TestCasesPlan {
             ],
           },
         ],
+        tags: ["smoke"],
+        linked_requirement_ids: ["FR-001"],
+        linked_user_story_ids: [],
       },
     ],
   };

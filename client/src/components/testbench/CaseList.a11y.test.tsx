@@ -87,9 +87,14 @@ function makeCases(count: number): Case[] {
     cases.push({
       id: `c${i}`,
       title: `Case number ${i}`,
-      level: `level${i % 3}`,
+      area: "test-area",
+      level: (i % 3) + 1,
+      type: "functional",
       priority: `P${i % 2}`,
       steps: [],
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
     });
   }
   return cases;

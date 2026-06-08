@@ -59,8 +59,18 @@ function projectStep(step: Step): {
   };
 }
 
-// Per-case projection in fixed canonical key order: id, title, level, priority,
-// preconditions (when present and non-empty), steps (sorted by Step.id).
+// Per-case projection in fixed canonical key order: id, title, level, priority
+// (when present), preconditions (when present and non-empty), steps (sorted by
+// Step.id).
+//
+// `level` is an integer in the merged v1.1.0 shape; it is stringified before
+// normalisation so the canonical form stays an all-strings projection. `priority`
+// is optional in v1.1.0 (canonical authors omit it): an absent priority omits the
+// key, exactly as preconditions does. The canonical product-dev metadata fields
+// (area, type, tags, linked_*) are deliberately NOT projected: the staleness hash
+// tracks the testable body (title, level, steps), so re-tagging or re-linking a
+// case never marks it stale-for-retest. Like every TargetingField and unknown
+// field, they are dropped.
 //
 // preconditions order is PRESERVED (not sorted). An absent and an empty
 // preconditions list canonicalise identically: the key is omitted in both cases.
@@ -68,9 +78,12 @@ function projectCase(testCase: Case): Record<string, unknown> {
   const projected: Record<string, unknown> = {
     id: testCase.id,
     title: normalizeString(testCase.title),
-    level: normalizeString(testCase.level),
-    priority: normalizeString(testCase.priority),
+    level: normalizeString(String(testCase.level)),
   };
+
+  if (testCase.priority !== undefined) {
+    projected.priority = normalizeString(testCase.priority);
+  }
 
   if (testCase.preconditions !== undefined && testCase.preconditions.length > 0) {
     projected.preconditions = testCase.preconditions.map(normalizeString);

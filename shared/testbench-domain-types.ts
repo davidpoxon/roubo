@@ -58,13 +58,23 @@ export interface Step {
   target?: TargetingField;
 }
 
+// Mirrors the merged v1.1.0 CaseSchema in testbench-contracts.ts: the canonical
+// product-dev fields (area, integer level, type, tags, linked_*) unioned with
+// the TestBench shape (optional priority, TestBench step shape). The pure domain
+// modules only read id/title/level/priority/preconditions/steps; the canonical
+// metadata fields ride along for structural fidelity with the contract type.
 export interface Case {
   id: string;
   title: string;
-  level: string;
-  priority: string;
+  area: string;
+  level: number;
+  type: string;
+  priority?: string;
   preconditions?: string[];
   steps: Step[];
+  tags: string[];
+  linked_requirement_ids: string[];
+  linked_user_story_ids: string[];
 }
 
 export interface TestCasesPlan {

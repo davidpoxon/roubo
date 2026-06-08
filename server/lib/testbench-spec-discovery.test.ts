@@ -24,7 +24,9 @@ function planFor(slug: string, caseIds: string[]): TestCasesPlan {
     cases: caseIds.map((id) => ({
       id,
       title: `Case ${id}`,
-      level: "e2e_flow",
+      area: "test-area",
+      level: 1,
+      type: "functional",
       priority: "P0",
       steps: [
         {
@@ -33,6 +35,9 @@ function planFor(slug: string, caseIds: string[]): TestCasesPlan {
           observations: [{ id: "O1", expected: "ok" }],
         },
       ],
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
     })),
   };
 }
@@ -54,32 +59,44 @@ afterEach(() => {
 });
 
 describe("discoverSpecs", () => {
-  it("returns an empty list when there is no .specifications directory", () => {
-    expect(discoverSpecs(repo)).toEqual([]);
+  it("returns empty specs and invalid when there is no .specifications directory", () => {
+    expect(discoverSpecs(repo)).toEqual({ specs: [], invalid: [] });
   });
 
   it("enumerates and validates valid specs, sorted by slug", () => {
     writeSpec("zebra", planFor("zebra", ["TC-001"]));
     writeSpec("alpha", planFor("alpha", ["TC-001", "TC-002"]));
 
-    const specs = discoverSpecs(repo);
+    const { specs, invalid } = discoverSpecs(repo);
+    expect(invalid).toEqual([]);
     expect(specs.map((s) => s.slug)).toEqual(["alpha", "zebra"]);
     expect(specs[0].caseCount).toBe(2);
     expect(specs[1].caseCount).toBe(1);
     expect(specs[0].path).toBe(path.join(repo, ".specifications", "alpha", "test-cases.json"));
   });
 
-  it("skips folders with no test-cases.json", () => {
+  it("skips folders with no test-cases.json (they are not specs, not invalid)", () => {
     fs.mkdirSync(path.join(repo, ".specifications", "empty"), { recursive: true });
     writeSpec("good", planFor("good", ["TC-001"]));
-    expect(discoverSpecs(repo).map((s) => s.slug)).toEqual(["good"]);
+    const { specs, invalid } = discoverSpecs(repo);
+    expect(specs.map((s) => s.slug)).toEqual(["good"]);
+    expect(invalid).toEqual([]);
   });
 
-  it("skips invalid JSON and schema-invalid specs", () => {
+  it("reports present-but-invalid specs (bad JSON, schema mismatch) with errors", () => {
     writeSpec("broken-json", "{not json");
     writeSpec("invalid-schema", { foo: "bar" });
     writeSpec("good", planFor("good", ["TC-001"]));
-    expect(discoverSpecs(repo).map((s) => s.slug)).toEqual(["good"]);
+
+    const { specs, invalid } = discoverSpecs(repo);
+    expect(specs.map((s) => s.slug)).toEqual(["good"]);
+    // Both broken files are surfaced (sorted by slug), each with non-empty errors.
+    expect(invalid.map((s) => s.slug)).toEqual(["broken-json", "invalid-schema"]);
+    expect(invalid[0].errors).toEqual(["test-cases.json is not valid JSON"]);
+    expect(invalid[1].errors.length).toBeGreaterThan(0);
+    expect(invalid[1].path).toBe(
+      path.join(repo, ".specifications", "invalid-schema", "test-cases.json"),
+    );
   });
 });
 

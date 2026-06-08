@@ -1,807 +1,1319 @@
-[
-  {
-    "id": "TC-001",
-    "title": "PUT /api/settings accepts absent benches.maxGlobal (unlimited)",
-    "area": "settings",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["Server is running with no existing settings.json"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { theme: 'dark' } (no benches block)",
-        "expected": ["200 OK", "Response body has no benches.maxGlobal field"]
-      },
-      { "action": "GET /api/settings", "expected": ["benches.maxGlobal is absent or null"] }
-    ],
-    "tags": ["smoke", "backcompat", "automated"],
-    "linked_requirement_ids": ["FR-001", "FR-002"],
-    "linked_user_story_ids": ["US-005"]
-  },
-  {
-    "id": "TC-002",
-    "title": "PUT /api/settings persists benches.maxGlobal = 5",
-    "area": "settings",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { theme: 'dark', benches: { maxGlobal: 5 } }",
-        "expected": ["200 OK", "Response shows benches.maxGlobal === 5"]
-      },
-      {
-        "action": "Re-read ~/.roubo/settings.json",
-        "expected": ["File contains benches.maxGlobal: 5"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-001", "FR-002"],
-    "linked_user_story_ids": ["US-001"]
-  },
-  {
-    "id": "TC-003",
-    "title": "PUT /api/settings rejects benches.maxGlobal = 0 with 400",
-    "area": "settings",
-    "level": 1,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: 0 } }",
-        "expected": ["400 Bad Request", "Error message names the offending field benches.maxGlobal"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-004",
-    "title": "PUT /api/settings rejects benches.maxGlobal = -3 with 400",
-    "area": "settings",
-    "level": 1,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: -3 } }",
-        "expected": ["400 Bad Request", "Error message names benches.maxGlobal"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-005",
-    "title": "PUT /api/settings rejects benches.maxGlobal = 2.5 with 400",
-    "area": "settings",
-    "level": 1,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: 2.5 } }",
-        "expected": ["400 Bad Request", "Error message names benches.maxGlobal"]
-      }
-    ],
-    "tags": ["automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-006",
-    "title": "createBench succeeds when global count < cap",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["benches.maxGlobal = 5", "benches Map size = 2 (across all projects)"],
-    "steps": [
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": ["201 Created", "Bench returned with status preparing or initialised"]
-      },
-      { "action": "Inspect bench-manager benches Map size", "expected": ["Map size is now 3"] }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-003", "FR-004"],
-    "linked_user_story_ids": ["US-001"]
-  },
-  {
-    "id": "TC-007",
-    "title": "createBench returns 409 GLOBAL_CAP_REACHED when global count = cap",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["benches.maxGlobal = 3", "benches Map size = 3"],
-    "steps": [
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": [
-          "409 Conflict",
-          "Response body contains code: 'GLOBAL_CAP_REACHED'",
-          "Message names current count (3) and cap (3)"
-        ]
-      },
-      {
-        "action": "Inspect bench-manager benches Map size",
-        "expected": ["Map size is still 3 (no leaked entry)"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-003"],
-    "linked_user_story_ids": ["US-002"]
-  },
-  {
-    "id": "TC-008",
-    "title": "In-flight bench reservation is visible to a parallel create attempt",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "integration",
-    "preconditions": ["benches.maxGlobal = 4", "benches Map size = 3"],
-    "steps": [
-      {
-        "action": "Begin createBench A; pause inside async provisioning (status = preparing)",
-        "expected": ["Map size is now 4 (slot reserved before await)"]
-      },
-      {
-        "action": "While A is still in flight, call createBench B",
-        "expected": ["B rejects synchronously with GLOBAL_CAP_REACHED 409"]
-      }
-    ],
-    "tags": ["concurrency", "automated"],
-    "linked_requirement_ids": ["FR-005", "FR-006"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-009",
-    "title": "clearBench is allowed even when global count equals cap",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["benches.maxGlobal = 3", "benches Map size = 3"],
-    "steps": [
-      {
-        "action": "DELETE /api/projects/proj-a/benches/1?removeWorkspace=true",
-        "expected": ["204 or 200 success", "Map size drops to 2"]
-      },
-      { "action": "POST /api/projects/proj-a/benches", "expected": ["201 Created (slot freed)"] }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-007"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-010",
-    "title": "Settings UI renders the tab as 'Benches' (renamed)",
-    "area": "client-settings",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["Client app loaded"],
-    "steps": [
-      {
-        "action": "Navigate to global Settings",
-        "expected": [
-          "A tab labelled 'Benches' is visible",
-          "No tab labelled 'Bench Defaults' is visible at the top level"
-        ]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-008"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-011",
-    "title": "BenchesTab renders Global bench limit RadioGroup and numeric TextField",
-    "area": "client-settings",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["Client app loaded", "benches.maxGlobal absent (default unlimited)"],
-    "steps": [
-      {
-        "action": "Open Settings > Benches tab",
-        "expected": [
-          "A RadioGroup labelled 'Limit mode' (or equivalent) shows Unlimited (selected) and Limit options",
-          "Numeric TextField is disabled while Unlimited is selected"
-        ]
-      },
-      {
-        "action": "Select the 'Limit' radio",
-        "expected": ["Numeric TextField becomes enabled", "Default value prefills 5"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-008"],
-    "linked_user_story_ids": ["US-001"]
-  },
-  {
-    "id": "TC-012",
-    "title": "'Set up bench' button has aria-disabled=true with descriptive tooltip when at cap",
-    "area": "client-benches",
-    "level": 1,
-    "type": "accessibility",
-    "preconditions": [
-      "benches.maxGlobal = 2",
-      "benches Map size = 2",
-      "Client app loaded on BenchesTab"
-    ],
-    "steps": [
-      {
-        "action": "Locate the 'Set up bench' button",
-        "expected": [
-          "Button has aria-disabled='true' (not the native disabled attribute)",
-          "Button remains focusable"
-        ]
-      },
-      {
-        "action": "Hover or focus the button",
-        "expected": [
-          "Tooltip text reads: 'Global bench limit reached. 2 of 2 benches in use. Clear a bench to free a slot.'",
-          "Tooltip is associated via aria-describedby"
-        ]
-      }
-    ],
-    "tags": ["smoke", "a11y", "automated"],
-    "linked_requirement_ids": ["FR-009", "NFR-002"],
-    "linked_user_story_ids": ["US-002"]
-  },
-  {
-    "id": "TC-013",
-    "title": "GlobalBenchMeter renders only when a cap is set",
-    "area": "client-benches",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["Client app loaded on BenchesTab"],
-    "steps": [
-      {
-        "action": "Verify state has benches.maxGlobal = null",
-        "expected": ["No GlobalBenchMeter element is in the DOM"]
-      },
-      {
-        "action": "Set benches.maxGlobal = 5 via Settings and return to BenchesTab",
-        "expected": ["GlobalBenchMeter is rendered in the header strip"]
-      }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-010"],
-    "linked_user_story_ids": ["US-003"]
-  },
-  {
-    "id": "TC-014",
-    "title": "GlobalBenchMeter exposes aria-label 'Global benches: N of M'",
-    "area": "client-benches",
-    "level": 1,
-    "type": "accessibility",
-    "preconditions": ["benches.maxGlobal = 5", "benches Map size = 3"],
-    "steps": [
-      {
-        "action": "Inspect the GlobalBenchMeter element",
-        "expected": [
-          "aria-label is exactly 'Global benches: 3 of 5'",
-          "Visible text shows 3 / 5 or equivalent"
-        ]
-      }
-    ],
-    "tags": ["a11y", "automated"],
-    "linked_requirement_ids": ["FR-010", "NFR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-015",
-    "title": "Lowering cap below current count is accepted and preserves existing benches",
-    "area": "settings",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["benches.maxGlobal = unlimited", "benches Map size = 5"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: 3 } }",
-        "expected": ["200 OK", "No bench entries deleted"]
-      },
-      { "action": "GET /api/benches", "expected": ["All 5 benches still listed"] },
-      { "action": "POST /api/projects/proj-a/benches", "expected": ["409 GLOBAL_CAP_REACHED"] }
-    ],
-    "tags": ["smoke", "automated"],
-    "linked_requirement_ids": ["FR-011"],
-    "linked_user_story_ids": ["US-004"]
-  },
-  {
-    "id": "TC-016",
-    "title": "createBench succeeds and warns once when settings.json is corrupt (fail-open)",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": ["~/.roubo/settings.json contains invalid JSON", "console.warn is spied"],
-    "steps": [
-      {
-        "action": "Call createBench",
-        "expected": [
-          "201 Created (treated as unlimited)",
-          "console.warn called exactly once with message including '[bench-manager]' and 'settings.json'"
-        ]
-      },
-      {
-        "action": "Call createBench again in the same process",
-        "expected": ["201 Created", "console.warn count is still 1 (one warning per process load)"]
-      }
-    ],
-    "tags": ["reliability", "automated"],
-    "linked_requirement_ids": ["FR-012", "NFR-004"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-017",
-    "title": "Error-state benches count toward the cap",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": [
-      "benches.maxGlobal = 2",
-      "benches Map size = 1 (status initialised) + 1 (status error) = 2"
-    ],
-    "steps": [
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": ["409 GLOBAL_CAP_REACHED (error-state bench counted)"]
-      }
-    ],
-    "tags": ["edge", "automated"],
-    "linked_requirement_ids": ["FR-004"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-018",
-    "title": "Existing install with no maxGlobal behaves unchanged (backcompat)",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "functional",
-    "preconditions": [
-      "~/.roubo/settings.json has no benches block at all",
-      "benches Map size = 50"
-    ],
-    "steps": [
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": ["201 Created (no cap enforcement)"]
-      },
-      { "action": "Open BenchesTab", "expected": ["GlobalBenchMeter is not rendered"] },
-      { "action": "Inspect 'Set up bench' button", "expected": ["Button is not aria-disabled"] }
-    ],
-    "tags": ["smoke", "backcompat", "automated"],
-    "linked_requirement_ids": ["NFR-005"],
-    "linked_user_story_ids": ["US-005"]
-  },
-  {
-    "id": "TC-019",
-    "title": "Cap-check on createBench adds no I/O beyond a single loadSettings",
-    "area": "bench-manager",
-    "level": 1,
-    "type": "performance",
-    "preconditions": ["loadSettings is spied", "fs.readFileSync is spied"],
-    "steps": [
-      {
-        "action": "Call createBench once",
-        "expected": [
-          "loadSettings called exactly once during the cap-check path",
-          "No additional fs reads attributable to the cap check"
-        ]
-      }
-    ],
-    "tags": ["perf", "automated"],
-    "linked_requirement_ids": ["NFR-001"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-020",
-    "title": "PUT /api/settings remains unauthenticated (no new auth surface)",
-    "area": "settings",
-    "level": 1,
-    "type": "security",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with no auth headers",
-        "expected": [
-          "Request is accepted (single-user desktop posture preserved)",
-          "Response is 200 (or 400 on validation, never 401/403)"
-        ]
-      }
-    ],
-    "tags": ["security", "automated"],
-    "linked_requirement_ids": ["NFR-003"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-021",
-    "title": "End-to-end: user sets a cap, creates benches up to it, button disables, clears one, re-enables",
-    "area": "e2e",
-    "level": 2,
-    "type": "functional",
-    "preconditions": ["Fresh install, no cap, no benches"],
-    "steps": [
-      {
-        "action": "Open Settings > Benches; select Limit; enter 2; blur the field",
-        "expected": ["The value persists immediately (no Save button)", "benches.maxGlobal is 2"]
-      },
-      {
-        "action": "Navigate to BenchesTab; create bench A",
-        "expected": ["GlobalBenchMeter shows '1 of 2'", "'Set up bench' button still enabled"]
-      },
-      {
-        "action": "Create bench B",
-        "expected": [
-          "GlobalBenchMeter shows '2 of 2' in red",
-          "'Set up bench' button aria-disabled with cap-reached tooltip"
-        ]
-      },
-      {
-        "action": "Clear bench A",
-        "expected": [
-          "GlobalBenchMeter shows '1 of 2' in neutral colour",
-          "'Set up bench' button re-enables"
-        ]
-      }
-    ],
-    "tags": ["happy-path", "e2e"],
-    "linked_requirement_ids": ["FR-003", "FR-007", "FR-009", "FR-010"],
-    "linked_user_story_ids": ["US-001", "US-002", "US-003"]
-  },
-  {
-    "id": "TC-022",
-    "title": "End-to-end: user lowers cap below current count, meter goes red, clearing restores capacity",
-    "area": "e2e",
-    "level": 2,
-    "type": "functional",
-    "preconditions": ["benches.maxGlobal unlimited", "5 benches exist"],
-    "steps": [
-      {
-        "action": "Open Settings > Benches; switch to Limit; enter 3; blur the field",
-        "expected": ["The value persists immediately (no Save button); meter shows '5 of 3' in red"]
-      },
-      {
-        "action": "Attempt to create a new bench",
-        "expected": ["Server returns 409 GLOBAL_CAP_REACHED; UI surfaces a clear error"]
-      },
-      {
-        "action": "Clear 3 benches in sequence",
-        "expected": [
-          "After each clear, meter recalculates",
-          "After the last clear the meter shows '2 of 3' in neutral and 'Set up bench' re-enables"
-        ]
-      }
-    ],
-    "tags": ["happy-path", "e2e"],
-    "linked_requirement_ids": ["FR-010", "FR-011"],
-    "linked_user_story_ids": ["US-004"]
-  },
-  {
-    "id": "TC-023",
-    "title": "Two concurrent create requests at boundary: exactly one succeeds",
-    "area": "bench-manager",
-    "level": 2,
-    "type": "integration",
-    "preconditions": ["benches.maxGlobal = 3", "benches Map size = 2"],
-    "steps": [
-      {
-        "action": "Fire POST /api/projects/proj-a/benches and POST /api/projects/proj-b/benches in parallel",
-        "expected": [
-          "Exactly one returns 201; the other returns 409 GLOBAL_CAP_REACHED",
-          "Final Map size is 3"
-        ]
-      }
-    ],
-    "tags": ["concurrency", "e2e"],
-    "linked_requirement_ids": ["FR-005", "FR-006"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-024",
-    "title": "Upgrade path: existing user with no settings.benches sees unchanged behaviour, then opts in",
-    "area": "e2e",
-    "level": 2,
-    "type": "functional",
-    "preconditions": [
-      "Fresh server pointed at a settings.json from a prior version (no benches block); 3 existing benches"
-    ],
-    "steps": [
-      { "action": "Create a bench", "expected": ["201 Created", "GlobalBenchMeter not rendered"] },
-      {
-        "action": "Open Settings > Benches; set cap to 4 (persists immediately on blur)",
-        "expected": ["Meter appears showing '4 of 4'; 'Set up bench' button disables"]
-      }
-    ],
-    "tags": ["backcompat", "e2e"],
-    "linked_requirement_ids": ["NFR-005"],
-    "linked_user_story_ids": ["US-005"]
-  },
-  {
-    "id": "TC-025",
-    "title": "Per-project cap takes precedence when tighter than global",
-    "area": "bench-manager",
-    "level": 2,
-    "type": "functional",
-    "preconditions": [
-      "benches.maxGlobal = 10",
-      "Project proj-a has benches.max = 2 in roubo.yaml",
-      "proj-a already has 2 benches; other projects empty"
-    ],
-    "steps": [
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": [
-          "Per-project rejection surfaces with the existing per-project error (not GLOBAL_CAP_REACHED)",
-          "Global Map size unchanged"
-        ]
-      },
-      {
-        "action": "POST /api/projects/proj-b/benches",
-        "expected": ["201 Created (global cap still has room)"]
-      }
-    ],
-    "tags": ["e2e", "interaction"],
-    "linked_requirement_ids": ["FR-003", "FR-007"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-026",
-    "title": "PUT /api/settings rejects benches.maxGlobal = Infinity",
-    "area": "settings",
-    "level": 3,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: Number.POSITIVE_INFINITY } } (or sent as a stringified value that coerces to Infinity)",
-        "expected": ["400 Bad Request"]
-      }
-    ],
-    "tags": ["edge", "automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-027",
-    "title": "PUT /api/settings rejects benches.maxGlobal = NaN",
-    "area": "settings",
-    "level": 3,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with a body where benches.maxGlobal coerces to NaN (e.g. a value of 'abc' after Number())",
-        "expected": ["400 Bad Request"]
-      }
-    ],
-    "tags": ["edge", "automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-028",
-    "title": "PUT /api/settings rejects benches.maxGlobal as a string",
-    "area": "settings",
-    "level": 3,
-    "type": "negative",
-    "preconditions": ["Server is running"],
-    "steps": [
-      {
-        "action": "PUT /api/settings with body { benches: { maxGlobal: '5' } }",
-        "expected": ["400 Bad Request", "Error names the type expectation"]
-      }
-    ],
-    "tags": ["edge", "automated"],
-    "linked_requirement_ids": ["FR-002"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-029",
-    "title": "Lowering cap exactly to current count blocks new creates",
-    "area": "settings",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": ["5 benches exist", "Cap unlimited"],
-    "steps": [
-      { "action": "PUT /api/settings with benches.maxGlobal = 5", "expected": ["200 OK"] },
-      {
-        "action": "POST /api/projects/proj-a/benches",
-        "expected": ["409 GLOBAL_CAP_REACHED (5 >= 5)"]
-      }
-    ],
-    "tags": ["edge", "boundary", "automated"],
-    "linked_requirement_ids": ["FR-003", "FR-011"],
-    "linked_user_story_ids": ["US-004"]
-  },
-  {
-    "id": "TC-030",
-    "title": "First launch with no settings.json treats cap as unlimited",
-    "area": "bench-manager",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": ["~/.roubo/settings.json does not exist"],
-    "steps": [
-      {
-        "action": "Start the server and call createBench",
-        "expected": ["201 Created", "No warning logged (file absence is not corruption)"]
-      }
-    ],
-    "tags": ["edge", "automated"],
-    "linked_requirement_ids": ["FR-012", "NFR-005"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-031",
-    "title": "Switching the RadioGroup from Limit back to Unlimited clears the numeric input and removes the cap",
-    "area": "client-settings",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": ["benches.maxGlobal = 5", "Client app on Settings > Benches"],
-    "steps": [
-      {
-        "action": "Select the 'Unlimited' radio",
-        "expected": [
-          "Numeric TextField becomes disabled and visually cleared",
-          "Selecting Unlimited immediately dispatches the change (no Save button)",
-          "PUT /api/settings payload omits benches.maxGlobal (cap removed)",
-          "Server responds 200",
-          "Subsequent GET shows no cap"
-        ]
-      }
-    ],
-    "tags": ["edge", "ui", "automated"],
-    "linked_requirement_ids": ["FR-001", "FR-008"],
-    "linked_user_story_ids": ["US-001"]
-  },
-  {
-    "id": "TC-032",
-    "title": "Same-tick concurrent createBench calls at cap-1 do not exceed the cap",
-    "area": "bench-manager",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": ["benches.maxGlobal = 4", "benches Map size = 3"],
-    "steps": [
-      {
-        "action": "Invoke createBench twice synchronously (Promise.all) targeting different projects",
-        "expected": [
-          "Exactly one fulfils with 201; the other rejects with GLOBAL_CAP_REACHED",
-          "Final Map size is 4"
-        ]
-      }
-    ],
-    "tags": ["concurrency", "boundary", "automated"],
-    "linked_requirement_ids": ["FR-005", "FR-006"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-033",
-    "title": "aria-disabled 'Set up bench' button is focusable and its tooltip is announced",
-    "area": "client-benches",
-    "level": 3,
-    "type": "accessibility",
-    "preconditions": ["benches.maxGlobal = 1", "1 bench exists"],
-    "steps": [
-      {
-        "action": "Tab focus onto the 'Set up bench' button",
-        "expected": ["Button receives focus (not skipped)", "Focus ring visible per project tokens"]
-      },
-      {
-        "action": "Inspect computed accessible name and description",
-        "expected": ["Accessible description includes the cap-reached tooltip text"]
-      }
-    ],
-    "tags": ["a11y", "edge"],
-    "linked_requirement_ids": ["FR-009", "NFR-002"],
-    "linked_user_story_ids": ["US-002"]
-  },
-  {
-    "id": "TC-034",
-    "title": "GlobalBenchMeter colour ramp transitions at the documented thresholds",
-    "area": "client-benches",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": ["benches.maxGlobal = 10"],
-    "steps": [
-      {
-        "action": "Set bench count = 7 (70%); inspect meter fill",
-        "expected": ["Fill uses neutral colour token (stone-400 or equivalent)"]
-      },
-      {
-        "action": "Set bench count = 8 (80%); inspect meter fill",
-        "expected": ["Fill uses amber-500"]
-      },
-      {
-        "action": "Set bench count = 10 (100%); inspect meter fill",
-        "expected": ["Fill uses red-500"]
-      },
-      {
-        "action": "Set bench count = 12 (over cap after lowering); inspect meter fill",
-        "expected": ["Fill remains red-500 and capped at 100% width; count text shows 12 of 10"]
-      }
-    ],
-    "tags": ["ui", "edge"],
-    "linked_requirement_ids": ["FR-010", "FR-011"],
-    "linked_user_story_ids": ["US-003", "US-004"]
-  },
-  {
-    "id": "TC-035",
-    "title": "Stale client click hits server cap and CreateBenchModal surfaces the 409 message",
-    "area": "client-benches",
-    "level": 3,
-    "type": "edge_case",
-    "preconditions": [
-      "benches.maxGlobal = 2",
-      "Client cache stale; UI still shows 'Set up bench' enabled",
-      "Server-side count is already 2"
-    ],
-    "steps": [
-      {
-        "action": "User clicks 'Set up bench' and submits the modal",
-        "expected": [
-          "Server returns 409 GLOBAL_CAP_REACHED",
-          "Modal renders the server error via existing setError flow; modal does not crash"
-        ]
-      }
-    ],
-    "tags": ["edge", "defense-in-depth"],
-    "linked_requirement_ids": ["FR-003", "FR-009"],
-    "linked_user_story_ids": ["US-002"]
-  },
-  {
-    "id": "TC-036",
-    "title": "Property test: random caps and random create patterns never exceed the cap",
-    "area": "bench-manager",
-    "level": 4,
-    "type": "edge_case",
-    "preconditions": ["Property-based test runner installed (e.g. fast-check)"],
-    "steps": [
-      {
-        "action": "For 1000 random samples of (cap in [1,1000], creates in [0, 2*cap], clears interleaved): drive createBench/clearBench",
-        "expected": [
-          "Map size never exceeds cap at any observation point",
-          "No createBench call returns 201 when size >= cap at reservation time"
-        ]
-      }
-    ],
-    "tags": ["slow", "exploratory", "property-based"],
-    "linked_requirement_ids": ["FR-003", "FR-005", "FR-006"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-037",
-    "title": "100 sequential create+clear cycles at boundary do not leak Map entries",
-    "area": "bench-manager",
-    "level": 4,
-    "type": "edge_case",
-    "preconditions": ["benches.maxGlobal = 5", "5 benches exist"],
-    "steps": [
-      {
-        "action": "Loop 100 times: clear one bench, then create one bench",
-        "expected": ["Final Map size is exactly 5", "No status 'error' entries accumulate"]
-      }
-    ],
-    "tags": ["slow", "exploratory"],
-    "linked_requirement_ids": ["FR-004", "FR-007"],
-    "linked_user_story_ids": []
-  },
-  {
-    "id": "TC-038",
-    "title": "Exploratory: prototype scenarios render identically when wired to real state",
-    "area": "e2e",
-    "level": 4,
-    "type": "edge_case",
-    "preconditions": [
-      "Prototype scenarios from .specifications/global-bench-limit/prototype/index.html known: unlimited, below, near, at, lowered"
-    ],
-    "steps": [
-      {
-        "action": "For each scenario, configure real settings + bench state to match and visually compare the production UI to the prototype",
-        "expected": [
-          "Production UI matches the prototype's meter, tooltip text, button state, and project tile counts within reasonable tolerance"
-        ]
-      }
-    ],
-    "tags": ["exploratory", "manual", "ui"],
-    "linked_requirement_ids": ["FR-008", "FR-009", "FR-010"],
-    "linked_user_story_ids": ["US-001", "US-002", "US-003"]
-  }
-]
+{
+  "$schema": "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json",
+  "schemaVersion": "1.1.0",
+  "specSlug": "global-bench-limit",
+  "cases": [
+    {
+      "id": "TC-001",
+      "title": "PUT /api/settings accepts absent benches.maxGlobal (unlimited)",
+      "area": "settings",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Server is running with no existing settings.json"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { theme: 'dark' } (no benches block)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "200 OK"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Response body has no benches.maxGlobal field"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "GET /api/settings",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "benches.maxGlobal is absent or null"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "backcompat", "automated"],
+      "linked_requirement_ids": ["FR-001", "FR-002"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-002",
+      "title": "PUT /api/settings persists benches.maxGlobal = 5",
+      "area": "settings",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { theme: 'dark', benches: { maxGlobal: 5 } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "200 OK"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Response shows benches.maxGlobal === 5"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Re-read ~/.roubo/settings.json",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "File contains benches.maxGlobal: 5"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-001", "FR-002"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-003",
+      "title": "PUT /api/settings rejects benches.maxGlobal = 0 with 400",
+      "area": "settings",
+      "level": 1,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: 0 } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Error message names the offending field benches.maxGlobal"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-004",
+      "title": "PUT /api/settings rejects benches.maxGlobal = -3 with 400",
+      "area": "settings",
+      "level": 1,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: -3 } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Error message names benches.maxGlobal"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-005",
+      "title": "PUT /api/settings rejects benches.maxGlobal = 2.5 with 400",
+      "area": "settings",
+      "level": 1,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: 2.5 } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Error message names benches.maxGlobal"
+            }
+          ]
+        }
+      ],
+      "tags": ["automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-006",
+      "title": "createBench succeeds when global count < cap",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["benches.maxGlobal = 5", "benches Map size = 2 (across all projects)"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "201 Created"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Bench returned with status preparing or initialised"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect bench-manager benches Map size",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Map size is now 3"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-003", "FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-007",
+      "title": "createBench returns 409 GLOBAL_CAP_REACHED when global count = cap",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["benches.maxGlobal = 3", "benches Map size = 3"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "409 Conflict"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Response body contains code: 'GLOBAL_CAP_REACHED'"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "Message names current count (3) and cap (3)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect bench-manager benches Map size",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Map size is still 3 (no leaked entry)"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-008",
+      "title": "In-flight bench reservation is visible to a parallel create attempt",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "integration",
+      "preconditions": ["benches.maxGlobal = 4", "benches Map size = 3"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Begin createBench A; pause inside async provisioning (status = preparing)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Map size is now 4 (slot reserved before await)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "While A is still in flight, call createBench B",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "B rejects synchronously with GLOBAL_CAP_REACHED 409"
+            }
+          ]
+        }
+      ],
+      "tags": ["concurrency", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-006"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-009",
+      "title": "clearBench is allowed even when global count equals cap",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["benches.maxGlobal = 3", "benches Map size = 3"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "DELETE /api/projects/proj-a/benches/1?removeWorkspace=true",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "204 or 200 success"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Map size drops to 2"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "201 Created (slot freed)"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-010",
+      "title": "Settings UI renders the tab as 'Benches' (renamed)",
+      "area": "client-settings",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Client app loaded"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Navigate to global Settings",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A tab labelled 'Benches' is visible"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No tab labelled 'Bench Defaults' is visible at the top level"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-011",
+      "title": "BenchesTab renders Global bench limit RadioGroup and numeric TextField",
+      "area": "client-settings",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Client app loaded", "benches.maxGlobal absent (default unlimited)"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open Settings > Benches tab",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A RadioGroup labelled 'Limit mode' (or equivalent) shows Unlimited (selected) and Limit options"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Numeric TextField is disabled while Unlimited is selected"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Select the 'Limit' radio",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Numeric TextField becomes enabled"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Default value prefills 5"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-012",
+      "title": "'Set up bench' button has aria-disabled=true with descriptive tooltip when at cap",
+      "area": "client-benches",
+      "level": 1,
+      "type": "accessibility",
+      "preconditions": [
+        "benches.maxGlobal = 2",
+        "benches Map size = 2",
+        "Client app loaded on BenchesTab"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Locate the 'Set up bench' button",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Button has aria-disabled='true' (not the native disabled attribute)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Button remains focusable"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Hover or focus the button",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Tooltip text reads: 'Global bench limit reached. 2 of 2 benches in use. Clear a bench to free a slot.'"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Tooltip is associated via aria-describedby"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "a11y", "automated"],
+      "linked_requirement_ids": ["FR-009", "NFR-002"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-013",
+      "title": "GlobalBenchMeter renders only when a cap is set",
+      "area": "client-benches",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Client app loaded on BenchesTab"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Verify state has benches.maxGlobal = null",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No GlobalBenchMeter element is in the DOM"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Set benches.maxGlobal = 5 via Settings and return to BenchesTab",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "GlobalBenchMeter is rendered in the header strip"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-014",
+      "title": "GlobalBenchMeter exposes aria-label 'Global benches: N of M'",
+      "area": "client-benches",
+      "level": 1,
+      "type": "accessibility",
+      "preconditions": ["benches.maxGlobal = 5", "benches Map size = 3"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Inspect the GlobalBenchMeter element",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "aria-label is exactly 'Global benches: 3 of 5'"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Visible text shows 3 / 5 or equivalent"
+            }
+          ]
+        }
+      ],
+      "tags": ["a11y", "automated"],
+      "linked_requirement_ids": ["FR-010", "NFR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-015",
+      "title": "Lowering cap below current count is accepted and preserves existing benches",
+      "area": "settings",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["benches.maxGlobal = unlimited", "benches Map size = 5"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: 3 } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "200 OK"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No bench entries deleted"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "GET /api/benches",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "All 5 benches still listed"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "409 GLOBAL_CAP_REACHED"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-016",
+      "title": "createBench succeeds and warns once when settings.json is corrupt (fail-open)",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["~/.roubo/settings.json contains invalid JSON", "console.warn is spied"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Call createBench",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "201 Created (treated as unlimited)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "console.warn called exactly once with message including '[bench-manager]' and 'settings.json'"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Call createBench again in the same process",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "201 Created"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "console.warn count is still 1 (one warning per process load)"
+            }
+          ]
+        }
+      ],
+      "tags": ["reliability", "automated"],
+      "linked_requirement_ids": ["FR-012", "NFR-004"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-017",
+      "title": "Error-state benches count toward the cap",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "benches.maxGlobal = 2",
+        "benches Map size = 1 (status initialised) + 1 (status error) = 2"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "409 GLOBAL_CAP_REACHED (error-state bench counted)"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "automated"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-018",
+      "title": "Existing install with no maxGlobal behaves unchanged (backcompat)",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "~/.roubo/settings.json has no benches block at all",
+        "benches Map size = 50"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "201 Created (no cap enforcement)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open BenchesTab",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "GlobalBenchMeter is not rendered"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect 'Set up bench' button",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Button is not aria-disabled"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "backcompat", "automated"],
+      "linked_requirement_ids": ["NFR-005"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-019",
+      "title": "Cap-check on createBench adds no I/O beyond a single loadSettings",
+      "area": "bench-manager",
+      "level": 1,
+      "type": "performance",
+      "preconditions": ["loadSettings is spied", "fs.readFileSync is spied"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Call createBench once",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "loadSettings called exactly once during the cap-check path"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No additional fs reads attributable to the cap check"
+            }
+          ]
+        }
+      ],
+      "tags": ["perf", "automated"],
+      "linked_requirement_ids": ["NFR-001"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-020",
+      "title": "PUT /api/settings remains unauthenticated (no new auth surface)",
+      "area": "settings",
+      "level": 1,
+      "type": "security",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with no auth headers",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Request is accepted (single-user desktop posture preserved)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Response is 200 (or 400 on validation, never 401/403)"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "automated"],
+      "linked_requirement_ids": ["NFR-003"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-021",
+      "title": "End-to-end: user sets a cap, creates benches up to it, button disables, clears one, re-enables",
+      "area": "e2e",
+      "level": 2,
+      "type": "functional",
+      "preconditions": ["Fresh install, no cap, no benches"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open Settings > Benches; select Limit; enter 2; blur the field",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The value persists immediately (no Save button)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "benches.maxGlobal is 2"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Navigate to BenchesTab; create bench A",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "GlobalBenchMeter shows '1 of 2'"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "'Set up bench' button still enabled"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Create bench B",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "GlobalBenchMeter shows '2 of 2' in red"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "'Set up bench' button aria-disabled with cap-reached tooltip"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Clear bench A",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "GlobalBenchMeter shows '1 of 2' in neutral colour"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "'Set up bench' button re-enables"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "e2e"],
+      "linked_requirement_ids": ["FR-003", "FR-007", "FR-009", "FR-010"],
+      "linked_user_story_ids": ["US-001", "US-002", "US-003"]
+    },
+    {
+      "id": "TC-022",
+      "title": "End-to-end: user lowers cap below current count, meter goes red, clearing restores capacity",
+      "area": "e2e",
+      "level": 2,
+      "type": "functional",
+      "preconditions": ["benches.maxGlobal unlimited", "5 benches exist"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open Settings > Benches; switch to Limit; enter 3; blur the field",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The value persists immediately (no Save button); meter shows '5 of 3' in red"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt to create a new bench",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Server returns 409 GLOBAL_CAP_REACHED; UI surfaces a clear error"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Clear 3 benches in sequence",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "After each clear, meter recalculates"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "After the last clear the meter shows '2 of 3' in neutral and 'Set up bench' re-enables"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "e2e"],
+      "linked_requirement_ids": ["FR-010", "FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-023",
+      "title": "Two concurrent create requests at boundary: exactly one succeeds",
+      "area": "bench-manager",
+      "level": 2,
+      "type": "integration",
+      "preconditions": ["benches.maxGlobal = 3", "benches Map size = 2"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Fire POST /api/projects/proj-a/benches and POST /api/projects/proj-b/benches in parallel",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Exactly one returns 201; the other returns 409 GLOBAL_CAP_REACHED"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Final Map size is 3"
+            }
+          ]
+        }
+      ],
+      "tags": ["concurrency", "e2e"],
+      "linked_requirement_ids": ["FR-005", "FR-006"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-024",
+      "title": "Upgrade path: existing user with no settings.benches sees unchanged behaviour, then opts in",
+      "area": "e2e",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Fresh server pointed at a settings.json from a prior version (no benches block); 3 existing benches"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Create a bench",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "201 Created"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "GlobalBenchMeter not rendered"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open Settings > Benches; set cap to 4 (persists immediately on blur)",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Meter appears showing '4 of 4'; 'Set up bench' button disables"
+            }
+          ]
+        }
+      ],
+      "tags": ["backcompat", "e2e"],
+      "linked_requirement_ids": ["NFR-005"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-025",
+      "title": "Per-project cap takes precedence when tighter than global",
+      "area": "bench-manager",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "benches.maxGlobal = 10",
+        "Project proj-a has benches.max = 2 in roubo.yaml",
+        "proj-a already has 2 benches; other projects empty"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Per-project rejection surfaces with the existing per-project error (not GLOBAL_CAP_REACHED)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Global Map size unchanged"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "POST /api/projects/proj-b/benches",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "201 Created (global cap still has room)"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "interaction"],
+      "linked_requirement_ids": ["FR-003", "FR-007"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-026",
+      "title": "PUT /api/settings rejects benches.maxGlobal = Infinity",
+      "area": "settings",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: Number.POSITIVE_INFINITY } } (or sent as a stringified value that coerces to Infinity)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-027",
+      "title": "PUT /api/settings rejects benches.maxGlobal = NaN",
+      "area": "settings",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with a body where benches.maxGlobal coerces to NaN (e.g. a value of 'abc' after Number())",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-028",
+      "title": "PUT /api/settings rejects benches.maxGlobal as a string",
+      "area": "settings",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["Server is running"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with body { benches: { maxGlobal: '5' } }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "400 Bad Request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Error names the type expectation"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "automated"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-029",
+      "title": "Lowering cap exactly to current count blocks new creates",
+      "area": "settings",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": ["5 benches exist", "Cap unlimited"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "PUT /api/settings with benches.maxGlobal = 5",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "200 OK"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "POST /api/projects/proj-a/benches",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "409 GLOBAL_CAP_REACHED (5 >= 5)"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "boundary", "automated"],
+      "linked_requirement_ids": ["FR-003", "FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-030",
+      "title": "First launch with no settings.json treats cap as unlimited",
+      "area": "bench-manager",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": ["~/.roubo/settings.json does not exist"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Start the server and call createBench",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "201 Created"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No warning logged (file absence is not corruption)"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "automated"],
+      "linked_requirement_ids": ["FR-012", "NFR-005"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-031",
+      "title": "Switching the RadioGroup from Limit back to Unlimited clears the numeric input and removes the cap",
+      "area": "client-settings",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": ["benches.maxGlobal = 5", "Client app on Settings > Benches"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Select the 'Unlimited' radio",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Numeric TextField becomes disabled and visually cleared"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Selecting Unlimited immediately dispatches the change (no Save button)"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "PUT /api/settings payload omits benches.maxGlobal (cap removed)"
+            },
+            {
+              "id": "S001-O04",
+              "expected": "Server responds 200"
+            },
+            {
+              "id": "S001-O05",
+              "expected": "Subsequent GET shows no cap"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "ui", "automated"],
+      "linked_requirement_ids": ["FR-001", "FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-032",
+      "title": "Same-tick concurrent createBench calls at cap-1 do not exceed the cap",
+      "area": "bench-manager",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": ["benches.maxGlobal = 4", "benches Map size = 3"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Invoke createBench twice synchronously (Promise.all) targeting different projects",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Exactly one fulfils with 201; the other rejects with GLOBAL_CAP_REACHED"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Final Map size is 4"
+            }
+          ]
+        }
+      ],
+      "tags": ["concurrency", "boundary", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-006"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-033",
+      "title": "aria-disabled 'Set up bench' button is focusable and its tooltip is announced",
+      "area": "client-benches",
+      "level": 3,
+      "type": "accessibility",
+      "preconditions": ["benches.maxGlobal = 1", "1 bench exists"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Tab focus onto the 'Set up bench' button",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Button receives focus (not skipped)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Focus ring visible per project tokens"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect computed accessible name and description",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Accessible description includes the cap-reached tooltip text"
+            }
+          ]
+        }
+      ],
+      "tags": ["a11y", "edge"],
+      "linked_requirement_ids": ["FR-009", "NFR-002"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-034",
+      "title": "GlobalBenchMeter colour ramp transitions at the documented thresholds",
+      "area": "client-benches",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": ["benches.maxGlobal = 10"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Set bench count = 7 (70%); inspect meter fill",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Fill uses neutral colour token (stone-400 or equivalent)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Set bench count = 8 (80%); inspect meter fill",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Fill uses amber-500"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Set bench count = 10 (100%); inspect meter fill",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Fill uses red-500"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Set bench count = 12 (over cap after lowering); inspect meter fill",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Fill remains red-500 and capped at 100% width; count text shows 12 of 10"
+            }
+          ]
+        }
+      ],
+      "tags": ["ui", "edge"],
+      "linked_requirement_ids": ["FR-010", "FR-011"],
+      "linked_user_story_ids": ["US-003", "US-004"]
+    },
+    {
+      "id": "TC-035",
+      "title": "Stale client click hits server cap and CreateBenchModal surfaces the 409 message",
+      "area": "client-benches",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "benches.maxGlobal = 2",
+        "Client cache stale; UI still shows 'Set up bench' enabled",
+        "Server-side count is already 2"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "User clicks 'Set up bench' and submits the modal",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Server returns 409 GLOBAL_CAP_REACHED"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Modal renders the server error via existing setError flow; modal does not crash"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "defense-in-depth"],
+      "linked_requirement_ids": ["FR-003", "FR-009"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-036",
+      "title": "Property test: random caps and random create patterns never exceed the cap",
+      "area": "bench-manager",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": ["Property-based test runner installed (e.g. fast-check)"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "For 1000 random samples of (cap in [1,1000], creates in [0, 2*cap], clears interleaved): drive createBench/clearBench",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Map size never exceeds cap at any observation point"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No createBench call returns 201 when size >= cap at reservation time"
+            }
+          ]
+        }
+      ],
+      "tags": ["slow", "exploratory", "property-based"],
+      "linked_requirement_ids": ["FR-003", "FR-005", "FR-006"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-037",
+      "title": "100 sequential create+clear cycles at boundary do not leak Map entries",
+      "area": "bench-manager",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": ["benches.maxGlobal = 5", "5 benches exist"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Loop 100 times: clear one bench, then create one bench",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Final Map size is exactly 5"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No status 'error' entries accumulate"
+            }
+          ]
+        }
+      ],
+      "tags": ["slow", "exploratory"],
+      "linked_requirement_ids": ["FR-004", "FR-007"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-038",
+      "title": "Exploratory: prototype scenarios render identically when wired to real state",
+      "area": "e2e",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "Prototype scenarios from .specifications/global-bench-limit/prototype/index.html known: unlimited, below, near, at, lowered"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "For each scenario, configure real settings + bench state to match and visually compare the production UI to the prototype",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Production UI matches the prototype's meter, tooltip text, button state, and project tile counts within reasonable tolerance"
+            }
+          ]
+        }
+      ],
+      "tags": ["exploratory", "manual", "ui"],
+      "linked_requirement_ids": ["FR-008", "FR-009", "FR-010"],
+      "linked_user_story_ids": ["US-001", "US-002", "US-003"]
+    }
+  ]
+}

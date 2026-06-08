@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import type { DiscoveredSpec } from "../../lib/api";
+import type { DiscoveredSpec, InvalidSpec } from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
 
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
@@ -22,7 +22,13 @@ const SPECS: DiscoveredSpec[] = [
 ];
 
 function specsQuery(over: Partial<ReturnType<typeof mockUseTestbenchSpecs>> = {}) {
-  return { data: SPECS, isLoading: false, isError: false, error: null, ...over };
+  return {
+    data: { specs: SPECS, invalid: [] },
+    isLoading: false,
+    isError: false,
+    error: null,
+    ...over,
+  };
 }
 
 beforeEach(() => {
@@ -47,9 +53,29 @@ describe("SpecPickerModal", () => {
   });
 
   it("shows the empty discovery state when no specs are found", () => {
-    mockUseTestbenchSpecs.mockReturnValue(specsQuery({ data: [] }));
+    mockUseTestbenchSpecs.mockReturnValue(specsQuery({ data: { specs: [], invalid: [] } }));
     renderModal();
     expect(screen.getByText("No specs found in this project.")).toBeInTheDocument();
+  });
+
+  it("surfaces present-but-invalid specs with their errors instead of the empty state", () => {
+    const invalid: InvalidSpec[] = [
+      {
+        slug: "broken",
+        path: "/repo/.specifications/broken/test-cases.json",
+        errors: ["cases.0.level: Invalid input: expected number, received string"],
+      },
+    ];
+    mockUseTestbenchSpecs.mockReturnValue(specsQuery({ data: { specs: [], invalid } }));
+    renderModal();
+    expect(screen.queryByText("No specs found in this project.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("1 spec file does not match the schema and was skipped:"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("broken")).toBeInTheDocument();
+    expect(
+      screen.getByText("cases.0.level: Invalid input: expected number, received string"),
+    ).toBeInTheDocument();
   });
 
   it("shows a loading state while discovering", () => {

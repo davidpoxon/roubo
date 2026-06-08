@@ -40,8 +40,13 @@ function makeMutationMock(mutate = vi.fn()) {
 const CASE: Case = {
   id: "TC-001",
   title: "Mark each observation pass or fail",
-  level: "Integration",
+  area: "testbench",
+  level: 3,
+  type: "integration",
   priority: "P0",
+  tags: ["smoke"],
+  linked_requirement_ids: ["FR-001"],
+  linked_user_story_ids: [],
   preconditions: ["A bench is open", "TestBench is enabled"],
   steps: [
     {
@@ -73,7 +78,8 @@ describe("CaseDetail full render (TC-019)", () => {
 
     expect(screen.getByRole("heading", { name: CASE.title })).toBeInTheDocument();
     expect(screen.getByText("TC-001")).toBeInTheDocument();
-    expect(screen.getByText("Integration")).toBeInTheDocument();
+    expect(screen.getByText("integration")).toBeInTheDocument();
+    expect(screen.getByText("L3")).toBeInTheDocument();
     expect(screen.getByText("P0")).toBeInTheDocument();
     expect(screen.getByText("A bench is open")).toBeInTheDocument();
     expect(screen.getByText("Open the case detail")).toBeInTheDocument();

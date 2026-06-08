@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, waitFor } from "@testing-library/react";
 import { renderHookWithProviders } from "../test/renderWithProviders";
 import { useTestbenchSpecs, useManualPathValidation } from "./useTestbenchSpecs";
-import type { DiscoveredSpec, ManualPathValidation } from "../lib/api";
+import type { DiscoveredSpec, InvalidSpec, ManualPathValidation } from "../lib/api";
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
@@ -22,13 +22,29 @@ describe("useTestbenchSpecs", () => {
     const specs: DiscoveredSpec[] = [
       { slug: "testbench", path: "/repo/.specifications/testbench/test-cases.json", caseCount: 3 },
     ];
-    mockedApi.fetchSpecs.mockResolvedValue({ specs });
+    mockedApi.fetchSpecs.mockResolvedValue({ specs, invalid: [] });
 
     const { result } = renderHookWithProviders(() => useTestbenchSpecs("p1", true));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.fetchSpecs).toHaveBeenCalledWith("p1");
-    expect(result.current.data).toEqual(specs);
+    expect(result.current.data).toEqual({ specs, invalid: [] });
+  });
+
+  it("surfaces present-but-invalid specs alongside the valid ones", async () => {
+    const invalid: InvalidSpec[] = [
+      {
+        slug: "broken",
+        path: "/repo/.specifications/broken/test-cases.json",
+        errors: ["cases.0.level: Invalid input"],
+      },
+    ];
+    mockedApi.fetchSpecs.mockResolvedValue({ specs: [], invalid });
+
+    const { result } = renderHookWithProviders(() => useTestbenchSpecs("p1", true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ specs: [], invalid });
   });
 
   it("does not fetch while disabled", () => {

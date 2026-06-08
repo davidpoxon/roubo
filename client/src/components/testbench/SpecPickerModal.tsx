@@ -73,7 +73,9 @@ export default function SpecPickerModal({
   activePath?: string;
 }) {
   const copy = MODE_COPY[mode];
-  const { data: specs, isLoading, isError, error } = useTestbenchSpecs(projectId, isOpen);
+  const { data, isLoading, isError, error } = useTestbenchSpecs(projectId, isOpen);
+  const specs = data?.specs;
+  const invalid = data?.invalid;
   const [manualPath, setManualPath] = useState("");
   const [selectedDiscoveredPath, setSelectedDiscoveredPath] = useState<string | null>(null);
 
@@ -109,7 +111,13 @@ export default function SpecPickerModal({
     onCreate(selection.path);
   };
 
-  const showEmptyDiscovery = !isLoading && !isError && (specs?.length ?? 0) === 0;
+  const invalidSpecs = invalid ?? [];
+  const hasInvalid = invalidSpecs.length > 0;
+  // Genuinely empty only when there are neither usable nor invalid spec files.
+  // When invalid files exist they are surfaced distinctly (see the invalid panel)
+  // instead of the misleading "No specs found".
+  const showEmptyDiscovery = !isLoading && !isError && (specs?.length ?? 0) === 0 && !hasInvalid;
+  const showInvalidSpecs = !isLoading && !isError && hasInvalid;
 
   return (
     <ModalOverlay
@@ -172,6 +180,41 @@ export default function SpecPickerModal({
                         </code>{" "}
                         or enter a path below.
                       </p>
+                    </div>
+                  )}
+
+                  {showInvalidSpecs && (
+                    <div className="rounded-lg border border-amber-300/60 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 space-y-2">
+                      <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                        <span>
+                          {invalidSpecs.length === 1
+                            ? "1 spec file does not match the schema and was skipped:"
+                            : `${invalidSpecs.length} spec files do not match the schema and were skipped:`}
+                        </span>
+                      </p>
+                      <ul className="space-y-1.5">
+                        {invalidSpecs.map((spec) => (
+                          <li key={spec.path} className="text-xs">
+                            <p className="font-medium text-stone-700 dark:text-stone-300">
+                              {spec.slug}
+                            </p>
+                            <p className="font-mono text-[11px] text-stone-400 dark:text-stone-500 truncate">
+                              {spec.path}
+                            </p>
+                            <ul className="mt-0.5 list-disc pl-4 text-[11px] text-amber-700/90 dark:text-amber-400/90">
+                              {spec.errors.slice(0, 3).map((err, i) => (
+                                <li key={i}>{err}</li>
+                              ))}
+                              {spec.errors.length > 3 && (
+                                <li className="list-none text-stone-400 dark:text-stone-500">
+                                  +{spec.errors.length - 3} more
+                                </li>
+                              )}
+                            </ul>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
 

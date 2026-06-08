@@ -33,7 +33,9 @@ const PLAN: TestCasesPlan = {
     {
       id: CASE,
       title: "A case",
-      level: "L1",
+      area: "test-area",
+      level: 1,
+      type: "functional",
       priority: "P0",
       steps: [
         {
@@ -45,6 +47,9 @@ const PLAN: TestCasesPlan = {
           ],
         },
       ],
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
     },
   ],
 };

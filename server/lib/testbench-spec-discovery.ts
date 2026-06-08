@@ -32,24 +32,49 @@ export interface DiscoveredSpec {
   caseCount: number;
 }
 
+// A spec folder that HAS a test-cases.json which failed to parse or validate
+// against the contract. Surfaced distinctly from "no specs at all" so the UI can
+// say "found a spec but it does not match the schema, here is why" instead of the
+// misleading "No specs found". Carries the human-readable validation errors.
+export interface InvalidSpec {
+  slug: string;
+  path: string;
+  errors: string[];
+}
+
+// The full discovery result: the usable specs plus the present-but-invalid ones.
+// An empty `specs` with a non-empty `invalid` means the repo HAS spec files that
+// simply did not validate (a schema mismatch), which is a fundamentally different
+// state from a repo with no `.specifications` at all.
+export interface SpecDiscovery {
+  specs: DiscoveredSpec[];
+  invalid: InvalidSpec[];
+}
+
 // The shape returned by validateManualPath: on success the resolved slug + count,
 // on failure a flat list of human-readable errors (no path/slug fields).
 export type ManualPathValidation =
   | { ok: true; slug: string; caseCount: number }
   | { ok: false; errors: string[] };
 
-// Enumerate every `.specifications/<slug>/test-cases.json` under repoPath that
-// parses against the published test-cases contract. A missing `.specifications`
-// directory yields an empty list (a repo with no specs is not an error). A folder
-// whose slug fails the allowlist, lacks a test-cases.json, or fails to read/parse/
-// validate is skipped silently: discovery surfaces only the usable specs, it does
-// not report on the broken ones. Results are sorted by slug for determinism.
-export function discoverSpecs(repoPath: string): DiscoveredSpec[] {
+// Enumerate every `.specifications/<slug>/test-cases.json` under repoPath, sorting
+// each into the usable `specs` (parsed + contract-valid) or the present-but-broken
+// `invalid` (a test-cases.json that exists but fails JSON parse or contract
+// validation, with its errors attached). A missing `.specifications` directory
+// yields empty lists (a repo with no specs is not an error). A folder whose slug
+// fails the allowlist, or which simply has no test-cases.json, is skipped silently
+// (it is not a spec at all). The distinction matters for the UI: a file that
+// exists but does not validate deserves an actionable "schema mismatch" message,
+// not the misleading "No specs found". Both lists are sorted by slug for
+// determinism.
+export function discoverSpecs(repoPath: string): SpecDiscovery {
+  const empty: SpecDiscovery = { specs: [], invalid: [] };
+
   let specsRoot: string;
   try {
     specsRoot = resolveWithin(repoPath, ".specifications");
   } catch {
-    return [];
+    return empty;
   }
 
   let entries: fs.Dirent[];
@@ -57,10 +82,11 @@ export function discoverSpecs(repoPath: string): DiscoveredSpec[] {
     entries = fs.readdirSync(specsRoot, { withFileTypes: true });
   } catch {
     // No `.specifications/` directory (or unreadable): nothing to discover.
-    return [];
+    return empty;
   }
 
   const specs: DiscoveredSpec[] = [];
+  const invalid: InvalidSpec[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) {
       continue;
@@ -85,7 +111,7 @@ export function discoverSpecs(repoPath: string): DiscoveredSpec[] {
     try {
       raw = fs.readFileSync(casesPath, "utf8");
     } catch {
-      // No test-cases.json in this folder: not a spec.
+      // No test-cases.json in this folder: not a spec (skip silently, not invalid).
       continue;
     }
 
@@ -93,11 +119,13 @@ export function discoverSpecs(repoPath: string): DiscoveredSpec[] {
     try {
       parsed = JSON.parse(raw);
     } catch {
+      invalid.push({ slug, path: casesPath, errors: ["test-cases.json is not valid JSON"] });
       continue;
     }
 
     const validation = validateTestCases(parsed);
     if (!validation.ok) {
+      invalid.push({ slug, path: casesPath, errors: validation.errors });
       continue;
     }
 
@@ -105,7 +133,8 @@ export function discoverSpecs(repoPath: string): DiscoveredSpec[] {
   }
 
   specs.sort((a, b) => a.slug.localeCompare(b.slug));
-  return specs;
+  invalid.sort((a, b) => a.slug.localeCompare(b.slug));
+  return { specs, invalid };
 }
 
 // Derive the spec slug from a focusedSpecPath, asserting containment in repoPath

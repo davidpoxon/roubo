@@ -20,8 +20,8 @@ import { z } from "zod";
 // version. `TEST_CASES_SCHEMA_VERSION` / `TEST_RESULTS_SCHEMA_VERSION` are the
 // matching `schemaVersion` string values kept consistent with the `$id` semver.
 
-export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json";
-export const TEST_CASES_SCHEMA_VERSION = "1.0.0";
+export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json";
+export const TEST_CASES_SCHEMA_VERSION = "1.1.0";
 
 export const TEST_RESULTS_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-results/v1.0.0.json";
 export const TEST_RESULTS_SCHEMA_VERSION = "1.0.0";
@@ -89,14 +89,50 @@ export const StepSchema = z
   .strict();
 export type Step = z.infer<typeof StepSchema>;
 
+// Recommended `type` vocabulary: the canonical product-dev set
+// (functional, security, performance, accessibility, integration, negative,
+// edge_case, e2e_flow) expanded with `reliability` and `structural`, both
+// already in use across real specs. This is authoring guidance carried in the
+// product-dev docs; the contract itself validates `type` as a permissive string
+// (see CaseSchema), never a strict enum. The merged schema (v1.1.0) is strict on
+// STRUCTURE (envelope, step ids, required fields) but lenient on open-ended
+// metadata, so a newly-coined `type` can never silently make an entire spec
+// undiscoverable (the failure mode v1.1.0 fixed).
+export const RECOMMENDED_CASE_TYPES = [
+  "functional",
+  "security",
+  "performance",
+  "accessibility",
+  "integration",
+  "negative",
+  "edge_case",
+  "e2e_flow",
+  "reliability",
+  "structural",
+] as const;
+
 export const CaseSchema = z
   .object({
     id: z.string(),
     title: z.string(),
-    level: z.string(),
-    priority: z.string(),
+    // Canonical feature area (kebab-case), e.g. "checkout". Required.
+    area: z.string(),
+    // Canonical level: an integer 1-4 (L1 smoke .. L4 exploratory). The merge
+    // keeps level from the canonical product-dev format (an integer), replacing
+    // the earlier string level.
+    level: z.number().int().min(1).max(4),
+    // Test flavor (see RECOMMENDED_CASE_TYPES). Permissive string by design.
+    type: z.string().min(1),
+    // Optional priority label (carried from the TestBench shape). Canonical
+    // authors omit it; the UI rollup buckets cases with no priority gracefully.
+    priority: z.string().optional(),
     preconditions: z.array(z.string()).optional(),
     steps: z.array(StepSchema),
+    // Canonical metadata: free-form tags + requirement/story traceability.
+    // Every case links at least one requirement; user-story links may be empty.
+    tags: z.array(z.string()),
+    linked_requirement_ids: z.array(z.string()).min(1),
+    linked_user_story_ids: z.array(z.string()),
   })
   .strict();
 export type Case = z.infer<typeof CaseSchema>;

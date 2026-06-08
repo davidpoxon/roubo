@@ -71,13 +71,22 @@ beforeEach(() => {
 });
 
 describe("GET /:projectId/testbench/specs", () => {
-  it("returns discovered specs", async () => {
-    vi.mocked(discovery.discoverSpecs).mockReturnValue([
-      { slug: "testbench", path: FOCUSED, caseCount: 3 },
-    ]);
+  it("returns discovered specs and invalid specs", async () => {
+    vi.mocked(discovery.discoverSpecs).mockReturnValue({
+      specs: [{ slug: "testbench", path: FOCUSED, caseCount: 3 }],
+      invalid: [
+        {
+          slug: "broken",
+          path: "/repo/.specifications/broken/test-cases.json",
+          errors: ["test-cases.json is not valid JSON"],
+        },
+      ],
+    });
     const res = await request(app).get("/p1/testbench/specs");
     expect(res.status).toBe(200);
     expect(res.body.specs).toHaveLength(1);
+    expect(res.body.invalid).toHaveLength(1);
+    expect(res.body.invalid[0].slug).toBe("broken");
     expect(discovery.discoverSpecs).toHaveBeenCalledWith(REPO);
   });
 

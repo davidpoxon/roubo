@@ -2,8 +2,19 @@ import { describe, it, expect } from "vitest";
 import type { Case, BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
 import { buildRollup, flattenRollup, effectiveCaseStatus, type RollupModel } from "./rollup";
 
-function makeCase(id: string, level: string, priority: string): Case {
-  return { id, title: `Case ${id}`, level, priority, steps: [] };
+function makeCase(id: string, level: number, priority?: string): Case {
+  return {
+    id,
+    title: `Case ${id}`,
+    area: "test-area",
+    level,
+    type: "functional",
+    priority,
+    steps: [],
+    tags: [],
+    linked_requirement_ids: ["FR-001"],
+    linked_user_story_ids: [],
+  };
 }
 
 function result(partial: Partial<CaseResult>): CaseResult {
@@ -53,13 +64,9 @@ describe("effectiveCaseStatus", () => {
 
 describe("buildRollup grouping", () => {
   it("groups cases by level then priority", () => {
-    const cases = [
-      makeCase("a", "e2e", "P1"),
-      makeCase("b", "e2e", "P0"),
-      makeCase("c", "unit", "P1"),
-    ];
+    const cases = [makeCase("a", 1, "P1"), makeCase("b", 1, "P0"), makeCase("c", 2, "P1")];
     const model = buildRollup(cases, null);
-    expect(model.levels.map((l) => l.level)).toEqual(["e2e", "unit"]);
+    expect(model.levels.map((l) => l.level)).toEqual(["1", "2"]);
     const e2e = model.levels[0];
     // priorities sorted: P0 before P1
     expect(e2e.priorities.map((p) => p.priority)).toEqual(["P0", "P1"]);
@@ -68,12 +75,21 @@ describe("buildRollup grouping", () => {
     expect(model.levels[1].priorities[0].rows.map((r) => r.case.id)).toEqual(["c"]);
   });
 
+  it("buckets cases with no priority under the Unprioritized group", () => {
+    const cases = [makeCase("a", 1), makeCase("b", 1, "P0")];
+    const model = buildRollup(cases, null);
+    const level1 = model.levels.find((l) => l.level === "1");
+    expect(level1?.priorities.map((p) => p.priority)).toEqual(["P0", "Unprioritized"]);
+    const unprioritized = level1?.priorities.find((p) => p.priority === "Unprioritized");
+    expect(unprioritized?.rows.map((r) => r.case.id)).toEqual(["a"]);
+  });
+
   it("rolls per-priority, per-level and overall counts that sum to total", () => {
     const cases = [
-      makeCase("a", "e2e", "P0"),
-      makeCase("b", "e2e", "P0"),
-      makeCase("c", "e2e", "P1"),
-      makeCase("d", "unit", "P0"),
+      makeCase("a", 1, "P0"),
+      makeCase("b", 1, "P0"),
+      makeCase("c", 1, "P1"),
+      makeCase("d", 2, "P0"),
     ];
     const r = results({
       a: result({ derivedStatus: "passed" }),
@@ -89,7 +105,7 @@ describe("buildRollup grouping", () => {
     expect(model.overall.in_progress).toBe(1);
     expect(model.overall.not_started).toBe(1);
 
-    const e2e = model.levels.find((l) => l.level === "e2e");
+    const e2e = model.levels.find((l) => l.level === "1");
     expect(e2e).toBeDefined();
     expect(e2e?.counts.total).toBe(3);
     const p0 = e2e?.priorities.find((p) => p.priority === "P0");
@@ -107,7 +123,7 @@ describe("buildRollup grouping", () => {
   });
 
   it("excludes orphaned results from the rollup (FR-013)", () => {
-    const cases = [makeCase("a", "e2e", "P0")];
+    const cases = [makeCase("a", 1, "P0")];
     const r = results({
       a: result({ derivedStatus: "passed" }),
       // "ghost" is an orphaned result whose case was removed from the plan.
@@ -133,16 +149,16 @@ describe("buildRollup grouping", () => {
 
 describe("flattenRollup", () => {
   it("emits a level header, priority subheader, then case rows in order", () => {
-    const cases = [makeCase("a", "e2e", "P0"), makeCase("b", "e2e", "P0")];
+    const cases = [makeCase("a", 1, "P0"), makeCase("b", 1, "P0")];
     const flat = flattenRollup(buildRollup(cases, null));
     expect(flat.map((f) => f.kind)).toEqual(["level", "priority", "case", "case"]);
-    expect(flat.map((f) => f.key)).toEqual(["level:e2e", "priority:e2e:P0", "case:a", "case:b"]);
+    expect(flat.map((f) => f.key)).toEqual(["level:1", "priority:1:P0", "case:a", "case:b"]);
   });
 
   it("produces unique keys across all rows for a 500-case plan", () => {
     const cases: Case[] = [];
     for (let i = 0; i < 500; i++) {
-      cases.push(makeCase(`c${i}`, `level${i % 3}`, `P${i % 4}`));
+      cases.push(makeCase(`c${i}`, (i % 3) + 1, `P${i % 4}`));
     }
     const model: RollupModel = buildRollup(cases, null);
     const flat = flattenRollup(model);
