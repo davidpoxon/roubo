@@ -22,6 +22,14 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: vi.fn(),
   useSetTestbenchFocus: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
+// The panel now mounts the staleness/reconcile surface (#440 integration), which
+// pulls in the reconcile mutation hooks; mock them so the panel renders without a
+// QueryClientProvider.
+vi.mock("../../hooks/useReconcile", () => ({
+  useReconcilePreview: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+  useReconcileApply: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+  useReconcilePurge: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+}));
 import { useTestbenchPlan } from "../../hooks/useTestbenchPlan";
 import TestBenchPanel from "./TestBenchPanel";
 

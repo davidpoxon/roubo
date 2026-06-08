@@ -150,6 +150,44 @@ export async function fetchConnectionStateLog(
 }
 
 /**
+ * TC-043 (#440): overwrite a provisioned TestBench's focused test-cases.json via
+ * the ROUBO_E2E-gated `/test/__rewrite-spec-cases` endpoint. The create-a-
+ * TestBench UI does not expose a plan editor, so the persist -> staleness ->
+ * reconcile spec drives the mid-test plan edit (remove a case, add a case)
+ * through this harness write. The server resolves the spec directory from the
+ * bench's focused spec (the same path the live TestBench routes read/write), so
+ * the next plan load detects staleness against the rewritten source.
+ */
+export async function rewriteSpecTestCases(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number; testCases: unknown },
+): Promise<void> {
+  const res = await request.post("/test/__rewrite-spec-cases", { data: opts });
+  expect(res.status()).toBe(200);
+}
+
+/**
+ * TC-043 (#440): read a provisioned TestBench's on-disk test-results.json sidecar
+ * (plus the source test-cases.json sha256) via `/test/__read-spec-results`. The
+ * spec uses this to assert the NFR-003 integrity invariant directly against disk:
+ * the bench-keyed results retain the archived (orphaned) case after reconcile,
+ * and the source plan's checksum is unchanged (reconcile never rewrites the
+ * source plan).
+ */
+export async function readTestResults(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number },
+): Promise<{ results: unknown; casesChecksum: string }> {
+  const res = await request.get(
+    `/test/__read-spec-results?projectId=${encodeURIComponent(
+      opts.projectId,
+    )}&benchId=${opts.benchId}`,
+  );
+  expect(res.status()).toBe(200);
+  return (await res.json()) as { results: unknown; casesChecksum: string };
+}
+
+/**
  * Fetch a single plugin's record by id from `GET /api/plugins`. The endpoint
  * returns the full installed list; TC-163 (#240) keeps the helper focused so
  * specs don't repeat the find-by-id boilerplate.

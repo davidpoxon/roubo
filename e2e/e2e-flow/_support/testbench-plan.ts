@@ -338,3 +338,115 @@ export const OWNING_SLICES_TC007: Record<string, string> = {
   specPicker: "#423 (re-point: spec-picker in repoint mode with active-spec marker)",
   resultsIsolation: "#423 (re-point: per-spec results reload + isolation)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC-043 (#440): the authoritative `e2e_flow` case the persist -> staleness ->
+// reconcile journey drift-guards against. The journey spans:
+//   #406 atomic/EXDEV-safe sidecar write,
+//   #407 canonical staleness hash + orphan-not-delete reconcile spike,
+//   #412 mark observations / derived status,
+//   #413 reconcile algorithm (added/changed/orphan classification),
+//   #415 sidecar store (fail-open read, persist, planHash),
+//   #416 TestBench REST routes,
+//   #422 staleness banner + reconcile dialog UI.
+// This work unit (#440) is the integration-level drift guard: it asserts the
+// integrated journey end to end, not any single slice's implementation. The
+// highest-risk invariant is NFR-003: no authored mark or note is ever lost.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The initial three-case plan seeded before any results exist. TC-A, TC-B, TC-C
+// each carry a single observation so the e2e spec can mark each case pass/fail
+// from the case detail pane. All three sit at the same level/priority so they
+// group together in the rollup.
+export const TC_043_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TESTBENCH_SPEC_SLUG,
+  cases: [
+    {
+      id: "TC-A",
+      title: "Landing page renders",
+      level: "1",
+      priority: "P0",
+      steps: [
+        {
+          id: "TC-A-S1",
+          instruction: "Open the landing page",
+          observations: [{ id: "TC-A-S1-O1", expected: "The hero section is visible" }],
+        },
+      ],
+    },
+    {
+      id: "TC-B",
+      title: "Sign-in redirect works",
+      level: "1",
+      priority: "P0",
+      steps: [
+        {
+          id: "TC-B-S1",
+          instruction: "Click sign in",
+          observations: [{ id: "TC-B-S1-O1", expected: "The user is redirected to the dashboard" }],
+        },
+      ],
+    },
+    {
+      id: "TC-C",
+      title: "Settings page saves",
+      level: "1",
+      priority: "P0",
+      steps: [
+        {
+          id: "TC-C-S1",
+          instruction: "Save the settings form",
+          observations: [{ id: "TC-C-S1-O1", expected: "A success toast appears" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The post-edit plan written mid-test: TC-B is removed and TC-D is added, while
+// TC-A and TC-C are carried over byte-identical. Reconcile must therefore report
+// TC-D as Added and TC-B as Orphaned, and TC-A / TC-C remain active with their
+// recorded pass marks. This is the source `test-cases.json` the rewrite endpoint
+// overwrites; its checksum is snapshotted afterwards and must be unchanged by the
+// reconcile Apply (reconcile only ever writes test-results.json, never the plan).
+export const TC_043_PLAN_AFTER_EDIT: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TESTBENCH_SPEC_SLUG,
+  cases: [
+    TC_043_PLAN.cases[0], // TC-A, unchanged
+    TC_043_PLAN.cases[2], // TC-C, unchanged
+    {
+      id: "TC-D",
+      title: "Logout clears the session",
+      level: "1",
+      priority: "P0",
+      steps: [
+        {
+          id: "TC-D-S1",
+          instruction: "Click log out",
+          observations: [{ id: "TC-D-S1-O1", expected: "The session is cleared" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The slices that own each leg of the persist -> staleness -> reconcile journey,
+// surfaced in a failing run so the divergence localises to an attributable slice
+// (FR-020 / AC7). The mapping is this work unit's `blocked_by` / `covers` set
+// from issue #440.
+export const TC_043_OWNING_SLICES: Record<string, string> = {
+  enable: "#414 (TestBench settings toggle)",
+  create: "#416/#418 (create-a-TestBench flow + spec-bound worktree)",
+  reviewPanel: "#419 (TestBench review tab: focused slug/path + results panel)",
+  marks: "#412/#415 (mark observations + sidecar persist)",
+  notes: "#415 (notes persisted in the sidecar)",
+  persist: "#406/#415 (atomic sidecar write + fail-open re-read)",
+  staleness: "#407/#415/#422 (canonical staleness hash + amber banner)",
+  reconcile: "#413/#422 (reconcile classification + dialog)",
+  apply: "#413/#422 (apply reconcile: orphan-not-delete)",
+  integrity: "#406/#413 (NFR-003: archived results retained, source plan unchanged)",
+};

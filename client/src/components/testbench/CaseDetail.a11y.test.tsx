@@ -24,8 +24,14 @@ expect.extend({ toHaveNoViolations });
 vi.mock("../../hooks/useTestbenchMarks");
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
 
+// CaseDetail now mounts the NotesRail (#440 integration), which calls
+// useAppendNote; mock it so the pane renders without a QueryClientProvider.
+vi.mock("../../hooks/useTestbenchNotes");
+import { useAppendNote } from "../../hooks/useTestbenchNotes";
+
 const mockMark = vi.mocked(useMarkObservation);
 const mockOverride = vi.mocked(useSetStatusOverride);
+const mockAppendNote = vi.mocked(useAppendNote);
 
 function makeMutationMock(mutate = vi.fn()) {
   return { mutate, isPending: false } as never;
@@ -58,6 +64,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockMark.mockReturnValue(makeMutationMock());
   mockOverride.mockReturnValue(makeMutationMock());
+  mockAppendNote.mockReturnValue(makeMutationMock());
 });
 
 describe("CaseDetail full render (TC-019)", () => {
