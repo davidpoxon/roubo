@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
+import { BUNDLED_PLUGIN_IDS, DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -314,6 +315,14 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // discovery sees the right project set.
     projectRegistry.__test.reset();
     projectRegistry.initialize();
+    // TC-001 (#438): drop the in-memory bench map and re-hydrate from the now
+    // empty state.json. A spec that drove the REAL create path (e.g. the
+    // create-a-TestBench journey) left a persisted bench in bench-manager's
+    // Map; `wipePersistedTestState` truncated state.json but the Map itself
+    // survives a reset, so without this the next spec's bench list would still
+    // show the previous run's bench (breaking 10x determinism, NFR-018). Runs
+    // after project-registry init so the rehydrate sees the right project set.
+    benchManager.__test.reloadFromState();
     // Apply the pinning AFTER project-registry init and BEFORE plugin-manager
     // initialize: initialize() is what spawns the plugin processes, and the
     // pinning must be in place at spawn time so spawnPlugin sees it.
@@ -377,10 +386,26 @@ interface RegisterFixtureBody {
   // bench-provisioning UI. Each entry's `assignedIssue` is persisted onto a
   // freshly minted tmpdir-backed PersistedBench.
   seedBenches?: unknown;
+  // TC-001 (#438): optional list of specs to seed into the fixture repo so
+  // TestBench spec discovery (`discoverSpecs`) and the create flow can run
+  // against a real `.specifications/<slug>/test-cases.json`. Each entry writes
+  // its `testCases` JSON to `<repoPath>/.specifications/<slug>/test-cases.json`.
+  seedSpecs?: unknown;
+  // TC-001 (#438): when true, `git init` + an initial commit are run in the
+  // fixture repo so a real TestBench worktree (`git worktree add`) can be
+  // provisioned. Provisioning is also pinned to the local HEAD (worktreeSource
+  // branchFromDefault/pullLatest both false) so it does not require an `origin`
+  // remote the throwaway repo does not have.
+  gitInit?: unknown;
 }
 
 interface SeedBenchInput {
   assignedIssue: AssignedIssue;
+}
+
+interface SeedSpecInput {
+  slug: string;
+  testCases: unknown;
 }
 
 interface ParsedRegisterFixture {
@@ -392,6 +417,35 @@ interface ParsedRegisterFixture {
   integrationConfig?: IntegrationConfig;
   projectRepo?: string;
   seedBenches: SeedBenchInput[];
+  seedSpecs: SeedSpecInput[];
+  gitInit: boolean;
+}
+
+// TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
+// Kebab-case starting with a letter, matching the spec-slug allowlist the
+// discovery + containment barriers enforce server-side.
+const SPEC_SLUG_RE = /^[a-z][a-z0-9-]*$/;
+
+function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return "seedSpecs must be an array";
+  const parsed: SeedSpecInput[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry = raw[i];
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      return `seedSpecs[${i}] must be an object`;
+    }
+    const slug = (entry as { slug?: unknown }).slug;
+    if (typeof slug !== "string" || !SPEC_SLUG_RE.test(slug)) {
+      return `seedSpecs[${i}].slug must be a kebab-case string matching /^[a-z][a-z0-9-]*$/`;
+    }
+    const testCases = (entry as { testCases?: unknown }).testCases;
+    if (testCases === undefined) {
+      return `seedSpecs[${i}].testCases is required`;
+    }
+    parsed.push({ slug, testCases });
+  }
+  return parsed;
 }
 
 function parseSeedBenches(raw: unknown): SeedBenchInput[] | string {
@@ -483,7 +537,53 @@ function parseRegisterFixtureBody(
   }
   const seedBenches = parseSeedBenches(body?.seedBenches);
   if (typeof seedBenches === "string") return seedBenches;
-  return { projectId: projectIdRaw, plugin, integrationConfig, projectRepo, seedBenches };
+  const seedSpecs = parseSeedSpecs(body?.seedSpecs);
+  if (typeof seedSpecs === "string") return seedSpecs;
+  let gitInit = false;
+  if (body?.gitInit !== undefined) {
+    if (typeof body.gitInit !== "boolean") return "gitInit must be a boolean when provided";
+    gitInit = body.gitInit;
+  }
+  return {
+    projectId: projectIdRaw,
+    plugin,
+    integrationConfig,
+    projectRepo,
+    seedBenches,
+    seedSpecs,
+    gitInit,
+  };
+}
+
+// TC-001 (#438): write each seeded spec's test-cases.json into
+// `<repoPath>/.specifications/<slug>/test-cases.json`. Returns the list of slugs
+// written. The slug was already validated against SPEC_SLUG_RE in
+// parseSeedSpecs, so the join stays inside the repo's `.specifications` tree.
+function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
+  for (const spec of specs) {
+    const specDir = path.join(repoPath, ".specifications", spec.slug);
+    fs.mkdirSync(specDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(specDir, "test-cases.json"),
+      `${JSON.stringify(spec.testCases, null, 2)}\n`,
+      "utf-8",
+    );
+  }
+}
+
+// TC-001 (#438): turn the throwaway fixture repo into a real git repository with
+// one commit so `git worktree add` succeeds during TestBench provisioning. Uses
+// a local identity + no GPG signing so it runs in a bare CI environment with no
+// global git config. All work is local: no remote is added, which is why the
+// caller also pins worktreeSource away from fetch/fast-forward.
+function gitInitFixtureRepo(repoPath: string): void {
+  const run = (args: string[]) => execFileSync("git", args, { cwd: repoPath, stdio: "ignore" });
+  run(["init", "--initial-branch=main"]);
+  run(["config", "user.email", "e2e@roubo.test"]);
+  run(["config", "user.name", "Roubo E2E"]);
+  run(["config", "commit.gpgsign", "false"]);
+  run(["add", "-A"]);
+  run(["commit", "--no-gpg-sign", "-m", "chore: seed e2e fixture repo"]);
 }
 
 router.post("/__register-fixture-project", (req: Request, res: Response) => {
@@ -495,7 +595,8 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin, integrationConfig, projectRepo, seedBenches } = parsed;
+  const { projectId, plugin, integrationConfig, projectRepo, seedBenches, seedSpecs, gitInit } =
+    parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -512,7 +613,26 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   const seededWorkspacePaths: string[] = [];
   try {
     writeFixtureRouboYaml(repoPath, projectId, projectRepo);
-    projectRegistry.registerProject(repoPath);
+    // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
+    // git init so they ride into the initial commit, making them visible both
+    // to spec discovery (which reads the repo root) and to the provisioned
+    // worktree.
+    if (seedSpecs.length > 0) {
+      writeSeededSpecs(repoPath, seedSpecs);
+    }
+    if (gitInit) {
+      gitInitFixtureRepo(repoPath);
+    }
+    const registered = projectRegistry.registerProject(repoPath);
+    // TC-001 (#438): when the repo was git-initialised for a real worktree,
+    // pin the worktree source to the local HEAD so provisioning does not try to
+    // fetch/fast-forward from an `origin` remote the throwaway repo lacks.
+    if (gitInit) {
+      projectRegistry.updateProjectSettings(registered.id, {
+        ...DEFAULT_PROJECT_SETTINGS,
+        worktreeSource: { branchFromDefault: false, pullLatest: false },
+      });
+    }
     // TC-164: when `plugin` is omitted we skip writing an override so the
     // tile renders the UnconfiguredBody variant; the spec then drives the
     // SwitchIntegrationDialog UI to pin a plugin.
