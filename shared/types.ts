@@ -543,6 +543,20 @@ export interface Bench {
    * Always `undefined` when `injectedJigId` is `undefined`.
    */
   injectedJigSource?: JigDefaultSource;
+  /**
+   * Bench variant discriminator. Absent (`undefined`) means a normal bench;
+   * `'testbench'` marks a TestBench variant, which surfaces the TestBench tab
+   * and binds a focused spec. Normal benches never carry this field, so they
+   * are unaffected by TestBench behaviour.
+   */
+  variant?: "testbench";
+  /**
+   * Absolute path to the spec the TestBench is currently focused on. Mutable
+   * and re-pointable: a TestBench can be retargeted at a different spec over
+   * its lifetime. Only meaningful when `variant === 'testbench'`. Re-validated
+   * with resolveWithin when loaded (enforcement lives in the testbench store).
+   */
+  focusedSpecPath?: string;
 }
 
 /**
@@ -749,6 +763,17 @@ export interface PersistedBench {
   injectedJigId?: string;
   /** Persisted mirror of Bench.injectedJigSource. */
   injectedJigSource?: JigDefaultSource;
+  /**
+   * Persisted mirror of Bench.variant. Absent means a normal bench;
+   * `'testbench'` marks a TestBench variant.
+   */
+  variant?: "testbench";
+  /**
+   * Persisted mirror of Bench.focusedSpecPath: the absolute path to the spec
+   * the TestBench is focused on. Mutable and re-pointable across reboots. Only
+   * meaningful when `variant === 'testbench'`.
+   */
+  focusedSpecPath?: string;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag
@@ -1393,6 +1418,15 @@ export const DEFAULT_BENCH_SETTINGS: BenchSettings = {
   autoStartComponents: false,
 };
 
+export interface TestBenchSettings {
+  /** Master toggle for the TestBench feature. When false, no TestBench UI is offered. */
+  enabled: boolean;
+}
+
+export const DEFAULT_TESTBENCH_SETTINGS: TestBenchSettings = {
+  enabled: false,
+};
+
 export interface ClaudeCodeSettings {
   enableAutoMode: boolean;
   startInPlanMode: boolean;
@@ -1415,6 +1449,7 @@ export interface UserPreferences {
   theme: ThemeMode;
   jigs?: JigSettings;
   benches?: BenchSettings;
+  testBench?: TestBenchSettings;
   claudeCode?: ClaudeCodeSettings;
   github?: GitHubSettings;
 }

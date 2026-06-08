@@ -141,6 +141,7 @@ const DEFAULT_BENCH_SETTINGS = {
   workUnitAutoClear: true,
   autoStartComponents: false,
 };
+const DEFAULT_TESTBENCH_SETTINGS = { enabled: false };
 const DEFAULT_CLAUDE_CODE_SETTINGS = {
   enableAutoMode: false,
   startInPlanMode: false,
@@ -154,6 +155,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -166,6 +168,7 @@ describe("loadSettings", () => {
       theme: "light",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -178,6 +181,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -220,6 +224,7 @@ describe("loadSettings", () => {
       theme: "light",
       jigs: customJigs,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -245,6 +250,7 @@ describe("loadSettings", () => {
         defaultJigId: "cleanup",
       },
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -274,6 +280,7 @@ describe("loadSettings", () => {
         workUnitAutoClear: true,
         autoStartComponents: false,
       },
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -291,6 +298,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: { enableAutoMode: true, startInPlanMode: true },
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -305,6 +313,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: { enableAutoMode: true, startInPlanMode: false },
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -327,6 +336,7 @@ describe("loadSettings", () => {
         workUnitAutoClear: true,
         autoStartComponents: true,
       },
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -349,9 +359,27 @@ describe("loadSettings", () => {
         workUnitAutoClear: true,
         autoStartComponents: false,
       },
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
+  });
+
+  it("defaults testBench when file does not exist", () => {
+    existsSync.mockReturnValue(false);
+    expect(stateModule.loadSettings().testBench).toEqual(DEFAULT_TESTBENCH_SETTINGS);
+  });
+
+  it("defaults testBench when file contains malformed JSON", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("not valid json{{{");
+    expect(stateModule.loadSettings().testBench).toEqual(DEFAULT_TESTBENCH_SETTINGS);
+  });
+
+  it("preserves testBench.enabled true from file", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", testBench: { enabled: true } }));
+    expect(stateModule.loadSettings().testBench).toEqual({ enabled: true });
   });
 
   it("preserves custom github settings from file", () => {
@@ -366,6 +394,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: { issueTypesCacheTtlSeconds: 60 },
     });
@@ -378,6 +407,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
@@ -1093,6 +1123,61 @@ describe("toPersistedBench", () => {
     });
     const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
     expect(written.benches[0].componentSetupState).toEqual({ backend: false, db: true });
+  });
+
+  it("carries variant and focusedSpecPath onto the persisted bench", () => {
+    const persisted = stateModule.toPersistedBench({
+      id: 4,
+      projectId: "proj-tb",
+      branch: "testbench/spec-x",
+      workspacePath: "/workspace/tb",
+      status: "idle",
+      ports: {},
+      components: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      provisioningSteps: [],
+      teardownSteps: [],
+      notifications: [],
+      variant: "testbench",
+      focusedSpecPath: "/abs/path/to/spec.md",
+    });
+    expect(persisted.variant).toBe("testbench");
+    expect(persisted.focusedSpecPath).toBe("/abs/path/to/spec.md");
+  });
+
+  it("leaves variant and focusedSpecPath undefined for a normal bench", () => {
+    const persisted = stateModule.toPersistedBench({
+      id: 5,
+      projectId: "proj-normal",
+      branch: "main",
+      workspacePath: "/workspace/n",
+      status: "idle",
+      ports: {},
+      components: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      provisioningSteps: [],
+      teardownSteps: [],
+      notifications: [],
+    });
+    expect(persisted.variant).toBeUndefined();
+    expect(persisted.focusedSpecPath).toBeUndefined();
+  });
+
+  it("round-trips variant and focusedSpecPath through addBench → saveState", () => {
+    existsSync.mockReturnValue(false);
+    stateModule.addBench({
+      id: 9,
+      projectId: "project1",
+      branch: "testbench/spec-y",
+      workspacePath: "/workspace",
+      ports: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      variant: "testbench",
+      focusedSpecPath: "/abs/spec-y.md",
+    });
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
+    expect(written.benches[0].variant).toBe("testbench");
+    expect(written.benches[0].focusedSpecPath).toBe("/abs/spec-y.md");
   });
 
   it("loads a legacy PersistedBench (no componentSetupState) without error", () => {

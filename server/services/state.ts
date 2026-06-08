@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
+  DEFAULT_TESTBENCH_SETTINGS,
   DEFAULT_CLAUDE_CODE_SETTINGS,
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
@@ -218,6 +219,8 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
     injectedJigSource: bench.injectedJigSource,
+    variant: bench.variant,
+    focusedSpecPath: bench.focusedSpecPath,
     componentSetupState: Object.fromEntries(
       Object.entries(bench.components).map(([name, c]) => [name, c.setupComplete]),
     ),
@@ -237,6 +240,7 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     };
@@ -265,6 +269,7 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       theme: raw.theme ?? "dark",
       jigs: mergedJigSettings as UserPreferences["jigs"],
       benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
+      testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
       claudeCode: { ...DEFAULT_CLAUDE_CODE_SETTINGS, ...raw.claudeCode },
       github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
     };
@@ -281,6 +286,7 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
+      testBench: DEFAULT_TESTBENCH_SETTINGS,
       claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     };
