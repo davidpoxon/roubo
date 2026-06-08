@@ -12,7 +12,7 @@
 //
 // Contracts honoured here:
 //   - NFR-001: every fs path flows through assertSafeIdentifier(slug) then
-//     resolveWithin(repoPath, '.specifications', slug, ...), so an out-of-repo or
+//     resolveWithin(rootPath, '.specifications', slug, ...), so an out-of-repo or
 //     traversal slug is rejected before any fs call.
 //   - FR-014/FR-015/AC3: the results sidecar read is FAIL-OPEN: a missing,
 //     corrupt, schema-invalid, or future-major-version file yields a recovery
@@ -26,9 +26,13 @@
 //   - NFR-003: reconcile is orphan-not-delete; physical deletion only happens when
 //     purgeOrphans is explicitly requested.
 //
-// The store exposes plain functions keyed by (repoPath, slug, benchId) primitives,
-// the lib-level convention testbench-results-write.ts established, so the routes
-// (#12) can wrap them later. Routes and UI stay out of scope here.
+// The store exposes plain functions keyed by (rootPath, slug) primitives, the
+// lib-level convention testbench-results-write.ts established, so the routes
+// (#12) can wrap them. `rootPath` is the worktree root that contains
+// `.specifications/`: as of #493 both the plan and the results sidecar are read
+// and written under the bench's own worktree (sibling files), and the file no
+// longer nests results under a per-bench `benches` map. Routes and UI stay out
+// of scope here.
 
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -77,16 +81,17 @@ export class MissingPlanError extends Error {
 //
 // Both helpers run assertSafeIdentifier(slug) FIRST so a traversal/separator slug
 // is rejected before any path is built, then resolveWithin joins under the fixed
-// repo root and asserts containment (the CodeQL-recognised sanitizer shape).
+// root and asserts containment (the CodeQL-recognised sanitizer shape). `rootPath`
+// is the worktree root that contains `.specifications/` (#493).
 
-function planPath(repoPath: string, slug: string): string {
+function planPath(rootPath: string, slug: string): string {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
-  return resolveWithin(repoPath, ".specifications", slug, "test-cases.json");
+  return resolveWithin(rootPath, ".specifications", slug, "test-cases.json");
 }
 
-function resultsPath(repoPath: string, slug: string): string {
+function resultsPath(rootPath: string, slug: string): string {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
-  return resolveWithin(repoPath, ".specifications", slug, "test-results.json");
+  return resolveWithin(rootPath, ".specifications", slug, "test-results.json");
 }
 
 // Compute the staleness hash: sha256 over the deterministic canonical string for
@@ -120,10 +125,10 @@ function parseMajor(version: unknown): number {
 // read. (assertSafeIdentifier/resolveWithin path-safety errors are raised by the
 // caller before loadFile runs, so they cannot surface here.)
 function loadFile(
-  repoPath: string,
+  rootPath: string,
   slug: string,
 ): { file: TestResultsFile | null; recovered: boolean } {
-  const target = resultsPath(repoPath, slug);
+  const target = resultsPath(rootPath, slug);
 
   let raw: string;
   try {
@@ -173,24 +178,22 @@ function loadFile(
 // reconcile-stamped field is serialized verbatim and re-validates on the next
 // strict read (no fail-open data loss, and the changed/unchanged signal survives
 // the round-trip to disk).
-function persist(repoPath: string, slug: string, file: TestResultsFile): void {
-  writeResults(repoPath, slug, JSON.stringify(file, null, 2));
+function persist(rootPath: string, slug: string, file: TestResultsFile): void {
+  writeResults(rootPath, slug, JSON.stringify(file, null, 2));
 }
 
 // Build an empty results file. planHash is filled by the caller after the plan is
-// hashed (an init always happens in a context where the plan is in hand).
+// hashed (an init always happens in a context where the plan is in hand). As of
+// the v2.0.0 flatten (#493), case results sit at the top level of the file (one
+// file per worktree), so there is no per-bench `benches` map to seed.
 function emptyFile(planHash: string): TestResultsFile {
   return {
     $schema: TEST_RESULTS_SCHEMA_ID,
     schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
     planHash,
-    benches: {},
+    caseResults: {},
+    updatedAt: new Date().toISOString(),
   };
-}
-
-// Build an empty bench results bucket.
-function emptyBench(): BenchResults {
-  return { caseResults: {}, updatedAt: new Date().toISOString() };
 }
 
 // Build an empty case result.
@@ -234,8 +237,9 @@ function planCaseObservationIds(plan: TestCasesPlan, caseId: string): string[] {
 export interface PlanAndResults {
   // The validated source plan (required: a read throws if it is missing/invalid).
   plan: TestCasesPlan;
-  // This bench's recorded results, or null when no results exist for the bench
-  // (or the sidecar was recovered).
+  // The worktree's recorded results, or null when no results exist yet (or the
+  // sidecar was recovered). Shaped as { caseResults, updatedAt } (the API result
+  // shape projected from the flattened file body).
   results: BenchResults | null;
   // True when the stored file's planHash differs from the freshly computed hash:
   // the plan has changed since the results were last written (FR-016).
@@ -247,25 +251,19 @@ export interface PlanAndResults {
   recovered: boolean;
 }
 
-// Read the source plan (required) and this bench's results (fail-open).
+// Project the flattened file body ({ ..., caseResults, updatedAt }) down to the
+// { caseResults, updatedAt } result shape the API exposes.
+function fileResults(file: TestResultsFile): BenchResults {
+  return { caseResults: file.caseResults, updatedAt: file.updatedAt };
+}
+
+// Read the source plan (required) and the worktree's results (fail-open).
 //
 // The plan is required: if test-cases.json is missing or invalid, this throws
 // MissingPlanError (NOT fail-open) because there is nothing to test without a
 // plan. The results sidecar is fail-open per loadFile.
-export function readPlanAndResults(
-  repoPath: string,
-  slug: string,
-  benchId: string,
-): PlanAndResults {
-  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
-  // Reject prototype-polluting keys INLINE so a "__proto__" id can never read
-  // back the Object prototype as if it were a bench's results (CWE-1321).
-  if (isUnsafeMapKey(benchId)) {
-    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
-  }
-  const safeBenchId = benchId;
-
-  const planTarget = planPath(repoPath, slug);
+export function readPlanAndResults(rootPath: string, slug: string): PlanAndResults {
+  const planTarget = planPath(rootPath, slug);
 
   let planRaw: string;
   try {
@@ -290,48 +288,42 @@ export function readPlanAndResults(
   const plan = planValidation.data;
   const planHash = computePlanHash(plan);
 
-  const { file, recovered } = loadFile(repoPath, slug);
+  const { file, recovered } = loadFile(rootPath, slug);
   if (file === null) {
     return { plan, results: null, stale: false, planHash, recovered };
   }
 
   const stale = file.planHash !== planHash;
-  const results = file.benches[safeBenchId] ?? null;
-  return { plan, results, stale, planHash, recovered };
+  return { plan, results: fileResults(file), stale, planHash, recovered };
 }
 
 // ── Internal mutate helper ──
 //
 // Loads-or-inits the results file, hashes the plan, applies a mutation to the
-// (case-scoped) CaseResult for one bench, refreshes the file planHash + bench
-// updatedAt, persists atomically, and returns the mutated CaseResult.
+// (case-scoped) CaseResult, refreshes the file planHash + updatedAt, persists
+// atomically, and returns the mutated CaseResult.
 //
 // The plan is loaded and validated first (a write against a missing/invalid plan
 // throws MissingPlanError, same as a read): we need the plan to hash and to know
 // the case's observation set for derivedStatus.
 async function mutateCaseResult(
-  repoPath: string,
+  rootPath: string,
   slug: string,
-  benchId: string,
   caseId: string,
   mutate: (caseResult: CaseResult, author: Author, plan: TestCasesPlan) => void,
 ): Promise<CaseResult> {
-  // benchId and caseId are user-controlled and used as computed object keys
-  // below (file.benches[benchId], bench.caseResults[caseId]). Reject the
-  // prototype-polluting keys INLINE, before any lookup, so a crafted
-  // "__proto__"/"constructor"/"prototype" id can never mutate Object.prototype
-  // (CWE-1321). The guard is inline (not a helper call) so static analysis
-  // recognises it as a sanitising barrier on the tainted key.
-  if (isUnsafeMapKey(benchId)) {
-    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
-  }
+  // caseId is user-controlled and used as a computed object key below
+  // (file.caseResults[caseId]). Reject the prototype-polluting keys INLINE,
+  // before any lookup, so a crafted "__proto__"/"constructor"/"prototype" id can
+  // never mutate Object.prototype (CWE-1321). The guard is inline (not a helper
+  // call) so static analysis recognises it as a sanitising barrier on the
+  // tainted key.
   if (isUnsafeMapKey(caseId)) {
     throw new UnsafePathError(`Invalid case id: ${String(caseId)}`);
   }
-  const safeBenchId = benchId;
   const safeCaseId = caseId;
 
-  const planTarget = planPath(repoPath, slug);
+  const planTarget = planPath(rootPath, slug);
   let planParsed: unknown;
   try {
     planParsed = JSON.parse(fs.readFileSync(planTarget, "utf8"));
@@ -347,26 +339,24 @@ async function mutateCaseResult(
   const plan = planValidation.data;
   const planHash = computePlanHash(plan);
 
-  const identity = await resolveGitIdentity(repoPath);
+  const identity = await resolveGitIdentity(rootPath);
   const author = toAuthor(identity);
 
   // Load-or-init: a recovered (missing/corrupt/future) file is replaced with a
   // fresh empty file. The recovery signal is surfaced on reads; a write always
   // proceeds from a clean valid base.
-  const { file: loaded } = loadFile(repoPath, slug);
+  const { file: loaded } = loadFile(rootPath, slug);
   const file = loaded ?? emptyFile(planHash);
 
-  const bench = file.benches[safeBenchId] ?? emptyBench();
-  const caseResult = bench.caseResults[safeCaseId] ?? emptyCaseResult();
+  const caseResult = file.caseResults[safeCaseId] ?? emptyCaseResult();
 
   mutate(caseResult, author, plan);
 
-  bench.caseResults[safeCaseId] = caseResult;
-  bench.updatedAt = new Date().toISOString();
-  file.benches[safeBenchId] = bench;
+  file.caseResults[safeCaseId] = caseResult;
+  file.updatedAt = new Date().toISOString();
   file.planHash = planHash;
 
-  persist(repoPath, slug, file);
+  persist(rootPath, slug, file);
   return caseResult;
 }
 
@@ -375,14 +365,13 @@ async function mutateCaseResult(
 // Upsert an observation mark, recompute the case's derivedStatus, persist
 // atomically (FR-012). Returns the updated CaseResult.
 export async function markObservation(
-  repoPath: string,
+  rootPath: string,
   slug: string,
-  benchId: string,
   caseId: string,
   observationId: string,
   result: "pass" | "fail",
 ): Promise<CaseResult> {
-  return mutateCaseResult(repoPath, slug, benchId, caseId, (caseResult, author, plan) => {
+  return mutateCaseResult(rootPath, slug, caseId, (caseResult, author, plan) => {
     caseResult.observationMarks[observationId] = {
       result,
       author,
@@ -399,9 +388,8 @@ export async function markObservation(
 // (override ?? derived) at write time. Rejects empty/whitespace-only text.
 // Returns the appended Note.
 export async function appendNote(
-  repoPath: string,
+  rootPath: string,
   slug: string,
-  benchId: string,
   caseId: string,
   text: string,
 ): Promise<Note> {
@@ -411,7 +399,7 @@ export async function appendNote(
   }
 
   let appended: Note | undefined;
-  await mutateCaseResult(repoPath, slug, benchId, caseId, (caseResult, author) => {
+  await mutateCaseResult(rootPath, slug, caseId, (caseResult, author) => {
     const effective: CaseStatus = caseResult.statusOverride?.status ?? caseResult.derivedStatus;
     const note: Note = {
       id: randomUUID(),
@@ -431,13 +419,12 @@ export async function appendNote(
 // Set or clear a case's explicit status override (FR-010). Pass null to clear.
 // Returns the updated CaseResult.
 export async function setStatusOverride(
-  repoPath: string,
+  rootPath: string,
   slug: string,
-  benchId: string,
   caseId: string,
   override: CaseStatus | null,
 ): Promise<CaseResult> {
-  return mutateCaseResult(repoPath, slug, benchId, caseId, (caseResult, author) => {
+  return mutateCaseResult(rootPath, slug, caseId, (caseResult, author) => {
     if (override === null) {
       delete caseResult.statusOverride;
       return;
@@ -469,7 +456,7 @@ export interface ReconcileOutcome {
   applied: boolean;
 }
 
-// Reconcile a bench's recorded results against the current plan (FR-017,
+// Reconcile the worktree's recorded results against the current plan (FR-017,
 // NFR-003). Delegates classification + the non-destructive next-state build to
 // testbench-domain.reconcile.
 //
@@ -478,23 +465,15 @@ export interface ReconcileOutcome {
 // planHash. When purgeOrphans is ALSO true, orphaned results are physically
 // dropped via the separate purgeOrphans pure function before persisting.
 //
-// A bench with no recorded results reconciles against an empty BenchResults: the
+// A file with no recorded results reconciles against an empty result set: the
 // classification reports every plan case as added and nothing is orphaned.
 export async function reconcile(
-  repoPath: string,
+  rootPath: string,
   slug: string,
-  benchId: string,
   options: ReconcileOptions = {},
 ): Promise<ReconcileOutcome> {
-  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
-  // Reject prototype-polluting keys INLINE before any lookup or write (CWE-1321).
-  if (isUnsafeMapKey(benchId)) {
-    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
-  }
-  const safeBenchId = benchId;
-
   const { plan, planHash } = (() => {
-    const planTarget = planPath(repoPath, slug);
+    const planTarget = planPath(rootPath, slug);
     let planParsed: unknown;
     try {
       planParsed = JSON.parse(fs.readFileSync(planTarget, "utf8"));
@@ -510,21 +489,21 @@ export async function reconcile(
     return { plan: planValidation.data, planHash: computePlanHash(planValidation.data) };
   })();
 
-  const { file: loaded } = loadFile(repoPath, slug);
+  const { file: loaded } = loadFile(rootPath, slug);
   const file = loaded ?? emptyFile(planHash);
-  const benchResults = file.benches[safeBenchId] ?? emptyBench();
+  const results = fileResults(file);
 
-  const { classification, nextResults } = reconcileDomain(plan, benchResults);
+  const { classification, nextResults } = reconcileDomain(plan, results);
 
   if (options.confirm !== true) {
     return { classification, applied: false };
   }
 
   const persisted = options.purgeOrphans === true ? purgeOrphans(nextResults) : nextResults;
-  persisted.updatedAt = new Date().toISOString();
-  file.benches[safeBenchId] = persisted;
+  file.caseResults = persisted.caseResults;
+  file.updatedAt = new Date().toISOString();
   file.planHash = planHash;
-  persist(repoPath, slug, file);
+  persist(rootPath, slug, file);
 
   return { classification, applied: true };
 }

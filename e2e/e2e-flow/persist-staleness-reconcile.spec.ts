@@ -32,10 +32,10 @@ import {
 //
 // The mid-test plan edit (remove TC-B, add TC-D) is driven through the
 // ROUBO_E2E-gated `/test/__rewrite-spec-cases` harness endpoint, because the
-// create-a-TestBench UI exposes no plan editor. The endpoint resolves the focused
-// spec's `.specifications/<slug>/test-cases.json` from the registered project
-// repoPath the same way the live TestBench routes do, so the next plan load
-// detects staleness against the rewritten source.
+// create-a-TestBench UI exposes no plan editor. As of #493 the endpoint resolves
+// the focused spec's `.specifications/<slug>/test-cases.json` from the bench's own
+// worktree (bench.workspacePath) the same way the live TestBench routes do, so the
+// next plan load detects staleness against the rewritten source.
 
 const SCENARIO = "default";
 const NOW = "2026-06-08T09:00:00.000Z";
@@ -307,20 +307,16 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
       observationMarks?: Record<string, { result?: string }>;
       notes?: unknown[];
     }
+    // v2.0.0 flattened shape (#493): one results file per worktree, so caseResults
+    // sits at the file top level with no per-bench `benches` map.
     interface OnDiskResults {
-      benches: Record<string, { caseResults: Record<string, OnDiskCaseResult> }>;
+      caseResults: Record<string, OnDiskCaseResult>;
     }
 
     const after = await readTestResults(request, { projectId: PROJECT_ID, benchId });
     const file = after.results as OnDiskResults | null;
     expect(file, `${TC_043_OWNING_SLICES.integrity}: a results sidecar exists`).not.toBeNull();
-    const benchKey = `bench-${benchId}`;
-    const benchResults = file?.benches[benchKey];
-    expect(
-      benchResults,
-      `${TC_043_OWNING_SLICES.integrity}: results are keyed by ${benchKey}`,
-    ).toBeTruthy();
-    const tcB = benchResults?.caseResults["TC-B"];
+    const tcB = file?.caseResults["TC-B"];
     expect(tcB, `${TC_043_OWNING_SLICES.integrity}: TC-B is retained on disk`).toBeTruthy();
     expect(
       tcB?.orphaned,

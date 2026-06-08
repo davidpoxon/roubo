@@ -56,13 +56,17 @@ function resolveRepoPath(projectId: string): string {
   return project.repoPath;
 }
 
-// Resolve a TestBench and derive the (repoPath, slug, benchKey) tuple the store
-// needs. Throws RouteError(404) when the bench is missing, RouteError(400) when it
-// is not a testbench / has no focused spec or the focused path is malformed.
-function resolveTestbench(
-  projectId: string,
-  benchId: number,
-): { repoPath: string; slug: string; benchKey: string } {
+// Resolve a TestBench and derive the (rootPath, slug) tuple the store needs.
+// `rootPath` is the bench's own worktree (#493): the plan and the results sidecar
+// are both read and written under `bench.workspacePath/.specifications/<slug>/`,
+// not the registered project repoPath. The slug is still resolved against the
+// project repoPath, where the focused spec path was picked and validated.
+//
+// Throws RouteError(404) when the bench is missing, RouteError(400) when it is
+// not a testbench / has no focused spec, the focused path is malformed, or the
+// bench has no usable workspace path (an error-state bench must not write to a
+// bogus root).
+function resolveTestbench(projectId: string, benchId: number): { rootPath: string; slug: string } {
   const repoPath = resolveRepoPath(projectId);
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) {
@@ -71,13 +75,17 @@ function resolveTestbench(
   if (bench.variant !== "testbench" || bench.focusedSpecPath === undefined) {
     throw new RouteError(400, "Bench is not a testbench or has no focused spec");
   }
+  const rootPath = bench.workspacePath;
+  if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
+    throw new RouteError(400, "Bench has no workspace path");
+  }
   let slug: string;
   try {
     slug = resolveFocusedSpec(repoPath, bench.focusedSpecPath).slug;
   } catch (err) {
     throw new RouteError(400, `Invalid focusedSpecPath: ${(err as Error).message}`);
   }
-  return { repoPath, slug, benchKey: `bench-${benchId}` };
+  return { rootPath, slug };
 }
 
 // Map any thrown error to an HTTP response, mirroring inspection.ts: RouteError /
@@ -147,8 +155,8 @@ router.post("/:projectId/testbench/specs/validate", (req, res) => {
 router.get("/:projectId/benches/:id/testbench/plan", (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { repoPath, slug, benchKey } = resolveTestbench(req.params.projectId, benchId);
-    const result = testbenchStore.readPlanAndResults(repoPath, slug, benchKey);
+    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
+    const result = testbenchStore.readPlanAndResults(rootPath, slug);
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -161,16 +169,15 @@ router.put(
   async (req, res) => {
     try {
       const benchId = parseIntParam(req.params.id, "bench id");
-      const { repoPath, slug, benchKey } = resolveTestbench(req.params.projectId, benchId);
+      const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
       const parsed = MarkObservationBodySchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: "result must be 'pass' or 'fail'" });
         return;
       }
       const caseResult = await testbenchStore.markObservation(
-        repoPath,
+        rootPath,
         slug,
-        benchKey,
         req.params.caseId,
         req.params.observationId,
         parsed.data.result,
@@ -186,16 +193,15 @@ router.put(
 router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { repoPath, slug, benchKey } = resolveTestbench(req.params.projectId, benchId);
+    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
     const parsed = SetStatusBodySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "override must be a valid CaseStatus or null" });
       return;
     }
     const caseResult = await testbenchStore.setStatusOverride(
-      repoPath,
+      rootPath,
       slug,
-      benchKey,
       req.params.caseId,
       parsed.data.override,
     );
@@ -209,7 +215,7 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req,
 router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { repoPath, slug, benchKey } = resolveTestbench(req.params.projectId, benchId);
+    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
     const parsed = AppendNoteBodySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "text must be a string" });
@@ -220,9 +226,8 @@ router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req,
       return;
     }
     const note = await testbenchStore.appendNote(
-      repoPath,
+      rootPath,
       slug,
-      benchKey,
       req.params.caseId,
       parsed.data.text,
     );
@@ -237,13 +242,13 @@ router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req,
 router.post("/:projectId/benches/:id/testbench/reconcile", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { repoPath, slug, benchKey } = resolveTestbench(req.params.projectId, benchId);
+    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
     const parsed = ReconcileBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "confirm and purgeOrphans must be booleans" });
       return;
     }
-    const outcome = await testbenchStore.reconcile(repoPath, slug, benchKey, {
+    const outcome = await testbenchStore.reconcile(rootPath, slug, {
       confirm: parsed.data.confirm,
       purgeOrphans: parsed.data.purgeOrphans,
     });

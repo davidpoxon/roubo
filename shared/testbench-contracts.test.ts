@@ -44,28 +44,26 @@ function makePlan(): TestCasesPlan {
 }
 
 // A minimal conforming test-results.json fixture (the sidecar). References the
-// case above by its stable id only; the plan is not embedded or edited.
+// case above by its stable id only; the plan is not embedded or edited. As of
+// v2.0.0 (#493) case results sit at the top level (one file per worktree); there
+// is no per-bench `benches` map.
 function makeResults(): TestResultsFile {
   return {
     $schema: TEST_RESULTS_SCHEMA_ID,
     schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
     planHash: "sha256:abc",
-    benches: {
-      "bench-1": {
-        updatedAt: "2026-06-08T00:00:00.000Z",
-        caseResults: {
-          "TC-001": {
-            observationMarks: {
-              O1: {
-                result: "pass",
-                author: { name: "David", email: "david@poxon.au" },
-                timestamp: "2026-06-08T00:00:00.000Z",
-              },
-            },
-            derivedStatus: "passed",
-            notes: [],
+    updatedAt: "2026-06-08T00:00:00.000Z",
+    caseResults: {
+      "TC-001": {
+        observationMarks: {
+          O1: {
+            result: "pass",
+            author: { name: "David", email: "david@poxon.au" },
+            timestamp: "2026-06-08T00:00:00.000Z",
           },
         },
+        derivedStatus: "passed",
+        notes: [],
       },
     },
   };
@@ -174,8 +172,15 @@ describe("validateTestResults", () => {
     const result = validateTestResults(makeResults());
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.benches["bench-1"].caseResults["TC-001"].derivedStatus).toBe("passed");
+      expect(result.data.caseResults["TC-001"].derivedStatus).toBe("passed");
     }
+  });
+
+  it("carries case results at the top level (no per-bench keying as of v2.0.0)", () => {
+    const results = makeResults() as unknown as Record<string, unknown>;
+    expect(results.benches).toBeUndefined();
+    expect(results.caseResults).toBeDefined();
+    expect(typeof results.updatedAt).toBe("string");
   });
 
   it("references cases by stable id without requiring the plan to be edited", () => {
@@ -185,27 +190,25 @@ describe("validateTestResults", () => {
     const results = makeResults();
     expect(validateTestCases(plan).ok).toBe(true);
     expect(validateTestResults(results).ok).toBe(true);
-    expect(Object.keys(results.benches["bench-1"].caseResults)).toEqual([plan.cases[0].id]);
+    expect(Object.keys(results.caseResults)).toEqual([plan.cases[0].id]);
   });
 
   it("rejects an invalid observation mark result with a field-named error", () => {
     const results = makeResults();
     // @ts-expect-error deliberately out-of-contract enum value
-    results.benches["bench-1"].caseResults["TC-001"].observationMarks.O1.result = "maybe";
+    results.caseResults["TC-001"].observationMarks.O1.result = "maybe";
     const result = validateTestResults(results);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
-        result.errors.some((e) =>
-          e.startsWith("benches.bench-1.caseResults.TC-001.observationMarks.O1.result:"),
-        ),
+        result.errors.some((e) => e.startsWith("caseResults.TC-001.observationMarks.O1.result:")),
       ).toBe(true);
     }
   });
 
   it("accepts an optional status override and an orphaned flag", () => {
     const results = makeResults();
-    const caseResult = results.benches["bench-1"].caseResults["TC-001"];
+    const caseResult = results.caseResults["TC-001"];
     caseResult.statusOverride = {
       status: "blocked",
       author: { name: "David", email: "david@poxon.au" },
@@ -226,21 +229,18 @@ describe("validateTestResults", () => {
 
   it("accepts an optional per-case caseCanon snapshot (#447)", () => {
     const results = makeResults();
-    results.benches["bench-1"].caseResults["TC-001"].caseCanon = "canon-snapshot";
+    results.caseResults["TC-001"].caseCanon = "canon-snapshot";
     expect(validateTestResults(results).ok).toBe(true);
   });
 
   it("still rejects an unknown key on a case result with a field-named error", () => {
     const results = makeResults();
-    (results.benches["bench-1"].caseResults["TC-001"] as unknown as Record<string, unknown>).bogus =
-      true;
+    (results.caseResults["TC-001"] as unknown as Record<string, unknown>).bogus = true;
     const result = validateTestResults(results);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
-        result.errors.some(
-          (e) => e.startsWith("benches.bench-1.caseResults.TC-001:") && e.includes("bogus"),
-        ),
+        result.errors.some((e) => e.startsWith("caseResults.TC-001:") && e.includes("bogus")),
       ).toBe(true);
     }
   });

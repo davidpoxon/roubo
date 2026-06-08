@@ -104,23 +104,21 @@ function makeResults(): TestResultsFile {
     $schema: TEST_RESULTS_SCHEMA_ID,
     schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
     planHash: "sha256:abc",
-    benches: {
-      "bench-1": {
-        updatedAt: "2026-06-08T00:00:00.000Z",
-        // Keyed by the plan's case id only; the plan is never embedded or edited.
-        caseResults: {
-          [PLAN_CASE_ID]: {
-            observationMarks: {
-              O1: {
-                result: "pass",
-                author: { name: "David", email: "david@poxon.au" },
-                timestamp: "2026-06-08T00:00:00.000Z",
-              },
-            },
-            derivedStatus: "passed",
-            notes: [],
+    updatedAt: "2026-06-08T00:00:00.000Z",
+    // Flattened in v2.0.0 (#493): case results live at the top level (one file
+    // per worktree). Keyed by the plan's case id only; the plan is never embedded
+    // or edited.
+    caseResults: {
+      [PLAN_CASE_ID]: {
+        observationMarks: {
+          O1: {
+            result: "pass",
+            author: { name: "David", email: "david@poxon.au" },
+            timestamp: "2026-06-08T00:00:00.000Z",
           },
         },
+        derivedStatus: "passed",
+        notes: [],
       },
     },
   };
@@ -234,7 +232,7 @@ describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => 
         expect(result.ok).toBe(true);
         // The results key the plan's case id, and validating them left the plan
         // untouched (no edit to test-cases.json was required).
-        expect(Object.keys(results.benches["bench-1"].caseResults)).toEqual([plan.cases[0].id]);
+        expect(Object.keys(results.caseResults)).toEqual([plan.cases[0].id]);
         expect(JSON.stringify(plan)).toBe(planSnapshot);
       },
     );
