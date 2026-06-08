@@ -137,6 +137,34 @@ export function assertSafeIdentifier(value: unknown, pattern: RegExp, label: str
   }
 }
 
+// True when a value is unsafe to use as a computed object key: a non-string, or
+// one of the prototype-polluting keys `__proto__`, `constructor`, `prototype`
+// that mutate the built-in Object prototype instead of the target map
+// (prototype pollution, CWE-1321).
+//
+// The check is written as an explicit inline string comparison (not a Set/array
+// lookup) so that callers can mirror the same shape at the point of use and have
+// static analysis recognise it as a sanitising barrier on the tainted key.
+export function isUnsafeMapKey(value: unknown): boolean {
+  return (
+    typeof value !== "string" ||
+    value === "__proto__" ||
+    value === "constructor" ||
+    value === "prototype"
+  );
+}
+
+// Guard a user-controlled value before it is used as a computed object key (e.g.
+// `record[key] = value`). Throws UnsafePathError for any key isUnsafeMapKey
+// rejects, reusing the path-safety error so callers already handling sanitizer
+// failures need no new branch. Hot sinks that must present an inline barrier to
+// static analysis should inline the isUnsafeMapKey check instead of calling this.
+export function assertSafeMapKey(value: unknown, label: string): void {
+  if (isUnsafeMapKey(value)) {
+    throw new UnsafePathError(`Invalid ${label}: ${String(value)}`);
+  }
+}
+
 // Reusable regexes for identifiers that appear as path segments.
 export const PLUGIN_ID_RE = /^[a-z][a-z0-9-]*$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

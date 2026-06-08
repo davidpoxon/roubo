@@ -31,6 +31,7 @@ import {
 } from "./config-parser.js";
 import { runCommand, parseCommand } from "./exec.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
+import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { injectPermissions } from "./claude-settings-local.js";
 import {
@@ -465,13 +466,45 @@ export function isBenchLive(projectId: string, benchId: number): boolean {
   return benches.has(benchKey(projectId, benchId));
 }
 
-export function createBench(projectId: string, branch?: string): Bench {
+export interface CreateBenchOptions {
+  // TestBench variant discriminator. When "testbench", focusedSpecPath is
+  // required and validated for containment before the bench is reserved.
+  variant?: "testbench";
+  // Absolute (or repo-relative) path to the spec's test-cases.json the TestBench
+  // focuses on. Validated against the project repo via resolveFocusedSpec; an
+  // out-of-repo or malformed path throws BenchError("INVALID_FOCUS").
+  focusedSpecPath?: string;
+}
+
+export function createBench(
+  projectId: string,
+  branch?: string,
+  options: CreateBenchOptions = {},
+): Bench {
   const project = projectRegistry.getProject(projectId);
   if (!project || !project.configValid || !project.config) {
     throw new BenchError(
       `Project '${projectId}' not found or has invalid config`,
       "PROJECT_NOT_FOUND",
     );
+  }
+
+  // TestBench variant: require + validate the focused spec path before any bench
+  // slot is reserved, so a bad path fails fast with no side effects. The resolved
+  // absolute path is what we persist (laundered through the containment barrier).
+  let resolvedFocusedSpecPath: string | undefined;
+  if (options.variant === "testbench") {
+    if (options.focusedSpecPath === undefined) {
+      throw new BenchError("focusedSpecPath is required for a testbench variant", "INVALID_FOCUS");
+    }
+    try {
+      resolvedFocusedSpecPath = resolveFocusedSpec(
+        project.repoPath,
+        options.focusedSpecPath,
+      ).resolvedPath;
+    } catch (err) {
+      throw new BenchError(`Invalid focusedSpecPath: ${(err as Error).message}`, "INVALID_FOCUS");
+    }
   }
 
   const config = project.config;
@@ -528,6 +561,8 @@ export function createBench(projectId: string, branch?: string): Bench {
     ),
     teardownSteps: [],
     notifications: [],
+    variant: options.variant,
+    focusedSpecPath: resolvedFocusedSpecPath,
   };
 
   benches.set(benchKey(projectId, benchNumber), bench);
@@ -932,6 +967,8 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       baseCommit: bench.baseCommit,
       injectedJigId: bench.injectedJigId,
       injectedJigSource: bench.injectedJigSource,
+      variant: bench.variant,
+      focusedSpecPath: bench.focusedSpecPath,
     });
 
     // Inject project-level permissions into the workspace before any sessions start.
@@ -1940,6 +1977,40 @@ export function setWorkUnitIgnoredForAutoClear(
   if (!workUnit)
     throw new BenchError(`Work unit '${submoduleKey}' not found on bench ${benchId}`, "NOT_FOUND");
   workUnit.ignoredForAutoClear = ignored;
+  stateService.updateBench(stateService.toPersistedBench(bench));
+  return bench;
+}
+
+/**
+ * Re-points a TestBench at a different focused spec (FR-024). Validates and
+ * contains the new focusedSpecPath against the project repo (same barrier as
+ * create), updates bench.focusedSpecPath to the resolved absolute path, persists,
+ * and returns the updated bench. The prior spec's test-results.json is untouched:
+ * results are keyed per spec, so re-pointing loses nothing and staleness is
+ * re-evaluated on the next plan load. Rejects with BenchError when the bench is
+ * not found, is not a testbench variant, or the path fails validation/containment.
+ */
+export function setFocusedSpecPath(
+  projectId: string,
+  benchId: number,
+  focusedSpecPath: string,
+): Bench {
+  const bench = getBench(projectId, benchId);
+  if (!bench) throw new BenchError("Bench not found", "NOT_FOUND");
+  if (bench.variant !== "testbench") {
+    throw new BenchError("Bench is not a testbench variant", "NOT_TESTBENCH");
+  }
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) {
+    throw new BenchError(`Project '${projectId}' not found`, "PROJECT_NOT_FOUND");
+  }
+  let resolvedPath: string;
+  try {
+    resolvedPath = resolveFocusedSpec(project.repoPath, focusedSpecPath).resolvedPath;
+  } catch (err) {
+    throw new BenchError(`Invalid focusedSpecPath: ${(err as Error).message}`, "INVALID_FOCUS");
+  }
+  bench.focusedSpecPath = resolvedPath;
   stateService.updateBench(stateService.toPersistedBench(bench));
   return bench;
 }

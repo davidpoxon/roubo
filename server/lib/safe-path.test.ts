@@ -9,6 +9,8 @@ import {
   assertSafeWorkspacePath,
   isInside,
   assertSafeIdentifier,
+  assertSafeMapKey,
+  isUnsafeMapKey,
   UnsafePathError,
   PLUGIN_ID_RE,
   UUID_RE,
@@ -210,6 +212,46 @@ describe("assertSafeIdentifier", () => {
       UnsafePathError,
     );
     expect(() => assertSafeIdentifier(42, PLUGIN_ID_RE, "pluginId")).toThrow(UnsafePathError);
+  });
+});
+
+describe("isUnsafeMapKey", () => {
+  it("is false for ordinary string keys", () => {
+    expect(isUnsafeMapKey("bench-1")).toBe(false);
+    expect(isUnsafeMapKey("TC-001")).toBe(false);
+    expect(isUnsafeMapKey("")).toBe(false);
+  });
+
+  it("is true for the prototype-polluting keys", () => {
+    expect(isUnsafeMapKey("__proto__")).toBe(true);
+    expect(isUnsafeMapKey("constructor")).toBe(true);
+    expect(isUnsafeMapKey("prototype")).toBe(true);
+  });
+
+  it("is true for non-strings", () => {
+    expect(isUnsafeMapKey(undefined)).toBe(true);
+    expect(isUnsafeMapKey(42)).toBe(true);
+    expect(isUnsafeMapKey(null)).toBe(true);
+  });
+});
+
+describe("assertSafeMapKey", () => {
+  it("accepts ordinary string keys", () => {
+    expect(() => assertSafeMapKey("bench-1", "bench id")).not.toThrow();
+    expect(() => assertSafeMapKey("TC-001", "case id")).not.toThrow();
+    expect(() => assertSafeMapKey("", "case id")).not.toThrow();
+  });
+
+  it("rejects the prototype-polluting keys", () => {
+    expect(() => assertSafeMapKey("__proto__", "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey("constructor", "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey("prototype", "bench id")).toThrow(UnsafePathError);
+  });
+
+  it("rejects non-strings", () => {
+    expect(() => assertSafeMapKey(undefined, "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey(42, "bench id")).toThrow(UnsafePathError);
+    expect(() => assertSafeMapKey(null, "bench id")).toThrow(UnsafePathError);
   });
 });
 

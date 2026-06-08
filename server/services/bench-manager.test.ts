@@ -725,6 +725,102 @@ describe("createBench", () => {
     const bench = benchManager.createBench("test-project");
     expect(bench.components.frontend.setupComplete).toBe(false);
   });
+
+  describe("testbench variant", () => {
+    const FOCUS = "/repos/test-project/.specifications/testbench/test-cases.json";
+
+    it("sets variant + focusedSpecPath on the bench and persists them", () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+
+      const bench = benchManager.createBench("test-project", undefined, {
+        variant: "testbench",
+        focusedSpecPath: FOCUS,
+      });
+
+      expect(bench.variant).toBe("testbench");
+      expect(bench.focusedSpecPath).toBe(FOCUS);
+    });
+
+    it("throws INVALID_FOCUS when focusedSpecPath is missing", () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+
+      expect(() =>
+        benchManager.createBench("test-project", undefined, { variant: "testbench" }),
+      ).toThrow(/focusedSpecPath is required/);
+    });
+
+    it("throws INVALID_FOCUS when focusedSpecPath escapes the repo", () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+
+      expect(() =>
+        benchManager.createBench("test-project", undefined, {
+          variant: "testbench",
+          focusedSpecPath: "/etc/passwd",
+        }),
+      ).toThrow(/Invalid focusedSpecPath/);
+    });
+
+    it("leaves variant + focusedSpecPath undefined for a normal bench", () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+
+      const bench = benchManager.createBench("test-project");
+      expect(bench.variant).toBeUndefined();
+      expect(bench.focusedSpecPath).toBeUndefined();
+    });
+  });
+});
+
+describe("setFocusedSpecPath", () => {
+  const FOCUS_A = "/repos/test-project/.specifications/spec-a/test-cases.json";
+  const FOCUS_B = "/repos/test-project/.specifications/spec-b/test-cases.json";
+
+  function seedTestbench() {
+    setupCreateBenchMocks();
+    setupProcessMocks();
+    return benchManager.createBench("test-project", undefined, {
+      variant: "testbench",
+      focusedSpecPath: FOCUS_A,
+    });
+  }
+
+  it("re-points the focused spec and persists", () => {
+    const created = seedTestbench();
+    vi.mocked(stateService.updateBench).mockClear();
+
+    const updated = benchManager.setFocusedSpecPath("test-project", created.id, FOCUS_B);
+
+    expect(updated.focusedSpecPath).toBe(FOCUS_B);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({ focusedSpecPath: FOCUS_B, variant: "testbench" }),
+    );
+  });
+
+  it("throws NOT_FOUND for an unknown bench", () => {
+    setupCreateBenchMocks();
+    expect(() => benchManager.setFocusedSpecPath("test-project", 999, FOCUS_B)).toThrow(
+      /Bench not found/,
+    );
+  });
+
+  it("throws NOT_TESTBENCH for a normal bench", () => {
+    setupCreateBenchMocks();
+    setupProcessMocks();
+    const normal = benchManager.createBench("test-project");
+    expect(() => benchManager.setFocusedSpecPath("test-project", normal.id, FOCUS_B)).toThrow(
+      /not a testbench/,
+    );
+  });
+
+  it("throws INVALID_FOCUS for an out-of-repo path", () => {
+    const created = seedTestbench();
+    expect(() =>
+      benchManager.setFocusedSpecPath("test-project", created.id, "/etc/passwd"),
+    ).toThrow(/Invalid focusedSpecPath/);
+  });
 });
 
 describe("background provisioning", () => {

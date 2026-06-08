@@ -728,6 +728,17 @@ export interface CreateBenchRequest {
    */
   externalId?: string;
   branchConflictResolution?: "resume" | "new";
+  /**
+   * TestBench variant discriminator. When `'testbench'`, the create path ignores
+   * issue/branch coupling and instead binds the bench to `focusedSpecPath`.
+   */
+  variant?: "testbench";
+  /**
+   * Absolute (or repo-relative) path to the focused spec's `test-cases.json`.
+   * Required when `variant === 'testbench'`; validated for containment against
+   * the project repo server-side.
+   */
+  focusedSpecPath?: string;
 }
 
 export interface ApiError {

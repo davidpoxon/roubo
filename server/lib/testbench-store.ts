@@ -32,7 +32,13 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { assertSafeIdentifier, resolveWithin, SPEC_SLUG_RE, UnsafePathError } from "./safe-path.js";
+import {
+  assertSafeIdentifier,
+  isUnsafeMapKey,
+  resolveWithin,
+  SPEC_SLUG_RE,
+  UnsafePathError,
+} from "./safe-path.js";
 import { writeResults } from "./testbench-results-write.js";
 import {
   TEST_RESULTS_SCHEMA_ID,
@@ -268,6 +274,14 @@ export function readPlanAndResults(
   slug: string,
   benchId: string,
 ): PlanAndResults {
+  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
+  // Reject prototype-polluting keys INLINE so a "__proto__" id can never read
+  // back the Object prototype as if it were a bench's results (CWE-1321).
+  if (isUnsafeMapKey(benchId)) {
+    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
+  }
+  const safeBenchId = benchId;
+
   const planTarget = planPath(repoPath, slug);
 
   let planRaw: string;
@@ -299,7 +313,7 @@ export function readPlanAndResults(
   }
 
   const stale = file.planHash !== planHash;
-  const results = file.benches[benchId] ?? null;
+  const results = file.benches[safeBenchId] ?? null;
   return { plan, results, stale, planHash, recovered };
 }
 
@@ -319,6 +333,21 @@ async function mutateCaseResult(
   caseId: string,
   mutate: (caseResult: CaseResult, author: Author, plan: TestCasesPlan) => void,
 ): Promise<CaseResult> {
+  // benchId and caseId are user-controlled and used as computed object keys
+  // below (file.benches[benchId], bench.caseResults[caseId]). Reject the
+  // prototype-polluting keys INLINE, before any lookup, so a crafted
+  // "__proto__"/"constructor"/"prototype" id can never mutate Object.prototype
+  // (CWE-1321). The guard is inline (not a helper call) so static analysis
+  // recognises it as a sanitising barrier on the tainted key.
+  if (isUnsafeMapKey(benchId)) {
+    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
+  }
+  if (isUnsafeMapKey(caseId)) {
+    throw new UnsafePathError(`Invalid case id: ${String(caseId)}`);
+  }
+  const safeBenchId = benchId;
+  const safeCaseId = caseId;
+
   const planTarget = planPath(repoPath, slug);
   let planParsed: unknown;
   try {
@@ -344,14 +373,14 @@ async function mutateCaseResult(
   const { file: loaded } = loadFile(repoPath, slug);
   const file = loaded ?? emptyFile(planHash);
 
-  const bench = file.benches[benchId] ?? emptyBench();
-  const caseResult = bench.caseResults[caseId] ?? emptyCaseResult();
+  const bench = file.benches[safeBenchId] ?? emptyBench();
+  const caseResult = bench.caseResults[safeCaseId] ?? emptyCaseResult();
 
   mutate(caseResult, author, plan);
 
-  bench.caseResults[caseId] = caseResult;
+  bench.caseResults[safeCaseId] = caseResult;
   bench.updatedAt = new Date().toISOString();
-  file.benches[benchId] = bench;
+  file.benches[safeBenchId] = bench;
   file.planHash = planHash;
 
   persist(repoPath, slug, file);
@@ -474,6 +503,13 @@ export async function reconcile(
   benchId: string,
   options: ReconcileOptions = {},
 ): Promise<ReconcileOutcome> {
+  // benchId is user-controlled and used as a computed key (file.benches[benchId]).
+  // Reject prototype-polluting keys INLINE before any lookup or write (CWE-1321).
+  if (isUnsafeMapKey(benchId)) {
+    throw new UnsafePathError(`Invalid bench id: ${String(benchId)}`);
+  }
+  const safeBenchId = benchId;
+
   const { plan, planHash } = (() => {
     const planTarget = planPath(repoPath, slug);
     let planParsed: unknown;
@@ -493,7 +529,7 @@ export async function reconcile(
 
   const { file: loaded } = loadFile(repoPath, slug);
   const file = loaded ?? emptyFile(planHash);
-  const benchResults = file.benches[benchId] ?? emptyBench();
+  const benchResults = file.benches[safeBenchId] ?? emptyBench();
 
   const { classification, nextResults } = reconcileDomain(plan, benchResults);
 
@@ -503,7 +539,7 @@ export async function reconcile(
 
   const persisted = options.purgeOrphans === true ? purgeOrphans(nextResults) : nextResults;
   persisted.updatedAt = new Date().toISOString();
-  file.benches[benchId] = persisted;
+  file.benches[safeBenchId] = persisted;
   file.planHash = planHash;
   persist(repoPath, slug, file);
 
