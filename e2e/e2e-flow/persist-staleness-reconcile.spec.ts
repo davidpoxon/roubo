@@ -283,11 +283,16 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
       `${TC_043_OWNING_SLICES.integrity}: TC-B archived note retained`,
     ).toBeVisible();
 
-    // The rollup counts only the two active cases that were marked (TC-A, TC-C);
-    // TC-D is not_started and the orphan is excluded.
+    // The rollup counts only the active plan cases: TC-A/TC-C passed and TC-D
+    // not_started (remaining), a denominator of 3. The archived orphan TC-B is
+    // excluded from the rollup entirely (AC4: "the rollup counts only TC-A and
+    // TC-C"). Assert the ProgressBar's accessible readout, not bare visibility,
+    // so the count + orphan-exclusion behaviour AC4 demands is actually proven.
     await expect(
-      panel.getByText("Overall"),
-      `${TC_043_OWNING_SLICES.apply}: rollup visible`,
+      panel.getByRole("img", {
+        name: "Overall: 2 passed, 0 failed, 0 in progress, 1 remaining of 3",
+      }),
+      `${TC_043_OWNING_SLICES.apply}: rollup counts only the active cases (orphan TC-B excluded)`,
     ).toBeVisible();
   });
 

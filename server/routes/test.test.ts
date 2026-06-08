@@ -1261,6 +1261,33 @@ describe("TestBench harness endpoints (#440)", () => {
       expect(res.body.error).toMatch(/not a testbench/);
     });
 
+    it("returns 400 when the focusedSpecPath escapes the repository", async () => {
+      seedRepo(VALID_PLAN);
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        id: PROJECT_ID,
+        repoPath,
+        config: {} as never,
+        configValid: true,
+        settings: {} as never,
+      } as never);
+      // A testbench whose focusedSpecPath points outside the project repo: the
+      // resolveFocusedSpec containment barrier rejects it, exercising the
+      // "Invalid focusedSpecPath" branch of resolveBenchSpecDir (the
+      // security-relevant path-traversal rejection).
+      vi.mocked(benchManager.getBench).mockReturnValue({
+        id: BENCH_ID,
+        projectId: PROJECT_ID,
+        variant: "testbench",
+        focusedSpecPath: "/etc/passwd",
+      } as never);
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app)
+        .post("/test/__rewrite-spec-cases")
+        .send({ projectId: PROJECT_ID, benchId: BENCH_ID, testCases: {} });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Invalid focusedSpecPath/);
+    });
+
     it("returns 500 and logs when the write fails", async () => {
       seedRepo(VALID_PLAN);
       pointMocksAtRepo();
