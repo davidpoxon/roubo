@@ -18,6 +18,8 @@ export default function BenchesTab() {
     isLoading,
     openCreateBench,
     pickIssueForBench,
+    testBenchEnabled,
+    onCreateTestBench,
     hasGitHub,
     benches,
     projectConfig,
@@ -141,6 +143,8 @@ export default function BenchesTab() {
                   position={position}
                   onCreateBlank={openCreateBench}
                   onPickIssue={pickIssueForBench}
+                  testBenchEnabled={testBenchEnabled}
+                  onCreateTestBench={onCreateTestBench}
                 />
               );
             })}

@@ -43,13 +43,25 @@ export function useCreateBench() {
       issueNumber,
       externalId,
       branchConflictResolution,
+      variant,
+      focusedSpecPath,
     }: {
       projectId: string;
       branch?: string;
       issueNumber?: number;
       externalId?: string;
       branchConflictResolution?: "resume" | "new";
-    }) => api.createBench(projectId, { branch, issueNumber, externalId, branchConflictResolution }),
+      variant?: "testbench";
+      focusedSpecPath?: string;
+    }) =>
+      api.createBench(projectId, {
+        branch,
+        issueNumber,
+        externalId,
+        branchConflictResolution,
+        variant,
+        focusedSpecPath,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["benches"] });
       queryClient.invalidateQueries({ queryKey: ["project-items"] });

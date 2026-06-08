@@ -865,6 +865,9 @@ export default function BenchDetail() {
   const isTestbench = bench?.variant === "testbench";
 
   const { activeTab, setActiveTab } = useBenchViewState(projectId, benchId);
+  // A TestBench (#418) surfaces a dedicated "testbench" tab as the first tab so a
+  // freshly created TestBench opens on it. The review surface itself ships in #419
+  // via TestBenchPanel.
   const availableTabIds: BenchTabId[] = [
     ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
     "components",

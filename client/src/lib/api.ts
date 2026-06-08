@@ -180,6 +180,10 @@ export function createBench(
     // continue to assign by issueNumber.
     externalId?: string;
     branchConflictResolution?: "resume" | "new";
+    // TestBench variant (#418): when "testbench", the create path binds the bench
+    // to focusedSpecPath rather than to an issue/branch.
+    variant?: "testbench";
+    focusedSpecPath?: string;
   } = {},
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
@@ -187,6 +191,8 @@ export function createBench(
   if (opts.issueNumber) body.issueNumber = opts.issueNumber;
   if (opts.externalId) body.externalId = opts.externalId;
   if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
+  if (opts.variant) body.variant = opts.variant;
+  if (opts.focusedSpecPath) body.focusedSpecPath = opts.focusedSpecPath;
   return request(`/projects/${projectId}/benches`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -1043,6 +1049,49 @@ export type { InstallPreview, InstallSource };
 // Migration (WU-024 / issue #42)
 export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
   return request("/migration/status");
+}
+
+// TestBench spec discovery + manual-path validation (#418). These mirror the
+// server-side shapes in server/lib/testbench-spec-discovery.ts; the client cannot
+// import from the server package, so the response types are restated here.
+
+// One discovered, contract-valid spec: the slug naming its
+// `.specifications/<slug>/` folder, the absolute path to its test-cases.json, and
+// the number of cases in it.
+export interface DiscoveredSpec {
+  slug: string;
+  path: string;
+  caseCount: number;
+}
+
+// Result of validating a manual path: on success the resolved slug + case count,
+// on failure a flat list of human-readable error messages.
+export type ManualPathValidation =
+  | { ok: true; slug: string; caseCount: number }
+  | { ok: false; errors: string[] };
+
+// GET /testbench/specs: enumerate every contract-valid spec under the project repo.
+export function fetchSpecs(projectId: string): Promise<{ specs: DiscoveredSpec[] }> {
+  return request(`/projects/${projectId}/testbench/specs`);
+}
+
+// POST /testbench/specs/validate: validate a single user-supplied path (the FR-003
+// manual escape hatch). The server returns 200 for { ok: true } and 400 for
+// { ok: false }; both carry the ManualPathValidation body, so we read the parsed
+// JSON in either case rather than letting `request` throw on the 400.
+export async function validateSpecPath(
+  projectId: string,
+  path: string,
+): Promise<ManualPathValidation> {
+  const res = await fetch(`${BASE}/projects/${projectId}/testbench/specs/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const body = await res
+    .json()
+    .catch(() => ({ ok: false, errors: [res.statusText] }) as ManualPathValidation);
+  return body as ManualPathValidation;
 }
 
 // TestBench notes (#421). Append-only: POST returns the stamped Note (author +

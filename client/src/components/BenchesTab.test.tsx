@@ -22,12 +22,16 @@ vi.mock("./EmptyBenchCard", () => ({
     position,
     onCreateBlank,
     onPickIssue,
+    testBenchEnabled,
+    onCreateTestBench,
   }: {
     position: number;
     onCreateBlank: () => void;
     onPickIssue: (p: number) => void;
+    testBenchEnabled?: boolean;
+    onCreateTestBench?: (p: number) => void;
   }) => (
-    <div data-testid="empty-bench-card">
+    <div data-testid="empty-bench-card" data-testbench-enabled={String(!!testBenchEnabled)}>
       {position}
       <button data-testid={`pick-issue-${position}`} onClick={() => onPickIssue(position)}>
         Pick
@@ -35,6 +39,14 @@ vi.mock("./EmptyBenchCard", () => ({
       <button data-testid={`create-blank-${position}`} onClick={onCreateBlank}>
         Create
       </button>
+      {testBenchEnabled && onCreateTestBench && (
+        <button
+          data-testid={`create-testbench-${position}`}
+          onClick={() => onCreateTestBench(position)}
+        >
+          TestBench
+        </button>
+      )}
     </div>
   ),
 }));
@@ -122,6 +134,8 @@ function makeContext(overrides: Partial<ProjectOutletContext> = {}): ProjectOutl
     isLoading: false,
     openCreateBench: vi.fn(),
     pickIssueForBench: vi.fn(),
+    testBenchEnabled: false,
+    onCreateTestBench: vi.fn(),
     hasGitHub: false,
     benches: [],
     projectConfig: makeConfig(),
@@ -188,6 +202,37 @@ describe("BenchesTab", () => {
     );
     await userEvent.click(screen.getByTestId("pick-issue-3"));
     expect(pickIssueForBench).toHaveBeenCalledWith(3);
+  });
+
+  it("passes testBenchEnabled and onCreateTestBench through to EmptyBenchCard", async () => {
+    const onCreateTestBench = vi.fn();
+    renderTab(
+      makeContext({
+        benchPositions: [{ position: 1 }],
+        testBenchEnabled: true,
+        onCreateTestBench,
+      }),
+    );
+    expect(screen.getByTestId("empty-bench-card")).toHaveAttribute(
+      "data-testbench-enabled",
+      "true",
+    );
+    await userEvent.click(screen.getByTestId("create-testbench-1"));
+    expect(onCreateTestBench).toHaveBeenCalledWith(1);
+  });
+
+  it("does not surface the TestBench option when disabled", () => {
+    renderTab(
+      makeContext({
+        benchPositions: [{ position: 1 }],
+        testBenchEnabled: false,
+      }),
+    );
+    expect(screen.getByTestId("empty-bench-card")).toHaveAttribute(
+      "data-testbench-enabled",
+      "false",
+    );
+    expect(screen.queryByTestId("create-testbench-1")).not.toBeInTheDocument();
   });
 
   it("shows empty state message when benchPositions is null and not loading", () => {

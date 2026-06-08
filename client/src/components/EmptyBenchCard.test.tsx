@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockUseDroppable = vi.hoisted(() =>
@@ -57,5 +57,86 @@ describe("EmptyBenchCard", () => {
     const button = screen.getByText("Bench 1").closest("button") as HTMLElement;
     expect(button.className).toContain("border-stone-400");
     expect(button.className).toContain("scale-[1.02]");
+  });
+
+  it("omits the Create a TestBench option when the feature is disabled", async () => {
+    render(
+      <EmptyBenchCard
+        position={1}
+        onCreateBlank={vi.fn()}
+        onPickIssue={vi.fn()}
+        testBenchEnabled={false}
+        onCreateTestBench={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByText("Bench 1").closest("button") as HTMLElement);
+    expect(screen.queryByText("Create a TestBench")).not.toBeInTheDocument();
+  });
+
+  it("omits the Create a TestBench option when no handler is supplied even if enabled", async () => {
+    render(
+      <EmptyBenchCard
+        position={1}
+        onCreateBlank={vi.fn()}
+        onPickIssue={vi.fn()}
+        testBenchEnabled
+      />,
+    );
+    await userEvent.click(screen.getByText("Bench 1").closest("button") as HTMLElement);
+    expect(screen.queryByText("Create a TestBench")).not.toBeInTheDocument();
+  });
+
+  it("shows the Create a TestBench option only when enabled", async () => {
+    render(
+      <EmptyBenchCard
+        position={1}
+        onCreateBlank={vi.fn()}
+        onPickIssue={vi.fn()}
+        testBenchEnabled
+        onCreateTestBench={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByText("Bench 1").closest("button") as HTMLElement);
+    expect(screen.getByText("Create a TestBench")).toBeInTheDocument();
+  });
+
+  it("calls onCreateTestBench with the position when the option is pressed", async () => {
+    const onCreateTestBench = vi.fn();
+    render(
+      <EmptyBenchCard
+        position={4}
+        onCreateBlank={vi.fn()}
+        onPickIssue={vi.fn()}
+        testBenchEnabled
+        onCreateTestBench={onCreateTestBench}
+      />,
+    );
+    await userEvent.click(screen.getByText("Bench 4").closest("button") as HTMLElement);
+    await userEvent.click(screen.getByText("Create a TestBench"));
+    expect(onCreateTestBench).toHaveBeenCalledWith(4);
+  });
+
+  it("opens the menu and triggers TestBench creation via the keyboard", async () => {
+    const onCreateTestBench = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <EmptyBenchCard
+        position={1}
+        onCreateBlank={vi.fn()}
+        onPickIssue={vi.fn()}
+        testBenchEnabled
+        onCreateTestBench={onCreateTestBench}
+      />,
+    );
+    await user.tab();
+    expect(screen.getByText("Bench 1").closest("button")).toHaveFocus();
+    await user.keyboard("{Enter}");
+    const option = await screen.findByText("Create a TestBench");
+    const optionButton = option.closest("button") as HTMLElement;
+    await act(async () => {
+      optionButton.focus();
+    });
+    await user.keyboard("{Enter}");
+    expect(onCreateTestBench).toHaveBeenCalledWith(1);
   });
 });
