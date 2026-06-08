@@ -101,22 +101,15 @@ export interface Note {
 
 // A recorded result for one case, keyed by case id in BenchResults.caseResults.
 //
-// caseCanon is the per-case canonical body snapshot reconcile compares against
-// the live plan to classify changed vs unchanged. The published contract's
-// CaseResultSchema now declares it too (#447), so this local interface is a
-// faithful mirror with no divergence; a result with no stored snapshot is
-// conservatively classified changed. Consolidating this local copy onto the
-// contract-derived shape so it is declared once is tracked in #488.
-export interface CaseResult {
-  observationMarks: Record<string, ObservationMark>;
-  derivedStatus: CaseStatus;
-  statusOverride?: StatusOverride;
-  notes: Note[];
-  // A removed case's result is flagged orphaned and retained, never deleted,
-  // and excluded from the rollup (FR-013, FR-017).
-  orphaned?: true;
-  caseCanon?: string;
-}
+// The shape is now derived from the published contract's CaseResultSchema
+// (testbench-contracts), re-exported here so it is declared once. This is a
+// type-only re-export: it is erased at compile time, so no zod runtime import
+// is pulled into these pure, Vite-safe domain modules. caseCanon (the per-case
+// canonical body snapshot reconcile compares against the live plan to classify
+// changed vs unchanged) is one of the contract fields; a result with no stored
+// snapshot is conservatively classified changed.
+import type { CaseResult } from "./testbench-contracts";
+export type { CaseResult };
 
 // One bench's recorded results, keyed by case id.
 export interface BenchResults {
