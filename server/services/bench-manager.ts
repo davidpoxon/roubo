@@ -180,6 +180,8 @@ export function initialize() {
       baseCommit: ps.baseCommit,
       injectedJigId: ps.injectedJigId,
       injectedJigSource: ps.injectedJigSource,
+      variant: ps.variant,
+      focusedSpecPath: ps.focusedSpecPath,
     };
 
     benches.set(benchKey(ps.projectId, ps.id), bench);
