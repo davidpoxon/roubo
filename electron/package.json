@@ -45,8 +45,8 @@
     "@electron-forge/publisher-github": "7.11.1",
     "@electron-forge/shared-types": "7.11.1",
     "@electron/rebuild": "4.0.4",
-    "@types/node": "25.6.0",
-    "electron": "42.0.0",
+    "@types/node": "25.6.2",
+    "electron": "42.0.1",
     "ts-node": "10.9.2",
     "typescript": "6.0.3"
   }
