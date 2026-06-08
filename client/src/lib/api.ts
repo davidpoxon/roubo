@@ -57,7 +57,8 @@ import type {
   SourceOptionsResult,
   SourceSelection,
 } from "@roubo/shared";
-import type { Note } from "@roubo/shared/testbench-contracts";
+import type { Note, TestCasesPlan, BenchResults } from "@roubo/shared/testbench-contracts";
+import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 
 export interface MigrationStatusResponse {
   schemaVersion: number | null;
@@ -451,6 +452,50 @@ export function fetchInspectionRun(
 export function abortInspection(projectId: string, benchId: number): Promise<void> {
   return requestVoid(`/projects/${projectId}/benches/${benchId}/inspection`, {
     method: "DELETE",
+  });
+}
+
+// TestBench
+//
+// The plan endpoint returns the server-computed staleness view: the source plan,
+// this bench's recorded results (or null), and the `stale` flag derived from a
+// canonical-hash comparison server-side, so a whitespace/format-only source edit
+// never flips `stale` (FR-016, NFR-003). The client renders these as-is; no
+// staleness or classification logic lives in the UI.
+export interface TestbenchPlanResponse {
+  plan: TestCasesPlan;
+  results: BenchResults | null;
+  stale: boolean;
+  planHash: string;
+  recovered: boolean;
+}
+
+// The reconcile endpoint classifies cases (added/unchanged/changed/removed) and
+// reports whether the reconciled, orphan-not-delete results were persisted
+// (`applied` is false for a preview). Orphan purge requires confirm + purgeOrphans.
+export interface ReconcileResponse {
+  classification: ReconcileClassification;
+  applied: boolean;
+}
+
+export function fetchTestbenchPlan(
+  projectId: string,
+  benchId: number,
+): Promise<TestbenchPlanResponse> {
+  return request(`/projects/${projectId}/benches/${benchId}/testbench/plan`);
+}
+
+export function reconcileTestbench(
+  projectId: string,
+  benchId: number,
+  opts: { confirm?: boolean; purgeOrphans?: boolean } = {},
+): Promise<ReconcileResponse> {
+  const body: { confirm?: boolean; purgeOrphans?: boolean } = {};
+  if (opts.confirm !== undefined) body.confirm = opts.confirm;
+  if (opts.purgeOrphans !== undefined) body.purgeOrphans = opts.purgeOrphans;
+  return request(`/projects/${projectId}/benches/${benchId}/testbench/reconcile`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 
