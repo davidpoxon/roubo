@@ -142,6 +142,9 @@
                 "orphaned": {
                   "type": "boolean",
                   "const": true
+                },
+                "caseCanon": {
+                  "type": "string"
                 }
               },
               "required": ["observationMarks", "derivedStatus", "notes"],
