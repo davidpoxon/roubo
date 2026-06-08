@@ -437,23 +437,28 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
     expect(file.planHash).toBe(computePlanHash(planFor()));
   });
 
-  // NFR-003: a confirmed reconcile of a marked, in-plan case must round-trip
-  // through the strict published contract. testbench-domain stamps a per-case
-  // caseCanon snapshot the strict CaseResultSchema does not declare; if it were
-  // persisted, the next strict read would fail open and silently discard every
-  // recorded result. The persist boundary strips it, so results survive the read.
-  it("preserves recorded results when re-read after a confirmed reconcile (no fail-open data loss)", async () => {
+  // NFR-003 / #447: a confirmed reconcile of a marked, in-plan case persists the
+  // per-case caseCanon snapshot testbench-domain stamps, and that file must
+  // round-trip through the strict published contract. The contract now declares
+  // caseCanon, so the snapshot lands on disk and re-reads cleanly: the
+  // changed-vs-unchanged signal survives the round-trip without fail-open data
+  // loss.
+  it("persists the per-case caseCanon snapshot and re-reads it cleanly after a confirmed reconcile", async () => {
     await markObservation(repo, SLUG, BENCH, "TC-001", "O1", "pass");
     await reconcile(repo, SLUG, BENCH, { confirm: true });
 
-    // The persisted file carries no non-contract caseCanon field.
+    // The persisted file carries the caseCanon snapshot stamped by reconcile.
     const onDisk = JSON.parse(fs.readFileSync(resultsFilePath(), "utf8"));
-    expect(onDisk.benches[BENCH].caseResults["TC-001"]).not.toHaveProperty("caseCanon");
+    const persistedCanon = onDisk.benches[BENCH].caseResults["TC-001"].caseCanon;
+    expect(typeof persistedCanon).toBe("string");
+    expect(persistedCanon.length).toBeGreaterThan(0);
 
-    // The store re-reads it cleanly: results are retained, not recovered-away.
+    // The store re-reads it cleanly through the strict contract: results are
+    // retained (not recovered-away) and the snapshot survives the round-trip.
     const view = readPlanAndResults(repo, SLUG, BENCH);
     expect(view.recovered).toBe(false);
     expect(view.results).not.toBeNull();
     expect(view.results?.caseResults["TC-001"].observationMarks.O1.result).toBe("pass");
+    expect(view.results?.caseResults["TC-001"].caseCanon).toBe(persistedCanon);
   });
 });

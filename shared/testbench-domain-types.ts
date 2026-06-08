@@ -102,11 +102,11 @@ export interface Note {
 // A recorded result for one case, keyed by case id in BenchResults.caseResults.
 //
 // caseCanon is the per-case canonical body snapshot reconcile compares against
-// the live plan to classify changed vs unchanged. It is NOT yet on the
-// published contract's CaseResultSchema (which is .strict()); carrying it here
-// keeps issue #413 scoped and data-loss-safe (a result with no stored snapshot
-// is conservatively classified changed). Aligning the published contract to
-// persist caseCanon is tracked in #447.
+// the live plan to classify changed vs unchanged. The published contract's
+// CaseResultSchema now declares it too (#447), so this local interface is a
+// faithful mirror with no divergence; a result with no stored snapshot is
+// conservatively classified changed. Consolidating this local copy onto the
+// contract-derived shape so it is declared once is tracked in #488.
 export interface CaseResult {
   observationMarks: Record<string, ObservationMark>;
   derivedStatus: CaseStatus;
