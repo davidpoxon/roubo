@@ -175,6 +175,32 @@ describe("SpecPickerModal", () => {
       expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/billing/test-cases.json");
     });
 
+    it("flags the currently focused spec row as Active (#444, TC-007 step 2)", () => {
+      renderModal({
+        mode: "repoint",
+        activePath: "/repo/.specifications/testbench/test-cases.json",
+      });
+      const badge = screen.getByText("Active");
+      expect(badge).toBeInTheDocument();
+      // The badge sits on the active spec's row, not the other discovered spec.
+      const activeRow = screen
+        .getByText("/repo/.specifications/testbench/test-cases.json")
+        .closest("button") as HTMLElement;
+      const otherRow = screen
+        .getByText("/repo/.specifications/billing/test-cases.json")
+        .closest("button") as HTMLElement;
+      expect(activeRow).toContainElement(badge);
+      expect(otherRow).not.toContainElement(badge);
+    });
+
+    it("does not render an Active badge in create mode even when an activePath is passed", () => {
+      renderModal({
+        mode: "create",
+        activePath: "/repo/.specifications/testbench/test-cases.json",
+      });
+      expect(screen.queryByText("Active")).not.toBeInTheDocument();
+    });
+
     it("dismissing via Cancel leaves the focused spec unchanged (no onCreate, explicit only)", async () => {
       const onCreate = vi.fn();
       const onClose = vi.fn();

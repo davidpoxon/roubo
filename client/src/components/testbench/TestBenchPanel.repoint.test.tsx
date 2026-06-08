@@ -98,6 +98,17 @@ describe("TestBenchPanel re-point header", () => {
     expect(screen.getByRole("button", { name: /Re-point TestBench/ })).toBeInTheDocument();
   });
 
+  it("flags the currently focused spec as Active in the re-point picker (#444, TC-007 step 2)", async () => {
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    await userEvent.click(screen.getByRole("button", { name: /Change focused spec/ }));
+    const badge = screen.getByText("Active");
+    // The focused path renders in both the header and the picker row; the picker
+    // row is the one wrapped in a ToggleButton, so resolve it via the badge.
+    const activeRow = badge.closest("button") as HTMLElement;
+    expect(activeRow).toBeInTheDocument();
+    expect(activeRow).toHaveTextContent("checkout");
+  });
+
   it("confirming a different spec calls the re-point mutation with the new path", async () => {
     render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
     await userEvent.click(screen.getByRole("button", { name: /Change focused spec/ }));

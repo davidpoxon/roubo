@@ -265,3 +265,76 @@ export const TC_069_OWNING_SLICES = {
   gatedSurface: "#418 (create-a-TestBench entry point gated on the toggle)",
   surfaceWiring: "#416 (bench-variant wiring: testBenchEnabled derived from settings)",
 } as const;
+
+// TC-007 (#444): the authoritative `e2e_flow` case the re-point journey
+// drift-guards against. The journey re-points a TestBench from spec-A to spec-B
+// and back, asserting per-spec result isolation. Two distinct plans are seeded
+// into the one fixture repo so isolation is observable: spec-A (TC_007_PLAN_A)
+// carries the case the test records a result against; spec-B (TC_007_PLAN_B) is
+// a different spec with a distinct slug and distinct case ids, so spec-B's case
+// ids never appear in spec-A's preserved result set (AC3). These are schema-valid
+// (TestCasesPlanSchema) projections of `.specifications/testbench/test-cases.json`
+// TC-007 expressed as TestBench plan objects; keeping them here, beside TC-001,
+// makes the drift guard explicit.
+export const TC_007_SPEC_A_SLUG = "repoint-spec-a";
+export const TC_007_SPEC_B_SLUG = "repoint-spec-b";
+
+export const TC_007_PLAN_A: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TC_007_SPEC_A_SLUG,
+  cases: [
+    {
+      id: "TC-A01",
+      title: "Spec-A: the case a result is recorded against before the re-point",
+      level: "1",
+      priority: "P0",
+      preconditions: ["A TestBench is bound to spec-A"],
+      steps: [
+        {
+          id: "TC-A01-S1",
+          instruction: "Perform the spec-A check",
+          observations: [{ id: "TC-A01-S1-O1", expected: "Spec-A behaves as specified" }],
+        },
+      ],
+    },
+  ],
+};
+
+export const TC_007_PLAN_B: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TC_007_SPEC_B_SLUG,
+  cases: [
+    {
+      id: "TC-B01",
+      title: "Spec-B: a distinct case that must never bleed into spec-A's results",
+      level: "1",
+      priority: "P0",
+      preconditions: ["Spec-B is discoverable in the same project repo"],
+      steps: [
+        {
+          id: "TC-B01-S1",
+          instruction: "Perform the spec-B check",
+          observations: [{ id: "TC-B01-S1-O1", expected: "Spec-B behaves as specified" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The slices that own each leg of the re-point journey, surfaced in a failing
+// run so the divergence localises to an attributable slice (FR-020 / AC5). The
+// mapping is this work unit's `blocked_by` set from issue #444:
+//   #414 settings toggle (TestBench enablement),
+//   #416 bench-variant create (spec-bound worktree + variant tab surface),
+//   #423 re-point (header "Change focused spec" action + spec-picker repoint
+//        mode + per-spec results reload).
+export const OWNING_SLICES_TC007: Record<string, string> = {
+  enable: "#414 (TestBench settings toggle)",
+  createBinding: "#416 (bench-variant create: spec-bound worktree)",
+  reviewPanel: "#416 (bench-variant create: TestBench tab surface + results panel)",
+  repointAction: "#423 (re-point: 'Change focused spec' header action)",
+  specPicker: "#423 (re-point: spec-picker in repoint mode with active-spec marker)",
+  resultsIsolation: "#423 (re-point: per-spec results reload + isolation)",
+};
