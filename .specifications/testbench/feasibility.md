@@ -60,11 +60,11 @@ Assumptions: focused project is always a registered project with a known repoPat
 
 ## De-risking plan (resolve before/early in the build)
 
-- [ ] **Schema-contract spike:** lock the `test-cases.json` optional targeting-field shapes (which of CSS selector / ARIA role+name / visible-text anchor / route-URL context / region, and their exact zod shape, all `.optional()`), the published-schema versioning strategy (`$id` semver, file-per-version vs single overwritten file), and the multi-bench physical layout for `test-results.json`. Resolves risks 1 and the multi-bench keying open question, before any schema is committed.
-- [ ] **Results-store + safe-path spike:** prototype writing `test-results.json` into an external registered project repo via `resolveWithin(repoPath, '.specifications', slug, file)` + a strict slug allowlist, with same-directory temp-then-rename to dodge `EXDEV`; confirm it passes CodeQL. Resolves risk 3 and the EXDEV hazard.
-- [ ] **Hash-staleness + reconcile spike:** decide the canonicalised hash input (normalised case-set content, not raw bytes) and the orphan-not-delete reconcile semantics; prove no authored result is ever silently lost when cases are added/removed/changed. Resolves risk 2 and the false-positive-staleness risk.
-- [ ] **Schema-generate + CI drift-guard spike:** wire `z.toJSONSchema()` into a `generate:schema` script writing into `schema/`, plus a CI step that regenerates and `git diff --exit-code`s the output (model on the existing `format:check` step). Resolves risk 5.
-- [ ] **Git-identity helper (small):** `git config user.name` / `user.email` scoped to the bench workspace, with a graceful fallback (sentinel author + UI warning) when unset, so note-append never throws. Resolves the author-stamping reliability risk.
+- [x] **Schema-contract spike:** _(completed: #405, closed)_ lock the `test-cases.json` optional targeting-field shapes (which of CSS selector / ARIA role+name / visible-text anchor / route-URL context / region, and their exact zod shape, all `.optional()`), the published-schema versioning strategy (`$id` semver, file-per-version vs single overwritten file), and the multi-bench physical layout for `test-results.json`. Resolves risks 1 and the multi-bench keying open question, before any schema is committed.
+- [x] **Results-store + safe-path spike:** _(completed: #406, closed)_ prototype writing `test-results.json` into an external registered project repo via `resolveWithin(repoPath, '.specifications', slug, file)` + a strict slug allowlist, with same-directory temp-then-rename to dodge `EXDEV`; confirm it passes CodeQL. Resolves risk 3 and the EXDEV hazard.
+- [x] **Hash-staleness + reconcile spike:** _(completed: #407, closed)_ decide the canonicalised hash input (normalised case-set content, not raw bytes) and the orphan-not-delete reconcile semantics; prove no authored result is ever silently lost when cases are added/removed/changed. Resolves risk 2 and the false-positive-staleness risk.
+- [x] **Schema-generate + CI drift-guard spike:** _(completed: #408, closed)_ wire `z.toJSONSchema()` into a `generate:schema` script writing into `schema/`, plus a CI step that regenerates and `git diff --exit-code`s the output (model on the existing `format:check` step). Resolves risk 5.
+- [x] **Git-identity helper (small):** _(completed: #409, closed)_ `git config user.name` / `user.email` scoped to the bench workspace, with a graceful fallback (sentinel author + UI warning) when unset, so note-append never throws. Resolves the author-stamping reliability risk.
 
 _(These become `spike` issues when `breakdown` runs.)_
 
@@ -81,10 +81,10 @@ _(These become `spike` issues when `breakdown` runs.)_
 
 ## Open questions
 
-- [ ] Physical layout for multi-bench results on one spec: single `test-results.json` with a bench-keyed map, or per-bench filenames? (Load-bearing for the published schema.)
-- [ ] What is hashed for staleness: raw bytes or a normalised case-set serialisation?
-- [ ] Reconcile UX when a case with authored results is removed: orphan/archive vs warn vs purge, and whether a permanent purge is ever allowed.
+- [x] Physical layout for multi-bench results on one spec: single `test-results.json` with a bench-keyed map, or per-bench filenames? (Load-bearing for the published schema.) RESOLVED, single `test-results.json` per spec with a bench-keyed map (spike #405).
+- [x] What is hashed for staleness: raw bytes or a normalised case-set serialisation? RESOLVED, a canonicalised normalised case-set serialisation (spike #407).
+- [x] Reconcile UX when a case with authored results is removed: orphan/archive vs warn vs purge, and whether a permanent purge is ever allowed. RESOLVED, orphan-not-delete (archived, excluded from rollup); a permanent purge is allowed only on explicit user confirmation (spike #407).
 - [ ] Is the `test-results.json` sidecar committed to the focused project's VCS or gitignored? (Determines whether the audit trail is shared or ephemeral.)
-- [ ] For the manual file-path escape hatch, what directory is the sidecar root and how is it constrained?
+- [x] For the manual file-path escape hatch, what directory is the sidecar root and how is it constrained? RESOLVED, the sidecar resolves through `resolveWithin(repoPath, ...)` plus a strict spec-slug allowlist, constrained to a registered project repo (spike #406).
 - [ ] TestBench-tab behaviour when the focused spec is missing, schema-invalid, or its repo is mid-rebase / `.git`-locked.
 - [ ] Whether per-case status override needs a captured reason, and whether the focused-spec binding is fixed at creation or re-pointable.

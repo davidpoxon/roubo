@@ -12,7 +12,9 @@
       "User is on the bench list view for the project"
     ],
     "steps": [
-      { "action": "Open the option menu on an empty bench slot" },
+      {
+        "action": "Open the option menu on an empty bench slot"
+      },
       {
         "action": "Click 'Create a TestBench' from the option menu",
         "expected": [
@@ -182,7 +184,9 @@
       "User has opened the Create a TestBench modal"
     ],
     "steps": [
-      { "action": "Locate the manual-path input field in the modal" },
+      {
+        "action": "Locate the manual-path input field in the modal"
+      },
       {
         "action": "Type a valid path to a test-cases.json within the project repo",
         "expected": ["Input shows a validating indicator while the path is validated"]
@@ -221,7 +225,9 @@
       "User is on the TestBench tab"
     ],
     "steps": [
-      { "action": "Click the 'Change focused spec' (re-point) action in the TestBench tab header" },
+      {
+        "action": "Click the 'Change focused spec' (re-point) action in the TestBench tab header"
+      },
       {
         "action": "Observe the spec-picker modal",
         "expected": [
@@ -340,7 +346,7 @@
       }
     ],
     "tags": ["negative", "schema-validation", "manual-path"],
-    "linked_requirement_ids": ["FR-003"],
+    "linked_requirement_ids": ["FR-003", "NFR-007"],
     "linked_user_story_ids": ["US-012"]
   },
   {
@@ -552,7 +558,9 @@
       "The review tab is accessible"
     ],
     "steps": [
-      { "action": "Navigate to the TestBench review tab for the loaded plan" },
+      {
+        "action": "Navigate to the TestBench review tab for the loaded plan"
+      },
       {
         "action": "Observe the left-pane case list",
         "expected": [
@@ -585,7 +593,9 @@
       "The review UI is open"
     ],
     "steps": [
-      { "action": "Click a case row in the left pane" },
+      {
+        "action": "Click a case row in the left pane"
+      },
       {
         "action": "Observe the right detail pane",
         "expected": [
@@ -615,7 +625,9 @@
       "The review tab is open with all cases not_started"
     ],
     "steps": [
-      { "action": "Click case A in the left pane" },
+      {
+        "action": "Click case A in the left pane"
+      },
       {
         "action": "Observe the detail-pane status",
         "expected": ["Status shows not_started", "Progress bar shows all cases open"]
@@ -684,7 +696,9 @@
       "Review tab is open with the case selected"
     ],
     "steps": [
-      { "action": "Locate an unmarked observation in the step detail" },
+      {
+        "action": "Locate an unmarked observation in the step detail"
+      },
       {
         "action": "Click the pass segment of the mark control",
         "expected": [
@@ -828,7 +842,9 @@
       "Review tab is open with the case selected"
     ],
     "steps": [
-      { "action": "Open the status override select" },
+      {
+        "action": "Open the status override select"
+      },
       {
         "action": "Select blocked",
         "expected": [
@@ -858,7 +874,10 @@
       "The notes rail is visible"
     ],
     "steps": [
-      { "action": "Focus the add-note field", "expected": ["Input is focused and ready"] },
+      {
+        "action": "Focus the add-note field",
+        "expected": ["Input is focused and ready"]
+      },
       {
         "action": "Type a note and submit",
         "expected": [
@@ -897,7 +916,9 @@
           "Per-level sections show 0 passed, 0 failed"
         ]
       },
-      { "action": "Mark all observations for one L1 case pass" },
+      {
+        "action": "Mark all observations for one L1 case pass"
+      },
       {
         "action": "Observe the progress rollup",
         "expected": [
@@ -906,7 +927,9 @@
           "Open decrements by 1"
         ]
       },
-      { "action": "Mark all observations for one L2 case fail" },
+      {
+        "action": "Mark all observations for one L2 case fail"
+      },
       {
         "action": "Observe the progress rollup",
         "expected": [
@@ -955,7 +978,9 @@
       "The case has one unmarked observation"
     ],
     "steps": [
-      { "action": "Mark the observation pass (all observations now pass)" },
+      {
+        "action": "Mark the observation pass (all observations now pass)"
+      },
       {
         "action": "Observe the displayed status",
         "expected": [
@@ -1038,7 +1063,9 @@
       "Performance instrumentation is active"
     ],
     "steps": [
-      { "action": "Record the timestamp immediately before clicking a mark control" },
+      {
+        "action": "Record the timestamp immediately before clicking a mark control"
+      },
       {
         "action": "Click the mark control and wait for the persisted confirmation",
         "expected": [
@@ -1063,7 +1090,9 @@
       "No prior render of this plan is cached"
     ],
     "steps": [
-      { "action": "Trigger data load for the 500-case plan and start timing" },
+      {
+        "action": "Trigger data load for the 500-case plan and start timing"
+      },
       {
         "action": "Measure the time from data-load completion to the case list being interactive",
         "expected": [
@@ -1121,7 +1150,9 @@
       "vitest-axe is configured"
     ],
     "steps": [
-      { "action": "Render the review UI with a populated plan in the test harness" },
+      {
+        "action": "Render the review UI with a populated plan in the test harness"
+      },
       {
         "action": "Run vitest-axe against the rendered tree",
         "expected": ["Zero accessibility violations are reported", "WCAG 2.1 AA ruleset is applied"]
@@ -1144,9 +1175,15 @@
       "No prior test-results.json exists"
     ],
     "steps": [
-      { "action": "Mark TC-001 pass and TC-002 fail using the result controls" },
-      { "action": "Reload the browser tab" },
-      { "action": "Re-open the TestBench tab for the same spec and bench" },
+      {
+        "action": "Mark TC-001 pass and TC-002 fail using the result controls"
+      },
+      {
+        "action": "Reload the browser tab"
+      },
+      {
+        "action": "Re-open the TestBench tab for the same spec and bench"
+      },
       {
         "action": "Observe the result state",
         "expected": [
@@ -1172,7 +1209,9 @@
       "TestBench is open for this spec on bench-2"
     ],
     "steps": [
-      { "action": "Mark any case pass" },
+      {
+        "action": "Mark any case pass"
+      },
       {
         "action": "Inspect the filesystem for the created results file",
         "expected": [
@@ -1203,8 +1242,12 @@
       "The SHA-256 checksum of test-cases.json is recorded before the run"
     ],
     "steps": [
-      { "action": "Mark several cases pass and fail and add notes" },
-      { "action": "Edit the plan to trigger staleness and apply reconcile" },
+      {
+        "action": "Mark several cases pass and fail and add notes"
+      },
+      {
+        "action": "Edit the plan to trigger staleness and apply reconcile"
+      },
       {
         "action": "Verify the SHA-256 checksum of test-cases.json against the recorded value",
         "expected": [
@@ -1228,7 +1271,9 @@
       "TestBench is open and clean (no banner)"
     ],
     "steps": [
-      { "action": "Edit test-cases.json to add a new case (plan update)" },
+      {
+        "action": "Edit test-cases.json to add a new case (plan update)"
+      },
       {
         "action": "Refresh or re-open the TestBench tab",
         "expected": [
@@ -1242,7 +1287,7 @@
       }
     ],
     "tags": ["regression"],
-    "linked_requirement_ids": ["FR-016"],
+    "linked_requirement_ids": ["FR-016", "NFR-007"],
     "linked_user_story_ids": ["US-009"]
   },
   {
@@ -1257,7 +1302,9 @@
       "Staleness banner is visible"
     ],
     "steps": [
-      { "action": "Click 'Reconcile' on the banner" },
+      {
+        "action": "Click 'Reconcile' on the banner"
+      },
       {
         "action": "Observe the reconcile dialog",
         "expected": [
@@ -1295,17 +1342,23 @@
       "No prior test-results.json exists"
     ],
     "steps": [
-      { "action": "Mark TC-A pass, TC-B fail with note 'broken redirect', TC-C pass" },
+      {
+        "action": "Mark TC-A pass, TC-B fail with note 'broken redirect', TC-C pass"
+      },
       {
         "action": "Reload the TestBench tab and confirm results persisted",
         "expected": ["TC-A pass, TC-B fail with note, TC-C pass"]
       },
-      { "action": "Edit test-cases.json: remove TC-B, add TC-D" },
+      {
+        "action": "Edit test-cases.json: remove TC-B, add TC-D"
+      },
       {
         "action": "Navigate away from and back to the TestBench tab",
         "expected": ["An amber staleness banner is shown"]
       },
-      { "action": "Click 'Reconcile' on the banner" },
+      {
+        "action": "Click 'Reconcile' on the banner"
+      },
       {
         "action": "Inspect the reconcile dialog",
         "expected": [
@@ -1343,8 +1396,12 @@
     "type": "functional",
     "preconditions": ["At least one orphaned case exists in the archived section after reconcile"],
     "steps": [
-      { "action": "Locate the archived (orphaned) case" },
-      { "action": "Initiate purge via the purge control" },
+      {
+        "action": "Locate the archived (orphaned) case"
+      },
+      {
+        "action": "Initiate purge via the purge control"
+      },
       {
         "action": "Observe whether the case is removed immediately",
         "expected": [
@@ -1382,7 +1439,9 @@
       {
         "action": "Reformat test-cases.json (trailing newline, reindentation) without changing any case content or ids"
       },
-      { "action": "Reload the TestBench tab" },
+      {
+        "action": "Reload the TestBench tab"
+      },
       {
         "action": "Observe the banner",
         "expected": [
@@ -1481,7 +1540,9 @@
       "The staleness banner has appeared"
     ],
     "steps": [
-      { "action": "Click 'Reconcile' on the banner" },
+      {
+        "action": "Click 'Reconcile' on the banner"
+      },
       {
         "action": "Observe the orphan section",
         "expected": [
@@ -1489,7 +1550,9 @@
           "TC-X's pass mark and note are displayed"
         ]
       },
-      { "action": "Click 'Apply (keep orphans)'" },
+      {
+        "action": "Click 'Apply (keep orphans)'"
+      },
       {
         "action": "Inspect test-results.json",
         "expected": [
@@ -1520,7 +1583,9 @@
       "A result is ready to persist"
     ],
     "steps": [
-      { "action": "Mark a case result, triggering a write of test-results.json" },
+      {
+        "action": "Mark a case result, triggering a write of test-results.json"
+      },
       {
         "action": "Observe the write when a cross-device rename would raise EXDEV",
         "expected": [
@@ -1529,7 +1594,10 @@
           "No EXDEV error is surfaced"
         ]
       },
-      { "action": "Reload TestBench", "expected": ["The marked result is still present"] }
+      {
+        "action": "Reload TestBench",
+        "expected": ["The marked result is still present"]
+      }
     ],
     "tags": ["edge-case", "regression"],
     "linked_requirement_ids": ["NFR-003"],
@@ -1601,8 +1669,12 @@
       "bench-1 and bench-2 are both active for the project"
     ],
     "steps": [
-      { "action": "On bench-1, mark TC-1 pass and TC-2 fail" },
-      { "action": "On bench-2, mark TC-1 fail and TC-3 pass" },
+      {
+        "action": "On bench-1, mark TC-1 pass and TC-2 fail"
+      },
+      {
+        "action": "On bench-2, mark TC-1 fail and TC-3 pass"
+      },
       {
         "action": "Inspect .specifications/my-spec/test-results.json",
         "expected": [
@@ -1679,12 +1751,16 @@
       "No prior schema/ output files exist (clean state)"
     ],
     "steps": [
-      { "action": "Run the generate script targeting the test-cases schema" },
+      {
+        "action": "Run the generate script targeting the test-cases schema"
+      },
       {
         "action": "Confirm schema/test-cases.schema.json is written",
         "expected": ["The file exists", "It contains a $id with a semver-versioned URI"]
       },
-      { "action": "Run the generate script targeting the test-results schema" },
+      {
+        "action": "Run the generate script targeting the test-results schema"
+      },
       {
         "action": "Confirm schema/test-results.schema.json is written",
         "expected": ["The file exists", "It contains a $id with a semver-versioned URI"]
@@ -1811,7 +1887,9 @@
       "A test-cases.json fixture contains an unknown optional field not present in the current schema"
     ],
     "steps": [
-      { "action": "Load the fixture with the unknown optional field into the in-app UI" },
+      {
+        "action": "Load the fixture with the unknown optional field into the in-app UI"
+      },
       {
         "action": "Inspect the UI rendering of the affected case",
         "expected": [
@@ -1944,7 +2022,9 @@
       "No prior UserPreferences entry for the TestBench toggle exists (fresh state)"
     ],
     "steps": [
-      { "action": "Open app settings" },
+      {
+        "action": "Open app settings"
+      },
       {
         "action": "Click the 'TestBench' tab",
         "expected": [
@@ -1966,7 +2046,9 @@
     "type": "functional",
     "preconditions": ["Roubo is running", "TestBench is currently enabled (toggle ON)"],
     "steps": [
-      { "action": "Open app settings and navigate to the 'TestBench' tab" },
+      {
+        "action": "Open app settings and navigate to the 'TestBench' tab"
+      },
       {
         "action": "Click the switch to toggle TestBench OFF",
         "expected": [
@@ -1994,7 +2076,9 @@
     "type": "functional",
     "preconditions": ["Roubo is running", "TestBench is currently disabled (toggle OFF)"],
     "steps": [
-      { "action": "Open app settings and navigate to the 'TestBench' tab" },
+      {
+        "action": "Open app settings and navigate to the 'TestBench' tab"
+      },
       {
         "action": "Click the switch to toggle TestBench ON",
         "expected": ["The switch turns ON (amber)", "The disabled helper text is no longer shown"]
@@ -2023,8 +2107,12 @@
       "The main UI shows the create-TestBench option and surface"
     ],
     "steps": [
-      { "action": "Open app settings" },
-      { "action": "Navigate to the 'TestBench' tab" },
+      {
+        "action": "Open app settings"
+      },
+      {
+        "action": "Navigate to the 'TestBench' tab"
+      },
       {
         "action": "Observe the switch state",
         "expected": ["Switch is ON (amber) with no disabled helper text"]
@@ -2064,7 +2152,9 @@
     "type": "integration",
     "preconditions": ["Roubo is running", "TestBench is currently enabled"],
     "steps": [
-      { "action": "Open app settings, navigate to 'TestBench', and toggle OFF" },
+      {
+        "action": "Open app settings, navigate to 'TestBench', and toggle OFF"
+      },
       {
         "action": "Verify the preference is written to UserPreferences (not settings.json)",
         "expected": [
@@ -2072,7 +2162,9 @@
           "No TestBench entry exists in any settings.json"
         ]
       },
-      { "action": "Restart Roubo" },
+      {
+        "action": "Restart Roubo"
+      },
       {
         "action": "Open app settings and the 'TestBench' tab",
         "expected": [
@@ -2104,7 +2196,9 @@
       "A TestBench exists and its detail view is open"
     ],
     "steps": [
-      { "action": "With the TestBench detail open, navigate to app settings 'TestBench'" },
+      {
+        "action": "With the TestBench detail open, navigate to app settings 'TestBench'"
+      },
       {
         "action": "Toggle the switch OFF",
         "expected": ["Switch transitions to OFF", "The disabled helper text appears"]
@@ -2165,7 +2259,9 @@
     "type": "negative",
     "preconditions": ["Roubo is running", "App settings 'TestBench' tab is open"],
     "steps": [
-      { "action": "Toggle the TestBench switch OFF" },
+      {
+        "action": "Toggle the TestBench switch OFF"
+      },
       {
         "action": "Inspect all settings.json files in the project and ~/.roubo/",
         "expected": [
@@ -2177,5 +2273,32 @@
     "tags": ["negative", "regression", "storage"],
     "linked_requirement_ids": ["FR-018"],
     "linked_user_story_ids": ["US-010"]
+  },
+  {
+    "id": "TC-074",
+    "title": "Validate plus staleness-hash of a ~1MB plan completes within 200ms",
+    "area": "persistence-staleness",
+    "level": 2,
+    "type": "performance",
+    "preconditions": [
+      "A synthetic ~1MB test-cases.json plan fixture is prepared",
+      "The schema validator and the canonicalize-plus-hash path are available",
+      "A benchmark harness is active"
+    ],
+    "steps": [
+      {
+        "action": "Load the ~1MB plan fixture and record the start timestamp"
+      },
+      {
+        "action": "Run schema validation followed by the canonicalised staleness hash over the plan",
+        "expected": [
+          "The combined validate-plus-hash duration is under 200ms at p95",
+          "The computed plan hash is stable across repeated runs of the same input"
+        ]
+      }
+    ],
+    "tags": ["performance", "nfr"],
+    "linked_requirement_ids": ["NFR-002"],
+    "linked_user_story_ids": ["US-009"]
   }
 ]

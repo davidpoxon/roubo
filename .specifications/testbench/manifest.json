@@ -3,7 +3,7 @@
   "slug": "testbench",
   "title": "TestBench (in-app manual test-review surface)",
   "created_at": "2026-06-06T00:00:00Z",
-  "updated_at": "2026-06-07T00:05:00Z",
+  "updated_at": "2026-06-07T22:39:41Z",
   "current_stage": "align",
   "stages": {
     "interview": {
@@ -50,16 +50,88 @@
     "align": {
       "status": "done",
       "artifact": null,
-      "updated_at": "2026-06-07T00:05:00Z"
+      "updated_at": "2026-06-07T22:39:41Z"
     }
   },
   "id_counters": {
     "US": 13,
     "FR": 24,
     "NFR": 7,
-    "TC": 73
+    "TC": 74
   },
   "scope": null,
+  "spikes": [
+    {
+      "id": "spike-405",
+      "issue": 405,
+      "class": "decision",
+      "doc": null,
+      "produces": [],
+      "satisfies": ["FR-019", "FR-020", "NFR-005"],
+      "verified_by": ["TC-059", "TC-060", "TC-062", "TC-063"],
+      "gates": [],
+      "status": "resolved",
+      "confidence": "low",
+      "reconciled_at": "2026-06-07T22:34:17Z"
+    },
+    {
+      "id": "spike-406",
+      "issue": 406,
+      "class": "decision",
+      "doc": null,
+      "produces": [],
+      "satisfies": ["NFR-001", "NFR-003"],
+      "verified_by": ["TC-050", "TC-051", "TC-052"],
+      "gates": [],
+      "status": "resolved",
+      "confidence": "low",
+      "reconciled_at": "2026-06-07T22:34:17Z"
+    },
+    {
+      "id": "spike-407",
+      "issue": 407,
+      "class": "decision",
+      "doc": "spikes/spike-407-staleness-hash-reconcile.md",
+      "produces": [],
+      "satisfies": ["FR-016", "FR-017", "NFR-003"],
+      "verified_by": ["TC-045", "TC-049"],
+      "gates": [],
+      "status": "resolved",
+      "confidence": "high",
+      "reconciled_at": "2026-06-07T22:34:17Z"
+    },
+    {
+      "id": "spike-408",
+      "issue": 408,
+      "class": "both",
+      "doc": "spikes/spike-408-zod-to-json-schema-ci-drift-guard.md",
+      "produces": [
+        "shared/testbench-targeting-schema.ts",
+        "scripts/generate-schema.ts",
+        "schema/testbench-targeting.spike.schema.json",
+        ".github/workflows/pr-check.yml"
+      ],
+      "satisfies": ["FR-023", "NFR-006"],
+      "verified_by": ["TC-056", "TC-064"],
+      "gates": [],
+      "status": "resolved",
+      "confidence": "high",
+      "reconciled_at": "2026-06-07T22:34:17Z"
+    },
+    {
+      "id": "spike-409",
+      "issue": 409,
+      "class": "decision",
+      "doc": null,
+      "produces": [],
+      "satisfies": ["FR-012"],
+      "verified_by": ["TC-033"],
+      "gates": [],
+      "status": "resolved",
+      "confidence": "low",
+      "reconciled_at": "2026-06-07T22:34:17Z"
+    }
+  ],
   "ui-design:prototype": {
     "status": "done",
     "artifact": "design-prototype/",
