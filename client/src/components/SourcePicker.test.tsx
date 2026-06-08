@@ -169,6 +169,22 @@ describe("SourcePicker", () => {
       expect(screen.queryByText("Pick a project first.")).not.toBeInTheDocument();
     });
 
+    it("persists a picked project as an object carrying its label / sublabel", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(next: SourceSelection) => void>();
+      render(
+        <SourcePicker candidates={SEARCHABLE} value={{}} onChange={onChange} projectId="p1" />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Add projects" }));
+      await user.click(screen.getByRole("option", { name: /Platform/ }));
+
+      // The captured label lets the chip / tile show the project name on reload.
+      expect(onChange).toHaveBeenCalledWith({
+        project: [{ externalId: "PLAT", label: "Platform", sublabel: "PLAT" }],
+      });
+    });
+
     it("stamps the scoped project onto a picked board entry", async () => {
       const user = userEvent.setup();
       const onChange = vi.fn<(next: SourceSelection) => void>();
@@ -186,7 +202,14 @@ describe("SourcePicker", () => {
 
       expect(onChange).toHaveBeenCalledWith({
         project: ["PLAT"],
-        board: [{ externalId: "board:482", project: "PLAT" }],
+        board: [
+          {
+            externalId: "board:482",
+            label: "PLAT Scrum Board",
+            sublabel: "PLAT · board #482",
+            project: "PLAT",
+          },
+        ],
       });
     });
 
@@ -256,7 +279,7 @@ describe("SourcePicker", () => {
       // is stamped with none rather than guessing the first.
       expect(onChange).toHaveBeenCalledWith({
         project: ["PLAT", "OPS"],
-        filter: [{ externalId: "10231" }],
+        filter: [{ externalId: "10231", label: "My open bugs", sublabel: "filter #10231" }],
       });
     });
 
@@ -317,7 +340,7 @@ describe("SourcePicker", () => {
 
         expect(onChange).toHaveBeenCalledWith({
           project: ["PLAT"],
-          mine: [{ externalId: "mine", mineScope: "in-project" }],
+          mine: [{ externalId: "mine", mineScope: "in-project", label: "Assigned to me" }],
         });
       });
 
@@ -332,7 +355,7 @@ describe("SourcePicker", () => {
 
         // With no project in scope, enabling defaults to the anywhere scope.
         expect(onChange).toHaveBeenCalledWith({
-          mine: [{ externalId: "mine", mineScope: "anywhere" }],
+          mine: [{ externalId: "mine", mineScope: "anywhere", label: "Assigned to me" }],
         });
       });
 
@@ -369,7 +392,7 @@ describe("SourcePicker", () => {
 
         expect(onChange).toHaveBeenCalledWith({
           project: ["PLAT"],
-          mine: [{ externalId: "mine", mineScope: "anywhere" }],
+          mine: [{ externalId: "mine", mineScope: "anywhere", label: "Assigned to me" }],
         });
       });
 

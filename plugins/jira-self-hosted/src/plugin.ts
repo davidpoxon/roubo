@@ -616,6 +616,14 @@ export function _resetForTests(): void {
  * from the sources themselves: every `project`-kind externalId plus any
  * source's `project` field, validated as Jira project keys. A malformed key is
  * dropped rather than interpolated (defense-in-depth alongside the picker).
+ *
+ * Project-as-scope demotion: sources are unioned with OR, so a blanket
+ * `project = KEY` clause would swallow any narrower in-project source (a board's
+ * sprint, an epic, a filter, or `mine` in-project) the user also picked. When a
+ * project has such a narrower source, we treat the project as scope only and
+ * emit no clause for it (it still feeds `scopeProjectKeys`), so the narrower
+ * source actually narrows the cut list. A project with no narrower source stays
+ * a full source, so cross-project union still works.
  */
 async function prepareSourceClauses(
   ctx: JiraRequestContext,
@@ -632,10 +640,16 @@ async function prepareSourceClauses(
   );
 
   const scopeProjectKeys = inScopeProjectKeys(jiraSources);
+  const narrowed = narrowedProjectKeys(jiraSources);
 
   const clauses: SourceClause[] = [];
   for (const source of jiraSources) {
     const kind = source.kind as SourceKind;
+    if (kind === "project" && narrowed.has(source.externalId)) {
+      // Scope-only: a narrower in-project source covers this project, so emit no
+      // blanket clause. The key still lives in `scopeProjectKeys` above.
+      continue;
+    }
     if (kind === "board") {
       const boardMode = source.boardMode ?? "active-sprint";
       const boardId = source.externalId.startsWith("board:")
@@ -653,6 +667,42 @@ async function prepareSourceClauses(
     clauses.push({ kind, externalId: source.externalId });
   }
   return clauses;
+}
+
+/**
+ * Project keys that should be demoted to scope-only because a narrower
+ * in-project source also covers them (see `prepareSourceClauses`). A project is
+ * narrowed when:
+ *   - a `board` / `epic` / `filter` source is attributed to it (its `project`
+ *     field equals the key), or
+ *   - any `mine` source is scoped `in-project` (which collectively scopes every
+ *     in-scope project key).
+ *
+ * Attribution relies on the `project` field the client stamps on scoped sources
+ * (`attributeProject` in the picker). With a single project in scope (the common
+ * case) it is always set; in a multi-project config where it cannot be resolved
+ * (e.g. a saved filter that names no project key) that project is not demoted.
+ */
+function narrowedProjectKeys(sources: ConfiguredSource[]): Set<string> {
+  const narrowed = new Set<string>();
+  const hasInProjectMine = sources.some(
+    (s) => s.kind === "mine" && (s.mineScope ?? "anywhere") === "in-project",
+  );
+  if (hasInProjectMine) {
+    for (const s of sources) {
+      if (s.kind === "project") narrowed.add(s.externalId);
+    }
+  }
+  for (const s of sources) {
+    if (
+      (s.kind === "board" || s.kind === "epic" || s.kind === "filter") &&
+      typeof s.project === "string" &&
+      s.project.length > 0
+    ) {
+      narrowed.add(s.project);
+    }
+  }
+  return narrowed;
 }
 
 /** Validated union of every project key in scope across the source set. */

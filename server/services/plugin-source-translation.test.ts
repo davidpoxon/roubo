@@ -83,15 +83,42 @@ describe("translateSources", () => {
       board: ["board:482"],
       filter: ["456"],
       epic: ["PLAT-1187"],
-      mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+      mine: [{ externalId: "mine", mineScope: "anywhere" }],
     });
     expect(result).toEqual([
       { kind: "project", externalId: "PLAT" },
       { kind: "board", externalId: "board:482" },
       { kind: "filter", externalId: "456" },
       { kind: "epic", externalId: "PLAT-1187" },
-      { kind: "mine", externalId: "mine" },
+      { kind: "mine", externalId: "mine", mineScope: "anywhere" },
     ]);
+  });
+
+  it("forwards the Jira project-first fields (project, boardMode, mineScope) to the plugin", () => {
+    // Regression: these object-form fields were previously dropped, so a board's
+    // whole-board mode and "assigned to me, in scoped projects" never reached the
+    // plugin (the latter silently degraded to "anywhere"), and the per-source
+    // project attribution that demotes a project to scope-only was lost.
+    const result = translateSources({
+      project: ["PLAT"],
+      board: [{ externalId: "board:482", project: "PLAT", boardMode: "whole-board" }],
+      mine: [{ externalId: "mine", mineScope: "in-project", project: "PLAT" }],
+    });
+    expect(result).toEqual([
+      { kind: "project", externalId: "PLAT" },
+      { kind: "board", externalId: "board:482", project: "PLAT", boardMode: "whole-board" },
+      { kind: "mine", externalId: "mine", project: "PLAT", mineScope: "in-project" },
+    ]);
+  });
+
+  it("omits absent Jira project-first fields rather than emitting undefined", () => {
+    const result = translateSources({
+      board: [{ externalId: "board:482" }],
+    });
+    expect(result).toEqual([{ kind: "board", externalId: "board:482" }]);
+    expect(Object.keys(result[0])).not.toContain("project");
+    expect(Object.keys(result[0])).not.toContain("boardMode");
+    expect(Object.keys(result[0])).not.toContain("mineScope");
   });
 
   it("drops legacy old-shape Jira categories rather than silently honoring them (WU-006 clean break)", () => {

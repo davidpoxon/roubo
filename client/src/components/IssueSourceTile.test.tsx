@@ -226,6 +226,47 @@ describe("IssueSourceTile", () => {
     expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
   });
 
+  it("renders the display label captured at pick time, with the code as the secondary line", () => {
+    // Jira self-hosted persists label/sublabel on the entry so the tile shows
+    // the human name (not the raw key like PLNRPTGOOG / board:13085) on reload.
+    withData({
+      effective: {
+        plugin: "jira-self-hosted",
+        instance: "https://jira2.workday.com",
+        sources: {
+          project: [
+            { externalId: "PLNRPTGOOG", label: "PLN Reports / Google", sublabel: "PLNRPTGOOG" },
+          ],
+          board: [
+            {
+              externalId: "board:13085",
+              label: "PLN - Reports Core and Google",
+              sublabel: "PLNRPTGOOG · board #13085 · scrum",
+              project: "PLNRPTGOOG",
+            },
+          ],
+        },
+      },
+      committed: { plugin: "jira-self-hosted" },
+      override: null,
+      plugin: {
+        id: "jira-self-hosted",
+        installed: true,
+        status: "enabled",
+        manifest: { name: "Self-hosted Jira" },
+      },
+      captionKey: "override-only",
+    });
+
+    renderTile();
+
+    expect(screen.getByText("PLN Reports / Google")).toBeInTheDocument();
+    expect(screen.getByText("PLN - Reports Core and Google")).toBeInTheDocument();
+    expect(screen.getByText("PLNRPTGOOG · board #13085 · scrum")).toBeInTheDocument();
+    // The raw board id is never shown on its own once a label exists.
+    expect(screen.queryByText("board:13085")).not.toBeInTheDocument();
+  });
+
   it("renders the override-only caption exactly as TC-056 mandates", () => {
     withData({
       effective: { plugin: "jira-self-hosted" },

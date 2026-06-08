@@ -129,6 +129,35 @@ describe("AsyncSourceSearch", () => {
     expect(onChange).toHaveBeenCalledWith([], ["board:482"]);
   });
 
+  it("renders the chip from the label persisted on the entry without opening the popover (reopened dialog)", () => {
+    // On a fresh dialog the search hook returns nothing until the popover opens,
+    // so the chip must fall back to the label captured at pick time rather than
+    // the raw externalId.
+    mockHook({ items: [] });
+    render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        scope={{ project: ["PLAT"] }}
+        value={[
+          {
+            externalId: "board:482",
+            label: "PLAT Scrum Board",
+            sublabel: "PLAT · board #482 · scrum",
+            project: "PLAT",
+          },
+        ]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const chips = screen.getByRole("list", { name: "Selected boards" });
+    expect(within(chips).getByText("PLAT Scrum Board")).toBeInTheDocument();
+    expect(within(chips).getByText("PLAT · board #482 · scrum")).toBeInTheDocument();
+    expect(within(chips).queryByText("board:482")).not.toBeInTheDocument();
+  });
+
   it("shows a Load more control that pages the cursor", async () => {
     const user = userEvent.setup();
     mockHook({ items: BOARDS, hasNextPage: true });

@@ -13,6 +13,13 @@ import type { SourceSelection, SourceEntry } from "@roubo/shared";
 export interface PluginSourceEntry {
   kind: string;
   externalId: string;
+  // Jira self-hosted project-first selection fields, passed through verbatim so
+  // the plugin can resolve a board's mode, the "assigned to me" scope, and the
+  // per-source project attribution it uses to demote a project to scope-only.
+  // Plugins outside the Jira family ignore them.
+  project?: string;
+  boardMode?: "active-sprint" | "whole-board";
+  mineScope?: "in-project" | "anywhere";
   includeCodeQLAlerts?: boolean;
   includeSecretScanningAlerts?: boolean;
   includeDependabotAlerts?: boolean;
@@ -95,6 +102,15 @@ export function translateSources(
       if (asString.length === 0) continue;
       const translated: PluginSourceEntry = { kind, externalId: asString };
       if (typeof entry === "object" && entry !== null) {
+        if (entry.project !== undefined) {
+          translated.project = entry.project;
+        }
+        if (entry.boardMode !== undefined) {
+          translated.boardMode = entry.boardMode;
+        }
+        if (entry.mineScope !== undefined) {
+          translated.mineScope = entry.mineScope;
+        }
         if (entry.includeCodeQLAlerts !== undefined) {
           translated.includeCodeQLAlerts = entry.includeCodeQLAlerts;
         }
