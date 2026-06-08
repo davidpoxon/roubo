@@ -22,8 +22,13 @@ export const TC_001_PLAN: TestCasesPlan = {
     {
       id: "TC-001",
       title: "Create a TestBench from an empty bench slot using a discovered spec",
-      level: "1",
+      area: "bench-variant",
+      level: 1,
+      type: "e2e_flow",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
       preconditions: [
         "TestBench feature is enabled in settings",
         "At least one bench slot is empty",
@@ -126,8 +131,13 @@ export const TC_006_PLAN: TestCasesPlan = {
     {
       id: "TC-006",
       title: "Create a TestBench with a valid manual file path",
-      level: "2",
+      area: "bench-variant",
+      level: 2,
+      type: "e2e_flow",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-003"],
+      linked_user_story_ids: [],
       preconditions: [
         "TestBench feature is enabled",
         "An empty bench slot exists",
@@ -287,8 +297,13 @@ export const TC_007_PLAN_A: TestCasesPlan = {
     {
       id: "TC-A01",
       title: "Spec-A: the case a result is recorded against before the re-point",
-      level: "1",
+      area: "repoint",
+      level: 1,
+      type: "e2e_flow",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-024"],
+      linked_user_story_ids: [],
       preconditions: ["A TestBench is bound to spec-A"],
       steps: [
         {
@@ -309,8 +324,13 @@ export const TC_007_PLAN_B: TestCasesPlan = {
     {
       id: "TC-B01",
       title: "Spec-B: a distinct case that must never bleed into spec-A's results",
-      level: "1",
+      area: "repoint",
+      level: 1,
+      type: "e2e_flow",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-024"],
+      linked_user_story_ids: [],
       preconditions: ["Spec-B is discoverable in the same project repo"],
       steps: [
         {
@@ -366,8 +386,13 @@ export const TC_043_PLAN: TestCasesPlan = {
     {
       id: "TC-A",
       title: "Landing page renders",
-      level: "1",
+      area: "demo",
+      level: 1,
+      type: "functional",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
       steps: [
         {
           id: "TC-A-S1",
@@ -379,8 +404,13 @@ export const TC_043_PLAN: TestCasesPlan = {
     {
       id: "TC-B",
       title: "Sign-in redirect works",
-      level: "1",
+      area: "demo",
+      level: 1,
+      type: "functional",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
       steps: [
         {
           id: "TC-B-S1",
@@ -392,8 +422,13 @@ export const TC_043_PLAN: TestCasesPlan = {
     {
       id: "TC-C",
       title: "Settings page saves",
-      level: "1",
+      area: "demo",
+      level: 1,
+      type: "functional",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
       steps: [
         {
           id: "TC-C-S1",
@@ -421,8 +456,13 @@ export const TC_043_PLAN_AFTER_EDIT: TestCasesPlan = {
     {
       id: "TC-D",
       title: "Logout clears the session",
-      level: "1",
+      area: "demo",
+      level: 1,
+      type: "functional",
       priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["FR-001"],
+      linked_user_story_ids: [],
       steps: [
         {
           id: "TC-D-S1",
