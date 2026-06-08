@@ -120,8 +120,8 @@ Each NFR has a measurable target and a verification method.
 
 ## Open questions
 
-- [ ] Physical layout for multi-bench results on one spec: single `test-results.json` with a bench-keyed map, or per-bench filenames? (Resolved by the schema-contract spike; load-bearing for FR-015/FR-020.)
-- [ ] Exactly what is canonicalised and hashed for staleness (FR-016): normalised case-set content vs raw bytes.
+- [x] Physical layout for multi-bench results on one spec: single `test-results.json` with a bench-keyed map, or per-bench filenames? RESOLVED, single `test-results.json` per spec with a bench-keyed map (schema-contract spike #405; architecture data model). Load-bearing for FR-015/FR-020.
+- [x] Exactly what is canonicalised and hashed for staleness (FR-016): normalised case-set content vs raw bytes. RESOLVED, a canonicalised normalised case-set serialisation (stable-id sorted, content-normalised), not raw bytes (spike #407).
 - [ ] Is the `test-results.json` sidecar committed to the focused project's VCS or gitignored? (Determines whether the audit trail is shared or ephemeral.)
 - [ ] Whether the per-case status override (FR-010) needs a captured reason.
 - [x] Whether the focused-spec binding (FR-004) is fixed at creation or re-pointable later: RESOLVED, explicit re-point is supported (FR-024, US-013), with per-spec results preserved.
