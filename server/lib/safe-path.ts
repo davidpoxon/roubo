@@ -137,17 +137,30 @@ export function assertSafeIdentifier(value: unknown, pattern: RegExp, label: str
   }
 }
 
-// Property names that, when used as a computed object key, mutate the built-in
-// Object prototype instead of the target map (prototype pollution, CWE-1321).
-const PROTOTYPE_POLLUTING_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+// True when a value is unsafe to use as a computed object key: a non-string, or
+// one of the prototype-polluting keys `__proto__`, `constructor`, `prototype`
+// that mutate the built-in Object prototype instead of the target map
+// (prototype pollution, CWE-1321).
+//
+// The check is written as an explicit inline string comparison (not a Set/array
+// lookup) so that callers can mirror the same shape at the point of use and have
+// static analysis recognise it as a sanitising barrier on the tainted key.
+export function isUnsafeMapKey(value: unknown): boolean {
+  return (
+    typeof value !== "string" ||
+    value === "__proto__" ||
+    value === "constructor" ||
+    value === "prototype"
+  );
+}
 
 // Guard a user-controlled value before it is used as a computed object key (e.g.
-// `record[key] = value`). Rejects non-strings and the prototype-polluting keys
-// `__proto__`, `constructor`, and `prototype`, so an attacker-supplied key can
-// never escalate to mutating Object.prototype. Reuses UnsafePathError so callers
-// already handling sanitizer failures need no new branch.
+// `record[key] = value`). Throws UnsafePathError for any key isUnsafeMapKey
+// rejects, reusing the path-safety error so callers already handling sanitizer
+// failures need no new branch. Hot sinks that must present an inline barrier to
+// static analysis should inline the isUnsafeMapKey check instead of calling this.
 export function assertSafeMapKey(value: unknown, label: string): void {
-  if (typeof value !== "string" || PROTOTYPE_POLLUTING_KEYS.has(value)) {
+  if (isUnsafeMapKey(value)) {
     throw new UnsafePathError(`Invalid ${label}: ${String(value)}`);
   }
 }
