@@ -36,6 +36,9 @@ vi.mock("./IssueAssignControl", () => ({
 vi.mock("../hooks/useBenchIssue", () => ({
   useBenchIssue: vi.fn(() => ({ data: undefined })),
 }));
+vi.mock("./testbench/TestBenchPanel", () => ({
+  default: () => <div data-testid="testbench-panel" />,
+}));
 import { useBenchIssue } from "../hooks/useBenchIssue";
 const mockUseBenchIssue = vi.mocked(useBenchIssue);
 
@@ -612,6 +615,39 @@ describe("BenchDetail", () => {
         "true",
       );
       expect(screen.getByRole("tab", { name: /info/i })).toHaveAttribute("aria-selected", "false");
+    });
+  });
+
+  describe("TestBench variant tab (#419)", () => {
+    const testbenchBench = {
+      ...baseBench,
+      variant: "testbench",
+      focusedSpecPath: ".specifications/demo/test-cases.json",
+    };
+
+    it("renders a TestBench first tab while keeping all existing tabs", () => {
+      renderBench(testbenchBench as never);
+      const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+      // TestBench is first, and the existing tabs remain.
+      expect(tabs[0]).toMatch(/testbench/i);
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /terminal/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /inspection/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /info/i })).toBeInTheDocument();
+    });
+
+    it("selects the TestBench tab by default and shows its panel", () => {
+      renderBench(testbenchBench as never);
+      expect(screen.getByRole("tab", { name: /testbench/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByTestId("testbench-panel")).toBeInTheDocument();
+    });
+
+    it("does not render the TestBench tab for a non-testbench bench", () => {
+      renderBench();
+      expect(screen.queryByRole("tab", { name: /testbench/i })).not.toBeInTheDocument();
     });
   });
 

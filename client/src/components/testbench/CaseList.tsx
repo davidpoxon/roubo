@@ -1,0 +1,165 @@
+import { useRef, useState, useCallback, useMemo, type KeyboardEvent } from "react";
+import type { FlatRow } from "./rollup";
+import { useWindowedRows } from "./useWindowedRows";
+import CaseRow from "./CaseRow";
+import ProgressBar from "./ProgressBar";
+
+// Windowed, keyboard-navigable case list (#419, NFR-002 p95 < 300ms for 500
+// cases). Only the rows intersecting the scroll viewport (plus a small overscan)
+// are mounted via useWindowedRows, so a 500-case plan renders a bounded number of
+// DOM nodes regardless of plan size.
+//
+// Keyboard model: the list is one tab stop (roving tabindex). ArrowUp/ArrowDown
+// move focus between case rows (skipping the non-interactive level/priority
+// headers); Home/End jump to the first/last case. The focused row gets a visible
+// amber focus ring. Headers are decorative readouts and are never focusable.
+
+const ROW_HEIGHT = 36; // case row
+const LEVEL_HEIGHT = 44; // level header (taller, hosts the rollup bar)
+const PRIORITY_HEIGHT = 32; // priority subheader
+
+function rowSize(row: FlatRow): number {
+  if (row.kind === "level") return LEVEL_HEIGHT;
+  if (row.kind === "priority") return PRIORITY_HEIGHT;
+  return ROW_HEIGHT;
+}
+
+export default function CaseList({ rows }: { rows: FlatRow[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Indices of the case rows, in order: the only focusable rows.
+  const caseIndices = useMemo(
+    () => rows.map((r, i) => (r.kind === "case" ? i : -1)).filter((i) => i >= 0),
+    [rows],
+  );
+  const [focusedIndex, setFocusedIndex] = useState<number>(() => caseIndices[0] ?? -1);
+
+  const sizeAt = useCallback((index: number) => rowSize(rows[index]), [rows]);
+  const { totalSize, virtualRows, offsetForIndex } = useWindowedRows(
+    scrollRef,
+    rows.length,
+    sizeAt,
+  );
+
+  const moveFocus = useCallback(
+    (target: number) => {
+      if (target < 0) return;
+      setFocusedIndex(target);
+      // Scroll the target into view so the virtualiser mounts it, then focus.
+      const el = scrollRef.current;
+      if (el) {
+        const top = offsetForIndex(target);
+        const bottom = offsetForIndex(target + 1);
+        if (top < el.scrollTop) el.scrollTop = top;
+        else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
+      }
+      // Defer focus until the row is mounted by the virtualiser.
+      requestAnimationFrame(() => {
+        const node = scrollRef.current?.querySelector<HTMLElement>(`[data-row-index="${target}"]`);
+        node?.focus();
+      });
+    },
+    [offsetForIndex],
+  );
+
+  const onKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (caseIndices.length === 0) return;
+      const pos = caseIndices.indexOf(focusedIndex);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next =
+          pos < 0 ? caseIndices[0] : caseIndices[Math.min(pos + 1, caseIndices.length - 1)];
+        moveFocus(next);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = pos < 0 ? caseIndices[0] : caseIndices[Math.max(pos - 1, 0)];
+        moveFocus(prev);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        moveFocus(caseIndices[0]);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        moveFocus(caseIndices[caseIndices.length - 1]);
+      }
+    },
+    [caseIndices, focusedIndex, moveFocus],
+  );
+
+  const activeFocusIndex = focusedIndex >= 0 ? focusedIndex : (caseIndices[0] ?? -1);
+
+  return (
+    <div
+      ref={scrollRef}
+      className="overflow-auto flex-1 min-h-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30"
+      role="group"
+      aria-label="Test cases grouped by level and priority"
+      onKeyDown={onKeyDown}
+    >
+      <div className="relative w-full" style={{ height: `${totalSize}px` }}>
+        {virtualRows.map((item) => {
+          const row = rows[item.index];
+          const common = {
+            key: row.key,
+            className: "absolute top-0 left-0 w-full",
+            style: { height: `${item.size}px`, transform: `translateY(${item.start}px)` },
+          } as const;
+
+          if (row.kind === "level") {
+            return (
+              <div {...common}>
+                <div className="flex items-center gap-3 px-4 py-2 h-full bg-stone-100/80 dark:bg-stone-900/60">
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                      {row.level}
+                    </span>
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <ProgressBar counts={row.counts} label={`${row.counts.total} cases`} />
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (row.kind === "priority") {
+            return (
+              <div {...common}>
+                <div className="flex items-center gap-2 px-4 py-1.5 pl-8 h-full">
+                  <span className="text-[10px] uppercase tracking-wider font-medium text-stone-400 dark:text-stone-600">
+                    {row.priority}
+                  </span>
+                  <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 tabular-nums">
+                    {row.counts.total}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+
+          const isFocused = item.index === activeFocusIndex;
+          return (
+            <div {...common}>
+              <div
+                data-row-index={item.index}
+                data-testid="case-row"
+                tabIndex={isFocused ? 0 : -1}
+                onFocus={() => setFocusedIndex(item.index)}
+                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-default transition-colors ${
+                  isFocused
+                    ? "ring-2 ring-amber-500 ring-inset bg-stone-100 dark:bg-stone-800/60"
+                    : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
+                }`}
+              >
+                <div className="w-full">
+                  <CaseRow model={row.row} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
