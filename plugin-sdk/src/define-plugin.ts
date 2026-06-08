@@ -27,6 +27,7 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "unassignIssue",
   "getAvailableTransitions",
   "listIssueTypes",
+  "listStatusCategories",
   "listLabels",
   "getConnectionStatus",
   "probeAlertCategories",

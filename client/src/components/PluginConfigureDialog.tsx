@@ -36,6 +36,7 @@ import {
   useSaveIntegrationConfig,
   useSaveIntegrationSources,
   useSourceCandidates,
+  useStatusCategories,
   useTestIntegrationConnection,
 } from "../hooks/useProjectIntegration";
 import {
@@ -406,10 +407,22 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     [effective.excludedStatusCategories, manifestDefaultCategories],
   );
   const [excludedCategories, setExcludedCategories] = useState<string[]>(seededCategories);
-  const categoryOptions = useMemo(
-    () => [...new Set([...CANONICAL_STATUS_CATEGORIES, ...seededCategories])],
-    [seededCategories],
+  // Discover the connected instance's real status categories (issue #453) and
+  // use them as the option base; fall back to the canonical set when discovery
+  // is unsupported, failed, or empty. Either way the seeded values are unioned
+  // in so a saved/default category stays visible and removable.
+  const statusCategoriesQuery = useStatusCategories(
+    props.mode === "project" ? props.projectId : "",
+    showStatusExclusion,
   );
+  const categoryOptions = useMemo(() => {
+    const discovery = statusCategoriesQuery.data;
+    const base =
+      discovery?.supported && discovery.categories.length > 0
+        ? discovery.categories
+        : CANONICAL_STATUS_CATEGORIES;
+    return [...new Set([...base, ...seededCategories])];
+  }, [statusCategoriesQuery.data, seededCategories]);
   // Diff against the seed captured at open, not the live-computed one: a parent
   // re-render that refetches `effective` must not, on its own, flip "changed" to
   // true and cause an untouched set to be written on the next Save. A useState

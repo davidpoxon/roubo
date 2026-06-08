@@ -375,6 +375,18 @@ export interface IntegrationConfigUpdate {
 }
 
 /**
+ * Response of `GET /integration/status-categories` (issue #453). `supported` is
+ * true only when the active plugin's discovery RPC returned; on any failure
+ * (no active plugin, discovery unimplemented, network / auth error) the host
+ * returns `{ supported: false, categories: [] }` so the Configure dialog falls
+ * back to its canonical status-category set.
+ */
+export interface StatusCategoriesResponse {
+  supported: boolean;
+  categories: string[];
+}
+
+/**
  * Project-scoped fields owned by the active integration plugin (FR-070).
  * Returned by `GET /api/projects/:projectId/integration/fields`. Stored
  * canonically in roubo.yaml; the plugin's Configure modal is the edit

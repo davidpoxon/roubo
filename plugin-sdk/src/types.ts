@@ -417,6 +417,15 @@ export interface PluginContract {
   }) => Promise<void> | void;
   getAvailableTransitions?: (params: { externalId: string }) => Promise<string[]> | string[];
   listIssueTypes?: (params: ListIssueTypesParams) => Promise<IssueTypeOption[]> | IssueTypeOption[];
+  /**
+   * Enumerate the connected instance's available status categories (issue #453).
+   * The host exposes these as the option list for the Configure dialog's
+   * status-category exclusion toggle, falling back to a canonical set when a
+   * plugin does not implement this method (`MethodNotFound`) or discovery fails.
+   * Returned names must be valid wherever the plugin consumes excluded
+   * categories (e.g. Jira returns `statusCategory` names usable in JQL).
+   */
+  listStatusCategories?: () => Promise<string[]> | string[];
   listLabels?: (params: ListLabelsParams) => Promise<string[]> | string[];
   getConnectionStatus?: () => Promise<ConnectionStatus> | ConnectionStatus;
   /**

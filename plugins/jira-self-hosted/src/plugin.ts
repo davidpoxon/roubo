@@ -468,6 +468,16 @@ export function createPluginContract(): PluginContract {
         .map((t) => ({ id: String(t.id), name: t.name }));
     },
 
+    async listStatusCategories(params: unknown): Promise<string[]> {
+      const config = await adoptOrRecallConfig(params);
+      const ctx = await ctxFor(config);
+      const data = await jiraFetch<Array<{ name?: string }>>(ctx, "/rest/api/2/statuscategory");
+      const names = data
+        .map((c) => (typeof c.name === "string" ? c.name.trim() : ""))
+        .filter((name) => name.length > 0);
+      return [...new Set(names)];
+    },
+
     filterFacets(): FilterFacet[] {
       return [{ id: "epic", label: "Epic", type: "enum-async" }];
     },
