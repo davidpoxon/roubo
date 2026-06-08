@@ -127,9 +127,10 @@ describe("ProjectSettings", () => {
       expect(wrapper.className).not.toMatch(/\bmax-w-/);
     });
 
-    it("renders all five tab labels", () => {
+    it("renders all six tab labels", () => {
       render();
       expect(screen.getByRole("tab", { name: "Benches" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "TestBench" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Jigs" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
@@ -1027,6 +1028,116 @@ describe("ProjectSettings", () => {
       ).toBeInTheDocument();
     });
   });
+  describe("TestBench tab", () => {
+    async function openTestBenchTab() {
+      const user = userEvent.setup();
+      render();
+      await user.click(screen.getByRole("tab", { name: "TestBench" }));
+      return user;
+    }
+
+    it("renders the enable TestBench toggle as a switch", async () => {
+      await openTestBenchTab();
+      expect(screen.getByRole("switch", { name: /enable testbench/i })).toBeInTheDocument();
+    });
+
+    it("toggle defaults to enabled when settings omit testBench (DEFAULT_TESTBENCH_SETTINGS)", async () => {
+      await openTestBenchTab();
+      expect(screen.getByRole("switch", { name: /enable testbench/i })).toBeChecked();
+    });
+
+    it("toggle is checked when testBench.enabled is true", async () => {
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: true } },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+      await openTestBenchTab();
+      expect(screen.getByRole("switch", { name: /enable testbench/i })).toBeChecked();
+    });
+
+    it("toggle is unchecked when testBench.enabled is false", async () => {
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: false } },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+      await openTestBenchTab();
+      expect(screen.getByRole("switch", { name: /enable testbench/i })).not.toBeChecked();
+    });
+
+    it("calls updateSettings with toggled value when clicked", async () => {
+      const updateSettings = vi.fn();
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: true } },
+        isLoading: false,
+        updateSettings,
+      });
+      const user = await openTestBenchTab();
+      await user.click(screen.getByRole("switch", { name: /enable testbench/i }));
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ testBench: { enabled: false } }),
+      );
+    });
+
+    it("shows the disabled helper text when off", async () => {
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: false } },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+      await openTestBenchTab();
+      expect(
+        screen.getByText(
+          "Disabled. The create-TestBench option and the TestBench surface are hidden.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the disabled helper text when enabled", async () => {
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: true } },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+      await openTestBenchTab();
+      expect(
+        screen.queryByText(
+          "Disabled. The create-TestBench option and the TestBench surface are hidden.",
+        ),
+      ).toBeNull();
+    });
+
+    it("does not call updateSettings when settings is undefined", async () => {
+      const updateSettings = vi.fn();
+      mockedUseSettings.mockReturnValue({
+        settings: undefined,
+        isLoading: true,
+        updateSettings,
+      });
+      const user = await openTestBenchTab();
+      await user.click(screen.getByRole("switch", { name: /enable testbench/i }));
+      expect(updateSettings).not.toHaveBeenCalled();
+    });
+
+    it("is keyboard operable: focusing and pressing Space toggles the switch", async () => {
+      const updateSettings = vi.fn();
+      mockedUseSettings.mockReturnValue({
+        settings: { ...defaultSettings, testBench: { enabled: true } },
+        isLoading: false,
+        updateSettings,
+      });
+      const user = await openTestBenchTab();
+      const toggle = screen.getByRole("switch", { name: /enable testbench/i });
+      act(() => toggle.focus());
+      expect(toggle).toHaveFocus();
+      await user.keyboard("[Space]");
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ testBench: { enabled: false } }),
+      );
+    });
+  });
+
   describe("Jigs tab: Duplicate action", () => {
     const jigs: JigMeta[] = [
       {

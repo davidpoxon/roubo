@@ -79,6 +79,15 @@ router.put("/", (req, res) => {
       return;
     }
   }
+  if (body.testBench !== undefined) {
+    const tb = body.testBench;
+    if (tb === null || typeof tb.enabled !== "boolean") {
+      res.status(400).json({
+        error: "Invalid testBench settings: enabled must be a boolean",
+      });
+      return;
+    }
+  }
   if (body.claudeCode !== undefined) {
     const cc = body.claudeCode;
     if (
@@ -129,6 +138,7 @@ router.put("/", (req, res) => {
       theme: body.theme,
       jigs,
       benches,
+      testBench: body.testBench ?? current.testBench,
       claudeCode: body.claudeCode ?? current.claudeCode,
       github: body.github ?? current.github,
     };

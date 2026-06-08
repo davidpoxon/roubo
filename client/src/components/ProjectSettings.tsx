@@ -20,6 +20,7 @@ import FirstNSessionsBanner from "./FirstNSessionsBanner";
 import {
   DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
+  DEFAULT_TESTBENCH_SETTINGS,
   DEFAULT_CLAUDE_CODE_SETTINGS,
   GLOBAL_DEFAULT_JIG_ID,
 } from "@roubo/shared";
@@ -582,6 +583,42 @@ function ClaudeCodeTab() {
   );
 }
 
+function TestBenchTab() {
+  const { settings, updateSettings } = useSettings();
+  const testBenchSettings = settings?.testBench ?? DEFAULT_TESTBENCH_SETTINGS;
+  const enabled = testBenchSettings.enabled;
+
+  const setEnabled = (val: boolean) => {
+    if (!settings) return;
+    updateSettings({ ...settings, testBench: { ...testBenchSettings, enabled: val } });
+  };
+
+  return (
+    <div className="space-y-10">
+      <section>
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-5">
+          Feature
+        </h3>
+
+        <div className="space-y-6">
+          <SettingToggle
+            isSelected={enabled}
+            onChange={setEnabled}
+            label="Enable TestBench"
+            description="Surface the TestBench feature: the create-TestBench option and the TestBench review surface."
+          />
+        </div>
+
+        {!enabled && (
+          <p className="text-xs text-stone-400 dark:text-stone-600 mt-4 leading-relaxed">
+            Disabled. The create-TestBench option and the TestBench surface are hidden.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function AppearanceTab() {
   const { settings, updateSettings } = useSettings();
   const currentTheme = settings?.theme ?? "dark";
@@ -654,9 +691,17 @@ function AppearanceTab() {
 const TAB_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
   benches: "Benches",
+  testbench: "TestBench",
 };
 
-const HASH_TAB_IDS = new Set(["benches", "appearance", "jigs", "plugins", "claude-code"]);
+const HASH_TAB_IDS = new Set([
+  "benches",
+  "testbench",
+  "appearance",
+  "jigs",
+  "plugins",
+  "claude-code",
+]);
 
 export default function ProjectSettings() {
   const { hash } = useLocation();
@@ -678,29 +723,35 @@ export default function ProjectSettings() {
           aria-label="Settings sections"
           className="flex gap-0 border-b border-stone-200 dark:border-stone-800 mb-8"
         >
-          {(["benches", "appearance", "jigs", "plugins", "claude-code"] as const).map((id) => (
-            <Tab
-              key={id}
-              id={id}
-              className={({ isSelected, isFocusVisible }) =>
-                [
-                  "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
-                  isSelected
-                    ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                    : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
-                  isFocusVisible
-                    ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
-                    : "",
-                ].join(" ")
-              }
-            >
-              {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
-            </Tab>
-          ))}
+          {(["benches", "testbench", "appearance", "jigs", "plugins", "claude-code"] as const).map(
+            (id) => (
+              <Tab
+                key={id}
+                id={id}
+                className={({ isSelected, isFocusVisible }) =>
+                  [
+                    "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
+                    isSelected
+                      ? "text-stone-900 dark:text-stone-100 border-amber-500"
+                      : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                    isFocusVisible
+                      ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
+                      : "",
+                  ].join(" ")
+                }
+              >
+                {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
+              </Tab>
+            ),
+          )}
         </TabList>
 
         <TabPanel id="benches" className="outline-none">
           <BenchesTab />
+        </TabPanel>
+
+        <TabPanel id="testbench" className="outline-none">
+          <TestBenchTab />
         </TabPanel>
 
         <TabPanel id="appearance" className="outline-none">
