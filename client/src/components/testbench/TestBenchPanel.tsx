@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
 import { FileText, Pencil } from "lucide-react";
+import type { BenchStatus } from "@roubo/shared";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 import { useTestbenchPlan, useSetTestbenchFocus } from "../../hooks/useTestbenchPlan";
 import {
@@ -44,12 +45,23 @@ export default function TestBenchPanel({
   projectId,
   benchId,
   focusedSpecPath,
+  benchStatus = "active",
 }: {
   projectId: string;
   benchId: number;
   focusedSpecPath?: string;
+  benchStatus?: BenchStatus;
 }) {
-  const { data, isLoading, isError, error } = useTestbenchPlan(projectId, benchId);
+  // Gate the plan query on worktree readiness (#500). On first load the bench is
+  // `preparing` and its worktree (with `.specifications/<slug>/test-cases.json`)
+  // does not exist yet, so the plan endpoint 404s. Only `active`/`idle` mean the
+  // worktree is present; while not ready we show a placeholder instead of firing
+  // the query. The bench-detail query polls and flips status, at which point the
+  // now-enabled plan query fires automatically: no manual remount needed.
+  const ready = benchStatus === "active" || benchStatus === "idle";
+  const { data, isLoading, isError, error } = useTestbenchPlan(projectId, benchId, {
+    enabled: ready,
+  });
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const setFocus = useSetTestbenchFocus();
@@ -169,6 +181,18 @@ export default function TestBenchPanel({
       {picker}
     </div>
   );
+
+  // While the worktree is still provisioning the plan query is disabled (#500), so
+  // there is no data and no error yet. Render an explicit "preparing" placeholder
+  // BEFORE the error branch so a disabled query is never mistaken for a failure.
+  if (!ready) {
+    return frame(
+      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-600 py-8">
+        <Spinner />
+        Preparing test cases...
+      </div>,
+    );
+  }
 
   if (isLoading) {
     return frame(

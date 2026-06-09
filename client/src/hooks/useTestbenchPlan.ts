@@ -13,11 +13,23 @@ export function testbenchPlanQueryKey(projectId: string, benchId: number) {
   return ["testbenchPlan", projectId, benchId] as const;
 }
 
-export function useTestbenchPlan(projectId: string, benchId: number) {
+// `enabled` gates the fetch on bench readiness (#500). On first load `createBench`
+// returns `status: "preparing"` and provisions the worktree (and its
+// `.specifications/<slug>/test-cases.json`) asynchronously, so firing the plan
+// query before the worktree exists 404s with MissingPlanError. The caller passes
+// `enabled: ready` so the query only fires once the worktree is present; it
+// defaults to `true` so the gate is opt-in and existing callers are unaffected.
+export function useTestbenchPlan(
+  projectId: string,
+  benchId: number,
+  options: { enabled?: boolean } = {},
+) {
+  const { enabled = true } = options;
   return useQuery({
     queryKey: testbenchPlanQueryKey(projectId, benchId),
     queryFn: () => api.fetchTestbenchPlan(projectId, benchId),
     retry: false,
+    enabled,
   });
 }
 

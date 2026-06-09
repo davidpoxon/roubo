@@ -36,6 +36,23 @@ describe("useTestbenchPlan", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(mockedApi.fetchTestbenchPlan).toHaveBeenCalledTimes(1);
   });
+
+  it("does not fire while disabled, then fetches once enabled flips true (#500)", async () => {
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planResponse as never);
+    const { result, rerender } = renderHookWithProviders(
+      ({ enabled }: { enabled: boolean }) => useTestbenchPlan("p1", 3, { enabled }),
+      { initialProps: { enabled: false } },
+    );
+
+    // Disabled: the query is gated, so no request is made.
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mockedApi.fetchTestbenchPlan).not.toHaveBeenCalled();
+
+    // The bench-detail poller flips status to ready -> enabled becomes true.
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.fetchTestbenchPlan).toHaveBeenCalledWith("p1", 3);
+  });
 });
 
 describe("testbenchPlanQueryKey", () => {

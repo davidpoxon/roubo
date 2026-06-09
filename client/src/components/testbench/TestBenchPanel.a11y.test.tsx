@@ -181,4 +181,19 @@ describe("TestBenchPanel", () => {
     render(<TestBenchPanel projectId="p1" benchId={1} />);
     expect(screen.getByText(/No test-cases.json/i)).toBeTruthy();
   });
+
+  it("shows a preparing placeholder (not an error) while the bench is preparing (#500)", () => {
+    // The disabled plan query returns no data and no error on first load; the
+    // panel must render the preparing placeholder, never the error branch.
+    mockUseTestbenchPlan.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as ReturnType<typeof useTestbenchPlan>);
+    render(<TestBenchPanel projectId="p1" benchId={1} benchStatus="preparing" />);
+    expect(screen.getByText(/preparing test cases/i)).toBeTruthy();
+    expect(screen.queryByText(/No test-cases.json/i)).toBeNull();
+    expect(screen.queryByText(/could not load the testbench plan/i)).toBeNull();
+  });
 });
