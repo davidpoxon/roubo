@@ -58,7 +58,7 @@ import {
   type TestCasesPlan,
   type TestResultsFile,
 } from "@roubo/shared/testbench-contracts";
-import { canonicalize } from "@roubo/shared/testbench-canonicalize";
+import { canonicalize, canonicalizeCase } from "@roubo/shared/testbench-canonicalize";
 import {
   deriveStatus,
   purgeOrphans,
@@ -351,6 +351,17 @@ async function mutateCaseResult(
   const caseResult = file.caseResults[safeCaseId] ?? emptyCaseResult();
 
   mutate(caseResult, author, plan);
+
+  // Stamp the per-case canonical snapshot so the next reconcile can classify
+  // this case as unchanged rather than conservatively flagging it changed
+  // (issue #504). Reuse canonicalizeCase (the exact projection reconcile() uses)
+  // so there is no divergent serialization on the write path. If the case id is
+  // not in the plan, leave caseCanon unset: such a mark stays conservatively
+  // classified changed.
+  const planCase = plan.cases.find((c) => c.id === safeCaseId);
+  if (planCase) {
+    caseResult.caseCanon = canonicalizeCase(planCase);
+  }
 
   file.caseResults[safeCaseId] = caseResult;
   file.updatedAt = new Date().toISOString();

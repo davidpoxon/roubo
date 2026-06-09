@@ -4,10 +4,12 @@ import { Plus, RefreshCw, Archive, AlertTriangle } from "lucide-react";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 
 // The reconcile dialog (FR-017, NFR-003). Renders the server-computed
-// classification in three reviewer-facing sections: Added (new plan cases),
-// Changed (cases whose body changed, results retained for re-review), and Orphan
-// (recorded results with no matching plan case). Orphans are clearly marked and
-// retained, never silently deleted.
+// classification in three reviewer-facing sections, actionable ones first:
+// Changed (cases whose body changed, results retained for re-review), Orphan
+// (recorded results with no matching plan case), and a de-emphasized
+// Not-yet-recorded section (plan cases with no recorded result, listed for
+// reference and untouched by Apply). Orphans are clearly marked and retained,
+// never silently deleted.
 //
 // Applying reconcile preserves surviving results and archives orphans (they stay
 // on disk, excluded from the rollup). Purging orphans is a SEPARATE, explicitly
@@ -20,8 +22,9 @@ const STRINGS = {
   title: "Reconcile results with the source plan",
   intro:
     "The source plan changed. Review what changed below, then apply to preserve recorded results and archive orphaned cases.",
-  addedHeading: "Added",
-  addedHelp: "New plan cases with nothing recorded yet.",
+  addedHeading: "Not yet recorded",
+  addedHelp:
+    "Plan cases with no recorded result yet, listed for reference. Apply does not touch them: it preserves recorded results and archives orphans, leaving unrecorded cases as they are.",
   changedHeading: "Changed",
   changedHelp: "Case body changed: recorded marks and notes are kept for re-review.",
   orphanHeading: "Orphaned",
@@ -163,16 +166,6 @@ export default function ReconcileDialog({
                     </p>
 
                     <Section
-                      testId="reconcile-section-added"
-                      icon={<Plus size={13} className="text-stone-400 shrink-0" aria-hidden />}
-                      heading={STRINGS.addedHeading}
-                      help={STRINGS.addedHelp}
-                      count={classification.added.length}
-                    >
-                      <CaseList ids={classification.added} />
-                    </Section>
-
-                    <Section
                       testId="reconcile-section-changed"
                       icon={<RefreshCw size={13} className="text-amber-500 shrink-0" aria-hidden />}
                       heading={STRINGS.changedHeading}
@@ -190,6 +183,16 @@ export default function ReconcileDialog({
                       count={orphanCount}
                     >
                       <CaseList ids={classification.removed} />
+                    </Section>
+
+                    <Section
+                      testId="reconcile-section-added"
+                      icon={<Plus size={13} className="text-stone-400 shrink-0" aria-hidden />}
+                      heading={STRINGS.addedHeading}
+                      help={STRINGS.addedHelp}
+                      count={classification.added.length}
+                    >
+                      <CaseList ids={classification.added} />
                     </Section>
 
                     {error && (
