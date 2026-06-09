@@ -967,6 +967,7 @@ export default function BenchDetail() {
               projectId={projectId}
               benchId={benchId}
               focusedSpecPath={bench.focusedSpecPath}
+              benchStatus={bench.status}
             />
           </TabPanel>
         )}
