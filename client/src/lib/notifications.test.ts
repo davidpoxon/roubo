@@ -111,7 +111,6 @@ describe("formatNotification", () => {
     "terminal-waiting",
     "bench-error",
     "component-error",
-    "teardown-blocked",
     "sync-error",
     "claude-exited",
   ];

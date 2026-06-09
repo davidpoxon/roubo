@@ -36,11 +36,8 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   // Originals from server state
   const serverWorktreeSource = settings?.worktreeSource ?? DEFAULT_PROJECT_SETTINGS.worktreeSource;
   const serverJig: string | null = project.config?.jigs?.defaultJig ?? null;
-  const serverAutoClear: boolean | null = project.config?.benches?.autoClear ?? null;
   const serverEnforceIssueDependencies: boolean | null =
     project.config?.benches?.enforceIssueDependencies ?? null;
-  const serverWorkUnitAutoClear: boolean | null =
-    project.config?.benches?.workUnitAutoClear ?? null;
   const serverIssueTypeMappings: Record<string, string> =
     issueTypeMappingsData?.mappings ?? EMPTY_MAPPINGS;
 
@@ -50,13 +47,9 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     ProjectSettings["worktreeSource"]
   >(DEFAULT_PROJECT_SETTINGS.worktreeSource);
   const [draftJigRaw, setDraftJigRaw] = useState<string | null>(serverJig);
-  const [draftAutoClearRaw, setDraftAutoClearRaw] = useState<boolean | null>(serverAutoClear);
   const [draftEnforceIssueDependenciesRaw, setDraftEnforceIssueDependenciesRaw] = useState<
     boolean | null
   >(serverEnforceIssueDependencies);
-  const [draftWorkUnitAutoClearRaw, setDraftWorkUnitAutoClearRaw] = useState<boolean | null>(
-    serverWorkUnitAutoClear,
-  );
   const [draftIssueTypeMappingsRaw, setDraftIssueTypeMappingsRaw] =
     useState<Record<string, string>>(serverIssueTypeMappings);
 
@@ -77,18 +70,10 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
       issueTypeMappingsLoadedRef.current = false;
       setIssueTypeMappingsLoaded(false);
       setDraftJigRaw(serverJig);
-      setDraftAutoClearRaw(serverAutoClear);
       setDraftEnforceIssueDependenciesRaw(serverEnforceIssueDependencies);
-      setDraftWorkUnitAutoClearRaw(serverWorkUnitAutoClear);
       setDraftIssueTypeMappingsRaw(EMPTY_MAPPINGS);
     }
-  }, [
-    projectId,
-    serverJig,
-    serverAutoClear,
-    serverEnforceIssueDependencies,
-    serverWorkUnitAutoClear,
-  ]);
+  }, [projectId, serverJig, serverEnforceIssueDependencies]);
   useEffect(() => {
     if (!settingsLoadedRef.current && settings !== undefined) {
       settingsLoadedRef.current = true;
@@ -114,20 +99,10 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     setJustSaved(false);
     setDraftJigRaw(v);
   };
-  const setDraftAutoClear = (v: boolean | null) => {
-    justSavedRef.current = false;
-    setJustSaved(false);
-    setDraftAutoClearRaw(v);
-  };
   const setDraftEnforceIssueDependencies = (v: boolean | null) => {
     justSavedRef.current = false;
     setJustSaved(false);
     setDraftEnforceIssueDependenciesRaw(v);
-  };
-  const setDraftWorkUnitAutoClear = (v: boolean | null) => {
-    justSavedRef.current = false;
-    setJustSaved(false);
-    setDraftWorkUnitAutoClearRaw(v);
   };
   const setDraftIssueTypeMappings = (v: Record<string, string>) => {
     justSavedRef.current = false;
@@ -140,10 +115,8 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     draftWorktreeSourceRaw.branchFromDefault !== serverWorktreeSource.branchFromDefault ||
     draftWorktreeSourceRaw.pullLatest !== serverWorktreeSource.pullLatest;
   const isJigDirty = draftJigRaw !== serverJig;
-  const isAutoClearDirty = draftAutoClearRaw !== serverAutoClear;
   const isEnforceIssueDependenciesDirty =
     draftEnforceIssueDependenciesRaw !== serverEnforceIssueDependencies;
-  const isWorkUnitAutoClearDirty = draftWorkUnitAutoClearRaw !== serverWorkUnitAutoClear;
   const isIssueTypeMappingsDirty = !mappingsEqual(
     draftIssueTypeMappingsRaw,
     serverIssueTypeMappings,
@@ -155,18 +128,14 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
   const hasAnyDirty =
     (isWorktreeSourceDirty ||
       isJigDirty ||
-      isAutoClearDirty ||
       isEnforceIssueDependenciesDirty ||
-      isWorkUnitAutoClearDirty ||
       (issueTypeMappingsLoaded && isIssueTypeMappingsDirty)) &&
     !justSaved;
 
   const discard = () => {
     setDraftWorktreeSourceRaw(serverWorktreeSource);
     setDraftJigRaw(serverJig);
-    setDraftAutoClearRaw(serverAutoClear);
     setDraftEnforceIssueDependenciesRaw(serverEnforceIssueDependencies);
-    setDraftWorkUnitAutoClearRaw(serverWorkUnitAutoClear);
     setDraftIssueTypeMappingsRaw(serverIssueTypeMappings);
     setSaveErrors([]);
     justSavedRef.current = false;
@@ -199,14 +168,10 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     }
 
     // All bench override fields use a single atomic write to avoid yaml race
-    const benchOverridesDirty =
-      isAutoClearDirty || isEnforceIssueDependenciesDirty || isWorkUnitAutoClearDirty;
-    if (benchOverridesDirty) {
-      const patch: Record<string, boolean | null> = {};
-      if (isAutoClearDirty) patch.autoClear = draftAutoClearRaw;
-      if (isEnforceIssueDependenciesDirty)
-        patch.enforceIssueDependencies = draftEnforceIssueDependenciesRaw;
-      if (isWorkUnitAutoClearDirty) patch.workUnitAutoClear = draftWorkUnitAutoClearRaw;
+    if (isEnforceIssueDependenciesDirty) {
+      const patch: Record<string, boolean | null> = {
+        enforceIssueDependencies: draftEnforceIssueDependenciesRaw,
+      };
       tasks.push(
         updateBenchOverridesAsync(patch).catch(() => {
           failed.push("Bench overrides");
@@ -240,26 +205,18 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
     setDraftWorktreeSource,
     draftJig: draftJigRaw,
     setDraftJig,
-    draftAutoClear: draftAutoClearRaw,
-    setDraftAutoClear,
     draftEnforceIssueDependencies: draftEnforceIssueDependenciesRaw,
     setDraftEnforceIssueDependencies,
-    draftWorkUnitAutoClear: draftWorkUnitAutoClearRaw,
-    setDraftWorkUnitAutoClear,
     draftIssueTypeMappings: draftIssueTypeMappingsRaw,
     setDraftIssueTypeMappings,
     originalWorktreeSource: serverWorktreeSource,
     originalJig: serverJig,
-    originalAutoClear: serverAutoClear,
     originalEnforceIssueDependencies: serverEnforceIssueDependencies,
-    originalWorkUnitAutoClear: serverWorkUnitAutoClear,
     originalIssueTypeMappings: serverIssueTypeMappings,
     hasAnyDirty,
     isWorktreeSourceDirty,
     isJigDirty,
-    isAutoClearDirty,
     isEnforceIssueDependenciesDirty,
-    isWorkUnitAutoClearDirty,
     isIssueTypeMappingsDirty,
     isSaving,
     saveErrors,

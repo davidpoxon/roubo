@@ -18,7 +18,6 @@ vi.mock("../services/bench-manager.js", async (importOriginal) => {
     assignContainer: vi.fn(),
     unassignContainer: vi.fn(),
     cleanupAndRetryBench: vi.fn(),
-    setWorkUnitIgnoredForAutoClear: vi.fn(),
   };
 });
 
@@ -1076,101 +1075,6 @@ describe("POST /:projectId/benches/:id/cleanup-and-retry", () => {
 
   it("returns 400 for non-numeric bench id", async () => {
     const res = await request(app).post("/project/benches/abc/cleanup-and-retry");
-    expect(res.status).toBe(400);
-  });
-});
-
-describe("POST /:projectId/benches/:id/work-units/:submodule/ignore-for-auto-clear", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns 200 with updated bench on success", async () => {
-    const bench = {
-      id: 1,
-      projectId: "project",
-      workUnits: [{ submodule: "api", ignoredForAutoClear: true }],
-    };
-    vi.mocked(benchManager.setWorkUnitIgnoredForAutoClear).mockReturnValue(bench as any);
-
-    const res = await request(app)
-      .post("/project/benches/1/work-units/api/ignore-for-auto-clear")
-      .send({ ignored: true });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(bench);
-    expect(benchManager.setWorkUnitIgnoredForAutoClear).toHaveBeenCalledWith(
-      "project",
-      1,
-      "api",
-      true,
-    );
-  });
-
-  it("URL-decodes the submodule parameter", async () => {
-    const bench = {
-      id: 1,
-      projectId: "project",
-      workUnits: [{ submodule: "services/api", ignoredForAutoClear: false }],
-    };
-    vi.mocked(benchManager.setWorkUnitIgnoredForAutoClear).mockReturnValue(bench as any);
-
-    const res = await request(app)
-      .post("/project/benches/1/work-units/services%2Fapi/ignore-for-auto-clear")
-      .send({ ignored: false });
-    expect(res.status).toBe(200);
-    expect(benchManager.setWorkUnitIgnoredForAutoClear).toHaveBeenCalledWith(
-      "project",
-      1,
-      "services/api",
-      false,
-    );
-  });
-
-  it("returns 400 when ignored is not a boolean", async () => {
-    const res = await request(app)
-      .post("/project/benches/1/work-units/api/ignore-for-auto-clear")
-      .send({ ignored: "yes" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/boolean/);
-    expect(benchManager.setWorkUnitIgnoredForAutoClear).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 when ignored is missing", async () => {
-    const res = await request(app)
-      .post("/project/benches/1/work-units/api/ignore-for-auto-clear")
-      .send({});
-    expect(res.status).toBe(400);
-    expect(benchManager.setWorkUnitIgnoredForAutoClear).not.toHaveBeenCalled();
-  });
-
-  it("returns 404 for NOT_FOUND BenchError (bench missing)", async () => {
-    vi.mocked(benchManager.setWorkUnitIgnoredForAutoClear).mockImplementation(() => {
-      throw new BenchError("Bench not found", "NOT_FOUND");
-    });
-
-    const res = await request(app)
-      .post("/project/benches/99/work-units/api/ignore-for-auto-clear")
-      .send({ ignored: true });
-    expect(res.status).toBe(404);
-    expect(res.body.code).toBe("NOT_FOUND");
-  });
-
-  it("returns 404 for NOT_FOUND BenchError (work unit missing)", async () => {
-    vi.mocked(benchManager.setWorkUnitIgnoredForAutoClear).mockImplementation(() => {
-      throw new BenchError("Work unit 'nonexistent' not found on bench 1", "NOT_FOUND");
-    });
-
-    const res = await request(app)
-      .post("/project/benches/1/work-units/nonexistent/ignore-for-auto-clear")
-      .send({ ignored: true });
-    expect(res.status).toBe(404);
-    expect(res.body.code).toBe("NOT_FOUND");
-  });
-
-  it("returns 400 for non-numeric bench id", async () => {
-    const res = await request(app)
-      .post("/project/benches/abc/work-units/api/ignore-for-auto-clear")
-      .send({ ignored: true });
     expect(res.status).toBe(400);
   });
 });

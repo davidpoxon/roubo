@@ -31,8 +31,6 @@ import {
   Ban,
   AlertTriangle,
   RefreshCw,
-  EyeOff,
-  Eye,
 } from "lucide-react";
 import {
   useBenchDetail,
@@ -44,7 +42,6 @@ import {
   useStopComponent,
   useDismissBenchNotifications,
   useSyncBenchWorkUnits,
-  useSetWorkUnitIgnored,
 } from "../hooks/useBenches";
 import type {
   Bench,
@@ -213,29 +210,18 @@ function workUnitDirtyTooltip(unit: BenchWorkUnit): string | undefined {
   return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
-function WorkUnitRow({
-  unit,
-  onToggleIgnore,
-}: {
-  unit: BenchWorkUnit;
-  onToggleIgnore: (unit: BenchWorkUnit) => void;
-}) {
+function WorkUnitRow({ unit }: { unit: BenchWorkUnit }) {
   const pr = unit.pullRequest;
-  const isIgnored = unit.ignoredForAutoClear === true;
   const d = unit.dirtyState;
   const totalDirty = d ? d.modifiedCount + d.untrackedCount : 0;
   const hasActivity = !!pr || totalDirty > 0 || (d?.unpushedCommits ?? 0) > 0;
   const dirtyTooltip = workUnitDirtyTooltip(unit);
 
   return (
-    <div
-      className={`px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 ${isIgnored ? "opacity-60" : ""}`}
-    >
+    <div className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <span className="flex items-center gap-1.5 min-w-0">
         {hasActivity && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
-        <span
-          className={`text-sm font-medium ${isIgnored ? "text-stone-400 dark:text-stone-500" : "text-stone-700 dark:text-stone-300"}`}
-        >
+        <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
           {unit.submodule}
         </span>
       </span>
@@ -286,35 +272,11 @@ function WorkUnitRow({
           sync error
         </span>
       )}
-      {isIgnored && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
-          <EyeOff size={10} />
-          ignored
+      {unit.lastSyncedAt && (
+        <span className="ml-auto text-xs text-stone-400 dark:text-stone-600">
+          {formatTimeAgo(unit.lastSyncedAt)}
         </span>
       )}
-      <span className="ml-auto flex items-center gap-2">
-        {unit.lastSyncedAt && (
-          <span className="text-xs text-stone-400 dark:text-stone-600">
-            {formatTimeAgo(unit.lastSyncedAt)}
-          </span>
-        )}
-        <TooltipTrigger delay={600}>
-          <Button
-            onPress={() => onToggleIgnore(unit)}
-            aria-label={isIgnored ? "Resume auto-clear tracking" : "Ignore for auto-clear"}
-            className={`p-1 rounded transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500 ${
-              isIgnored
-                ? "text-amber-500 hover:text-amber-400"
-                : "text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
-            }`}
-          >
-            {isIgnored ? <Eye size={13} /> : <EyeOff size={13} />}
-          </Button>
-          <Tooltip className="px-2 py-1 text-xs bg-stone-800 text-stone-200 rounded shadow-lg">
-            {isIgnored ? "Resume auto-clear tracking" : "Ignore for auto-clear"}
-          </Tooltip>
-        </TooltipTrigger>
-      </span>
     </div>
   );
 }
@@ -331,23 +293,7 @@ function WorkUnitsPanel({
   disableSourceSync?: boolean;
 }) {
   const syncWorkUnits = useSyncBenchWorkUnits();
-  const [ignoreTarget, setIgnoreTarget] = useState<BenchWorkUnit | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const setIgnored = useSetWorkUnitIgnored();
-
-  function handleConfirm(close: () => void) {
-    if (!ignoreTarget) return;
-    const newIgnored = !ignoreTarget.ignoredForAutoClear;
-    setIgnored.mutate(
-      { projectId, benchId, submodule: ignoreTarget.submodule, ignored: newIgnored },
-      {
-        onSuccess: () => {
-          close();
-          setIgnoreTarget(null);
-        },
-      },
-    );
-  }
 
   return (
     <div className="mb-6">
@@ -386,7 +332,7 @@ function WorkUnitsPanel({
       {isExpanded ? (
         <div className="rounded-lg bg-stone-100 dark:bg-stone-900/50 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30 divide-y divide-stone-200 dark:divide-stone-800/40">
           {workUnits.map((unit) => (
-            <WorkUnitRow key={unit.submodule} unit={unit} onToggleIgnore={setIgnoreTarget} />
+            <WorkUnitRow key={unit.submodule} unit={unit} />
           ))}
         </div>
       ) : (
@@ -401,7 +347,7 @@ function WorkUnitsPanel({
             const chip = (
               <span
                 key={unit.submodule}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-200/60 dark:bg-stone-800/50 text-xs whitespace-nowrap ${unit.ignoredForAutoClear ? "opacity-50 text-stone-500 dark:text-stone-500" : "text-stone-700 dark:text-stone-300"}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-200/60 dark:bg-stone-800/50 text-xs whitespace-nowrap text-stone-700 dark:text-stone-300"
               >
                 {unit.syncError && (
                   <span
@@ -460,80 +406,6 @@ function WorkUnitsPanel({
           {syncWorkUnits.error instanceof Error ? syncWorkUnits.error.message : "Sync failed"}
         </p>
       )}
-
-      <ModalOverlay
-        isOpen={ignoreTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIgnoreTarget(null);
-            setIgnored.reset();
-          }
-        }}
-        isDismissable
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      >
-        <Modal className="w-full max-w-sm mx-4">
-          <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
-            {({ close }) => (
-              <>
-                <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                  <Heading
-                    slot="title"
-                    className="text-sm font-semibold text-stone-900 dark:text-stone-100"
-                  >
-                    {ignoreTarget?.ignoredForAutoClear
-                      ? "Resume auto-clear tracking"
-                      : "Ignore work unit for auto-clear"}
-                  </Heading>
-                </div>
-                <div className="px-5 py-4">
-                  <p className="text-sm text-stone-600 dark:text-stone-400">
-                    {ignoreTarget?.ignoredForAutoClear ? (
-                      <>
-                        Resume tracking{" "}
-                        <span className="font-mono text-stone-800 dark:text-stone-200">
-                          {ignoreTarget?.submodule}
-                        </span>
-                        ? This work unit&apos;s PR must be merged or closed before the bench can be
-                        automatically cleared.
-                      </>
-                    ) : (
-                      <>
-                        Ignore{" "}
-                        <span className="font-mono text-stone-800 dark:text-stone-200">
-                          {ignoreTarget?.submodule}
-                        </span>{" "}
-                        for auto-clear? This work unit&apos;s PR status will no longer block
-                        automatic bench teardown.
-                      </>
-                    )}
-                  </p>
-                  {setIgnored.isError && (
-                    <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-                      Failed to update. Please try again.
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
-                  <Button
-                    onPress={close}
-                    className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    isDisabled={setIgnored.isPending}
-                    onPress={() => handleConfirm(close)}
-                    className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-stone-600 not-disabled:hover:bg-stone-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
-                  >
-                    Confirm
-                  </Button>
-                </div>
-              </>
-            )}
-          </Dialog>
-        </Modal>
-      </ModalOverlay>
     </div>
   );
 }

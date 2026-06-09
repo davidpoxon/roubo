@@ -19,9 +19,7 @@ beforeEach(() => {
 const makeProject = (
   id: string,
   benches?: Partial<{
-    autoClear: boolean;
     enforceIssueDependencies: boolean;
-    workUnitAutoClear: boolean;
   }>,
 ): RegisteredProject => ({
   id,
@@ -36,18 +34,16 @@ const makeProject = (
 });
 
 const fullOverrides = {
-  autoClear: null,
   enforceIssueDependencies: null,
-  workUnitAutoClear: null,
 };
 
 describe("useUpdateProjectBenchOverrides", () => {
-  it("applies optimistic autoClear update to project cache before API resolves", async () => {
-    mockedUpdate.mockResolvedValue({ ...fullOverrides, autoClear: true });
+  it("applies optimistic enforceIssueDependencies update to project cache before API resolves", async () => {
+    mockedUpdate.mockResolvedValue({ ...fullOverrides, enforceIssueDependencies: true });
     const queryClient = makeQueryClient();
     queryClient.setQueryData<RegisteredProject[]>(
       ["projects"],
-      [makeProject("p1", { autoClear: false })],
+      [makeProject("p1", { enforceIssueDependencies: false })],
     );
 
     const { result } = renderHookWithProviders(() => useUpdateProjectBenchOverrides("p1"), {
@@ -55,21 +51,21 @@ describe("useUpdateProjectBenchOverrides", () => {
     });
 
     act(() => {
-      result.current.mutate({ autoClear: true });
+      result.current.mutate({ enforceIssueDependencies: true });
     });
 
     await waitFor(() => {
       const projects = queryClient.getQueryData<RegisteredProject[]>(["projects"]);
-      expect(projects?.[0].config?.benches?.autoClear).toBe(true);
+      expect(projects?.[0].config?.benches?.enforceIssueDependencies).toBe(true);
     });
   });
 
-  it("removes autoClear from cache when null is passed", async () => {
+  it("removes enforceIssueDependencies from cache when null is passed", async () => {
     mockedUpdate.mockResolvedValue(fullOverrides);
     const queryClient = makeQueryClient();
     queryClient.setQueryData<RegisteredProject[]>(
       ["projects"],
-      [makeProject("p1", { autoClear: true })],
+      [makeProject("p1", { enforceIssueDependencies: true })],
     );
 
     const { result } = renderHookWithProviders(() => useUpdateProjectBenchOverrides("p1"), {
@@ -77,12 +73,12 @@ describe("useUpdateProjectBenchOverrides", () => {
     });
 
     act(() => {
-      result.current.mutate({ autoClear: null });
+      result.current.mutate({ enforceIssueDependencies: null });
     });
 
     await waitFor(() => {
       const projects = queryClient.getQueryData<RegisteredProject[]>(["projects"]);
-      expect(projects?.[0].config?.benches?.autoClear).toBeUndefined();
+      expect(projects?.[0].config?.benches?.enforceIssueDependencies).toBeUndefined();
     });
   });
 
@@ -114,7 +110,7 @@ describe("useUpdateProjectBenchOverrides", () => {
   it("rolls back to previous projects when the API fails", async () => {
     mockedUpdate.mockRejectedValue(new Error("Network error"));
     const queryClient = makeQueryClient();
-    const original = [makeProject("p1", { autoClear: false })];
+    const original = [makeProject("p1", { enforceIssueDependencies: false })];
     queryClient.setQueryData<RegisteredProject[]>(["projects"], original);
 
     const { result } = renderHookWithProviders(() => useUpdateProjectBenchOverrides("p1"), {
@@ -122,21 +118,24 @@ describe("useUpdateProjectBenchOverrides", () => {
     });
 
     await act(async () => {
-      result.current.mutate({ autoClear: true });
+      result.current.mutate({ enforceIssueDependencies: true });
     });
 
     await waitFor(() => {
       const projects = queryClient.getQueryData<RegisteredProject[]>(["projects"]);
-      expect(projects?.[0].config?.benches?.autoClear).toBe(false);
+      expect(projects?.[0].config?.benches?.enforceIssueDependencies).toBe(false);
     });
   });
 
   it("does not mutate projects for other project ids", async () => {
-    mockedUpdate.mockResolvedValue({ ...fullOverrides, autoClear: true });
+    mockedUpdate.mockResolvedValue({ ...fullOverrides, enforceIssueDependencies: true });
     const queryClient = makeQueryClient();
     queryClient.setQueryData<RegisteredProject[]>(
       ["projects"],
-      [makeProject("p1", { autoClear: false }), makeProject("p2", { autoClear: false })],
+      [
+        makeProject("p1", { enforceIssueDependencies: false }),
+        makeProject("p2", { enforceIssueDependencies: false }),
+      ],
     );
 
     const { result } = renderHookWithProviders(() => useUpdateProjectBenchOverrides("p1"), {
@@ -144,12 +143,12 @@ describe("useUpdateProjectBenchOverrides", () => {
     });
 
     act(() => {
-      result.current.mutate({ autoClear: true });
+      result.current.mutate({ enforceIssueDependencies: true });
     });
 
     await waitFor(() => {
       const projects = queryClient.getQueryData<RegisteredProject[]>(["projects"]);
-      expect(projects?.[1].config?.benches?.autoClear).toBe(false);
+      expect(projects?.[1].config?.benches?.enforceIssueDependencies).toBe(false);
     });
   });
 
@@ -163,7 +162,7 @@ describe("useUpdateProjectBenchOverrides", () => {
     });
 
     await act(async () => {
-      result.current.mutate({ autoClear: true });
+      result.current.mutate({ enforceIssueDependencies: true });
     });
 
     await waitFor(() => {

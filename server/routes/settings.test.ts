@@ -254,9 +254,7 @@ describe("PUT /", () => {
 
   it("saves valid bench settings alongside theme", async () => {
     const benches = {
-      autoClear: false,
       enforceIssueDependencies: true,
-      workUnitAutoClear: true,
       autoStartComponents: false,
     };
     const res = await request(app).put("/").send({ theme: "dark", benches });
@@ -269,9 +267,7 @@ describe("PUT /", () => {
 
   it("saves benches.autoStartComponents: true alongside theme", async () => {
     const benches = {
-      autoClear: true,
       enforceIssueDependencies: false,
-      workUnitAutoClear: true,
       autoStartComponents: true,
     };
     const res = await request(app).put("/").send({ theme: "dark", benches });
@@ -279,28 +275,12 @@ describe("PUT /", () => {
     expect(res.body.benches).toEqual(benches);
   });
 
-  it("returns 400 when benches.autoClear is not a boolean", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        benches: {
-          autoClear: "yes",
-          enforceIssueDependencies: false,
-          workUnitAutoClear: true,
-          autoStartComponents: false,
-        },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid bench/i);
-  });
-
   it("returns 400 when benches.enforceIssueDependencies is missing", async () => {
     const res = await request(app)
       .put("/")
       .send({
         theme: "dark",
-        benches: { autoClear: true, workUnitAutoClear: true, autoStartComponents: false },
+        benches: { autoStartComponents: false },
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid bench/i);
@@ -312,36 +292,7 @@ describe("PUT /", () => {
       .send({
         theme: "dark",
         benches: {
-          autoClear: true,
           enforceIssueDependencies: "yes",
-          workUnitAutoClear: true,
-          autoStartComponents: false,
-        },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid bench/i);
-  });
-
-  it("returns 400 when benches.workUnitAutoClear is missing", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        benches: { autoClear: true, enforceIssueDependencies: false, autoStartComponents: false },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid bench/i);
-  });
-
-  it("returns 400 when benches.workUnitAutoClear is not a boolean", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        benches: {
-          autoClear: true,
-          enforceIssueDependencies: false,
-          workUnitAutoClear: "yes",
           autoStartComponents: false,
         },
       });
@@ -354,7 +305,7 @@ describe("PUT /", () => {
       .put("/")
       .send({
         theme: "dark",
-        benches: { autoClear: true, enforceIssueDependencies: false, workUnitAutoClear: true },
+        benches: { enforceIssueDependencies: false },
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid bench/i);
@@ -366,9 +317,7 @@ describe("PUT /", () => {
       .send({
         theme: "dark",
         benches: {
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
           autoStartComponents: "yes",
         },
       });
@@ -378,9 +327,7 @@ describe("PUT /", () => {
 
   it("preserves existing bench settings (including autoStartComponents) when not provided in request", async () => {
     const existingBenches = {
-      autoClear: false,
       enforceIssueDependencies: false,
-      workUnitAutoClear: true,
       autoStartComponents: true,
     };
     vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", benches: existingBenches });
@@ -397,13 +344,11 @@ describe("PUT /", () => {
   });
 
   // The route replaces the whole benches block, so every payload below carries the
-  // four required booleans plus the maxGlobal value under test. The spec's abbreviated
+  // two required booleans plus the maxGlobal value under test. The spec's abbreviated
   // { benches: { maxGlobal } } shorthand is illustrative; sent literally it would 400
   // on the missing booleans rather than exercising the maxGlobal rule.
   const validBenches = {
-    autoClear: true,
     enforceIssueDependencies: false,
-    workUnitAutoClear: true,
     autoStartComponents: false,
   };
 
@@ -456,7 +401,7 @@ describe("PUT /", () => {
     // use. Number.isInteger(Infinity) is false, so the guard rejects it. (NaN has no
     // JSON representation at all and cannot reach the route; the typeof guard covers
     // the non-number cases instead, see the string test below.)
-    const rawBody = `{"theme":"dark","benches":{"autoClear":true,"enforceIssueDependencies":false,"workUnitAutoClear":true,"autoStartComponents":false,"maxGlobal":1e999}}`;
+    const rawBody = `{"theme":"dark","benches":{"enforceIssueDependencies":false,"autoStartComponents":false,"maxGlobal":1e999}}`;
     const res = await request(app).put("/").set("Content-Type", "application/json").send(rawBody);
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/benches\.maxGlobal/);

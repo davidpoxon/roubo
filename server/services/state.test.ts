@@ -136,9 +136,7 @@ describe("atomicWrite", () => {
 
 const DEFAULT_JIG_SETTINGS = { autoInject: true, autoExecute: true };
 const DEFAULT_BENCH_SETTINGS = {
-  autoClear: true,
   enforceIssueDependencies: false,
-  workUnitAutoClear: true,
   autoStartComponents: false,
 };
 const DEFAULT_TESTBENCH_SETTINGS = { enabled: true };
@@ -270,14 +268,14 @@ describe("loadSettings", () => {
 
   it("preserves custom bench settings from file", () => {
     existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", benches: { autoClear: false } }));
+    readFileSync.mockReturnValue(
+      JSON.stringify({ theme: "dark", benches: { enforceIssueDependencies: true } }),
+    );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: {
-        autoClear: false,
-        enforceIssueDependencies: false,
-        workUnitAutoClear: true,
+        enforceIssueDependencies: true,
         autoStartComponents: false,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,
@@ -331,9 +329,7 @@ describe("loadSettings", () => {
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: {
-        autoClear: true,
         enforceIssueDependencies: false,
-        workUnitAutoClear: true,
         autoStartComponents: true,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,
@@ -347,16 +343,14 @@ describe("loadSettings", () => {
     readFileSync.mockReturnValue(
       JSON.stringify({
         theme: "dark",
-        benches: { autoClear: false, enforceIssueDependencies: true },
+        benches: { enforceIssueDependencies: true },
       }),
     );
     expect(stateModule.loadSettings()).toEqual({
       theme: "dark",
       jigs: DEFAULT_JIG_SETTINGS,
       benches: {
-        autoClear: false,
         enforceIssueDependencies: true,
-        workUnitAutoClear: true,
         autoStartComponents: false,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,

@@ -69,9 +69,7 @@ describe("GET /:projectId/benches/overrides", () => {
     const res = await request(app).get("/project-1/benches/overrides");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      autoClear: null,
       enforceIssueDependencies: null,
-      workUnitAutoClear: null,
     });
   });
 
@@ -82,18 +80,14 @@ describe("GET /:projectId/benches/overrides", () => {
         ...MOCK_PROJECT.config,
         benches: {
           max: 3,
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
         },
       },
     } as never);
     const res = await request(app).get("/project-1/benches/overrides");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      autoClear: true,
       enforceIssueDependencies: false,
-      workUnitAutoClear: true,
     });
   });
 
@@ -105,80 +99,54 @@ describe("GET /:projectId/benches/overrides", () => {
 });
 
 describe("PUT /:projectId/benches/overrides", () => {
-  it("sets autoClear to true and persists", async () => {
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
-    expect(res.status).toBe(200);
-    expect(res.body.autoClear).toBe(true);
-    expect(state.atomicWrite).toHaveBeenCalled();
-    expect(projectRegistry.reloadConfig).toHaveBeenCalledWith("project-1");
-    const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
-    expect((dumped.benches as Record<string, unknown>).autoClear).toBe(true);
-  });
-
   it("sets enforceIssueDependencies to true and persists", async () => {
     const res = await request(app)
       .put("/project-1/benches/overrides")
       .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(200);
     expect(res.body.enforceIssueDependencies).toBe(true);
+    expect(state.atomicWrite).toHaveBeenCalled();
+    expect(projectRegistry.reloadConfig).toHaveBeenCalledWith("project-1");
     const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
     expect((dumped.benches as Record<string, unknown>).enforceIssueDependencies).toBe(true);
   });
 
-  it("sets workUnitAutoClear to false and persists", async () => {
+  it("removes enforceIssueDependencies key when null is sent, preserving other benches fields", async () => {
+    vi.mocked(YAML.parse).mockReturnValue({
+      benches: { max: 3, enforceIssueDependencies: true },
+    });
     const res = await request(app)
       .put("/project-1/benches/overrides")
-      .send({ workUnitAutoClear: false });
+      .send({ enforceIssueDependencies: null });
     expect(res.status).toBe(200);
-    expect(res.body.workUnitAutoClear).toBe(false);
-    const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
-    expect((dumped.benches as Record<string, unknown>).workUnitAutoClear).toBe(false);
-  });
-
-  it("sets all three fields in one request", async () => {
-    const res = await request(app).put("/project-1/benches/overrides").send({
-      autoClear: true,
-      enforceIssueDependencies: false,
-      workUnitAutoClear: true,
-    });
-    expect(res.status).toBe(200);
-    expect(state.atomicWrite).toHaveBeenCalledTimes(1);
-    const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
-    const benches = dumped.benches as Record<string, unknown>;
-    expect(benches.autoClear).toBe(true);
-    expect(benches.enforceIssueDependencies).toBe(false);
-    expect(benches.workUnitAutoClear).toBe(true);
-  });
-
-  it("removes autoClear key when null is sent, preserving other benches fields", async () => {
-    vi.mocked(YAML.parse).mockReturnValue({
-      benches: { max: 3, autoClear: false, enforceIssueDependencies: true },
-    });
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: null });
-    expect(res.status).toBe(200);
-    expect(res.body.autoClear).toBe(null);
+    expect(res.body.enforceIssueDependencies).toBe(null);
     const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
     const benches = dumped.benches as Record<string, unknown>;
     expect(benches.max).toBe(3);
-    expect("autoClear" in benches).toBe(false);
-    expect(benches.enforceIssueDependencies).toBe(true);
+    expect("enforceIssueDependencies" in benches).toBe(false);
   });
 
   it("no-ops gracefully when null is sent and no benches section exists", async () => {
     vi.mocked(YAML.parse).mockReturnValue({ jigs: {} });
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: null });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: null });
     expect(res.status).toBe(200);
     expect(state.atomicWrite).not.toHaveBeenCalled();
   });
 
   it("returns 404 when project is not found", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
-    const res = await request(app).put("/nonexistent/benches/overrides").send({ autoClear: true });
+    const res = await request(app)
+      .put("/nonexistent/benches/overrides")
+      .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(404);
   });
 
   it("returns 400 when a field is a string instead of boolean", async () => {
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: "yes" });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: "yes" });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/boolean/);
   });
@@ -199,12 +167,12 @@ describe("PUT /:projectId/benches/overrides", () => {
 
   it("skips disk write and returns all-null when nulling a key that was never set", async () => {
     vi.mocked(YAML.parse).mockReturnValue({});
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: null });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: null });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      autoClear: null,
       enforceIssueDependencies: null,
-      workUnitAutoClear: null,
     });
     expect(state.atomicWrite).not.toHaveBeenCalled();
   });
@@ -213,24 +181,30 @@ describe("PUT /:projectId/benches/overrides", () => {
     vi.mocked(state.atomicWrite).mockImplementation(() => {
       throw new Error("Disk full");
     });
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("Disk full");
   });
 
   it("treats non-object YAML root as empty config", async () => {
     vi.mocked(YAML.parse).mockReturnValue("just a string");
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(200);
     const dumped = vi.mocked(YAML.stringify).mock.calls[0][0] as Record<string, unknown>;
-    expect((dumped.benches as Record<string, unknown>).autoClear).toBe(true);
+    expect((dumped.benches as Record<string, unknown>).enforceIssueDependencies).toBe(true);
   });
 
   it("succeeds even when reloadConfig throws", async () => {
     vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => {
       throw new Error("reload failed");
     });
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(200);
   });
 
@@ -238,7 +212,9 @@ describe("PUT /:projectId/benches/overrides", () => {
   // (CodeQL js/missing-rate-limiting #35). Asserting the draft-7 RateLimit
   // headers proves the limiter is wired onto the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {
-    const res = await request(app).put("/project-1/benches/overrides").send({ autoClear: true });
+    const res = await request(app)
+      .put("/project-1/benches/overrides")
+      .send({ enforceIssueDependencies: true });
     expect(res.status).toBe(200);
     expect(res.headers["ratelimit"]).toBeDefined();
     expect(res.headers["ratelimit-policy"]).toBeDefined();

@@ -37,7 +37,7 @@ import pluginsRouter from "./routes/plugins.js";
 import migrationRouter from "./routes/migration.js";
 import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
-import * as autoClear from "./services/auto-clear.js";
+import * as prSync from "./services/pr-sync.js";
 import * as pluginManager from "./services/plugin-manager.js";
 import * as githubService from "./services/github.js";
 import * as migrate from "./services/migrate.js";
@@ -240,8 +240,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
 
-  console.log("Starting auto-clear watcher...");
-  autoClear.start();
+  console.log("Starting work-unit PR sync poller...");
+  prSync.startPolling();
 
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
@@ -254,7 +254,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     if (closed) return;
     closed = true;
     clearInterval(statusInterval);
-    autoClear.stop();
+    prSync.stopPolling();
     jigManager.stopAllWatchers();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));

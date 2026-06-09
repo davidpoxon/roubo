@@ -22,7 +22,6 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "terminal-waiting":
     case "bench-error":
     case "component-error":
-    case "teardown-blocked":
     case "sync-error":
     case "claude-exited":
       return "action-needed";
@@ -86,11 +85,7 @@ export function createNotification(
 
 export function dismissBenchLevelForBench(bench: Bench): void {
   const before = bench.notifications.length;
-  // teardown-blocked must persist until the user explicitly dismisses it (dismissOne),
-  // not be silently cleared on bench open.
-  bench.notifications = bench.notifications.filter(
-    (n) => n.sourceSessionId || n.type === "teardown-blocked",
-  );
+  bench.notifications = bench.notifications.filter((n) => n.sourceSessionId);
   if (bench.notifications.length !== before) {
     persistBench(bench);
     sseService.broadcast({

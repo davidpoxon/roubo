@@ -613,12 +613,6 @@ export interface BenchWorkUnit {
   lastSyncedAt?: string;
   /** Populated if the last sync attempt failed. */
   syncError?: string;
-  /**
-   * When true, this work unit is excluded from auto-clear evaluation.
-   * Use as an escape hatch when a PR was closed without merging because
-   * the work moved elsewhere and the bench should not be held open indefinitely.
-   */
-  ignoredForAutoClear?: boolean;
 }
 
 export interface TrackedPullRequest {
@@ -672,7 +666,6 @@ export type NotificationType =
   | "bench-error"
   | "inspection-complete"
   | "component-error"
-  | "teardown-blocked"
   | "sync-error";
 
 export type NotificationPriority = "info" | "action-needed";
@@ -1428,18 +1421,14 @@ export const THEME_MODES = ["light", "dark", "system"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
 export interface BenchSettings {
-  autoClear: boolean;
   enforceIssueDependencies: boolean;
-  workUnitAutoClear: boolean;
   autoStartComponents: boolean;
   /** Application-wide cap on initialised benches. Positive integer (>= 1); absent means unlimited. */
   maxGlobal?: number;
 }
 
 export const DEFAULT_BENCH_SETTINGS: BenchSettings = {
-  autoClear: true,
   enforceIssueDependencies: false,
-  workUnitAutoClear: true,
   autoStartComponents: false,
 };
 

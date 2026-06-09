@@ -45,14 +45,8 @@ vi.mock("./settings/DangerZoneTile", () => ({ default: () => <div data-testid="d
 vi.mock("./project-settings/WorkspaceSourceTile", () => ({
   WorkspaceSourceTile: () => <div data-testid="ws-tile" />,
 }));
-vi.mock("./project-settings/AutoClearOverrideTile", () => ({
-  AutoClearOverrideTile: () => <div data-testid="autoclear-tile" />,
-}));
 vi.mock("./project-settings/EnforceIssueDependenciesOverrideTile", () => ({
   EnforceIssueDependenciesOverrideTile: () => <div data-testid="enforce-tile" />,
-}));
-vi.mock("./project-settings/WorkUnitAutoClearOverrideTile", () => ({
-  WorkUnitAutoClearOverrideTile: () => <div data-testid="wu-tile" />,
 }));
 vi.mock("./project-settings/ProjectPermissionsInlineSection", () => ({
   ProjectPermissionsInlineSection: () => <div data-testid="perms-tile" />,

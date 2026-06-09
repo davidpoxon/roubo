@@ -55,14 +55,12 @@ router.put("/", (req, res) => {
   if (body.benches !== undefined) {
     if (
       body.benches === null ||
-      typeof body.benches.autoClear !== "boolean" ||
       typeof body.benches.enforceIssueDependencies !== "boolean" ||
-      typeof body.benches.workUnitAutoClear !== "boolean" ||
       typeof body.benches.autoStartComponents !== "boolean"
     ) {
       res.status(400).json({
         error:
-          "Invalid bench settings: autoClear, enforceIssueDependencies, workUnitAutoClear, and autoStartComponents must be booleans",
+          "Invalid bench settings: enforceIssueDependencies and autoStartComponents must be booleans",
       });
       return;
     }

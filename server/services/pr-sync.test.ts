@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { syncBenchWorkUnitPRs, syncAllWorkUnitPRs } from "./pr-sync.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { syncBenchWorkUnitPRs, syncAllWorkUnitPRs, startPolling, stopPolling } from "./pr-sync.js";
 
 vi.mock("./project-registry.js");
 vi.mock("./github.js");
@@ -15,6 +15,7 @@ vi.mock("./git-helpers.js", async (importOriginal) => ({
 }));
 vi.mock("./bench-manager.js", () => ({
   isBenchLive: vi.fn(),
+  getBenches: vi.fn(() => []),
 }));
 
 import * as projectRegistry from "./project-registry.js";
@@ -97,6 +98,8 @@ beforeEach(() => {
   vi.mocked(gitHelpers.probeWorkUnitState).mockResolvedValue(cleanProbeResult);
   // Default: bench is still tracked, so syncs persist as normal.
   vi.mocked(benchManager.isBenchLive).mockReturnValue(true);
+  // Default: no benches; polling tests override this per case.
+  vi.mocked(benchManager.getBenches).mockReturnValue([]);
 });
 
 describe("syncBenchWorkUnitPRs", () => {
@@ -410,5 +413,74 @@ describe("syncAllWorkUnitPRs", () => {
     const byProject = new Map([["proj-1", [bench1, bench2]]]);
     await syncAllWorkUnitPRs(byProject);
     expect(githubService.fetchOpenPullRequestByBranch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("startPolling / stopPolling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    // Always tear down the interval so a registered timer never leaks across tests.
+    stopPolling();
+    vi.useRealTimers();
+  });
+
+  it("registers an interval that groups benches by project and triggers a sync", async () => {
+    const wu = makeWorkUnit();
+    const bench = makeBench({ workUnits: [wu] });
+    vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+
+    startPolling();
+    expect(githubService.fetchOpenPullRequestByBranch).not.toHaveBeenCalled();
+
+    // Fire the interval once, then stop it so the async pollOnce() chain we flush
+    // below is the only tick that runs (no second tick from a still-live interval).
+    vi.advanceTimersByTime(30_000);
+    stopPolling();
+    await vi.runAllTimersAsync();
+
+    expect(benchManager.getBenches).toHaveBeenCalled();
+    expect(githubService.fetchOpenPullRequestByBranch).toHaveBeenCalledWith(
+      "owner/repo",
+      wu.branch,
+    );
+  });
+
+  it("is idempotent: a second startPolling() does not register a second interval", async () => {
+    const bench = makeBench({ workUnits: [makeWorkUnit()] });
+    vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+
+    startPolling();
+    startPolling();
+
+    // Fire exactly one tick, then stop both/one interval before flushing async work.
+    vi.advanceTimersByTime(30_000);
+    stopPolling();
+    await vi.runAllTimersAsync();
+
+    // A single interval means getBenches runs once per tick, not twice.
+    expect(benchManager.getBenches).toHaveBeenCalledTimes(1);
+  });
+
+  it("stopPolling clears the interval so no further syncs run", async () => {
+    const bench = makeBench({ workUnits: [makeWorkUnit()] });
+    vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+
+    startPolling();
+    stopPolling();
+
+    vi.advanceTimersByTime(60_000);
+    await vi.runAllTimersAsync();
+
+    expect(benchManager.getBenches).not.toHaveBeenCalled();
+  });
+
+  it("stopPolling is idempotent when no interval is running", () => {
+    expect(() => {
+      stopPolling();
+      stopPolling();
+    }).not.toThrow();
   });
 });

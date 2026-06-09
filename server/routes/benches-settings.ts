@@ -9,7 +9,7 @@ import type { RouboConfig } from "@roubo/shared";
 
 const router = Router();
 
-const BENCH_OVERRIDE_KEYS = ["autoClear", "enforceIssueDependencies", "workUnitAutoClear"] as const;
+const BENCH_OVERRIDE_KEYS = ["enforceIssueDependencies"] as const;
 
 // The PUT handler reads and writes roubo.yaml on disk, so it is rate-limited to
 // mitigate denial-of-service (CodeQL js/missing-rate-limiting #35).
@@ -28,9 +28,7 @@ router.get("/:projectId/benches/overrides", (req, res) => {
   }
   const benches = project.config?.benches;
   res.json({
-    autoClear: benches?.autoClear ?? null,
     enforceIssueDependencies: benches?.enforceIssueDependencies ?? null,
-    workUnitAutoClear: benches?.workUnitAutoClear ?? null,
   });
 });
 
@@ -86,9 +84,7 @@ router.put(
       if (keysToRemove.size === 0 && Object.keys(updates).length === 0) {
         const benches = project.config?.benches;
         res.json({
-          autoClear: benches?.autoClear ?? null,
           enforceIssueDependencies: benches?.enforceIssueDependencies ?? null,
-          workUnitAutoClear: benches?.workUnitAutoClear ?? null,
         });
         return;
       }
@@ -105,9 +101,7 @@ router.put(
       // writing a bare `benches: {}` that would fail schema validation (max is required).
       if (Object.keys(benchesSection).length === 0 && Object.keys(existingBenches).length === 0) {
         res.json({
-          autoClear: null,
           enforceIssueDependencies: null,
-          workUnitAutoClear: null,
         });
         return;
       }
@@ -123,10 +117,8 @@ router.put(
       }
 
       res.json({
-        autoClear: (benchesSection.autoClear as boolean | undefined) ?? null,
         enforceIssueDependencies:
           (benchesSection.enforceIssueDependencies as boolean | undefined) ?? null,
-        workUnitAutoClear: (benchesSection.workUnitAutoClear as boolean | undefined) ?? null,
       });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
