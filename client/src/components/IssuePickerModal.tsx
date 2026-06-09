@@ -5,7 +5,6 @@ import Spinner from "./Spinner";
 import IssueChip from "./IssueChip";
 import { useIssues } from "../hooks/useIssues";
 import type { Bench, NormalizedIssue } from "@roubo/shared";
-import { issueNumberFromExternalId } from "../lib/issue-id";
 import { issueTypeChip, securityCategoryFor } from "../lib/chip-mapping";
 
 function IssueRow({
@@ -13,21 +12,16 @@ function IssueRow({
   onSelect,
 }: {
   issue: NormalizedIssue;
-  onSelect: (issueNumber: number, issueTitle: string) => void;
+  onSelect: (externalId: string, issueTitle: string) => void;
 }) {
   const blockers = issue.blockedBy;
   const isBlocked = blockers.length > 0;
-  const issueNumber = issueNumberFromExternalId(issue.externalId);
-  const canSelect = issueNumber !== null;
   const securityCategory = securityCategoryFor(issue.issueType);
   const typeChip = issueTypeChip(issue.issueType);
 
   return (
     <Button
-      onPress={() => {
-        if (issueNumber !== null) onSelect(issueNumber, issue.title);
-      }}
-      isDisabled={!canSelect}
+      onPress={() => onSelect(issue.externalId, issue.title)}
       className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <div className="flex-1 min-w-0">
@@ -105,7 +99,7 @@ export default function IssuePickerModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (issueNumber: number, issueTitle: string) => void;
+  onSelect: (externalId: string, issueTitle: string) => void;
   projectId: string;
   benches: Bench[];
   pendingIssueExternalIds?: Set<string>;

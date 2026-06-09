@@ -37,6 +37,77 @@ function persistBenchIfLive(persisted: PersistedBench): void {
   }
 }
 
+function toPersisted(bench: Bench): PersistedBench {
+  return {
+    id: bench.id,
+    projectId: bench.projectId,
+    branch: bench.branch,
+    workspacePath: bench.workspacePath,
+    ports: bench.ports,
+    createdAt: bench.createdAt,
+    assignedContainers: bench.assignedContainers,
+    assignedIssue: bench.assignedIssue,
+    notifications: bench.notifications,
+    workUnits: bench.workUnits,
+    baseBranch: bench.baseBranch,
+    baseCommit: bench.baseCommit,
+    injectedJigId: bench.injectedJigId,
+    injectedJigSource: bench.injectedJigSource,
+  };
+}
+
+/**
+ * Shared tail for the create-and-assign flows once the bench exists and its
+ * `assignedIssue` is set: persist, start the Claude session (injecting the
+ * resolved jig), persist the injected jig, and return the success response.
+ * Used by the alert and generic plugin-issue paths.
+ */
+function finalizeAssignedBench(
+  projectId: string,
+  bench: Bench,
+  projectName: string,
+  config: RouboConfig,
+  sessionIssue: {
+    number?: number;
+    externalId?: string;
+    title: string;
+    body: string | null;
+    htmlUrl: string;
+  },
+  comments: Array<{ user: string; body: string }>,
+  issueType: string | null,
+): CreateBenchWithIssueResponse {
+  // Persist before the network/session work so a failure can't orphan the bench.
+  persistBenchIfLive(toPersisted(bench));
+
+  const {
+    sessionId: terminalSessionId,
+    jigId,
+    jigSource,
+  } = buildAndStartClaudeSession(
+    projectId,
+    bench.id,
+    bench,
+    projectName,
+    config,
+    sessionIssue,
+    comments,
+    issueType,
+  );
+
+  if (jigId) {
+    bench.injectedJigId = jigId;
+    bench.injectedJigSource = jigSource;
+    persistBenchIfLive(toPersisted(bench));
+  }
+
+  return {
+    status: "success",
+    bench,
+    terminalSessionId,
+  };
+}
+
 function buildAndStartClaudeSession(
   projectId: string,
   benchId: number,
@@ -44,7 +115,10 @@ function buildAndStartClaudeSession(
   projectName: string,
   config: RouboConfig,
   issue: {
-    number: number;
+    // Absent for integrations whose issues have no numeric form (e.g. Jira);
+    // such issues carry `externalId`, surfaced to jigs as {{issueKey}}.
+    number?: number;
+    externalId?: string;
     title: string;
     body: string | null;
     htmlUrl: string;
@@ -75,6 +149,7 @@ function buildAndStartClaudeSession(
       benchId,
       projectName,
       issueNumber: issue.number,
+      issueKey: issue.externalId,
       issueTitle: issue.title,
       issueBody: formatIssueBody(issue.body),
       issueUrl: issue.htmlUrl,
@@ -95,7 +170,7 @@ function buildAndStartClaudeSession(
     );
   } catch (err) {
     console.warn(
-      `Failed to start Claude terminal for bench ${benchId} (issue #${issue.number}):`,
+      `Failed to start Claude terminal for bench ${benchId} (issue ${issue.externalId ?? `#${issue.number}`}):`,
       err,
     );
     return {};
@@ -335,26 +410,8 @@ export async function createBenchAndAssignAlert(
     raw: alert.raw,
   };
 
-  persistBenchIfLive({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    workUnits: bench.workUnits,
-  });
-
-  const {
-    sessionId: terminalSessionId,
-    jigId,
-    jigSource,
-  } = buildAndStartClaudeSession(
+  return finalizeAssignedBench(
     projectId,
-    bench.id,
     bench,
     projectName,
     project.config,
@@ -367,33 +424,67 @@ export async function createBenchAndAssignAlert(
     [],
     issueType,
   );
+}
 
-  if (jigId) {
-    bench.injectedJigId = jigId;
-    bench.injectedJigSource = jigSource;
-    persistBenchIfLive({
-      id: bench.id,
-      projectId: bench.projectId,
-      branch: bench.branch,
-      workspacePath: bench.workspacePath,
-      ports: bench.ports,
-      createdAt: bench.createdAt,
-      assignedContainers: bench.assignedContainers,
-      assignedIssue: bench.assignedIssue,
-      notifications: bench.notifications,
-      workUnits: bench.workUnits,
-      baseBranch: bench.baseBranch,
-      baseCommit: bench.baseCommit,
-      injectedJigId: bench.injectedJigId,
-      injectedJigSource: bench.injectedJigSource,
-    });
+/**
+ * Create-and-assign flow for a non-alert issue from any active integration
+ * plugin (e.g. a Jira key like PLNRPTGOOG-3782). `issue` is the NormalizedIssue
+ * already fetched by the active plugin's `getIssue`. Mirrors the alert path but
+ * keys off the issue's externalId rather than a GitHub number: the bench's
+ * `assignedIssue.number` is left unset, and the branch name derives from the
+ * external key + title. Comments are fetched best-effort by the caller.
+ */
+export async function createBenchAndAssignPluginIssue(
+  projectId: string,
+  issue: NormalizedIssue,
+  comments: Array<{ user: string; body: string }>,
+  conflictResolution?: "resume" | "new",
+): Promise<CreateBenchWithIssueResponse> {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) throw new ServiceError(404, "Project config not found");
+  if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");
+
+  const projectName = project.config.project.displayName;
+  const issueType = issue.issueType ?? null;
+
+  // Branch name: `${slug(externalId)}-${slug(title)}`, never ending in a bare
+  // hyphen when the title slugifies to empty.
+  const idSlug = slugify(issue.externalId);
+  const titleSlug = slugify(issue.title);
+  const baseBranch = titleSlug ? `${idSlug}-${titleSlug}` : idSlug;
+  const branchResult = await resolveBranchNameForCreate(
+    project.repoPath,
+    baseBranch,
+    conflictResolution,
+  );
+  if (branchResult.status === "conflict") {
+    return branchResult;
   }
 
-  return {
-    status: "success",
-    bench,
-    terminalSessionId,
+  const bench = benchManager.createBench(projectId, branchResult.branchName);
+
+  bench.assignedIssue = {
+    integrationId: issue.integrationId,
+    externalId: issue.externalId,
+    title: issue.title,
+    issueType,
+    raw: issue.raw,
   };
+
+  return finalizeAssignedBench(
+    projectId,
+    bench,
+    projectName,
+    project.config,
+    {
+      externalId: issue.externalId,
+      title: issue.title,
+      body: issue.body,
+      htmlUrl: issue.externalUrl,
+    },
+    comments,
+    issueType,
+  );
 }
 
 export async function assignIssue(

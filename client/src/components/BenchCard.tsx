@@ -21,6 +21,7 @@ import {
   useCleanupAndRetryBench,
 } from "../hooks/useBenches";
 import { useTeardownTracker } from "../hooks/useClearingTracker";
+import { displayIssueRef } from "../lib/issue-id";
 import { stepIcon, stepTextColor } from "../lib/provisioning";
 import { isDirtyBenchError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
@@ -126,7 +127,7 @@ export default function BenchCard({
             {bench.assignedIssue && (
               <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-2.5 shrink-0">
                 <span className="font-mono text-violet-400 shrink-0">
-                  #{bench.assignedIssue.number}
+                  {displayIssueRef(bench.assignedIssue)}
                 </span>
                 <span className="truncate">{bench.assignedIssue.title}</span>
               </div>

@@ -1,6 +1,6 @@
 import type { RegisteredProject, Bench } from "@roubo/shared";
 import { buildTemplateContext, applyContainerOverrides } from "./config-parser.js";
-import { fetchIssueContext } from "./issue-formatting.js";
+import { fetchIssueContext, buildPluginIssueContext } from "./issue-formatting.js";
 import { isAlertExternalId } from "./alert-external-id.js";
 import { buildAlertIssueContext } from "./alert-formatting.js";
 import type { JigResolveContext } from "./jig-manager.js";
@@ -38,6 +38,10 @@ export async function buildPreviewContext(
   if (bench.assignedIssue) {
     if (isAlertExternalId(bench.assignedIssue.externalId)) {
       issueCtx = buildAlertIssueContext(bench.assignedIssue);
+    } else if (bench.assignedIssue.number == null) {
+      // Non-alert integrations with no numeric issue (e.g. Jira): re-hydrate
+      // from persisted bench state, never a GitHub fetch by number.
+      issueCtx = buildPluginIssueContext(bench.assignedIssue);
     } else if (project.config.project.repo) {
       try {
         issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);

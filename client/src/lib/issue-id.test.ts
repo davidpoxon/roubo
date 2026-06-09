@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { issueNumberFromExternalId, isAlertExternalId, shortIdFromExternalId } from "./issue-id";
+import {
+  issueNumberFromExternalId,
+  isAlertExternalId,
+  shortIdFromExternalId,
+  displayIssueRef,
+} from "./issue-id";
 
 describe("issueNumberFromExternalId", () => {
   it("extracts the trailing number from a repo#number externalId", () => {
@@ -53,5 +58,16 @@ describe("shortIdFromExternalId", () => {
 
   it("returns the whole value when there is no #", () => {
     expect(shortIdFromExternalId("42")).toBe("42");
+  });
+});
+
+describe("displayIssueRef", () => {
+  it("renders #number for GitHub issues and alerts", () => {
+    expect(displayIssueRef({ number: 42, externalId: "42" })).toBe("#42");
+    expect(displayIssueRef({ number: 117, externalId: "org/repo#code-scanning-117" })).toBe("#117");
+  });
+
+  it("renders the externalId key when there is no number (e.g. Jira)", () => {
+    expect(displayIssueRef({ externalId: "PLNRPTGOOG-3782" })).toBe("PLNRPTGOOG-3782");
   });
 });

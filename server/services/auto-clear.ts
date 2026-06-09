@@ -232,7 +232,12 @@ async function checkProjectBenches(
   );
   const legacyBenches = benches.filter(
     (b) =>
-      (!b.workUnits || b.workUnits.length === 0) && !isAlertExternalId(b.assignedIssue?.externalId),
+      (!b.workUnits || b.workUnits.length === 0) &&
+      !isAlertExternalId(b.assignedIssue?.externalId) &&
+      // Interim: this path is keyed on a GitHub issue number, so skip
+      // integrations with no numeric issue (e.g. Jira). The whole feature is
+      // removed in PR 2.
+      b.assignedIssue?.number != null,
   );
 
   // --- Alert-backed bench classification (#289) ---
@@ -301,6 +306,7 @@ async function checkProjectBenches(
     for (const bench of legacyBenches) {
       if (!bench.assignedIssue) continue;
       const issueNumber = bench.assignedIssue.number;
+      if (issueNumber == null) continue;
       if (!statusByIssueNumber.has(issueNumber)) {
         // Not found in project items: may be closed; check via fallback
         continue;
@@ -332,6 +338,7 @@ async function checkProjectBenches(
     fallbackBenches.map(async (bench) => {
       if (!bench.assignedIssue) return;
       const issueNumber = bench.assignedIssue.number;
+      if (issueNumber == null) return;
       try {
         const issue = await githubService.fetchIssueDetail(repoFullName, issueNumber);
         if (issue.state === "closed") {

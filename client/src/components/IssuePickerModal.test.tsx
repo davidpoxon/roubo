@@ -91,16 +91,32 @@ describe("IssuePickerModal", () => {
     expect(screen.getByText("Add feature")).toBeInTheDocument();
   });
 
-  it("calls onSelect with the parsed issue number when a github-style row is clicked", async () => {
+  it("calls onSelect with the externalId when a github-style row is clicked", async () => {
     const onSelect = vi.fn();
     mockUseIssues.mockReturnValue(
-      defaultResult({ issues: [makeIssue("5", { title: "My issue" })] }),
+      defaultResult({ issues: [makeIssue("org/repo#5", { title: "My issue" })] }),
     );
     render(
       <IssuePickerModal isOpen onClose={vi.fn()} onSelect={onSelect} projectId="p1" benches={[]} />,
     );
     await userEvent.click(screen.getByText("My issue"));
-    expect(onSelect).toHaveBeenCalledWith(5, "My issue");
+    expect(onSelect).toHaveBeenCalledWith("org/repo#5", "My issue");
+  });
+
+  it("calls onSelect with the externalId when a Jira-key row is clicked", async () => {
+    const onSelect = vi.fn();
+    mockUseIssues.mockReturnValue(
+      defaultResult({
+        issues: [
+          makeIssue("PLNRPTGOOG-3782", { title: "Jira issue", integrationId: "jira-self-hosted" }),
+        ],
+      }),
+    );
+    render(
+      <IssuePickerModal isOpen onClose={vi.fn()} onSelect={onSelect} projectId="p1" benches={[]} />,
+    );
+    await userEvent.click(screen.getByText("Jira issue"));
+    expect(onSelect).toHaveBeenCalledWith("PLNRPTGOOG-3782", "Jira issue");
   });
 
   it("filters out issues already assigned to benches (by externalId)", () => {
@@ -179,7 +195,7 @@ describe("IssuePickerModal", () => {
     );
     expect(screen.getByTestId("blocked-banner")).toHaveTextContent("org/repo#100");
     await userEvent.click(screen.getByText("Add billing dashboard"));
-    expect(onSelect).toHaveBeenCalledWith(200, "Add billing dashboard");
+    expect(onSelect).toHaveBeenCalledWith("200", "Add billing dashboard");
   });
 
   it("renders the security-category chip inline-left of the title for alert issues (WU-033)", () => {

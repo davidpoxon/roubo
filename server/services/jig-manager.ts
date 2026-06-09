@@ -41,6 +41,7 @@ export interface JigResolveContext extends ResolvedTemplateContext {
   benchId?: number;
   projectName?: string;
   issueNumber?: number;
+  issueKey?: string;
   issueTitle?: string;
   issueBody?: string;
   issueUrl?: string;
@@ -296,6 +297,8 @@ export function resolveJigContent(content: string, ctx: JigResolveContext): stri
       // {{issueNumber}} etc. in the terminal would be confusing.
       case "issueNumber":
         return ctx.issueNumber !== undefined ? String(ctx.issueNumber) : "";
+      case "issueKey":
+        return ctx.issueKey ?? "";
       case "issueTitle":
         return ctx.issueTitle ?? "";
       case "issueBody":

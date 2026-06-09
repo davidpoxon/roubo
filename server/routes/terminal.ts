@@ -6,7 +6,11 @@ import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
 import { buildTemplateContext, applyContainerOverrides } from "../services/config-parser.js";
-import { fetchIssueContext, type IssueContext } from "../services/issue-formatting.js";
+import {
+  fetchIssueContext,
+  buildPluginIssueContext,
+  type IssueContext,
+} from "../services/issue-formatting.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
@@ -80,6 +84,10 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     if (bench.assignedIssue) {
       if (isAlertExternalId(bench.assignedIssue.externalId)) {
         issueCtx = buildAlertIssueContext(bench.assignedIssue);
+      } else if (bench.assignedIssue.number == null) {
+        // Non-alert integrations with no numeric issue (e.g. Jira): re-hydrate
+        // from persisted bench state, never a GitHub fetch by number.
+        issueCtx = buildPluginIssueContext(bench.assignedIssue);
       } else if (project.config.project.repo) {
         try {
           issueCtx = await fetchIssueContext(

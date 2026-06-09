@@ -19,6 +19,7 @@ import type {
   AssignContainerRequest,
   ExecuteToolRequest,
   NormalizedIssue,
+  NormalizedComment,
 } from "@roubo/shared";
 
 const router = Router();
@@ -128,9 +129,11 @@ router.post("/:projectId/benches", async (req, res) => {
     return;
   }
 
-  // Combined create-and-assign flow (security alert, by externalId). The alert
-  // is fetched and redacted by the active plugin's getIssue, so the host only
-  // ever sees the redacted NormalizedIssue (FR-043, NFR-012).
+  // Combined create-and-assign flow by externalId, for any active integration
+  // (security alerts, Jira keys, etc.). The issue is fetched (and, for alerts,
+  // redacted) by the active plugin's getIssue, so the host only ever sees the
+  // NormalizedIssue (FR-043, NFR-012). Security alerts take the alert-specific
+  // path; everything else takes the generic plugin-issue path.
   if (externalId !== undefined) {
     if (typeof externalId !== "string" || externalId.length === 0) {
       res.status(400).json({ error: "externalId must be a non-empty string" });
@@ -151,11 +154,34 @@ router.post("/:projectId/benches", async (req, res) => {
     }
 
     try {
-      const result = await issueAssignment.createBenchAndAssignAlert(
-        req.params.projectId,
-        issue,
-        branchConflictResolution,
-      );
+      let result;
+      if (isAlertExternalId(externalId)) {
+        result = await issueAssignment.createBenchAndAssignAlert(
+          req.params.projectId,
+          issue,
+          branchConflictResolution,
+        );
+      } else {
+        // Best-effort comments via the active plugin; never block assignment on
+        // a comment-fetch failure.
+        let comments: Array<{ user: string; body: string }> = [];
+        try {
+          const raw = await pluginManager.invoke<NormalizedComment[]>(
+            active.pluginId,
+            "getComments",
+            { externalId },
+          );
+          comments = raw.map((c) => ({ user: c.author.displayName, body: c.body }));
+        } catch {
+          // leave comments empty
+        }
+        result = await issueAssignment.createBenchAndAssignPluginIssue(
+          req.params.projectId,
+          issue,
+          comments,
+          branchConflictResolution,
+        );
+      }
       if (result.status === "conflict") {
         res.status(409).json(result);
         return;
@@ -208,16 +234,21 @@ router.get("/:projectId/benches/:id", async (req, res) => {
     let enrichedBench = bench;
     if (
       bench.assignedIssue &&
+      bench.assignedIssue.number != null &&
       !isAlertExternalId(bench.assignedIssue.externalId) &&
       projectRegistry.resolveEnforceIssueDependencies(req.params.projectId)
     ) {
+      // Interim: GitHub-only blocking enrichment is keyed on the issue number, so
+      // skip integrations with no numeric issue (e.g. Jira). PR 3 replaces this
+      // with plugin-delegated blockedBy.
+      const issueNumber = bench.assignedIssue.number;
       const repo = projectRegistry.getProject(req.params.projectId)?.config?.project?.repo;
       if (repo) {
         try {
           const { blockedBy: blockedByMap } = await githubService.fetchBlockingRelationships(repo, [
-            bench.assignedIssue.number,
+            issueNumber,
           ]);
-          const blockedBy = blockedByMap[bench.assignedIssue.number];
+          const blockedBy = blockedByMap[issueNumber];
           if (blockedBy && blockedBy.length > 0) {
             enrichedBench = {
               ...bench,

@@ -440,6 +440,18 @@ describe("resolveJigContent", () => {
     );
   });
 
+  it("resolves {{issueKey}} for non-GitHub integrations and leaves {{issueNumber}} empty", () => {
+    const result = resolveJigContent("{{issueKey}} / {{issueNumber}} {{issueTitle}}", {
+      ports: {},
+      portHttps: {},
+      workspace: "/workspace",
+      components: {},
+      issueKey: "PLNRPTGOOG-3782",
+      issueTitle: "Add billing dashboard",
+    });
+    expect(result).toBe("PLNRPTGOOG-3782 /  Add billing dashboard");
+  });
+
   it("leaves unknown variables unreplaced", () => {
     const result = resolveJigContent("{{unknown.variable}}", {
       ports: {},
