@@ -7,6 +7,7 @@ import { lightTheme, darkTheme, variableHighlightPlugin } from "./codemirrorThem
 import { useJigPreview } from "../../hooks/useJigs";
 import { useProjectBenches } from "../../hooks/useBenches";
 import { useProjects } from "../../hooks/useProjects";
+import { displayIssueRef } from "../../lib/issue-id";
 import Select from "../Select";
 
 interface Props {
@@ -38,7 +39,7 @@ function benchLabel(bench: Bench, projectPrefix: string): string {
   const base = `Bench ${bench.id}: ${bench.branch}`;
   const label = projectPrefix ? `${projectPrefix} · ${base}` : base;
   if (bench.assignedIssue) {
-    return `${label} · #${bench.assignedIssue.number} ${bench.assignedIssue.title}`;
+    return `${label} · ${displayIssueRef(bench.assignedIssue)} ${bench.assignedIssue.title}`;
   }
   return label;
 }

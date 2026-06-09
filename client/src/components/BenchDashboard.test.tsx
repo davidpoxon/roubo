@@ -258,13 +258,22 @@ vi.mock("./IssuePickerModal", () => ({
     onClose,
   }: {
     isOpen: boolean;
-    onSelect: (n: number, t: string) => void;
+    onSelect: (externalId: string, t: string) => void;
     onClose: () => void;
   }) =>
     isOpen ? (
       <div data-testid="issue-picker">
-        <button data-testid="issue-picker-select" onClick={() => onSelect(42, "Issue 42")}>
+        <button
+          data-testid="issue-picker-select"
+          onClick={() => onSelect("org/repo#42", "Issue 42")}
+        >
           Select 42
+        </button>
+        <button
+          data-testid="issue-picker-select-jira"
+          onClick={() => onSelect("PLNRPTGOOG-3782", "Jira issue")}
+        >
+          Select Jira
         </button>
         <button data-testid="issue-picker-close" onClick={onClose}>
           Close
@@ -630,7 +639,27 @@ describe("BenchDashboard", () => {
       await userEvent.click(screen.getByTestId("pick-issue-1"));
       await userEvent.click(screen.getByTestId("issue-picker-select"));
       const panel = screen.getByTestId("issue-queue-panel");
-      expect(JSON.parse(panel.dataset.pending ?? "[]")).toContain("42");
+      expect(JSON.parse(panel.dataset.pending ?? "[]")).toContain("org/repo#42");
+    });
+
+    it("creates a bench by externalId when a Jira issue is picked", async () => {
+      const { createMutate, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getByTestId("pick-issue-1"));
+      await userEvent.click(screen.getByTestId("issue-picker-select-jira"));
+      expect(screen.getByTestId("pending-bench-card")).toBeInTheDocument();
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      // Jira keys have no numeric form, so they assign by externalId.
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: "proj-1", externalId: "PLNRPTGOOG-3782" }),
+        expect.any(Object),
+      );
+      expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
     });
 
     it("shows branch conflict dialog when createBench returns conflict", async () => {
@@ -947,26 +976,38 @@ describe("BenchDashboard", () => {
       expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
     });
 
-    it("shows an unsupported toast for a non-issue, non-alert externalId", () => {
-      const { addToast } = stubDefaults({ projects: [makeProject()], benches: [] });
+    it("creates a bench by externalId when a Jira issue is dropped", () => {
+      const { createMutate, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
       renderDashboard("/projects/proj-1");
       act(() => {
         dndCallbacks.onDragEnd?.({
           active: {
             data: {
               current: {
-                issue: { externalId: "ROUBO-42", title: "Jira", integrationId: "jira" },
+                issue: {
+                  externalId: "PLNRPTGOOG-3782",
+                  title: "Jira",
+                  integrationId: "jira-self-hosted",
+                },
               },
             },
           },
           over: { data: { current: { position: 1 } } },
         });
       });
-      expect(addToast).toHaveBeenCalledWith(
-        expect.stringContaining("does not yet support this integration"),
+      expect(screen.getByTestId("pending-bench-card")).toBeInTheDocument();
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      // Jira keys have no numeric form, so they assign by externalId.
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: "proj-1", externalId: "PLNRPTGOOG-3782" }),
         expect.any(Object),
       );
-      expect(screen.queryByTestId("pending-bench-card")).not.toBeInTheDocument();
+      expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
     });
 
     it("fires handleDragEnd early return when over is null", () => {

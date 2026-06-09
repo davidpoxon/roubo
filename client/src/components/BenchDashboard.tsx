@@ -21,7 +21,7 @@ import type {
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
 } from "@roubo/shared";
-import { issueNumberFromExternalId, isAlertExternalId } from "../lib/issue-id";
+import { issueNumberFromExternalId } from "../lib/issue-id";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -253,16 +253,10 @@ export default function BenchDashboard() {
       if (!issue || position === undefined) return;
 
       const externalId = issue.externalId;
+      // Plain GitHub issues assign by number; everything else (alerts, Jira
+      // keys, any active integration) assigns by externalId. The server fetches
+      // the issue via the active plugin and routes alert vs plugin-issue.
       const issueNumber = issueNumberFromExternalId(externalId);
-      // Plain GitHub issues assign by number; security alerts assign by their
-      // externalId. Anything else (e.g. a Jira-style key) is not yet supported.
-      if (issueNumber === null && !isAlertExternalId(externalId)) {
-        addToast(
-          `Cannot assign ${externalId}: bench creation does not yet support this integration.`,
-          { duration: 8000 },
-        );
-        return;
-      }
 
       addPending(externalId);
       setPendingAssignments((prev) => {
@@ -379,30 +373,29 @@ export default function BenchDashboard() {
   );
 
   const handleIssuePickerSelect = useCallback(
-    (issueNumber: number, issueTitle: string) => {
+    (externalId: string, issueTitle: string) => {
       setShowIssuePicker(false);
       if (!projectId) return;
-      // Picker only surfaces github-style issues (others are disabled in the
-      // row), so we synthesise an externalId from the number for pending
-      // tracking; the server call still goes through the issueNumber path.
-      const syntheticExternalId = `${issueNumber}`;
-      addPending(syntheticExternalId);
+      // GitHub issues route by number; everything else (Jira, alerts) by
+      // externalId. handleCreateBenchWithIssue picks the path from issueNumber.
+      const issueNumber = issueNumberFromExternalId(externalId);
+      addPending(externalId);
       const position = issuePickerPosition;
       if (position !== null) {
         setPendingAssignments((prev) => {
           const next = new Map(prev);
-          next.set(position, { externalId: syntheticExternalId, issueTitle });
+          next.set(position, { externalId, issueTitle });
           return next;
         });
       }
       let cancelled = false;
-      addToast(`Setting up bench for #${issueNumber} - ${issueTitle}`, {
+      addToast(`Setting up bench for ${externalId} - ${issueTitle}`, {
         duration: 3000,
         action: {
           label: "Cancel",
           onPress: () => {
             cancelled = true;
-            removePending(syntheticExternalId);
+            removePending(externalId);
             if (position !== null) {
               setPendingAssignments((prev) => {
                 const next = new Map(prev);
@@ -414,7 +407,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue({ externalId: syntheticExternalId, issueNumber });
+            handleCreateBenchWithIssue({ externalId, issueNumber });
           }
         },
       });

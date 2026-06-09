@@ -1,11 +1,36 @@
 import * as githubService from "./github.js";
 
 export interface IssueContext {
-  issueNumber: number;
+  // Absent for integrations whose issues have no numeric form (e.g. Jira); those
+  // carry `issueKey` instead. GitHub issues and alerts set `issueNumber`.
+  issueNumber?: number;
+  // Human-facing issue identifier (the externalId) for non-GitHub integrations,
+  // surfaced to jigs as {{issueKey}}.
+  issueKey?: string;
   issueTitle: string;
   issueBody: string;
   issueUrl: string;
   comments: string;
+}
+
+/**
+ * Build jig issue context for a non-alert, non-GitHub assigned issue (e.g. a
+ * Jira key) from the persisted bench state, without any network call. The
+ * integration plugin owns the live issue; at re-injection time we re-hydrate
+ * the minimal title + key the bench was assigned with. Mirrors
+ * `buildAlertIssueContext` for alerts.
+ */
+export function buildPluginIssueContext(assignedIssue: {
+  externalId: string;
+  title: string;
+}): IssueContext {
+  return {
+    issueKey: assignedIssue.externalId,
+    issueTitle: assignedIssue.title,
+    issueBody: "",
+    issueUrl: "",
+    comments: "",
+  };
 }
 
 export async function fetchIssueContext(repo: string, issueNumber: number): Promise<IssueContext> {

@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { formatIssueBody, formatComments } from "./issue-formatting.js";
+import { formatIssueBody, formatComments, buildPluginIssueContext } from "./issue-formatting.js";
+
+describe("buildPluginIssueContext", () => {
+  it("re-hydrates the issue key + title with no number and no network fields", () => {
+    const ctx = buildPluginIssueContext({
+      externalId: "PLNRPTGOOG-3782",
+      title: "Add billing dashboard",
+    });
+    expect(ctx).toEqual({
+      issueKey: "PLNRPTGOOG-3782",
+      issueTitle: "Add billing dashboard",
+      issueBody: "",
+      issueUrl: "",
+      comments: "",
+    });
+    expect(ctx.issueNumber).toBeUndefined();
+  });
+});
 
 describe("formatIssueBody", () => {
   it("returns empty string for null", () => {

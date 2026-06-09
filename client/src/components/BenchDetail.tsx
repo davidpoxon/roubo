@@ -77,6 +77,7 @@ import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
 import IssueAssignControl from "./IssueAssignControl";
 import { securityCategoryFor } from "../lib/chip-mapping";
+import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
 
 const ALERT_BENCH_DISABLED_TRANSITION_COPY =
@@ -943,7 +944,9 @@ export default function BenchDetail() {
           )}
           {bench.assignedIssue && (
             <div className="flex items-center gap-1.5 text-xs text-stone-500">
-              <span className="font-mono text-violet-400">#{bench.assignedIssue.number}</span>
+              <span className="font-mono text-violet-400">
+                {displayIssueRef(bench.assignedIssue)}
+              </span>
               <span>{bench.assignedIssue.title}</span>
               <AssignedIssueTransition
                 projectId={projectId}

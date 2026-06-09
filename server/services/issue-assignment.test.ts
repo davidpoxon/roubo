@@ -104,6 +104,7 @@ import {
   unassignIssue,
   createBenchAndAssignIssue,
   createBenchAndAssignAlert,
+  createBenchAndAssignPluginIssue,
 } from "./issue-assignment.js";
 
 beforeEach(() => {
@@ -2043,6 +2044,145 @@ describe("createBenchAndAssignAlert", () => {
     expect(result.status).toBe("conflict");
     if (result.status === "conflict") {
       expect(result.branchConflict.branchName).toBe("code-scanning-117-bad-thing");
+    }
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+});
+
+describe("createBenchAndAssignPluginIssue", () => {
+  const project = {
+    repoPath: "/repos/project",
+    config: {
+      project: {
+        name: "project",
+        displayName: "My Project",
+        repo: "org/repo",
+      },
+      layout: { type: "single-repo" as const },
+      components: {},
+      ports: {},
+      benches: { max: 5 },
+    },
+  };
+
+  function makeBench() {
+    return {
+      id: 4,
+      projectId: "project1",
+      branch: "",
+      workspacePath: "/workspace",
+      ports: { backend: 5000 },
+      createdAt: "2026-01-01",
+      assignedContainers: {},
+      notifications: [],
+    } as any;
+  }
+
+  function jiraIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+    return {
+      integrationId: "jira-self-hosted",
+      externalId: "PLNRPTGOOG-3782",
+      externalUrl: "https://jira.example.com/browse/PLNRPTGOOG-3782",
+      title: "Add billing dashboard",
+      body: "Some description",
+      currentState: "To Do",
+      allowedTransitions: [],
+      assignees: [],
+      labels: [],
+      issueType: "Story",
+      blocks: [],
+      blockedBy: [],
+      updatedAt: "t",
+      raw: { key: "PLNRPTGOOG-3782" },
+      ...overrides,
+    };
+  }
+
+  function setup() {
+    const bench = makeBench();
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(benchManager.createBench).mockReturnValue(bench);
+    // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+    vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-10",
+      benchKey: "project1:4",
+      label: "Claude 4",
+      createdAt: "",
+      command: "claude",
+      status: "live",
+    });
+    return bench;
+  }
+
+  it("creates a bench from the externalId key + title and assigns it with no number", async () => {
+    const bench = setup();
+
+    const result = await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
+
+    expect(result.status).toBe("success");
+    expect(benchManager.createBench).toHaveBeenCalledWith(
+      "project1",
+      "plnrptgoog-3782-add-billing-dashboard",
+    );
+    expect(bench.assignedIssue).toMatchObject({
+      integrationId: "jira-self-hosted",
+      externalId: "PLNRPTGOOG-3782",
+      title: "Add billing dashboard",
+      issueType: "Story",
+    });
+    // No GitHub-style number for a Jira key.
+    expect(bench.assignedIssue.number).toBeUndefined();
+    expect(bench.assignedIssue.raw).toEqual({ key: "PLNRPTGOOG-3782" });
+  });
+
+  it("never fetches a GitHub issue (fully plugin-sourced)", async () => {
+    setup();
+    await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
+    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
+    expect(githubService.fetchIssueComments).not.toHaveBeenCalled();
+    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+  });
+
+  it("injects the issue key, title, body, url and comments into the session jig", async () => {
+    setup();
+    await createBenchAndAssignPluginIssue("project1", jiraIssue(), [
+      { user: "alice", body: "looks good" },
+    ]);
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        issueKey: "PLNRPTGOOG-3782",
+        issueNumber: undefined,
+        issueTitle: "Add billing dashboard",
+        issueUrl: "https://jira.example.com/browse/PLNRPTGOOG-3782",
+      }),
+    );
+  });
+
+  it("resolves the jig from the issue issueType", async () => {
+    setup();
+    await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
+    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+      "project1",
+      "Story",
+      expect.anything(),
+    );
+  });
+
+  it("falls back to a bare key branch when the title slugifies to empty", async () => {
+    setup();
+    await createBenchAndAssignPluginIssue("project1", jiraIssue({ title: "!!!" }), []);
+    expect(benchManager.createBench).toHaveBeenCalledWith("project1", "plnrptgoog-3782");
+  });
+
+  it("returns a conflict when the branch exists and no resolution is given", async () => {
+    setup();
+    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const result = await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
+    expect(result.status).toBe("conflict");
+    if (result.status === "conflict") {
+      expect(result.branchConflict.branchName).toBe("plnrptgoog-3782-add-billing-dashboard");
     }
     expect(benchManager.createBench).not.toHaveBeenCalled();
   });

@@ -30,6 +30,7 @@ vi.mock("../services/tool-launcher.js", () => ({
 vi.mock("../services/issue-assignment.js", () => ({
   createBenchAndAssignIssue: vi.fn(),
   createBenchAndAssignAlert: vi.fn(),
+  createBenchAndAssignPluginIssue: vi.fn(),
 }));
 
 vi.mock("./plugin-route-helpers.js", () => ({
@@ -363,6 +364,93 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
       .send({ externalId: "org/repo#code-scanning-117" });
     expect(res.status).toBe(502);
     expect(issueAssignment.createBenchAndAssignAlert).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", () => {
+  const issue = {
+    integrationId: "jira-self-hosted",
+    externalId: "PLNRPTGOOG-3782",
+    issueType: "Story",
+    title: "Add billing dashboard",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getActivePluginOrRespond).mockResolvedValue({
+      pluginId: "jira-self-hosted",
+      pageSize: 50,
+    } as any);
+  });
+
+  it("fetches the issue + comments via the plugin and forwards them to createBenchAndAssignPluginIssue", async () => {
+    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) => {
+      if (method === "getComments") {
+        return Promise.resolve([
+          { author: { externalId: "alice", displayName: "Alice" }, body: "looks good" },
+        ]);
+      }
+      return Promise.resolve(issue);
+    }) as any);
+    const result = { status: "success", bench: { id: 8 }, terminalSessionId: "t" };
+    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue(result as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "PLNRPTGOOG-3782", branchConflictResolution: "new" });
+
+    expect(res.status).toBe(201);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getIssue", {
+      externalId: "PLNRPTGOOG-3782",
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getComments", {
+      externalId: "PLNRPTGOOG-3782",
+    });
+    expect(issueAssignment.createBenchAndAssignPluginIssue).toHaveBeenCalledWith(
+      "my-project",
+      issue,
+      [{ user: "Alice", body: "looks good" }],
+      "new",
+    );
+    // The alert path must not be taken for a non-alert externalId.
+    expect(issueAssignment.createBenchAndAssignAlert).not.toHaveBeenCalled();
+  });
+
+  it("still assigns when the comment fetch fails (best-effort, empty comments)", async () => {
+    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) => {
+      if (method === "getComments") return Promise.reject(new Error("boom"));
+      return Promise.resolve(issue);
+    }) as any);
+    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue({
+      status: "success",
+      bench: { id: 8 },
+      terminalSessionId: "t",
+    } as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "PLNRPTGOOG-3782" });
+
+    expect(res.status).toBe(201);
+    expect(issueAssignment.createBenchAndAssignPluginIssue).toHaveBeenCalledWith(
+      "my-project",
+      issue,
+      [],
+      undefined,
+    );
+  });
+
+  it("returns 409 when the plugin-issue branch conflicts", async () => {
+    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
+      method === "getComments" ? Promise.resolve([]) : Promise.resolve(issue)) as any);
+    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue({
+      status: "conflict",
+    } as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "PLNRPTGOOG-3782" });
+    expect(res.status).toBe(409);
   });
 });
 

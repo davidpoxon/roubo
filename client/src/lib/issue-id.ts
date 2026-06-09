@@ -37,3 +37,12 @@ export function isAlertExternalId(externalId: string): boolean {
 export function shortIdFromExternalId(externalId: string): string {
   return externalId.includes("#") ? (externalId.split("#").pop() ?? externalId) : externalId;
 }
+
+/**
+ * Display label for an assigned issue. GitHub issues and alerts have a numeric
+ * `number` and render as `#42` / `#117`; integrations without one (e.g. Jira)
+ * render the externalId key as-is (`PLNRPTGOOG-3782`).
+ */
+export function displayIssueRef(assignedIssue: { number?: number; externalId: string }): string {
+  return assignedIssue.number != null ? `#${assignedIssue.number}` : assignedIssue.externalId;
+}

@@ -1221,11 +1221,13 @@ export type ProjectIssueTypesV2Response =
     };
 
 export interface AssignedIssue {
-  // Legacy GitHub issue number. Today only github-com produces issues, so this
-  // is always present; load-time migration derives externalId from this for
-  // pre-plugin benches. A later WU makes this optional when non-github plugins
-  // land and updates downstream consumers accordingly.
-  number: number;
+  // Legacy GitHub issue number. Present for github-com issues and security
+  // alerts (where it holds the alert number); load-time migration derives
+  // externalId from this for pre-plugin benches. Absent for integrations whose
+  // issues have no numeric form (e.g. Jira keys like PLNRPTGOOG-3782), which
+  // identify by externalId/integrationId instead. Consumers that need a GitHub
+  // issue number must guard on its presence.
+  number?: number;
   integrationId: string;
   externalId: string;
   title: string;
