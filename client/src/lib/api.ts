@@ -181,9 +181,8 @@ export function createBench(
   projectId: string,
   opts: {
     branch?: string;
-    issueNumber?: number;
-    // Security alerts assign by externalId (no bare numeric form); plain issues
-    // continue to assign by issueNumber.
+    // Every integration assigns by externalId; the server resolves the issue via
+    // the active plugin's getIssue.
     externalId?: string;
     branchConflictResolution?: "resume" | "new";
     // TestBench variant (#418): when "testbench", the create path binds the bench
@@ -194,7 +193,6 @@ export function createBench(
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
   if (opts.branch) body.branch = opts.branch;
-  if (opts.issueNumber) body.issueNumber = opts.issueNumber;
   if (opts.externalId) body.externalId = opts.externalId;
   if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
   if (opts.variant) body.variant = opts.variant;
@@ -591,11 +589,11 @@ export function fetchLabels(projectId: string): Promise<string[]> {
 export function assignIssue(
   projectId: string,
   benchId: number,
-  issueNumber: number,
+  externalId: string,
 ): Promise<AssignIssueResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/assign-issue`, {
     method: "POST",
-    body: JSON.stringify({ issueNumber }),
+    body: JSON.stringify({ externalId }),
   });
 }
 

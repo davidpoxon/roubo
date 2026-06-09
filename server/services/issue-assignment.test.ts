@@ -39,11 +39,10 @@ vi.mock("./state.js", () => ({
 }));
 
 vi.mock("./github.js", () => ({
-  fetchIssueDetail: vi.fn(),
-  fetchIssueComments: vi.fn(),
-  fetchBlockingRelationships: vi.fn().mockResolvedValue({ blockedBy: {}, blockingCount: {} }),
+  // Linked-PR seeding is now gated on the GitHub token; default truthy so the
+  // github-issue paths exercise fetchLinkedPullRequests.
+  getGithubToken: vi.fn().mockReturnValue("gh-token"),
   fetchLinkedPullRequests: vi.fn().mockResolvedValue([]),
-  fetchIssueType: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("./terminal.js", () => ({
@@ -70,7 +69,7 @@ vi.mock("./jig-manager.js", () => ({
   getJig: vi.fn().mockReturnValue({
     id: "feature-dev",
     name: "Feature Development",
-    description: "Action a GitHub issue",
+    description: "Action an issue",
     icon: "code",
     source: "app",
     content:
@@ -99,16 +98,82 @@ import * as jigManager from "./jig-manager.js";
 import { runCommand } from "./exec.js";
 import fs from "node:fs";
 import type { NormalizedIssue } from "@roubo/shared";
-import {
-  assignIssue,
-  unassignIssue,
-  createBenchAndAssignIssue,
-  createBenchAndAssignAlert,
-  createBenchAndAssignPluginIssue,
-} from "./issue-assignment.js";
+import { assignIssue, unassignIssue, createBenchAndAssignFromIssue } from "./issue-assignment.js";
+
+/** A plain GitHub issue: numeric `#<n>` tail, github-com integration, open. */
+function githubIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+  return {
+    integrationId: "github-com",
+    externalId: "owner/repo#42",
+    externalUrl: "https://github.com/org/repo/issues/42",
+    title: "Fix login bug",
+    body: "Users cannot log in",
+    currentState: "open",
+    allowedTransitions: [],
+    assignees: [],
+    labels: [],
+    issueType: null,
+    blocks: [],
+    blockedBy: [],
+    updatedAt: "t",
+    raw: { number: 42 },
+    ...overrides,
+  };
+}
+
+/** A security code-scanning alert. */
+function codeScanningAlert(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+  return {
+    integrationId: "github-com",
+    externalId: "org/repo#code-scanning-117",
+    externalUrl: "https://github.com/org/repo/security/code-scanning/117",
+    title: "Bad thing",
+    body: null,
+    currentState: "open",
+    allowedTransitions: [],
+    assignees: [],
+    labels: [],
+    issueType: "security-code-scanning",
+    blocks: [],
+    blockedBy: [],
+    updatedAt: "t",
+    raw: {
+      number: 117,
+      rule: { id: "js/x", description: "Bad thing", security_severity_level: "high" },
+      most_recent_instance: { location: { path: "src/a.ts", start_line: 5 } },
+    },
+    ...overrides,
+  };
+}
+
+/** A key-based plugin issue (Jira self-hosted): no numeric form. */
+function jiraIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
+  return {
+    integrationId: "jira-self-hosted",
+    externalId: "PROJ-45",
+    externalUrl: "https://jira.example.com/browse/PROJ-45",
+    title: "Add billing dashboard",
+    body: "Some description",
+    currentState: "To Do",
+    allowedTransitions: [],
+    assignees: [],
+    labels: [],
+    issueType: "Story",
+    blocks: [],
+    blockedBy: [],
+    updatedAt: "t",
+    raw: { key: "PROJ-45" },
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks resets call history but not implementations, so restore the
+  // github-token gate to truthy (some tests flip it to null) and the default
+  // empty linked-PR list after each clear.
+  vi.mocked(githubService.getGithubToken).mockReturnValue("gh-token");
+  vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -146,18 +211,6 @@ describe("assignIssue", () => {
   it("creates branch, assigns issue, and launches Claude Code", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Users cannot log in",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -172,12 +225,12 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue(), []);
 
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
@@ -209,18 +262,6 @@ describe("assignIssue", () => {
   it("falls back to checkout when branch already exists", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 10,
-      title: "Test",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/10",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand)
       .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "already exists" }) // checkout -b fails
       .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" }); // checkout succeeds
@@ -233,14 +274,25 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 10);
+    const result = await assignIssue(
+      "project1",
+      1,
+      githubIssue({
+        externalId: "owner/repo#10",
+        title: "Test",
+        body: null,
+        externalUrl: "https://github.com/org/repo/issues/10",
+        raw: { number: 10 },
+      }),
+      [],
+    );
     expect(result.bench.branch).toBe("issue-10-test");
   });
 
   it("throws when bench not found", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue(undefined);
 
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow("Bench not found");
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow("Bench not found");
   });
 
   it("refuses a blank-workspace-path bench (allowlist-rejected) before any git checkout", async () => {
@@ -248,25 +300,15 @@ describe("assignIssue", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
 
     // Must reject before running `git checkout -b` with cwd="" (the server's own repo).
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow(/no valid workspace path/i);
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow(
+      /no valid workspace path/i,
+    );
     expect(runCommand).not.toHaveBeenCalled();
   });
 
   it("throws when both checkout -b and checkout fail", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand)
       .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "already exists" })
       .mockResolvedValueOnce({
@@ -275,7 +317,7 @@ describe("assignIssue", () => {
         stderr: "pathspec did not match",
       });
 
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow(
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow(
       expect.objectContaining({
         message: expect.stringContaining("Failed to create/checkout branch"),
         statusCode: 422,
@@ -289,7 +331,9 @@ describe("assignIssue", () => {
       config: undefined,
     } as any);
 
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow("Project config not found");
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow(
+      "Project config not found",
+    );
   });
 
   it("overwrites existing issue assignment", async () => {
@@ -304,18 +348,6 @@ describe("assignIssue", () => {
     };
     vi.mocked(benchManager.getBench).mockReturnValue({ ...benchWithIssue });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "New issue",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -330,11 +362,11 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ title: "New issue" }), []);
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "New issue",
       linkedPullRequests: [],
       issueType: null,
@@ -357,24 +389,12 @@ describe("assignIssue", () => {
       },
     } as any);
 
-    await expect(assignIssue("project1", 1, 42)).rejects.toThrow("no repo");
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow("no repo");
   });
 
   it("uses jig manager to load and resolve the jig", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Body",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -389,7 +409,7 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 42);
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
     expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
@@ -403,20 +423,6 @@ describe("assignIssue", () => {
   it("includes comments in Claude Code prompt", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 1,
-      title: "Issue",
-      body: "Body",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 1,
-      htmlUrl: "https://github.com/org/repo/issues/1",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([
-      { id: 1, body: "Please fix ASAP", user: "reviewer", createdAt: "" },
-    ]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -431,7 +437,18 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 1);
+    await assignIssue(
+      "project1",
+      1,
+      githubIssue({
+        externalId: "owner/repo#1",
+        title: "Issue",
+        body: "Body",
+        externalUrl: "https://github.com/org/repo/issues/1",
+        raw: { number: 1 },
+      }),
+      [{ user: "reviewer", body: "Please fix ASAP" }],
+    );
 
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
@@ -455,18 +472,6 @@ describe("assignIssue", () => {
     });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Body",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -481,7 +486,7 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 42);
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
@@ -507,18 +512,6 @@ describe("assignIssue", () => {
     });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Body",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -533,7 +526,7 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 42);
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
@@ -558,18 +551,6 @@ describe("assignIssue", () => {
     });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Body",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -584,7 +565,7 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 42);
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
     // Session created without initialInput (no CLI arg)
     expect(terminalService.createSession).toHaveBeenCalledWith(
@@ -616,22 +597,6 @@ describe("assignIssue", () => {
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [{ number: 10, title: "Add auth middleware" }] },
-      blockingCount: { 42: 0 },
-    });
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -646,16 +611,21 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    // Blockers present on the normalized issue must not block assignment.
+    const result = await assignIssue(
+      "project1",
+      1,
+      githubIssue({ body: null, blockedBy: ["owner/repo#10"] }),
+      [],
+    );
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
     });
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
 
   it("forwards workUnits when persisting", async () => {
@@ -672,18 +642,6 @@ describe("assignIssue", () => {
       notifications: [],
     });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -698,7 +656,7 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    await assignIssue("project1", 1, 42);
+    await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
     expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
@@ -706,18 +664,6 @@ describe("assignIssue", () => {
   it("populates linkedPullRequests when GitHub returns linked PRs", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([
       { repoFullName: "org/repo", number: 99 },
     ]);
@@ -735,12 +681,12 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [{ repoFullName: "org/repo", number: 99 }],
       issueType: null,
@@ -751,18 +697,6 @@ describe("assignIssue", () => {
   it("succeeds with empty linkedPullRequests when no linked PRs exist", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
@@ -778,13 +712,68 @@ describe("assignIssue", () => {
       status: "live",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
     expect(result.bench.assignedIssue?.linkedPullRequests).toEqual([]);
   });
+
+  it("does not seed linkedPullRequests when no GitHub token is present", async () => {
+    vi.mocked(githubService.getGithubToken).mockReturnValue(null as any);
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-1",
+      benchKey: "project1:1",
+      label: "Claude 1",
+      createdAt: "",
+      command: "claude",
+      status: "live",
+    });
+
+    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
+
+    expect(result.bench.assignedIssue?.linkedPullRequests).toBeUndefined();
+    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+  });
+
+  it("assigns a key-based (Jira) issue with no number and persists raw", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-1",
+      benchKey: "project1:1",
+      label: "Claude 1",
+      createdAt: "",
+      command: "claude",
+      status: "live",
+    });
+
+    const result = await assignIssue("project1", 1, jiraIssue(), []);
+
+    expect(result.bench.branch).toBe("proj-45-add-billing-dashboard");
+    expect(result.bench.assignedIssue).toMatchObject({
+      integrationId: "jira-self-hosted",
+      externalId: "PROJ-45",
+      title: "Add billing dashboard",
+      issueType: "Story",
+      raw: { key: "PROJ-45" },
+    });
+    expect(result.bench.assignedIssue?.number).toBeUndefined();
+    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+  });
 });
 
-describe("createBenchAndAssignIssue", () => {
+describe("createBenchAndAssignFromIssue", () => {
   const project = {
     repoPath: "/repos/project",
     config: {
@@ -814,18 +803,6 @@ describe("createBenchAndAssignIssue", () => {
 
   function setupHappyPath() {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Broken",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 1,
       stdout: "",
@@ -842,27 +819,41 @@ describe("createBenchAndAssignIssue", () => {
     });
   }
 
-  it("creates a bench and assigns issue in one operation", async () => {
+  it("creates a bench and assigns a github issue in one operation", async () => {
     setupHappyPath();
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
-    expect(githubService.fetchIssueDetail).toHaveBeenCalledWith("org/repo", 42);
     expect(benchManager.createBench).toHaveBeenCalledWith("project1", "issue-42-fix-login-bug");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
     });
     expect(result.terminalSessionId).toBe("term-1");
-    expect(result.status).toBe("success");
-    // createBenchAndAssignIssue must delegate auto-start orchestration to
+    // createBenchAndAssignFromIssue must delegate auto-start orchestration to
     // benchManager.createBench: never invoke the start primitives itself.
     expect(benchManager.startAllComponents).not.toHaveBeenCalled();
     expect(benchManager.runComponentsInOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not persist raw for a plain github-com issue", async () => {
+    setupHappyPath();
+
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.bench.assignedIssue).not.toHaveProperty("raw");
   });
 
   it("leaves bench idle (no component start) when autoStartComponents is off: default", async () => {
@@ -877,7 +868,7 @@ describe("createBenchAndAssignIssue", () => {
     });
     setupHappyPath();
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(result.status).toBe("success");
     expect(benchManager.createBench).toHaveBeenCalledTimes(1);
@@ -888,7 +879,7 @@ describe("createBenchAndAssignIssue", () => {
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
@@ -912,7 +903,7 @@ describe("createBenchAndAssignIssue", () => {
     });
     setupHappyPath();
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(result.status).toBe("success");
     // The setting flips behaviour inside createBench's background path, not in
@@ -926,7 +917,7 @@ describe("createBenchAndAssignIssue", () => {
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
@@ -945,7 +936,7 @@ describe("createBenchAndAssignIssue", () => {
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -959,17 +950,6 @@ describe("createBenchAndAssignIssue", () => {
 
   it("returns branch conflict info when branch exists and no resolution provided", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "abc123",
@@ -978,7 +958,7 @@ describe("createBenchAndAssignIssue", () => {
     vi.mocked(stateService.getPersistedBenches).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(false);
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue({ body: null }), []);
 
     expect(result.status).toBe("conflict");
     expect(result.status === "conflict" && result.branchConflict).toEqual({
@@ -991,17 +971,6 @@ describe("createBenchAndAssignIssue", () => {
 
   it("detects workspace from persisted bench when branch conflicts", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "abc123",
@@ -1019,7 +988,7 @@ describe("createBenchAndAssignIssue", () => {
     ]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue({ body: null }), []);
 
     expect(result.status === "conflict" && result.branchConflict.workspaceExists).toBe(true);
     expect(fs.existsSync).toHaveBeenCalledWith("/workspaces/project/bench-3");
@@ -1027,18 +996,6 @@ describe("createBenchAndAssignIssue", () => {
 
   it("uses existing branch when resolution is resume", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "abc123",
@@ -1054,7 +1011,12 @@ describe("createBenchAndAssignIssue", () => {
       status: "live",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42, "resume");
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: null }),
+      [],
+      "resume",
+    );
 
     expect(benchManager.createBench).toHaveBeenCalledWith("project1", "issue-42-fix-login-bug");
     expect(result.status).toBe("success");
@@ -1073,18 +1035,6 @@ describe("createBenchAndAssignIssue", () => {
 
   it("appends suffix when resolution is new", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand)
       .mockResolvedValueOnce({ code: 0, stdout: "abc", stderr: "" })
       .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "" });
@@ -1101,7 +1051,12 @@ describe("createBenchAndAssignIssue", () => {
       status: "live",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42, "new");
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: null }),
+      [],
+      "new",
+    );
 
     expect(benchManager.createBench).toHaveBeenCalledWith("project1", "issue-42-fix-login-bug-2");
     expect(result.status).toBe("success");
@@ -1109,50 +1064,39 @@ describe("createBenchAndAssignIssue", () => {
 
   it("throws when too many branch suffix conflicts", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "abc",
       stderr: "",
     });
 
-    await expect(createBenchAndAssignIssue("project1", 42, "new")).rejects.toThrow(
-      "Too many branch name conflicts",
-    );
+    await expect(
+      createBenchAndAssignFromIssue("project1", githubIssue({ body: null }), [], "new"),
+    ).rejects.toThrow("Too many branch name conflicts");
   });
 
-  it("rejects closed issues", async () => {
+  it("rejects a closed (done-state) non-alert issue with 409", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: null,
-      state: "closed",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
 
-    await expect(createBenchAndAssignIssue("project1", 42)).rejects.toThrow("not open");
+    await expect(
+      createBenchAndAssignFromIssue("project1", githubIssue({ currentState: "closed" }), []),
+    ).rejects.toThrow("not open");
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Jira issue in a Done state with 409", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+
+    await expect(
+      createBenchAndAssignFromIssue("project1", jiraIssue({ currentState: "Done" }), []),
+    ).rejects.toThrow("not open");
+    expect(benchManager.createBench).not.toHaveBeenCalled();
   });
 
   it("throws when project not found", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined as any);
 
-    await expect(createBenchAndAssignIssue("project1", 42)).rejects.toThrow(
+    await expect(createBenchAndAssignFromIssue("project1", githubIssue(), [])).rejects.toThrow(
       "Project config not found",
     );
   });
@@ -1168,7 +1112,7 @@ describe("createBenchAndAssignIssue", () => {
     });
     setupHappyPath();
 
-    await createBenchAndAssignIssue("project1", 42);
+    await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
@@ -1194,7 +1138,7 @@ describe("createBenchAndAssignIssue", () => {
     });
     setupHappyPath();
 
-    await createBenchAndAssignIssue("project1", 42);
+    await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     // Session created without initialInput (no CLI arg)
     expect(terminalService.createSession).toHaveBeenCalledWith(
@@ -1224,25 +1168,24 @@ describe("createBenchAndAssignIssue", () => {
 
   it("creates the bench even when the issue has open blockers (soft-block)", async () => {
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [{ number: 10, title: "Add auth middleware" }] },
-      blockingCount: { 42: 0 },
-    });
     setupHappyPath();
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ blockedBy: ["owner/repo#10"] }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
     expect(result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
     });
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
   });
 
   it("forwards workUnits when persisting", async () => {
@@ -1260,7 +1203,7 @@ describe("createBenchAndAssignIssue", () => {
       notifications: [],
     });
 
-    await createBenchAndAssignIssue("project1", 42);
+    await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
@@ -1272,13 +1215,13 @@ describe("createBenchAndAssignIssue", () => {
       { repoFullName: "org/other", number: 12 },
     ]);
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(result.status).toBe("success");
     expect(result.status === "success" && result.bench.assignedIssue).toEqual({
       number: 42,
       integrationId: "github-com",
-      externalId: "42",
+      externalId: "owner/repo#42",
       title: "Fix login bug",
       linkedPullRequests: [
         { repoFullName: "org/repo", number: 55 },
@@ -1293,12 +1236,226 @@ describe("createBenchAndAssignIssue", () => {
     setupHappyPath();
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     expect(result.status).toBe("success");
     expect(result.status === "success" && result.bench.assignedIssue?.linkedPullRequests).toEqual(
       [],
     );
+  });
+
+  it("does not seed linkedPullRequests when no GitHub token is present", async () => {
+    vi.mocked(githubService.getGithubToken).mockReturnValue(null as any);
+    setupHappyPath();
+
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.bench.assignedIssue?.linkedPullRequests).toBeUndefined();
+    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+  });
+
+  describe("security alert", () => {
+    function makeBench() {
+      return {
+        id: 3,
+        projectId: "project1",
+        branch: "",
+        workspacePath: "/workspace",
+        ports: { backend: 5000 },
+        createdAt: "2026-01-01",
+        assignedContainers: {},
+        notifications: [],
+      } as any;
+    }
+
+    function setup() {
+      const bench = makeBench();
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+      vi.mocked(benchManager.createBench).mockReturnValue(bench);
+      // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+      vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+      vi.mocked(terminalService.createSession).mockReturnValue({
+        id: "term-9",
+        benchKey: "project1:3",
+        label: "Claude 3",
+        createdAt: "",
+        command: "claude",
+        status: "live",
+      });
+      return bench;
+    }
+
+    it("creates a bench on a category-prefixed branch and persists the alert number + redacted raw", async () => {
+      const bench = setup();
+
+      const result = await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+
+      expect(result.status).toBe("success");
+      expect(benchManager.createBench).toHaveBeenCalledWith(
+        "project1",
+        "code-scanning-117-bad-thing",
+      );
+      expect(bench.assignedIssue).toMatchObject({
+        number: 117,
+        integrationId: "github-com",
+        externalId: "org/repo#code-scanning-117",
+        issueType: "security-code-scanning",
+      });
+      // The persisted raw is the redacted clone passed in (never re-fetched).
+      expect(bench.assignedIssue.raw).toEqual(codeScanningAlert().raw);
+    });
+
+    it("does not run the open-check or seed linked PRs for an alert", async () => {
+      setup();
+      // Even a done-ish state must not reject an alert (alerts are exempt).
+      await createBenchAndAssignFromIssue(
+        "project1",
+        codeScanningAlert({ currentState: "closed" }),
+        [],
+      );
+      expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+    });
+
+    it("resolves the jig from the alert issueType", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+      expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+        "project1",
+        "security-code-scanning",
+        expect.anything(),
+      );
+    });
+
+    it("falls back to a bare category-number branch when the title slugifies to empty", async () => {
+      setup();
+      await createBenchAndAssignFromIssue(
+        "project1",
+        codeScanningAlert({
+          externalId: "org/repo#secret-scanning-42",
+          title: "!!!",
+          issueType: "security-secret-scanning",
+          raw: { number: 42, secret_type_display_name: "GitHub PAT" },
+        }),
+        [],
+      );
+      expect(benchManager.createBench).toHaveBeenCalledWith("project1", "secret-scanning-42");
+    });
+
+    it("returns a conflict when the branch exists and no resolution is given", async () => {
+      setup();
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      const result = await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+      expect(result.status).toBe("conflict");
+      if (result.status === "conflict") {
+        expect(result.branchConflict.branchName).toBe("code-scanning-117-bad-thing");
+      }
+      expect(benchManager.createBench).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("key-based plugin issue (e.g. Jira)", () => {
+    function makeBench() {
+      return {
+        id: 4,
+        projectId: "project1",
+        branch: "",
+        workspacePath: "/workspace",
+        ports: { backend: 5000 },
+        createdAt: "2026-01-01",
+        assignedContainers: {},
+        notifications: [],
+      } as any;
+    }
+
+    function setup() {
+      const bench = makeBench();
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+      vi.mocked(benchManager.createBench).mockReturnValue(bench);
+      // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+      vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+      vi.mocked(terminalService.createSession).mockReturnValue({
+        id: "term-10",
+        benchKey: "project1:4",
+        label: "Claude 4",
+        createdAt: "",
+        command: "claude",
+        status: "live",
+      });
+      return bench;
+    }
+
+    it("creates a bench from the externalId key + title and assigns it with no number", async () => {
+      const bench = setup();
+
+      const result = await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+
+      expect(result.status).toBe("success");
+      expect(benchManager.createBench).toHaveBeenCalledWith(
+        "project1",
+        "proj-45-add-billing-dashboard",
+      );
+      expect(bench.assignedIssue).toMatchObject({
+        integrationId: "jira-self-hosted",
+        externalId: "PROJ-45",
+        title: "Add billing dashboard",
+        issueType: "Story",
+      });
+      // No GitHub-style number for a Jira key.
+      expect(bench.assignedIssue.number).toBeUndefined();
+      // Non-github-com integrations persist raw (re-injection re-hydrates).
+      expect(bench.assignedIssue.raw).toEqual({ key: "PROJ-45" });
+    });
+
+    it("never seeds linked PRs (not a github-com numeric issue)", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+      expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+    });
+
+    it("injects the issue key, title, body, url and comments into the session jig", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue(), [
+        { user: "alice", body: "looks good" },
+      ]);
+      expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          issueKey: "PROJ-45",
+          issueNumber: undefined,
+          issueTitle: "Add billing dashboard",
+          issueUrl: "https://jira.example.com/browse/PROJ-45",
+        }),
+      );
+    });
+
+    it("resolves the jig from the issue issueType", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+      expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+        "project1",
+        "Story",
+        expect.anything(),
+      );
+    });
+
+    it("falls back to a bare key branch when the title slugifies to empty", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue({ title: "!!!" }), []);
+      expect(benchManager.createBench).toHaveBeenCalledWith("project1", "proj-45");
+    });
+
+    it("returns a conflict when the branch exists and no resolution is given", async () => {
+      setup();
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      const result = await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+      expect(result.status).toBe("conflict");
+      if (result.status === "conflict") {
+        expect(result.branchConflict.branchName).toBe("proj-45-add-billing-dashboard");
+      }
+      expect(benchManager.createBench).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -1442,18 +1599,6 @@ describe("default jig hierarchy injection", () => {
 
   function setupHappyPath() {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Broken",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 1,
       stdout: "",
@@ -1477,7 +1622,11 @@ describe("default jig hierarchy injection", () => {
       source: "project",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1492,7 +1641,11 @@ describe("default jig hierarchy injection", () => {
       source: "app",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1507,7 +1660,11 @@ describe("default jig hierarchy injection", () => {
       source: "global",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1522,7 +1679,7 @@ describe("default jig hierarchy injection", () => {
       source: "project",
     });
 
-    await createBenchAndAssignIssue("project1", 42);
+    await createBenchAndAssignFromIssue("project1", githubIssue({ body: "Broken" }), []);
 
     const calls = vi.mocked(stateService.updateBench).mock.calls;
     const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
@@ -1535,7 +1692,11 @@ describe("default jig hierarchy injection", () => {
       jigs: { autoInject: false, autoExecute: true },
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1555,7 +1716,11 @@ describe("default jig hierarchy injection", () => {
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ body: "Broken" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1588,18 +1753,6 @@ describe("default jig hierarchy injection", () => {
     };
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Fix login bug",
-      body: "Broken",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
@@ -1619,7 +1772,7 @@ describe("default jig hierarchy injection", () => {
       source: "project",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ body: "Broken" }), []);
 
     expect(result.bench.injectedJigId).toBe("proj-jig");
     const calls = vi.mocked(stateService.updateBench).mock.calls;
@@ -1659,18 +1812,6 @@ describe("issue-type-to-jig mapping resolution", () => {
 
   function setupHappyPath() {
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Bug report",
-      body: "Something broke",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 1,
       stdout: "",
@@ -1687,15 +1828,18 @@ describe("issue-type-to-jig mapping resolution", () => {
     });
   }
 
-  it("passes the fetched issue type to resolveJigForIssue and records source when type has a mapping", async () => {
+  it("passes the issue type to resolveJigForIssue and records source when type has a mapping", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "bug-fix",
       source: "issue-type-mapping",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ title: "Bug report", body: "Something broke", issueType: "Bug" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
@@ -1716,13 +1860,16 @@ describe("issue-type-to-jig mapping resolution", () => {
 
   it("records source from default hierarchy when issue type has no mapping", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Enhancement");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "feature-dev",
       source: "app",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ issueType: "Enhancement" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1734,13 +1881,16 @@ describe("issue-type-to-jig mapping resolution", () => {
 
   it("records source from default hierarchy when issue has no type", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue(null);
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "feature-dev",
       source: "app",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ issueType: null }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
@@ -1756,13 +1906,16 @@ describe("issue-type-to-jig mapping resolution", () => {
     // Simulates resolveJigForIssue logging a warning and falling through to the
     // project-level default because the mapped jig ID no longer exists.
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "proj-jig",
       source: "project",
     });
 
-    const result = await createBenchAndAssignIssue("project1", 42);
+    const result = await createBenchAndAssignFromIssue(
+      "project1",
+      githubIssue({ issueType: "Bug" }),
+      [],
+    );
 
     expect(result.status).toBe("success");
     if (result.status !== "success") throw new Error("expected success");
@@ -1804,18 +1957,6 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
   function setupHappyPath() {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchIssueDetail).mockResolvedValue({
-      number: 42,
-      title: "Bug report",
-      body: "Something broke",
-      state: "open",
-      labels: [],
-      createdAt: "",
-      updatedAt: "",
-      commentsCount: 0,
-      htmlUrl: "https://github.com/org/repo/issues/42",
-    });
-    vi.mocked(githubService.fetchIssueComments).mockResolvedValue([]);
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
@@ -1832,15 +1973,19 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
     });
   }
 
-  it("passes the fetched issue type to resolveJigForIssue and records source when type has a mapping", async () => {
+  it("passes the issue type to resolveJigForIssue and records source when type has a mapping", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "bug-fix",
       source: "issue-type-mapping",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue(
+      "project1",
+      1,
+      githubIssue({ title: "Bug report", body: "Something broke", issueType: "Bug" }),
+      [],
+    );
 
     expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
@@ -1859,13 +2004,12 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
 
   it("records source from default hierarchy when issue type has no mapping", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Enhancement");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "feature-dev",
       source: "app",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ issueType: "Enhancement" }), []);
 
     expect(result.bench.injectedJigSource).toBe("app");
     expect(stateService.updateBench).toHaveBeenCalledWith(
@@ -1875,13 +2019,12 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
 
   it("records source from default hierarchy when issue has no type", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue(null);
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "feature-dev",
       source: "app",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ issueType: null }), []);
 
     expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
       "project1",
@@ -1893,297 +2036,16 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
 
   it("records source from default hierarchy when mapping points to a deleted jig (fallback)", async () => {
     setupHappyPath();
-    vi.mocked(githubService.fetchIssueType).mockResolvedValue("Bug");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "proj-jig",
       source: "project",
     });
 
-    const result = await assignIssue("project1", 1, 42);
+    const result = await assignIssue("project1", 1, githubIssue({ issueType: "Bug" }), []);
 
     expect(result.bench.injectedJigSource).toBe("project");
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ injectedJigSource: "project" }),
     );
-  });
-});
-
-describe("createBenchAndAssignAlert", () => {
-  const project = {
-    repoPath: "/repos/project",
-    config: {
-      project: {
-        name: "project",
-        displayName: "My Project",
-        repo: "org/repo",
-      },
-      layout: { type: "single-repo" as const },
-      components: {},
-      ports: {},
-      benches: { max: 5 },
-    },
-  };
-
-  function makeBench() {
-    return {
-      id: 3,
-      projectId: "project1",
-      branch: "",
-      workspacePath: "/workspace",
-      ports: { backend: 5000 },
-      createdAt: "2026-01-01",
-      assignedContainers: {},
-      notifications: [],
-    } as any;
-  }
-
-  function codeScanningAlert(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
-    return {
-      integrationId: "github-com",
-      externalId: "org/repo#code-scanning-117",
-      externalUrl: "https://github.com/org/repo/security/code-scanning/117",
-      title: "Bad thing",
-      body: null,
-      currentState: "open",
-      allowedTransitions: [],
-      assignees: [],
-      labels: [],
-      issueType: "security-code-scanning",
-      blocks: [],
-      blockedBy: [],
-      updatedAt: "t",
-      raw: {
-        number: 117,
-        rule: { id: "js/x", description: "Bad thing", security_severity_level: "high" },
-        most_recent_instance: { location: { path: "src/a.ts", start_line: 5 } },
-      },
-      ...overrides,
-    };
-  }
-
-  function setup() {
-    const bench = makeBench();
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(benchManager.createBench).mockReturnValue(bench);
-    // Branch does not yet exist -> rev-parse --verify fails (non-zero).
-    vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-9",
-      benchKey: "project1:3",
-      label: "Claude 3",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
-    return bench;
-  }
-
-  it("creates a bench on a category-prefixed branch and persists the full alert externalId + redacted raw", async () => {
-    const bench = setup();
-
-    const result = await createBenchAndAssignAlert("project1", codeScanningAlert());
-
-    expect(result.status).toBe("success");
-    expect(benchManager.createBench).toHaveBeenCalledWith(
-      "project1",
-      "code-scanning-117-bad-thing",
-    );
-    expect(bench.assignedIssue).toMatchObject({
-      number: 117,
-      integrationId: "github-com",
-      externalId: "org/repo#code-scanning-117",
-      issueType: "security-code-scanning",
-    });
-    // The persisted raw is the redacted clone passed in (never re-fetched).
-    expect(bench.assignedIssue.raw).toEqual(codeScanningAlert().raw);
-  });
-
-  it("never fetches a GitHub issue by number for alerts (no open-check)", async () => {
-    setup();
-    await createBenchAndAssignAlert("project1", codeScanningAlert());
-    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
-    expect(githubService.fetchIssueComments).not.toHaveBeenCalled();
-  });
-
-  it("resolves the jig from the alert issueType", async () => {
-    setup();
-    await createBenchAndAssignAlert("project1", codeScanningAlert());
-    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
-      "project1",
-      "security-code-scanning",
-      expect.anything(),
-    );
-  });
-
-  it("falls back to a bare category-number branch when the title slugifies to empty", async () => {
-    setup();
-    await createBenchAndAssignAlert(
-      "project1",
-      codeScanningAlert({
-        externalId: "org/repo#secret-scanning-42",
-        title: "!!!",
-        issueType: "security-secret-scanning",
-        raw: { number: 42, secret_type_display_name: "GitHub PAT" },
-      }),
-    );
-    expect(benchManager.createBench).toHaveBeenCalledWith("project1", "secret-scanning-42");
-  });
-
-  it("rejects a non-alert externalId", async () => {
-    setup();
-    await expect(
-      createBenchAndAssignAlert("project1", codeScanningAlert({ externalId: "org/repo#42" })),
-    ).rejects.toThrow(/Not a security alert/);
-    expect(benchManager.createBench).not.toHaveBeenCalled();
-  });
-
-  it("returns a conflict when the branch exists and no resolution is given", async () => {
-    setup();
-    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
-    const result = await createBenchAndAssignAlert("project1", codeScanningAlert());
-    expect(result.status).toBe("conflict");
-    if (result.status === "conflict") {
-      expect(result.branchConflict.branchName).toBe("code-scanning-117-bad-thing");
-    }
-    expect(benchManager.createBench).not.toHaveBeenCalled();
-  });
-});
-
-describe("createBenchAndAssignPluginIssue", () => {
-  const project = {
-    repoPath: "/repos/project",
-    config: {
-      project: {
-        name: "project",
-        displayName: "My Project",
-        repo: "org/repo",
-      },
-      layout: { type: "single-repo" as const },
-      components: {},
-      ports: {},
-      benches: { max: 5 },
-    },
-  };
-
-  function makeBench() {
-    return {
-      id: 4,
-      projectId: "project1",
-      branch: "",
-      workspacePath: "/workspace",
-      ports: { backend: 5000 },
-      createdAt: "2026-01-01",
-      assignedContainers: {},
-      notifications: [],
-    } as any;
-  }
-
-  function jiraIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
-    return {
-      integrationId: "jira-self-hosted",
-      externalId: "PLNRPTGOOG-3782",
-      externalUrl: "https://jira.example.com/browse/PLNRPTGOOG-3782",
-      title: "Add billing dashboard",
-      body: "Some description",
-      currentState: "To Do",
-      allowedTransitions: [],
-      assignees: [],
-      labels: [],
-      issueType: "Story",
-      blocks: [],
-      blockedBy: [],
-      updatedAt: "t",
-      raw: { key: "PLNRPTGOOG-3782" },
-      ...overrides,
-    };
-  }
-
-  function setup() {
-    const bench = makeBench();
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(benchManager.createBench).mockReturnValue(bench);
-    // Branch does not yet exist -> rev-parse --verify fails (non-zero).
-    vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-10",
-      benchKey: "project1:4",
-      label: "Claude 4",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
-    return bench;
-  }
-
-  it("creates a bench from the externalId key + title and assigns it with no number", async () => {
-    const bench = setup();
-
-    const result = await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
-
-    expect(result.status).toBe("success");
-    expect(benchManager.createBench).toHaveBeenCalledWith(
-      "project1",
-      "plnrptgoog-3782-add-billing-dashboard",
-    );
-    expect(bench.assignedIssue).toMatchObject({
-      integrationId: "jira-self-hosted",
-      externalId: "PLNRPTGOOG-3782",
-      title: "Add billing dashboard",
-      issueType: "Story",
-    });
-    // No GitHub-style number for a Jira key.
-    expect(bench.assignedIssue.number).toBeUndefined();
-    expect(bench.assignedIssue.raw).toEqual({ key: "PLNRPTGOOG-3782" });
-  });
-
-  it("never fetches a GitHub issue (fully plugin-sourced)", async () => {
-    setup();
-    await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
-    expect(githubService.fetchIssueDetail).not.toHaveBeenCalled();
-    expect(githubService.fetchIssueComments).not.toHaveBeenCalled();
-    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
-  });
-
-  it("injects the issue key, title, body, url and comments into the session jig", async () => {
-    setup();
-    await createBenchAndAssignPluginIssue("project1", jiraIssue(), [
-      { user: "alice", body: "looks good" },
-    ]);
-    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        issueKey: "PLNRPTGOOG-3782",
-        issueNumber: undefined,
-        issueTitle: "Add billing dashboard",
-        issueUrl: "https://jira.example.com/browse/PLNRPTGOOG-3782",
-      }),
-    );
-  });
-
-  it("resolves the jig from the issue issueType", async () => {
-    setup();
-    await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
-    expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
-      "project1",
-      "Story",
-      expect.anything(),
-    );
-  });
-
-  it("falls back to a bare key branch when the title slugifies to empty", async () => {
-    setup();
-    await createBenchAndAssignPluginIssue("project1", jiraIssue({ title: "!!!" }), []);
-    expect(benchManager.createBench).toHaveBeenCalledWith("project1", "plnrptgoog-3782");
-  });
-
-  it("returns a conflict when the branch exists and no resolution is given", async () => {
-    setup();
-    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
-    const result = await createBenchAndAssignPluginIssue("project1", jiraIssue(), []);
-    expect(result.status).toBe("conflict");
-    if (result.status === "conflict") {
-      expect(result.branchConflict.branchName).toBe("plnrptgoog-3782-add-billing-dashboard");
-    }
-    expect(benchManager.createBench).not.toHaveBeenCalled();
   });
 });

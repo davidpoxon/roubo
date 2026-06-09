@@ -368,16 +368,22 @@ describe("BenchDetail", () => {
     expect(screen.getByText("Installing")).toBeInTheDocument();
   });
 
-  it("shows blocked badge when assigned issue has blockers", () => {
+  it("shows blocked badge and renders the blocker refs (string[]) when assigned issue has blockers", async () => {
     renderBench({
       ...baseBench,
       assignedIssue: {
         number: 42,
         title: "Fix the bug",
-        blockedBy: [{ number: 10, title: "Dependency issue" }],
+        // blockedBy is now a string[] of externalIds.
+        blockedBy: ["owner/repo#10"],
       },
     } as never);
-    expect(screen.getByRole("button", { name: /blocked/i })).toBeInTheDocument();
+    const badge = screen.getByRole("button", { name: /blocked/i });
+    expect(badge).toBeInTheDocument();
+
+    // The tooltip renders each blocker via shortIssueRef (strips the owner/repo).
+    await userEvent.hover(badge);
+    expect(await screen.findByText("#10")).toBeInTheDocument();
   });
 
   it("does not show blocked badge when assigned issue has no blockers", () => {

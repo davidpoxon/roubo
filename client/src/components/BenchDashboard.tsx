@@ -21,7 +21,6 @@ import type {
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
 } from "@roubo/shared";
-import { issueNumberFromExternalId } from "../lib/issue-id";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
@@ -89,7 +88,7 @@ export default function BenchDashboard() {
   const [showSpecPicker, setShowSpecPicker] = useState(false);
   const { open: openRegisterModal } = useRegisterProjectModal();
   const [branchConflict, setBranchConflict] = useState<
-    (BranchConflictInfo & { externalId: string; issueNumber: number | null }) | null
+    (BranchConflictInfo & { externalId: string }) | null
   >(null);
   const [draggingIssue, setDraggingIssue] = useState<NormalizedIssue | null>(null);
   const [issueQueueCollapsed, setIssueQueueCollapsed] = useState(false);
@@ -200,19 +199,15 @@ export default function BenchDashboard() {
     });
   }, []);
 
-  // Creates a bench for an issue or alert. Plain issues assign by issueNumber;
-  // security alerts (issueNumber === null) assign by their externalId.
+  // Creates a bench assigned to an issue from any active integration. The server
+  // resolves the issue from its externalId via the active plugin's getIssue.
   const handleCreateBenchWithIssue = useCallback(
-    (
-      target: { externalId: string; issueNumber: number | null },
-      conflictResolution?: "resume" | "new",
-    ) => {
+    (externalId: string, conflictResolution?: "resume" | "new") => {
       if (!projectId) return;
-      const { externalId, issueNumber } = target;
       createBench.mutate(
         {
           projectId,
-          ...(issueNumber !== null ? { issueNumber } : { externalId }),
+          externalId,
           branchConflictResolution: conflictResolution,
         },
         {
@@ -221,7 +216,7 @@ export default function BenchDashboard() {
             clearPendingAssignment(externalId);
             const response = result as CreateBenchWithIssueResponse;
             if (response.status === "conflict") {
-              setBranchConflict({ ...response.branchConflict, externalId, issueNumber });
+              setBranchConflict({ ...response.branchConflict, externalId });
             }
           },
           onError: (err) => {
@@ -253,10 +248,6 @@ export default function BenchDashboard() {
       if (!issue || position === undefined) return;
 
       const externalId = issue.externalId;
-      // Plain GitHub issues assign by number; everything else (alerts, Jira
-      // keys, any active integration) assigns by externalId. The server fetches
-      // the issue via the active plugin and routes alert vs plugin-issue.
-      const issueNumber = issueNumberFromExternalId(externalId);
 
       addPending(externalId);
       setPendingAssignments((prev) => {
@@ -285,7 +276,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue({ externalId, issueNumber });
+            handleCreateBenchWithIssue(externalId);
           }
         },
       });
@@ -376,9 +367,6 @@ export default function BenchDashboard() {
     (externalId: string, issueTitle: string) => {
       setShowIssuePicker(false);
       if (!projectId) return;
-      // GitHub issues route by number; everything else (Jira, alerts) by
-      // externalId. handleCreateBenchWithIssue picks the path from issueNumber.
-      const issueNumber = issueNumberFromExternalId(externalId);
       addPending(externalId);
       const position = issuePickerPosition;
       if (position !== null) {
@@ -407,7 +395,7 @@ export default function BenchDashboard() {
         },
         onExpire: () => {
           if (!cancelled) {
-            handleCreateBenchWithIssue({ externalId, issueNumber });
+            handleCreateBenchWithIssue(externalId);
           }
         },
       });
@@ -569,23 +557,11 @@ export default function BenchDashboard() {
               onClose={() => setBranchConflict(null)}
               conflict={branchConflict}
               onResume={() => {
-                handleCreateBenchWithIssue(
-                  {
-                    externalId: branchConflict.externalId,
-                    issueNumber: branchConflict.issueNumber,
-                  },
-                  "resume",
-                );
+                handleCreateBenchWithIssue(branchConflict.externalId, "resume");
                 setBranchConflict(null);
               }}
               onCreateNew={() => {
-                handleCreateBenchWithIssue(
-                  {
-                    externalId: branchConflict.externalId,
-                    issueNumber: branchConflict.issueNumber,
-                  },
-                  "new",
-                );
+                handleCreateBenchWithIssue(branchConflict.externalId, "new");
                 setBranchConflict(null);
               }}
             />

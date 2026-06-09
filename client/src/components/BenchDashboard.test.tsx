@@ -618,9 +618,10 @@ describe("BenchDashboard", () => {
         getCapturedToastOptions().onExpire?.();
       });
       expect(createMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ projectId: "proj-1", issueNumber: 42 }),
+        expect.objectContaining({ projectId: "proj-1", externalId: "org/repo#42" }),
         expect.any(Object),
       );
+      expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
     });
 
     it("adds issue to pending when selected from IssuePickerModal", async () => {
@@ -710,7 +711,7 @@ describe("BenchDashboard", () => {
       await userEvent.click(await screen.findByTestId("conflict-resume"));
       expect(createMutate).toHaveBeenCalledWith(
         expect.objectContaining({
-          issueNumber: 42,
+          externalId: "org/repo#42",
           branchConflictResolution: "resume",
         }),
         expect.any(Object),
@@ -741,7 +742,7 @@ describe("BenchDashboard", () => {
       await userEvent.click(await screen.findByTestId("conflict-new"));
       expect(createMutate).toHaveBeenCalledWith(
         expect.objectContaining({
-          issueNumber: 42,
+          externalId: "org/repo#42",
           branchConflictResolution: "new",
         }),
         expect.any(Object),
@@ -936,10 +937,12 @@ describe("BenchDashboard", () => {
       act(() => {
         getCapturedToastOptions().onExpire?.();
       });
+      // Every integration assigns by externalId now.
       expect(createMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ projectId: "proj-1", issueNumber: 9 }),
+        expect.objectContaining({ projectId: "proj-1", externalId: "9" }),
         expect.any(Object),
       );
+      expect(createMutate.mock.calls[0][0]).not.toHaveProperty("issueNumber");
     });
 
     it("creates a bench by externalId when a security alert is dropped", async () => {

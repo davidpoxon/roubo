@@ -73,7 +73,7 @@ import { useToast } from "../hooks/useToast";
 import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
 import IssueAssignControl from "./IssueAssignControl";
-import { securityCategoryFor } from "../lib/chip-mapping";
+import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
 
@@ -842,9 +842,9 @@ export default function BenchDetail() {
                   <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-stone-400 mb-0.5">Blocked by:</span>
-                      {bench.assignedIssue.blockedBy.map((b) => (
-                        <span key={b.number}>
-                          <span className="font-mono text-violet-400">#{b.number}</span> {b.title}
+                      {bench.assignedIssue.blockedBy.map((ref) => (
+                        <span key={ref} className="font-mono text-violet-400">
+                          {shortIssueRef(ref)}
                         </span>
                       ))}
                     </div>

@@ -27,13 +27,13 @@ vi.mock("../services/tool-launcher.js", () => ({
 }));
 
 vi.mock("../services/issue-assignment.js", () => ({
-  createBenchAndAssignIssue: vi.fn(),
-  createBenchAndAssignAlert: vi.fn(),
-  createBenchAndAssignPluginIssue: vi.fn(),
+  createBenchAndAssignFromIssue: vi.fn(),
 }));
 
 vi.mock("./plugin-route-helpers.js", () => ({
   getActivePluginOrRespond: vi.fn(),
+  fetchPluginComments: vi.fn(),
+  resolveActivePluginQuiet: vi.fn(),
 }));
 
 vi.mock("../services/plugin-manager.js", () => ({
@@ -43,10 +43,6 @@ vi.mock("../services/plugin-manager.js", () => ({
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
   resolveEnforceIssueDependencies: vi.fn(),
-}));
-
-vi.mock("../services/github.js", () => ({
-  fetchBlockingRelationships: vi.fn(),
 }));
 
 vi.mock("../services/state.js", async (importOriginal) => {
@@ -75,12 +71,15 @@ import { BenchError } from "../services/bench-manager.js";
 import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
-import * as githubService from "../services/github.js";
 import * as notificationService from "../services/notification.js";
 import * as gitState from "../services/git-state.js";
 import * as prSync from "../services/pr-sync.js";
 import * as pluginManager from "../services/plugin-manager.js";
-import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
+import {
+  getActivePluginOrRespond,
+  fetchPluginComments,
+  resolveActivePluginQuiet,
+} from "./plugin-route-helpers.js";
 
 const app = express();
 app.use(express.json());
@@ -218,87 +217,6 @@ describe("POST /:projectId/benches with variant=testbench", () => {
   });
 });
 
-describe("POST /:projectId/benches with issueNumber", () => {
-  it("returns 400 when issueNumber is not a number", async () => {
-    const res = await request(app)
-      .post("/my-project/benches")
-      .send({ issueNumber: "not-a-number" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/number/);
-  });
-
-  it("returns 409 when result status is conflict", async () => {
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockResolvedValue({
-      status: "conflict",
-    } as any);
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(409);
-  });
-
-  it("returns 201 on success", async () => {
-    const result = { status: "ok", bench: { id: 1 } };
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockResolvedValue(result as any);
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(201);
-    expect(res.body.bench.id).toBe(1);
-  });
-
-  it("forwards branchConflictResolution to createBenchAndAssignIssue", async () => {
-    const result = { status: "ok", bench: { id: 1 } };
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockResolvedValue(result as any);
-
-    await request(app)
-      .post("/my-project/benches")
-      .send({ issueNumber: 42, branchConflictResolution: "use_existing" });
-    expect(issueAssignment.createBenchAndAssignIssue).toHaveBeenCalledWith(
-      "my-project",
-      42,
-      "use_existing",
-    );
-  });
-
-  it("returns 404 for PROJECT_NOT_FOUND BenchError", async () => {
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(
-      new BenchError("Project not found", "PROJECT_NOT_FOUND"),
-    );
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(404);
-    expect(res.body.code).toBe("PROJECT_NOT_FOUND");
-  });
-
-  it("returns 409 for NO_BENCHES BenchError", async () => {
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(
-      new BenchError("No benches", "NO_BENCHES"),
-    );
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe("NO_BENCHES");
-  });
-
-  it("returns 409 for GLOBAL_CAP_REACHED BenchError", async () => {
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(
-      new BenchError("Global bench limit reached: 3 of 3 benches in use.", "GLOBAL_CAP_REACHED"),
-    );
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe("GLOBAL_CAP_REACHED");
-  });
-
-  it("returns 500 on generic error", async () => {
-    vi.mocked(issueAssignment.createBenchAndAssignIssue).mockRejectedValue(
-      new Error("unexpected failure"),
-    );
-
-    const res = await request(app).post("/my-project/benches").send({ issueNumber: 42 });
-    expect(res.status).toBe(500);
-  });
-});
-
 describe("POST /:projectId/benches with externalId (security alert)", () => {
   const alert = {
     integrationId: "github-com",
@@ -313,6 +231,8 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
       pluginId: "github-com",
       pageSize: 50,
     } as any);
+    // Alerts have no comments; the helper returns an empty array.
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
   });
 
   it("returns 400 for an empty externalId", async () => {
@@ -320,10 +240,10 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("fetches the alert via the plugin and forwards it to createBenchAndAssignAlert", async () => {
+  it("fetches the alert via the plugin and forwards it to createBenchAndAssignFromIssue", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue(alert as any);
     const result = { status: "success", bench: { id: 7 }, terminalSessionId: "t" };
-    vi.mocked(issueAssignment.createBenchAndAssignAlert).mockResolvedValue(result as any);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue(result as any);
 
     const res = await request(app)
       .post("/my-project/benches")
@@ -333,16 +253,17 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
       externalId: "org/repo#code-scanning-117",
     });
-    expect(issueAssignment.createBenchAndAssignAlert).toHaveBeenCalledWith(
+    expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalledWith(
       "my-project",
       alert,
+      [],
       "new",
     );
   });
 
   it("returns 409 when the alert branch conflicts", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue(alert as any);
-    vi.mocked(issueAssignment.createBenchAndAssignAlert).mockResolvedValue({
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue({
       status: "conflict",
     } as any);
 
@@ -362,7 +283,7 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
       .post("/my-project/benches")
       .send({ externalId: "org/repo#code-scanning-117" });
     expect(res.status).toBe(502);
-    expect(issueAssignment.createBenchAndAssignAlert).not.toHaveBeenCalled();
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
   });
 });
 
@@ -380,19 +301,14 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       pluginId: "jira-self-hosted",
       pageSize: 50,
     } as any);
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
   });
 
-  it("fetches the issue + comments via the plugin and forwards them to createBenchAndAssignPluginIssue", async () => {
-    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) => {
-      if (method === "getComments") {
-        return Promise.resolve([
-          { author: { externalId: "alice", displayName: "Alice" }, body: "looks good" },
-        ]);
-      }
-      return Promise.resolve(issue);
-    }) as any);
+  it("fetches the issue + comments via the plugin and forwards them to createBenchAndAssignFromIssue", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(issue as any);
+    vi.mocked(fetchPluginComments).mockResolvedValue([{ user: "Alice", body: "looks good" }]);
     const result = { status: "success", bench: { id: 8 }, terminalSessionId: "t" };
-    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue(result as any);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue(result as any);
 
     const res = await request(app)
       .post("/my-project/benches")
@@ -402,25 +318,19 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
     expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getIssue", {
       externalId: "PLNRPTGOOG-3782",
     });
-    expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getComments", {
-      externalId: "PLNRPTGOOG-3782",
-    });
-    expect(issueAssignment.createBenchAndAssignPluginIssue).toHaveBeenCalledWith(
+    expect(fetchPluginComments).toHaveBeenCalledWith("jira-self-hosted", "PLNRPTGOOG-3782");
+    expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalledWith(
       "my-project",
       issue,
       [{ user: "Alice", body: "looks good" }],
       "new",
     );
-    // The alert path must not be taken for a non-alert externalId.
-    expect(issueAssignment.createBenchAndAssignAlert).not.toHaveBeenCalled();
   });
 
-  it("still assigns when the comment fetch fails (best-effort, empty comments)", async () => {
-    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) => {
-      if (method === "getComments") return Promise.reject(new Error("boom"));
-      return Promise.resolve(issue);
-    }) as any);
-    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue({
+  it("still assigns when the comment fetch yields nothing (best-effort, empty comments)", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(issue as any);
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue({
       status: "success",
       bench: { id: 8 },
       terminalSessionId: "t",
@@ -431,7 +341,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       .send({ externalId: "PLNRPTGOOG-3782" });
 
     expect(res.status).toBe(201);
-    expect(issueAssignment.createBenchAndAssignPluginIssue).toHaveBeenCalledWith(
+    expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalledWith(
       "my-project",
       issue,
       [],
@@ -440,9 +350,9 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
   });
 
   it("returns 409 when the plugin-issue branch conflicts", async () => {
-    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
-      method === "getComments" ? Promise.resolve([]) : Promise.resolve(issue)) as any);
-    vi.mocked(issueAssignment.createBenchAndAssignPluginIssue).mockResolvedValue({
+    vi.mocked(pluginManager.invoke).mockResolvedValue(issue as any);
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue({
       status: "conflict",
     } as any);
 
@@ -495,68 +405,37 @@ describe("GET /:projectId/benches/:id", () => {
     expect(res.body.error).toBe("Bench not found");
   });
 
-  it("enriches assignedIssue with blockedBy when blockers exist and enforcement is enabled", async () => {
+  it("enriches assignedIssue with blockedBy (externalId list) from the active plugin when enforcement is enabled", async () => {
     const bench = {
       id: 1,
       projectId: "my-project",
       branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
+      assignedIssue: { number: 42, externalId: "owner/repo#42", title: "Fix bug" },
     };
     vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "owner/repo" } },
-    } as any);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [{ number: 10, title: "Dependency" }] },
-      blockingCount: { 42: 0 },
-    });
+    vi.mocked(resolveActivePluginQuiet).mockResolvedValue({ pluginId: "github-com" } as any);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ blockedBy: ["owner/repo#5"] } as any);
 
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
-    expect(res.body.assignedIssue.blockedBy).toEqual([{ number: 10, title: "Dependency" }]);
-    expect(githubService.fetchBlockingRelationships).toHaveBeenCalledWith("owner/repo", [42]);
-  });
-
-  it("does not fetch blocking relationships for alert-backed benches (#291)", async () => {
-    const bench = {
-      id: 1,
-      projectId: "my-project",
-      branch: "main",
-      assignedIssue: {
-        number: 42,
-        externalId: "owner/repo#code-scanning-42",
-        title: "Fix alert",
-      },
-    };
-    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "owner/repo" } },
-    } as any);
-
-    const res = await request(app).get("/my-project/benches/1");
-    expect(res.status).toBe(200);
-    expect(res.body.assignedIssue.blockedBy).toBeUndefined();
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
-  });
-
-  it("returns bench without blockedBy when no blockers exist", async () => {
-    const bench = {
-      id: 1,
-      projectId: "my-project",
-      branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
-    };
-    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "owner/repo" } },
-    } as any);
-    vi.mocked(githubService.fetchBlockingRelationships).mockResolvedValue({
-      blockedBy: { 42: [] },
-      blockingCount: { 42: 0 },
+    expect(res.body.assignedIssue.blockedBy).toEqual(["owner/repo#5"]);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "owner/repo#42",
     });
+  });
+
+  it("returns bench without blockedBy when the plugin reports no blockers", async () => {
+    const bench = {
+      id: 1,
+      projectId: "my-project",
+      branch: "main",
+      assignedIssue: { number: 42, externalId: "owner/repo#42", title: "Fix bug" },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+    vi.mocked(resolveActivePluginQuiet).mockResolvedValue({ pluginId: "github-com" } as any);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ blockedBy: [] } as any);
 
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
@@ -568,7 +447,7 @@ describe("GET /:projectId/benches/:id", () => {
       id: 1,
       projectId: "my-project",
       branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
+      assignedIssue: { number: 42, externalId: "owner/repo#42", title: "Fix bug" },
     };
     vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(false);
@@ -576,7 +455,8 @@ describe("GET /:projectId/benches/:id", () => {
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
     expect(res.body.assignedIssue.blockedBy).toBeUndefined();
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
+    expect(resolveActivePluginQuiet).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
   it("returns bench without blockedBy when no assigned issue", async () => {
@@ -587,64 +467,41 @@ describe("GET /:projectId/benches/:id", () => {
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
     expect(res.body.assignedIssue).toBeUndefined();
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
+    expect(resolveActivePluginQuiet).not.toHaveBeenCalled();
   });
 
-  it("returns bench without blockedBy when fetchBlockingRelationships fails", async () => {
+  it("returns bench without blockedBy when the plugin getIssue fails (silent best-effort)", async () => {
     const bench = {
       id: 1,
       projectId: "my-project",
       branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
+      assignedIssue: { number: 42, externalId: "owner/repo#42", title: "Fix bug" },
     };
     vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "owner/repo" } },
-    } as any);
-    vi.mocked(githubService.fetchBlockingRelationships).mockRejectedValue(
-      new Error("GitHub unavailable"),
-    );
+    vi.mocked(resolveActivePluginQuiet).mockResolvedValue({ pluginId: "github-com" } as any);
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("plugin unavailable"));
 
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
     expect(res.body.assignedIssue.blockedBy).toBeUndefined();
   });
 
-  it("returns bench without blockedBy when project has no repo configured", async () => {
+  it("returns bench without blockedBy when there is no active plugin", async () => {
     const bench = {
       id: 1,
       projectId: "my-project",
       branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
+      assignedIssue: { number: 42, externalId: "owner/repo#42", title: "Fix bug" },
     };
     vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
     vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: {} },
-    } as any);
+    vi.mocked(resolveActivePluginQuiet).mockResolvedValue(null);
 
     const res = await request(app).get("/my-project/benches/1");
     expect(res.status).toBe(200);
     expect(res.body.assignedIssue.blockedBy).toBeUndefined();
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
-  });
-
-  it("returns bench without blockedBy when project is not found", async () => {
-    const bench = {
-      id: 1,
-      projectId: "my-project",
-      branch: "main",
-      assignedIssue: { number: 42, title: "Fix bug" },
-    };
-    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
-    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
-    vi.mocked(projectRegistry.getProject).mockReturnValue(null as any);
-
-    const res = await request(app).get("/my-project/benches/1");
-    expect(res.status).toBe(200);
-    expect(res.body.assignedIssue.blockedBy).toBeUndefined();
-    expect(githubService.fetchBlockingRelationships).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });
 

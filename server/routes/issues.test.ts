@@ -651,31 +651,54 @@ describe("GET /:projectId/labels", () => {
 });
 
 describe("POST /:projectId/benches/:id/assign-issue", () => {
-  it("assigns an issue to a bench (legacy issueNumber contract preserved)", async () => {
+  it("resolves the issue + comments via the plugin and assigns it to a bench", async () => {
+    const issue = makeIssue({ externalId: "ROUBO-42", title: "Detail" });
+    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
+      method === "getComments"
+        ? Promise.resolve([
+            { author: { externalId: "alice", displayName: "Alice" }, body: "looks good" },
+          ])
+        : Promise.resolve(issue)) as never);
     vi.mocked(issueAssignment.assignIssue).mockResolvedValue({
       bench: { id: 1 },
       terminalSessionId: "term-1",
     } as never);
-    const res = await request(app).post("/p1/benches/1/assign-issue").send({ issueNumber: 42 });
+
+    const res = await request(app)
+      .post("/p1/benches/1/assign-issue")
+      .send({ externalId: "ROUBO-42" });
+
     expect(res.status).toBe(200);
-    expect(issueAssignment.assignIssue).toHaveBeenCalledWith("p1", 1, 42);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "ROUBO-42",
+    });
+    expect(issueAssignment.assignIssue).toHaveBeenCalledWith("p1", 1, issue, [
+      { user: "Alice", body: "looks good" },
+    ]);
   });
 
-  it("returns 400 when issueNumber is missing", async () => {
+  it("returns 400 when externalId is missing", async () => {
     const res = await request(app).post("/p1/benches/1/assign-issue").send({});
     expect(res.status).toBe(400);
+    expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
   });
 
   it("returns 400 for a non-numeric bench id", async () => {
-    const res = await request(app).post("/p1/benches/abc/assign-issue").send({ issueNumber: 1 });
+    const res = await request(app)
+      .post("/p1/benches/abc/assign-issue")
+      .send({ externalId: "ROUBO-1" });
     expect(res.status).toBe(400);
   });
 
   it("forwards ServiceError status from the assignment service", async () => {
+    vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
+      method === "getComments" ? Promise.resolve([]) : Promise.resolve(makeIssue({}))) as never);
     vi.mocked(issueAssignment.assignIssue).mockRejectedValue(
       new ServiceError(404, "Bench not found"),
     );
-    const res = await request(app).post("/p1/benches/1/assign-issue").send({ issueNumber: 1 });
+    const res = await request(app)
+      .post("/p1/benches/1/assign-issue")
+      .send({ externalId: "ROUBO-1" });
     expect(res.status).toBe(404);
   });
 });
