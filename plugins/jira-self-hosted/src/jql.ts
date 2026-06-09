@@ -74,13 +74,32 @@ export function buildIssueListJql({
     excludedStatuses,
     statusCategorySupported,
   );
-  const updatedClause = lastPollIso === null ? "" : `updated >= "${lastPollIso}"`;
+  const updatedClause =
+    lastPollIso === null ? "" : `updated >= "${formatJqlDateTime(lastPollIso)}"`;
 
   const where = [sourceClause, exclusionClause, updatedClause]
     .filter((part) => part.length > 0)
     .join(" AND ");
   const tail = "ORDER BY updated ASC";
   return where.length > 0 ? `${where} ${tail}` : tail;
+}
+
+/**
+ * Format a stored ISO-8601 watermark into a value Jira JQL accepts for the
+ * `updated` field. Jira rejects full ISO timestamps (e.g.
+ * `2026-06-08T15:27:11.000-0700`); it only accepts `yyyy-MM-dd HH:mm` (and a
+ * few date-only / period forms). Jira returns `updated` in the requesting
+ * user's timezone, and a JQL date literal written without an offset is
+ * interpreted in that same timezone, so we keep the wall-clock date/time
+ * exactly as given and drop only the seconds and offset. Truncating to the
+ * minute under `>=` may re-list a boundary issue (harmless; the host dedupes);
+ * rounding up could skip issues. A value that is not a `T`-separated ISO
+ * timestamp (already a JQL date, or a relative period like `-5d`) is passed
+ * through unchanged.
+ */
+export function formatJqlDateTime(iso: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
+  return match ? `${match[1]} ${match[2]}` : iso;
 }
 
 /**

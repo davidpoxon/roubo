@@ -88,7 +88,7 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
       sources: [{ kind: "filter", externalId: "456" }],
     });
 
-    expect(capturedJql).toContain('updated >= "2026-04-01T00:00:00Z"');
+    expect(capturedJql).toContain('updated >= "2026-04-01 00:00"');
     expect(result.items.map((i) => i.externalId)).toEqual(["PROJ-1"]);
     expect(harness.credentials.get("state")).toContain("2026-04-05T00:00:00Z");
   });
@@ -259,7 +259,8 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     // Both pages must have queried with the same JQL (original watermark).
     expect(capturedJql).toHaveLength(2);
     expect(capturedJql[0]).toBe(capturedJql[1]);
-    expect(capturedJql[0]).toContain(`updated >= "${originalWatermark}"`);
+    // Stored as full ISO, but rendered into JQL as Jira's accepted minute format.
+    expect(capturedJql[0]).toContain('updated >= "2026-04-01 00:00"');
     // Watermark advances to the highest seen across both pages.
     expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
   });
@@ -489,7 +490,8 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
       { cursor: null, pageSize: 1, sources: [board] },
     );
     expect(r1.nextCursor).toBe("1");
-    expect(capturedJql[0]).toContain(`updated >= "${originalWatermark}"`);
+    // Stored as full ISO, but rendered into JQL as Jira's accepted minute format.
+    expect(capturedJql[0]).toContain('updated >= "2026-04-01 00:00"');
     // Watermark must not advance until pagination is exhausted.
     expect(harness.credentials.get("state")).toContain(originalWatermark);
 
