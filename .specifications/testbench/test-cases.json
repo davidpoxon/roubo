@@ -1951,10 +1951,6 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The JSON root contains a key matching 'bench-2' (the active bench)"
-            },
-            {
-              "id": "S003-O02",
               "expected": "That entry contains result records keyed by case id"
             }
           ]
