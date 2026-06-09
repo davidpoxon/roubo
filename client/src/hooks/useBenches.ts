@@ -40,7 +40,6 @@ export function useCreateBench() {
     mutationFn: ({
       projectId,
       branch,
-      issueNumber,
       externalId,
       branchConflictResolution,
       variant,
@@ -48,7 +47,6 @@ export function useCreateBench() {
     }: {
       projectId: string;
       branch?: string;
-      issueNumber?: number;
       externalId?: string;
       branchConflictResolution?: "resume" | "new";
       variant?: "testbench";
@@ -56,7 +54,6 @@ export function useCreateBench() {
     }) =>
       api.createBench(projectId, {
         branch,
-        issueNumber,
         externalId,
         branchConflictResolution,
         variant,

@@ -6,10 +6,13 @@ import * as notificationService from "../services/notification.js";
 import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
-import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { RouteError, parseIntParam } from "./helpers.js";
-import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
+import {
+  getActivePluginOrRespond,
+  fetchPluginComments,
+  resolveActivePluginQuiet,
+} from "./plugin-route-helpers.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { syncBenchWorkUnitPRs } from "../services/pr-sync.js";
@@ -19,7 +22,6 @@ import type {
   AssignContainerRequest,
   ExecuteToolRequest,
   NormalizedIssue,
-  NormalizedComment,
 } from "@roubo/shared";
 
 const router = Router();
@@ -68,7 +70,7 @@ router.get("/:projectId/benches", (req, res) => {
 });
 
 router.post("/:projectId/benches", async (req, res) => {
-  const { branch, issueNumber, externalId, branchConflictResolution, variant, focusedSpecPath } =
+  const { branch, externalId, branchConflictResolution, variant, focusedSpecPath } =
     req.body as CreateBenchRequest;
 
   // TestBench-variant create (#416). A TestBench has no issue/branch coupling: it
@@ -103,37 +105,10 @@ router.post("/:projectId/benches", async (req, res) => {
     return;
   }
 
-  // Combined create-and-assign flow (plain GitHub issue, by number)
-  if (issueNumber !== undefined) {
-    if (typeof issueNumber !== "number") {
-      res.status(400).json({ error: "issueNumber must be a number" });
-      return;
-    }
-
-    try {
-      const result = await issueAssignment.createBenchAndAssignIssue(
-        req.params.projectId,
-        issueNumber,
-        branchConflictResolution,
-      );
-
-      if (result.status === "conflict") {
-        res.status(409).json(result);
-        return;
-      }
-
-      res.status(201).json(result);
-    } catch (err) {
-      handleCreateBenchError(res, err);
-    }
-    return;
-  }
-
   // Combined create-and-assign flow by externalId, for any active integration
-  // (security alerts, Jira keys, etc.). The issue is fetched (and, for alerts,
-  // redacted) by the active plugin's getIssue, so the host only ever sees the
-  // NormalizedIssue (FR-043, NFR-012). Security alerts take the alert-specific
-  // path; everything else takes the generic plugin-issue path.
+  // (plain GitHub issues, security alerts, Jira keys, etc.). The issue is fetched
+  // (and, for alerts, redacted) by the active plugin's getIssue, so the host only
+  // ever sees the NormalizedIssue (FR-043, NFR-012).
   if (externalId !== undefined) {
     if (typeof externalId !== "string" || externalId.length === 0) {
       res.status(400).json({ error: "externalId must be a non-empty string" });
@@ -153,35 +128,15 @@ router.post("/:projectId/benches", async (req, res) => {
       return;
     }
 
+    const comments = await fetchPluginComments(active.pluginId, externalId);
+
     try {
-      let result;
-      if (isAlertExternalId(externalId)) {
-        result = await issueAssignment.createBenchAndAssignAlert(
-          req.params.projectId,
-          issue,
-          branchConflictResolution,
-        );
-      } else {
-        // Best-effort comments via the active plugin; never block assignment on
-        // a comment-fetch failure.
-        let comments: Array<{ user: string; body: string }> = [];
-        try {
-          const raw = await pluginManager.invoke<NormalizedComment[]>(
-            active.pluginId,
-            "getComments",
-            { externalId },
-          );
-          comments = raw.map((c) => ({ user: c.author.displayName, body: c.body }));
-        } catch {
-          // leave comments empty
-        }
-        result = await issueAssignment.createBenchAndAssignPluginIssue(
-          req.params.projectId,
-          issue,
-          comments,
-          branchConflictResolution,
-        );
-      }
+      const result = await issueAssignment.createBenchAndAssignFromIssue(
+        req.params.projectId,
+        issue,
+        comments,
+        branchConflictResolution,
+      );
       if (result.status === "conflict") {
         res.status(409).json(result);
         return;
@@ -234,25 +189,21 @@ router.get("/:projectId/benches/:id", async (req, res) => {
     let enrichedBench = bench;
     if (
       bench.assignedIssue &&
-      bench.assignedIssue.number != null &&
-      !isAlertExternalId(bench.assignedIssue.externalId) &&
       projectRegistry.resolveEnforceIssueDependencies(req.params.projectId)
     ) {
-      // Interim: GitHub-only blocking enrichment is keyed on the issue number, so
-      // skip integrations with no numeric issue (e.g. Jira). PR 3 replaces this
-      // with plugin-delegated blockedBy.
-      const issueNumber = bench.assignedIssue.number;
-      const repo = projectRegistry.getProject(req.params.projectId)?.config?.project?.repo;
-      if (repo) {
+      // Blocking info is plugin-provided: re-fetch the assigned issue via the
+      // active integration and read its blockedBy (externalIds). Best-effort and
+      // informational, so any failure (no active plugin, RPC error) is silent.
+      const active = await resolveActivePluginQuiet(req.params.projectId);
+      if (active) {
         try {
-          const { blockedBy: blockedByMap } = await githubService.fetchBlockingRelationships(repo, [
-            issueNumber,
-          ]);
-          const blockedBy = blockedByMap[issueNumber];
-          if (blockedBy && blockedBy.length > 0) {
+          const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
+            externalId: bench.assignedIssue.externalId,
+          });
+          if (issue.blockedBy.length > 0) {
             enrichedBench = {
               ...bench,
-              assignedIssue: { ...bench.assignedIssue, blockedBy },
+              assignedIssue: { ...bench.assignedIssue, blockedBy: issue.blockedBy },
             };
           }
         } catch {

@@ -8,8 +8,8 @@ import type {
   RouboConfig,
   JigDefaultSource,
 } from "@roubo/shared";
-import { CLAUDE_STARTUP_DELAY_MS } from "@roubo/shared";
-import { parseAlertExternalId } from "./alert-external-id.js";
+import { CLAUDE_STARTUP_DELAY_MS, DONE_STATUSES } from "@roubo/shared";
+import { parseAlertExternalId, isAlertExternalId } from "./alert-external-id.js";
 import { formatAlertBody } from "./alert-formatting.js";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
@@ -252,189 +252,47 @@ async function resolveBranchNameForCreate(
   return { status: "ok", branchName };
 }
 
-export async function createBenchAndAssignIssue(
-  projectId: string,
-  issueNumber: number,
-  conflictResolution?: "resume" | "new",
-): Promise<CreateBenchWithIssueResponse> {
-  const project = projectRegistry.getProject(projectId);
-  if (!project?.config) throw new ServiceError(404, "Project config not found");
-  if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");
-
-  const repoFullName = project.config.project.repo;
-  const projectName = project.config.project.displayName;
-
-  // Just-in-time validation: fetch issue and verify it's open
-  const issue = await githubService.fetchIssueDetail(repoFullName, issueNumber);
-  if (issue.state !== "open") {
-    throw new ServiceError(409, `Issue #${issueNumber} is not open (state: ${issue.state})`);
-  }
-
-  // Best-effort: REST fetchIssueDetail does not include issue type (GitHub Projects v2 concept only).
-  // fetchIssueType catches all errors internally and returns null on failure.
-  const issueType = await githubService.fetchIssueType(repoFullName, issueNumber);
-
-  // Generate branch name and resolve any conflict
-  const branchResult = await resolveBranchNameForCreate(
-    project.repoPath,
-    `issue-${issueNumber}-${slugify(issue.title)}`,
-    conflictResolution,
-  );
-  if (branchResult.status === "conflict") {
-    return branchResult;
-  }
-  const branchName = branchResult.branchName;
-
-  // Create bench with the branch name
-  const bench = benchManager.createBench(projectId, branchName);
-
-  // Fetch linked PRs before persisting (best-effort; never throws: returns [] on failure)
-  const linkedPullRequests = await githubService.fetchLinkedPullRequests(repoFullName, issueNumber);
-
-  // Assign issue metadata including seeded linked PRs
-  bench.assignedIssue = {
-    number: issueNumber,
-    integrationId: "github-com",
-    externalId: String(issueNumber),
-    title: issue.title,
-    linkedPullRequests,
-    issueType: issueType ?? null,
-  };
-
-  // Persist the assignment
-  persistBenchIfLive({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    workUnits: bench.workUnits,
-  });
-
-  // Fetch comments after persisting so a network failure doesn't orphan the bench
-  const comments = await githubService.fetchIssueComments(repoFullName, issueNumber);
-  const {
-    sessionId: terminalSessionId,
-    jigId,
-    jigSource,
-  } = buildAndStartClaudeSession(
-    projectId,
-    bench.id,
-    bench,
-    projectName,
-    project.config,
-    issue,
-    comments,
-    issueType,
-  );
-
-  if (jigId) {
-    bench.injectedJigId = jigId;
-    bench.injectedJigSource = jigSource;
-    persistBenchIfLive({
-      id: bench.id,
-      projectId: bench.projectId,
-      branch: bench.branch,
-      workspacePath: bench.workspacePath,
-      ports: bench.ports,
-      createdAt: bench.createdAt,
-      assignedContainers: bench.assignedContainers,
-      assignedIssue: bench.assignedIssue,
-      notifications: bench.notifications,
-      workUnits: bench.workUnits,
-      baseBranch: bench.baseBranch,
-      baseCommit: bench.baseCommit,
-      injectedJigId: bench.injectedJigId,
-      injectedJigSource: bench.injectedJigSource,
-    });
-  }
-
-  return {
-    status: "success",
-    bench,
-    terminalSessionId,
-  };
+/**
+ * Extract a GitHub-style numeric id from an externalId: the trailing `#<n>` or a
+ * bare `<n>`. Returns undefined for keys with no numeric form (e.g. Jira's
+ * PLNRPTGOOG-3782) and for alert externalIds (handled separately).
+ */
+function numericIdFromExternalId(externalId: string): number | undefined {
+  const after = externalId.includes("#") ? externalId.split("#").pop() : externalId;
+  if (!after) return undefined;
+  const n = Number(after);
+  return Number.isInteger(n) && n > 0 && String(n) === after ? n : undefined;
 }
 
 /**
- * Create-and-assign flow for a security alert (code-scanning, secret-scanning,
- * dependabot). `alert` is the already-redacted NormalizedIssue fetched by the
- * active plugin's `getIssue`, so the literal secret never reaches the host
- * (FR-043, NFR-012). Mirrors createBenchAndAssignIssue but keys off the alert
- * externalId rather than a GitHub issue number: no comments, no linked PRs, and
- * no "is open" check (the cut list only surfaces open alerts).
+ * Derive the bench branch base name for an issue, preserving the historical
+ * naming per integration: GitHub issues `issue-<n>-<slug>`, security alerts
+ * `<category>-<n>-<slug>`, everything else `<slug(externalId)>-<slug>`. Never
+ * ends in a bare hyphen when the title slugifies to empty. Naming only; no
+ * network or integration behavior beyond the externalId shape.
  */
-export async function createBenchAndAssignAlert(
-  projectId: string,
-  alert: NormalizedIssue,
-  conflictResolution?: "resume" | "new",
-): Promise<CreateBenchWithIssueResponse> {
-  const project = projectRegistry.getProject(projectId);
-  if (!project?.config) throw new ServiceError(404, "Project config not found");
-  if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");
+function branchBaseForIssue(issue: NormalizedIssue): string {
+  const titleSlug = slugify(issue.title);
+  const join = (prefix: string) => (titleSlug ? `${prefix}-${titleSlug}` : prefix);
 
-  const parsed = parseAlertExternalId(alert.externalId);
-  if (!parsed) {
-    throw new ServiceError(400, `Not a security alert externalId: ${alert.externalId}`);
-  }
-  const { category, alertNumber } = parsed;
-  const projectName = project.config.project.displayName;
-  const issueType = alert.issueType ?? null;
+  const alert = parseAlertExternalId(issue.externalId);
+  if (alert) return join(`${alert.category}-${alert.alertNumber}`);
 
-  // Branch name: `${category}-${alertNumber}-${slug}`, never ending in a bare
-  // hyphen when the title slugifies to empty (symbol-only titles).
-  const slug = slugify(alert.title);
-  const baseBranch = slug ? `${category}-${alertNumber}-${slug}` : `${category}-${alertNumber}`;
-  const branchResult = await resolveBranchNameForCreate(
-    project.repoPath,
-    baseBranch,
-    conflictResolution,
-  );
-  if (branchResult.status === "conflict") {
-    return branchResult;
-  }
-  const branchName = branchResult.branchName;
+  const num = numericIdFromExternalId(issue.externalId);
+  if (issue.integrationId === "github-com" && num !== undefined) return join(`issue-${num}`);
 
-  const bench = benchManager.createBench(projectId, branchName);
-
-  bench.assignedIssue = {
-    number: alertNumber,
-    integrationId: alert.integrationId || "github-com",
-    externalId: alert.externalId,
-    title: alert.title,
-    issueType,
-    raw: alert.raw,
-  };
-
-  return finalizeAssignedBench(
-    projectId,
-    bench,
-    projectName,
-    project.config,
-    {
-      number: alertNumber,
-      title: alert.title,
-      body: formatAlertBody(alert),
-      htmlUrl: alert.externalUrl,
-    },
-    [],
-    issueType,
-  );
+  return join(slugify(issue.externalId));
 }
 
 /**
- * Create-and-assign flow for a non-alert issue from any active integration
- * plugin (e.g. a Jira key like PLNRPTGOOG-3782). `issue` is the NormalizedIssue
- * already fetched by the active plugin's `getIssue`. Mirrors the alert path but
- * keys off the issue's externalId rather than a GitHub number: the bench's
- * `assignedIssue.number` is left unset, and the branch name derives from the
- * external key + title. Comments are fetched best-effort by the caller.
+ * Unified create-and-assign flow for an issue from any active integration
+ * plugin. `issue` is the NormalizedIssue already fetched (and, for alerts,
+ * redacted) by the active plugin's `getIssue`, so the host never reaches into a
+ * specific integration's API. Derives the bench's `number` (GitHub issue or
+ * alert number; absent for key-based integrations like Jira) and branch name
+ * from the issue, and seeds GitHub linked PRs best-effort when applicable.
  */
-export async function createBenchAndAssignPluginIssue(
+export async function createBenchAndAssignFromIssue(
   projectId: string,
   issue: NormalizedIssue,
   comments: Array<{ user: string; body: string }>,
@@ -446,15 +304,24 @@ export async function createBenchAndAssignPluginIssue(
 
   const projectName = project.config.project.displayName;
   const issueType = issue.issueType ?? null;
+  const isAlert = isAlertExternalId(issue.externalId);
+  const number = isAlert
+    ? parseAlertExternalId(issue.externalId)?.alertNumber
+    : numericIdFromExternalId(issue.externalId);
 
-  // Branch name: `${slug(externalId)}-${slug(title)}`, never ending in a bare
-  // hyphen when the title slugifies to empty.
-  const idSlug = slugify(issue.externalId);
-  const titleSlug = slugify(issue.title);
-  const baseBranch = titleSlug ? `${idSlug}-${titleSlug}` : idSlug;
+  // Just-in-time open-check (integration-agnostic), keyed on the plugin's
+  // normalized state. Alerts are exempt: the cut list only surfaces open alerts
+  // and their state vocabulary differs.
+  if (!isAlert && DONE_STATUSES.has(issue.currentState.toLowerCase())) {
+    throw new ServiceError(
+      409,
+      `Issue ${issue.externalId} is not open (state: ${issue.currentState})`,
+    );
+  }
+
   const branchResult = await resolveBranchNameForCreate(
     project.repoPath,
-    baseBranch,
+    branchBaseForIssue(issue),
     conflictResolution,
   );
   if (branchResult.status === "conflict") {
@@ -463,12 +330,34 @@ export async function createBenchAndAssignPluginIssue(
 
   const bench = benchManager.createBench(projectId, branchResult.branchName);
 
+  // Linked PRs are a GitHub repo-domain concept (not in the plugin contract).
+  // Seed best-effort for real GitHub issues only, gated on the GitHub token.
+  let linkedPullRequests: Array<{ repoFullName: string; number: number }> | undefined;
+  if (
+    !isAlert &&
+    number !== undefined &&
+    issue.integrationId === "github-com" &&
+    githubService.getGithubToken() &&
+    project.config.project.repo
+  ) {
+    linkedPullRequests = await githubService.fetchLinkedPullRequests(
+      project.config.project.repo,
+      number,
+    );
+  }
+
+  // Persist the redacted alert raw (re-injection re-hydrates from it) and any
+  // non-GitHub plugin's raw; a plain GitHub issue's REST raw is not persisted.
+  const persistRaw = isAlert || issue.integrationId !== "github-com";
+
   bench.assignedIssue = {
+    ...(number !== undefined ? { number } : {}),
     integrationId: issue.integrationId,
     externalId: issue.externalId,
     title: issue.title,
     issueType,
-    raw: issue.raw,
+    ...(linkedPullRequests ? { linkedPullRequests } : {}),
+    ...(persistRaw ? { raw: issue.raw } : {}),
   };
 
   return finalizeAssignedBench(
@@ -477,9 +366,12 @@ export async function createBenchAndAssignPluginIssue(
     projectName,
     project.config,
     {
+      number,
       externalId: issue.externalId,
       title: issue.title,
-      body: issue.body,
+      // Alerts re-derive the body from the redacted raw; other integrations use
+      // the issue body directly.
+      body: isAlert ? formatAlertBody(issue) : issue.body,
       htmlUrl: issue.externalUrl,
     },
     comments,
@@ -490,7 +382,8 @@ export async function createBenchAndAssignPluginIssue(
 export async function assignIssue(
   projectId: string,
   benchId: number,
-  issueNumber: number,
+  issue: NormalizedIssue,
+  comments: Array<{ user: string; body: string }>,
 ): Promise<AssignIssueResponse> {
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) throw new ServiceError(404, "Bench not found");
@@ -504,19 +397,15 @@ export async function assignIssue(
   if (!project?.config) throw new ServiceError(404, "Project config not found");
   if (!project.config.project.repo) throw new ServiceError(400, "Project has no repo configured");
 
-  const repoFullName = project.config.project.repo;
   const projectName = project.config.project.displayName;
+  const issueType = issue.issueType ?? null;
+  const isAlert = isAlertExternalId(issue.externalId);
+  const number = isAlert
+    ? parseAlertExternalId(issue.externalId)?.alertNumber
+    : numericIdFromExternalId(issue.externalId);
 
-  // Fetch issue details, comments, linked PRs, and issue type in parallel
-  const [issue, comments, linkedPullRequests, issueType] = await Promise.all([
-    githubService.fetchIssueDetail(repoFullName, issueNumber),
-    githubService.fetchIssueComments(repoFullName, issueNumber),
-    githubService.fetchLinkedPullRequests(repoFullName, issueNumber),
-    githubService.fetchIssueType(repoFullName, issueNumber),
-  ]);
-
-  // Create branch name from issue
-  const branchName = `issue-${issueNumber}-${slugify(issue.title)}`;
+  // Branch name from the issue (preserves per-integration naming).
+  const branchName = branchBaseForIssue(issue);
 
   // Create and checkout branch in worktree
   const checkoutResult = await runCommand(
@@ -532,15 +421,32 @@ export async function assignIssue(
     }
   }
 
+  // Linked PRs are GitHub repo-domain; seed best-effort for real GitHub issues.
+  let linkedPullRequests: Array<{ repoFullName: string; number: number }> | undefined;
+  if (
+    !isAlert &&
+    number !== undefined &&
+    issue.integrationId === "github-com" &&
+    githubService.getGithubToken()
+  ) {
+    linkedPullRequests = await githubService.fetchLinkedPullRequests(
+      project.config.project.repo,
+      number,
+    );
+  }
+
+  const persistRaw = isAlert || issue.integrationId !== "github-com";
+
   // Update bench
   bench.branch = branchName;
   bench.assignedIssue = {
-    number: issueNumber,
-    integrationId: "github-com",
-    externalId: String(issueNumber),
+    ...(number !== undefined ? { number } : {}),
+    integrationId: issue.integrationId,
+    externalId: issue.externalId,
     title: issue.title,
-    linkedPullRequests,
-    issueType: issueType ?? null,
+    issueType,
+    ...(linkedPullRequests ? { linkedPullRequests } : {}),
+    ...(persistRaw ? { raw: issue.raw } : {}),
   };
 
   // Persist changes
@@ -567,7 +473,13 @@ export async function assignIssue(
     bench,
     projectName,
     project.config,
-    issue,
+    {
+      number,
+      externalId: issue.externalId,
+      title: issue.title,
+      body: isAlert ? formatAlertBody(issue) : issue.body,
+      htmlUrl: issue.externalUrl,
+    },
     comments,
     issueType,
   );

@@ -13,7 +13,7 @@ import { awaitPendingIntegrationSetup } from "../services/integration-migrations
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { parseIntParam } from "./helpers.js";
-import { getActivePluginOrRespond } from "./plugin-route-helpers.js";
+import { getActivePluginOrRespond, fetchPluginComments } from "./plugin-route-helpers.js";
 import { ServiceError } from "../services/service-error.js";
 import { sendGitHubErrorResponse } from "./github-error-handler.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
@@ -254,15 +254,35 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
     res.status(400).json({ error: "Invalid bench id" });
     return;
   }
-  const { issueNumber } = req.body as AssignIssueRequest;
+  const { externalId } = req.body as AssignIssueRequest;
 
-  if (!issueNumber || typeof issueNumber !== "number") {
-    res.status(400).json({ error: "issueNumber is required and must be a number" });
+  if (!externalId || typeof externalId !== "string") {
+    res.status(400).json({ error: "externalId is required and must be a string" });
     return;
   }
 
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
+  if (!active) return;
+
+  let issue: NormalizedIssue;
   try {
-    const result = await issueAssignment.assignIssue(req.params.projectId, benchId, issueNumber);
+    issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
+      externalId,
+    });
+  } catch (err) {
+    sendPluginRpcError(res, err);
+    return;
+  }
+
+  const comments = await fetchPluginComments(active.pluginId, externalId);
+
+  try {
+    const result = await issueAssignment.assignIssue(
+      req.params.projectId,
+      benchId,
+      issue,
+      comments,
+    );
     res.json(result);
   } catch (err) {
     if (err instanceof ServiceError) {

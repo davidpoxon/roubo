@@ -724,12 +724,10 @@ export interface RegisterProjectRequest {
 
 export interface CreateBenchRequest {
   branch?: string;
-  issueNumber?: number;
   /**
-   * Fully-qualified issue/alert id (e.g. `owner/repo#code-scanning-117`). Used
-   * for security alerts, whose externalId has no bare numeric form. When set,
-   * the server fetches the redacted issue via the active plugin's `getIssue`.
-   * `issueNumber` remains the path for plain GitHub issues.
+   * The issue's externalId (e.g. `owner/repo#123`, `owner/repo#code-scanning-117`,
+   * or a Jira key like `PROJ-45`). When set, the server fetches the issue via the
+   * active plugin's `getIssue` and creates a bench assigned to it.
    */
   externalId?: string;
   branchConflictResolution?: "resume" | "new";
@@ -1224,7 +1222,10 @@ export interface AssignedIssue {
   integrationId: string;
   externalId: string;
   title: string;
-  blockedBy?: Array<{ number: number; title: string }>;
+  // Plugin-provided externalIds of the issues blocking this one (e.g.
+  // `owner/repo#123` for GitHub, `PROJ-45` for Jira). Populated on bench-detail
+  // fetch when enforceIssueDependencies is on. Empty/absent means unblocked.
+  blockedBy?: string[];
   /**
    * PRs seeded at assignment time from CrossReferencedEvent timeline items
    * (e.g. `Closes #123` in PR bodies). Does not include PRs linked via
@@ -1255,12 +1256,11 @@ export interface AssignedIssue {
 }
 
 export interface AssignIssueRequest {
-  issueNumber?: number;
   /**
-   * Fully-qualified alert id (e.g. `owner/repo#code-scanning-117`) for security
-   * alerts. Exactly one of `issueNumber` or `externalId` must be provided.
+   * The issue's externalId (e.g. `owner/repo#123`, `owner/repo#code-scanning-117`,
+   * or a Jira key like `PROJ-45`). The issue is resolved via the active plugin.
    */
-  externalId?: string;
+  externalId: string;
 }
 
 export interface AssignIssueResponse {

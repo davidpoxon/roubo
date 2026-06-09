@@ -738,14 +738,14 @@ describe("fetchLabels", () => {
 });
 
 describe("assignIssue", () => {
-  it("sends POST with issueNumber in body", async () => {
+  it("sends POST with externalId in body", async () => {
     mockFetch.mockResolvedValue(jsonResponse({}));
-    await assignIssue("p1", 1, 42);
+    await assignIssue("p1", 1, "owner/repo#42");
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches/1/assign-issue",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ issueNumber: 42 }),
+        body: JSON.stringify({ externalId: "owner/repo#42" }),
       }),
     );
   });
