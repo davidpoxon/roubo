@@ -10,7 +10,7 @@
       "level": 1,
       "type": "e2e_flow",
       "preconditions": [
-        "TestBench feature is enabled in settings",
+        "TestBench feature is enabled in settings.",
         "At least one bench slot is empty",
         "The focused project repo contains at least one file matching .specifications/*/test-cases.json",
         "User is on the bench list view for the project"
