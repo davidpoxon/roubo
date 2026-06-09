@@ -35,12 +35,12 @@ describe("link-types (TC-029)", () => {
     ).toBeNull();
   });
 
-  it("matches the real-world PLNRPTGOOG 'Blocks' payload shape", () => {
+  it("matches the real-world TEST 'Blocks' payload shape", () => {
     const mapped = mapLinkType(defaults, {
       type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
-      outwardIssue: { key: "PLNRPTGOOG-3800" },
+      outwardIssue: { key: "TEST-3800" },
     });
-    expect(mapped).toEqual({ kind: "blocks", externalId: "PLNRPTGOOG-3800" });
+    expect(mapped).toEqual({ kind: "blocks", externalId: "TEST-3800" });
   });
 
   it("normalizes blocks/blockedBy across an issue payload", () => {
