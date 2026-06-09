@@ -16,9 +16,7 @@ import PortAssignmentTile from "./settings/PortAssignmentTile";
 import Tile from "./settings/Tile";
 import { OverrideBadge } from "./settings/OverrideBadge";
 import { WorkspaceSourceTile } from "./project-settings/WorkspaceSourceTile";
-import { AutoClearOverrideTile } from "./project-settings/AutoClearOverrideTile";
 import { EnforceIssueDependenciesOverrideTile } from "./project-settings/EnforceIssueDependenciesOverrideTile";
-import { WorkUnitAutoClearOverrideTile } from "./project-settings/WorkUnitAutoClearOverrideTile";
 import { SettingsSaveBar } from "./project-settings/SettingsSaveBar";
 import { IssueTypeMappingsSection } from "./project-settings/IssueTypeMappingsSection";
 import { useSettingsOverviewDraft } from "./project-settings/useSettingsOverviewDraft";
@@ -146,12 +144,8 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
     setDraftWorktreeSource,
     draftJig,
     setDraftJig,
-    draftAutoClear,
-    setDraftAutoClear,
     draftEnforceIssueDependencies,
     setDraftEnforceIssueDependencies,
-    draftWorkUnitAutoClear,
-    setDraftWorkUnitAutoClear,
     draftIssueTypeMappings,
     setDraftIssueTypeMappings,
     originalWorktreeSource,
@@ -169,8 +163,6 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
   const hasIssueTypeOverrides = Object.keys(draftIssueTypeMappings ?? {}).length > 0;
   const jigsTileOverridden = isJigOverridden || hasIssueTypeOverrides;
   const jigsTileDirty = Boolean(isJigDirty || isIssueTypeMappingsDirty);
-
-  const isMetaRepo = project.config?.layout?.type === "meta-repo";
 
   // FR-069: section title reflects the active plugin's display name; falls
   // back to "Source" when none is configured.
@@ -249,18 +241,11 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
               onChange={setDraftWorktreeSource}
               original={originalWorktreeSource}
             />
-            <AutoClearOverrideTile draft={draftAutoClear} onChange={setDraftAutoClear} />
             <PortAssignmentTile projectId={project.id} />
             <EnforceIssueDependenciesOverrideTile
               draft={draftEnforceIssueDependencies}
               onChange={setDraftEnforceIssueDependencies}
             />
-            {isMetaRepo && (
-              <WorkUnitAutoClearOverrideTile
-                draft={draftWorkUnitAutoClear}
-                onChange={setDraftWorkUnitAutoClear}
-              />
-            )}
           </div>
         </section>
         <section>

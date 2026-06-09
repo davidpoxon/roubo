@@ -7,8 +7,40 @@ import { toPersistedBench, updateBench } from "./state.js";
 import { resolveRepoFullName, probeWorkUnitState } from "./git-helpers.js";
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const POLL_INTERVAL_MS = 30_000;
 
 type FetchCache = Map<string, ReturnType<typeof githubService.fetchOpenPullRequestByBranch>>;
+
+let pollIntervalId: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Start the background poller that refreshes work-unit PR state for every
+ * meta-repo bench. Runs on a fixed interval; idempotent if already started.
+ */
+export function startPolling(): void {
+  if (pollIntervalId !== undefined) return;
+  pollIntervalId = setInterval(() => {
+    pollOnce().catch((err) => console.error("[pr-sync] poll error:", err));
+  }, POLL_INTERVAL_MS);
+}
+
+export function stopPolling(): void {
+  if (pollIntervalId !== undefined) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = undefined;
+  }
+}
+
+async function pollOnce(): Promise<void> {
+  const byProject = new Map<string, Bench[]>();
+  for (const bench of benchManager.getBenches()) {
+    const arr = byProject.get(bench.projectId) ?? [];
+    arr.push(bench);
+    byProject.set(bench.projectId, arr);
+  }
+  if (byProject.size === 0) return;
+  await syncAllWorkUnitPRs(byProject);
+}
 
 /**
  * Syncs PR state for all work units of a single bench. Persists any changes.
@@ -28,7 +60,7 @@ export async function syncBenchWorkUnitPRs(projectId: string, bench: Bench): Pro
 /**
  * Syncs PR state for every meta-repo bench across all projects. Results are
  * deduped by {repoFullName, branch} within a call so shared submodule branches
- * produce a single GitHub request. Used by the auto-clear tick.
+ * produce a single GitHub request. Used by the background PR-sync poller.
  */
 export async function syncAllWorkUnitPRs(byProject: Map<string, Bench[]>): Promise<void> {
   if (!githubService.getGithubToken()) return;

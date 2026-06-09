@@ -302,28 +302,15 @@ function BenchesTab() {
 
         <div className="space-y-6">
           <SettingToggle
-            isSelected={benchSettings.autoClear}
-            onChange={(val) => update({ autoClear: val })}
-            label="Auto-clear completed issues"
-            description="Automatically clear a bench when its assigned GitHub issue moves to Done or is closed."
-          />
-          <SettingToggle
             isSelected={benchSettings.enforceIssueDependencies}
             onChange={(val) => update({ enforceIssueDependencies: val })}
             label="Enforce issue dependencies"
             description="Prevent assigning issues that are blocked by unresolved dependencies."
           />
-          <SettingToggle
-            isSelected={benchSettings.workUnitAutoClear}
-            onChange={(val) => update({ workUnitAutoClear: val })}
-            isDisabled={!benchSettings.autoClear}
-            label="Auto-clear meta-repo benches by PR status"
-            description="Clear meta-repo benches when all work-unit pull requests are merged or closed."
-          />
         </div>
 
         <p className="text-xs text-stone-400 dark:text-stone-600 mt-4 leading-relaxed">
-          Individual projects can override auto-clear in their{" "}
+          Individual projects can override this in their{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>{" "}
           configuration.
         </p>

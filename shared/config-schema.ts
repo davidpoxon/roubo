@@ -175,9 +175,7 @@ export const BenchesConfigSchema = z
   .object({
     max: z.int().min(1).max(99),
     setup: z.string().optional(),
-    autoClear: z.boolean().optional(),
     enforceIssueDependencies: z.boolean().optional(),
-    workUnitAutoClear: z.boolean().optional(),
   })
   .strict();
 export type BenchesConfig = z.infer<typeof BenchesConfigSchema>;

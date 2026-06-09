@@ -323,26 +323,6 @@ describe("dismissBenchLevelForBench", () => {
     expect(mockBroadcast).not.toHaveBeenCalled();
   });
 
-  it("preserves teardown-blocked notification so it is not silently auto-dismissed on bench open", () => {
-    // teardown-blocked has no sourceSessionId but must survive dismissBenchLevelForBench
-    // so users see it even after opening the bench detail page
-    const bench = makeBench();
-    bench.notifications = [
-      { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
-      {
-        id: "n2",
-        type: "teardown-blocked",
-        priority: "action-needed",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-    ];
-
-    dismissBenchLevelForBench(bench);
-
-    expect(bench.notifications).toHaveLength(1);
-    expect(bench.notifications[0].id).toBe("n2");
-  });
-
   it("preserves sync-error notification so it is not silently auto-dismissed on bench open", () => {
     const bench = makeBench();
     bench.notifications = [

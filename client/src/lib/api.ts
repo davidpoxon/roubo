@@ -250,18 +250,6 @@ export function syncBenchWorkUnits(projectId: string, benchId: number): Promise<
   });
 }
 
-export function setWorkUnitIgnoredForAutoClear(
-  projectId: string,
-  benchId: number,
-  submodule: string,
-  ignored: boolean,
-): Promise<Bench> {
-  return request(
-    `/projects/${projectId}/benches/${benchId}/work-units/${encodeURIComponent(submodule)}/ignore-for-auto-clear`,
-    { method: "POST", body: JSON.stringify({ ignored }) },
-  );
-}
-
 export function startBench(projectId: string, benchId: number): Promise<Bench> {
   return request(`/projects/${projectId}/benches/${benchId}/start`, {
     method: "POST",
@@ -809,9 +797,7 @@ export function updateProjectSettings(
 
 // Bench behaviour overrides
 export interface BenchOverrides {
-  autoClear: boolean | null;
   enforceIssueDependencies: boolean | null;
-  workUnitAutoClear: boolean | null;
 }
 
 export function updateProjectBenchOverrides(

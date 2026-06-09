@@ -52,7 +52,6 @@ import {
   useStopComponent,
   useDismissBenchNotifications,
   useSyncBenchWorkUnits,
-  useSetWorkUnitIgnored,
 } from "../hooks/useBenches";
 import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
@@ -114,13 +113,6 @@ beforeEach(() => {
   vi.mocked(useStopComponent).mockReturnValue(makeMutation());
   vi.mocked(useDismissBenchNotifications).mockReturnValue(makeMutation());
   vi.mocked(useSyncBenchWorkUnits).mockReturnValue(makeMutation());
-  vi.mocked(useSetWorkUnitIgnored).mockReturnValue({
-    mutate: vi.fn(),
-    isPending: false,
-    isError: false,
-    error: null,
-    reset: vi.fn(),
-  } as never);
   mockUseUnassignContainer.mockReturnValue(makeMutation());
   mockUseTeardownTracker.mockReturnValue({ register: vi.fn(), teardowns: new Map() } as never);
   mockUseProjects.mockReturnValue({ data: [baseProject] } as never);
@@ -979,13 +971,6 @@ describe("BenchDetail", () => {
         expect(screen.queryByTitle("sync error")).not.toBeInTheDocument();
       });
 
-      it("applies opacity styling for ignoredForAutoClear units", () => {
-        const ignoredUnit = { ...workUnitWithPr, ignoredForAutoClear: true };
-        renderBench({ ...baseBench, workUnits: [ignoredUnit] } as never);
-        const chip = screen.getByText("api").closest("span");
-        expect(chip?.className).toMatch(/opacity-50/);
-      });
-
       it("clicking the header button expands and then collapses the panel", async () => {
         const user = userEvent.setup();
         renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
@@ -1302,123 +1287,6 @@ describe("BenchDetail", () => {
       renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
       expect(screen.getByText("Sync failed")).toBeInTheDocument();
     });
-
-    describe("ignore for auto-clear", () => {
-      const user = userEvent.setup();
-
-      const ignoredUnit = {
-        ...workUnitWithPr,
-        ignoredForAutoClear: true,
-      };
-
-      it('shows "ignored" badge and dimmed row for an ignored work unit', async () => {
-        renderBench({ ...baseBench, workUnits: [ignoredUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.getByText("ignored")).toBeInTheDocument();
-        const row = screen.getByText("api").closest("div");
-        expect(row?.className).toMatch(/opacity-60/);
-      });
-
-      it('does not show "ignored" badge for a non-ignored work unit', () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        expect(screen.queryByText("ignored")).not.toBeInTheDocument();
-      });
-
-      it("shows Eye icon button for ignored unit and EyeOff for non-ignored unit", async () => {
-        // ignoredUnit spreads workUnitWithPr, so both share submodule "api".
-        // Give the second a distinct submodule so React's list-key reconciliation
-        // sees two unique entries instead of two with the same key.
-        const ignoredUnitDistinct = { ...ignoredUnit, submodule: "api-ignored" };
-        renderBench({
-          ...baseBench,
-          workUnits: [workUnitWithPr, ignoredUnitDistinct],
-        } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        // Both rows have a toggle button; the ignored one should say "Resume" in tooltip
-        const buttons = screen.getAllByRole("button", {
-          name: /ignore for auto-clear|resume auto-clear tracking/i,
-        });
-        expect(buttons).toHaveLength(2);
-      });
-
-      it("opens dialog with correct title when ignore button is clicked on non-ignored unit", async () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        const btn = screen.getByRole("button", { name: /ignore for auto-clear/i });
-        await user.click(btn);
-        expect(screen.getByText("Ignore work unit for auto-clear")).toBeInTheDocument();
-        expect(screen.getAllByText("api").length).toBeGreaterThan(0);
-      });
-
-      it('opens dialog with "Resume" title when ignore button is clicked on ignored unit', async () => {
-        renderBench({ ...baseBench, workUnits: [ignoredUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        const btn = screen.getByRole("button", { name: /resume auto-clear tracking/i });
-        await user.click(btn);
-        expect(screen.getByText("Resume auto-clear tracking")).toBeInTheDocument();
-      });
-
-      it("calls mutate with ignored=true when Confirm is clicked on non-ignored unit", async () => {
-        const mutate = vi.fn();
-        vi.mocked(useSetWorkUnitIgnored).mockReturnValue({
-          mutate,
-          isPending: false,
-          isError: false,
-          error: null,
-          reset: vi.fn(),
-        } as never);
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        await user.click(screen.getByRole("button", { name: /ignore for auto-clear/i }));
-        await user.click(screen.getByRole("button", { name: /confirm/i }));
-        expect(mutate).toHaveBeenCalledWith(
-          { projectId: "proj-1", benchId: 1, submodule: "api", ignored: true },
-          expect.objectContaining({ onSuccess: expect.any(Function) }),
-        );
-      });
-
-      it("calls mutate with ignored=false when Confirm is clicked on ignored unit", async () => {
-        const mutate = vi.fn();
-        vi.mocked(useSetWorkUnitIgnored).mockReturnValue({
-          mutate,
-          isPending: false,
-          isError: false,
-          error: null,
-          reset: vi.fn(),
-        } as never);
-        renderBench({ ...baseBench, workUnits: [ignoredUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        await user.click(screen.getByRole("button", { name: /resume auto-clear tracking/i }));
-        await user.click(screen.getByRole("button", { name: /confirm/i }));
-        expect(mutate).toHaveBeenCalledWith(
-          { projectId: "proj-1", benchId: 1, submodule: "api", ignored: false },
-          expect.objectContaining({ onSuccess: expect.any(Function) }),
-        );
-      });
-
-      it("shows error message in dialog when mutation fails", async () => {
-        vi.mocked(useSetWorkUnitIgnored).mockReturnValue({
-          mutate: vi.fn(),
-          isPending: false,
-          isError: true,
-          error: new Error("Server error"),
-          reset: vi.fn(),
-        } as never);
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        await user.click(screen.getByRole("button", { name: /ignore for auto-clear/i }));
-        expect(screen.getByText("Failed to update. Please try again.")).toBeInTheDocument();
-      });
-
-      it("Cancel button closes the dialog", async () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        await user.click(screen.getByRole("button", { name: /ignore for auto-clear/i }));
-        expect(screen.getByText("Ignore work unit for auto-clear")).toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: /cancel/i }));
-        expect(screen.queryByText("Ignore work unit for auto-clear")).not.toBeInTheDocument();
-      });
-    });
   });
 
   describe("previous integration handling", () => {
@@ -1427,7 +1295,6 @@ describe("BenchDetail", () => {
       branch: "feat/x",
       pullRequest: null,
       lastSyncedAt: null,
-      ignoredForAutoClear: false,
       detached: false,
       dirtyState: null,
       syncError: null,

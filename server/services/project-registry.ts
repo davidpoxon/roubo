@@ -238,13 +238,6 @@ export function checkPortConflictsForConfig(
   });
 }
 
-export function resolveAutoClear(projectId: string, settings = state.loadSettings()): boolean {
-  const project = getProject(projectId);
-  const override = project?.config?.benches?.autoClear;
-  if (typeof override === "boolean") return override;
-  return settings.benches?.autoClear ?? DEFAULT_BENCH_SETTINGS.autoClear;
-}
-
 export function resolveEnforceIssueDependencies(
   projectId: string,
   settings = state.loadSettings(),
@@ -255,16 +248,6 @@ export function resolveEnforceIssueDependencies(
   return (
     settings.benches?.enforceIssueDependencies ?? DEFAULT_BENCH_SETTINGS.enforceIssueDependencies
   );
-}
-
-export function resolveWorkUnitAutoClear(
-  projectId: string,
-  settings = state.loadSettings(),
-): boolean {
-  const project = getProject(projectId);
-  const override = project?.config?.benches?.workUnitAutoClear;
-  if (typeof override === "boolean") return override;
-  return settings.benches?.workUnitAutoClear ?? DEFAULT_BENCH_SETTINGS.workUnitAutoClear;
 }
 
 export class ProjectRegistryError extends Error {

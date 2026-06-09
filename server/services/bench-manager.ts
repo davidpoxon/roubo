@@ -1962,26 +1962,6 @@ export async function refreshWorkUnitBranch(bench: Bench, submoduleKey: string):
 }
 
 /**
- * Sets the ignoredForAutoClear flag on a work unit and persists the change.
- * Returns the updated bench.
- */
-export function setWorkUnitIgnoredForAutoClear(
-  projectId: string,
-  benchId: number,
-  submoduleKey: string,
-  ignored: boolean,
-): Bench {
-  const bench = getBench(projectId, benchId);
-  if (!bench) throw new BenchError("Bench not found", "NOT_FOUND");
-  const workUnit = bench.workUnits?.find((wu) => wu.submodule === submoduleKey);
-  if (!workUnit)
-    throw new BenchError(`Work unit '${submoduleKey}' not found on bench ${benchId}`, "NOT_FOUND");
-  workUnit.ignoredForAutoClear = ignored;
-  stateService.updateBench(stateService.toPersistedBench(bench));
-  return bench;
-}
-
-/**
  * Re-points a TestBench at a different focused spec (FR-024). Validates and
  * contains the new focusedSpecPath against the project repo (same barrier as
  * create), updates bench.focusedSpecPath to the resolved absolute path, persists,

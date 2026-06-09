@@ -62,12 +62,6 @@ vi.mock("./project-settings/WorkspaceSourceTile", () => ({
   ),
 }));
 
-vi.mock("./project-settings/AutoClearOverrideTile", () => ({
-  AutoClearOverrideTile: ({ draft }: { draft: boolean | null }) => (
-    <div data-testid="auto-clear-override-tile">{String(draft)}</div>
-  ),
-}));
-
 vi.mock("./ProjectDefaultJigTile", () => ({
   ProjectDefaultJigTile: ({
     project,
@@ -197,15 +191,11 @@ const defaultDraft = {
   setDraftWorktreeSource: vi.fn(),
   draftJig: null as string | null,
   setDraftJig: vi.fn(),
-  draftAutoClear: null as boolean | null,
-  setDraftAutoClear: vi.fn(),
   originalWorktreeSource: DEFAULT_PROJECT_SETTINGS.worktreeSource,
   originalJig: null as string | null,
-  originalAutoClear: null as boolean | null,
   hasAnyDirty: false,
   isWorktreeSourceDirty: false,
   isJigDirty: false,
-  isAutoClearDirty: false,
   isSaving: false,
   saveErrors: [] as string[],
   save: vi.fn().mockResolvedValue({ ok: true, failed: [] }),
@@ -276,7 +266,6 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByTestId("setup-tile")).toBeInTheDocument();
     expect(screen.getByTestId("default-branch-tile")).toBeInTheDocument();
     expect(screen.getByTestId("port-assignment-tile")).toBeInTheDocument();
-    expect(screen.getByTestId("auto-clear-override-tile")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-source-tile")).toBeInTheDocument();
     expect(screen.getByTestId("jig-tile")).toBeInTheDocument();
     expect(screen.getByTestId("danger-zone-tile")).toBeInTheDocument();

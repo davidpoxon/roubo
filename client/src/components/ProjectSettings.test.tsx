@@ -402,80 +402,6 @@ describe("ProjectSettings", () => {
       return user;
     }
 
-    it("renders the auto-clear toggle", async () => {
-      await openBenchesTab();
-      expect(
-        screen.getByRole("switch", { name: /auto-clear completed issues/i }),
-      ).toBeInTheDocument();
-    });
-
-    it("toggle is checked when autoClear is true", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openBenchesTab();
-      expect(screen.getByRole("switch", { name: /auto-clear completed issues/i })).toBeChecked();
-    });
-
-    it("toggle is unchecked when autoClear is false", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: false,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: false,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openBenchesTab();
-      expect(
-        screen.getByRole("switch", { name: /auto-clear completed issues/i }),
-      ).not.toBeChecked();
-    });
-
-    it("calls updateSettings with toggled value when clicked", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings,
-      });
-      const user = await openBenchesTab();
-      await user.click(screen.getByRole("switch", { name: /auto-clear completed issues/i }));
-      expect(updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          benches: {
-            autoClear: false,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        }),
-      );
-    });
-
     it("does not call updateSettings when settings is undefined", async () => {
       const updateSettings = vi.fn();
       mockedUseSettings.mockReturnValue({
@@ -484,7 +410,7 @@ describe("ProjectSettings", () => {
         updateSettings,
       });
       const user = await openBenchesTab();
-      await user.click(screen.getByRole("switch", { name: /auto-clear completed issues/i }));
+      await user.click(screen.getByRole("switch", { name: /enforce issue dependencies/i }));
       expect(updateSettings).not.toHaveBeenCalled();
     });
 
@@ -500,9 +426,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: true,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         },
@@ -518,9 +442,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         },
@@ -537,9 +459,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         },
@@ -551,120 +471,11 @@ describe("ProjectSettings", () => {
       expect(updateSettings).toHaveBeenCalledWith(
         expect.objectContaining({
           benches: {
-            autoClear: true,
             enforceIssueDependencies: true,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         }),
       );
-    });
-
-    it("renders the work-unit auto-clear toggle", async () => {
-      await openBenchesTab();
-      expect(
-        screen.getByRole("switch", {
-          name: /auto-clear meta-repo benches by pr status/i,
-        }),
-      ).toBeInTheDocument();
-    });
-
-    it("work-unit auto-clear toggle is checked when workUnitAutoClear is true", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openBenchesTab();
-      expect(
-        screen.getByRole("switch", {
-          name: /auto-clear meta-repo benches by pr status/i,
-        }),
-      ).toBeChecked();
-    });
-
-    it("work-unit auto-clear toggle is unchecked when workUnitAutoClear is false", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: false,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openBenchesTab();
-      expect(
-        screen.getByRole("switch", {
-          name: /auto-clear meta-repo benches by pr status/i,
-        }),
-      ).not.toBeChecked();
-    });
-
-    it("calls updateSettings with toggled workUnitAutoClear when clicked", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings,
-      });
-      const user = await openBenchesTab();
-      await user.click(
-        screen.getByRole("switch", {
-          name: /auto-clear meta-repo benches by pr status/i,
-        }),
-      );
-      expect(updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          benches: {
-            autoClear: true,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: false,
-            autoStartComponents: false,
-          },
-        }),
-      );
-    });
-
-    it("work-unit auto-clear toggle is disabled when autoClear is off", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          benches: {
-            autoClear: false,
-            enforceIssueDependencies: false,
-            workUnitAutoClear: true,
-            autoStartComponents: false,
-          },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openBenchesTab();
-      const toggle = screen.getByRole("switch", {
-        name: /auto-clear meta-repo benches by pr status/i,
-      });
-      expect(toggle).toBeDisabled();
     });
 
     it("renders the auto-start components toggle", async () => {
@@ -679,9 +490,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         },
@@ -699,9 +508,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: true,
           },
         },
@@ -720,9 +527,7 @@ describe("ProjectSettings", () => {
         settings: {
           ...defaultSettings,
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         },
@@ -736,9 +541,7 @@ describe("ProjectSettings", () => {
       expect(updateSettings).toHaveBeenCalledWith(
         expect.objectContaining({
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: true,
           },
         }),
@@ -749,9 +552,7 @@ describe("ProjectSettings", () => {
       const cappedSettings = (maxGlobal?: number) => ({
         ...defaultSettings,
         benches: {
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
           autoStartComponents: false,
           ...(maxGlobal != null ? { maxGlobal } : {}),
         },

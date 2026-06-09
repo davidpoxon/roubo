@@ -310,26 +310,6 @@ router.delete("/:projectId/benches/:id", async (req, res) => {
   }
 });
 
-router.post("/:projectId/benches/:id/work-units/:submodule/ignore-for-auto-clear", (req, res) => {
-  try {
-    const benchId = parseIntParam(req.params.id, "bench id");
-    const { ignored } = req.body as { ignored: unknown };
-    if (typeof ignored !== "boolean") {
-      res.status(400).json({ error: "ignored must be a boolean" });
-      return;
-    }
-    const bench = benchManager.setWorkUnitIgnoredForAutoClear(
-      req.params.projectId,
-      benchId,
-      req.params.submodule,
-      ignored,
-    );
-    res.json(bench);
-  } catch (err) {
-    handleBenchError(res, err);
-  }
-});
-
 router.post("/:projectId/benches/:id/cleanup-and-retry", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");

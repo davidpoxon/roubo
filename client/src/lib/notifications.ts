@@ -39,10 +39,6 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Component error",
     body: "A component has encountered an error",
   },
-  "teardown-blocked": {
-    title: "Teardown blocked",
-    body: "A bench cannot be cleared automatically",
-  },
   "sync-error": { title: "Sync error", body: "A work unit sync has failed" },
   "claude-exited": {
     title: "Claude exited",

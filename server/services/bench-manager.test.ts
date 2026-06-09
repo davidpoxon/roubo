@@ -22,9 +22,7 @@ vi.mock("./state.js", async (importOriginal) => {
     loadSettings: vi.fn(() => ({
       theme: "dark",
       benches: {
-        autoClear: true,
         enforceIssueDependencies: false,
-        workUnitAutoClear: true,
         autoStartComponents: false,
       },
     })),
@@ -1503,9 +1501,7 @@ describe("background provisioning", () => {
       vi.mocked(stateService.loadSettings).mockReturnValue({
         theme: "dark",
         benches: {
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
           autoStartComponents: false,
         },
       });
@@ -1529,9 +1525,7 @@ describe("background provisioning", () => {
       vi.mocked(stateService.loadSettings).mockReturnValue({
         theme: "dark",
         benches: {
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
           autoStartComponents: value,
         },
       });
@@ -5591,124 +5585,6 @@ describe("refreshWorkUnitBranch", () => {
   });
 });
 
-describe("setWorkUnitIgnoredForAutoClear", () => {
-  function makeBenchWithWorkUnits() {
-    setupExistingBench();
-    const bench = benchManager.getBench("test-project", 1);
-    if (!bench) throw new Error("expected bench");
-    bench.workUnits = [
-      {
-        submodule: "api",
-        branch: "main",
-        workspacePath: "/home/.roubo/workspaces/test-project/bench-1/services/api",
-      },
-      {
-        submodule: "web",
-        branch: "main",
-        workspacePath: "/home/.roubo/workspaces/test-project/bench-1/clients/web",
-      },
-    ];
-    return bench;
-  }
-
-  it("sets ignoredForAutoClear=true on the matching work unit and persists via updateBench", () => {
-    const bench = makeBenchWithWorkUnits();
-
-    const result = benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", true);
-
-    expect(result).toBe(bench);
-    const apiUnit = bench.workUnits?.find((wu) => wu.submodule === "api");
-    expect(apiUnit?.ignoredForAutoClear).toBe(true);
-    expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ workUnits: bench.workUnits }),
-    );
-  });
-
-  it("sets ignoredForAutoClear=false to resume tracking", () => {
-    const bench = makeBenchWithWorkUnits();
-    const apiUnit = bench.workUnits?.find((wu) => wu.submodule === "api");
-    if (apiUnit) apiUnit.ignoredForAutoClear = true;
-
-    benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", false);
-
-    expect(apiUnit?.ignoredForAutoClear).toBe(false);
-    expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ workUnits: bench.workUnits }),
-    );
-  });
-
-  it("does not affect sibling work units", () => {
-    const bench = makeBenchWithWorkUnits();
-
-    benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", true);
-
-    const webUnit = bench.workUnits?.find((wu) => wu.submodule === "web");
-    expect(webUnit?.ignoredForAutoClear).toBeUndefined();
-  });
-
-  it("throws BenchError NOT_FOUND when bench does not exist", () => {
-    setupExistingBench();
-    benchManager.initialize();
-
-    expect(() =>
-      benchManager.setWorkUnitIgnoredForAutoClear("test-project", 999, "api", true),
-    ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
-    expect(stateService.updateBench).not.toHaveBeenCalled();
-  });
-
-  it("throws BenchError NOT_FOUND when work unit submodule does not exist on bench", () => {
-    makeBenchWithWorkUnits();
-
-    expect(() =>
-      benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "nonexistent", true),
-    ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
-    expect(stateService.updateBench).not.toHaveBeenCalled();
-  });
-
-  it("preserves injectedJigSource in updateBench call", () => {
-    const bench = makeBenchWithWorkUnits();
-    bench.injectedJigId = "my-jig";
-    bench.injectedJigSource = "app";
-
-    benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", true);
-
-    expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ injectedJigSource: "app" }),
-    );
-  });
-
-  it("preserves all other bench fields in the updateBench call", () => {
-    const bench = makeBenchWithWorkUnits();
-    bench.assignedContainers = {
-      db: { containerId: "c1", containerName: "pg", port: 5432 },
-    };
-    bench.assignedIssue = {
-      number: 7,
-      title: "My issue",
-      url: "https://github.com/org/repo/issues/7",
-      repoFullName: "org/repo",
-    };
-    bench.notifications = [
-      {
-        id: "n1",
-        type: "bench-ready",
-        priority: "info",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-    ];
-
-    benchManager.setWorkUnitIgnoredForAutoClear("test-project", 1, "api", true);
-
-    expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assignedContainers: bench.assignedContainers,
-        assignedIssue: bench.assignedIssue,
-        notifications: bench.notifications,
-      }),
-    );
-  });
-});
-
 /** Set up an existing bench whose persisted componentSetupState we control. */
 function setupBenchWithSetupState(
   config: ReturnType<typeof makeConfig>,
@@ -5996,9 +5872,7 @@ describe("createBench global cap", () => {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "dark",
       benches: {
-        autoClear: true,
         enforceIssueDependencies: false,
-        workUnitAutoClear: true,
         autoStartComponents: false,
         ...(maxGlobal === undefined ? {} : { maxGlobal }),
       },
@@ -6182,9 +6056,7 @@ describe("createBench global cap", () => {
         return {
           theme: "dark",
           benches: {
-            autoClear: true,
             enforceIssueDependencies: false,
-            workUnitAutoClear: true,
             autoStartComponents: false,
           },
         } as any;

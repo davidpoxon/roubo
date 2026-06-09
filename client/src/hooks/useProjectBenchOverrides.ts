@@ -17,18 +17,11 @@ export function useUpdateProjectBenchOverrides(projectId: string) {
           previousProjects.map((p) => {
             if (p.id !== projectId || !p.config) return p;
             const benchesPatch: Record<string, boolean | undefined> = {};
-            if ("autoClear" in patch) {
-              benchesPatch.autoClear = patch.autoClear === null ? undefined : patch.autoClear;
-            }
             if ("enforceIssueDependencies" in patch) {
               benchesPatch.enforceIssueDependencies =
                 patch.enforceIssueDependencies === null
                   ? undefined
                   : patch.enforceIssueDependencies;
-            }
-            if ("workUnitAutoClear" in patch) {
-              benchesPatch.workUnitAutoClear =
-                patch.workUnitAutoClear === null ? undefined : patch.workUnitAutoClear;
             }
             return {
               ...p,

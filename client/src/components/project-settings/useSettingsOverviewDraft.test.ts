@@ -126,17 +126,6 @@ describe("useSettingsOverviewDraft", () => {
     expect(result.current.hasAnyDirty).toBe(true);
   });
 
-  it("marks autoClear dirty when changed", () => {
-    const { result } = renderHookWithProviders(() =>
-      useSettingsOverviewDraft("my-app", baseProject),
-    );
-    act(() => {
-      result.current.setDraftAutoClear(true);
-    });
-    expect(result.current.isAutoClearDirty).toBe(true);
-    expect(result.current.hasAnyDirty).toBe(true);
-  });
-
   it("marks enforceIssueDependencies dirty when changed", () => {
     const { result } = renderHookWithProviders(() =>
       useSettingsOverviewDraft("my-app", baseProject),
@@ -148,35 +137,20 @@ describe("useSettingsOverviewDraft", () => {
     expect(result.current.hasAnyDirty).toBe(true);
   });
 
-  it("marks workUnitAutoClear dirty when changed", () => {
-    const { result } = renderHookWithProviders(() =>
-      useSettingsOverviewDraft("my-app", baseProject),
-    );
-    act(() => {
-      result.current.setDraftWorkUnitAutoClear(false);
-    });
-    expect(result.current.isWorkUnitAutoClearDirty).toBe(true);
-    expect(result.current.hasAnyDirty).toBe(true);
-  });
-
   it("discard resets all drafts to original", () => {
     const { result } = renderHookWithProviders(() =>
       useSettingsOverviewDraft("my-app", baseProject),
     );
     act(() => {
       result.current.setDraftJig("some-jig");
-      result.current.setDraftAutoClear(true);
       result.current.setDraftEnforceIssueDependencies(true);
-      result.current.setDraftWorkUnitAutoClear(false);
     });
     act(() => {
       result.current.discard();
     });
     expect(result.current.hasAnyDirty).toBe(false);
     expect(result.current.draftJig).toBe(null);
-    expect(result.current.draftAutoClear).toBe(null);
     expect(result.current.draftEnforceIssueDependencies).toBe(null);
-    expect(result.current.draftWorkUnitAutoClear).toBe(null);
   });
 
   it("save calls only mutations for dirty fields", async () => {
@@ -212,7 +186,7 @@ describe("useSettingsOverviewDraft", () => {
     expect(saveResult?.ok).toBe(true);
   });
 
-  it("save sends all dirty bench override fields in a single mutation", async () => {
+  it("save sends the dirty bench override field in a single mutation", async () => {
     const updateBenchOverridesAsync = vi.fn().mockResolvedValue(undefined);
     mockedUseUpdateProjectBenchOverrides.mockReturnValue({
       mutateAsync: updateBenchOverridesAsync,
@@ -226,7 +200,6 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     act(() => {
-      result.current.setDraftAutoClear(true);
       result.current.setDraftEnforceIssueDependencies(false);
     });
 
@@ -234,11 +207,9 @@ describe("useSettingsOverviewDraft", () => {
       await result.current.save();
     });
 
-    // Both dirty bench overrides sent in one call
     expect(updateBenchOverridesAsync).toHaveBeenCalledTimes(1);
     expect(updateBenchOverridesAsync).toHaveBeenCalledWith(
       expect.objectContaining({
-        autoClear: true,
         enforceIssueDependencies: false,
       }),
     );
@@ -295,7 +266,7 @@ describe("useSettingsOverviewDraft", () => {
 
     act(() => {
       result.current.setDraftJig("my-bp");
-      result.current.setDraftAutoClear(true);
+      result.current.setDraftEnforceIssueDependencies(true);
     });
 
     await act(async () => {
@@ -354,7 +325,7 @@ describe("useSettingsOverviewDraft", () => {
     expect(result.current.justSavedRef.current).toBe(true);
 
     act(() => {
-      result.current.setDraftAutoClear(true);
+      result.current.setDraftEnforceIssueDependencies(true);
     });
     expect(result.current.justSavedRef.current).toBe(false);
   });
@@ -368,9 +339,7 @@ describe("useSettingsOverviewDraft", () => {
         jigs: { defaultJig: "bp-a" },
         benches: {
           max: 3,
-          autoClear: true,
           enforceIssueDependencies: false,
-          workUnitAutoClear: true,
         },
       },
     };
@@ -382,9 +351,7 @@ describe("useSettingsOverviewDraft", () => {
         jigs: { defaultJig: "bp-b" },
         benches: {
           max: 3,
-          autoClear: false,
           enforceIssueDependencies: true,
-          workUnitAutoClear: false,
         },
       },
     };
@@ -396,16 +363,12 @@ describe("useSettingsOverviewDraft", () => {
     );
 
     expect(result.current.draftJig).toBe("bp-a");
-    expect(result.current.draftAutoClear).toBe(true);
     expect(result.current.draftEnforceIssueDependencies).toBe(false);
-    expect(result.current.draftWorkUnitAutoClear).toBe(true);
 
     rerender({ projectId: "project-b", project: projectB });
 
     expect(result.current.draftJig).toBe("bp-b");
-    expect(result.current.draftAutoClear).toBe(false);
     expect(result.current.draftEnforceIssueDependencies).toBe(true);
-    expect(result.current.draftWorkUnitAutoClear).toBe(false);
   });
 
   it("hasAnyDirty stays false as issue type mappings load with existing data", () => {

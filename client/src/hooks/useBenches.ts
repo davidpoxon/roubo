@@ -69,27 +69,6 @@ export function useCreateBench() {
   });
 }
 
-export function useSetWorkUnitIgnored() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      projectId,
-      benchId,
-      submodule,
-      ignored,
-    }: {
-      projectId: string;
-      benchId: number;
-      submodule: string;
-      ignored: boolean;
-    }) => api.setWorkUnitIgnoredForAutoClear(projectId, benchId, submodule, ignored),
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["benches"] });
-      queryClient.invalidateQueries({ queryKey: ["bench", vars.projectId, vars.benchId] });
-    },
-  });
-}
-
 export function useCleanupAndRetryBench() {
   const queryClient = useQueryClient();
   return useMutation({
