@@ -1,0 +1,351 @@
+{
+  "$schema": "https://roubo.dev/schema/testbench/test-results/v2.0.0.json",
+  "schemaVersion": "2.0.0",
+  "planHash": "cc5c044432e6ac0bfe417598da0741cd2ca4985456452c564d477f9f6d9638c4",
+  "caseResults": {
+    "TC-001": {
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:25.018Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:25.482Z"
+        },
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:26.199Z"
+        },
+        "S003-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:26.809Z"
+        },
+        "S004-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:27.946Z"
+        },
+        "S004-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:28.368Z"
+        },
+        "S005-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:34.273Z"
+        },
+        "S005-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:34.728Z"
+        },
+        "S005-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:35.264Z"
+        },
+        "S006-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:37.981Z"
+        },
+        "S006-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:38.405Z"
+        },
+        "S006-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:38.904Z"
+        },
+        "S007-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:40.088Z"
+        },
+        "S007-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:40.485Z"
+        },
+        "S007-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:40.914Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": []
+    },
+    "TC-002": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:43.556Z"
+        },
+        "S001-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:43.995Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": []
+    },
+    "TC-018": {
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:46.303Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:46.708Z"
+        },
+        "S002-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:47.134Z"
+        },
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:47.799Z"
+        },
+        "S003-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:48.326Z"
+        },
+        "S003-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:39:48.751Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": []
+    },
+    "TC-019": {
+      "observationMarks": {
+        "S002-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:02.979Z"
+        },
+        "S002-O04": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:03.469Z"
+        },
+        "S002-O05": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:03.944Z"
+        },
+        "S002-O06": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:04.323Z"
+        },
+        "S002-O07": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:04.716Z"
+        },
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:31.536Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:32.033Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": []
+    },
+    "TC-038": {
+      "observationMarks": {
+        "S004-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:37.843Z"
+        },
+        "S004-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:38.742Z"
+        },
+        "S004-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:40:39.376Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": []
+    },
+    "TC-039": {
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:59:11.629Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:59:12.256Z"
+        },
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:59:39.033Z"
+        },
+        "S003-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:59:39.496Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [
+        {
+          "id": "978b3a32-b38f-437a-b7a5-cebe89da191c",
+          "text": "'bench' key has been removed",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T10:59:40.760Z",
+          "statusAtWrite": "passed"
+        }
+      ]
+    }
+  },
+  "updatedAt": "2026-06-09T10:59:40.761Z"
+}
