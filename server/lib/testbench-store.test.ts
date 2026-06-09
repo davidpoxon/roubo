@@ -19,6 +19,7 @@ import {
   type TestCasesPlan,
   type TestResultsFile,
 } from "@roubo/shared/testbench-contracts";
+import { canonicalizeCase } from "@roubo/shared/testbench-canonicalize";
 import * as gitHelpers from "../services/git-helpers.js";
 
 // Mock the git identity resolver so author/sentinel stamping is deterministic and
@@ -372,6 +373,92 @@ describe("setStatusOverride", () => {
 
     result = await setStatusOverride(repo, SLUG, "TC-001", null);
     expect(result.statusOverride).toBeUndefined();
+  });
+});
+
+// A two-case plan, used by the caseCanon write-path / single-edit-isolation
+// tests below. TC-001 mirrors planFor(); TC-002 is a second independent case so
+// editing one case's body can be shown to leave the other classified unchanged.
+function twoCasePlan(): TestCasesPlan {
+  const plan = planFor();
+  plan.cases = [
+    plan.cases[0],
+    {
+      id: "TC-002",
+      title: "Logout works",
+      area: "auth",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      steps: [
+        {
+          id: "S1",
+          instruction: "Click logout",
+          observations: [{ id: "O1", expected: "Session cleared" }],
+        },
+      ],
+      tags: ["smoke"],
+      linked_requirement_ids: ["FR-002"],
+      linked_user_story_ids: [],
+    },
+  ];
+  return plan;
+}
+
+describe("caseCanon stamping on the write path (#504)", () => {
+  beforeEach(() => writePlan(planFor()));
+
+  it("stamps caseCanon equal to canonicalizeCase(planCase) after markObservation", async () => {
+    const result = await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    expect(result.caseCanon).toBe(canonicalizeCase(planFor().cases[0]));
+  });
+
+  it("stamps caseCanon equal to canonicalizeCase(planCase) after appendNote", async () => {
+    // appendNote returns the Note, so read the stamped snapshot back off disk.
+    await appendNote(repo, SLUG, "TC-001", "looks good");
+    const onDisk = JSON.parse(fs.readFileSync(resultsFilePath(), "utf8"));
+    expect(onDisk.caseResults["TC-001"].caseCanon).toBe(canonicalizeCase(planFor().cases[0]));
+  });
+
+  it("stamps caseCanon equal to canonicalizeCase(planCase) after setStatusOverride", async () => {
+    const result = await setStatusOverride(repo, SLUG, "TC-001", "blocked");
+    expect(result.caseCanon).toBe(canonicalizeCase(planFor().cases[0]));
+  });
+
+  it("classifies a case marked against the current plan as unchanged on the next reconcile", async () => {
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    // Reconcile against the same (unchanged) plan: the stamped snapshot matches.
+    const outcome = await reconcile(repo, SLUG);
+    expect(outcome.classification.unchanged).toContain("TC-001");
+    expect(outcome.classification.changed).not.toContain("TC-001");
+  });
+
+  it("isolates a single edit: editing one case's body re-flags only that case", async () => {
+    writePlan(twoCasePlan());
+    // Both cases marked against the current plan: both get a snapshot stamped.
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-002", "O1", "pass");
+
+    // Edit only TC-001's body.
+    const edited = twoCasePlan();
+    edited.cases[0].title = "Login works (revised)";
+    writePlan(edited);
+
+    const outcome = await reconcile(repo, SLUG);
+    expect(outcome.classification.changed).toEqual(["TC-001"]);
+    expect(outcome.classification.unchanged).toContain("TC-002");
+    expect(outcome.classification.changed).not.toContain("TC-002");
+  });
+
+  it("leaves caseCanon unset when the case id is not in the plan", async () => {
+    // A mark against a case id absent from the plan: no matching plan case, so
+    // the snapshot is not stamped and the mark stays conservatively `changed`.
+    const result = await setStatusOverride(repo, SLUG, "TC-999", "blocked");
+    expect(result.caseCanon).toBeUndefined();
+
+    const outcome = await reconcile(repo, SLUG);
+    // TC-999 has a result but no plan case: it is an orphan, never unchanged.
+    expect(outcome.classification.unchanged).not.toContain("TC-999");
   });
 });
 

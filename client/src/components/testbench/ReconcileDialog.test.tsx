@@ -30,9 +30,9 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof ReconcileDi
 }
 
 describe("ReconcileDialog", () => {
-  // TC-042: the dialog lists added, changed, and orphan cases; orphans clearly
-  // marked and retained.
-  it("renders Added, Changed, and Orphaned sections with their case ids", () => {
+  // TC-042: the dialog lists changed, orphan, and not-yet-recorded cases;
+  // orphans clearly marked and retained.
+  it("renders Changed, Orphaned, and Not-yet-recorded sections with their case ids", () => {
     renderDialog();
     const added = screen.getByTestId("reconcile-section-added");
     const changed = screen.getByTestId("reconcile-section-changed");
@@ -46,6 +46,30 @@ describe("ReconcileDialog", () => {
     // Orphans are described as retained, never deleted.
     expect(orphan.textContent).toMatch(/retained/i);
     expect(orphan.textContent).toMatch(/never deleted/i);
+  });
+
+  // #504: the former "Added" bucket is reframed as informational "Not yet
+  // recorded", made clear that Apply does not touch these cases.
+  it("reframes the added section as not-yet-recorded and informational", () => {
+    renderDialog();
+    const added = screen.getByTestId("reconcile-section-added");
+    expect(added.textContent).toMatch(/not yet recorded/i);
+    expect(added.textContent).not.toMatch(/\bAdded\b/);
+    // Help text makes clear these cases are unaffected by Apply.
+    expect(added.textContent).toMatch(/no recorded result yet/i);
+    expect(added.textContent).toMatch(/does not touch them|untouched|leaves/i);
+  });
+
+  // #504: actionable sections (Changed, Orphaned) come first; the
+  // de-emphasized not-yet-recorded section renders last.
+  it("orders sections Changed, Orphaned, then Not-yet-recorded", () => {
+    renderDialog();
+    const sections = screen.getAllByTestId(/^reconcile-section-(changed|orphan|added)$/);
+    expect(sections.map((el) => el.getAttribute("data-testid"))).toEqual([
+      "reconcile-section-changed",
+      "reconcile-section-orphan",
+      "reconcile-section-added",
+    ]);
   });
 
   // TC-042: applying reconcile keeps orphans and shows no purge prompt yet.
