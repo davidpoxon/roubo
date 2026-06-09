@@ -196,4 +196,33 @@ describe("TestBenchPanel", () => {
     expect(screen.queryByText(/No test-cases.json/i)).toBeNull();
     expect(screen.queryByText(/could not load the testbench plan/i)).toBeNull();
   });
+
+  it("does not strand an error-status bench on the preparing placeholder (#500)", () => {
+    // `error`/`clearing` are reached only after the worktree exists (e.g. a
+    // component-start failure), so the plan is loadable and the panel must fall
+    // through to the real plan/error branches, never the preparing placeholder.
+    mockUseTestbenchPlan.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("boom"),
+    } as ReturnType<typeof useTestbenchPlan>);
+    render(<TestBenchPanel projectId="p1" benchId={1} benchStatus="error" />);
+    expect(screen.queryByText(/preparing test cases/i)).toBeNull();
+    expect(screen.getByText(/boom/i)).toBeTruthy();
+  });
+
+  it("does not fire the plan query while the bench is clearing (#500)", () => {
+    // During teardown the worktree is removed, so firing the query would 404. The
+    // panel shows the placeholder rather than the spurious plan-load error.
+    mockUseTestbenchPlan.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as ReturnType<typeof useTestbenchPlan>);
+    render(<TestBenchPanel projectId="p1" benchId={1} benchStatus="clearing" />);
+    expect(screen.getByText(/preparing test cases/i)).toBeTruthy();
+    expect(screen.queryByText(/No test-cases.json/i)).toBeNull();
+  });
 });

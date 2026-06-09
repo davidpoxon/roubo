@@ -52,13 +52,17 @@ export default function TestBenchPanel({
   focusedSpecPath?: string;
   benchStatus?: BenchStatus;
 }) {
-  // Gate the plan query on worktree readiness (#500). On first load the bench is
-  // `preparing` and its worktree (with `.specifications/<slug>/test-cases.json`)
-  // does not exist yet, so the plan endpoint 404s. Only `active`/`idle` mean the
-  // worktree is present; while not ready we show a placeholder instead of firing
-  // the query. The bench-detail query polls and flips status, at which point the
-  // now-enabled plan query fires automatically: no manual remount needed.
-  const ready = benchStatus === "active" || benchStatus === "idle";
+  // Gate the plan query on worktree readiness (#500). The query reads
+  // `.specifications/<slug>/test-cases.json` from the bench worktree, so firing it
+  // when that worktree is absent 404s with MissingPlanError. Two states lack a
+  // readable worktree: `preparing` (set before the worktree is added on create,
+  // and re-entered briefly while components (re)start) and `clearing` (the
+  // worktree is being torn down). In both we show a placeholder instead of firing
+  // the query. Every other status (`active`/`idle`, and `error`, which is reached
+  // only after provisioning, e.g. a component-start failure) has a worktree whose
+  // plan should load. The bench-detail query polls and flips status, at which
+  // point the now-enabled plan query fires automatically: no manual remount needed.
+  const ready = benchStatus !== "preparing" && benchStatus !== "clearing";
   const { data, isLoading, isError, error } = useTestbenchPlan(projectId, benchId, {
     enabled: ready,
   });
