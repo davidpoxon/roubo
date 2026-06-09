@@ -10,17 +10,17 @@ const defaults: JiraPluginConfig = {
 };
 
 describe("link-types (TC-029)", () => {
-  it("maps a default 'blocks' outwardIssue to NormalizedIssue.blocks", () => {
+  it("maps a 'Blocks' outwardIssue to NormalizedIssue.blocks", () => {
     const mapped = mapLinkType(defaults, {
-      type: { name: "blocks" },
+      type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
       outwardIssue: { key: "PROJ-201" },
     });
     expect(mapped).toEqual({ kind: "blocks", externalId: "PROJ-201" });
   });
 
-  it("maps a default 'is blocked by' inwardIssue to NormalizedIssue.blockedBy", () => {
+  it("maps a 'Blocks' inwardIssue to NormalizedIssue.blockedBy", () => {
     const mapped = mapLinkType(defaults, {
-      type: { name: "is blocked by" },
+      type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
       inwardIssue: { key: "PROJ-200" },
     });
     expect(mapped).toEqual({ kind: "blockedBy", externalId: "PROJ-200" });
@@ -29,10 +29,18 @@ describe("link-types (TC-029)", () => {
   it("ignores unrelated link types", () => {
     expect(
       mapLinkType(defaults, {
-        type: { name: "relates to" },
+        type: { name: "Relates", outward: "relates to", inward: "relates to" },
         outwardIssue: { key: "PROJ-300" },
       }),
     ).toBeNull();
+  });
+
+  it("matches the real-world TEST 'Blocks' payload shape", () => {
+    const mapped = mapLinkType(defaults, {
+      type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
+      outwardIssue: { key: "TEST-3800" },
+    });
+    expect(mapped).toEqual({ kind: "blocks", externalId: "TEST-3800" });
   });
 
   it("normalizes blocks/blockedBy across an issue payload", () => {
@@ -42,15 +50,15 @@ describe("link-types (TC-029)", () => {
         summary: "Test issue",
         issuelinks: [
           {
-            type: { name: "blocks" },
+            type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
             outwardIssue: { key: "PROJ-201" },
           },
           {
-            type: { name: "is blocked by" },
+            type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
             inwardIssue: { key: "PROJ-199" },
           },
           {
-            type: { name: "relates to" },
+            type: { name: "Relates", outward: "relates to", inward: "relates to" },
             outwardIssue: { key: "PROJ-202" },
           },
         ],
@@ -73,20 +81,24 @@ describe("link-types (TC-072) honour configured rename", () => {
       isBlockedByLinkTypeName: "is depended on by",
     };
     const blocks = mapLinkType(renamed, {
-      type: { name: "depends on" },
+      type: { name: "Dependency", outward: "depends on", inward: "is depended on by" },
       outwardIssue: { key: "PROJ-500" },
     });
     expect(blocks).toEqual({ kind: "blocks", externalId: "PROJ-500" });
 
     const blockedBy = mapLinkType(renamed, {
-      type: { name: "is depended on by" },
+      type: { name: "Dependency", outward: "depends on", inward: "is depended on by" },
       inwardIssue: { key: "PROJ-501" },
     });
     expect(blockedBy).toEqual({ kind: "blockedBy", externalId: "PROJ-501" });
 
-    // Default names are no longer recognised once the user has overridden them.
+    // The standard Blocks link type is no longer recognised once the user has
+    // overridden the names to a different link type.
     expect(
-      mapLinkType(renamed, { type: { name: "blocks" }, outwardIssue: { key: "X" } }),
+      mapLinkType(renamed, {
+        type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
+        outwardIssue: { key: "X" },
+      }),
     ).toBeNull();
   });
 });

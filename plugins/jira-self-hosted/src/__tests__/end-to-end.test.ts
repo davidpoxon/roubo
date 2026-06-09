@@ -140,7 +140,7 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
             updated: "2026-04-05T00:00:00Z",
             issuelinks: [
               {
-                type: { name: "depends on" },
+                type: { name: "Dependency", outward: "depends on", inward: "is depended on by" },
                 outwardIssue: { key: "PROJ-2" },
               },
             ],
