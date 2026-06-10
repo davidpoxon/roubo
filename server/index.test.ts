@@ -40,10 +40,6 @@ vi.mock("./services/jig-manager.js", () => ({
   stopAllWatchers: vi.fn(),
   listGlobalJigs: vi.fn(() => []),
 }));
-vi.mock("./services/pr-sync.js", () => ({
-  startPolling: vi.fn(),
-  stopPolling: vi.fn(),
-}));
 vi.mock("./services/version-check.js", () => ({
   checkForUpdate: vi.fn(() => Promise.resolve()),
 }));
@@ -63,7 +59,6 @@ vi.mock("./services/github.js", () => ({
 }));
 
 import * as benchManager from "./services/bench-manager.js";
-import * as prSync from "./services/pr-sync.js";
 import { startServer } from "./index.js";
 
 describe.sequential("startServer", () => {
@@ -113,13 +108,6 @@ describe.sequential("startServer", () => {
       await handle.shutdown();
       vi.mocked(benchManager.getBenches).mockReturnValue([]);
     }
-  });
-
-  it("starts the work-unit PR sync poller on startup and stops it on shutdown", async () => {
-    const handle = await startServer({ port: 0 });
-    expect(prSync.startPolling).toHaveBeenCalled();
-    await handle.shutdown();
-    expect(prSync.stopPolling).toHaveBeenCalled();
   });
 
   it("port already in use: rejects with a bind error", async () => {
@@ -204,10 +192,6 @@ describe.sequential("startServer", () => {
         stopAllWatchers: vi.fn(),
         listGlobalJigs: vi.fn(() => []),
       }));
-      vi.doMock("./services/pr-sync.js", () => ({
-        startPolling: vi.fn(),
-        stopPolling: vi.fn(),
-      }));
       vi.doMock("./services/version-check.js", () => ({
         checkForUpdate: vi.fn(() => Promise.resolve()),
       }));
@@ -239,7 +223,6 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/process-manager.js");
       vi.doUnmock("./services/terminal.js");
       vi.doUnmock("./services/jig-manager.js");
-      vi.doUnmock("./services/pr-sync.js");
       vi.doUnmock("./services/version-check.js");
       vi.doUnmock("./services/claude-version.js");
       vi.doUnmock("./services/plugin-manager.js");

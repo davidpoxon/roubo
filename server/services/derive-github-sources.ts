@@ -114,9 +114,9 @@ function readGitmodulesUrls(repoPath: string): Map<string, string> {
 }
 
 /**
- * Extracts `owner/repo` from a git remote URL. Mirrors the SSH/HTTPS handling
- * in `git-helpers.resolveRepoFullName` so submodule URLs parse the same way
- * as the root repo's `origin` would.
+ * Extracts `owner/repo` from a git remote URL, handling both SSH and HTTPS
+ * remote formats so submodule URLs parse the same way as the root repo's
+ * `origin` would.
  */
 export function parseGitHubRepoFromUrl(url: string): string | null {
   const sshMatch = url.match(/:([^/]+\/[^/]+?)(?:\.git)?$/);

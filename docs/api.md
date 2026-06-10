@@ -67,7 +67,7 @@ The full TypeScript definitions live in [`shared/types.ts`](../shared/types.ts) 
   error?: string;
   provisioningSteps: ProvisioningStep[];
   teardownSteps: ProvisioningStep[];
-  // ... optional fields for meta-repo work units, jig tracking, etc.
+  // ... optional fields for jig tracking, etc.
 }
 ```
 

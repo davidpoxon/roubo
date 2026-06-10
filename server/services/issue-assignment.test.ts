@@ -628,39 +628,6 @@ describe("assignIssue", () => {
     });
   });
 
-  it("forwards workUnits when persisting", async () => {
-    const workUnits = [
-      {
-        submodule: "api",
-        branch: "feat/my-feature",
-        workspacePath: "/workspace/api",
-      },
-    ];
-    vi.mocked(benchManager.getBench).mockReturnValue({
-      ...bench,
-      workUnits,
-      notifications: [],
-    });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(runCommand).mockResolvedValue({
-      code: 0,
-      stdout: "",
-      stderr: "",
-    });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
-
-    await assignIssue("project1", 1, githubIssue({ body: null }), []);
-
-    expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
-  });
-
   it("populates linkedPullRequests when GitHub returns linked PRs", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
@@ -1188,26 +1155,6 @@ describe("createBenchAndAssignFromIssue", () => {
     });
   });
 
-  it("forwards workUnits when persisting", async () => {
-    const workUnits = [
-      {
-        submodule: "api",
-        branch: "feat/my-feature",
-        workspacePath: "/workspace/api",
-      },
-    ];
-    setupHappyPath();
-    vi.mocked(benchManager.createBench).mockReturnValue({
-      ...createdBench,
-      workUnits,
-      notifications: [],
-    });
-
-    await createBenchAndAssignFromIssue("project1", githubIssue(), []);
-
-    expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
-  });
-
   it("populates linkedPullRequests when GitHub returns linked PRs", async () => {
     setupHappyPath();
     vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([
@@ -1499,40 +1446,6 @@ describe("unassignIssue", () => {
     });
 
     await expect(unassignIssue("project1", 1)).rejects.toThrow("No issue assigned");
-  });
-
-  it("forwards workUnits when persisting", async () => {
-    const workUnits = [
-      {
-        submodule: "api",
-        branch: "feat/my-feature",
-        workspacePath: "/workspace/api",
-      },
-    ];
-    vi.mocked(benchManager.getBench).mockReturnValue({
-      id: 1,
-      projectId: "project1",
-      branch: "issue-42-fix",
-      workspacePath: "/workspace",
-      ports: { backend: 5000 },
-      createdAt: "2026-01-01",
-      components: {},
-      status: "idle" as const,
-      provisioningSteps: [],
-      teardownSteps: [],
-      notifications: [],
-      assignedIssue: {
-        number: 42,
-        integrationId: "github-com",
-        externalId: "42",
-        title: "Fix it",
-      },
-      workUnits,
-    });
-
-    await unassignIssue("project1", 1);
-
-    expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
 
   it("preserves injectedJigId and injectedJigSource when unassigning an issue", async () => {

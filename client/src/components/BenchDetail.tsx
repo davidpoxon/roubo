@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Button,
-  Link,
   ModalOverlay,
   Modal,
   Dialog,
@@ -29,8 +28,6 @@ import {
   Unlink,
   RotateCcw,
   Ban,
-  AlertTriangle,
-  RefreshCw,
 } from "lucide-react";
 import {
   useBenchDetail,
@@ -41,16 +38,8 @@ import {
   useStartComponent,
   useStopComponent,
   useDismissBenchNotifications,
-  useSyncBenchWorkUnits,
 } from "../hooks/useBenches";
-import type {
-  Bench,
-  BenchWorkUnit,
-  TrackedPullRequest,
-  ProvisioningStep,
-  DirtyReason,
-  CapturedUserId,
-} from "@roubo/shared";
+import type { Bench, ProvisioningStep, DirtyReason, CapturedUserId } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
@@ -180,235 +169,6 @@ const statusBadge: Record<string, string> = {
   stopping: "bg-amber-500/15 text-amber-400",
   inactive: "bg-stone-500/15 text-stone-400",
 };
-
-function formatTimeAgo(iso: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-function prStateBadge(pr: TrackedPullRequest): string {
-  if (pr.merged) return "bg-violet-500/15 text-violet-400";
-  if (pr.state === "open") return "bg-green-500/15 text-green-400";
-  return "bg-red-500/15 text-red-400";
-}
-
-function prStateLabel(pr: TrackedPullRequest): string {
-  if (pr.merged) return "merged";
-  return pr.state;
-}
-
-function workUnitDirtyTooltip(unit: BenchWorkUnit): string | undefined {
-  const d = unit.dirtyState;
-  if (!d) return undefined;
-  const parts: string[] = [];
-  if (d.modifiedCount > 0) parts.push(`${d.modifiedCount} modified`);
-  if (d.untrackedCount > 0) parts.push(`${d.untrackedCount} untracked`);
-  if (d.unpushedCommits > 0) parts.push(`${d.unpushedCommits} unpushed`);
-  return parts.length > 0 ? parts.join(", ") : undefined;
-}
-
-function WorkUnitRow({ unit }: { unit: BenchWorkUnit }) {
-  const pr = unit.pullRequest;
-  const d = unit.dirtyState;
-  const totalDirty = d ? d.modifiedCount + d.untrackedCount : 0;
-  const hasActivity = !!pr || totalDirty > 0 || (d?.unpushedCommits ?? 0) > 0;
-  const dirtyTooltip = workUnitDirtyTooltip(unit);
-
-  return (
-    <div className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="flex items-center gap-1.5 min-w-0">
-        {hasActivity && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
-        <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
-          {unit.submodule}
-        </span>
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="font-mono text-xs text-stone-500 dark:text-stone-400 truncate">
-          {unit.branch}
-        </span>
-        {unit.detached && (
-          <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
-            detached
-          </span>
-        )}
-      </span>
-      {d && (totalDirty > 0 || d.unpushedCommits > 0) && (
-        <TooltipTrigger delay={400}>
-          <Button
-            aria-label={dirtyTooltip}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 outline-none cursor-default"
-          >
-            {totalDirty > 0 && <span>+{totalDirty}</span>}
-            {d.unpushedCommits > 0 && <span>↑{d.unpushedCommits}</span>}
-          </Button>
-          <Tooltip className="px-2 py-1 text-xs bg-stone-800 text-stone-200 rounded shadow-lg">
-            {dirtyTooltip}
-          </Tooltip>
-        </TooltipTrigger>
-      )}
-      {pr && (
-        <>
-          <Link
-            href={pr.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono text-xs text-violet-400 hover:text-violet-300 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-violet-500 rounded"
-          >
-            #{pr.number}
-          </Link>
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${prStateBadge(pr)}`}
-          >
-            {prStateLabel(pr)}
-          </span>
-        </>
-      )}
-      {unit.syncError && (
-        <span className="flex items-center gap-1 text-xs text-red-400" title={unit.syncError}>
-          <AlertTriangle size={12} />
-          sync error
-        </span>
-      )}
-      {unit.lastSyncedAt && (
-        <span className="ml-auto text-xs text-stone-400 dark:text-stone-600">
-          {formatTimeAgo(unit.lastSyncedAt)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function WorkUnitsPanel({
-  workUnits,
-  projectId,
-  benchId,
-  disableSourceSync = false,
-}: {
-  workUnits: BenchWorkUnit[];
-  projectId: string;
-  benchId: number;
-  disableSourceSync?: boolean;
-}) {
-  const syncWorkUnits = useSyncBenchWorkUnits();
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <Button
-          onPress={() => setIsExpanded((v) => !v)}
-          aria-expanded={isExpanded}
-          className="flex items-center gap-1.5 outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50 rounded"
-        >
-          <ChevronRight
-            size={12}
-            className={`text-stone-500 dark:text-stone-600 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
-          />
-          <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-600">
-            Work Units
-          </span>
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-200/60 dark:bg-stone-800/60 text-stone-500 dark:text-stone-500">
-            {workUnits.length}
-          </span>
-        </Button>
-        <TooltipTrigger delay={400} isDisabled={!disableSourceSync}>
-          <Button
-            isDisabled={syncWorkUnits.isPending || disableSourceSync}
-            onPress={() => syncWorkUnits.mutate({ projectId, benchId })}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
-          >
-            <RefreshCw size={11} className={syncWorkUnits.isPending ? "animate-spin" : ""} />
-            {syncWorkUnits.isPending ? "Syncing..." : "Sync Now"}
-          </Button>
-          <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
-            This bench was created against a previous integration. Source-sync is disabled. Clear
-            the bench to use the new integration.
-          </Tooltip>
-        </TooltipTrigger>
-      </div>
-      {isExpanded ? (
-        <div className="rounded-lg bg-stone-100 dark:bg-stone-900/50 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30 divide-y divide-stone-200 dark:divide-stone-800/40">
-          {workUnits.map((unit) => (
-            <WorkUnitRow key={unit.submodule} unit={unit} />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-lg bg-stone-100 dark:bg-stone-900/50 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30 px-2.5 py-2 flex flex-wrap gap-1.5 items-center">
-          {workUnits.map((unit) => {
-            const isMetaRoot = unit.submodule === ".";
-            const d = unit.dirtyState;
-            const totalDirty = d ? d.modifiedCount + d.untrackedCount : 0;
-            const hasActivity =
-              !!unit.pullRequest || totalDirty > 0 || (d?.unpushedCommits ?? 0) > 0;
-            const dirtyTooltip = workUnitDirtyTooltip(unit);
-            const chip = (
-              <span
-                key={unit.submodule}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-200/60 dark:bg-stone-800/50 text-xs whitespace-nowrap text-stone-700 dark:text-stone-300"
-              >
-                {unit.syncError && (
-                  <span
-                    title="sync error"
-                    className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"
-                  />
-                )}
-                {hasActivity ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                ) : (
-                  isMetaRoot && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-                  )
-                )}
-                {unit.submodule}
-                {unit.branch !== unit.submodule && (
-                  <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
-                    {unit.branch}
-                  </span>
-                )}
-                {unit.detached && (
-                  <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
-                    detached
-                  </span>
-                )}
-                {(totalDirty > 0 || (d?.unpushedCommits ?? 0) > 0) && (
-                  <span className="font-mono text-[11px] text-amber-600 dark:text-amber-400 inline-flex gap-1">
-                    {totalDirty > 0 && <span>+{totalDirty}</span>}
-                    {d && d.unpushedCommits > 0 && <span>↑{d.unpushedCommits}</span>}
-                  </span>
-                )}
-                {unit.lastSyncedAt && (
-                  <span className="text-[10px] text-stone-400 dark:text-stone-600">
-                    {formatTimeAgo(unit.lastSyncedAt)}
-                  </span>
-                )}
-              </span>
-            );
-            return dirtyTooltip ? (
-              <TooltipTrigger key={unit.submodule} delay={400}>
-                <Button aria-label={dirtyTooltip} className="outline-none cursor-default">
-                  {chip}
-                </Button>
-                <Tooltip className="px-2 py-1 text-xs bg-stone-800 text-stone-200 rounded shadow-lg">
-                  {dirtyTooltip}
-                </Tooltip>
-              </TooltipTrigger>
-            ) : (
-              chip
-            );
-          })}
-        </div>
-      )}
-      {syncWorkUnits.isError && (
-        <p className="mt-2 text-xs text-red-400">
-          {syncWorkUnits.error instanceof Error ? syncWorkUnits.error.message : "Sync failed"}
-        </p>
-      )}
-    </div>
-  );
-}
 
 function ComponentsTab({
   bench,
@@ -918,15 +678,6 @@ export default function BenchDetail() {
             {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
           </Button>
         </div>
-      )}
-
-      {bench.workUnits && bench.workUnits.length > 0 && (
-        <WorkUnitsPanel
-          workUnits={bench.workUnits}
-          projectId={projectId}
-          benchId={benchId}
-          disableSourceSync={isFromPreviousIntegration}
-        />
       )}
 
       <Tabs

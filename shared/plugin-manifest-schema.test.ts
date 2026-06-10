@@ -99,7 +99,7 @@ describe("PluginManifestSchema: TC-006 happy paths", () => {
         type: "object",
         properties: { instance: { type: "string" } },
       },
-      capabilities: { prSync: true },
+      capabilities: {},
       icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>',
     });
     expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);

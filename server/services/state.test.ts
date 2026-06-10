@@ -1062,7 +1062,6 @@ describe("toPersistedBench", () => {
       assignedContainers: undefined,
       assignedIssue: undefined,
       notifications: [],
-      workUnits: undefined,
       baseBranch: "main",
       baseCommit: "abc1234",
     };
@@ -1077,7 +1076,6 @@ describe("toPersistedBench", () => {
       assignedContainers: undefined,
       assignedIssue: undefined,
       notifications: [],
-      workUnits: undefined,
       baseBranch: "main",
       baseCommit: "abc1234",
       componentSetupState: {},
@@ -1199,64 +1197,5 @@ describe("toPersistedBench", () => {
     const state = stateModule.loadState();
     expect(state.benches).toHaveLength(1);
     expect(state.benches[0].componentSetupState).toBeUndefined();
-  });
-});
-
-describe("workUnits round-trip", () => {
-  it("preserves workUnits through addBench → saveState", () => {
-    existsSync.mockReturnValue(false);
-
-    stateModule.addBench({
-      id: 1,
-      projectId: "project1",
-      branch: "main",
-      workspacePath: "/workspace",
-      ports: {},
-      createdAt: "2026-01-01T00:00:00.000Z",
-      workUnits: [
-        {
-          submodule: "api",
-          branch: "feat/my-feature",
-          workspacePath: "/workspace/api",
-          pullRequest: {
-            repoFullName: "acme/api",
-            number: 42,
-            title: "My feature",
-            state: "open",
-            merged: false,
-            url: "https://github.com/acme/api/pull/42",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          },
-          lastSyncedAt: "2026-01-01T01:00:00.000Z",
-        },
-      ],
-    });
-
-    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
-    expect(written.benches[0].workUnits).toHaveLength(1);
-    expect(written.benches[0].workUnits[0].submodule).toBe("api");
-    expect(written.benches[0].workUnits[0].pullRequest.number).toBe(42);
-    expect(written.benches[0].workUnits[0].lastSyncedAt).toBe("2026-01-01T01:00:00.000Z");
-  });
-
-  it("loads a legacy PersistedBench (no workUnits) without error", () => {
-    const legacy = {
-      benches: [
-        {
-          id: 1,
-          projectId: "project1",
-          branch: "main",
-          workspacePath: "/workspace",
-          ports: {},
-          createdAt: "2026-01-01T00:00:00.000Z",
-        },
-      ],
-    };
-    existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue(JSON.stringify(legacy));
-
-    const state = stateModule.loadState();
-    expect(state.benches).toHaveLength(1);
-    expect(state.benches[0].workUnits).toBeUndefined();
   });
 });

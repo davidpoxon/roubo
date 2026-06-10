@@ -58,11 +58,6 @@ vi.mock("../services/notification.js", () => ({
 
 vi.mock("../services/git-state.js", () => ({
   getDirtyState: vi.fn(),
-  buildKnownMergedLocations: vi.fn(() => new Set<string>()),
-}));
-
-vi.mock("../services/pr-sync.js", () => ({
-  syncBenchWorkUnitPRs: vi.fn(),
 }));
 
 import router from "./benches.js";
@@ -73,7 +68,6 @@ import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as notificationService from "../services/notification.js";
 import * as gitState from "../services/git-state.js";
-import * as prSync from "../services/pr-sync.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import {
   getActivePluginOrRespond,
@@ -542,21 +536,7 @@ describe("DELETE /:projectId/benches/:id", () => {
     const res = await request(app).delete("/my-project/benches/1?removeWorkspace=true");
     expect(res.status).toBe(202);
     expect(benchManager.teardownBench).toHaveBeenCalledWith("my-project", 1, true);
-    expect(gitState.getDirtyState).toHaveBeenCalledWith(
-      mockBench,
-      expect.objectContaining({ knownMergedLocations: expect.any(Set) }),
-    );
-  });
-
-  it("passes a knownMergedLocations set derived from the bench into getDirtyState", async () => {
-    vi.mocked(gitState.buildKnownMergedLocations).mockReturnValueOnce(new Set(["api", "web"]));
-
-    const res = await request(app).delete("/my-project/benches/1?removeWorkspace=true");
-    expect(res.status).toBe(202);
-    const call = vi.mocked(gitState.getDirtyState).mock.calls.at(-1);
-    expect(call?.[1]?.knownMergedLocations).toBeInstanceOf(Set);
-    expect([...(call?.[1]?.knownMergedLocations ?? new Set())].sort()).toEqual(["api", "web"]);
-    expect(gitState.buildKnownMergedLocations).toHaveBeenCalledWith(mockBench);
+    expect(gitState.getDirtyState).toHaveBeenCalledWith(mockBench);
   });
 
   it("returns 409 with bench-dirty code when bench is dirty and force is not set", async () => {
@@ -1009,90 +989,6 @@ describe("DELETE /:projectId/benches/:id/notifications/:notificationId", () => {
 
   it("returns 400 for non-numeric bench id", async () => {
     const res = await request(app).delete("/my-project/benches/abc/notifications/notif-1");
-    expect(res.status).toBe(400);
-  });
-});
-
-describe("POST /:projectId/benches/:id/sync", () => {
-  const benchWithWorkUnits = {
-    id: 1,
-    projectId: "my-project",
-    branch: "feat/my-feature",
-    workUnits: [{ submodule: "api", branch: "feat/api", workspacePath: "/ws/api" }],
-  };
-  const updatedBench = {
-    ...benchWithWorkUnits,
-    workUnits: [
-      {
-        ...benchWithWorkUnits.workUnits[0],
-        lastSyncedAt: "2024-01-01T00:00:00Z",
-      },
-    ],
-  };
-
-  beforeEach(() => {
-    vi.resetAllMocks();
-    vi.mocked(prSync.syncBenchWorkUnitPRs).mockResolvedValue(undefined);
-  });
-
-  it("syncs work units and returns updated bench", async () => {
-    vi.mocked(benchManager.getBench)
-      .mockReturnValueOnce(benchWithWorkUnits as any)
-      .mockReturnValueOnce(updatedBench as any);
-
-    const res = await request(app).post("/my-project/benches/1/sync");
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(updatedBench);
-    expect(prSync.syncBenchWorkUnitPRs).toHaveBeenCalledWith("my-project", benchWithWorkUnits);
-  });
-
-  it("returns 404 when bench does not exist", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue(undefined as any);
-    const res = await request(app).post("/my-project/benches/99/sync");
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBe("Bench not found");
-    expect(prSync.syncBenchWorkUnitPRs).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 when bench has no work units", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue({
-      id: 1,
-      workUnits: [],
-    } as any);
-    const res = await request(app).post("/my-project/benches/1/sync");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Bench has no work units to sync");
-    expect(prSync.syncBenchWorkUnitPRs).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 when bench has undefined workUnits", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue({ id: 1 } as any);
-    const res = await request(app).post("/my-project/benches/1/sync");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Bench has no work units to sync");
-  });
-
-  it("returns 500 when sync throws", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue(benchWithWorkUnits as any);
-    vi.mocked(prSync.syncBenchWorkUnitPRs).mockRejectedValue(new Error("GitHub unavailable"));
-    const res = await request(app).post("/my-project/benches/1/sync");
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe("GitHub unavailable");
-  });
-
-  it("returns 404 when bench is torn down during sync", async () => {
-    vi.mocked(benchManager.getBench)
-      .mockReturnValueOnce(benchWithWorkUnits as any)
-      .mockReturnValueOnce(undefined as any);
-
-    const res = await request(app).post("/my-project/benches/1/sync");
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBe("Bench not found");
-    expect(prSync.syncBenchWorkUnitPRs).toHaveBeenCalled();
-  });
-
-  it("returns 400 for non-numeric bench id", async () => {
-    const res = await request(app).post("/my-project/benches/abc/sync");
     expect(res.status).toBe(400);
   });
 });
