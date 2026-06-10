@@ -253,6 +253,33 @@ describe("CaseList level collapse (#508)", () => {
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
+
+  it("keeps the roving tab stop on the same case when a level above it collapses (corr-1)", () => {
+    // Cases span three levels. Focus a case below Level 1, then collapse Level 1:
+    // its rows are filtered out, shifting every lower row to a new array index.
+    // The single roving tab stop must follow the SAME case (resolved by id), not
+    // whatever case now sits at the old positional index.
+    render(<CaseList rows={rowsFor(30)} />);
+    const list = screen.getByRole("group");
+
+    // End focuses the last case, which lives in a level below Level 1.
+    fireEvent.keyDown(list, { key: "End" });
+    const focusedBefore = within(list)
+      .getAllByTestId("case-row")
+      .find((el) => el.getAttribute("tabindex") === "0");
+    // The row text carries the case id + title, so it uniquely identifies the case.
+    const identityBefore = focusedBefore?.textContent;
+    expect(identityBefore).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Level 1" }));
+
+    const focusedAfter = within(screen.getByRole("group"))
+      .getAllByTestId("case-row")
+      .filter((el) => el.getAttribute("tabindex") === "0");
+    // Still exactly one tab stop, and it is the same case as before the collapse.
+    expect(focusedAfter.length).toBe(1);
+    expect(focusedAfter[0].textContent).toBe(identityBefore);
+  });
 });
 
 describe("CaseList a11y", () => {

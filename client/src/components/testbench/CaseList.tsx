@@ -78,7 +78,12 @@ export default function CaseList({
     () => rows.map((r, i) => (r.kind === "case" ? i : -1)).filter((i) => i >= 0),
     [rows],
   );
-  const [focusedIndex, setFocusedIndex] = useState<number>(() => caseIndices[0] ?? -1);
+  // Track the focused case by stable id, not array position. Collapsing a level
+  // re-filters `rows`, so a positional index would silently point at a different
+  // case after the shift; resolving by id keeps the roving tabindex and focus
+  // ring on the same case across collapse/expand (#508). Undefined falls back to
+  // the first case below.
+  const [focusedCaseId, setFocusedCaseId] = useState<string | undefined>(undefined);
 
   const sizeAt = useCallback((index: number) => rowSize(rows[index]), [rows]);
   const { totalSize, virtualRows, offsetForIndex } = useWindowedRows(
@@ -87,16 +92,16 @@ export default function CaseList({
     sizeAt,
   );
 
-  // Clamp to a row that actually exists. focusedIndex is state that survives a
-  // rows change (the plan can refetch to a smaller plan while this list stays
-  // mounted), so a stale index could point past the new case list. Falling back
-  // to the first case keeps the render path (and the always-mounted focused row
-  // below) from ever referencing a row that no longer exists. The stored state
-  // resyncs on the next keyboard navigation (onKeyDown clamps via indexOf) or
-  // when the list is tabbed into (onFocus updates it), so no effect is needed.
-  const activeFocusIndex = caseIndices.includes(focusedIndex)
-    ? focusedIndex
-    : (caseIndices[0] ?? -1);
+  // Resolve the focused case's current row index by id. The index shifts when a
+  // level collapses (rows re-filter) or the plan refetches smaller, so we look it
+  // up fresh each render rather than trusting a stored position. Falls back to the
+  // first case when the focused case is hidden inside a collapsed level or no
+  // longer exists, so the render path (and the always-mounted focused row below)
+  // never references a row that is not present.
+  const focusedRowIndex = focusedCaseId
+    ? rows.findIndex((r) => r.kind === "case" && r.row.case.id === focusedCaseId)
+    : -1;
+  const activeFocusIndex = focusedRowIndex >= 0 ? focusedRowIndex : (caseIndices[0] ?? -1);
 
   // Always mount the focused row, even when a large Home/End jump leaves it
   // outside the current scroll window. Keyboard focus must be able to land on it
@@ -117,8 +122,10 @@ export default function CaseList({
   const moveFocus = useCallback(
     (target: number) => {
       if (target < 0) return;
+      const targetRow = rows[target];
+      if (!targetRow || targetRow.kind !== "case") return;
       pendingFocusRef.current = true;
-      setFocusedIndex(target);
+      setFocusedCaseId(targetRow.row.case.id);
       // Scroll the target into view. Focus itself is handled by the layout effect
       // below, which fires after the row (always mounted via renderedRows) commits.
       const el = scrollRef.current;
@@ -129,7 +136,7 @@ export default function CaseList({
         else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
       }
     },
-    [offsetForIndex],
+    [offsetForIndex, rows],
   );
 
   // Move DOM focus onto the focused row after it renders. Because the focused row
@@ -138,18 +145,18 @@ export default function CaseList({
   useLayoutEffect(() => {
     if (!pendingFocusRef.current) return;
     const node = scrollRef.current?.querySelector<HTMLElement>(
-      `[data-row-index="${focusedIndex}"]`,
+      `[data-row-index="${activeFocusIndex}"]`,
     );
     if (node) {
       node.focus();
       pendingFocusRef.current = false;
     }
-  }, [focusedIndex]);
+  }, [activeFocusIndex]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (caseIndices.length === 0) return;
-      const pos = caseIndices.indexOf(focusedIndex);
+      const pos = caseIndices.indexOf(activeFocusIndex);
       if (e.key === "ArrowDown") {
         e.preventDefault();
         const next =
@@ -167,14 +174,14 @@ export default function CaseList({
         moveFocus(caseIndices[caseIndices.length - 1]);
       } else if (e.key === "Enter" || e.key === " ") {
         // Activate the focused case: open its detail pane (#420).
-        const row = rows[focusedIndex];
+        const row = rows[activeFocusIndex];
         if (row?.kind === "case") {
           e.preventDefault();
           onSelect?.(row.row.case.id);
         }
       }
     },
-    [caseIndices, focusedIndex, moveFocus, onSelect, rows],
+    [caseIndices, activeFocusIndex, moveFocus, onSelect, rows],
   );
 
   return (
@@ -248,7 +255,7 @@ export default function CaseList({
                 role="button"
                 aria-pressed={isSelected}
                 tabIndex={isFocused ? 0 : -1}
-                onFocus={() => setFocusedIndex(item.index)}
+                onFocus={() => setFocusedCaseId(row.row.case.id)}
                 onClick={() => onSelect?.(row.row.case.id)}
                 className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
                   isSelected
