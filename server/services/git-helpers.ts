@@ -30,8 +30,7 @@ export const SENTINEL_AUTHOR_EMAIL = "unknown@roubo.local";
  * bench workspace at `repoPath`, with a graceful sentinel fallback.
  *
  * Author stamping (FR-012) must never fail a note/mark write, so this probe
- * follows the fail-quiet pattern of {@link probeHeadBranch} /
- * {@link probeDirtyCounts}: it never throws.
+ * follows a fail-quiet pattern: it never throws.
  *
  * - Both `user.name` and `user.email` resolve to non-empty values: returns
  *   `{ name, email }` with no `isSentinel` flag.
