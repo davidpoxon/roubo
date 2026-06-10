@@ -1,7 +1,7 @@
 {
   "$schema": "https://roubo.dev/schema/testbench/test-results/v2.0.0.json",
   "schemaVersion": "2.0.0",
-  "planHash": "cc5c044432e6ac0bfe417598da0741cd2ca4985456452c564d477f9f6d9638c4",
+  "planHash": "357582bb4de58d3bbd02b48452d904297ebf55d8c9fde40ce4e3357727098629",
   "caseResults": {
     "TC-001": {
       "observationMarks": {
@@ -127,7 +127,8 @@
         }
       },
       "derivedStatus": "passed",
-      "notes": []
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-001\",\"title\":\"Create a TestBench from an empty bench slot using a discovered spec\",\"level\":\"1\",\"preconditions\":[\"TestBench feature is enabled in settings.\",\"At least one bench slot is empty\",\"The focused project repo contains at least one file matching .specifications/*/test-cases.json\",\"User is on the bench list view for the project\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Open the option menu on an empty bench slot\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Click 'Create a TestBench' from the option menu\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Spec-picker modal opens\"},{\"id\":\"S002-O02\",\"expected\":\"'Create a TestBench' option is present in the menu\"}]},{\"id\":\"S003\",\"instruction\":\"Observe the discovered-specs list in the modal\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"Each discovered spec row shows slug, file path, and case count\"},{\"id\":\"S003-O02\",\"expected\":\"At least one row matches a .specifications/*/test-cases.json file in the repo\"}]},{\"id\":\"S004\",\"instruction\":\"Click a spec row to select it\",\"observations\":[{\"id\":\"S004-O01\",\"expected\":\"Row is highlighted as selected\"},{\"id\":\"S004-O02\",\"expected\":\"Create button becomes enabled\"}]},{\"id\":\"S005\",\"instruction\":\"Click the Create button\",\"observations\":[{\"id\":\"S005-O01\",\"expected\":\"Modal closes\"},{\"id\":\"S005-O02\",\"expected\":\"Bench is created with a worktree bound to the selected spec\"},{\"id\":\"S005-O03\",\"expected\":\"Bench detail view opens\"}]},{\"id\":\"S006\",\"instruction\":\"Observe the tabs in the bench detail view\",\"observations\":[{\"id\":\"S006-O01\",\"expected\":\"A 'TestBench' tab is the first tab with an amber accent dot\"},{\"id\":\"S006-O02\",\"expected\":\"Standard tabs (Components, Terminal, Info) are also present\"},{\"id\":\"S006-O03\",\"expected\":\"Inspection tab is present if previously configured\"}]},{\"id\":\"S007\",\"instruction\":\"Click the TestBench tab\",\"observations\":[{\"id\":\"S007-O01\",\"expected\":\"TestBench content loads\"},{\"id\":\"S007-O02\",\"expected\":\"The focused spec slug and path are displayed\"},{\"id\":\"S007-O03\",\"expected\":\"The results panel is visible\"}]}]}"
     },
     "TC-002": {
       "observationMarks": {
@@ -149,7 +150,8 @@
         }
       },
       "derivedStatus": "passed",
-      "notes": []
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-002\",\"title\":\"Create TestBench option is absent when the feature is disabled\",\"level\":\"1\",\"preconditions\":[\"TestBench feature is disabled in settings\",\"At least one bench slot is empty\",\"User is on the bench list view\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Open the option menu on an empty bench slot\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"'Create a TestBench' option is NOT present\"},{\"id\":\"S001-O02\",\"expected\":\"Normal bench setup options remain visible\"}]}]}"
     },
     "TC-018": {
       "observationMarks": {
@@ -203,7 +205,8 @@
         }
       },
       "derivedStatus": "passed",
-      "notes": []
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-018\",\"title\":\"Review UI renders the grouped case list and progress bar on open\",\"level\":\"1\",\"preconditions\":[\"A plan with at least one case per level (L1-L4) is loaded\",\"The review tab is accessible\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Navigate to the TestBench review tab for the loaded plan\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Observe the left-pane case list\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Cases are grouped by level/priority with visible group headings\"},{\"id\":\"S002-O02\",\"expected\":\"Each row shows a status indicator (dot and label)\"},{\"id\":\"S002-O03\",\"expected\":\"Raw JSON is not exposed\"}]},{\"id\":\"S003\",\"instruction\":\"Observe the header area\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"A segmented progress bar (passed/failed/open) is visible\"},{\"id\":\"S003-O02\",\"expected\":\"Mono counts are displayed\"},{\"id\":\"S003-O03\",\"expected\":\"Overall progress reflects the initial not_started state\"}]}]}"
     },
     "TC-019": {
       "observationMarks": {
@@ -265,7 +268,8 @@
         }
       },
       "derivedStatus": "passed",
-      "notes": []
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-019\",\"title\":\"Case detail shows full metadata, preconditions, steps, and observations\",\"level\":\"1\",\"preconditions\":[\"A plan is loaded with a case that has preconditions, multiple steps, and expected observations per step\",\"The review UI is open\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Click a case row in the left pane\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Observe the right detail pane\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Case title is displayed\"},{\"id\":\"S002-O02\",\"expected\":\"Case id, level, and priority are shown\"},{\"id\":\"S002-O03\",\"expected\":\"Preconditions list is rendered in order\"},{\"id\":\"S002-O04\",\"expected\":\"Ordered steps are displayed sequentially\"},{\"id\":\"S002-O05\",\"expected\":\"Each step shows its expected observations\"},{\"id\":\"S002-O06\",\"expected\":\"Each observation has a pass/fail mark control\"},{\"id\":\"S002-O07\",\"expected\":\"Raw JSON is not visible\"}]}]}"
     },
     "TC-038": {
       "observationMarks": {
@@ -295,7 +299,8 @@
         }
       },
       "derivedStatus": "passed",
-      "notes": []
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-038\",\"title\":\"Result marks persist across page reload\",\"level\":\"1\",\"preconditions\":[\"A project is registered and its roubo.yaml is valid\",\"A spec exists at .specifications/<slug>/test-cases.json with at least two cases\",\"TestBench is open for the spec on bench-1\",\"No prior test-results.json exists\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Mark TC-001 pass and TC-002 fail using the result controls\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Reload the browser tab\",\"observations\":[]},{\"id\":\"S003\",\"instruction\":\"Re-open the TestBench tab for the same spec and bench\",\"observations\":[]},{\"id\":\"S004\",\"instruction\":\"Observe the result state\",\"observations\":[{\"id\":\"S004-O01\",\"expected\":\"TC-001 shows pass\"},{\"id\":\"S004-O02\",\"expected\":\"TC-002 shows fail\"},{\"id\":\"S004-O03\",\"expected\":\"No data-loss error or recovery prompt is shown\"}]}]}"
     },
     "TC-039": {
       "observationMarks": {
@@ -344,8 +349,360 @@
           "timestamp": "2026-06-09T10:59:40.760Z",
           "statusAtWrite": "passed"
         }
-      ]
+      ],
+      "caseCanon": "{\"id\":\"TC-039\",\"title\":\"Result sidecar is written beside the spec in the focused project repo, not in ~/.roubo\",\"level\":\"1\",\"preconditions\":[\"A project is registered with repoPath /path/to/project\",\"A spec slug 'checkout-flow' exists under .specifications/checkout-flow/\",\"TestBench is open for this spec on bench-2\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Mark any case pass\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Inspect the filesystem for the created results file\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"/path/to/project/.specifications/checkout-flow/test-results.json is created\"},{\"id\":\"S002-O02\",\"expected\":\"No test-results.json appears anywhere under ~/.roubo\"}]},{\"id\":\"S003\",\"instruction\":\"Verify the file structure\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"That entry contains result records keyed by case id\"}]}]}"
+    },
+    "TC-040": {
+      "observationMarks": {
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:42:53.194Z"
+        },
+        "S003-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:42:54.128Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-040\",\"title\":\"Source test-cases.json is never mutated when saving results or reconciling\",\"level\":\"1\",\"preconditions\":[\"A spec with test-cases.json exists under .specifications/my-spec/\",\"The SHA-256 checksum of test-cases.json is recorded before the run\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Mark several cases pass and fail and add notes\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Edit the plan to trigger staleness and apply reconcile\",\"observations\":[]},{\"id\":\"S003\",\"instruction\":\"Verify the SHA-256 checksum of test-cases.json against the recorded value\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"Checksum is identical: test-cases.json has zero bytes changed\"},{\"id\":\"S003-O02\",\"expected\":\"Only test-results.json was written or modified\"}]}]}"
+    },
+    "TC-054": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:48:37.906Z"
+        },
+        "S001-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:48:38.735Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-054\",\"title\":\"A conforming test-cases.json validates successfully\",\"level\":\"1\",\"preconditions\":[\"The zod source for the test-cases schema is compiled and exported\",\"A well-formed test-cases.json fixture exists with all required fields populated\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Load the conforming test-cases.json fixture through the validator\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"Validation returns success with zero errors\"},{\"id\":\"S001-O02\",\"expected\":\"The parsed result matches the input fixture\"}]}]}"
+    },
+    "TC-055": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:51:54.371Z"
+        },
+        "S001-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:51:54.865Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-055\",\"title\":\"A conforming test-results.json referencing valid case ids validates successfully\",\"level\":\"1\",\"preconditions\":[\"The zod source for the test-results schema is compiled and exported\",\"A well-formed test-results.json fixture references case ids present in the corresponding test-cases.json\",\"The results file requires no edits to test-cases.json to be valid\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Load the conforming test-results.json fixture through the validator\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"Validation returns success with zero errors\"},{\"id\":\"S001-O02\",\"expected\":\"All result entries and referenced case ids are preserved\"}]}]}"
+    },
+    "TC-066": {
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:15.035Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:16.032Z"
+        },
+        "S002-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:18.097Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-066\",\"title\":\"TestBench tab appears in app settings and the toggle defaults to enabled\",\"level\":\"1\",\"preconditions\":[\"Roubo is running\",\"No prior UserPreferences entry for the TestBench toggle exists (fresh state)\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Open app settings\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Click the 'TestBench' tab\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"A 'TestBench' tile is shown with a label, description, and a switch\"},{\"id\":\"S002-O02\",\"expected\":\"The switch is ON (enabled) by default\"},{\"id\":\"S002-O03\",\"expected\":\"No 'Disabled' helper text is shown\"}]}]}"
+    },
+    "TC-069": {
+      "observationMarks": {
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:30.353Z"
+        },
+        "S004-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:45.274Z"
+        },
+        "S004-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:45.814Z"
+        },
+        "S005-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:51.926Z"
+        },
+        "S005-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:55.751Z"
+        },
+        "S006-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:58.567Z"
+        },
+        "S006-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:52:59.016Z"
+        },
+        "S007-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:53:00.744Z"
+        },
+        "S007-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:53:01.878Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-069\",\"title\":\"E2E: toggle TestBench off, verify hidden, toggle on, verify restored\",\"level\":\"1\",\"preconditions\":[\"Roubo is running\",\"TestBench is enabled (toggle ON)\",\"The main UI shows the create-TestBench option and surface\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Open app settings\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Navigate to the 'TestBench' tab\",\"observations\":[]},{\"id\":\"S003\",\"instruction\":\"Observe the switch state\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"Switch is ON (amber) with no disabled helper text\"}]},{\"id\":\"S004\",\"instruction\":\"Click the switch to toggle OFF\",\"observations\":[{\"id\":\"S004-O01\",\"expected\":\"Switch turns OFF\"},{\"id\":\"S004-O02\",\"expected\":\"The disabled helper text appears\"}]},{\"id\":\"S005\",\"instruction\":\"Close app settings and inspect the main UI\",\"observations\":[{\"id\":\"S005-O01\",\"expected\":\"The create-TestBench option is absent\"},{\"id\":\"S005-O02\",\"expected\":\"The TestBench surface is not accessible\"}]},{\"id\":\"S006\",\"instruction\":\"Re-open settings, navigate to the 'TestBench' tab, and toggle ON\",\"observations\":[{\"id\":\"S006-O01\",\"expected\":\"Switch turns ON\"},{\"id\":\"S006-O02\",\"expected\":\"The disabled helper text is removed\"}]},{\"id\":\"S007\",\"instruction\":\"Close settings and inspect the main UI\",\"observations\":[{\"id\":\"S007-O01\",\"expected\":\"The create-TestBench option is visible again\"},{\"id\":\"S007-O02\",\"expected\":\"The TestBench feature surface is accessible again\"}]}]}"
+    },
+    "TC-003": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:55:22.679Z"
+        },
+        "S001-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:55:37.048Z"
+        },
+        "S001-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:55:38.454Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-003\",\"title\":\"Spec-picker modal lists all discovered test-cases.json files from the repo\",\"level\":\"2\",\"preconditions\":[\"TestBench feature is enabled\",\"The repo contains .specifications/alpha/test-cases.json, .specifications/beta/test-cases.json, .specifications/gamma/test-cases.json\",\"User has opened the Create a TestBench modal\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Observe the discovered-specs list\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"Exactly three rows: alpha, beta, gamma\"},{\"id\":\"S001-O02\",\"expected\":\"Each row shows slug, relative path, and case count\"},{\"id\":\"S001-O03\",\"expected\":\"No rows from outside .specifications/ are shown\"}]}]}"
+    },
+    "TC-004": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:57:33.056Z"
+        },
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:57:35.980Z"
+        },
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:57:36.934Z"
+        },
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T22:57:40.243Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-004\",\"title\":\"Create button is disabled until a spec is selected\",\"level\":\"2\",\"preconditions\":[\"TestBench feature is enabled\",\"User has opened the Create a TestBench modal\",\"No spec is selected and the manual-path input is empty\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Observe the Create button state\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"Create button is visually disabled and cannot be clicked\"}]},{\"id\":\"S002\",\"instruction\":\"Click the Create button without making a selection\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"No bench is created\"},{\"id\":\"S002-O02\",\"expected\":\"Modal remains open\"}]},{\"id\":\"S003\",\"instruction\":\"Select a spec row from the discovered list\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"Create button becomes enabled\"}]}]}"
+    },
+    "TC-005": {
+      "observationMarks": {
+        "S001-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:01:10.180Z"
+        },
+        "S001-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:01:14.139Z"
+        },
+        "S001-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:01:17.729Z"
+        },
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:01:21.171Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-005\",\"title\":\"TestBench tab appears first and all standard bench tabs are retained\",\"level\":\"2\",\"preconditions\":[\"TestBench feature is enabled\",\"A TestBench has been created and bound to a spec\",\"The bench has Components, Terminal, Inspection, and Info tabs configured\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Navigate to the bench detail view for the TestBench\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"The first tab is 'TestBench' with an amber accent dot\"},{\"id\":\"S001-O02\",\"expected\":\"Components, Terminal, Inspection, and Info tabs are present\"},{\"id\":\"S001-O03\",\"expected\":\"Tab order is TestBench, then the existing tabs in their original order\"}]},{\"id\":\"S002\",\"instruction\":\"Click each standard tab (Components, Terminal, Inspection, Info)\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Each tab opens and displays its normal content without interference from TestBench\"}]}]}"
+    },
+    "TC-006": {
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:30.548Z"
+        },
+        "S003-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:32.843Z"
+        },
+        "S003-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:33.833Z"
+        },
+        "S003-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:34.911Z"
+        },
+        "S004-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:36.932Z"
+        },
+        "S004-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:38.558Z"
+        },
+        "S004-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-09T23:02:42.013Z"
+        }
+      },
+      "derivedStatus": "passed",
+      "notes": [],
+      "caseCanon": "{\"id\":\"TC-006\",\"title\":\"Create a TestBench with a valid manual file path\",\"level\":\"2\",\"preconditions\":[\"TestBench feature is enabled\",\"An empty bench slot exists\",\"A valid test-cases.json exists at a known path within the registered project repo\",\"User has opened the Create a TestBench modal\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Locate the manual-path input field in the modal\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Type a valid path to a test-cases.json within the project repo\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Input shows a validating indicator while the path is validated\"}]},{\"id\":\"S003\",\"instruction\":\"Wait for validation to complete\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"Input shows a green check (valid state)\"},{\"id\":\"S003-O02\",\"expected\":\"Create button becomes enabled\"},{\"id\":\"S003-O03\",\"expected\":\"No error message is shown\"}]},{\"id\":\"S004\",\"instruction\":\"Click the Create button\",\"observations\":[{\"id\":\"S004-O01\",\"expected\":\"Modal closes\"},{\"id\":\"S004-O02\",\"expected\":\"TestBench is created bound to the manually specified spec\"},{\"id\":\"S004-O03\",\"expected\":\"Bench detail opens with the TestBench tab showing the correct spec path\"}]}]}"
     }
   },
-  "updatedAt": "2026-06-09T10:59:40.761Z"
+  "updatedAt": "2026-06-09T23:02:42.014Z"
 }
