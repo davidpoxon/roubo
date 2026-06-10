@@ -1544,30 +1544,56 @@
       "caseCanon": "{\"id\":\"TC-036\",\"title\":\"Marking observations is fully keyboard operable with visible focus\",\"level\":\"2\",\"preconditions\":[\"A plan is loaded with at least two cases, each with unmarked observations\",\"Keyboard-only navigation is in use\",\"Review tab is focused\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Tab through the case list rows\",\"observations\":[{\"id\":\"S001-O01\",\"expected\":\"Each row receives a visible focus indicator\"},{\"id\":\"S001-O02\",\"expected\":\"Focus order is logical\"}]},{\"id\":\"S002\",\"instruction\":\"Activate a case via keyboard and move to the detail pane\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Detail pane opens and focus moves to the first interactive element\"}]},{\"id\":\"S003\",\"instruction\":\"Tab to a pass/fail mark control and mark it via keyboard\",\"observations\":[{\"id\":\"S003-O01\",\"expected\":\"The mark control shows a visible focus ring\"},{\"id\":\"S003-O02\",\"expected\":\"The observation is marked without a mouse\"},{\"id\":\"S003-O03\",\"expected\":\"Keyboard activation is equivalent to clicking\"}]}]}"
     },
     "TC-035": {
-      "observationMarks": {},
-      "derivedStatus": "not_started",
-      "statusOverride": {
-        "status": "blocked",
-        "author": {
-          "name": "David Poxon",
-          "email": "david@poxon.au"
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-10T11:14:08.160Z"
         },
-        "timestamp": "2026-06-10T02:48:45.364Z"
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-10T11:14:10.896Z"
+        },
+        "S002-O03": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-10T11:14:12.188Z"
+        }
       },
+      "derivedStatus": "passed",
       "notes": [],
       "caseCanon": "{\"id\":\"TC-035\",\"title\":\"Virtualised list renders a 500-case plan at p95 under 300ms after data load\",\"level\":\"2\",\"preconditions\":[\"A synthetic plan of exactly 500 cases across all levels is prepared\",\"A render-timing harness is active\",\"No prior render of this plan is cached\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Trigger data load for the 500-case plan and start timing\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Measure the time from data-load completion to the case list being interactive\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"p95 render time is under 300ms\"},{\"id\":\"S002-O02\",\"expected\":\"List virtualisation is active: only a windowed subset of DOM nodes is rendered (not all 500)\"},{\"id\":\"S002-O03\",\"expected\":\"Scrolling is smooth without layout thrash\"}]}]}"
     },
     "TC-037": {
-      "observationMarks": {},
-      "derivedStatus": "not_started",
-      "statusOverride": {
-        "status": "blocked",
-        "author": {
-          "name": "David Poxon",
-          "email": "david@poxon.au"
+      "observationMarks": {
+        "S002-O01": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-10T11:22:21.138Z"
         },
-        "timestamp": "2026-06-10T02:48:48.826Z"
+        "S002-O02": {
+          "result": "pass",
+          "author": {
+            "name": "David Poxon",
+            "email": "david@poxon.au"
+          },
+          "timestamp": "2026-06-10T11:22:21.768Z"
+        }
       },
+      "derivedStatus": "passed",
       "notes": [],
       "caseCanon": "{\"id\":\"TC-037\",\"title\":\"Review UI produces zero vitest-axe violations on render\",\"level\":\"2\",\"preconditions\":[\"A plan with several cases across levels is loaded\",\"vitest-axe is configured\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Render the review UI with a populated plan in the test harness\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Run vitest-axe against the rendered tree\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"Zero accessibility violations are reported\"},{\"id\":\"S002-O02\",\"expected\":\"WCAG 2.1 AA ruleset is applied\"}]}]}"
     },
@@ -1777,5 +1803,5 @@
       "caseCanon": "{\"id\":\"TC-043\",\"title\":\"E2E: record results, update plan, detect staleness, reconcile, verify data integrity\",\"level\":\"2\",\"preconditions\":[\"A project is registered with a valid roubo.yaml\",\"Spec 'auth-flow' has cases TC-A, TC-B, TC-C\",\"TestBench is open for auth-flow on bench-1\",\"No prior test-results.json exists\"],\"steps\":[{\"id\":\"S001\",\"instruction\":\"Mark TC-A pass, TC-B fail with note 'broken redirect', TC-C pass\",\"observations\":[]},{\"id\":\"S002\",\"instruction\":\"Reload the TestBench tab and confirm results persisted\",\"observations\":[{\"id\":\"S002-O01\",\"expected\":\"TC-A pass, TC-B fail with note, TC-C pass\"}]},{\"id\":\"S003\",\"instruction\":\"Edit test-cases.json: remove TC-B, add TC-D\",\"observations\":[]},{\"id\":\"S004\",\"instruction\":\"Navigate away from and back to the TestBench tab\",\"observations\":[{\"id\":\"S004-O01\",\"expected\":\"An amber staleness banner is shown\"}]},{\"id\":\"S005\",\"instruction\":\"Click 'Reconcile' on the banner\",\"observations\":[]},{\"id\":\"S006\",\"instruction\":\"Inspect the reconcile dialog\",\"observations\":[{\"id\":\"S006-O01\",\"expected\":\"TC-D is listed as Added\"},{\"id\":\"S006-O02\",\"expected\":\"TC-B is listed as Orphan with its fail mark and note preserved\"}]},{\"id\":\"S007\",\"instruction\":\"Click 'Apply (keep orphans)'\",\"observations\":[{\"id\":\"S007-O01\",\"expected\":\"TC-A and TC-C remain active with their pass marks\"},{\"id\":\"S007-O02\",\"expected\":\"TC-D appears active with no mark\"},{\"id\":\"S007-O03\",\"expected\":\"TC-B appears archived with its fail mark and note\"},{\"id\":\"S007-O04\",\"expected\":\"The rollup counts only TC-A and TC-C\"},{\"id\":\"S007-O05\",\"expected\":\"The staleness banner is dismissed\"}]},{\"id\":\"S008\",\"instruction\":\"Inspect .specifications/auth-flow/test-results.json on disk\",\"observations\":[{\"id\":\"S008-O01\",\"expected\":\"The file contains a bench-1 key with results for TC-A, TC-B (archived), TC-C\"},{\"id\":\"S008-O02\",\"expected\":\"test-cases.json checksum is unchanged\"}]}]}"
     }
   },
-  "updatedAt": "2026-06-10T02:51:51.680Z"
+  "updatedAt": "2026-06-10T11:22:25.340Z"
 }
