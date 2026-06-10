@@ -529,12 +529,6 @@ export interface Bench {
   assignedIssue?: AssignedIssue;
   notifications: BenchNotification[];
   /**
-   * Per-submodule work units. Present for meta-repo benches.
-   * Absent on single-repo/monorepo benches (the root branch/workspacePath
-   * fields above are canonical for those).
-   */
-  workUnits?: BenchWorkUnit[];
-  /**
    * The branch the worktree was cut from (e.g. "main"). Captured at
    * provisioning time. Absent on benches created before this field existed.
    */
@@ -569,64 +563,6 @@ export interface Bench {
    * with resolveWithin when loaded (enforcement lives in the testbench store).
    */
   focusedSpecPath?: string;
-}
-
-/**
- * One submodule's slice of a meta-repo bench. Each participating submodule
- * in a meta-repo bench maps to one BenchWorkUnit; the meta-repo root may
- * optionally have an entry as well.
- *
- * Single-repo and monorepo benches do not use this type; their branch and
- * workspacePath are stored directly on Bench (and Bench.workUnits is absent).
- */
-export interface BenchWorkUnit {
-  /**
-   * Submodule key from `LayoutConfig.submodules`, or the reserved literal "."
-   * for the meta-repo root. A submodule key of "." in `roubo.yaml` is rejected
-   * at config-parse time to prevent collision with this reserved key.
-   */
-  submodule: string;
-  /** Git branch checked out in this submodule's worktree. */
-  branch: string;
-  /**
-   * True when the last sync observed the submodule HEAD as detached (no branch ref).
-   * The `branch` field retains the last-known branch for display continuity.
-   * Always false / absent for the "." root work unit.
-   */
-  detached?: boolean;
-  /**
-   * Filesystem-level activity probed at last sync. Absent until first sync completes.
-   * `modifiedCount` counts staged + unstaged (non-untracked) files.
-   * `unpushedCommits` counts commits ahead of upstream, or unique commits not on any
-   * remote if no upstream is configured. Zero when HEAD is detached or on error.
-   */
-  dirtyState?: {
-    modifiedCount: number;
-    untrackedCount: number;
-    unpushedCommits: number;
-  };
-  /** Absolute path to the submodule worktree on disk. */
-  workspacePath: string;
-  /** The tracked open PR, if any. Absent until first sync completes. */
-  pullRequest?: TrackedPullRequest;
-  /** Last successful PR sync timestamp (ISO). Undefined if never synced. */
-  lastSyncedAt?: string;
-  /** Populated if the last sync attempt failed. */
-  syncError?: string;
-}
-
-export interface TrackedPullRequest {
-  /** Owner/name of the repo hosting this PR (e.g. "acme/api"). */
-  repoFullName: string;
-  number: number;
-  title: string;
-  /** Raw GitHub state: open | closed. When merged is true, state will be 'closed'. */
-  state: "open" | "closed";
-  merged: boolean;
-  /** HTML URL for UI linking. */
-  url: string;
-  /** GitHub updatedAt, used for ETag-style short-circuiting. */
-  updatedAt: string;
 }
 
 // ── Git dirty-state types ──
@@ -665,8 +601,7 @@ export type NotificationType =
   | "bench-ready"
   | "bench-error"
   | "inspection-complete"
-  | "component-error"
-  | "sync-error";
+  | "component-error";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -767,8 +702,6 @@ export interface PersistedBench {
   assignedContainers?: Record<string, AssignedContainer>;
   assignedIssue?: AssignedIssue;
   notifications?: BenchNotification[];
-  /** Persisted mirror of Bench.workUnits. */
-  workUnits?: BenchWorkUnit[];
   /** Persisted mirror of Bench.baseBranch. */
   baseBranch?: string;
   /** Persisted mirror of Bench.baseCommit. */
@@ -1230,7 +1163,6 @@ export interface AssignedIssue {
    * PRs seeded at assignment time from CrossReferencedEvent timeline items
    * (e.g. `Closes #123` in PR bodies). Does not include PRs linked via
    * GitHub's UI sidebar (DevelopmentEvent/ConnectedEvent).
-   * This seeds the bench's workUnits[].pullRequest map at provisioning time.
    */
   // Optional for backwards compat: state.json persisted before this field was added will lack it.
   linkedPullRequests?: Array<{

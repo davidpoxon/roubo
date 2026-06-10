@@ -1,45 +1,10 @@
 import path from "node:path";
-import type { Bench, BenchWorkUnit, DirtyReason, DirtyState } from "@roubo/shared";
+import type { Bench, DirtyReason, DirtyState } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import { isBenchOperable } from "./bench-operability.js";
 
-export interface DirtyStateOptions {
-  /**
-   * Locations (workspace or submodule `$displaypath`) whose branch is
-   * known-merged via an external signal (e.g. a tracked PR with `merged: true`).
-   * For these locations we skip the unpushed/no-upstream checks entirely. The
-   * worktree and stash checks still run, since post-merge edits or stashes are
-   * still real reasons to warn the user.
-   */
-  knownMergedLocations?: Set<string>;
-}
-
 function execGit(args: string[], cwd: string) {
   return runCommand("git", args, cwd);
-}
-
-/**
- * Builds the per-location merge hint set for a bench from its work units.
- * A work unit is treated as known-merged when its tracked PR is merged.
- *
- * The returned keys must match the `location` strings used by `getDirtyState`:
- * `"workspace"` for the meta-repo root, and the submodule's on-disk
- * `$displaypath` (forward-slash relative path) for each submodule. The
- * `wu.submodule` field is the roubo.yaml LayoutConfig key, which may differ
- * from the displaypath, so we derive the location from `workspacePath` instead.
- */
-export function buildKnownMergedLocations(bench: Bench): Set<string> {
-  const set = new Set<string>();
-  for (const wu of bench.workUnits ?? ([] as BenchWorkUnit[])) {
-    if (wu.pullRequest?.merged !== true) continue;
-    if (wu.submodule === ".") {
-      set.add("workspace");
-      continue;
-    }
-    const rel = path.relative(bench.workspacePath, wu.workspacePath).split(path.sep).join("/");
-    if (rel) set.add(rel);
-  }
-  return set;
 }
 
 async function enumerateSubmodules(
@@ -201,25 +166,20 @@ async function checkUnpushed(location: string, cwd: string): Promise<DirtyReason
 async function checkLocation({
   location,
   cwd,
-  skipUnpushed,
 }: {
   location: string;
   cwd: string;
-  skipUnpushed: boolean;
 }): Promise<DirtyReason[]> {
   const checks: Promise<DirtyReason | null>[] = [
     checkDirtyWorktree(location, cwd),
     checkStashes(location, cwd),
+    checkUnpushed(location, cwd),
   ];
-  if (!skipUnpushed) checks.push(checkUnpushed(location, cwd));
   const results = await Promise.all(checks);
   return results.filter((r): r is DirtyReason => r !== null);
 }
 
-export async function getDirtyState(
-  bench: Bench,
-  options?: DirtyStateOptions,
-): Promise<DirtyState> {
+export async function getDirtyState(bench: Bench): Promise<DirtyState> {
   // A non-operable bench (blank workspacePath, see bench-operability.ts) was never
   // provisioned, so it has no worktree to probe and no uncommitted work to protect.
   // Treat it as clean here, the single chokepoint for every caller (the DELETE route,
@@ -229,13 +189,10 @@ export async function getDirtyState(
     return { clean: true, reasons: [] };
   }
 
-  const knownMerged = options?.knownMergedLocations ?? new Set<string>();
   const submodules = await enumerateSubmodules(bench.workspacePath);
   const locations = [{ location: "workspace", cwd: bench.workspacePath }, ...submodules];
   const perLocation = await Promise.all(
-    locations.map(({ location, cwd }) =>
-      checkLocation({ location, cwd, skipUnpushed: knownMerged.has(location) }),
-    ),
+    locations.map(({ location, cwd }) => checkLocation({ location, cwd })),
   );
   const reasons = perLocation.flat();
   reasons.sort((a, b) => a.location.localeCompare(b.location) || a.kind.localeCompare(b.kind));

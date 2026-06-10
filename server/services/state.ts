@@ -214,7 +214,6 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
-    workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,

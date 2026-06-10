@@ -100,7 +100,6 @@ GET    /api/projects/:projectId/benches/:id   Get bench detail
 DELETE /api/projects/:projectId/benches/:id   Clear (?removeWorkspace=true)
 POST   /api/projects/:projectId/benches/:id/start   Start all components
 POST   /api/projects/:projectId/benches/:id/stop   Stop all components
-POST   /api/projects/:projectId/benches/:id/sync   Trigger immediate work-unit PR sync
 POST   /api/projects/:projectId/benches/:id/components/:name/start
 POST   /api/projects/:projectId/benches/:id/components/:name/stop
 GET    /api/projects/:projectId/benches/:id/components/:name/logs
@@ -126,7 +125,7 @@ POST   /api/projects/:projectId/jigs   Create project-level jig (201)
 GET    /api/projects/:projectId/jigs/:id   Get project jig detail
 PUT    /api/projects/:projectId/jigs/:id   Update project-level jig
 DELETE /api/projects/:projectId/jigs/:id   Delete project-level jig (204, 409 if referenced)
-GET    /api/projects/:projectId/benches/overrides   Get bench overrides { autoClear, enforceIssueDependencies, workUnitAutoClear }
+GET    /api/projects/:projectId/benches/overrides   Get bench overrides { enforceIssueDependencies }
 PUT    /api/projects/:projectId/benches/overrides   Set bench overrides (partial body, null removes key)
 GET    /api/jigs   List global jigs
 GET    /api/containers   List database containers

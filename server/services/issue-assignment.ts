@@ -29,7 +29,7 @@ import { loadSettings } from "./state.js";
  * create/assign flows hold the bench reference across awaited GitHub and git
  * calls; if a teardown cleared the bench in that window (removeBench +
  * benches.delete), persisting here would resurrect it in state.json and it would
- * reappear on the next app restart. Mirrors the guard in pr-sync.
+ * reappear on the next app restart.
  */
 function persistBenchIfLive(persisted: PersistedBench): void {
   if (benchManager.isBenchLive(persisted.projectId, persisted.id)) {
@@ -48,7 +48,6 @@ function toPersisted(bench: Bench): PersistedBench {
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
-    workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
@@ -460,7 +459,6 @@ export async function assignIssue(
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
-    workUnits: bench.workUnits,
   });
 
   const {
@@ -497,7 +495,6 @@ export async function assignIssue(
       assignedContainers: bench.assignedContainers,
       assignedIssue: bench.assignedIssue,
       notifications: bench.notifications,
-      workUnits: bench.workUnits,
       baseBranch: bench.baseBranch,
       baseCommit: bench.baseCommit,
       injectedJigId: bench.injectedJigId,
@@ -529,7 +526,6 @@ export async function unassignIssue(projectId: string, benchId: number): Promise
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
-    workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,

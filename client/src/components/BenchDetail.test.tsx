@@ -51,7 +51,6 @@ import {
   useStartComponent,
   useStopComponent,
   useDismissBenchNotifications,
-  useSyncBenchWorkUnits,
 } from "../hooks/useBenches";
 import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
@@ -112,7 +111,6 @@ beforeEach(() => {
   vi.mocked(useStartComponent).mockReturnValue(makeMutation());
   vi.mocked(useStopComponent).mockReturnValue(makeMutation());
   vi.mocked(useDismissBenchNotifications).mockReturnValue(makeMutation());
-  vi.mocked(useSyncBenchWorkUnits).mockReturnValue(makeMutation());
   mockUseUnassignContainer.mockReturnValue(makeMutation());
   mockUseTeardownTracker.mockReturnValue({ register: vi.fn(), teardowns: new Map() } as never);
   mockUseProjects.mockReturnValue({ data: [baseProject] } as never);
@@ -900,411 +898,7 @@ describe("BenchDetail", () => {
     });
   });
 
-  describe("work units panel", () => {
-    const workUnitWithPr = {
-      submodule: "api",
-      branch: "feature/api-changes",
-      workspacePath: "/workspace/bench-1/api",
-      pullRequest: {
-        repoFullName: "acme/api",
-        number: 42,
-        title: "Add new endpoint",
-        state: "open" as const,
-        merged: false,
-        url: "https://github.com/acme/api/pull/42",
-        updatedAt: "2024-01-01T00:00:00Z",
-      },
-      lastSyncedAt: "2024-01-01T00:00:00Z",
-    };
-
-    const workUnitNoPr = {
-      submodule: "frontend",
-      branch: "feature/ui-update",
-      workspacePath: "/workspace/bench-1/frontend",
-      lastSyncedAt: "2024-01-01T00:00:00Z",
-    };
-
-    const workUnitWithError = {
-      submodule: "data",
-      branch: "feature/data",
-      workspacePath: "/workspace/bench-1/data",
-      syncError: "GitHub rate limit exceeded",
-    };
-
-    it("renders work units panel when workUnits is present", () => {
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr, workUnitNoPr] } as never);
-      expect(screen.getByText("Work Units")).toBeInTheDocument();
-      expect(screen.getByText("api")).toBeInTheDocument();
-      expect(screen.getByText("feature/api-changes")).toBeInTheDocument();
-      expect(screen.getByText("frontend")).toBeInTheDocument();
-      expect(screen.getByText("feature/ui-update")).toBeInTheDocument();
-    });
-
-    it("does not render work units panel when workUnits is absent", () => {
-      renderBench();
-      expect(screen.queryByText("Work Units")).not.toBeInTheDocument();
-    });
-
-    it("does not render work units panel when workUnits is empty", () => {
-      renderBench({ ...baseBench, workUnits: [] } as never);
-      expect(screen.queryByText("Work Units")).not.toBeInTheDocument();
-    });
-
-    describe("collapsed chip view (default)", () => {
-      it("is collapsed by default: chip content visible, expanded rows are not", () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        expect(screen.getByText("api")).toBeInTheDocument();
-        expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument();
-      });
-
-      it("count badge shows the number of work units", () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr, workUnitNoPr] } as never);
-        expect(screen.getByRole("button", { name: /work units/i })).toHaveTextContent("2");
-      });
-
-      it("renders branch name on chip when branch differs from submodule", () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        expect(screen.getByText("feature/api-changes")).toBeInTheDocument();
-      });
-
-      it("shows sync error indicator on chip for work units with syncError", () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithError] } as never);
-        expect(screen.getByTitle("sync error")).toBeInTheDocument();
-      });
-
-      it("does not show sync error indicator on chip when no syncError", () => {
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        expect(screen.queryByTitle("sync error")).not.toBeInTheDocument();
-      });
-
-      it("clicking the header button expands and then collapses the panel", async () => {
-        const user = userEvent.setup();
-        renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-        expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.getByRole("link", { name: "#42" })).toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument();
-      });
-
-      it("shows neutral stone dot on the meta-root chip when no activity", () => {
-        const rootUnit = {
-          submodule: ".",
-          branch: "issue-42-fix",
-          workspacePath: "/workspace/bench-1/root",
-        };
-        renderBench({ ...baseBench, workUnits: [rootUnit] } as never);
-        const chip = screen.getByText(".").closest("span");
-        // Neutral stone dot appears (meta-root marker): amber is reserved for activity
-        expect(chip?.querySelector(".bg-stone-400, .bg-stone-600")).toBeInTheDocument();
-        expect(chip?.querySelector(".bg-amber-500")).not.toBeInTheDocument();
-      });
-
-      it("shows amber activity dot on meta-root chip when it has a PR", () => {
-        const rootUnit = {
-          submodule: ".",
-          branch: "issue-42-fix",
-          workspacePath: "/workspace/bench-1/root",
-          pullRequest: {
-            repoFullName: "owner/repo",
-            number: 1,
-            title: "Fix",
-            state: "open" as const,
-            merged: false,
-            url: "https://example.com/pull/1",
-            updatedAt: "2024-01-01T00:00:00Z",
-          },
-        };
-        renderBench({ ...baseBench, workUnits: [rootUnit] } as never);
-        const chip = screen.getByText(".").closest("span");
-        expect(chip?.querySelector(".bg-amber-500")).toBeInTheDocument();
-      });
-
-      it("shows amber activity dot on submodule chip when dirtyState has modified files", () => {
-        const dirtyUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 5, untrackedCount: 3, unpushedCommits: 0 },
-        };
-        renderBench({ ...baseBench, workUnits: [dirtyUnit] } as never);
-        const chip = screen.getByText("api").closest("span");
-        expect(chip?.querySelector(".bg-amber-500")).toBeInTheDocument();
-      });
-
-      it("shows no amber dot on submodule chip when clean and no PR", () => {
-        const cleanUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 0, untrackedCount: 0, unpushedCommits: 0 },
-        };
-        renderBench({ ...baseBench, workUnits: [cleanUnit] } as never);
-        const chip = screen.getByText("api").closest("span");
-        expect(chip?.querySelector(".bg-amber-500")).not.toBeInTheDocument();
-      });
-
-      it("shows +N dirty count on chip when dirtyState has modified or untracked files", () => {
-        const dirtyUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 8, untrackedCount: 4, unpushedCommits: 0 },
-        };
-        renderBench({ ...baseBench, workUnits: [dirtyUnit] } as never);
-        expect(screen.getByText("+12")).toBeInTheDocument();
-      });
-
-      it("shows ↑N unpushed count on chip when dirtyState has unpushed commits", () => {
-        const unit = {
-          submodule: "api",
-          branch: "feat/something",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 0, untrackedCount: 0, unpushedCommits: 3 },
-        };
-        renderBench({ ...baseBench, workUnits: [unit] } as never);
-        expect(screen.getByText(/↑3/)).toBeInTheDocument();
-      });
-
-      it("shows detached badge on chip when unit.detached is true", () => {
-        const detachedUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          detached: true,
-        };
-        renderBench({ ...baseBench, workUnits: [detachedUnit] } as never);
-        expect(screen.getByText("detached")).toBeInTheDocument();
-      });
-
-      it("does not show detached badge when unit.detached is false", () => {
-        const unit = {
-          submodule: "api",
-          branch: "feat/something",
-          workspacePath: "/workspace/bench-1/api",
-          detached: false,
-        };
-        renderBench({ ...baseBench, workUnits: [unit] } as never);
-        expect(screen.queryByText("detached")).not.toBeInTheDocument();
-      });
-    });
-
-    it("renders PR number as a link to the PR URL", async () => {
-      const user = userEvent.setup();
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      const link = screen.getByRole("link", { name: "#42" });
-      expect(link).toHaveAttribute("href", "https://github.com/acme/api/pull/42");
-    });
-
-    it("renders open PR state badge", async () => {
-      const user = userEvent.setup();
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.getByText("open")).toBeInTheDocument();
-    });
-
-    it("renders merged PR state badge", async () => {
-      const user = userEvent.setup();
-      const mergedUnit = {
-        ...workUnitWithPr,
-        pullRequest: { ...workUnitWithPr.pullRequest, state: "closed" as const, merged: true },
-      };
-      renderBench({ ...baseBench, workUnits: [mergedUnit] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.getByText("merged")).toBeInTheDocument();
-    });
-
-    it("renders closed PR state badge", async () => {
-      const user = userEvent.setup();
-      const closedUnit = {
-        ...workUnitWithPr,
-        pullRequest: { ...workUnitWithPr.pullRequest, state: "closed" as const, merged: false },
-      };
-      renderBench({ ...baseBench, workUnits: [closedUnit] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.getByText("closed")).toBeInTheDocument();
-    });
-
-    describe("expanded row: activity indicators", () => {
-      it("shows amber activity dot in row when unit has dirty state", async () => {
-        const user = userEvent.setup();
-        const dirtyUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 3, untrackedCount: 1, unpushedCommits: 0 },
-          lastSyncedAt: "2024-01-01T00:00:00Z",
-        };
-        renderBench({ ...baseBench, workUnits: [dirtyUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        // The row renders the activity dot as a sibling inside the name span
-        expect(document.querySelector(".bg-amber-500")).toBeInTheDocument();
-      });
-
-      it("shows +N dirty count button in row when unit has modified files", async () => {
-        const user = userEvent.setup();
-        const dirtyUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 7, untrackedCount: 3, unpushedCommits: 0 },
-          lastSyncedAt: "2024-01-01T00:00:00Z",
-        };
-        renderBench({ ...baseBench, workUnits: [dirtyUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.getByText("+10")).toBeInTheDocument();
-      });
-
-      it("shows ↑N unpushed count in row when unit has unpushed commits", async () => {
-        const user = userEvent.setup();
-        const unit = {
-          submodule: "api",
-          branch: "feat/something",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 0, untrackedCount: 0, unpushedCommits: 2 },
-          lastSyncedAt: "2024-01-01T00:00:00Z",
-        };
-        renderBench({ ...baseBench, workUnits: [unit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.getByText(/↑2/)).toBeInTheDocument();
-      });
-
-      it("shows detached badge in expanded row when unit.detached is true", async () => {
-        const user = userEvent.setup();
-        const detachedUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          detached: true,
-          lastSyncedAt: "2024-01-01T00:00:00Z",
-        };
-        renderBench({ ...baseBench, workUnits: [detachedUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(screen.getByText("detached")).toBeInTheDocument();
-      });
-
-      it("does not show activity dot in row when unit is clean and has no PR", async () => {
-        const user = userEvent.setup();
-        const cleanUnit = {
-          submodule: "api",
-          branch: "main",
-          workspacePath: "/workspace/bench-1/api",
-          dirtyState: { modifiedCount: 0, untrackedCount: 0, unpushedCommits: 0 },
-          lastSyncedAt: "2024-01-01T00:00:00Z",
-        };
-        renderBench({ ...baseBench, workUnits: [cleanUnit] } as never);
-        await user.click(screen.getByRole("button", { name: /work units/i }));
-        expect(document.querySelector(".bg-amber-500")).not.toBeInTheDocument();
-      });
-    });
-
-    it("shows sync error indicator for work units with syncError", async () => {
-      const user = userEvent.setup();
-      renderBench({ ...baseBench, workUnits: [workUnitWithError] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.getByText("sync error")).toBeInTheDocument();
-    });
-
-    it("does not show sync error indicator when no syncError", async () => {
-      const user = userEvent.setup();
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.queryByText("sync error")).not.toBeInTheDocument();
-    });
-
-    it("does not show PR info for work units without a pull request", () => {
-      renderBench({ ...baseBench, workUnits: [workUnitNoPr] } as never);
-      expect(screen.queryByRole("link")).not.toBeInTheDocument();
-      expect(screen.queryByText("open")).not.toBeInTheDocument();
-    });
-
-    it("renders a formatted time string for lastSyncedAt", () => {
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      expect(screen.getByText(/ago|just now/)).toBeInTheDocument();
-    });
-
-    it("renders both sync error and lastSyncedAt when both are present", async () => {
-      const user = userEvent.setup();
-      const unitWithBoth = {
-        ...workUnitWithError,
-        lastSyncedAt: "2024-01-01T00:00:00Z",
-      };
-      renderBench({ ...baseBench, workUnits: [unitWithBoth] } as never);
-      await user.click(screen.getByRole("button", { name: /work units/i }));
-      expect(screen.getByText("sync error")).toBeInTheDocument();
-      expect(screen.getByText(/ago|just now/)).toBeInTheDocument();
-    });
-
-    it("renders Sync Now button when work units are present", () => {
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      expect(screen.getByRole("button", { name: /sync now/i })).toBeInTheDocument();
-    });
-
-    it("does not render Sync Now button when no work units", () => {
-      renderBench({ ...baseBench, workUnits: undefined } as never);
-      expect(screen.queryByRole("button", { name: /sync now/i })).not.toBeInTheDocument();
-    });
-
-    it("shows Syncing... state while sync is pending", () => {
-      vi.mocked(useSyncBenchWorkUnits).mockReturnValue({
-        mutate: vi.fn(),
-        isPending: true,
-        isError: false,
-        error: null,
-      } as never);
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      expect(screen.getByRole("button", { name: /syncing/i })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /sync now/i })).not.toBeInTheDocument();
-    });
-
-    it("calls syncBenchWorkUnits mutate when Sync Now button is pressed", async () => {
-      const user = userEvent.setup();
-      const mutate = vi.fn();
-      vi.mocked(useSyncBenchWorkUnits).mockReturnValue({
-        mutate,
-        isPending: false,
-        isError: false,
-        error: null,
-      } as never);
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      await user.click(screen.getByRole("button", { name: /sync now/i }));
-      expect(mutate).toHaveBeenCalledWith({ projectId: "proj-1", benchId: 1 });
-    });
-
-    it("shows error message when sync fails", () => {
-      vi.mocked(useSyncBenchWorkUnits).mockReturnValue({
-        mutate: vi.fn(),
-        isPending: false,
-        isError: true,
-        error: new Error("GitHub rate limit exceeded"),
-      } as never);
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      expect(screen.getByText("GitHub rate limit exceeded")).toBeInTheDocument();
-    });
-
-    it("shows fallback error message when error is not an Error instance", () => {
-      vi.mocked(useSyncBenchWorkUnits).mockReturnValue({
-        mutate: vi.fn(),
-        isPending: false,
-        isError: true,
-        error: "unexpected",
-      } as never);
-      renderBench({ ...baseBench, workUnits: [workUnitWithPr] } as never);
-      expect(screen.getByText("Sync failed")).toBeInTheDocument();
-    });
-  });
-
   describe("previous integration handling", () => {
-    const workUnit = {
-      submodule: "root",
-      branch: "feat/x",
-      pullRequest: null,
-      lastSyncedAt: null,
-      detached: false,
-      dirtyState: null,
-      syncError: null,
-    };
     const benchWithIssue = {
       ...baseBench,
       assignedIssue: {
@@ -1313,10 +907,9 @@ describe("BenchDetail", () => {
         externalId: "7",
         title: "Old issue",
       },
-      workUnits: [workUnit],
     };
 
-    it("renders the badge + disables Sync Now when integration mismatch", async () => {
+    it("renders the badge when integration mismatch", async () => {
       vi.mocked(useProjectIntegration).mockReturnValue({
         data: {
           effective: { plugin: "jira-self-hosted" },
@@ -1335,11 +928,9 @@ describe("BenchDetail", () => {
       renderBench(benchWithIssue as never);
 
       expect(screen.getByTestId("previous-integration-badge")).toBeInTheDocument();
-      const syncButton = screen.getByRole("button", { name: /Sync Now/i });
-      expect(syncButton).toBeDisabled();
     });
 
-    it("does not render the badge or disable Sync when integrations match", async () => {
+    it("does not render the badge when integrations match", async () => {
       vi.mocked(useProjectIntegration).mockReturnValue({
         data: {
           effective: { plugin: "github-com" },
@@ -1358,8 +949,6 @@ describe("BenchDetail", () => {
       renderBench(benchWithIssue as never);
 
       expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
-      const syncButton = screen.getByRole("button", { name: /Sync Now/i });
-      expect(syncButton).toBeEnabled();
     });
   });
 });

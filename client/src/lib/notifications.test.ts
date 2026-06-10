@@ -111,7 +111,6 @@ describe("formatNotification", () => {
     "terminal-waiting",
     "bench-error",
     "component-error",
-    "sync-error",
     "claude-exited",
   ];
   const infoTypes: NotificationType[] = ["bench-ready", "inspection-complete"];

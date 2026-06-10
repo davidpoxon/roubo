@@ -12,7 +12,6 @@ import {
   useStopBench,
   useStartComponent,
   useStopComponent,
-  useSyncBenchWorkUnits,
 } from "./useBenches";
 
 vi.mock("../lib/api");
@@ -204,16 +203,5 @@ describe("useStopComponent", () => {
     result.current.mutate({ projectId: "p1", benchId: 1, component: "backend" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.stopComponent).toHaveBeenCalledWith("p1", 1, "backend");
-  });
-});
-
-describe("useSyncBenchWorkUnits", () => {
-  it("calls syncBenchWorkUnits with projectId and benchId", async () => {
-    const bench = { id: 1, projectId: "p1", workUnits: [] };
-    mockedApi.syncBenchWorkUnits.mockResolvedValue(bench as never);
-    const { result } = renderHookWithProviders(() => useSyncBenchWorkUnits());
-    result.current.mutate({ projectId: "p1", benchId: 1 });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.syncBenchWorkUnits).toHaveBeenCalledWith("p1", 1);
   });
 });

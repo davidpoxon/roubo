@@ -242,12 +242,6 @@ export function cleanupAndRetryBench(projectId: string, benchId: number): Promis
   return request(`/projects/${projectId}/benches/${benchId}/cleanup-and-retry`, { method: "POST" });
 }
 
-export function syncBenchWorkUnits(projectId: string, benchId: number): Promise<Bench> {
-  return request(`/projects/${projectId}/benches/${benchId}/sync`, {
-    method: "POST",
-  });
-}
-
 export function startBench(projectId: string, benchId: number): Promise<Bench> {
   return request(`/projects/${projectId}/benches/${benchId}/start`, {
     method: "POST",

@@ -99,18 +99,6 @@ export function useTeardownBench() {
   });
 }
 
-export function useSyncBenchWorkUnits() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ projectId, benchId }: { projectId: string; benchId: number }) =>
-      api.syncBenchWorkUnits(projectId, benchId),
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["benches"] });
-      queryClient.invalidateQueries({ queryKey: ["bench", vars.projectId, vars.benchId] });
-    },
-  });
-}
-
 export function useStartBench() {
   const queryClient = useQueryClient();
   return useMutation({

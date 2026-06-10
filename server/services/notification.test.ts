@@ -16,7 +16,6 @@ import {
   dismissBenchLevelForBench,
   dismissBySession,
   dismissOne,
-  dismissSyncErrorForWorkUnit,
   dismissWaitingForSession,
   getNotifications,
 } from "./notification.js";
@@ -94,12 +93,6 @@ describe("createNotification", () => {
     expect(result.priority).toBe("action-needed");
   });
 
-  it("assigns action-needed priority for sync-error", () => {
-    const bench = makeBench();
-    const result = createNotification(bench, "sync-error", "sync-error::api");
-    expect(result.priority).toBe("action-needed");
-  });
-
   it("deduplicates terminal-waiting for the same session", () => {
     const bench = makeBench();
 
@@ -112,42 +105,6 @@ describe("createNotification", () => {
     expect(bench.notifications).toHaveLength(1);
     expect(mockUpdateBench).not.toHaveBeenCalled();
     expect(mockBroadcast).not.toHaveBeenCalled();
-  });
-
-  it("deduplicates sync-error by submodule via sourceSessionId and updates error message in-place", () => {
-    const bench = makeBench();
-
-    const first = createNotification(bench, "sync-error", "sync-error::api", {
-      submodule: "api",
-      error: "rate limited",
-    });
-    vi.clearAllMocks();
-
-    const second = createNotification(bench, "sync-error", "sync-error::api", {
-      submodule: "api",
-      error: "rate limited again",
-    });
-
-    expect(second).toBe(first);
-    expect(bench.notifications).toHaveLength(1);
-    expect(second.metadata).toEqual({ submodule: "api", error: "rate limited again" });
-    expect(mockUpdateBench).not.toHaveBeenCalled();
-    expect(mockBroadcast).not.toHaveBeenCalled();
-  });
-
-  it("creates separate sync-error notifications for different submodules", () => {
-    const bench = makeBench();
-
-    createNotification(bench, "sync-error", "sync-error::api", {
-      submodule: "api",
-      error: "rate limited",
-    });
-    createNotification(bench, "sync-error", "sync-error::frontend", {
-      submodule: "frontend",
-      error: "auth failed",
-    });
-
-    expect(bench.notifications).toHaveLength(2);
   });
 
   it("stores metadata on the notification", () => {
@@ -215,30 +172,6 @@ describe("createNotification", () => {
     const second = createNotification(bench, "bench-ready");
 
     expect(first.id).not.toBe(second.id);
-  });
-
-  it("forwards workUnits when persisting", () => {
-    const workUnits = [
-      {
-        submodule: "api",
-        branch: "feat/my-feature",
-        workspacePath: "/workspace/api",
-        pullRequest: {
-          repoFullName: "acme/api",
-          number: 42,
-          title: "My feature",
-          state: "open" as const,
-          merged: false,
-          url: "https://github.com/acme/api/pull/42",
-          updatedAt: "2026-01-01T00:00:00.000Z",
-        },
-      },
-    ];
-    const bench = makeBench({ workUnits });
-
-    createNotification(bench, "bench-ready");
-
-    expect(mockUpdateBench).toHaveBeenCalledWith(expect.objectContaining({ workUnits }));
   });
 
   it("preserves injectedJigId when persisting", () => {
@@ -323,15 +256,15 @@ describe("dismissBenchLevelForBench", () => {
     expect(mockBroadcast).not.toHaveBeenCalled();
   });
 
-  it("preserves sync-error notification so it is not silently auto-dismissed on bench open", () => {
+  it("preserves session-scoped notifications so they are not silently auto-dismissed on bench open", () => {
     const bench = makeBench();
     bench.notifications = [
       { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
       {
         id: "n2",
-        type: "sync-error",
+        type: "component-error",
         priority: "action-needed",
-        sourceSessionId: "sync-error::api",
+        sourceSessionId: "component-error::api",
         createdAt: "2026-01-01T00:00:00.000Z",
       },
     ];
@@ -342,73 +275,6 @@ describe("dismissBenchLevelForBench", () => {
     expect(bench.notifications[0].id).toBe("n2");
   });
 });
-
-describe("dismissSyncErrorForWorkUnit", () => {
-  it("removes the sync-error notification for the given submodule", () => {
-    const bench = makeBench();
-    bench.notifications = [
-      {
-        id: "n1",
-        type: "sync-error",
-        priority: "action-needed",
-        sourceSessionId: "sync-error::api",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-      { id: "n2", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
-    ];
-
-    dismissSyncErrorForWorkUnit(bench, "api");
-
-    expect(bench.notifications).toHaveLength(1);
-    expect(bench.notifications[0].id).toBe("n2");
-    expect(mockUpdateBench).toHaveBeenCalled();
-    expect(mockBroadcast).toHaveBeenCalledWith({
-      type: "notifications",
-      projectId: "test-project",
-      benchId: 1,
-      notifications: bench.notifications,
-    });
-  });
-
-  it("does not affect sync-error notifications for other submodules", () => {
-    const bench = makeBench();
-    bench.notifications = [
-      {
-        id: "n1",
-        type: "sync-error",
-        priority: "action-needed",
-        sourceSessionId: "sync-error::api",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-      {
-        id: "n2",
-        type: "sync-error",
-        priority: "action-needed",
-        sourceSessionId: "sync-error::frontend",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-    ];
-
-    dismissSyncErrorForWorkUnit(bench, "api");
-
-    expect(bench.notifications).toHaveLength(1);
-    expect(bench.notifications[0].id).toBe("n2");
-  });
-
-  it("is a no-op when no sync-error notification exists for the submodule", () => {
-    const bench = makeBench();
-    bench.notifications = [
-      { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
-    ];
-
-    dismissSyncErrorForWorkUnit(bench, "api");
-
-    expect(bench.notifications).toHaveLength(1);
-    expect(mockUpdateBench).not.toHaveBeenCalled();
-    expect(mockBroadcast).not.toHaveBeenCalled();
-  });
-});
-
 describe("dismissOne", () => {
   it("removes the notification with the matching ID", () => {
     const bench = makeBench();

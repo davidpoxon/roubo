@@ -3,7 +3,6 @@ import path from "node:path";
 import type {
   Bench,
   BenchStatus,
-  BenchWorkUnit,
   ComponentStatus,
   ComponentConfig,
   ComponentPhase,
@@ -38,8 +37,6 @@ import {
   resolveDefaultBranch,
   resolveHeadBranch,
   parseGitmodulesWithBranch,
-  resolveSubmoduleBranch,
-  type GitmoduleEntry,
 } from "./git-helpers.js";
 
 export const RESOLVE_DEFAULT_BRANCH_PHASE = "Resolving default branch";
@@ -176,7 +173,6 @@ export function initialize() {
       notifications: ps.notifications ?? [],
       assignedContainers: ps.assignedContainers,
       assignedIssue: ps.assignedIssue,
-      workUnits: ps.workUnits,
       baseBranch: ps.baseBranch,
       baseCommit: ps.baseCommit,
       injectedJigId: ps.injectedJigId,
@@ -460,7 +456,7 @@ function makeTeardownSteps(
  * True while a bench is still tracked in the in-memory map. Goes false the moment
  * teardown calls `benches.delete` (right after it removes the bench from state.json),
  * so background writers can gate their persists on it to avoid resurrecting a bench
- * that was cleared mid-flight. See pr-sync / issue-assignment guarded writes.
+ * that was cleared mid-flight. See issue-assignment guarded writes.
  */
 export function isBenchLive(projectId: string, benchId: number): boolean {
   return benches.has(benchKey(projectId, benchId));
@@ -875,7 +871,6 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     }
 
     // Validate and initialize submodules (meta-repo only)
-    let gitmodulesMap: Record<string, GitmoduleEntry> | undefined;
     const declaredSubmodules = isMetaRepo ? (config.layout.submodules ?? {}) : {};
     if (isMetaRepo) {
       // Validate that all submodules declared in roubo.yaml exist in .gitmodules.
@@ -889,7 +884,6 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
       const gitmodulesContent = await fs.promises.readFile(gitmodulesPath, "utf-8");
       const parsedMap = parseGitmodulesWithBranch(gitmodulesContent);
-      gitmodulesMap = parsedMap;
 
       const missing = Object.keys(declaredSubmodules).filter((name) => !parsedMap[name]);
       if (missing.length > 0) {
@@ -928,29 +922,6 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
     }
 
-    // Populate workUnits for meta-repo benches after submodule init
-    if (isMetaRepo && gitmodulesMap) {
-      const map = gitmodulesMap; // capture narrowed type: TypeScript doesn't narrow outer lets inside async callbacks
-      const workUnits: BenchWorkUnit[] = [];
-
-      workUnits.push({
-        submodule: ".",
-        branch: bench.branch,
-        workspacePath: bench.workspacePath,
-      });
-
-      const subEntries = await Promise.all(
-        Object.entries(declaredSubmodules).map(async ([name, relativePath]) => {
-          const absPath = path.join(bench.workspacePath, relativePath);
-          const branch = await resolveSubmoduleBranch(absPath, map[name]?.branch);
-          return { submodule: name, branch, workspacePath: absPath };
-        }),
-      );
-      workUnits.push(...subEntries);
-
-      bench.workUnits = workUnits;
-    }
-
     updateStep(bench.provisioningSteps, "workspace", "done");
 
     // Persist bench to disk now that workspace exists
@@ -962,7 +933,6 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       ports: bench.ports,
       createdAt: bench.createdAt,
       notifications: bench.notifications,
-      workUnits: bench.workUnits,
       baseBranch: bench.baseBranch,
       baseCommit: bench.baseCommit,
       injectedJigId: bench.injectedJigId,
@@ -1937,28 +1907,6 @@ export async function unassignContainer(
 
   updateBenchStatus(bench);
   return bench;
-}
-
-/**
- * Refreshes a work unit's branch from HEAD after a successful git fetch.
- * Call this after any successful `git fetch` in a work unit's worktree.
- * Non-fatal: if HEAD resolution fails, the stored branch remains unchanged.
- */
-export async function refreshWorkUnitBranch(bench: Bench, submoduleKey: string): Promise<void> {
-  const workUnit = bench.workUnits?.find((wu) => wu.submodule === submoduleKey);
-  if (!workUnit) return;
-
-  try {
-    const branch = await resolveHeadBranch(workUnit.workspacePath);
-    if (branch !== workUnit.branch) {
-      workUnit.branch = branch;
-      stateService.updateBench(stateService.toPersistedBench(bench));
-    }
-  } catch {
-    console.warn(
-      `[bench-manager] Could not refresh branch for work unit '${submoduleKey}' in bench ${bench.id}`,
-    );
-  }
 }
 
 /**

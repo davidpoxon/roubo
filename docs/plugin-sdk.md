@@ -88,7 +88,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `permissions.filesystem.paths`  | string[]              | Reserved for future filesystem access                                                |
 | `permissions.processes`         | `false` or object     | Reserved for child-process spawning                                                  |
 | `configSchema`                  | JSON Schema object    | Optional, describes user-facing config fields                                        |
-| `capabilities`                  | object                | Optional capability flags (e.g. `prSync: true`)                                      |
+| `capabilities`                  | object                | Optional capability flags                                                            |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 

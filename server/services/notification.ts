@@ -22,7 +22,6 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "terminal-waiting":
     case "bench-error":
     case "component-error":
-    case "sync-error":
     case "claude-exited":
       return "action-needed";
     case "bench-ready":
@@ -42,7 +41,6 @@ function persistBench(bench: Bench): void {
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
-    workUnits: bench.workUnits,
     baseBranch: bench.baseBranch,
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
@@ -145,23 +143,6 @@ export function dismissWaitingForSession(bench: Bench, sessionId: string): boole
     notifications: bench.notifications,
   });
   return true;
-}
-
-export function dismissSyncErrorForWorkUnit(bench: Bench, submodule: string): void {
-  const sourceSessionId = `sync-error::${submodule}`;
-  const before = bench.notifications.length;
-  bench.notifications = bench.notifications.filter(
-    (n) => !(n.type === "sync-error" && n.sourceSessionId === sourceSessionId),
-  );
-  if (bench.notifications.length !== before) {
-    persistBench(bench);
-    sseService.broadcast({
-      type: "notifications",
-      projectId: bench.projectId,
-      benchId: bench.id,
-      notifications: bench.notifications,
-    });
-  }
 }
 
 export function getNotifications(bench: Bench): BenchNotification[] {

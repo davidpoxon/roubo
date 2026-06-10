@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
-import { buildKnownMergedLocations, getDirtyState } from "../services/git-state.js";
+import { getDirtyState } from "../services/git-state.js";
 import * as notificationService from "../services/notification.js";
 import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
@@ -15,7 +15,6 @@ import {
 } from "./plugin-route-helpers.js";
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
-import { syncBenchWorkUnitPRs } from "../services/pr-sync.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import type {
   CreateBenchRequest,
@@ -234,9 +233,7 @@ router.delete("/:projectId/benches/:id", async (req, res) => {
 
       // getDirtyState treats a blank-workspacePath bench (allowlist-rejected, see
       // bench-manager.initialize()) as clean, so this never probes git with cwd="".
-      const dirtyState = await getDirtyState(bench, {
-        knownMergedLocations: buildKnownMergedLocations(bench),
-      });
+      const dirtyState = await getDirtyState(bench);
       if (!dirtyState.clean && !force) {
         res.status(409).json({
           error: "Bench has uncommitted work; pass force=true to override",
@@ -313,30 +310,6 @@ router.post("/:projectId/benches/:id/stop", async (req, res) => {
     } else {
       res.status(500).json({ error: (err as Error).message });
     }
-  }
-});
-
-router.post("/:projectId/benches/:id/sync", async (req, res) => {
-  try {
-    const benchId = parseIntParam(req.params.id, "bench id");
-    const bench = benchManager.getBench(req.params.projectId, benchId);
-    if (!bench) {
-      res.status(404).json({ error: "Bench not found" });
-      return;
-    }
-    if (!bench.workUnits || bench.workUnits.length === 0) {
-      res.status(400).json({ error: "Bench has no work units to sync" });
-      return;
-    }
-    await syncBenchWorkUnitPRs(req.params.projectId, bench);
-    const updated = benchManager.getBench(req.params.projectId, benchId);
-    if (!updated) {
-      res.status(404).json({ error: "Bench not found" });
-      return;
-    }
-    res.json(updated);
-  } catch (err) {
-    handleBenchError(res, err);
   }
 });
 

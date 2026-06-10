@@ -51,11 +51,7 @@ export const PluginPermissionsSchema = z
   .passthrough();
 export type PluginPermissions = z.infer<typeof PluginPermissionsSchema>;
 
-export const PluginCapabilitiesSchema = z
-  .object({
-    prSync: z.boolean().optional(),
-  })
-  .strict();
+export const PluginCapabilitiesSchema = z.object({}).strict();
 export type PluginCapabilities = z.infer<typeof PluginCapabilitiesSchema>;
 
 // Plugin-global defaults seeded into the three-layer effective-config merge
