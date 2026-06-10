@@ -21,6 +21,33 @@ export function effectiveCaseStatus(caseId: string, results: BenchResults | null
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
+// Per-case observation progress (#508): how many of a case's observations have
+// been marked, out of the total defined across its steps. Drives the per-case
+// progress indicator in the detail pane, distinct from the per-level and overall
+// case rollups.
+export interface ObservationProgress {
+  marked: number;
+  total: number;
+}
+
+export function caseObservationProgress(
+  testCase: Case,
+  result: BenchResults["caseResults"][string] | undefined,
+): ObservationProgress {
+  let total = 0;
+  let marked = 0;
+  const marks = result?.observationMarks ?? {};
+  for (const step of testCase.steps) {
+    for (const observation of step.observations) {
+      total += 1;
+      if (marks[observation.id] !== undefined) {
+        marked += 1;
+      }
+    }
+  }
+  return { marked, total };
+}
+
 // Per-group/overall tally. `total` is the number of cases counted; the five
 // status buckets sum to `total`.
 export interface StatusCounts {
@@ -129,7 +156,9 @@ export function buildRollup(cases: Case[], results: BenchResults | null): Rollup
 export type FlatRow =
   | { kind: "level"; key: string; level: string; counts: StatusCounts }
   | { kind: "priority"; key: string; level: string; priority: string; counts: StatusCounts }
-  | { kind: "case"; key: string; row: CaseRowModel };
+  // `level` is carried on the case row too so a collapsed-level filter can hide
+  // its cases without re-deriving the grouping (#508).
+  | { kind: "case"; key: string; level: string; row: CaseRowModel };
 
 export function flattenRollup(model: RollupModel): FlatRow[] {
   const flat: FlatRow[] = [];
@@ -149,7 +178,7 @@ export function flattenRollup(model: RollupModel): FlatRow[] {
         counts: priority.counts,
       });
       for (const row of priority.rows) {
-        flat.push({ kind: "case", key: `case:${row.case.id}`, row });
+        flat.push({ kind: "case", key: `case:${row.case.id}`, level: level.level, row });
       }
     }
   }

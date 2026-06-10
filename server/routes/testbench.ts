@@ -38,7 +38,10 @@ const router = Router();
 // Request-body schemas (testbench-contracts-aligned). Each is strict so an
 // unexpected key is a 400 rather than silently ignored.
 const ValidatePathBodySchema = z.object({ path: z.string() }).strict();
-const MarkObservationBodySchema = z.object({ result: z.enum(["pass", "fail"]) }).strict();
+// result is pass | fail to set a mark, or null to clear (un-set) it (#508).
+const MarkObservationBodySchema = z
+  .object({ result: z.enum(["pass", "fail"]).nullable() })
+  .strict();
 const SetStatusBodySchema = z.object({ override: CaseStatusSchema.nullable() }).strict();
 const AppendNoteBodySchema = z.object({ text: z.string() }).strict();
 const ReconcileBodySchema = z
@@ -172,7 +175,7 @@ router.put(
       const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
       const parsed = MarkObservationBodySchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: "result must be 'pass' or 'fail'" });
+        res.status(400).json({ error: "result must be 'pass', 'fail', or null" });
         return;
       }
       const caseResult = await testbenchStore.markObservation(

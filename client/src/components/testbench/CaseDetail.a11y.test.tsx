@@ -182,6 +182,105 @@ describe("CaseDetail status override (TC-022/TC-024)", () => {
   });
 });
 
+describe("CaseDetail close / next / progress (#508)", () => {
+  it("renders a Close button (not a back-link) that calls onBack", async () => {
+    const user = userEvent.setup();
+    const onBack = vi.fn();
+    render(
+      <CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} onBack={onBack} />,
+    );
+    // The old "All cases" back-link is gone; a labelled Close control replaces it.
+    expect(screen.queryByText("All cases")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close case detail" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a Next button only when the case is passed", async () => {
+    const user = userEvent.setup();
+    const onNext = vi.fn();
+    // Not passed: no Next button.
+    const { rerender } = render(
+      <CaseDetail
+        projectId="p1"
+        benchId={1}
+        testCase={CASE}
+        result={{ observationMarks: {}, derivedStatus: "in_progress", notes: [] }}
+        onNext={onNext}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /next case/i })).not.toBeInTheDocument();
+
+    // Passed: Next appears and advances.
+    rerender(
+      <CaseDetail
+        projectId="p1"
+        benchId={1}
+        testCase={CASE}
+        result={{ observationMarks: {}, derivedStatus: "passed", notes: [] }}
+        onNext={onNext}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /next case/i }));
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer Next on a passed case when there is no next case", () => {
+    render(
+      <CaseDetail
+        projectId="p1"
+        benchId={1}
+        testCase={CASE}
+        result={{ observationMarks: {}, derivedStatus: "passed", notes: [] }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /next case/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a per-case observation progress indicator", () => {
+    const result: CaseResult = {
+      observationMarks: {
+        o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
+      },
+      derivedStatus: "in_progress",
+      notes: [],
+    };
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
+    // The CASE fixture has 3 observations; 1 is marked.
+    expect(
+      screen.getByLabelText("1 of 3 observations marked", { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("clears a mark via the Clear control (passes result: null)", async () => {
+    const user = userEvent.setup();
+    const mutate = vi.fn();
+    mockMark.mockReturnValue(makeMutationMock(mutate));
+    const result: CaseResult = {
+      observationMarks: {
+        o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
+      },
+      derivedStatus: "in_progress",
+      notes: [],
+    };
+    render(<CaseDetail projectId="p1" benchId={2} testCase={CASE} result={result} />);
+    await user.click(
+      screen.getByRole("button", { name: "Clear mark: The detail shows steps and observations" }),
+    );
+    expect(mutate).toHaveBeenCalledWith({
+      projectId: "p1",
+      benchId: 2,
+      caseId: "TC-001",
+      observationId: "o1",
+      result: null,
+    });
+  });
+
+  it("shows no Clear control for an unmarked observation", () => {
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />);
+    expect(screen.queryByRole("button", { name: /^Clear mark:/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("CaseDetail a11y (TC-036)", () => {
   it("has no axe violations", async () => {
     const result: CaseResult = {

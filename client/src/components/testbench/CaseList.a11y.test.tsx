@@ -223,6 +223,65 @@ describe("CaseList selection (#420)", () => {
   });
 });
 
+describe("CaseList level collapse (#508)", () => {
+  it("toggles a level via a focusable header, hiding then restoring its case rows", () => {
+    // Cases across three levels; collapsing Level 1 must hide its cases while
+    // leaving the other levels' cases mounted.
+    render(<CaseList rows={rowsFor(30)} />);
+    const level1Toggle = screen.getByRole("button", { name: "Collapse Level 1" });
+    expect(level1Toggle).toHaveAttribute("aria-expanded", "true");
+
+    const before = screen.getAllByTestId("case-row").length;
+    fireEvent.click(level1Toggle);
+
+    // Header flips to the expand affordance and reports collapsed.
+    const expandToggle = screen.getByRole("button", { name: "Expand Level 1" });
+    expect(expandToggle).toHaveAttribute("aria-expanded", "false");
+    // Fewer case rows are mounted once Level 1's rows are filtered out.
+    const after = screen.getAllByTestId("case-row").length;
+    expect(after).toBeLessThan(before);
+
+    // Re-expanding restores the rows.
+    fireEvent.click(expandToggle);
+    expect(screen.getByRole("button", { name: "Collapse Level 1" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("case-row").length).toBe(before);
+  });
+
+  it("keeps the level headers reachable and has no axe violations while collapsed", async () => {
+    const { container } = render(<CaseList rows={rowsFor(30)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Level 1" }));
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  it("keeps the roving tab stop on the same case when a level above it collapses (corr-1)", () => {
+    // Cases span three levels. Focus a case below Level 1, then collapse Level 1:
+    // its rows are filtered out, shifting every lower row to a new array index.
+    // The single roving tab stop must follow the SAME case (resolved by id), not
+    // whatever case now sits at the old positional index.
+    render(<CaseList rows={rowsFor(30)} />);
+    const list = screen.getByRole("group");
+
+    // End focuses the last case, which lives in a level below Level 1.
+    fireEvent.keyDown(list, { key: "End" });
+    const focusedBefore = within(list)
+      .getAllByTestId("case-row")
+      .find((el) => el.getAttribute("tabindex") === "0");
+    // The row text carries the case id + title, so it uniquely identifies the case.
+    const identityBefore = focusedBefore?.textContent;
+    expect(identityBefore).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Level 1" }));
+
+    const focusedAfter = within(screen.getByRole("group"))
+      .getAllByTestId("case-row")
+      .filter((el) => el.getAttribute("tabindex") === "0");
+    // Still exactly one tab stop, and it is the same case as before the collapse.
+    expect(focusedAfter.length).toBe(1);
+    expect(focusedAfter[0].textContent).toBe(identityBefore);
+  });
+});
+
 describe("CaseList a11y", () => {
   it("has no axe violations", async () => {
     const { container } = render(<CaseList rows={rowsFor(30)} />);

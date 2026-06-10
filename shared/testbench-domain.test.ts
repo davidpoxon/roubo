@@ -36,6 +36,16 @@ describe("deriveStatus (FR-009 truth table)", () => {
     expect(deriveStatus(["O1", "O2"], { O1: mark("fail"), O2: mark("fail") })).toBe("failed");
   });
 
+  it("#508: one fail with other observations still unmarked => failed", () => {
+    // A single failed observation moves the case to failed immediately, even
+    // though O2 and O3 are unmarked (would otherwise be in_progress).
+    expect(deriveStatus(["O1", "O2", "O3"], { O1: mark("fail") })).toBe("failed");
+  });
+
+  it("#508: fail wins over a pending pass mark too", () => {
+    expect(deriveStatus(["O1", "O2", "O3"], { O1: mark("pass"), O2: mark("fail") })).toBe("failed");
+  });
+
   it("single observation marked pass => passed", () => {
     expect(deriveStatus(["O1"], { O1: mark("pass") })).toBe("passed");
   });

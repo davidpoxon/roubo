@@ -115,12 +115,25 @@ export default function TestBenchPanel({
 
   const model = useMemo(() => (data ? buildRollup(data.plan.cases, data.results) : null), [data]);
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
+  // The case ids in list (grouped) order, so the detail pane's Next action can
+  // advance to the case that visually follows the current one (#508).
+  const orderedCaseIds = useMemo(
+    () => flatRows.filter((r) => r.kind === "case").map((r) => r.row.case.id),
+    [flatRows],
+  );
   // Resolve the selected case from the live plan. If the selection no longer
   // exists (e.g. the plan refetched smaller), the detail pane simply closes.
   const selectedCase = useMemo(
     () => (selectedCaseId ? (data?.plan.cases.find((c) => c.id === selectedCaseId) ?? null) : null),
     [data, selectedCaseId],
   );
+  // The case id following the selected one in list order, or undefined when the
+  // selection is the last case (no Next offered then).
+  const nextCaseId = useMemo(() => {
+    if (!selectedCaseId) return undefined;
+    const pos = orderedCaseIds.indexOf(selectedCaseId);
+    return pos >= 0 && pos < orderedCaseIds.length - 1 ? orderedCaseIds[pos + 1] : undefined;
+  }, [orderedCaseIds, selectedCaseId]);
 
   const handleRepoint = (nextPath: string) => {
     if (nextPath === focusedSpecPath) {
@@ -245,6 +258,7 @@ export default function TestBenchPanel({
               testCase={selectedCase}
               result={data.results?.caseResults[selectedCase.id]}
               onBack={() => setSelectedCaseId(undefined)}
+              onNext={nextCaseId ? () => setSelectedCaseId(nextCaseId) : undefined}
             />
           </div>
         )}
