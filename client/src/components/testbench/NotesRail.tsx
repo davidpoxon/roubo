@@ -118,7 +118,9 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
       </ol>
 
       <form
-        className="flex flex-col gap-2"
+        // px-0.5 keeps the textarea's 2px focus ring off the rail's clipping
+        // edge so it is not cut off on the left and right (#508, Image #2).
+        className="flex flex-col gap-2 px-0.5"
         onSubmit={(event) => {
           event.preventDefault();
           handleSubmit();
@@ -129,7 +131,9 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           <TextArea
             rows={3}
             placeholder="Append an immutable note"
-            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500"
+            // ring-inset draws the focus ring inside the field's box, so a
+            // clipping ancestor never shaves the left/right edges off it (#508).
+            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
           />
         </TextField>
         {submitError && (

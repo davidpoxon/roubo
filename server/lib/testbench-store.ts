@@ -373,21 +373,31 @@ async function mutateCaseResult(
 
 // ── Public write API ──
 
-// Upsert an observation mark, recompute the case's derivedStatus, persist
-// atomically (FR-012). Returns the updated CaseResult.
+// Upsert or clear an observation mark, recompute the case's derivedStatus,
+// persist atomically (FR-012). A null result un-sets the mark entirely (removes
+// it from observationMarks) rather than recording a value (#508). Returns the
+// updated CaseResult.
 export async function markObservation(
   rootPath: string,
   slug: string,
   caseId: string,
   observationId: string,
-  result: "pass" | "fail",
+  result: "pass" | "fail" | null,
 ): Promise<CaseResult> {
   return mutateCaseResult(rootPath, slug, caseId, (caseResult, author, plan) => {
-    caseResult.observationMarks[observationId] = {
-      result,
-      author,
-      timestamp: new Date().toISOString(),
-    };
+    if (result === null) {
+      // Rebuild the marks map without this observation rather than dynamically
+      // deleting a computed key (#508).
+      caseResult.observationMarks = Object.fromEntries(
+        Object.entries(caseResult.observationMarks).filter(([id]) => id !== observationId),
+      );
+    } else {
+      caseResult.observationMarks[observationId] = {
+        result,
+        author,
+        timestamp: new Date().toISOString(),
+      };
+    }
     caseResult.derivedStatus = deriveStatus(
       planCaseObservationIds(plan, caseId),
       caseResult.observationMarks,

@@ -1,5 +1,5 @@
-import { RadioGroup, Radio, Label } from "react-aria-components";
-import { Check, X } from "lucide-react";
+import { RadioGroup, Radio, Label, Button } from "react-aria-components";
+import { Check, X, Eraser } from "lucide-react";
 
 // Segmented pass/fail mark control for one observation (#420, FR-007/FR-008).
 //
@@ -14,15 +14,17 @@ import { Check, X } from "lucide-react";
 // stone-100 background with stone-300 icons.
 //
 // The server is the source of truth and records marks set-only (a re-mark of the
-// same value re-stamps it; there is no un-mark path), so this is a plain radio
-// selection, not a toggle. onMark fires for every selection, including
-// re-selecting the current value, so the timestamp refreshes.
+// same value re-stamps it). Un-setting a mark is an explicit, separate "Clear"
+// affordance, not a click-to-toggle on the segments: it appears only when a mark
+// exists and fires onMark(null) to remove the mark entirely (#508). It is its
+// own focusable tab stop with the same visible focus ring.
 
 interface ObservationMarkControlProps {
   // The observation this control marks; used to label the group for assistive tech.
   expected: string;
   value: "pass" | "fail" | undefined;
-  onMark: (result: "pass" | "fail") => void;
+  // Fired with "pass"/"fail" to set a mark, or null to clear it entirely (#508).
+  onMark: (result: "pass" | "fail" | null) => void;
   isDisabled?: boolean;
 }
 
@@ -41,41 +43,53 @@ export default function ObservationMarkControl({
   isDisabled,
 }: ObservationMarkControlProps) {
   return (
-    <RadioGroup
-      aria-label={`Mark observation pass or fail: ${expected}`}
-      orientation="horizontal"
-      value={value ?? null}
-      onChange={(next) => onMark(next as "pass" | "fail")}
-      isDisabled={isDisabled}
-      className="inline-flex"
-    >
-      <Label className="sr-only">Mark this observation</Label>
-      <div className="inline-flex rounded-md border border-stone-200 dark:border-stone-700 overflow-hidden">
-        <Radio
-          value="pass"
-          className={({ isSelected }) =>
-            `${SEGMENT_BASE} ${
-              isSelected
-                ? "bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300"
-                : ""
-            }`
-          }
+    <div className="inline-flex items-center gap-1.5">
+      <RadioGroup
+        aria-label={`Mark observation pass or fail: ${expected}`}
+        orientation="horizontal"
+        value={value ?? null}
+        onChange={(next) => onMark(next as "pass" | "fail")}
+        isDisabled={isDisabled}
+        className="inline-flex"
+      >
+        <Label className="sr-only">Mark this observation</Label>
+        <div className="inline-flex rounded-md border border-stone-200 dark:border-stone-700 overflow-hidden">
+          <Radio
+            value="pass"
+            className={({ isSelected }) =>
+              `${SEGMENT_BASE} ${
+                isSelected
+                  ? "bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300"
+                  : ""
+              }`
+            }
+          >
+            <Check aria-hidden="true" className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Pass
+          </Radio>
+          <Radio
+            value="fail"
+            className={({ isSelected }) =>
+              `${SEGMENT_BASE} ${
+                isSelected ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300" : ""
+              }`
+            }
+          >
+            <X aria-hidden="true" className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Fail
+          </Radio>
+        </div>
+      </RadioGroup>
+      {value !== undefined && (
+        <Button
+          aria-label={`Clear mark: ${expected}`}
+          onPress={() => onMark(null)}
+          isDisabled={isDisabled}
+          className="flex items-center justify-center rounded-md p-1 text-stone-400 dark:text-stone-500 outline-none transition-colors cursor-pointer hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <Check aria-hidden="true" className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Pass
-        </Radio>
-        <Radio
-          value="fail"
-          className={({ isSelected }) =>
-            `${SEGMENT_BASE} ${
-              isSelected ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300" : ""
-            }`
-          }
-        >
-          <X aria-hidden="true" className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Fail
-        </Radio>
-      </div>
-    </RadioGroup>
+          <Eraser aria-hidden="true" className="w-3.5 h-3.5" strokeWidth={2} />
+        </Button>
+      )}
+    </div>
   );
 }

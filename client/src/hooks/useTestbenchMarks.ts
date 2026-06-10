@@ -68,7 +68,8 @@ interface MarkVars {
   benchId: number;
   caseId: string;
   observationId: string;
-  result: "pass" | "fail";
+  // null clears (un-sets) the mark entirely (#508).
+  result: "pass" | "fail" | null;
 }
 
 export function useMarkObservation() {
@@ -84,12 +85,21 @@ export function useMarkObservation() {
         queryClient.setQueryData<TestbenchPlanData>(
           key,
           updateCaseResult(previous, vars.caseId, (result) => {
-            const mark: ObservationMark = {
-              result: vars.result,
-              author: OPTIMISTIC_AUTHOR,
-              timestamp: new Date().toISOString(),
-            };
-            const observationMarks = { ...result.observationMarks, [vars.observationId]: mark };
+            let observationMarks: Record<string, ObservationMark>;
+            if (vars.result === null) {
+              // Clear (un-set) the mark entirely by rebuilding without its key
+              // (#508). A rebuild avoids a dynamic `delete` on the cached object.
+              observationMarks = Object.fromEntries(
+                Object.entries(result.observationMarks).filter(([id]) => id !== vars.observationId),
+              );
+            } else {
+              const mark: ObservationMark = {
+                result: vars.result,
+                author: OPTIMISTIC_AUTHOR,
+                timestamp: new Date().toISOString(),
+              };
+              observationMarks = { ...result.observationMarks, [vars.observationId]: mark };
+            }
             return {
               ...result,
               observationMarks,

@@ -210,6 +210,23 @@ describe("PUT mark observation", () => {
     expect(res.status).toBe(400);
     expect(testbenchStore.markObservation).not.toHaveBeenCalled();
   });
+
+  // #508: result: null clears (un-sets) the mark and passes null to the store.
+  it("clears a mark when result is null", async () => {
+    vi.mocked(testbenchStore.markObservation).mockResolvedValue({
+      derivedStatus: "not_started",
+    } as never);
+    const res = await request(app).put(url).send({ result: null });
+    expect(res.status).toBe(200);
+    expect(res.body.derivedStatus).toBe("not_started");
+    expect(testbenchStore.markObservation).toHaveBeenCalledWith(
+      WORKTREE,
+      "testbench",
+      "TC-001",
+      "O1",
+      null,
+    );
+  });
 });
 
 describe("PUT set status override", () => {

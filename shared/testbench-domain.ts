@@ -19,11 +19,12 @@ import { canonicalizeCase } from "./testbench-canonicalize";
 // alone (the map only holds marked observations), so the full observation-id set
 // is passed alongside the marks.
 //
-// Truth table:
-//   - no observations marked                          => "not_started"
-//   - some but not all observations marked            => "in_progress"
+// Truth table (a single fail short-circuits to "failed", even when other
+// observations are still unmarked, per issue #508):
+//   - any observation marked fail                     => "failed"
+//   - no observations marked (and no fail)            => "not_started"
+//   - some but not all observations marked (no fail)  => "in_progress"
 //   - all observations marked AND all are pass        => "passed"
-//   - all observations marked AND at least one fail   => "failed"
 //
 // "blocked" is NEVER derived here: marks are pass|fail only, so blocked is
 // reachable only through an explicit override (FR-010), via
@@ -57,14 +58,19 @@ export function deriveStatus(
     }
   }
 
+  // A single failed observation moves the case to "failed" immediately, even
+  // when other observations are still unmarked (issue #508).
+  if (anyFail) {
+    return "failed";
+  }
   if (markedCount === 0) {
     return "not_started";
   }
   if (markedCount < total) {
     return "in_progress";
   }
-  // All observations are marked.
-  return anyFail ? "failed" : "passed";
+  // All observations are marked and none failed.
+  return "passed";
 }
 
 // Deterministic reconcile (FR-017, spike-407 AC3/AC4/AC5).

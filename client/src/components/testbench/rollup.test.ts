@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { Case, BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
-import { buildRollup, flattenRollup, effectiveCaseStatus, type RollupModel } from "./rollup";
+import {
+  buildRollup,
+  flattenRollup,
+  effectiveCaseStatus,
+  caseObservationProgress,
+  type RollupModel,
+} from "./rollup";
 
 function makeCase(id: string, level: number, priority?: string): Case {
   return {
@@ -166,6 +172,56 @@ describe("flattenRollup", () => {
     expect(keys.size).toBe(flat.length);
     // 500 case rows are present regardless of header rows.
     expect(flat.filter((f) => f.kind === "case").length).toBe(500);
+  });
+
+  it("#508: carries the owning level on each case row (for collapse filtering)", () => {
+    const cases = [makeCase("a", 1, "P0"), makeCase("b", 2, "P0")];
+    const flat = flattenRollup(buildRollup(cases, null));
+    const caseRows = flat.filter((f) => f.kind === "case");
+    expect(caseRows.map((r) => (r.kind === "case" ? r.level : null))).toEqual(["1", "2"]);
+  });
+});
+
+describe("caseObservationProgress (#508)", () => {
+  function caseWithObservations(observationCount: number): Case {
+    return {
+      ...makeCase("TC", 1, "P0"),
+      steps: [
+        {
+          id: "S1",
+          instruction: "do",
+          observations: Array.from({ length: observationCount }, (_, i) => ({
+            id: `O${i + 1}`,
+            expected: `expected ${i + 1}`,
+          })),
+        },
+      ],
+    };
+  }
+
+  it("counts marked observations against the total defined", () => {
+    const testCase = caseWithObservations(3);
+    const r = result({
+      observationMarks: {
+        O1: { result: "pass", author: { name: "a", email: "a@b" }, timestamp: "t" },
+        O3: { result: "fail", author: { name: "a", email: "a@b" }, timestamp: "t" },
+      },
+    });
+    expect(caseObservationProgress(testCase, r)).toEqual({ marked: 2, total: 3 });
+  });
+
+  it("is 0/total when no result exists yet", () => {
+    expect(caseObservationProgress(caseWithObservations(2), undefined)).toEqual({
+      marked: 0,
+      total: 2,
+    });
+  });
+
+  it("is 0/0 for a case with no observations", () => {
+    expect(caseObservationProgress(caseWithObservations(0), undefined)).toEqual({
+      marked: 0,
+      total: 0,
+    });
   });
 });
 

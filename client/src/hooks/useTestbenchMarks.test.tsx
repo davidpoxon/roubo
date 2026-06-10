@@ -112,6 +112,41 @@ describe("useMarkObservation", () => {
     resolve({ observationMarks: {}, derivedStatus: "in_progress", notes: [] });
   });
 
+  it("#508: optimistically un-sets the mark and re-derives when result is null", async () => {
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(
+      testbenchPlanQueryKey(PROJECT, BENCH),
+      seedPlanData({
+        observationMarks: {
+          o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
+        },
+        derivedStatus: "in_progress",
+      }),
+    );
+    // Never resolves during the assertion window, so we observe the optimistic state.
+    mockedApi.markObservation.mockReturnValue(new Promise<CaseResult>(() => {}));
+
+    const { result } = renderHookWithProviders(() => useMarkObservation(), { queryClient });
+    result.current.mutate({
+      projectId: PROJECT,
+      benchId: BENCH,
+      caseId: CASE,
+      observationId: "o1",
+      result: null,
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<TestbenchPlanData>(
+        testbenchPlanQueryKey(PROJECT, BENCH),
+      );
+      expect(cached?.results?.caseResults[CASE].observationMarks.o1).toBeUndefined();
+      // No marks left => back to not_started, derived optimistically.
+      expect(cached?.results?.caseResults[CASE].derivedStatus).toBe("not_started");
+    });
+
+    expect(mockedApi.markObservation).toHaveBeenCalledWith(PROJECT, BENCH, CASE, "o1", null);
+  });
+
   it("does not clear an existing override when a later mark arrives", async () => {
     const queryClient = makeQueryClient();
     queryClient.setQueryData(

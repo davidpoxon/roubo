@@ -287,6 +287,40 @@ describe("markObservation", () => {
     expect(result.derivedStatus).toBe("failed");
   });
 
+  // #508: a single fail moves the case to failed even before every observation
+  // is marked.
+  it("derives failed from one fail with other observations still unmarked", async () => {
+    const result = await markObservation(repo, SLUG, "TC-001", "O1", "fail");
+    expect(result.derivedStatus).toBe("failed");
+    expect(result.observationMarks.O2).toBeUndefined();
+  });
+
+  // #508: a null result un-sets the mark entirely and recomputes derivedStatus.
+  it("clears a mark when result is null and recomputes derivedStatus", async () => {
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    let result = await markObservation(repo, SLUG, "TC-001", "O2", "pass");
+    expect(result.derivedStatus).toBe("passed");
+
+    result = await markObservation(repo, SLUG, "TC-001", "O2", null);
+    expect(result.observationMarks.O2).toBeUndefined();
+    expect(result.observationMarks.O1.result).toBe("pass");
+    expect(result.derivedStatus).toBe("in_progress");
+
+    // Clearing the last mark returns to not_started, and persists to disk.
+    result = await markObservation(repo, SLUG, "TC-001", "O1", null);
+    expect(result.observationMarks.O1).toBeUndefined();
+    expect(result.derivedStatus).toBe("not_started");
+    const view = readPlanAndResults(repo, SLUG);
+    expect(view.results?.caseResults["TC-001"].observationMarks).toEqual({});
+  });
+
+  // #508: clearing an observation that was never marked is a harmless no-op.
+  it("is a no-op when clearing an unmarked observation", async () => {
+    const result = await markObservation(repo, SLUG, "TC-001", "O1", null);
+    expect(result.observationMarks).toEqual({});
+    expect(result.derivedStatus).toBe("not_started");
+  });
+
   // AC5/FR-012: the resolved git identity is stamped on the mark.
   it("stamps the resolved git identity on the mark", async () => {
     const result = await markObservation(repo, SLUG, "TC-001", "O1", "pass");

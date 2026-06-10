@@ -1133,12 +1133,13 @@ export function appendNote(
 // TestBench observation mark (#420, FR-007/FR-008). PUT records a pass/fail mark
 // for one observation and returns the updated CaseResult: the server stamps the
 // author + timestamp and recomputes derivedStatus (server is source of truth).
+// Passing null clears (un-sets) the mark entirely (#508).
 export function markObservation(
   projectId: string,
   benchId: number,
   caseId: string,
   observationId: string,
-  result: "pass" | "fail",
+  result: "pass" | "fail" | null,
 ): Promise<CaseResult> {
   return request(
     `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(

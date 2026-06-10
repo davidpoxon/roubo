@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo, useLayoutEffect, type KeyboardEvent } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { FlatRow } from "./rollup";
 import { useWindowedRows } from "./useWindowedRows";
 import CaseRow from "./CaseRow";
@@ -10,9 +11,15 @@ import ProgressBar from "./ProgressBar";
 // DOM nodes regardless of plan size.
 //
 // Keyboard model: the list is one tab stop (roving tabindex). ArrowUp/ArrowDown
-// move focus between case rows (skipping the non-interactive level/priority
-// headers); Home/End jump to the first/last case. The focused row gets a visible
-// amber focus ring. Headers are decorative readouts and are never focusable.
+// move focus between case rows (skipping the priority headers); Home/End jump to
+// the first/last case. A row shows the amber ring only via :focus-visible, so the
+// ring tracks real DOM focus rather than lingering on the roving-tabindex row
+// after focus has moved elsewhere (#508).
+//
+// Level headers are collapsible (#508): a focusable, clickable header toggles its
+// level. A collapsed level hides its priority subheaders and case rows (filtered
+// out before windowing), so the list stays compact for large plans. Priority
+// subheaders remain decorative readouts and are never focusable.
 
 const ROW_HEIGHT = 36; // case row
 const LEVEL_HEIGHT = 44; // level header (taller, hosts the rollup bar)
@@ -25,7 +32,7 @@ function rowSize(row: FlatRow): number {
 }
 
 export default function CaseList({
-  rows,
+  rows: allRows,
   onSelect,
   selectedCaseId,
 }: {
@@ -38,6 +45,29 @@ export default function CaseList({
   selectedCaseId?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Collapsed level keys (#508). A level header toggles its membership; a
+  // collapsed level hides its priority subheaders and case rows.
+  const [collapsedLevels, setCollapsedLevels] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleLevel = useCallback((level: string) => {
+    setCollapsedLevels((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  }, []);
+
+  // Filter out priority/case rows belonging to a collapsed level before
+  // windowing, so collapsed groups consume no scroll height and their rows are
+  // never measured or mounted. Level headers always remain.
+  const rows = useMemo(
+    () =>
+      collapsedLevels.size === 0
+        ? allRows
+        : allRows.filter((row) => row.kind === "level" || !collapsedLevels.has(row.level)),
+    [allRows, collapsedLevels],
+  );
   // Set when a keyboard navigation should move DOM focus onto the focused row.
   // Gates the focus effect so it only fires for keyboard nav, never on initial
   // mount or when focus arrives natively from a tab/click.
@@ -164,16 +194,28 @@ export default function CaseList({
           } as const;
 
           if (row.kind === "level") {
+            const isCollapsed = collapsedLevels.has(row.level);
             return (
               <div key={row.key} {...common}>
-                <div className="flex items-center gap-3 px-4 py-2 h-full bg-stone-100/80 dark:bg-stone-900/60">
-                  <span className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-3 h-full bg-stone-100/80 dark:bg-stone-900/60">
+                  <button
+                    type="button"
+                    onClick={() => toggleLevel(row.level)}
+                    aria-expanded={!isCollapsed}
+                    aria-label={`${isCollapsed ? "Expand" : "Collapse"} Level ${row.level}`}
+                    className="flex items-center gap-2 shrink-0 self-stretch pl-4 pr-1 outline-none cursor-pointer text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 rounded-md focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset"
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight aria-hidden="true" className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
+                    )}
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                     <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
                       Level {row.level}
                     </span>
-                  </span>
-                  <div className="flex-1 min-w-0">
+                  </button>
+                  <div className="flex-1 min-w-0 pr-4">
                     <ProgressBar counts={row.counts} label={`${row.counts.total} cases`} />
                   </div>
                 </div>
@@ -208,12 +250,10 @@ export default function CaseList({
                 tabIndex={isFocused ? 0 : -1}
                 onFocus={() => setFocusedIndex(item.index)}
                 onClick={() => onSelect?.(row.row.case.id)}
-                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors ${
-                  isFocused
-                    ? "ring-2 ring-amber-500 ring-inset bg-stone-100 dark:bg-stone-800/60"
-                    : isSelected
-                      ? "bg-amber-50 dark:bg-amber-950/30"
-                      : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
+                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
+                  isSelected
+                    ? "bg-amber-50 dark:bg-amber-950/30"
+                    : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
                 }`}
               >
                 <div className="w-full">
