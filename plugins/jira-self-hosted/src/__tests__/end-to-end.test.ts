@@ -1,19 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPluginContract } from "../plugin.js";
 import { installHostHarness, StubResponse, type HostHarness } from "./helpers/host-stub.js";
-import { _resetCacheForTests } from "../state-store.js";
 
 describe("end-to-end (TC-048 Test connection round-trip)", () => {
   let harness: HostHarness;
 
   beforeEach(() => {
-    _resetCacheForTests();
     harness = installHostHarness(createPluginContract());
     harness.credentials.set("pat", "test-token");
   });
   afterEach(() => {
     harness.dispose();
-    _resetCacheForTests();
   });
 
   it("validateConfig + getCurrentUser succeed against a healthy /myself", async () => {
@@ -54,32 +51,38 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     expect(result.errors?.[0].message).toContain("401");
   });
 
-  it("listIssues sends JQL with 'updated >=' and persists the watermark (TC-030)", async () => {
-    // Bootstrap the in-process config cache via validateConfig.
+  // Regression: the original implementation stored a per-source watermark after
+  // every completed page-walk and injected `updated >= <watermark>` into the
+  // next JQL query. Because there is no accumulating issue store the watermark
+  // only ever hid issues, collapsing a full active sprint to a single recently-
+  // touched ticket after the first poll. listIssues must be a point-in-time
+  // fetch with no `updated >=` clause, matching the GitHub/GHE plugin contract.
+  it("listIssues never emits 'updated >=' on any call, including after a prior complete walk", async () => {
     harness.fetchStub.on("/rest/api/2/myself", () => ({ displayName: "Anna" }));
     await harness.hostConnection.sendRequest("validateConfig", {
       config: { instance: "https://jira.acme.example", pat: "test-token" },
     });
 
-    // Seed an existing watermark so the next poll filters incrementally.
-    harness.credentials.set("state", JSON.stringify({ "filter:456": "2026-04-01T00:00:00Z" }));
-
-    let capturedJql = "";
+    const capturedJql: string[] = [];
     harness.fetchStub.on("/rest/api/2/search", (init) => {
-      const body = JSON.parse(init.body ?? "{}");
-      capturedJql = body.jql ?? "";
+      capturedJql.push(JSON.parse(init.body ?? "{}").jql ?? "");
       return {
         issues: [
           {
             key: "PROJ-1",
-            fields: { summary: "later", status: { name: "Open" }, updated: "2026-04-05T00:00:00Z" },
+            fields: {
+              summary: "latest",
+              status: { name: "Open" },
+              updated: "2026-06-01T12:00:00Z",
+            },
           },
         ],
         total: 1,
       };
     });
 
-    const result = await harness.hostConnection.sendRequest<{
+    // First complete walk.
+    const r1 = await harness.hostConnection.sendRequest<{
       items: Array<{ externalId: string }>;
       nextCursor: string | null;
     }>("listIssues", {
@@ -87,10 +90,17 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
       pageSize: 50,
       sources: [{ kind: "filter", externalId: "456" }],
     });
+    expect(r1.nextCursor).toBeNull();
+    expect(capturedJql[0]).not.toContain("updated >=");
 
-    expect(capturedJql).toContain('updated >= "2026-04-01 00:00"');
-    expect(result.items.map((i) => i.externalId)).toEqual(["PROJ-1"]);
-    expect(harness.credentials.get("state")).toContain("2026-04-05T00:00:00Z");
+    // Second poll after the walk: must still fetch the full set with no watermark.
+    await harness.hostConnection.sendRequest("listIssues", {
+      cursor: null,
+      pageSize: 50,
+      sources: [{ kind: "filter", externalId: "456" }],
+    });
+    expect(capturedJql[1]).not.toContain("updated >=");
+    expect(capturedJql).toHaveLength(2);
   });
 
   it("setActiveConfig primes the plugin so listIssues works without a prior validateConfig", async () => {
@@ -197,72 +207,6 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
 
     expect(capturedJql).toContain("filter = 456");
     expect(capturedJql).not.toContain("foo/bar");
-  });
-
-  it("listIssues keeps the watermark stable across paged calls and only advances on the final page", async () => {
-    harness.fetchStub.on("/rest/api/2/myself", () => ({ displayName: "Anna" }));
-    await harness.hostConnection.sendRequest("validateConfig", {
-      config: { instance: "https://jira.acme.example", pat: "test-token" },
-    });
-
-    const originalWatermark = "2026-04-01T00:00:00Z";
-    harness.credentials.set("state", JSON.stringify({ "filter:456": originalWatermark }));
-
-    const capturedJql: string[] = [];
-    const page1 = {
-      issues: [
-        {
-          key: "PROJ-1",
-          fields: { summary: "p1", status: { name: "Open" }, updated: "2026-04-05T00:00:00Z" },
-        },
-      ],
-      total: 2,
-    };
-    const page2 = {
-      issues: [
-        {
-          key: "PROJ-2",
-          fields: { summary: "p2", status: { name: "Open" }, updated: "2026-04-06T00:00:00Z" },
-        },
-      ],
-      total: 2,
-    };
-    let call = 0;
-    harness.fetchStub.on("/rest/api/2/search", (init) => {
-      const body = JSON.parse(init.body ?? "{}");
-      capturedJql.push(body.jql ?? "");
-      call += 1;
-      return call === 1 ? page1 : page2;
-    });
-
-    const r1 = await harness.hostConnection.sendRequest<{
-      items: Array<{ externalId: string }>;
-      nextCursor: string | null;
-    }>("listIssues", {
-      cursor: null,
-      pageSize: 1,
-      sources: [{ kind: "filter", externalId: "456" }],
-    });
-    expect(r1.nextCursor).toBe("1");
-    // Watermark must NOT advance after page 1.
-    expect(harness.credentials.get("state")).toContain(originalWatermark);
-
-    const r2 = await harness.hostConnection.sendRequest<{
-      items: Array<{ externalId: string }>;
-      nextCursor: string | null;
-    }>("listIssues", {
-      cursor: r1.nextCursor,
-      pageSize: 1,
-      sources: [{ kind: "filter", externalId: "456" }],
-    });
-    expect(r2.nextCursor).toBeNull();
-    // Both pages must have queried with the same JQL (original watermark).
-    expect(capturedJql).toHaveLength(2);
-    expect(capturedJql[0]).toBe(capturedJql[1]);
-    // Stored as full ISO, but rendered into JQL as Jira's accepted minute format.
-    expect(capturedJql[0]).toContain('updated >= "2026-04-01 00:00"');
-    // Watermark advances to the highest seen across both pages.
-    expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
   });
 
   /** Prime the in-process config cache so source-bound calls have a context. */
@@ -446,96 +390,6 @@ describe("end-to-end (TC-048 Test connection round-trip)", () => {
     expect(box.jql).toContain("(sprint in openSprints() AND filter = 10231)");
     expect(box.jql).toContain('project = "PAY"');
     expect(box.jql).not.toContain('project = "PLAT"');
-  });
-
-  it("listIssues preserves the watermark across paged board polls and advances only on the last page (TC-014)", async () => {
-    await primeConfig();
-    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
-      filter: { id: 10231 },
-    }));
-    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
-      values: [{ id: 99, state: "active" }],
-    }));
-
-    const originalWatermark = "2026-04-01T00:00:00Z";
-    // The watermark is keyed on board identity + mode, not the resolved sprint.
-    harness.credentials.set(
-      "state",
-      JSON.stringify({ "board:board:482:active-sprint": originalWatermark }),
-    );
-
-    const capturedJql: string[] = [];
-    let call = 0;
-    harness.fetchStub.on("/rest/api/2/search", (init) => {
-      capturedJql.push(JSON.parse(init.body ?? "{}").jql ?? "");
-      call += 1;
-      return {
-        issues: [
-          {
-            key: `PROJ-${call}`,
-            fields: {
-              summary: `p${call}`,
-              status: { name: "Open" },
-              updated: `2026-04-0${call + 4}T00:00:00Z`,
-            },
-          },
-        ],
-        total: 2,
-      };
-    });
-
-    const board = { kind: "board", externalId: "board:482", boardMode: "active-sprint" };
-    const r1 = await harness.hostConnection.sendRequest<{ nextCursor: string | null }>(
-      "listIssues",
-      { cursor: null, pageSize: 1, sources: [board] },
-    );
-    expect(r1.nextCursor).toBe("1");
-    // Stored as full ISO, but rendered into JQL as Jira's accepted minute format.
-    expect(capturedJql[0]).toContain('updated >= "2026-04-01 00:00"');
-    // Watermark must not advance until pagination is exhausted.
-    expect(harness.credentials.get("state")).toContain(originalWatermark);
-
-    const r2 = await harness.hostConnection.sendRequest<{ nextCursor: string | null }>(
-      "listIssues",
-      { cursor: r1.nextCursor, pageSize: 1, sources: [board] },
-    );
-    expect(r2.nextCursor).toBeNull();
-    expect(capturedJql[0]).toBe(capturedJql[1]);
-    expect(harness.credentials.get("state")).toContain("2026-04-06T00:00:00Z");
-  });
-
-  it("listIssues resets the watermark once when the configured source set changes (TC-041)", async () => {
-    await primeConfig();
-    harness.fetchStub.on("/rest/agile/1.0/board/482/configuration", () => ({
-      filter: { id: 10231 },
-    }));
-    harness.fetchStub.on("/rest/agile/1.0/board/482/sprint", () => ({
-      values: [{ id: 99, state: "active" }],
-    }));
-
-    // A watermark exists for a board-only set.
-    harness.credentials.set(
-      "state",
-      JSON.stringify({ "board:board:482:active-sprint": "2026-04-01T00:00:00Z" }),
-    );
-
-    const capturedJql: string[] = [];
-    harness.fetchStub.on("/rest/api/2/search", (init) => {
-      capturedJql.push(JSON.parse(init.body ?? "{}").jql ?? "");
-      return { issues: [], total: 0 };
-    });
-
-    // Adding a filter source changes the union's cache key, so this poll has no
-    // stored watermark and re-fetches in full (no `updated >=`).
-    await harness.hostConnection.sendRequest("listIssues", {
-      cursor: null,
-      pageSize: 50,
-      sources: [
-        { kind: "board", externalId: "board:482", boardMode: "active-sprint" },
-        { kind: "filter", externalId: "555" },
-      ],
-    });
-    expect(capturedJql[0]).not.toContain("updated >=");
   });
 
   it("logs getSourceOptions failures to the plugin log stream, then re-throws (#468)", async () => {

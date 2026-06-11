@@ -4,7 +4,6 @@ import type { JiraRequestContext } from "../jira-client.js";
 import { fetchEpicIssues } from "../source-picker.js";
 import { createPluginContract } from "../plugin.js";
 import { installHostHarness, type HostHarness } from "./helpers/host-stub.js";
-import { _resetCacheForTests } from "../state-store.js";
 
 const ctx: JiraRequestContext = { instance: "https://jira.acme.example", pat: "tok" };
 
@@ -39,12 +38,10 @@ describe("listSourceCandidates (searchable-categorized shape, WU-002)", () => {
   let harness: HostHarness;
 
   beforeEach(() => {
-    _resetCacheForTests();
     harness = installHostHarness(createPluginContract());
   });
   afterEach(() => {
     harness.dispose();
-    _resetCacheForTests();
   });
 
   it("declares the searchable categories and loads no items inline", async () => {
