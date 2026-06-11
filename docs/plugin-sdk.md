@@ -72,33 +72,88 @@ Roubo will spawn the plugin as a Node child process, talk to it over stdio, and 
 
 ## Manifest reference
 
-The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json). Required fields:
+The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json). Fields (required unless marked optional):
 
-| Field                           | Type                  | Notes                                                                                |
-| ------------------------------- | --------------------- | ------------------------------------------------------------------------------------ |
-| `id`                            | kebab-case string     | Stable plugin id. Used as a log prefix and as the credential namespace               |
-| `name`                          | string                | Display name in the Plugins settings tab                                             |
-| `version`                       | semver string         | Your plugin version                                                                  |
-| `description`                   | string                | One-line summary shown in the UI                                                     |
-| `kind`                          | literal `integration` | Reserved for future plugin kinds                                                     |
-| `roubo`                         | semver range          | Host API range you require (e.g. `^1.0.0`)                                           |
-| `entry`                         | relative path         | Node entry script, relative to the plugin directory                                  |
-| `permissions.network.hosts`     | string[]              | Glob allowlist for `host.fetch`. `*` matches one DNS label; `**` matches one or more |
-| `permissions.credentials.slots` | object[]              | Each slot: `{ slot, scope: "read" \| "read-write", description }`                    |
-| `permissions.filesystem.paths`  | string[]              | Reserved for future filesystem access                                                |
-| `permissions.processes`         | `false` or object     | Reserved for child-process spawning                                                  |
-| `configSchema`                  | JSON Schema object    | Optional, describes user-facing config fields                                        |
-| `capabilities`                  | object                | Optional capability flags                                                            |
+| Field                           | Type                  | Notes                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                            | kebab-case string     | Stable plugin id. Used as a log prefix and as the credential namespace                                                                                                                                                                                                                                                                            |
+| `name`                          | string                | Display name in the Plugins settings tab                                                                                                                                                                                                                                                                                                          |
+| `version`                       | semver string         | Your plugin version                                                                                                                                                                                                                                                                                                                               |
+| `description`                   | string                | One-line summary shown in the UI                                                                                                                                                                                                                                                                                                                  |
+| `kind`                          | literal `integration` | Reserved for future plugin kinds                                                                                                                                                                                                                                                                                                                  |
+| `roubo`                         | semver range          | Host API range you require (e.g. `^1.0.0`)                                                                                                                                                                                                                                                                                                        |
+| `entry`                         | relative path         | Node entry script, relative to the plugin directory                                                                                                                                                                                                                                                                                               |
+| `icon`                          | string                | Optional. Tile icon: a `data:` URI (`data:image/svg+xml;...` or `data:image/png;base64,...`) or a relative POSIX path inside the plugin directory. Rendered at 32×32 on the Plugins tile and 24×24 in the Configure modal header. Currently only `data:` URIs render; relative paths fall back to the generated monogram until path serving lands |
+| `permissions.network.hosts`     | string[]              | Glob allowlist for `host.fetch`. `*` matches one DNS label; `**` matches one or more                                                                                                                                                                                                                                                              |
+| `permissions.credentials.slots` | object[]              | Each slot: `{ slot, scope: "read" \| "read-write", description }`                                                                                                                                                                                                                                                                                 |
+| `permissions.filesystem.paths`  | string[]              | Reserved for future filesystem access                                                                                                                                                                                                                                                                                                             |
+| `permissions.processes`         | `false` or object     | `false` for no child processes, or `{ executables: string[] }` listing spawnable executables (reserved; not yet enforced)                                                                                                                                                                                                                         |
+| `configSchema`                  | JSON Schema object    | Optional, describes user-facing config fields                                                                                                                                                                                                                                                                                                     |
+| `capabilities`                  | object                | Optional capability flags                                                                                                                                                                                                                                                                                                                         |
+| `defaultIntegrationConfig`      | object                | Optional. Plugin-global defaults seeded into the three-layer effective-config merge (per-project and per-source layers override these). See [Default integration config](#default-integration-config)                                                                                                                                             |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
+
+### Default integration config
+
+`defaultIntegrationConfig` ships plugin-global defaults that become the base layer of the host's three-layer effective-config merge (plugin defaults < per-project < per-source). The host reads it at manifest load and exposes it through the `/integration` config endpoints; the user can override any value in the Configure dialog.
+
+```yaml
+defaultIntegrationConfig:
+  # Issue statuses to hide from the cut list by default, as the provider's
+  # native state strings.
+  excludedStatuses:
+    - Closed
+    - Cancelled
+  # Category-first status exclusion (e.g. "Done"), ANDed alongside
+  # excludedStatuses for providers whose query language supports status
+  # categories (e.g. Jira's statusCategory in JQL).
+  excludedStatusCategories:
+    - Done
+```
+
+Both keys are optional string arrays. The host resolves the merged exclusion set and passes it back to your plugin on each `listIssues` call as `excludedStatuses` / `excludedStatusCategories` (see [Pagination](#pagination)), so a plugin that filters server-side never has to read the manifest field itself.
 
 ## Contract methods
 
 All contract methods are optional. If the host calls a method you did not register, the SDK responds with JSON-RPC `MethodNotFound` (-32601). Implement the methods relevant to your integration.
 
-### `listSourceCandidates(): Promise<SourceCandidate[]>`
+### `listSourceCandidates(): Promise<SourceCandidatesResponse>`
 
-Returns the list of sources the user can pick (repos, projects, queues) when they configure the integration. Each candidate is `{ category, externalId, displayName, description? }`. Called by the source picker UI.
+Returns a declarative envelope describing the sources the user can pick (repos, projects, boards, queues) when they configure the integration. The host renders the source-picker UI from this envelope; plugins ship no React. Called by the source picker UI.
+
+```ts
+type SourceCandidatesResponse = {
+  shape: "multi-list" | "categorized-multi-list" | "searchable-categorized";
+  items?: SourceCandidateItem[]; // present iff shape === "multi-list"
+  categories?: SourceCandidateCategory[]; // present iff shape === "categorized-multi-list"
+  searchableCategories?: SearchableSourceCategory[]; // present iff shape === "searchable-categorized"
+  nextCursor?: string | null; // reserved for future pagination; v1 returns undefined
+};
+
+type SourceCandidateItem = {
+  externalId: string;
+  label: string;
+  sublabel?: string;
+  icon?: "repo" | "project" | "board" | "epic" | "filter";
+};
+
+type SourceCandidateCategory = { id: string; label: string; items: SourceCandidateItem[] };
+
+type SearchableSourceCategory = {
+  id: "project" | "board" | "filter" | "epic" | "mine";
+  label: string;
+  icon?: SourceCandidateItem["icon"];
+  scopedBy?: "project"; // category is disabled until the named parent selection exists
+  options?: { id: string; label: string }[]; // inline modes for synthetic categories like "mine"
+};
+```
+
+Pick a `shape` by how the upstream's sources are organised:
+
+- `multi-list`: one flat, eagerly-shipped list. Populate `items`.
+- `categorized-multi-list`: a handful of fixed groups, all shipped inline. Populate `categories`.
+- `searchable-categorized`: the source set is large or remote. Declare which categories exist via `searchableCategories` and ship no items inline; the host fetches each category's items lazily via [`getSourceOptions`](#getsourceoptions-category-scope-search-cursor--promisesourceoptionsresult) as the user searches.
 
 ### `listIssues({ sources, cursor, pageSize, filters? }): Promise<{ items, nextCursor }>`
 
@@ -107,6 +162,32 @@ The paginated list endpoint. The host passes `sources` (the per-project source s
 ### `getIssue({ externalId }): Promise<NormalizedIssue>`
 
 Returns the full issue for a single id. Used when the user opens an issue directly.
+
+### `NormalizedIssue`
+
+The shape `listIssues` and `getIssue` return. Normalize your upstream's issue into this:
+
+```ts
+type NormalizedIssue = {
+  integrationId: string; // the plugin id this issue came from
+  externalId: string; // plugin-native id (the key for getIssue/assign/transition)
+  externalUrl: string; // canonical web URL for the issue
+  title: string;
+  body: string | null; // markdown/plain body, or null
+  currentState: string; // provider-native state string (e.g. "open", "In Progress")
+  allowedTransitions: string[]; // states this issue may move to (see applyTransition)
+  assignees: Array<{ externalId: string; displayName: string }>;
+  labels: string[];
+  issueType: string | null; // provider issue type, powers issue-type→jig mapping
+  blocks: string[]; // externalIds this issue blocks
+  blockedBy: string[]; // externalIds blocking this issue
+  updatedAt: string; // ISO-8601
+  raw: unknown; // opaque cache hint, see below
+  facetValues?: Record<string, string | string[]>; // host-API 1.1.0+, see below
+};
+```
+
+`blocks` / `blockedBy` drive the bench dependency graph; `issueType` powers the issue-type-to-jig mapping UI. Leave `assignees`/`labels` as empty arrays (not `null`) when the upstream has none.
 
 ### The opaque `raw` field
 
@@ -120,13 +201,27 @@ Every `NormalizedIssue` carries a `raw: unknown` payload that is opaque to the h
 
 Returns the comments on an issue. Optional; if omitted the comments panel is empty.
 
+```ts
+type NormalizedComment = {
+  externalId: string;
+  author: { externalId: string; displayName: string };
+  body: string;
+  createdAt: string; // ISO-8601
+  updatedAt: string; // ISO-8601
+};
+```
+
 ### `getCurrentUser(): Promise<{ externalId, displayName }>`
 
 Called once when the user finishes configuring the integration, to capture their identity on the external system for write-back operations.
 
 ### `validateConfig({ config }): Promise<{ ok, errors? }>`
 
-Called when the user clicks **Test connection**. Return `{ ok: true }` on success or `{ ok: false, errors: [{ field?, message }] }` to highlight specific config fields.
+Called when the user clicks **Test connection**. Return `{ ok: true }` on success or `{ ok: false, errors: [{ field?, message, code? }] }` to highlight specific config fields. The optional `code` is a stable discriminator your UI copy can switch on.
+
+### `setActiveConfig({ config }): Promise<{ ok, errors? }>`
+
+Optional. Receives the plugin-wide configuration (e.g. an API instance URL, TLS toggles) before any source-bound RPC runs, so a plugin that holds global config can validate and cache it once. Same result shape as `validateConfig`. Per-project state never flows through here: source selections arrive via `sources` on each source-bound call, so the plugin process holds no per-project state. Plugins with a fixed API host (e.g. github.com) can skip this method entirely.
 
 ### `applyTransition({ externalId, transition }): Promise<void>`
 
@@ -148,6 +243,40 @@ Optional. Returns the issue types defined on the external system for the given `
 
 Optional. Returns the labels available on the external system for the given `sources` (see [ConfiguredSource](#configuredsource)).
 
+### `listStatusCategories(): Promise<string[]>`
+
+Optional. Enumerates the connected instance's status categories. The host uses these as the option list for the Configure dialog's status-category exclusion toggle (the same values that flow back as `excludedStatusCategories`, see [Default integration config](#default-integration-config)). Returned names must be valid wherever your plugin consumes excluded categories (e.g. Jira returns `statusCategory` names usable in JQL). If you omit this method (`MethodNotFound`) or discovery fails, the host falls back to a canonical category set.
+
+### `probeRepoAccess({ repoFullName }): Promise<ProbeRepoAccessResult>`
+
+Optional. Directly probes access to a single source (e.g. `GET /repos/{owner}/{repo}`) so the host can explain why a configured source is missing from `listSourceCandidates`. it distinguishes "no such source" from "access blocked by policy" (e.g. org OAuth App access restrictions) rather than reporting a generic miss.
+
+```ts
+type ProbeRepoAccessResult = {
+  accessible: boolean;
+  status?: number; // underlying HTTP status, forwarded verbatim
+  message?: string; // underlying error message, for host classification
+};
+```
+
+### `getSourceOptions({ category, scope?, search?, cursor? }): Promise<SourceOptionsResult>`
+
+Optional. The lazy, paginated, type-ahead loader behind the `searchable-categorized` source-picker shape (see [`listSourceCandidates`](#listsourcecandidates-promisesourcecandidatesresponse)). The host calls it as the user types and pages within a searchable category. `scope` carries the parent selection a scoped category is confined to (e.g. the Jira project keys a board/filter/epic search lives under); a scoped category with no `scope.project` returns an empty page. `search` is the optional user-typed term (debounced client-side); plugins MAY ignore it. The plugin stays stateless: the parent `scope` is supplied on every call.
+
+```ts
+type GetSourceOptionsParams = {
+  category: "project" | "board" | "filter" | "epic";
+  scope?: { project?: string[] };
+  search?: string;
+  cursor?: string | null;
+};
+
+type SourceOptionsResult = {
+  items: SourceCandidateItem[]; // same shape as listSourceCandidates items
+  nextCursor: string | null; // opaque token, or null when the set is exhausted
+};
+```
+
 ### `getConnectionStatus(): Promise<ConnectionStatus>` (host-API 1.1.0+)
 
 Optional. Returns the plugin's self-reported connectivity. The host calls this to render the Settings > Plugins status chip without paying a full `listIssues` round-trip.
@@ -157,6 +286,10 @@ type ConnectionStatus = {
   state: "connected" | "disconnected" | "auth-problem" | "errored";
   detail?: string;
   checkedAt: string; // ISO-8601
+  // Present on `connected` when the plugin can cheaply resolve the authenticated
+  // account (e.g. from the same GET /user probe). The host forwards it to the
+  // UI's "Connected as <login>" label; omit it otherwise.
+  account?: { login: string };
 };
 ```
 
@@ -180,6 +313,31 @@ async getConnectionStatus() {
 ```
 
 If you omit this method, the host catches the resulting `MethodNotFound` and falls back to calling `validateConfig`, inferring `connected` vs `auth-problem` from its result. Plugins built against host-API 1.0.0 keep working without changes.
+
+### `probeAlertCategories({ sources, enabledCategories, timeoutMsPerProbe? }): Promise<ProbeAlertCategoriesResult>`
+
+Optional. Probes each requested alert-category endpoint for a sample source and returns one report per category. The host invokes it as part of **Test connection** and renders one result-strip row per report. A throw or `MethodNotFound` is treated as "no per-category data" and never fails the overall test.
+
+```ts
+type ProbeAlertCategory = "code-scanning" | "secret-scanning" | "dependabot";
+
+type ProbeAlertCategoriesParams = {
+  sources: ConfiguredSource[]; // plugin samples a target (typically the first repo)
+  enabledCategories: ProbeAlertCategory[]; // never empty
+  timeoutMsPerProbe?: number; // host hint; defaults to 5000ms when omitted
+};
+
+type ProbeAlertCategoriesResult = {
+  reports: Array<{
+    category: ProbeAlertCategory;
+    status: "ok" | "scope-missing" | "not-enabled" | "timed-out" | "error";
+    detail?: string;
+    httpStatus?: number;
+  }>;
+};
+```
+
+Status semantics: `ok` (HTTP 2xx), `scope-missing` (token lacks the scope, 401/403), `not-enabled` (feature off for the repo, 404/410/451), `timed-out` (exceeded the per-probe cap; rendered amber, does not fail the test), `error` (unexpected status or non-timeout throw). If none of `sources` are probeable, return an `error` row per requested category.
 
 ### `filterFacets(): Promise<FilterFacet[]>` (host-API 1.1.0+)
 
@@ -267,10 +425,22 @@ type ConfiguredSource = {
   kind: string;
   // Plugin-native id for that source, e.g. `"owner/repo"` or `"owner/#42"`.
   externalId: string;
+
+  // Jira self-hosted only (ignored by other plugin families):
+  project?: string; // the project key this source is scoped to
+  boardMode?: "active-sprint" | "whole-board"; // for a `board` source
+  mineScope?: "in-project" | "anywhere"; // for the synthetic "assigned to me" source
+
+  // github.com / GHE only (ignored by other plugin families): per-source toggles
+  // for the GitHub Advanced Security alert categories surfaced as security-* issue
+  // types. Default false on each.
+  includeCodeQLAlerts?: boolean;
+  includeSecretScanningAlerts?: boolean;
+  includeDependabotAlerts?: boolean;
 };
 ```
 
-The host derives `sources` per request from the project's `roubo.yaml` integration block.
+The host derives `sources` per request from the project's `roubo.yaml` integration block. The core `{ kind, externalId }` pair is all most plugins read; the optional fields are namespaced to the GitHub and Jira families and safely ignored by everyone else.
 
 ## Pagination
 
@@ -282,11 +452,42 @@ type ListIssuesParams = {
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
+  // Status exclusion the host resolved from the three-layer merge (plugin
+  // defaultIntegrationConfig < per-project < per-source). Apply it in your query
+  // so excluded issues never occupy a page. `excludedStatusCategories` is the
+  // category-first default (e.g. ["Done"]); `excludedStatuses` is the status-name
+  // fallback for instances whose query language lacks status categories. A plugin
+  // that does not filter server-side ignores both.
+  excludedStatusCategories?: string[];
+  excludedStatuses?: string[];
 };
 
 type ListIssuesResult = {
   items: NormalizedIssue[];
   nextCursor: string | null;
+  // Optional. Non-fatal per-source/per-category fetch problems (e.g. a missing
+  // GitHub Advanced Security scope) surfaced as chips without failing the pull.
+  // A warning clears on the next successful page-1 result that omits it.
+  warnings?: ListIssuesWarning[];
+  // Optional. Count of issues dropped in-query by the status exclusion above, so
+  // the cut list can show "N filtered out by status". The host sums it across
+  // pages; absence means "unknown".
+  excludedCount?: number;
+};
+
+type ListIssuesWarning = {
+  category: "code-scanning" | "secret-scanning" | "dependabot" | string;
+  sourceExternalId: string;
+  cause: string;
+  code?:
+    | "missing-scope"
+    | "scope-unverifiable"
+    | "feature-disabled"
+    | "insufficient-permission"
+    | "not-found"
+    | "rate-limited"
+    | "unknown";
+  detail?: { status?: number; code?: string; missingScope?: string };
 };
 ```
 
