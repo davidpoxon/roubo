@@ -10,9 +10,11 @@
  * Source kinds (FR-004/FR-007/FR-008): `filter` and `epic` map straight to a
  * JQL clause; `project` scopes to a single project key; `board` is resolved to
  * its active-sprint / whole-board clause at list time (`board-resolve.ts`) and
- * arrives here pre-resolved on `SourceClause.resolvedClause`; `mine` ("assigned
- * to me") uses the native `currentUser()` function, optionally narrowed to the
- * in-scope project keys.
+ * arrives here pre-resolved on `SourceClause.resolvedClause`. `mine` ("assigned
+ * to me") is a narrowing filter: it is AND-ed across the union of the other
+ * sources (rather than OR-ed into it) so it restricts which matching issues are
+ * shown rather than adding a new independent cut-list. This mirrors how
+ * `statusCategory not in (...)` is already handled as a top-level AND.
  */
 
 export type SourceKind = "filter" | "epic" | "project" | "board" | "mine";
@@ -64,17 +66,29 @@ export function buildIssueListJql({
   excludedStatuses,
   statusCategorySupported = true,
 }: BuildJqlInput): string {
+  // `mine` is a narrowing filter, not an additional cut-list: it must be
+  // AND-ed across the union of the other sources, not OR-ed into it.
+  // Partition up-front so the OR join never sees the assignee clause.
+  const orSources = sources.filter((s) => s.kind !== "mine");
+  const mineSources = sources.filter((s) => s.kind === "mine");
+
   // Drop empty clauses (e.g. an unresolvable board) before the OR join so the
   // union never degenerates into `( OR ...)`.
-  const parts = sources.map(toClause).filter((part) => part.length > 0);
+  const parts = orSources.map(toClause).filter((part) => part.length > 0);
   const sourceClause = parts.length === 0 ? "" : `(${parts.join(" OR ")})`;
+
+  const mineParts = mineSources.map(toClause).filter((part) => part.length > 0);
+  const mineClause = mineParts.length === 0 ? "" : `(${mineParts.join(" AND ")})`;
+
   const exclusionClause = buildExclusionClause(
     excludedStatusCategories,
     excludedStatuses,
     statusCategorySupported,
   );
 
-  const where = [sourceClause, exclusionClause].filter((part) => part.length > 0).join(" AND ");
+  const where = [sourceClause, mineClause, exclusionClause]
+    .filter((part) => part.length > 0)
+    .join(" AND ");
   const tail = "ORDER BY updated ASC";
   return where.length > 0 ? `${where} ${tail}` : tail;
 }

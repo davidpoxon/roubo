@@ -101,6 +101,45 @@ describe("buildIssueListJql", () => {
     expect(jql).not.toContain("project in");
   });
 
+  it("ANDs a board source with 'assigned to me' rather than OR-ing them (TC-007)", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        {
+          kind: "board",
+          externalId: "board:482",
+          boardMode: "active-sprint",
+          resolvedClause: "(sprint in openSprints() AND filter = 10231)",
+        },
+        {
+          kind: "mine",
+          externalId: "mine",
+          mineScope: "in-project",
+          scopeProjectKeys: ["PLAT"],
+        },
+      ],
+    });
+    // The board union must be AND-ed with the assignee clause, not OR-ed.
+    // Note: toClause wraps the in-project mine result; buildIssueListJql wraps
+    // the mineClause again, so we get double parens around the assignee half.
+    expect(jql).toBe(
+      '((sprint in openSprints() AND filter = 10231)) AND ((assignee = currentUser() AND project in ("PLAT"))) ORDER BY updated ASC',
+    );
+    // Assert neither half is joined to the other with OR at the top level.
+    expect(jql).not.toContain(") OR (");
+  });
+
+  it("ANDs a filter source with 'assigned to me' rather than OR-ing them", () => {
+    const jql = buildIssueListJql({
+      sources: [
+        { kind: "filter", externalId: "456" },
+        { kind: "mine", externalId: "mine", mineScope: "anywhere" },
+      ],
+    });
+    expect(jql).toBe("(filter = 456) AND (assignee = currentUser()) ORDER BY updated ASC");
+    // Assert neither half is joined to the other with OR at the top level.
+    expect(jql).not.toContain(") OR (");
+  });
+
   it("joins mixed-kind sources into a single de-duplicated OR union (TC-008)", () => {
     const jql = buildIssueListJql({
       sources: [
