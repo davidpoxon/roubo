@@ -1,7 +1,7 @@
 id: jira-self-hosted
 name: Self-hosted Jira
 version: 0.1.0
-description: Roubo integration for self-hosted Atlassian Jira (Data Center 8.14+). PAT auth, JQL incremental polling, configurable blocks / blocked-by link-type mapping.
+description: Roubo integration for self-hosted Atlassian Jira (Data Center 8.14+). PAT auth, configurable blocks / blocked-by link-type mapping.
 kind: integration
 roubo: ^1.0.0
 entry: ./dist/index.js
@@ -60,9 +60,6 @@ permissions:
       - slot: pat
         scope: read
         description: Jira personal access token (Data Center 8.14+).
-      - slot: state
-        scope: read-write
-        description: Per-source last-poll timestamps. JSON-serialized.
   filesystem:
     paths: []
   processes: false

@@ -2,19 +2,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ConnectionStatus } from "@roubo/plugin-sdk";
 import { createPluginContract } from "../plugin.js";
 import { installHostHarness, StubResponse, type HostHarness } from "./helpers/host-stub.js";
-import { _resetCacheForTests } from "../state-store.js";
 
 describe("getConnectionStatus", () => {
   let harness: HostHarness;
 
   beforeEach(() => {
-    _resetCacheForTests();
     harness = installHostHarness(createPluginContract());
     harness.credentials.set("pat", "test-token");
   });
   afterEach(() => {
     harness.dispose();
-    _resetCacheForTests();
   });
 
   // The host primes setActiveConfig with the instance URL before calling
