@@ -41,7 +41,7 @@
     "react-aria-components": "1.17.0",
     "react-dom": "19.2.6",
     "react-router-dom": "7.16.0",
-    "yaml": "2.8.4"
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.0",
