@@ -37,7 +37,6 @@ import { fetchEpicIssues } from "./source-picker.js";
 import { getSourceOptions as runGetSourceOptions } from "./source-options.js";
 import { applyTransition as runApplyTransition } from "./transitions.js";
 import { assignIssue as runAssignIssue, unassignIssue as runUnassignIssue } from "./assignment.js";
-import { getLastPoll, setLastPoll, _resetCacheForTests } from "./state-store.js";
 
 /**
  * The declarative source-picker categories the Jira plugin exposes. Items are
@@ -290,16 +289,17 @@ export function createPluginContract(): PluginContract {
       const ctx = await ctxFor(config);
 
       const sources = await prepareSourceClauses(ctx, params.sources);
-      const sourceKey = sourcesCacheKey(sources);
-      const lastPoll = await getLastPoll(sourceKey);
 
       const startAt = parseCursor(params.cursor);
       const pageSize = params.pageSize ?? 50;
 
+      // Point-in-time fetch: no `updated >=` watermark. Every call returns the
+      // current state of the configured sources, matching the GitHub/GHE plugin
+      // contract. There is no accumulating issue store, so a delta model can
+      // only hide issues after the first poll.
       const buildJql = (statusCategorySupported: boolean): string =>
         buildIssueListJql({
           sources,
-          lastPollIso: lastPoll,
           excludedStatusCategories: params.excludedStatusCategories,
           excludedStatuses: params.excludedStatuses,
           statusCategorySupported,
@@ -316,29 +316,14 @@ export function createPluginContract(): PluginContract {
       const consumed = startAt + items.length;
       const nextCursor = consumed < total ? String(consumed) : null;
 
-      // Only advance the watermark once pagination is exhausted. Writing it
-      // after every page would change the JQL between pages, so a `startAt`
-      // offset into the narrower next-page result set silently skips issues
-      // whose `updated` falls between the original watermark and the
-      // current page's highest `updated`. See TC-030.
-      if (nextCursor === null) {
-        const highest = items.reduce<string | null>((max, item) => {
-          if (max === null || item.updatedAt > max) return item.updatedAt;
-          return max;
-        }, lastPoll);
-        if (highest !== null && highest !== lastPoll) {
-          await setLastPoll(sourceKey, highest);
-        }
-      }
-
       // excludedCount (#434): the status exclusion runs server-side in the JQL,
       // so the filtered `search.total` cannot reveal what was dropped. A
-      // count-only companion query with the same sources/watermark but no
-      // exclusion clause gives the unfiltered total; the difference is the
-      // dropped count. Compute it once on the first page (the host sums
-      // `excludedCount` across pages, so a single whole-result-set total there
-      // keeps that sum correct) and only when an exclusion is actually
-      // configured. Best-effort: any failure just omits the count.
+      // count-only companion query with the same sources but no exclusion clause
+      // gives the unfiltered total; the difference is the dropped count. Compute
+      // it once on the first page (the host sums `excludedCount` across pages,
+      // so a single whole-result-set total there keeps that sum correct) and
+      // only when an exclusion is actually configured. Best-effort: any failure
+      // just omits the count.
       //
       // Mirror the JQL builder's category-first branch so we only fire the
       // companion when the main query actually applied an exclusion: a
@@ -354,7 +339,6 @@ export function createPluginContract(): PluginContract {
         try {
           const unfilteredJql = buildIssueListJql({
             sources,
-            lastPollIso: lastPoll,
             excludedStatusCategories: [],
             excludedStatuses: [],
             statusCategorySupported: true,
@@ -598,9 +582,8 @@ async function searchWithExclusionFallback(
   }
 }
 
-/** Test seam: reset the state-store cache and the statusCategory-support memo. */
+/** Test seam: reset the statusCategory-support memo between tests. */
 export function _resetForTests(): void {
-  _resetCacheForTests();
   statusCategoryUnsupportedInstances.clear();
 }
 
@@ -740,29 +723,4 @@ function parseCursor(cursor: string | null): number {
   if (cursor === null) return 0;
   const parsed = Number.parseInt(cursor, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-/**
- * Stable per-source-set key the watermark is stored under. It captures
- * everything that changes a result set (kind, id, board mode, mine scope) but
- * NOT the volatile resolved sprint clause, so the watermark survives a sprint
- * rollover (TC-014) yet resets once when the configured set changes, including
- * a board widen or a mine-scope change (TC-031 / TC-041).
- */
-function sourcesCacheKey(sources: SourceClause[]): string {
-  if (sources.length === 0) return "__all__";
-  return sources.map(clauseCacheKey).sort().join("|");
-}
-
-function clauseCacheKey(source: SourceClause): string {
-  switch (source.kind) {
-    case "board":
-      return `board:${source.externalId}:${source.boardMode ?? "active-sprint"}`;
-    case "mine": {
-      const keys = [...(source.scopeProjectKeys ?? [])].sort().join(",");
-      return `mine:${source.mineScope ?? "anywhere"}:${keys}`;
-    }
-    default:
-      return `${source.kind}:${source.externalId}`;
-  }
 }

@@ -1,10 +1,11 @@
 /**
- * JQL builder for incremental polling.
+ * JQL builder for point-in-time cut-list queries.
  *
- * FR-026: every poll must include `updated >= <iso>` keyed off a stored
- * per-source watermark. We always end with `ORDER BY updated ASC` so the
- * highest-`updated` seen on a page is also the last item. That's what
- * `state-store.setLastPoll` writes back after a successful page.
+ * Every call to `listIssues` fetches the current state of the configured
+ * sources, matching the contract of the GitHub/GHE plugins. There is no
+ * accumulating issue store, so an incremental delta model would only hide
+ * issues after the first poll. `ORDER BY updated ASC` is kept so `startAt`
+ * offset pagination is deterministic within a single multi-page walk.
  *
  * Source kinds (FR-004/FR-007/FR-008): `filter` and `epic` map straight to a
  * JQL clause; `project` scopes to a single project key; `board` is resolved to
@@ -25,7 +26,7 @@ export interface SourceClause {
    * the board could not be resolved and the clause is dropped from the union.
    */
   resolvedClause?: string;
-  /** `board` only: which mode produced `resolvedClause` (for the watermark key). */
+  /** `board` only: which mode produced `resolvedClause` (active-sprint vs whole-board). */
   boardMode?: "active-sprint" | "whole-board";
   /** `mine` only: in-scoped-projects vs anywhere. */
   mineScope?: "in-project" | "anywhere";
@@ -35,7 +36,6 @@ export interface SourceClause {
 
 export interface BuildJqlInput {
   sources: SourceClause[];
-  lastPollIso: string | null;
   /**
    * Category-first status exclusion (FR-009/FR-010). When the instance supports
    * `statusCategory` in JQL (the default), a non-empty list emits a top-level
@@ -60,7 +60,6 @@ export interface BuildJqlInput {
 
 export function buildIssueListJql({
   sources,
-  lastPollIso,
   excludedStatusCategories,
   excludedStatuses,
   statusCategorySupported = true,
@@ -74,32 +73,10 @@ export function buildIssueListJql({
     excludedStatuses,
     statusCategorySupported,
   );
-  const updatedClause =
-    lastPollIso === null ? "" : `updated >= "${formatJqlDateTime(lastPollIso)}"`;
 
-  const where = [sourceClause, exclusionClause, updatedClause]
-    .filter((part) => part.length > 0)
-    .join(" AND ");
+  const where = [sourceClause, exclusionClause].filter((part) => part.length > 0).join(" AND ");
   const tail = "ORDER BY updated ASC";
   return where.length > 0 ? `${where} ${tail}` : tail;
-}
-
-/**
- * Format a stored ISO-8601 watermark into a value Jira JQL accepts for the
- * `updated` field. Jira rejects full ISO timestamps (e.g.
- * `2026-06-08T15:27:11.000-0700`); it only accepts `yyyy-MM-dd HH:mm` (and a
- * few date-only / period forms). Jira returns `updated` in the requesting
- * user's timezone, and a JQL date literal written without an offset is
- * interpreted in that same timezone, so we keep the wall-clock date/time
- * exactly as given and drop only the seconds and offset. Truncating to the
- * minute under `>=` may re-list a boundary issue (harmless; the host dedupes);
- * rounding up could skip issues. A value that is not a `T`-separated ISO
- * timestamp (already a JQL date, or a relative period like `-5d`) is passed
- * through unchanged.
- */
-export function formatJqlDateTime(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  return match ? `${match[1]} ${match[2]}` : iso;
 }
 
 /**

@@ -1,27 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { assertProjectKey, buildIssueListJql, formatJqlDateTime, jqlSearchTerm } from "../jql.js";
+import { assertProjectKey, buildIssueListJql, jqlSearchTerm } from "../jql.js";
 
-describe("buildIssueListJql (TC-030)", () => {
-  it("includes 'updated >= <iso>' when a watermark is provided", () => {
+describe("buildIssueListJql", () => {
+  it("never emits an 'updated >=' clause (point-in-time, no watermark)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "filter", externalId: "456" }],
-      lastPollIso: "2026-04-01T00:00:00Z",
-    });
-    expect(jql).toContain('updated >= "2026-04-01 00:00"');
-  });
-
-  it("omits the updated clause on the first poll (lastPollIso === null)", () => {
-    const jql = buildIssueListJql({
-      sources: [{ kind: "filter", externalId: "456" }],
-      lastPollIso: null,
     });
     expect(jql).not.toContain("updated >=");
   });
 
-  it("orders by updated ASC so the highest-`updated` is the last item", () => {
+  it("orders by updated ASC for deterministic startAt pagination", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "filter", externalId: "456" }],
-      lastPollIso: null,
     });
     expect(jql.endsWith("ORDER BY updated ASC")).toBe(true);
   });
@@ -32,7 +22,6 @@ describe("buildIssueListJql (TC-030)", () => {
         { kind: "filter", externalId: "456" },
         { kind: "epic", externalId: "PROJ-99" },
       ],
-      lastPollIso: null,
     });
     expect(jql).toContain('(filter = 456 OR "Epic Link" = "PROJ-99")');
   });
@@ -40,19 +29,17 @@ describe("buildIssueListJql (TC-030)", () => {
   it("quotes non-numeric filter ids defensively", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "filter", externalId: "my-saved" }],
-      lastPollIso: null,
     });
     expect(jql).toContain('filter = "my-saved"');
   });
 
   it("emits a bare ORDER BY when nothing constrains the search", () => {
-    expect(buildIssueListJql({ sources: [], lastPollIso: null })).toBe("ORDER BY updated ASC");
+    expect(buildIssueListJql({ sources: [] })).toBe("ORDER BY updated ASC");
   });
 
   it("builds a project clause (TC-008)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
     });
     expect(jql).toContain('(project = "PLAT")');
   });
@@ -67,7 +54,6 @@ describe("buildIssueListJql (TC-030)", () => {
           resolvedClause: "(sprint in openSprints() AND filter = 10231)",
         },
       ],
-      lastPollIso: null,
     });
     expect(jql).toContain("(sprint in openSprints() AND filter = 10231)");
   });
@@ -78,7 +64,6 @@ describe("buildIssueListJql (TC-030)", () => {
         { kind: "project", externalId: "PLAT" },
         { kind: "board", externalId: "board:482", boardMode: "active-sprint", resolvedClause: "" },
       ],
-      lastPollIso: null,
     });
     // No dangling `( OR ...)`; only the project clause survives.
     expect(jql).toBe('(project = "PLAT") ORDER BY updated ASC');
@@ -94,7 +79,6 @@ describe("buildIssueListJql (TC-030)", () => {
           scopeProjectKeys: ["PLAT", "PAY"],
         },
       ],
-      lastPollIso: null,
     });
     expect(jql).toContain('(assignee = currentUser() AND project in ("PLAT", "PAY"))');
   });
@@ -102,7 +86,6 @@ describe("buildIssueListJql (TC-030)", () => {
   it("matches 'assigned to me' anywhere when mineScope is anywhere (TC-007)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "mine", externalId: "mine", mineScope: "anywhere" }],
-      lastPollIso: null,
     });
     expect(jql).toContain("(assignee = currentUser())");
     expect(jql).not.toContain("project in");
@@ -113,7 +96,6 @@ describe("buildIssueListJql (TC-030)", () => {
       sources: [
         { kind: "mine", externalId: "mine", mineScope: "in-project", scopeProjectKeys: [] },
       ],
-      lastPollIso: null,
     });
     expect(jql).toContain("(assignee = currentUser())");
     expect(jql).not.toContain("project in");
@@ -131,51 +113,19 @@ describe("buildIssueListJql (TC-030)", () => {
         },
         { kind: "filter", externalId: "555" },
       ],
-      lastPollIso: "2026-04-01T00:00:00Z",
     });
     expect(jql).toBe(
       '(project = "PLAT" OR (sprint in openSprints() AND filter = 10231) OR filter = 555) ' +
-        'AND updated >= "2026-04-01 00:00" ORDER BY updated ASC',
+        "ORDER BY updated ASC",
     );
   });
 
   it("escapes both backslashes and double quotes in quoted identifiers", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "epic", externalId: 'PROJ\\"99' }],
-      lastPollIso: null,
     });
     // The backslash and the quote must both be escaped so the literal stays closed.
     expect(jql).toContain('"Epic Link" = "PROJ\\\\\\"99"');
-  });
-
-  it("renders a full ISO watermark with an offset as a JQL-accepted date (regression)", () => {
-    // The watermark is stored as the raw Jira `updated` value; Jira JQL rejects
-    // full ISO timestamps, so the builder must emit `yyyy-MM-dd HH:mm`.
-    const jql = buildIssueListJql({
-      sources: [{ kind: "filter", externalId: "456" }],
-      lastPollIso: "2026-06-08T15:27:11.000-0700",
-    });
-    expect(jql).toContain('updated >= "2026-06-08 15:27"');
-    expect(jql).not.toContain("T15:27");
-  });
-});
-
-describe("formatJqlDateTime", () => {
-  it("strips offset and seconds from the reported failing value (regression)", () => {
-    expect(formatJqlDateTime("2026-06-08T15:27:11.000-0700")).toBe("2026-06-08 15:27");
-  });
-
-  it("converts a Z-suffixed UTC timestamp to minute precision", () => {
-    expect(formatJqlDateTime("2026-04-05T00:00:00Z")).toBe("2026-04-05 00:00");
-  });
-
-  it("keeps the wall-clock time for a positive offset (offset dropped, not applied)", () => {
-    expect(formatJqlDateTime("2026-06-08T15:27:11.000+0530")).toBe("2026-06-08 15:27");
-  });
-
-  it("passes through a value that is already a JQL date or relative period", () => {
-    expect(formatJqlDateTime("2026-06-08 15:27")).toBe("2026-06-08 15:27");
-    expect(formatJqlDateTime("-5d")).toBe("-5d");
   });
 });
 
@@ -183,28 +133,14 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("ANDs a statusCategory exclusion clause across the whole union (TC-009)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ["Done"],
     });
     expect(jql).toBe('(project = "PLAT") AND statusCategory not in ("Done") ORDER BY updated ASC');
   });
 
-  it("places the exclusion clause before the watermark and ORDER BY (TC-009)", () => {
-    const jql = buildIssueListJql({
-      sources: [{ kind: "filter", externalId: "555" }],
-      lastPollIso: "2026-04-01T00:00:00Z",
-      excludedStatusCategories: ["Done"],
-    });
-    expect(jql).toBe(
-      '(filter = 555) AND statusCategory not in ("Done") ' +
-        'AND updated >= "2026-04-01 00:00" ORDER BY updated ASC',
-    );
-  });
-
   it("emits no exclusion clause when the category list is empty (TC-009)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: [],
     });
     expect(jql).not.toContain("statusCategory");
@@ -214,7 +150,6 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("excludes multiple categories, category-based not name-based (TC-010)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ["Done", "In Progress"],
     });
     expect(jql).toContain('statusCategory not in ("Done", "In Progress")');
@@ -224,7 +159,6 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("ignores the status-name list on the supported path (names are fallback-only)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ["Done"],
       excludedStatuses: ["Closed", "Resolved"],
     });
@@ -235,7 +169,6 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("falls back to status-name enumeration when statusCategory is unsupported (TC-037)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ["Done"],
       excludedStatuses: ["Closed", "Done", "Resolved"],
       statusCategorySupported: false,
@@ -248,7 +181,6 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("emits no clause on the fallback path when no status names are configured (TC-037)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ["Done"],
       excludedStatuses: [],
       statusCategorySupported: false,
@@ -260,7 +192,6 @@ describe("buildIssueListJql status exclusion (FR-009/FR-010)", () => {
   it("escapes status names so a crafted category cannot inject a clause (NFR-003)", () => {
     const jql = buildIssueListJql({
       sources: [{ kind: "project", externalId: "PLAT" }],
-      lastPollIso: null,
       excludedStatusCategories: ['Done") OR (1=1'],
     });
     expect(jql).toContain('statusCategory not in ("Done\\") OR (1=1")');
