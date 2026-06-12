@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -71,6 +71,10 @@ function stubNoData() {
   >);
   mockedUseAllBenches.mockReturnValue({ data: undefined } as unknown as UseQueryResult<Bench[]>);
 }
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe("ProjectSidebar", () => {
   it("renders All Projects and Settings nav items", () => {
@@ -423,6 +427,48 @@ describe("ProjectSidebar", () => {
       renderSidebar("/projects/proj-1/benches/1");
       const projectButton = screen.getByText("My Project").closest("button");
       expect(projectButton?.querySelector('[aria-label="Action needed"]')).not.toBeNull();
+    });
+  });
+
+  describe("collapse (#524)", () => {
+    function stubWithProject() {
+      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
+        RegisteredProject[]
+      >);
+      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
+    }
+
+    it("collapses to an icon rail that hides the project list and keeps the nav icons", async () => {
+      stubWithProject();
+      renderSidebar();
+      // Expanded: the project list and a collapse control are present.
+      expect(screen.getByText("My Project")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+      // Collapsed: the project list is gone; icon-only All Projects and Settings remain.
+      expect(screen.queryByText("My Project")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "All Projects" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    });
+
+    it("restores the full sidebar when expanded", async () => {
+      stubWithProject();
+      renderSidebar();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+      expect(screen.queryByText("My Project")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+      expect(screen.getByText("My Project")).toBeInTheDocument();
+    });
+
+    it("persists the collapsed state across remounts", async () => {
+      stubWithProject();
+      const { unmount } = renderSidebar();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+      unmount();
+      renderSidebar();
+      // Remounts collapsed: the project list stays hidden until expanded again.
+      expect(screen.queryByText("My Project")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
     });
   });
 });

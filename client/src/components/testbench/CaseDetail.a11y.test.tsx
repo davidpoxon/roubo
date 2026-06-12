@@ -8,7 +8,13 @@
 //
 // #522: the pass/fail mark control is a toggle (re-pressing the selected segment
 // clears it, no eraser); selecting a new case scrolls the left column back to
-// the top; and below lg the notes are a bottom drawer rather than a side rail.
+// the top; and when the pane is narrow the notes are a bottom drawer rather than
+// a side rail.
+//
+// #524: the rail-vs-drawer choice is now driven by the pane's measured container
+// width (NOTES_RAIL_MIN_WIDTH), not a viewport breakpoint. jsdom reports a width
+// of 0 (no layout), so the default here is the bottom-drawer layout; the
+// width-gated tests stub clientWidth to exercise the inline-rail branch.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -328,18 +334,61 @@ describe("CaseDetail notes drawer (#522)", () => {
         },
       ],
     };
+    // jsdom width is 0, so the pane is in bottom-drawer mode by default.
     render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
 
     const toggle = screen.getByRole("button", { name: /Notes \(1\)/ });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
-    // Closed by default: the drawer's notes content is not mounted (only the
-    // wide-viewport side rail renders NotesRail, but that is CSS-hidden below lg).
+    // Closed by default: the drawer's notes content is not mounted, and no inline
+    // rail renders in narrow mode, so there is no NotesRail at all yet.
+    expect(screen.queryByRole("complementary", { name: "Notes" })).not.toBeInTheDocument();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
-    // Opening reveals a second NotesRail (the bottom drawer) for the same case.
-    expect(screen.getAllByRole("complementary", { name: "Notes" }).length).toBeGreaterThanOrEqual(
-      2,
-    );
+    // Opening reveals exactly one NotesRail (the bottom drawer) for the case.
+    expect(screen.getAllByRole("complementary", { name: "Notes" })).toHaveLength(1);
+  });
+});
+
+describe("CaseDetail notes layout gated on container width (#524)", () => {
+  // Stub clientWidth so useElementWidth reports a measured pane width; jsdom has
+  // no layout and otherwise reports 0. Restored after each test.
+  function withClientWidth(px: number, run: () => void) {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => px,
+    });
+    try {
+      run();
+    } finally {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, "clientWidth", descriptor);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    }
+  }
+
+  const result: CaseResult = {
+    observationMarks: {},
+    derivedStatus: "not_started",
+    notes: [],
+  };
+
+  it("shows the inline notes rail (no drawer toggle) when the pane is wide", () => {
+    withClientWidth(900, () => {
+      render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
+      // Inline rail present: a Notes complementary region renders without opening
+      // any toggle, and there is no bottom-drawer Notes toggle.
+      expect(screen.getByRole("complementary", { name: "Notes" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Notes \(\d+\)/ })).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows the bottom-drawer toggle (no inline rail) when the pane is narrow", () => {
+    withClientWidth(400, () => {
+      render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
+      // Narrow: the drawer toggle is present and no rail renders until it opens.
+      expect(screen.getByRole("button", { name: /Notes \(0\)/ })).toBeInTheDocument();
+      expect(screen.queryByRole("complementary", { name: "Notes" })).not.toBeInTheDocument();
+    });
   });
 });
 

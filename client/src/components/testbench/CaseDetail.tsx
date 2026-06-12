@@ -7,7 +7,16 @@ import ObservationMarkControl from "./ObservationMarkControl";
 import StatusOverrideControl from "./StatusOverrideControl";
 import { NotesRail } from "./NotesRail";
 import { caseObservationProgress } from "./rollup";
+import { useElementWidth } from "./useElementWidth";
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
+
+// The case-detail pane must be at least this wide (px) before the notes show as
+// an inline side rail; below it the notes collapse into the bottom drawer. This
+// is measured on the pane's own container (#524), not the viewport, so the rail
+// only appears when the detail pane genuinely has room for a comfortable split.
+// Collapsing the case list or the projects sidebar widens this container, which
+// crosses the threshold and brings the inline rail back. Tunable single knob.
+const NOTES_RAIL_MIN_WIDTH = 680;
 
 // Case detail pane (#420, FR-007/FR-008/FR-009/FR-010, US-003/US-004/US-005).
 //
@@ -23,14 +32,15 @@ import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestben
 // mutation hooks keep the round-trip under 150ms (NFR-004) without a blocking
 // refetch.
 //
-// Layout (#508, #522): the case body and the notes sit in an internal split.
-// At lg and above the notes are a fixed right-hand side rail. Below lg the side
-// rail is hidden and the notes become a bottom drawer: a "Notes (n)" toggle at
-// the foot of the pane opens a CSS-positioned panel anchored to the bottom of
-// the detail pane (no scrim, no modal overlay), so the steps get the full width
-// while the drawer is closed. Both surfaces render the same NotesRail content.
-// A Close (X) button dismisses the pane; when the case reaches "passed" a Next
-// button advances to the next case in the list.
+// Layout (#508, #522, #524): the case body and the notes sit in an internal
+// split. When the detail pane's own container is wide enough (measured at
+// runtime, not via a viewport breakpoint) the notes are a fixed right-hand side
+// rail. When the container is narrower than NOTES_RAIL_MIN_WIDTH the rail is
+// replaced by a bottom drawer: a "Notes (n)" toggle at the foot of the pane
+// opens a CSS-positioned panel anchored to the bottom (no scrim, no modal
+// overlay), so the steps get the full width while the drawer is closed. Exactly
+// one notes surface renders at a time. A Close (X) button dismisses the pane;
+// when the case reaches "passed" a Next button advances to the next case.
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -82,8 +92,16 @@ export default function CaseDetail({
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [testCase.id]);
 
+  // Decide the notes layout from the space available to this pane (#524). The
+  // measured width gates inline-rail vs bottom-drawer: collapsing the case list
+  // or the projects sidebar widens this container and flips it back to the rail.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const paneWidth = useElementWidth(rootRef);
+  const showInlineRail = paneWidth >= NOTES_RAIL_MIN_WIDTH;
+
   return (
     <div
+      ref={rootRef}
       className="relative flex flex-col min-h-0 flex-1"
       aria-label={`Case detail: ${testCase.title}`}
     >
@@ -112,14 +130,20 @@ export default function CaseDetail({
         </div>
       )}
 
-      {/* Two-column split at lg+: the case body scrolls on the left, notes sit
-          in a right-hand side rail. Below lg the side rail is hidden and the
-          notes move to a bottom drawer (rendered after this row) so the steps
-          get the full width (#508, #522). */}
-      <div className="flex flex-col lg:flex-row min-h-0 flex-1 gap-4 lg:gap-6 mt-2">
+      {/* Two-column split when the pane is wide enough: the case body scrolls on
+          the left, notes sit in a right-hand side rail. When the pane is narrow
+          the rail is replaced by a bottom drawer (rendered after this row) so the
+          steps get the full width (#508, #522, #524). */}
+      <div
+        className={`flex min-h-0 flex-1 mt-2 ${
+          showInlineRail ? "flex-row gap-6" : "flex-col gap-4"
+        }`}
+      >
         <div
           ref={scrollRef}
-          className="flex flex-col min-h-0 flex-1 overflow-auto pr-1 lg:basis-3/5"
+          className={`flex flex-col min-h-0 flex-1 overflow-auto pr-1 ${
+            showInlineRail ? "basis-3/5" : ""
+          }`}
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -229,25 +253,30 @@ export default function CaseDetail({
           </ol>
         </div>
 
-        {/* Wide-viewport side rail (lg+ only). Below lg this is hidden and the
-            bottom drawer below takes over (#522). */}
-        <div className="hidden lg:flex flex-col min-h-0 lg:basis-2/5 lg:border-l lg:border-stone-100 dark:lg:border-stone-800 lg:pl-6">
-          <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
-          <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
-        </div>
+        {/* Inline side rail, only when the pane is wide enough (#524). When
+            narrow this is omitted entirely and the bottom drawer below takes
+            over, so exactly one notes surface renders at a time. */}
+        {showInlineRail && (
+          <div className="flex flex-col min-h-0 basis-2/5 border-l border-stone-100 dark:border-stone-800 pl-6">
+            <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
+            <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
+          </div>
+        )}
       </div>
 
-      {/* Bottom notes drawer (below lg only). Keyed by the case id so it
-          remounts (and so resets to closed) whenever a different case is
-          selected, keeping the steps full-width on arrival without a
-          setState-in-effect (#522). */}
-      <NotesDrawer
-        key={testCase.id}
-        projectId={projectId}
-        benchId={benchId}
-        caseId={testCase.id}
-        notes={notes}
-      />
+      {/* Bottom notes drawer, only when the pane is too narrow for the inline
+          rail (#524). Keyed by the case id so it remounts (and so resets to
+          closed) whenever a different case is selected, keeping the steps
+          full-width on arrival without a setState-in-effect (#522). */}
+      {!showInlineRail && (
+        <NotesDrawer
+          key={testCase.id}
+          projectId={projectId}
+          benchId={benchId}
+          caseId={testCase.id}
+          notes={notes}
+        />
+      )}
     </div>
   );
 }
@@ -259,7 +288,7 @@ interface NotesDrawerProps {
   notes: CaseResult["notes"];
 }
 
-// Bottom notes drawer for narrow viewports (below lg). A lightweight CSS panel
+// Bottom notes drawer for a narrow detail pane (#524). A lightweight CSS panel
 // anchored to the bottom of the detail pane, opened by a "Notes (n)" toggle:
 // no scrim, no modal overlay (#522). The toggle sits in the normal flow at the
 // foot of the pane; the panel is absolutely positioned above it so the steps
@@ -270,7 +299,7 @@ function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
   const panelId = useId();
 
   return (
-    <div className="lg:hidden shrink-0 mt-2 border-t border-stone-100 dark:border-stone-800 pt-2">
+    <div className="shrink-0 mt-2 border-t border-stone-100 dark:border-stone-800 pt-2">
       <ToggleButton
         isSelected={isOpen}
         onChange={setIsOpen}

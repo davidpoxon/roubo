@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "react-aria-components";
-import { Layers, Settings, Plus } from "lucide-react";
+import { Layers, Settings, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
+import { useSidebarCollapsed } from "../hooks/useSidebarCollapsed";
 import NotificationIndicator from "./NotificationIndicator";
 import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import { collectActionNeeded } from "../lib/notifications";
@@ -23,6 +24,10 @@ export default function ProjectSidebar() {
   const { data: projects } = useProjects();
   const { data: allBenches } = useAllBenches();
   const { open: openRegisterModal } = useRegisterProjectModal();
+  // Projects-sidebar collapse (#524): reclaim its fixed 240px so the main
+  // content (e.g. the TestBench case-detail pane) can grow wide enough for its
+  // expanded layouts. Persisted app-wide.
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
 
   const benchesByProject = useMemo(() => {
     const map = new Map<string, NonNullable<typeof allBenches>>();
@@ -49,6 +54,41 @@ export default function ProjectSidebar() {
 
   const benchItemClass = (active: boolean) =>
     `w-full flex items-center gap-2 pl-7 pr-3 py-1.5 rounded-lg text-[12px] transition-colors duration-100 outline-none ${navColorClass(active)}`;
+
+  if (collapsed) {
+    // Icon-only rail: All Projects, an expand control, and Settings. The project
+    // list is hidden to free horizontal space (#524).
+    return (
+      <aside className="w-12 h-full flex flex-col items-center border-r border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 shrink-0">
+        <div className="flex-1 px-1.5 pt-3 flex flex-col items-center gap-1">
+          <Button
+            onPress={() => navigate("/")}
+            aria-label="All Projects"
+            className={`flex items-center justify-center w-9 h-9 rounded-lg outline-none ${navColorClass(isActive("/"))}`}
+          >
+            <Layers size={16} />
+          </Button>
+          <Button
+            onPress={() => setCollapsed(false)}
+            aria-label="Expand sidebar"
+            aria-expanded={false}
+            className="flex items-center justify-center w-9 h-9 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <PanelLeftOpen size={16} />
+          </Button>
+        </div>
+        <div className="px-1.5 py-3 border-t border-stone-200 dark:border-stone-800/40 w-full flex justify-center">
+          <Button
+            onPress={() => navigate("/settings")}
+            aria-label="Settings"
+            className={`flex items-center justify-center w-9 h-9 rounded-lg outline-none ${navColorClass(isActive("/settings"))}`}
+          >
+            <Settings size={16} />
+          </Button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="w-60 h-full flex flex-col border-r border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 shrink-0">
@@ -103,13 +143,21 @@ export default function ProjectSidebar() {
         )}
       </nav>
 
-      <div className="px-3 py-3 border-t border-stone-200 dark:border-stone-800/40">
+      <div className="px-3 py-3 border-t border-stone-200 dark:border-stone-800/40 flex items-center gap-1">
         <Button
           onPress={() => navigate("/settings")}
           className={navItemClass(isActive("/settings"))}
         >
           <Settings size={14} />
           Settings
+        </Button>
+        <Button
+          onPress={() => setCollapsed(true)}
+          aria-label="Collapse sidebar"
+          aria-expanded={true}
+          className="shrink-0 flex items-center justify-center p-2 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          <PanelLeftClose size={15} />
         </Button>
       </div>
     </aside>
