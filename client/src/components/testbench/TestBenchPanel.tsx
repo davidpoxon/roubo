@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
-import { FileText, Pencil } from "lucide-react";
+import { FileText, Pencil, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { BenchStatus } from "@roubo/shared";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
+import { useBenchViewState } from "../../hooks/useBenchViewState";
 import { useTestbenchPlan, useSetTestbenchFocus } from "../../hooks/useTestbenchPlan";
 import {
   useReconcilePreview,
@@ -69,6 +70,16 @@ export default function TestBenchPanel({
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const setFocus = useSetTestbenchFocus();
+
+  // Case-list collapse (#524). Collapsing the list hands its width to the
+  // case-detail pane, which (combined with the sidebar collapse) is what lets the
+  // detail pane grow wide enough to show the inline notes rail. Persisted per
+  // bench. Only meaningful while a case is selected; with no selection the list
+  // already spans the full width, so the collapsed strip is never shown then.
+  const { testbenchCaseListCollapsed, setTestbenchCaseListCollapsed } = useBenchViewState(
+    projectId,
+    benchId,
+  );
 
   // Reconcile (#422/#413, FR-016/FR-017, NFR-003). The server computes staleness
   // and the add/changed/orphan classification; this panel only renders them and
@@ -247,9 +258,44 @@ export default function TestBenchPanel({
         <ProgressBar counts={model.overall} label="Overall" />
       </div>
       <div className="flex flex-1 min-h-0 gap-4">
-        <div className={selectedCase ? "w-2/5 min-w-0 flex flex-col" : "flex-1 flex flex-col"}>
-          <CaseList rows={flatRows} onSelect={setSelectedCaseId} selectedCaseId={selectedCaseId} />
-        </div>
+        {selectedCase && testbenchCaseListCollapsed ? (
+          // Collapsed strip: the list is hidden so the detail pane (which still
+          // shows the selected case) takes the freed width. An expand button
+          // restores the list (#524).
+          <div className="shrink-0 flex flex-col">
+            <Button
+              onPress={() => setTestbenchCaseListCollapsed(false)}
+              aria-label="Expand test case list"
+              aria-expanded={false}
+              className="flex items-center justify-center p-2 rounded-lg text-stone-500 dark:text-stone-400 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            >
+              <PanelLeftOpen aria-hidden="true" className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <div
+            className={selectedCase ? "w-2/5 min-w-0 flex flex-col gap-2" : "flex-1 flex flex-col"}
+          >
+            {selectedCase && (
+              <div className="flex justify-end shrink-0">
+                <Button
+                  onPress={() => setTestbenchCaseListCollapsed(true)}
+                  aria-label="Collapse test case list"
+                  aria-expanded={true}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  <PanelLeftClose aria-hidden="true" className="w-3.5 h-3.5" />
+                  Collapse list
+                </Button>
+              </div>
+            )}
+            <CaseList
+              rows={flatRows}
+              onSelect={setSelectedCaseId}
+              selectedCaseId={selectedCaseId}
+            />
+          </div>
+        )}
         {selectedCase && (
           <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
             <CaseDetail

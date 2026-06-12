@@ -4,7 +4,13 @@ const STORAGE_KEY = "roubo-bench-view-state";
 
 export type BenchTabId = "components" | "terminal" | "inspection" | "info" | "testbench";
 
-type BenchViewEntry = { activeTab?: BenchTabId; activeTerminalSessionId?: string };
+type BenchViewEntry = {
+  activeTab?: BenchTabId;
+  activeTerminalSessionId?: string;
+  // TestBench case-list collapse (#524). Persisted per bench so reclaiming
+  // horizontal space for the case-detail pane survives navigation and reload.
+  testbenchCaseListCollapsed?: boolean;
+};
 type BenchViewStore = Record<string, BenchViewEntry>;
 
 function readStore(): BenchViewStore {
@@ -63,10 +69,20 @@ export function useBenchViewState(projectId: string, benchId: number) {
     [benchKey, bump],
   );
 
+  const setTestbenchCaseListCollapsed = useCallback(
+    (collapsed: boolean) => {
+      writeEntry(benchKey, { testbenchCaseListCollapsed: collapsed });
+      bump();
+    },
+    [benchKey, bump],
+  );
+
   return {
     activeTab: entry.activeTab,
     setActiveTab,
     activeTerminalSessionId: entry.activeTerminalSessionId,
     setActiveTerminalSessionId,
+    testbenchCaseListCollapsed: entry.testbenchCaseListCollapsed ?? false,
+    setTestbenchCaseListCollapsed,
   };
 }

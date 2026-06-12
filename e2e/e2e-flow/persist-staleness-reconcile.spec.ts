@@ -107,6 +107,24 @@ async function markCase(page: Page, caseId: string, result: "pass" | "fail"): Pr
   ).toBeChecked();
 }
 
+// Resolve the case-detail notes surface, returning the "Notes" complementary
+// landmark (the same `<aside aria-label="Notes">` in both layouts). As of #524
+// the detail pane gates the notes between an inline side rail and a bottom
+// drawer on the pane's own measured width, not the viewport: at this test's
+// 1280px Desktop Chrome viewport the projects sidebar and case list leave the
+// detail pane below the rail threshold, so the notes live behind the "Notes (n)"
+// drawer toggle. Open that toggle when the inline rail is absent, then hand back
+// the now-rendered landmark so callers locate the textbox/notes the same way in
+// either layout.
+async function openCaseNotes(panel: ReturnType<Page["getByRole"]>) {
+  const notes = panel.getByRole("complementary", { name: "Notes" });
+  if (!(await notes.isVisible())) {
+    await panel.getByRole("button", { name: /^Notes \(/ }).click();
+    await expect(notes).toBeVisible();
+  }
+  return notes;
+}
+
 test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
@@ -159,7 +177,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
 
     // TC-B: fail + a note via the case detail's notes rail.
     await markCase(page, "TC-B", "fail");
-    const notes = page.getByRole("tabpanel").getByRole("complementary", { name: "Notes" });
+    const notes = await openCaseNotes(page.getByRole("tabpanel"));
     await notes.getByRole("textbox").fill("broken redirect");
     await notes.getByRole("button", { name: "Add note" }).click();
     await expect(
@@ -192,7 +210,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
 
     // The TC-B note survived the reload (read from the detail pane's notes rail).
     await panel.getByTestId("case-row").filter({ hasText: "TC-B" }).click();
-    const notes = panel.getByRole("complementary", { name: "Notes" });
+    const notes = await openCaseNotes(panel);
     await expect(
       notes.getByText("broken redirect"),
       `${TC_043_OWNING_SLICES.persist}: TC-B note persisted across reload`,
