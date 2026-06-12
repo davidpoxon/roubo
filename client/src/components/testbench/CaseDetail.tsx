@@ -1,5 +1,6 @@
-import { Button } from "react-aria-components";
-import { X, ArrowRight } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button, ToggleButton } from "react-aria-components";
+import { X, ArrowRight, StickyNote, ChevronDown } from "lucide-react";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import StatusIndicator from "./StatusIndicator";
 import ObservationMarkControl from "./ObservationMarkControl";
@@ -22,10 +23,14 @@ import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestben
 // mutation hooks keep the round-trip under 150ms (NFR-004) without a blocking
 // refetch.
 //
-// Layout (#508): the case body and the notes rail sit in an internal two-column
-// split (steps on the left, notes in a right-hand pane on wide viewports,
-// stacked on narrow ones). A Close (X) button dismisses the pane; when the case
-// reaches "passed" a Next button advances to the next case in the list.
+// Layout (#508, #522): the case body and the notes sit in an internal split.
+// At lg and above the notes are a fixed right-hand side rail. Below lg the side
+// rail is hidden and the notes become a bottom drawer: a "Notes (n)" toggle at
+// the foot of the pane opens a CSS-positioned panel anchored to the bottom of
+// the detail pane (no scrim, no modal overlay), so the steps get the full width
+// while the drawer is closed. Both surfaces render the same NotesRail content.
+// A Close (X) button dismisses the pane; when the case reaches "passed" a Next
+// button advances to the next case in the list.
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -67,8 +72,21 @@ export default function CaseDetail({
   const progress = caseObservationProgress(testCase, result);
   const showNext = effectiveStatus === "passed" && onNext !== undefined;
 
+  const notes = result?.notes ?? [];
+
+  // The left column scrolls independently. React reuses this DOM node across
+  // case changes, so without resetting it the panel keeps the prior case's
+  // scroll offset; reset to the top whenever the displayed case changes (#522).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [testCase.id]);
+
   return (
-    <div className="flex flex-col min-h-0 flex-1" aria-label={`Case detail: ${testCase.title}`}>
+    <div
+      className="relative flex flex-col min-h-0 flex-1"
+      aria-label={`Case detail: ${testCase.title}`}
+    >
       {(onBack || showNext) && (
         <div className="flex items-center justify-between gap-3 shrink-0">
           {showNext ? (
@@ -94,10 +112,15 @@ export default function CaseDetail({
         </div>
       )}
 
-      {/* Two-column split: the case body scrolls on the left, notes sit in a
-          right-hand pane on wide viewports and stack below on narrow ones (#508). */}
+      {/* Two-column split at lg+: the case body scrolls on the left, notes sit
+          in a right-hand side rail. Below lg the side rail is hidden and the
+          notes move to a bottom drawer (rendered after this row) so the steps
+          get the full width (#508, #522). */}
       <div className="flex flex-col lg:flex-row min-h-0 flex-1 gap-4 lg:gap-6 mt-2">
-        <div className="flex flex-col min-h-0 flex-1 overflow-auto pr-1 lg:basis-3/5">
+        <div
+          ref={scrollRef}
+          className="flex flex-col min-h-0 flex-1 overflow-auto pr-1 lg:basis-3/5"
+        >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
@@ -206,15 +229,68 @@ export default function CaseDetail({
           </ol>
         </div>
 
-        <div className="flex flex-col min-h-0 lg:basis-2/5 lg:border-l lg:border-stone-100 dark:lg:border-stone-800 lg:pl-6">
+        {/* Wide-viewport side rail (lg+ only). Below lg this is hidden and the
+            bottom drawer below takes over (#522). */}
+        <div className="hidden lg:flex flex-col min-h-0 lg:basis-2/5 lg:border-l lg:border-stone-100 dark:lg:border-stone-800 lg:pl-6">
           <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
-          <NotesRail
-            projectId={projectId}
-            benchId={benchId}
-            caseId={testCase.id}
-            notes={result?.notes ?? []}
-          />
+          <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
         </div>
+      </div>
+
+      {/* Bottom notes drawer (below lg only). Keyed by the case id so it
+          remounts (and so resets to closed) whenever a different case is
+          selected, keeping the steps full-width on arrival without a
+          setState-in-effect (#522). */}
+      <NotesDrawer
+        key={testCase.id}
+        projectId={projectId}
+        benchId={benchId}
+        caseId={testCase.id}
+        notes={notes}
+      />
+    </div>
+  );
+}
+
+interface NotesDrawerProps {
+  projectId: string;
+  benchId: number;
+  caseId: string;
+  notes: CaseResult["notes"];
+}
+
+// Bottom notes drawer for narrow viewports (below lg). A lightweight CSS panel
+// anchored to the bottom of the detail pane, opened by a "Notes (n)" toggle:
+// no scrim, no modal overlay (#522). The toggle sits in the normal flow at the
+// foot of the pane; the panel is absolutely positioned above it so the steps
+// keep the full width while the drawer is closed. State lives here (not in the
+// parent) so a parent `key={caseId}` remount resets it to closed on case change.
+function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const panelId = useId();
+
+  return (
+    <div className="lg:hidden shrink-0 mt-2 border-t border-stone-100 dark:border-stone-800 pt-2">
+      <ToggleButton
+        isSelected={isOpen}
+        onChange={setIsOpen}
+        aria-controls={panelId}
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-stone-600 dark:text-stone-300 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset selected:bg-stone-100 dark:selected:bg-stone-800"
+      >
+        <StickyNote aria-hidden="true" className="w-3.5 h-3.5" />
+        Notes ({notes.length})
+        <ChevronDown
+          aria-hidden="true"
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </ToggleButton>
+      <div id={panelId} hidden={!isOpen}>
+        {isOpen && (
+          <div className="absolute inset-x-0 bottom-12 z-20 max-h-[60%] overflow-auto rounded-t-lg border-t border-x border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 px-4 pb-4 pt-3 shadow-lg">
+            <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
+            <NotesRail projectId={projectId} benchId={benchId} caseId={caseId} notes={notes} />
+          </div>
+        )}
       </div>
     </div>
   );

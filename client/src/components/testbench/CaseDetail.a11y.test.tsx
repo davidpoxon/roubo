@@ -5,6 +5,10 @@
 // observations), each observation carries a keyboard-operable segmented pass/fail
 // mark control, the per-case status reflects the marks and an override is shown
 // distinctly from the derived value, and the pane has zero axe violations.
+//
+// #522: the pass/fail mark control is a toggle (re-pressing the selected segment
+// clears it, no eraser); selecting a new case scrolls the left column back to
+// the top; and below lg the notes are a bottom drawer rather than a side rail.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -87,7 +91,8 @@ describe("CaseDetail full render (TC-019)", () => {
     expect(screen.getByText("The detail shows steps and observations")).toBeInTheDocument();
     expect(screen.getByText("Each mark is timestamped")).toBeInTheDocument();
     expect(screen.getByText("The status updates from the marks")).toBeInTheDocument();
-    // One mark control (radiogroup) per observation.
+    // One mark control per observation. The single-select ToggleButtonGroup
+    // exposes radiogroup/radio semantics (one tab stop, arrow-key navigation).
     expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
   });
 });
@@ -112,6 +117,32 @@ describe("CaseDetail observation mark control (TC-021/TC-031)", () => {
     });
   });
 
+  it("clears the mark when the already-selected segment is re-pressed (toggle-to-unset, #522)", async () => {
+    const user = userEvent.setup();
+    const mutate = vi.fn();
+    mockMark.mockReturnValue(makeMutationMock(mutate));
+    const result: CaseResult = {
+      observationMarks: {
+        o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
+      },
+      derivedStatus: "in_progress",
+      notes: [],
+    };
+    render(<CaseDetail projectId="p1" benchId={3} testCase={CASE} result={result} />);
+
+    const firstGroup = screen.getAllByRole("radiogroup")[0];
+    // The Pass segment is already selected; pressing it again clears the mark.
+    await user.click(within(firstGroup).getByRole("radio", { name: "Pass" }));
+
+    expect(mutate).toHaveBeenCalledWith({
+      projectId: "p1",
+      benchId: 3,
+      caseId: "TC-001",
+      observationId: "o1",
+      result: null,
+    });
+  });
+
   it("reflects a recorded mark as the selected segment", () => {
     const result: CaseResult = {
       observationMarks: {
@@ -130,19 +161,19 @@ describe("CaseDetail observation mark control (TC-021/TC-031)", () => {
     expect(within(firstGroup).getByRole("radio", { name: "Fail" })).toBeChecked();
   });
 
-  it("is keyboard operable: the mark control radios are focusable and selectable by keyboard", async () => {
+  it("is keyboard operable: the mark control is a single tab stop and selectable by keyboard", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn();
     mockMark.mockReturnValue(makeMutationMock(mutate));
     render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />);
 
     // Tab through the header status control to the first mark control's Pass
-    // radio, then select it by keyboard (space activates a focused radio); a
-    // selection fires the mutation. This exercises real keyboard reachability.
+    // segment (the toggle group is one tab stop), then activate it by keyboard;
+    // a selection fires the mutation. This exercises real keyboard reachability.
     const firstGroup = screen.getAllByRole("radiogroup")[0];
     const passRadio = within(firstGroup).getByRole("radio", { name: "Pass" });
     await user.tab(); // status override Select trigger
-    await user.tab(); // first observation's Pass radio
+    await user.tab(); // first observation's Pass segment
     expect(passRadio).toHaveFocus();
     await user.keyboard("{ }");
     expect(mutate).toHaveBeenCalled();
@@ -251,10 +282,7 @@ describe("CaseDetail close / next / progress (#508)", () => {
     ).toBeInTheDocument();
   });
 
-  it("clears a mark via the Clear control (passes result: null)", async () => {
-    const user = userEvent.setup();
-    const mutate = vi.fn();
-    mockMark.mockReturnValue(makeMutationMock(mutate));
+  it("offers no separate Clear / eraser control (the mark is a toggle, #522)", () => {
     const result: CaseResult = {
       observationMarks: {
         o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
@@ -262,22 +290,56 @@ describe("CaseDetail close / next / progress (#508)", () => {
       derivedStatus: "in_progress",
       notes: [],
     };
-    render(<CaseDetail projectId="p1" benchId={2} testCase={CASE} result={result} />);
-    await user.click(
-      screen.getByRole("button", { name: "Clear mark: The detail shows steps and observations" }),
-    );
-    expect(mutate).toHaveBeenCalledWith({
-      projectId: "p1",
-      benchId: 2,
-      caseId: "TC-001",
-      observationId: "o1",
-      result: null,
-    });
-  });
-
-  it("shows no Clear control for an unmarked observation", () => {
-    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />);
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
     expect(screen.queryByRole("button", { name: /^Clear mark:/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("CaseDetail scroll reset on case change (#522)", () => {
+  it("resets the left column scroll position to the top when a different case is selected", () => {
+    const { rerender, container } = render(
+      <CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />,
+    );
+    // The scrollable left column is the overflow-auto element in the pane.
+    const scroller = container.querySelector(".overflow-auto") as HTMLDivElement;
+    expect(scroller).toBeTruthy();
+    scroller.scrollTop = 240;
+    expect(scroller.scrollTop).toBe(240);
+
+    const otherCase: Case = { ...CASE, id: "TC-002", title: "A different case" };
+    rerender(<CaseDetail projectId="p1" benchId={1} testCase={otherCase} result={undefined} />);
+    expect(scroller.scrollTop).toBe(0);
+  });
+});
+
+describe("CaseDetail notes drawer (#522)", () => {
+  it("renders a Notes toggle with the note count and reveals the notes panel when opened", async () => {
+    const user = userEvent.setup();
+    const result: CaseResult = {
+      observationMarks: {},
+      derivedStatus: "not_started",
+      notes: [
+        {
+          id: "n1",
+          text: "First note",
+          author: { name: "Ada", email: "a@e.com" },
+          timestamp: "2026-06-08T10:00:00.000Z",
+          statusAtWrite: "not_started",
+        },
+      ],
+    };
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} />);
+
+    const toggle = screen.getByRole("button", { name: /Notes \(1\)/ });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    // Closed by default: the drawer's notes content is not mounted (only the
+    // wide-viewport side rail renders NotesRail, but that is CSS-hidden below lg).
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    // Opening reveals a second NotesRail (the bottom drawer) for the same case.
+    expect(screen.getAllByRole("complementary", { name: "Notes" }).length).toBeGreaterThanOrEqual(
+      2,
+    );
   });
 });
 

@@ -259,7 +259,7 @@ export default function CaseList({
                 onClick={() => onSelect?.(row.row.case.id)}
                 className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
                   isSelected
-                    ? "bg-amber-50 dark:bg-amber-950/30"
+                    ? "bg-amber-500/10"
                     : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
                 }`}
               >
