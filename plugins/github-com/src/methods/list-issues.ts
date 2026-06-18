@@ -160,9 +160,25 @@ async function listFromProject(
   // pagination so an excluded item never occupies a result-page slot. Alerts
   // still fan out over `scopedNodes` (below), so a repo whose issues are all
   // excluded keeps surfacing its GHAS alerts.
-  const visibleNodes = scopedNodes.filter(
+  const statusFilteredNodes = scopedNodes.filter(
     (node) => !isStatusExcluded(node.fieldValueByName?.name, params.excludedStatuses),
   );
+
+  // Dedupe board items by issue identity (issue #548). A Projects v2 board can
+  // surface the same underlying issue in more than one item (the same issue
+  // parked under two Status columns, or otherwise listed twice). Collapsing to
+  // the first occurrence here, before the slice, means a duplicated issue never
+  // occupies two result-page slots, including across a page boundary, where the
+  // host's per-page dedup and the client's blind page flatten would both miss
+  // it. Identity is (repo + number): a project can span repos, so number alone
+  // could collide across two repos on one board.
+  const seenIssue = new Set<string>();
+  const visibleNodes = statusFilteredNodes.filter((node) => {
+    const key = `${repoOf(node)}#${node.content?.number}`;
+    if (seenIssue.has(key)) return false;
+    seenIssue.add(key);
+    return true;
+  });
 
   const offset = decodeRepoCursor(params.cursor) - 1;
   const pageNumber = offset + 1;

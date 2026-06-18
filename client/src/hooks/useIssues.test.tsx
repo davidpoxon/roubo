@@ -80,6 +80,31 @@ describe("useIssues", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
+  it("dedupes the same issue across pages by (integrationId, externalId) (#548)", async () => {
+    // The host dedupes only within a single page; this is the cross-page
+    // backstop. #1 reaches both pages (e.g. a board issue under two columns
+    // straddling the page boundary) and must surface once, in first-page order.
+    mockedFetch
+      .mockResolvedValueOnce({
+        items: [makeIssue("1"), makeIssue("2")],
+        nextCursor: "c1",
+      } as PaginatedIssues)
+      .mockResolvedValueOnce({
+        items: [makeIssue("1"), makeIssue("3")],
+        nextCursor: null,
+      } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+
+    expect(result.current.issues.map((i) => i.externalId)).toEqual(["1", "2", "3"]);
+  });
+
   it("exposes stalled when any returned page reports it", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],

@@ -59,7 +59,21 @@ export function useIssues(
   });
 
   const pages = query.data?.pages ?? [];
-  const issues = pages.flatMap((p) => p.items);
+  // Dedupe across pages by (integrationId, externalId) (issue #548). The host
+  // dedupes only within a single response page, and this flatten would
+  // otherwise surface an issue twice when the same identity reaches two pages
+  // (e.g. a source that lists an issue under two board columns straddling a
+  // page boundary). This is a defense-in-depth backstop across all plugins; the
+  // per-source fix lives in each plugin's lister.
+  const seen = new Set<string>();
+  const issues = pages.flatMap((p) =>
+    p.items.filter((item) => {
+      const key = `${item.integrationId}::${item.externalId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  );
   const stalled = pages.some((p) => p.stalled === true);
   // The cache only ever serves the first page, so the stale marker (if present)
   // lives on pages[0]. Iterating defensively in case the server ever extends
