@@ -14,9 +14,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
     issues: [],
     isLoading: false,
-    isFetchingNextPage: false,
-    hasNextPage: false,
-    fetchNextPage: vi.fn(),
+    nextCursor: null,
     error: null,
     stalled: false,
     stale: false,
@@ -230,5 +228,132 @@ describe("IssuePickerModal", () => {
       <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
     );
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
+  });
+
+  describe("FR-007/FR-008: Prev/Next pagination", () => {
+    // Drive the mocked useIssues from the cursor the modal passes as its 4th
+    // positional arg, simulating a forward-only paged plugin.
+    type Page = { items: NormalizedIssue[]; nextCursor: string | null };
+    function pagedByCursor(pages: Record<string, Page>) {
+      mockUseIssues.mockImplementation((_projectId, _filters, _pageSize, cursor) => {
+        const page = pages[cursor ?? "page1"];
+        return defaultResult({
+          issues: page.items,
+          nextCursor: page.nextCursor,
+        }) as ReturnType<typeof useIssues>;
+      });
+    }
+
+    const twoPages: Record<string, Page> = {
+      page1: { items: [makeIssue("a1", { title: "Alpha" })], nextCursor: "c1" },
+      c1: { items: [makeIssue("b1", { title: "Bravo" })], nextCursor: null },
+    };
+
+    it("Next advances; Prev disabled on page 1, Next disabled on the last page", async () => {
+      pagedByCursor(twoPages);
+      render(
+        <IssuePickerModal
+          isOpen
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          projectId="p1"
+          benches={[]}
+        />,
+      );
+      expect(screen.getByTestId("picker-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("picker-page-indicator")).toHaveTextContent("Page 2");
+      expect(screen.getByText("Bravo")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Previous page" })).not.toBeDisabled();
+    });
+
+    it("Prev replays the retained cursor back to the prior page", async () => {
+      pagedByCursor(twoPages);
+      render(
+        <IssuePickerModal
+          isOpen
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          projectId="p1"
+          benches={[]}
+        />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("picker-page-indicator")).toHaveTextContent("Page 2");
+
+      await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
+      expect(screen.getByTestId("picker-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    });
+
+    it("announces the new page via the polite live region (NFR-007)", async () => {
+      pagedByCursor(twoPages);
+      render(
+        <IssuePickerModal
+          isOpen
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          projectId="p1"
+          benches={[]}
+        />,
+      );
+      const live = screen.getByTestId("picker-page-live");
+      expect(live).toHaveAttribute("aria-live", "polite");
+
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(live).toHaveTextContent("Page 2");
+    });
+
+    it("keeps the pager (Next reachable) when the page is all assigned but more pages exist", () => {
+      // The only issue on this page is assigned to a bench, so items is empty,
+      // but nextCursor stays non-null: the pager must remain so Next can reach
+      // the following page rather than stranding the user on a non-last page.
+      mockUseIssues.mockReturnValue(
+        defaultResult({ issues: [makeIssue("1", { title: "Assigned" })], nextCursor: "c1" }),
+      );
+      const bench: Bench = {
+        id: 1,
+        projectId: "p1",
+        branch: "main",
+        assignedIssue: {
+          number: 1,
+          externalId: "1",
+          title: "Assigned",
+          integrationId: "github-com",
+        },
+      } as unknown as Bench;
+      render(
+        <IssuePickerModal
+          isOpen
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          projectId="p1"
+          benches={[bench]}
+        />,
+      );
+      expect(screen.getByText(/no open issues/i)).toBeInTheDocument();
+      expect(screen.getByTestId("picker-pager")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next page" })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    });
+
+    it("hides the pager when there are no items and no other page", () => {
+      mockUseIssues.mockReturnValue(defaultResult({ issues: [], nextCursor: null }));
+      render(
+        <IssuePickerModal
+          isOpen
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          projectId="p1"
+          benches={[]}
+        />,
+      );
+      expect(screen.queryByTestId("picker-pager")).toBeNull();
+    });
   });
 });

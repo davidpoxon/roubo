@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Button, DialogTrigger } from "react-aria-components";
-import { RefreshCw, X, ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
+import { RefreshCw, X, ChevronDown, ChevronRight, ChevronLeft, PanelLeftClose } from "lucide-react";
 import type { Bench, RouboConfig } from "@roubo/shared";
 import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
@@ -40,17 +40,26 @@ export default function IssueQueuePanel({
   onGroupingChange?: (projectId: string, grouping: GroupingState) => void;
   onCollapse?: () => void;
 }) {
+  // Client-retained cursor history for Prev/Next paging (FR-007/FR-008). The
+  // plugin contract is forward-only (PaginatedIssues exposes nextCursor only),
+  // so each entry is the opaque cursor that loads that page: index 0 is always
+  // `null` (page 1), and Prev replays a retained cursor that React Query serves
+  // from cache. `pageIndex` is the zero-based offset into the stack.
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const activeCursor = cursorStack[pageIndex] ?? null;
+  // Announced to screen readers via the polite live region on each page change.
+  const [pageAnnouncement, setPageAnnouncement] = useState("");
+
   const {
     issues,
     isLoading: itemsLoading,
     error: itemsError,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
+    nextCursor,
     stalled,
     stale,
     excludedCount,
-  } = useIssues(projectId);
+  } = useIssues(projectId, {}, undefined, activeCursor);
   const refreshItems = useRefreshIssues();
   const integrationQuery = useProjectIntegration(projectId);
 
@@ -102,6 +111,32 @@ export default function IssueQueuePanel({
     },
     [projectId, onGroupingChange],
   );
+
+  // Reset paging to page 1 and discard forward cursor history whenever the query
+  // inputs change (project, filters, grouping/sources). Forward-only cursors are
+  // only valid for the shape they were issued against, so retaining them across a
+  // shape change would replay stale cursors (FR-008). A stable signature lets us
+  // detect a genuine input change without firing on unrelated re-renders.
+  const pagingResetSignature = useMemo(
+    () =>
+      JSON.stringify({ projectId, filters, grouping }, (_key, value) =>
+        value instanceof Set ? [...value].sort() : value,
+      ),
+    [projectId, filters, grouping],
+  );
+  // Adjust state during render when the inputs change (React's recommended
+  // alternative to a reset effect): React restarts the render with the new state
+  // before committing, so the page never flashes a stale slice.
+  const [lastResetSignature, setLastResetSignature] = useState(pagingResetSignature);
+  if (pagingResetSignature !== lastResetSignature) {
+    setLastResetSignature(pagingResetSignature);
+    setCursorStack([null]);
+    setPageIndex(0);
+    // Announce the reset-driven jump back to page 1 (NFR-007). Without this the
+    // live region would keep the stale "Page N" text and the input-change page
+    // change would go unannounced.
+    setPageAnnouncement("Page 1");
+  }
 
   // Collapse state keyed by "${projectId}:${groupBy}": new project/dimension combos start expanded.
   // This state is intentionally local to this component (not hoisted to BenchDashboard like filter/grouping
@@ -174,25 +209,37 @@ export default function IssueQueuePanel({
     return groupItems(filteredItems, grouping.groupBy, groupFacet.label);
   }, [filteredItems, grouping, facets]);
 
-  // Auto-fetch next page when the sentinel scrolls into view (FR-022, NFR-005).
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            fetchNextPage();
-            break;
-          }
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  // Prev/Next paging (FR-007/FR-008). Next pushes the current page's nextCursor
+  // onto the stack and advances; Prev steps back to a retained cursor that React
+  // Query serves from cache (NFR-004). Total page count is unknowable with
+  // forward-only cursors, so the last page is inferred from nextCursor === null.
+  const hasPrev = pageIndex > 0;
+  const hasNext = nextCursor !== null;
+  const pageNumber = pageIndex + 1;
+
+  const goPrev = useCallback(() => {
+    setPageIndex((prev) => {
+      if (prev === 0) return prev;
+      const next = prev - 1;
+      setPageAnnouncement(`Page ${next + 1}`);
+      return next;
+    });
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (nextCursor === null) return;
+    setCursorStack((stack) => {
+      // Truncate any forward history and append this page's nextCursor so Prev
+      // can replay the page we are leaving.
+      const trimmed = stack.slice(0, pageIndex + 1);
+      return [...trimmed, nextCursor];
+    });
+    setPageIndex((prev) => {
+      const next = prev + 1;
+      setPageAnnouncement(`Page ${next + 1}`);
+      return next;
+    });
+  }, [nextCursor, pageIndex]);
 
   return (
     <div className="h-full flex flex-col">
@@ -392,17 +439,51 @@ export default function IssueQueuePanel({
                 )}
               </div>
             )}
-            {hasNextPage && (
-              <div
-                ref={sentinelRef}
-                data-testid="queue-load-more-sentinel"
-                className="flex items-center justify-center py-4"
-              >
-                {isFetchingNextPage && <Spinner />}
-              </div>
-            )}
           </div>
         )}
+      </div>
+
+      {/* Pagination footer (FR-007/FR-008). Hidden while loading, on error, or
+          when there is genuinely nothing to page (no items on this page AND no
+          prior/next page, TC-027). When the current page's items are all filtered
+          out client-side but another page exists (hasNext) or we paged in from a
+          prior page (hasPrev), the pager stays so Next/Prev remain reachable. */}
+      {!itemsLoading && !itemsError && (filteredItems.length > 0 || hasPrev || hasNext) && (
+        <div
+          data-testid="cut-list-pager"
+          className="flex items-center justify-between gap-2 px-3 py-2 border-t border-stone-200 dark:border-stone-800/60"
+        >
+          <Button
+            onPress={goPrev}
+            isDisabled={!hasPrev}
+            aria-label="Previous page"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <ChevronLeft size={13} />
+            Prev
+          </Button>
+          <span
+            data-testid="cut-list-page-indicator"
+            className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap"
+          >
+            Page {pageNumber} &middot; {filteredItems.length} item
+            {filteredItems.length === 1 ? "" : "s"}
+          </span>
+          <Button
+            onPress={goNext}
+            isDisabled={!hasNext}
+            aria-label="Next page"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+          >
+            Next
+            <ChevronRight size={13} />
+          </Button>
+        </div>
+      )}
+
+      {/* Polite live region announcing page changes to screen readers (NFR-007). */}
+      <div aria-live="polite" className="sr-only" data-testid="cut-list-page-live">
+        {pageAnnouncement}
       </div>
     </div>
   );

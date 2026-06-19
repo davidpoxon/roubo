@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
-import { Tag, ExternalLink, Lock } from "lucide-react";
+import { Tag, ExternalLink, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import Spinner from "./Spinner";
 import IssueChip from "./IssueChip";
 import { useIssues } from "../hooks/useIssues";
@@ -104,8 +104,56 @@ export default function IssuePickerModal({
   benches: Bench[];
   pendingIssueExternalIds?: Set<string>;
 }) {
-  const { issues, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage, stalled, error } =
-    useIssues(projectId);
+  // Client-retained cursor history for Prev/Next paging (the plugin contract is
+  // forward-only, so Prev replays a retained cursor that React Query serves from
+  // cache). Index 0 is always `null` (page 1).
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const activeCursor = cursorStack[pageIndex] ?? null;
+  const [pageAnnouncement, setPageAnnouncement] = useState("");
+
+  // Reset to page 1 whenever the modal closes so a fresh open starts clean.
+  // Adjusting state during render (React's recommended alternative to a reset
+  // effect) keeps a reopened modal from briefly showing the prior page.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) {
+      setCursorStack([null]);
+      setPageIndex(0);
+      setPageAnnouncement("");
+    }
+  }
+
+  const { issues, isLoading, nextCursor, stalled, error } = useIssues(
+    projectId,
+    {},
+    undefined,
+    activeCursor,
+  );
+
+  const hasPrev = pageIndex > 0;
+  const hasNext = nextCursor !== null;
+  const pageNumber = pageIndex + 1;
+
+  const goPrev = useCallback(() => {
+    setPageIndex((prev) => {
+      if (prev === 0) return prev;
+      const next = prev - 1;
+      setPageAnnouncement(`Page ${next + 1}`);
+      return next;
+    });
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (nextCursor === null) return;
+    setCursorStack((stack) => [...stack.slice(0, pageIndex + 1), nextCursor]);
+    setPageIndex((prev) => {
+      const next = prev + 1;
+      setPageAnnouncement(`Page ${next + 1}`);
+      return next;
+    });
+  }, [nextCursor, pageIndex]);
 
   const assignedExternalIds = useMemo(() => {
     const set = new Set<string>();
@@ -122,27 +170,6 @@ export default function IssuePickerModal({
         !pendingIssueExternalIds?.has(issue.externalId),
     );
   }, [issues, assignedExternalIds, pendingIssueExternalIds]);
-
-  // Auto-fetch next page when the sentinel scrolls into view.
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!isOpen) return;
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            fetchNextPage();
-            break;
-          }
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [isOpen, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <ModalOverlay
@@ -202,17 +229,49 @@ export default function IssuePickerModal({
                         <p className="text-sm text-stone-400 dark:text-stone-600">No open issues</p>
                       </div>
                     )}
-                    {hasNextPage && (
-                      <div
-                        ref={sentinelRef}
-                        data-testid="picker-load-more-sentinel"
-                        className="flex items-center justify-center py-4"
-                      >
-                        {isFetchingNextPage && <Spinner />}
-                      </div>
-                    )}
                   </div>
                 )}
+              </div>
+
+              {/* Pagination footer. Hidden while loading, on error, or when there
+                  is genuinely nothing to page (no items on this page AND no
+                  prior/next page). When the current page's issues are all assigned
+                  or pending but another page exists (hasNext) or we paged in from a
+                  prior page (hasPrev), the pager stays so Next/Prev stay reachable. */}
+              {!isLoading && !error && (items.length > 0 || hasPrev || hasNext) && (
+                <div
+                  data-testid="picker-pager"
+                  className="flex items-center justify-between gap-2 px-4 py-2 border-t border-stone-200 dark:border-stone-800/60"
+                >
+                  <Button
+                    onPress={goPrev}
+                    isDisabled={!hasPrev}
+                    aria-label="Previous page"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <ChevronLeft size={13} />
+                    Prev
+                  </Button>
+                  <span
+                    data-testid="picker-page-indicator"
+                    className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap"
+                  >
+                    Page {pageNumber} &middot; {items.length} item{items.length === 1 ? "" : "s"}
+                  </span>
+                  <Button
+                    onPress={goNext}
+                    isDisabled={!hasNext}
+                    aria-label="Next page"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    Next
+                    <ChevronRight size={13} />
+                  </Button>
+                </div>
+              )}
+
+              <div aria-live="polite" className="sr-only" data-testid="picker-page-live">
+                {pageAnnouncement}
               </div>
             </>
           )}

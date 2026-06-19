@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NormalizedIssue, PaginatedIssues } from "@roubo/shared";
 import * as api from "../lib/api";
 
@@ -10,11 +10,10 @@ export interface UseIssuesFilters {
 export interface UseIssuesResult {
   issues: NormalizedIssue[];
   isLoading: boolean;
-  isFetchingNextPage: boolean;
-  hasNextPage: boolean;
-  fetchNextPage: () => void;
+  /** The opaque cursor for the next page, or null when this is the last page. */
+  nextCursor: string | null;
   error: Error | null;
-  /** True when any retrieved page reported `stalled` (TC-071). */
+  /** True when the retrieved page reported `stalled` (TC-071). */
   stalled: boolean;
   /**
    * True when the response was served from the issue-snapshot cache because
@@ -25,15 +24,20 @@ export interface UseIssuesResult {
   /** ISO timestamp of the cached snapshot when `stale` is true, else null. */
   snapshotCapturedAt: string | null;
   /**
-   * Total issues the active plugin dropped in-query across fetched pages
-   * (status-category exclusion, FR-009/FR-010), or 0 when no page reported a
-   * count. Drives the cut list's "N filtered out by status" banner.
+   * Issues the active plugin dropped in-query on this page (status-category
+   * exclusion, FR-009/FR-010), or 0 when the page reported no count. Drives the
+   * cut list's "N filtered out by status" banner.
    */
   excludedCount: number;
 }
 
 /**
- * Walk the active plugin's paginated `listIssues` via React Query.
+ * Fetch a single page of the active plugin's paginated `listIssues` via React
+ * Query, keyed on the supplied opaque `cursor` (FR-007). The plugin contract is
+ * forward-only (`PaginatedIssues` exposes `nextCursor` only), so Prev/Next paging
+ * is driven by the caller retaining prior cursors and replaying them through this
+ * hook; React Query then serves a revisited page from cache.
+ *
  * Default page size is governed by the server (project's integration config,
  * fallback 50); callers can override per query via `pageSize`.
  */
@@ -41,56 +45,35 @@ export function useIssues(
   projectId: string | undefined,
   filters: UseIssuesFilters = {},
   pageSize?: number,
+  cursor: string | null = null,
 ): UseIssuesResult {
-  const query = useInfiniteQuery<PaginatedIssues, Error>({
-    queryKey: ["issues", projectId, filters, pageSize ?? null],
+  const query = useQuery<PaginatedIssues, Error>({
+    queryKey: ["issues", projectId, filters, pageSize ?? null, cursor],
     enabled: !!projectId,
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
+    queryFn: () =>
       api.fetchIssuesPage(projectId as string, {
-        cursor: pageParam as string | null,
+        cursor,
         pageSize,
         labels: filters.labels,
         search: filters.search,
       }),
-    getNextPageParam: (last) => last.nextCursor,
     staleTime: 30_000,
     retry: false,
   });
 
-  const pages = query.data?.pages ?? [];
-  // Dedupe across pages by (integrationId, externalId) (issue #548). The host
-  // dedupes only within a single response page, and this flatten would
-  // otherwise surface an issue twice when the same identity reaches two pages
-  // (e.g. a source that lists an issue under two board columns straddling a
-  // page boundary). This is a defense-in-depth backstop across all plugins; the
-  // per-source fix lives in each plugin's lister.
-  const seen = new Set<string>();
-  const issues = pages.flatMap((p) =>
-    p.items.filter((item) => {
-      const key = `${item.integrationId}::${item.externalId}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }),
-  );
-  const stalled = pages.some((p) => p.stalled === true);
-  // The cache only ever serves the first page, so the stale marker (if present)
-  // lives on pages[0]. Iterating defensively in case the server ever extends
-  // the contract to mark additional pages.
-  const stalePage = pages.find((p) => p.stale === true);
-  const stale = stalePage !== undefined;
-  const snapshotCapturedAt = stalePage?.snapshotCapturedAt ?? null;
-  const excludedCount = pages.reduce((sum, p) => sum + (p.excludedCount ?? 0), 0);
+  const page = query.data;
+  // The host dedupes within a single response page, so no cross-page backstop is
+  // needed here: this hook only ever holds one page at a time.
+  const issues = page?.items ?? [];
+  const stalled = page?.stalled === true;
+  const stale = page?.stale === true;
+  const snapshotCapturedAt = (stale ? page?.snapshotCapturedAt : undefined) ?? null;
+  const excludedCount = page?.excludedCount ?? 0;
 
   return {
     issues,
     isLoading: query.isLoading,
-    isFetchingNextPage: query.isFetchingNextPage,
-    hasNextPage: query.hasNextPage,
-    fetchNextPage: () => {
-      void query.fetchNextPage();
-    },
+    nextCursor: page?.nextCursor ?? null,
     error: query.error,
     stalled,
     stale,
