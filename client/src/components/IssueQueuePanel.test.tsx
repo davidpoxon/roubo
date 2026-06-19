@@ -833,6 +833,36 @@ describe("IssueQueuePanel", () => {
       expect(screen.getByTestId("cut-list-refresh-status")).toHaveTextContent("Cut list updated");
     });
 
+    it("announces a failure, not success, when a refetch errors (CLI-TC-020)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: false }));
+      const { rerender } = renderPanel();
+
+      // Refetch begins.
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true }));
+      rerender(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId("cut-list-refresh-status")).toHaveTextContent(
+        "Refreshing cut list",
+      );
+
+      // Refetch settles with an error (isRefetching clears to false the same way
+      // a success does); the announcement must not claim the cut list updated.
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ isRefetching: false, error: new Error("network down") }),
+      );
+      rerender(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      const liveRegion = screen.getByTestId("cut-list-refresh-status");
+      expect(liveRegion).toHaveTextContent("Cut list refresh failed");
+      expect(liveRegion).not.toHaveTextContent("Cut list updated");
+    });
+
     it("keeps the refresh control keyboard-operable and labelled (CLI-TC-020)", async () => {
       const user = userEvent.setup();
       const refreshFn = vi.fn();

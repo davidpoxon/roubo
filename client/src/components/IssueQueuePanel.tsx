@@ -266,18 +266,21 @@ export default function IssueQueuePanel({
   }, [isRefetching, stale, snapshotCapturedAt, dataUpdatedAt]);
 
   // Polite live-region announcement for refresh start/completion (NFR-007 /
-  // AC4). Announce "Refreshing cut list" when a refetch begins and "Cut list
-  // updated" once it completes; stay silent before the first refresh.
+  // AC4). Announce "Refreshing cut list" when a refetch begins, then on
+  // completion announce success or, when the refetch errored, a failure (a
+  // failed refetch settles isRefetching to false the same way a success does,
+  // so the completion message is gated on itemsError rather than reading "Cut
+  // list updated" when nothing updated). Stay silent before the first refresh.
   const [refreshAnnouncement, setRefreshAnnouncement] = useState("");
   const wasRefetchingRef = useRef(false);
   useEffect(() => {
     if (isRefetching && !wasRefetchingRef.current) {
       setRefreshAnnouncement("Refreshing cut list");
     } else if (!isRefetching && wasRefetchingRef.current) {
-      setRefreshAnnouncement("Cut list updated");
+      setRefreshAnnouncement(itemsError ? "Cut list refresh failed" : "Cut list updated");
     }
     wasRefetchingRef.current = isRefetching;
-  }, [isRefetching]);
+  }, [isRefetching, itemsError]);
 
   return (
     <div className="h-full flex flex-col">
