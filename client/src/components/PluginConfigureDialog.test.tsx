@@ -425,6 +425,80 @@ describe("PluginConfigureDialog", () => {
 
       expect(save.mock.calls[0][0].excludedStatusCategories).toBeUndefined();
     });
+
+    // FR-013 (issue #558): the actionable To-Do category can never be excluded.
+    it("renders the actionable To-Do category disabled and unchecked", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: {
+          plugin: "jira-self-hosted",
+          excludedStatusCategories: ["In Progress", "Done"],
+        },
+      });
+
+      const toDo = screen.getByRole("checkbox", { name: "To Do" });
+      expect(toDo).toBeDisabled();
+      expect(toDo).not.toBeChecked();
+      // The other categories remain togglable / checked.
+      expect(screen.getByRole("checkbox", { name: "In Progress" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Done" })).toBeChecked();
+    });
+
+    it("never persists the actionable To-Do category even if it leaks into the seed", async () => {
+      const user = userEvent.setup();
+      const save = vi.fn().mockResolvedValue({});
+      installMocks({ test: verifyOk(), save });
+      renderDialog({
+        plugin: jiraPlugin(),
+        effective: {
+          plugin: "jira-self-hosted",
+          instance: "https://jira.acme.com",
+          // A stale set that wrongly carries the actionable category.
+          excludedStatusCategories: ["To Do", "Done"],
+        },
+      });
+
+      // Make a real change so the set is persisted.
+      await user.click(screen.getByRole("checkbox", { name: "In Progress" }));
+      await user.click(screen.getByTestId("save-config"));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+      const persisted = save.mock.calls[0][0].excludedStatusCategories;
+      expect(persisted).not.toContain("To Do");
+      expect(persisted).toEqual(expect.arrayContaining(["Done", "In Progress"]));
+    });
+  });
+
+  // FR-014 (issue #558): the GitHub family has no native In Progress category,
+  // so the dialog shows the open/closed mapping note instead of a toggle.
+  describe("GitHub-family status mapping note (issue #558)", () => {
+    it("renders the mapping note for the GitHub family and no category toggle", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      // The default plugin is ghe with no defaultIntegrationConfig.
+      renderDialog();
+
+      expect(screen.queryByTestId("status-exclusion-section")).not.toBeInTheDocument();
+      expect(screen.getByTestId("status-mapping-note-section")).toBeInTheDocument();
+      expect(screen.getByTestId("status-mapping-note").textContent).toMatch(
+        /no In Progress status category/i,
+      );
+    });
+
+    it("does not render the mapping note for a plugin that supports category exclusion", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      renderDialog({
+        plugin: makePlugin({
+          name: "Jira",
+          configSchema: { type: "object", properties: { instance: { type: "string" } } },
+          defaultIntegrationConfig: { excludedStatusCategories: ["In Progress", "Done"] },
+        }),
+        effective: { plugin: "ghe" } as IntegrationConfig,
+      });
+
+      expect(screen.queryByTestId("status-mapping-note-section")).not.toBeInTheDocument();
+      expect(screen.getByTestId("status-exclusion-section")).toBeInTheDocument();
+    });
   });
 
   describe("live status-category discovery (issue #453)", () => {

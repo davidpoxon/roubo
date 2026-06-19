@@ -17,6 +17,7 @@ import { useMenuNav } from "./hooks/useMenuNav";
 import { useDeepLink } from "./hooks/useDeepLink";
 import { RegisterProjectModalProvider } from "./components/RegisterProjectModalProvider";
 import MigrationBanner from "./components/MigrationBanner";
+import OnlyToDoNoticeBanner from "./components/OnlyToDoNoticeBanner";
 
 export default function App() {
   useThemeSync();
@@ -35,6 +36,7 @@ export default function App() {
       <div className="flex flex-col h-screen">
         <TitleBar projectName={projectName} />
         <MigrationBanner />
+        <OnlyToDoNoticeBanner />
         <div className="flex flex-1 min-h-0">
           <ProjectSidebar />
           <main className="flex-1 overflow-auto flex flex-col">

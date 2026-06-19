@@ -37,13 +37,22 @@ configSchema:
       default: false
       description: Trust self-signed or internal-CA certificates for this instance. Only enable for an on-prem Jira whose certificate you trust; it disables certificate verification for every request to this instance.
 defaultIntegrationConfig:
-  # Category-first exclusion is the default and source of truth: the JQL builder
-  # emits `statusCategory not in ("Done")`. The status-name list below is the
-  # fallback used only when an instance does not support `statusCategory` in
-  # JQL; it names the Done-category statuses so the fallback matches the intent.
+  # Only-to-do default (FR-012, issue #558): the cut list is for picking up new
+  # work, so by default it excludes both the In Progress and Done categories,
+  # leaving only genuinely ready To-Do items. Category-first exclusion is the
+  # source of truth: on a supporting instance the JQL builder emits
+  # `statusCategory not in ("In Progress", "Done")`. The status-name list below
+  # is the best-effort fallback used only when an instance does not support
+  # `statusCategory` in JQL (Spike C / issue #554); it names the In-Progress-
+  # and Done-category statuses so the fallback matches the same intent. Where a
+  # workflow uses non-standard in-progress status names, the user configures the
+  # exact names per project via the status-exclusion control (FR-013).
   excludedStatusCategories:
+    - In Progress
     - Done
   excludedStatuses:
+    - In Progress
+    - In Review
     - Closed
     - Done
     - Resolved
