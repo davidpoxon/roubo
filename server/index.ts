@@ -144,6 +144,13 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing project registry...");
   projectRegistry.initialize();
 
+  // FR-018 (issue #558): capture the fresh-install signal BEFORE the migration
+  // check runs, because `migrate.run()` writes state.json even on the greenfield
+  // path. The notice seeding below uses this to decide whether to show the
+  // changed-default banner (existing installs) or seed it as already-satisfied
+  // (fresh installs).
+  const freshInstall = migrate.isFreshInstall();
+
   console.log("Running migration check...");
   try {
     const outcome = await migrate.run();
@@ -156,6 +163,16 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     }
   } catch (err) {
     console.error("Migration check failed:", (err as Error).message);
+  }
+
+  // FR-018 (issue #558): seed the one-time only-to-do default-change notice
+  // marker. Fresh installs are seeded as already-satisfied; existing installs
+  // get a boot timestamp so the banner shows once. Failure here must not block
+  // boot, so it is logged and swallowed like the migration check above.
+  try {
+    migrate.seedOnlyToDoNotice(freshInstall);
+  } catch (err) {
+    console.error("Only-to-do notice seeding failed:", (err as Error).message);
   }
 
   console.log("Initializing plugin manager...");

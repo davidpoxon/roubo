@@ -307,19 +307,29 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
 
   it("Jira plugin ships status-name fallback defaults using Jira-native state strings", async () => {
     // Category-first exclusion is the default source of truth; this name list is
-    // the fallback used only when an instance rejects `statusCategory` in JQL,
-    // so it names the Done-category statuses (no "In Review", which is not Done).
+    // the best-effort fallback used only when an instance rejects `statusCategory`
+    // in JQL. For the only-to-do default (FR-012 / issue #558) it names both the
+    // In-Progress-category statuses ("In Progress", "In Review") and the
+    // Done-category statuses, so an unsupported instance excludes the same intent.
     const manifest = await loadManifest("jira-self-hosted");
     expect(manifest.defaultIntegrationConfig?.excludedStatuses).toEqual([
+      "In Progress",
+      "In Review",
       "Closed",
       "Done",
       "Resolved",
     ]);
   });
 
-  it("Jira plugin seeds the category-first excludedStatusCategories default (FR-010)", async () => {
+  it("Jira plugin seeds the only-to-do excludedStatusCategories default (FR-012, issue #558)", async () => {
+    // Deliberate flip from the prior Done-only default: the cut list defaults to
+    // excluding both In Progress and Done so only ready-to-pick-up To-Do items
+    // show. Surfaced to existing users by the one-time migration banner (FR-018).
     const manifest = await loadManifest("jira-self-hosted");
-    expect(manifest.defaultIntegrationConfig?.excludedStatusCategories).toEqual(["Done"]);
+    expect(manifest.defaultIntegrationConfig?.excludedStatusCategories).toEqual([
+      "In Progress",
+      "Done",
+    ]);
   });
 });
 

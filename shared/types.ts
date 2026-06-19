@@ -742,7 +742,25 @@ export interface PersistedState {
   schemaVersion?: number;
   /** Set alongside `schemaVersion` so the one-time banner can pick its variant. */
   migration?: MigrationRecord;
+  /**
+   * One-time notice markers, keyed by a stable marker id, recording an ISO 8601
+   * timestamp when each notice became applicable. Distinct from the WU-024
+   * single `migration` record above so independent one-time notices never
+   * overwrite one another. The client renders a marker's banner once and uses
+   * its timestamp as the localStorage dismissal key, so it never reappears
+   * after dismiss. A fresh install seeds every known marker as already-satisfied
+   * (timestamp `"seeded"`) so a banner explaining a changed default never shows
+   * to a user who never saw the old default. See `onlyToDoNoticeMarker` (issue #558).
+   */
+  notices?: Record<string, string>;
 }
+
+/**
+ * Marker id for the only-to-do default-change notice (FR-018, issue #558). The
+ * banner explaining that the cut list now excludes In Progress by default shows
+ * once on the first boot of an existing install after upgrade, then never again.
+ */
+export const ONLY_TO_DO_NOTICE_MARKER = "only-to-do-default-v1";
 
 export interface MigrationRecord {
   status: "success" | "rolled-back";

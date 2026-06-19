@@ -396,3 +396,70 @@ describe("migrate.getOutcome", () => {
     expect(mod.getOutcome()).toEqual({ status: "noop" });
   });
 });
+
+describe("migrate.seedOnlyToDoNotice (FR-018, issue #558)", () => {
+  const STATE_PATH = "/mock-home/.roubo/state.json";
+  const MARKER = "only-to-do-default-v1";
+
+  it("seeds the marker as already-satisfied on a fresh install (explicit flag)", () => {
+    mockState({ benches: [] });
+
+    const value = mod.seedOnlyToDoNotice(true);
+
+    expect(value).toBe("seeded");
+    expect(stateMocks.saveState).toHaveBeenCalledWith(
+      expect.objectContaining({ notices: { [MARKER]: "seeded" } }),
+    );
+  });
+
+  it("stamps a real timestamp on an existing install (explicit not-fresh flag)", () => {
+    mockState({ benches: [], schemaVersion: 1 });
+
+    const value = mod.seedOnlyToDoNotice(false);
+
+    expect(value).not.toBe("seeded");
+    expect(value).not.toBeNull();
+    // ISO 8601 timestamp.
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const saved = stateMocks.saveState.mock.calls[0][0] as { notices: Record<string, string> };
+    expect(saved.notices[MARKER]).toBe(value);
+  });
+
+  it("treats a fresh install as already-satisfied even when state.json now exists (regression: run() wrote it first)", () => {
+    // After migrate.run() the state.json file exists, but the boot path captured
+    // the pre-migration fresh-install signal and passes it through, so the banner
+    // must NOT show on a brand-new install.
+    fsMocks.existsSync.mockImplementation((p: string) => p === STATE_PATH);
+    mockState({ benches: [], schemaVersion: 1 });
+
+    const value = mod.seedOnlyToDoNotice(true);
+
+    expect(value).toBe("seeded");
+  });
+
+  it("falls back to a live state.json existence check when no flag is passed", () => {
+    fsMocks.existsSync.mockImplementation((p: string) => p !== STATE_PATH);
+    mockState({ benches: [] });
+
+    expect(mod.seedOnlyToDoNotice()).toBe("seeded");
+  });
+
+  it("is idempotent: a no-op (no write) when the marker is already set", () => {
+    mockState({ benches: [], notices: { [MARKER]: "2026-06-20T10:00:00.000Z" } });
+
+    const value = mod.seedOnlyToDoNotice(false);
+
+    expect(value).toBeNull();
+    expect(stateMocks.saveState).not.toHaveBeenCalled();
+  });
+
+  it("preserves other notice markers when seeding", () => {
+    mockState({ benches: [], notices: { "some-other-notice": "2026-01-01T00:00:00.000Z" } });
+
+    mod.seedOnlyToDoNotice(false);
+
+    const saved = stateMocks.saveState.mock.calls[0][0] as { notices: Record<string, string> };
+    expect(saved.notices["some-other-notice"]).toBe("2026-01-01T00:00:00.000Z");
+    expect(saved.notices[MARKER]).toBeDefined();
+  });
+});

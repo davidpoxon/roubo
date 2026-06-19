@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   BUNDLED_PLUGIN_IDS,
+  ONLY_TO_DO_NOTICE_MARKER,
   PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
   type IntegrationOverride,
   type MigrationRecord,
@@ -216,9 +217,61 @@ export async function run(): Promise<MigrationOutcome> {
   return outcome;
 }
 
+// Sentinel timestamp for a marker that is seeded as already-satisfied on a
+// fresh install, so its one-time banner never shows to a user who never saw the
+// old default. A real "show the banner once" marker carries an ISO 8601 boot
+// timestamp instead.
+const NOTICE_SEEDED = "seeded";
+
+/**
+ * Whether this looks like a fresh install: no `state.json` on disk yet. Capture
+ * this BEFORE `run()` executes, because the WU-024 migration writes `state.json`
+ * (it bumps `schemaVersion` even on the empty greenfield path), which would
+ * otherwise make a fresh install look like an existing one to `seedOnlyToDoNotice`.
+ */
+export function isFreshInstall(): boolean {
+  return !fs.existsSync(path.join(getRouboDir(), "state.json"));
+}
+
+/**
+ * Idempotently set the only-to-do default-change notice marker (FR-018, issue
+ * #558). Runs once per boot, alongside the WU-024 migration check, and uses its
+ * own `notices` map so it never overwrites the single `migration` record.
+ *
+ * - Already set: no-op. The banner shows once and the client's localStorage
+ *   dismissal keeps it dismissed; the server marker only governs first-show.
+ * - Fresh install (`freshInstall` true): seed the marker as already-satisfied
+ *   (`"seeded"`) so the changed-default banner never shows to a user who never
+ *   experienced the old Done-only default.
+ * - Existing install (`freshInstall` false, marker absent): stamp the marker
+ *   with the boot timestamp so the banner shows once to explain the new default.
+ *
+ * `freshInstall` must be captured before `run()` writes `state.json`; it
+ * defaults to a live `state.json` existence check for standalone callers, but
+ * the boot path passes the pre-migration value (see `index.ts`).
+ *
+ * Returns the resolved marker value (or `null` when it was already set and left
+ * untouched) so callers/tests can observe the decision.
+ */
+export function seedOnlyToDoNotice(freshInstall: boolean = isFreshInstall()): string | null {
+  const state = loadState();
+  const existing = state.notices?.[ONLY_TO_DO_NOTICE_MARKER];
+  if (existing) return null;
+
+  // A fresh install is seeded as already-satisfied so the changed-default banner
+  // never shows; an existing install gets a real timestamp so it shows once.
+  const value = freshInstall ? NOTICE_SEEDED : new Date().toISOString();
+  saveState({
+    ...state,
+    notices: { ...(state.notices ?? {}), [ONLY_TO_DO_NOTICE_MARKER]: value },
+  });
+  return value;
+}
+
 // Test-only reset so vitest's module-mock isolation can clear lastOutcome.
 export const __test = {
   reset(): void {
     lastOutcome = null;
   },
+  NOTICE_SEEDED,
 };

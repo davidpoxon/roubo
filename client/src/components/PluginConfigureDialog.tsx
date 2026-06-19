@@ -78,12 +78,38 @@ const PLUGINS_WITHOUT_SOURCE_PICKER = new Set(["github-com", "ghe"]);
 // `defaultIntegrationConfig.excludedStatusCategories` in its manifest.
 const CANONICAL_STATUS_CATEGORIES = ["To Do", "In Progress", "Done"];
 
+// FR-013 (issue #558): the actionable "To-Do" category is what the cut list
+// exists to surface, so it can never be excluded. Its row renders disabled and
+// it is stripped from any persisted exclusion set. Matched case-insensitively
+// against the discovered/canonical category names so a real instance's "To Do"
+// (or "To-Do") label is recognised regardless of spacing/casing.
+function isActionableCategory(category: string): boolean {
+  return (
+    category
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "") === "todo"
+  );
+}
+
+// FR-014 (issue #558): plugins with no native In Progress status category
+// (the GitHub family) map only-to-do to their closest approximation: the cut
+// list already drops closed/done issues via its open-only fetch, and there is
+// no faithful board-independent "In Progress" category to exclude. The Configure
+// dialog explains this (STRINGS.statusMappingNote) instead of a category toggle.
+const GITHUB_FAMILY_PLUGIN_IDS = new Set(["github-com", "ghe"]);
+
 const STRINGS = {
   titlePrefix: "Configure ",
   globalSuffix: "(global defaults)",
   integrationFieldsHeading: "Repository & metadata",
   statusExclusionHeading: "Excluded status categories",
   statusExclusionHelp: "Issues in checked categories are hidden from the cut list.",
+  // FR-013 (issue #558): label on the non-excludable actionable To-Do row.
+  statusActionableHint: "always shown",
+  // FR-014 (issue #558): mapping note for plugins with no native status category.
+  statusMappingNote:
+    "This integration has no In Progress status category, only Open and Closed. The cut list already hides Closed items and shows Open ones; In Progress is not excluded by default.",
   repositoryLabel: "Repository",
   repositoryPlaceholder: "org/repo-name",
   verify: "Verify",
@@ -402,6 +428,10 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   // the checked state matches what the cut list actually excludes today.
   const manifestDefaultCategories = manifest?.defaultIntegrationConfig?.excludedStatusCategories;
   const showStatusExclusion = mode === "project" && manifestDefaultCategories !== undefined;
+  // FR-014 (issue #558): the GitHub family has no native status categories, so
+  // it shows the open/closed mapping note instead of a category toggle.
+  const showStatusMappingNote =
+    mode === "project" && !showStatusExclusion && GITHUB_FAMILY_PLUGIN_IDS.has(plugin.id);
   const seededCategories = useMemo(
     () => effective.excludedStatusCategories ?? manifestDefaultCategories ?? [],
     [effective.excludedStatusCategories, manifestDefaultCategories],
@@ -436,6 +466,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     [excludedCategories, initialCategories],
   );
   function toggleCategory(category: string, excluded: boolean) {
+    // The actionable To-Do category can never be excluded (FR-013): ignore any
+    // attempt to toggle it on, defensively, even though its row is disabled.
+    if (isActionableCategory(category)) return;
     setExcludedCategories((prev) =>
       excluded ? [...new Set([...prev, category])] : prev.filter((c) => c !== category),
     );
@@ -508,7 +541,9 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     // merely verifying an untouched dialog doesn't convert the implicit
     // manifest default into an explicit stored override (issue #435).
     if (showStatusExclusion && excludedCategoriesChanged) {
-      update.excludedStatusCategories = excludedCategories;
+      // Never persist the actionable To-Do category as excluded (FR-013), even
+      // if a stale saved set somehow carried it in.
+      update.excludedStatusCategories = excludedCategories.filter((c) => !isActionableCategory(c));
     }
     return update;
   }
@@ -675,32 +710,57 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                     {STRINGS.statusExclusionHelp}
                   </p>
                 </div>
-                {categoryOptions.map((category) => (
-                  <Checkbox
-                    key={category}
-                    isSelected={excludedCategories.includes(category)}
-                    onChange={(next) => toggleCategory(category, next)}
-                    aria-label={category}
-                    className="flex items-center gap-2 cursor-pointer group"
-                  >
-                    {({ isSelected }) => (
-                      <>
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                            isSelected
-                              ? "bg-stone-600 border-stone-500"
-                              : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
-                          }`}
-                        >
-                          {isSelected && <Check size={10} className="text-stone-100" />}
-                        </div>
-                        <span className="text-sm text-stone-700 dark:text-stone-300">
-                          {category}
-                        </span>
-                      </>
-                    )}
-                  </Checkbox>
-                ))}
+                {categoryOptions.map((category) => {
+                  const actionable = isActionableCategory(category);
+                  return (
+                    <Checkbox
+                      key={category}
+                      isSelected={!actionable && excludedCategories.includes(category)}
+                      isDisabled={actionable}
+                      onChange={(next) => toggleCategory(category, next)}
+                      aria-label={category}
+                      className={`flex items-center gap-2 group ${
+                        actionable ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                      }`}
+                    >
+                      {({ isSelected }) => (
+                        <>
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "bg-stone-600 border-stone-500"
+                                : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                            }`}
+                          >
+                            {isSelected && <Check size={10} className="text-stone-100" />}
+                          </div>
+                          <span className="text-sm text-stone-700 dark:text-stone-300">
+                            {category}
+                          </span>
+                          {actionable && (
+                            <span className="text-[11px] text-stone-400 dark:text-stone-600">
+                              {STRINGS.statusActionableHint}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Checkbox>
+                  );
+                })}
+              </div>
+            )}
+
+            {showStatusMappingNote && (
+              <div className="flex flex-col gap-1" data-testid="status-mapping-note-section">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                  {STRINGS.statusExclusionHeading}
+                </span>
+                <p
+                  className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
+                  data-testid="status-mapping-note"
+                >
+                  {STRINGS.statusMappingNote}
+                </p>
               </div>
             )}
           </>
