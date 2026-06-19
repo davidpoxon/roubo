@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -84,9 +84,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
     issues: [] as NormalizedIssue[],
     isLoading: false,
-    isFetchingNextPage: false,
-    hasNextPage: false,
-    fetchNextPage: vi.fn(),
+    nextCursor: null,
     error: null,
     stalled: false,
     stale: false,
@@ -511,6 +509,168 @@ describe("IssueQueuePanel", () => {
         <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
       );
       expect(mockedRecheck).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe("FR-007/FR-008: Prev/Next pagination", () => {
+    // Drive the mocked useIssues from the cursor argument the panel passes as its
+    // 4th positional arg, simulating a forward-only paged plugin. page1 -> "c1"
+    // -> "c2" (last). Each page renders one identifying card.
+    type Page = { items: NormalizedIssue[]; nextCursor: string | null };
+    function pagedByCursor(pages: Record<string, Page>) {
+      mockedUseIssues.mockImplementation((_projectId, _filters, _pageSize, cursor) => {
+        const page = pages[cursor ?? "page1"];
+        return defaultResult({
+          issues: page.items,
+          nextCursor: page.nextCursor,
+        }) as ReturnType<typeof useIssues>;
+      });
+    }
+
+    const threePages: Record<string, Page> = {
+      page1: { items: [makeIssue("a1")], nextCursor: "c1" },
+      c1: { items: [makeIssue("b1")], nextCursor: "c2" },
+      c2: { items: [makeIssue("c1card")], nextCursor: null },
+    };
+
+    it("Next advances to page 2 and the indicator updates (TC-022)", async () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByText("a1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 2");
+      expect(screen.getByText("b1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous page" })).not.toBeDisabled();
+    });
+
+    it("Prev is disabled on page 1 (TC-023)", () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 1");
+    });
+
+    it("Prev returns to the prior page via the retained cursor (TC-024)", async () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 3");
+      expect(screen.getByText("c1card")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 2");
+      expect(screen.getByText("b1")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByText("a1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    });
+
+    it("Next is disabled on the last page (TC-025)", async () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 3");
+      expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    });
+
+    it("changing the filter resets to page 1 and discards cursor history (TC-026)", async () => {
+      // page 1 carries one Bug and one Feature so the filter leaves a result.
+      mockedUseIssues.mockImplementation(
+        (_projectId, _filters, _pageSize, cursor) =>
+          defaultResult(
+            cursor
+              ? { issues: [makeIssue("b1", { issueType: "Bug" })], nextCursor: "c2" }
+              : {
+                  issues: [
+                    makeIssue("a1", { issueType: "Bug" }),
+                    makeIssue("a2", { issueType: "Feature" }),
+                  ],
+                  nextCursor: "c1",
+                },
+          ) as ReturnType<typeof useIssues>,
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 2");
+
+      await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
+
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    });
+
+    it("hides the pager when the result set is empty (TC-027)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ issues: [], nextCursor: null }));
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByTestId("cut-list-pager")).toBeNull();
+    });
+
+    it("pager controls are keyboard operable (Enter advances) (TC-029)", async () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      const next = screen.getByRole("button", { name: "Next page" });
+      act(() => {
+        next.focus();
+      });
+      expect(next).toHaveFocus();
+      await userEvent.keyboard("{Enter}");
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 2");
+    });
+
+    it("announces the new page via the polite live region (TC-030)", async () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      const live = screen.getByTestId("cut-list-page-live");
+      expect(live).toHaveAttribute("aria-live", "polite");
+
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(live).toHaveTextContent("Page 2");
+
+      await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
+      expect(live).toHaveTextContent("Page 1");
+    });
+
+    it("does not render an infinite-scroll sentinel (TC-031)", () => {
+      pagedByCursor(threePages);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByTestId("queue-load-more-sentinel")).toBeNull();
+      expect(screen.getByTestId("cut-list-pager")).toBeInTheDocument();
+    });
+
+    it("the page indicator shows the current page's item count", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ issues: [makeIssue("1"), makeIssue("2"), makeIssue("3")] }),
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("3 items");
     });
   });
 });

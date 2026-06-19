@@ -14,9 +14,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
   return {
     issues: [],
     isLoading: false,
-    isFetchingNextPage: false,
-    hasNextPage: false,
-    fetchNextPage: vi.fn(),
+    nextCursor: null,
     error: null,
     stalled: false,
     stale: false,

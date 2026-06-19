@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { waitFor, act } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { renderHookWithProviders } from "../test/renderWithProviders";
 import { useIssues } from "./useIssues";
 import * as api from "../lib/api";
@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe("useIssues", () => {
-  it("returns the first page issues with hasNextPage true when nextCursor is non-null", async () => {
+  it("returns the single page's items and exposes its nextCursor (TC-022)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1"), makeIssue("2")],
       nextCursor: "c1",
@@ -45,67 +45,49 @@ describe("useIssues", () => {
     const { result } = renderHookWithProviders(() => useIssues("p1"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.issues.map((i) => i.externalId)).toEqual(["1", "2"]);
-    expect(result.current.hasNextPage).toBe(true);
+    expect(result.current.nextCursor).toBe("c1");
   });
 
-  it("walks through pages via fetchNextPage, flattening items in order", async () => {
-    mockedFetch
-      .mockResolvedValueOnce({
-        items: [makeIssue("1")],
-        nextCursor: "c1",
-      } as PaginatedIssues)
-      .mockResolvedValueOnce({
-        items: [makeIssue("2")],
-        nextCursor: "c2",
-      } as PaginatedIssues)
-      .mockResolvedValueOnce({
-        items: [makeIssue("3")],
-        nextCursor: null,
-      } as PaginatedIssues);
+  it("reports nextCursor null on the last page (Next disabled, TC-025)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("9")],
+      nextCursor: null,
+    } as PaginatedIssues);
 
     const { result } = renderHookWithProviders(() => useIssues("p1"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await act(async () => {
-      result.current.fetchNextPage();
-    });
-    await waitFor(() => expect(result.current.issues).toHaveLength(2));
-
-    await act(async () => {
-      result.current.fetchNextPage();
-    });
-    await waitFor(() => expect(result.current.issues).toHaveLength(3));
-
-    expect(result.current.issues.map((i) => i.externalId)).toEqual(["1", "2", "3"]);
-    expect(result.current.hasNextPage).toBe(false);
+    expect(result.current.nextCursor).toBeNull();
   });
 
-  it("dedupes the same issue across pages by (integrationId, externalId) (#548)", async () => {
-    // The host dedupes only within a single page; this is the cross-page
-    // backstop. #1 reaches both pages (e.g. a board issue under two columns
-    // straddling the page boundary) and must surface once, in first-page order.
-    mockedFetch
-      .mockResolvedValueOnce({
-        items: [makeIssue("1"), makeIssue("2")],
-        nextCursor: "c1",
-      } as PaginatedIssues)
-      .mockResolvedValueOnce({
-        items: [makeIssue("1"), makeIssue("3")],
-        nextCursor: null,
-      } as PaginatedIssues);
+  it("passes the supplied cursor into the query function and keys on it (TC-024)", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [makeIssue("3")],
+      nextCursor: null,
+    } as PaginatedIssues);
 
-    const { result } = renderHookWithProviders(() => useIssues("p1"));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await act(async () => {
-      result.current.fetchNextPage();
+    renderHookWithProviders(() => useIssues("p1", {}, undefined, "cursor-for-page-2"));
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
+    expect(mockedFetch).toHaveBeenCalledWith("p1", {
+      cursor: "cursor-for-page-2",
+      pageSize: undefined,
+      labels: undefined,
+      search: undefined,
     });
-    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
-
-    expect(result.current.issues.map((i) => i.externalId)).toEqual(["1", "2", "3"]);
   });
 
-  it("exposes stalled when any returned page reports it", async () => {
+  it("defaults the cursor to null (page 1) when none is supplied", async () => {
+    mockedFetch.mockResolvedValueOnce({ items: [], nextCursor: null } as PaginatedIssues);
+    renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
+    expect(mockedFetch).toHaveBeenCalledWith("p1", {
+      cursor: null,
+      pageSize: undefined,
+      labels: undefined,
+      search: undefined,
+    });
+  });
+
+  it("exposes stalled when the returned page reports it", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
       nextCursor: null,
@@ -117,31 +99,33 @@ describe("useIssues", () => {
     expect(result.current.stalled).toBe(true);
   });
 
-  it("sums excludedCount across fetched pages, treating absence as zero (#358)", async () => {
-    mockedFetch
-      .mockResolvedValueOnce({
-        items: [makeIssue("1")],
-        nextCursor: "c1",
-        excludedCount: 2,
-      } as PaginatedIssues)
-      .mockResolvedValueOnce({
-        items: [makeIssue("2")],
-        nextCursor: null,
-      } as PaginatedIssues);
+  it("exposes stale and snapshotCapturedAt from the page (FR-014)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: null,
+      stale: true,
+      snapshotCapturedAt: "2024-02-02T03:04:05Z",
+    } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.stale).toBe(true);
+    expect(result.current.snapshotCapturedAt).toBe("2024-02-02T03:04:05Z");
+  });
+
+  it("reports the page's excludedCount, treating absence as zero (#358)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: "c1",
+      excludedCount: 2,
+    } as PaginatedIssues);
 
     const { result } = renderHookWithProviders(() => useIssues("p1"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.excludedCount).toBe(2);
-
-    await act(async () => {
-      result.current.fetchNextPage();
-    });
-    await waitFor(() => expect(result.current.issues).toHaveLength(2));
-    // Second page reported no count; the total stays at the first page's 2.
-    expect(result.current.excludedCount).toBe(2);
   });
 
-  it("defaults excludedCount to zero when no page reports one (#358)", async () => {
+  it("defaults excludedCount to zero when the page reports none (#358)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
       nextCursor: null,
