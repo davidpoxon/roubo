@@ -61,8 +61,9 @@ test("TC-047: upgrade migration banner shows, routes to the status filter, and s
   // yet dismissed. Seed the real timestamp BEFORE loading the app so the
   // first `useMigrationStatus` fetch returns it (the marker is read at first
   // paint and the query never refetches). The returned `at` is the value the
-  // banner uses for its localStorage dismissal key.
-  await seedOnlyToDoNotice(request);
+  // banner uses for its localStorage dismissal key, reused by S004 to prove the
+  // post-reload absence is dismissal-persistence and not a loading-window race.
+  const seededAt = await seedOnlyToDoNotice(request);
 
   // S001: launch Roubo / open the cut list (the banner is mounted in the app
   // shell above the route outlet, so loading the shell renders it).
@@ -117,8 +118,24 @@ test("TC-047: upgrade migration banner shows, routes to the status filter, and s
 
   // S004: reload the page in the SAME browser context (preserving localStorage,
   // which is how dismissal persistence is implemented; a true server restart is
-  // not reproducible in this harness). Assert the banner does not reappear.
-  await page.reload();
+  // not reproducible in this harness). A full reload drops the React Query
+  // cache, so `useMigrationStatus` refetches from scratch: while that fetch is
+  // in flight `data` is undefined, the banner returns null, and a bare
+  // `toHaveCount(0)` could pass during that loading window regardless of whether
+  // dismissal actually persisted. So wait for the post-reload
+  // /api/migration/status response (past the loading window) and assert it still
+  // carries the seeded marker: the banner WOULD render were it not dismissed, so
+  // the only remaining reason it stays absent is the persisted localStorage
+  // dismissal. That is what makes the negative assertion test persistence.
+  const [migrationResponse] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/migration/status") && r.ok()),
+    page.reload(),
+  ]);
+  const migration = (await migrationResponse.json()) as { notices?: Record<string, string> };
+  expect(
+    Object.values(migration.notices ?? {}),
+    "TC-047 S004 (slice #558): expected the post-reload /api/migration/status response to still carry the seeded notice timestamp (so the banner WOULD render were it not dismissed; this proves the next assertion exercises dismissal-persistence, not the loading window), but it did not",
+  ).toContain(seededAt);
   await expect(page.locator("#root")).toBeAttached();
   await expect(
     page.getByRole("status", { name: "Cut list default changed" }),
