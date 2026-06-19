@@ -3520,6 +3520,54 @@
       "linked_user_story_ids": [
         "CLI-US-001"
       ]
+    },
+    {
+      "id": "CLI-TC-070",
+      "title": "Saved sort field unsupported by the active plugin falls back to its first declared field with no error",
+      "area": "facets-and-config",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "The project's roubo.yaml integration block records a sort field that the previously-active plugin declared (e.g. Jira's 'rank')"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open a project whose saved sort field is 'rank' (declared only by jira-self-hosted), then switch its active integration to github-com, which declares created/updated/comments and has no 'rank'",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The cut list loads and renders results without an error banner, toast, or surfaced error about the unsupported saved sort"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the sort picker after the plugin switch",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The picker is selected to github-com's first declared field (Created), not the unsupported 'rank'"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The list is ordered by that fallback field source-side, with no residual reference to 'rank'"
+            }
+          ]
+        }
+      ],
+      "tags": [
+        "regression",
+        "edge-case",
+        "graceful-degradation"
+      ],
+      "linked_requirement_ids": [
+        "CLI-FR-017",
+        "CLI-FR-009"
+      ],
+      "linked_user_story_ids": [
+        "CLI-US-007"
+      ]
     }
   ]
 }
