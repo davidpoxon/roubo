@@ -132,6 +132,10 @@ export default function IssueQueuePanel({
     setLastResetSignature(pagingResetSignature);
     setCursorStack([null]);
     setPageIndex(0);
+    // Announce the reset-driven jump back to page 1 (NFR-007). Without this the
+    // live region would keep the stale "Page N" text and the input-change page
+    // change would go unannounced.
+    setPageAnnouncement("Page 1");
   }
 
   // Collapse state keyed by "${projectId}:${groupBy}": new project/dimension combos start expanded.
@@ -440,8 +444,11 @@ export default function IssueQueuePanel({
       </div>
 
       {/* Pagination footer (FR-007/FR-008). Hidden while loading, on error, or
-          when the result set is empty (TC-027). */}
-      {!itemsLoading && !itemsError && filteredItems.length > 0 && (
+          when there is genuinely nothing to page (no items on this page AND no
+          prior/next page, TC-027). When the current page's items are all filtered
+          out client-side but another page exists (hasNext) or we paged in from a
+          prior page (hasPrev), the pager stays so Next/Prev remain reachable. */}
+      {!itemsLoading && !itemsError && (filteredItems.length > 0 || hasPrev || hasNext) && (
         <div
           data-testid="cut-list-pager"
           className="flex items-center justify-between gap-2 px-3 py-2 border-t border-stone-200 dark:border-stone-800/60"

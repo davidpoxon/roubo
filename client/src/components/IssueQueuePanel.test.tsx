@@ -672,5 +672,51 @@ describe("IssueQueuePanel", () => {
       );
       expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("3 items");
     });
+
+    it("keeps the pager (Next reachable) when the page is filtered empty but more pages exist", async () => {
+      // The page holds only a Feature issue; filtering by Bug empties the
+      // client-filtered list while nextCursor stays non-null. The pager must
+      // remain so Next can reach the following page (it must not be tied to the
+      // filtered count, which would strand the user on a non-last page).
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ issues: [makeIssue("a1", { issueType: "Feature" })], nextCursor: "c1" }),
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
+
+      expect(screen.getByText("No cuts match the active filters")).toBeInTheDocument();
+      expect(screen.getByTestId("cut-list-pager")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next page" })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    });
+
+    it("hides the pager only when there are no items and no other page", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ issues: [], nextCursor: null }));
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByTestId("cut-list-pager")).toBeNull();
+    });
+
+    it("announces the jump back to page 1 when an input change resets paging (NFR-007)", async () => {
+      mockedUseIssues.mockImplementation((_projectId, _filters, _pageSize, cursor) => {
+        const page = threePages[cursor ?? "page1"];
+        return defaultResult({
+          issues: page.items,
+          nextCursor: page.nextCursor,
+        }) as ReturnType<typeof useIssues>;
+      });
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      const live = screen.getByTestId("cut-list-page-live");
+      expect(live).toHaveTextContent("Page 2");
+
+      await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
+      expect(live).toHaveTextContent("Page 1");
+    });
   });
 });

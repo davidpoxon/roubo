@@ -233,9 +233,12 @@ export default function IssuePickerModal({
                 )}
               </div>
 
-              {/* Pagination footer. Hidden while loading, on error, or when the
-                  page is empty. */}
-              {!isLoading && !error && items.length > 0 && (
+              {/* Pagination footer. Hidden while loading, on error, or when there
+                  is genuinely nothing to page (no items on this page AND no
+                  prior/next page). When the current page's issues are all assigned
+                  or pending but another page exists (hasNext) or we paged in from a
+                  prior page (hasPrev), the pager stays so Next/Prev stay reachable. */}
+              {!isLoading && !error && (items.length > 0 || hasPrev || hasNext) && (
                 <div
                   data-testid="picker-pager"
                   className="flex items-center justify-between gap-2 px-4 py-2 border-t border-stone-200 dark:border-stone-800/60"
