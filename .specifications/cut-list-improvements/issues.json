@@ -277,6 +277,7 @@
       "user_story_ids": [],
       "test_case_ids": [
         "CLI-TC-004",
+        "CLI-TC-005",
         "CLI-TC-006",
         "CLI-TC-007",
         "CLI-TC-008",
@@ -441,7 +442,8 @@
         "CLI-TC-061",
         "CLI-TC-062",
         "CLI-TC-063",
-        "CLI-TC-066"
+        "CLI-TC-066",
+        "CLI-TC-070"
       ]
     }
   },

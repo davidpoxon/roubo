@@ -3,7 +3,7 @@
   "slug": "cut-list-improvements",
   "title": "Cut list performance, ordering, and filtering improvements",
   "created_at": "2026-06-19T00:00:00Z",
-  "updated_at": "2026-06-19T11:48:15Z",
+  "updated_at": "2026-06-19T12:55:00Z",
   "current_stage": "align",
   "stages": {
     "interview": {
@@ -49,15 +49,41 @@
     "align": {
       "status": "done",
       "artifact": null,
-      "updated_at": "2026-06-19T07:00:00Z"
+      "updated_at": "2026-06-19T12:55:00Z"
     }
   },
   "id_counters": {
     "US": 8,
     "FR": 18,
     "NFR": 9,
-    "TC": 69
+    "TC": 70
   },
   "scope": null,
-  "id_code": "CLI"
+  "id_code": "CLI",
+  "spikes": [
+    {
+      "id": "CLI-spike-553",
+      "issue": 553,
+      "class": "decision",
+      "doc": "spikes/spike-553-cache-key-invalidation-lifecycle.md",
+      "produces": [],
+      "satisfies": ["CLI-FR-003", "CLI-FR-004", "CLI-NFR-001"],
+      "verified_by": ["CLI-TC-003", "CLI-TC-005", "CLI-TC-008"],
+      "gates": [559, 567],
+      "status": "resolved",
+      "reconciled_at": "2026-06-19T12:55:00Z"
+    },
+    {
+      "id": "CLI-spike-554",
+      "issue": 554,
+      "class": "decision",
+      "doc": "spikes/spike-554-per-plugin-sort-status-category.md",
+      "produces": [],
+      "satisfies": ["CLI-FR-009", "CLI-FR-014"],
+      "verified_by": ["CLI-TC-034", "CLI-TC-043", "CLI-TC-048", "CLI-TC-052"],
+      "gates": [558, 562, 570],
+      "status": "resolved",
+      "reconciled_at": "2026-06-19T12:55:00Z"
+    }
+  ]
 }
