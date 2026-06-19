@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roubo · Cut list improvements prototype</title>
+    <!-- CDN deps only: Tailwind Play CDN, Google Fonts, lucide icons. No build, no backend. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+              mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: #fafaf9; /* stone-50 */
+      }
+      .font-mono {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+      }
+      /* Delicate, purposeful motion only (DESIGN.md: 150-300ms, no bounce). */
+      .t {
+        transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .spin {
+        animation: spin 800ms linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .skel {
+        background: linear-gradient(90deg, #f5f5f4 25%, #ece9e7 37%, #f5f5f4 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease infinite;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0 50%;
+        }
+      }
+      /* Native select restyle to match the input/select pattern */
+      select.roubo {
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        padding-right: 26px;
+      }
+      select.roubo:focus,
+      button:focus-visible,
+      [tabindex]:focus-visible {
+        outline: none;
+        box-shadow:
+          0 0 0 2px #fafaf9,
+          0 0 0 4px #f59e0b; /* amber-500 ring, offset */
+        border-color: #f59e0b;
+      }
+      .menu-pop {
+        box-shadow: 0 1px 2px rgba(12, 10, 9, 0.04);
+      }
+    </style>
+  </head>
+  <body class="text-stone-700">
+    <!-- ===================== App shell (context backdrop) ===================== -->
+    <div class="min-h-screen flex">
+      <!-- ============ LEFT RAIL: the Cut List panel (the feature) ============ -->
+      <aside
+        class="w-[400px] shrink-0 h-screen sticky top-0 bg-white border-r border-stone-200 flex flex-col"
+        aria-label="Cut list"
+      >
+        <!-- Header -->
+        <div class="px-4 py-3 border-b border-stone-200">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <h1 class="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                Cut List
+              </h1>
+              <!-- Cache-state badge (FR-002): warm / revalidating / live -->
+              <span id="cacheBadge" class="hidden"></span>
+            </div>
+            <div class="flex items-center gap-0.5 shrink-0">
+              <!-- Last-updated indicator (FR-006) -->
+              <span
+                id="lastUpdated"
+                class="text-[10px] font-mono text-stone-400 mr-1 whitespace-nowrap"
+                >updated 2m ago</span
+              >
+              <!-- Refresh control with in-progress state (FR-005) -->
+              <button
+                id="refreshBtn"
+                class="t p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+                aria-label="Refresh cut list"
+              >
+                <i data-lucide="refresh-cw" class="w-[13px] h-[13px]"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- One-time migration banner (FR-018) for the only-to-do default flip -->
+        <div id="migrationBanner" class="px-3 pt-3">
+          <div
+            class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5"
+            role="status"
+          >
+            <i data-lucide="info" class="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0"></i>
+            <div class="min-w-0 flex-1">
+              <p class="text-[12px] leading-snug text-amber-800">
+                The cut list now shows only <strong>To Do</strong> items by default. In&nbsp;progress
+                and done work are hidden.
+              </p>
+              <div class="mt-1.5 flex items-center gap-3">
+                <button
+                  id="bannerSettings"
+                  class="t text-[11px] font-medium text-amber-800 underline decoration-amber-300 underline-offset-2 hover:decoration-amber-500 rounded"
+                >
+                  Adjust status filter
+                </button>
+                <button
+                  id="bannerDismiss"
+                  class="t text-[11px] font-medium text-amber-700/70 hover:text-amber-800 rounded"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter + sort bar -->
+        <div class="border-b border-stone-200">
+          <div class="flex items-center gap-1 px-3 py-2 flex-wrap">
+            <!-- Facet filters -->
+            <button class="facet-chip t" data-facet="type">
+              <i data-lucide="tag" class="w-3 h-3"></i> Type
+            </button>
+            <!-- Milestone facet: source-side excludes closed/archived (FR-015) -->
+            <div class="relative">
+              <button class="facet-chip t" data-facet="milestone" id="milestoneTrigger">
+                <i data-lucide="flag" class="w-3 h-3"></i> Milestone
+                <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i>
+              </button>
+              <div
+                id="milestoneMenu"
+                class="menu-pop hidden absolute z-20 mt-1 w-60 rounded-lg border border-stone-200 bg-white py-1"
+                role="listbox"
+                aria-label="Milestone"
+              ></div>
+            </div>
+            <button class="facet-chip t" data-facet="label">
+              <i data-lucide="hash" class="w-3 h-3"></i> Label
+            </button>
+
+            <div class="flex-1"></div>
+
+            <!-- Sort picker: plugin-declared fields (FR-009/FR-010) -->
+            <div class="flex items-center gap-1">
+              <label for="sortField" class="sr-only">Sort by</label>
+              <select
+                id="sortField"
+                class="roubo t font-mono text-[11px] text-stone-700 bg-white border border-stone-200 rounded-md pl-2 py-1 hover:border-stone-300"
+              ></select>
+              <button
+                id="sortDir"
+                class="t p-1 rounded-md text-stone-500 border border-stone-200 hover:border-stone-300 hover:bg-stone-50"
+                aria-label="Sort direction: ascending"
+                title="Ascending"
+              >
+                <i data-lucide="arrow-up-narrow-wide" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Status-exclusion summary (FR-012/FR-013), reveals the config affordance -->
+          <div class="flex items-center justify-between px-3 pb-2 -mt-0.5">
+            <p class="text-[10.5px] text-stone-400">
+              Showing <span class="text-stone-600 font-medium">To Do</span> only.
+              <span id="excludedNote" class="font-mono">12 hidden by status</span>
+            </p>
+            <button
+              id="statusConfigBtn"
+              class="t text-[10.5px] font-medium text-stone-500 hover:text-amber-700 rounded"
+            >
+              Configure
+            </button>
+          </div>
+        </div>
+
+        <!-- ===================== List body ===================== -->
+        <div id="listBody" class="flex-1 overflow-y-auto"></div>
+
+        <!-- ===================== Pagination footer (FR-007/FR-008) ===================== -->
+        <div
+          id="pager"
+          class="border-t border-stone-200 px-3 py-2.5 flex items-center justify-between bg-stone-50"
+        >
+          <button id="prevBtn" class="pg-btn t" aria-label="Previous page">
+            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev
+          </button>
+          <span id="pageLabel" class="text-[11px] font-mono text-stone-500"></span>
+          <button id="nextBtn" class="pg-btn t" aria-label="Next page">
+            Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Live region for screen-reader announcements (NFR-007) -->
+        <div id="live" class="sr-only" aria-live="polite"></div>
+      </aside>
+
+      <!-- ============ RIGHT: dimmed bench-dashboard context ============ -->
+      <main class="flex-1 min-w-0 p-8 select-none">
+        <div class="flex items-center justify-between mb-6 opacity-70">
+          <div class="flex items-center gap-2.5">
+            <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+            <span class="text-sm font-semibold text-stone-800">roubo</span>
+            <span class="text-stone-300">/</span>
+            <span class="text-sm text-stone-500">cut-list-improvements</span>
+          </div>
+          <span class="text-[11px] font-mono text-stone-400">Benches</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4 max-w-3xl opacity-50">
+          <div class="rounded-xl border border-stone-200 bg-white h-36"></div>
+          <div class="rounded-xl border border-stone-200 bg-white h-36"></div>
+          <div class="rounded-xl border border-stone-200 bg-white h-36"></div>
+          <div class="rounded-xl border border-dashed border-stone-300 h-36"></div>
+        </div>
+        <p class="mt-6 text-[11px] text-stone-400 max-w-md leading-relaxed">
+          The cut list (left) is the surface this spec improves. The bench grid is dimmed context.
+        </p>
+
+        <!-- ===================== Prototype controls (not part of the product) ===================== -->
+        <div
+          class="mt-8 max-w-md rounded-xl border border-stone-200 bg-white p-4"
+          aria-label="Prototype controls"
+        >
+          <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-stone-400"></i>
+            <h2 class="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Prototype controls
+            </h2>
+          </div>
+          <p class="text-[11px] text-stone-400 mb-3 leading-relaxed">
+            Demo-only. Switch the active plugin and the load state to exercise every requirement.
+          </p>
+
+          <div class="space-y-3">
+            <div>
+              <span class="block text-[10.5px] font-medium text-stone-500 mb-1.5">Active plugin</span>
+              <div class="flex gap-1 flex-wrap" role="group" aria-label="Active plugin">
+                <button class="seg t" data-plugin="jira">Self-hosted Jira</button>
+                <button class="seg t" data-plugin="github">GitHub.com</button>
+                <button class="seg t" data-plugin="nosort">Plugin w/o sort RPC</button>
+              </div>
+            </div>
+            <div>
+              <span class="block text-[10.5px] font-medium text-stone-500 mb-1.5">Load state</span>
+              <div class="flex flex-wrap gap-1" role="group" aria-label="Load state">
+                <button class="seg t" data-view="warm">Warm (cached)</button>
+                <button class="seg t" data-view="cold">Cold load</button>
+                <button class="seg t" data-view="refreshing">Refreshing</button>
+                <button class="seg t" data-view="stale">Plugin down</button>
+              </div>
+            </div>
+            <div>
+              <button id="toggleBanner" class="seg t">Toggle migration banner</button>
+            </div>
+          </div>
+
+          <p id="reqHint" class="mt-4 text-[11px] leading-relaxed text-stone-500 font-mono"></p>
+        </div>
+      </main>
+    </div>
+
+    <!-- ===================== Status-config popover (FR-013) ===================== -->
+    <div
+      id="statusModal"
+      class="hidden fixed inset-0 z-40 flex items-center justify-center bg-stone-900/20 p-4"
+    >
+      <div class="w-[420px] max-w-full rounded-xl border border-stone-200 bg-white p-5" role="dialog" aria-modal="true" aria-labelledby="statusModalTitle">
+        <div class="flex items-center justify-between mb-1">
+          <h3 id="statusModalTitle" class="text-sm font-semibold text-stone-800">Status filter</h3>
+          <button id="statusModalClose" class="t p-1 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100" aria-label="Close">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <p class="text-[12px] text-stone-500 mb-4 leading-relaxed">
+          Choose which status categories to hide from the cut list. Stored per project.
+        </p>
+        <div id="statusOptions" class="space-y-2"></div>
+        <p id="statusPluginNote" class="mt-4 text-[11px] leading-relaxed text-stone-500 rounded-lg bg-stone-50 border border-stone-200 px-3 py-2"></p>
+        <div class="mt-4 flex justify-end gap-2">
+          <button id="statusCancel" class="pg-btn t">Cancel</button>
+          <button id="statusSave" class="primary-btn t">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shared component class definitions via Tailwind @apply-like utility groups -->
+    <style>
+      .facet-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #57534e; /* stone-600 */
+        background: #f5f5f4; /* stone-100 */
+        border-radius: 6px;
+      }
+      .facet-chip:hover {
+        background: #e7e5e4;
+      } /* stone-200 */
+      .facet-chip[data-active="true"] {
+        background: #fef3c7;
+        color: #92400e;
+      } /* amber-100 / amber-800 */
+      .pg-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #44403c; /* stone-700 */
+        background: #f5f5f4; /* stone-100 */
+        border-radius: 6px;
+      }
+      .pg-btn:hover {
+        background: #e7e5e4;
+      }
+      .pg-btn:disabled {
+        color: #d6d3d1;
+        background: #f5f5f4;
+        cursor: not-allowed;
+      }
+      .primary-btn {
+        padding: 4px 14px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #0c0a09; /* stone-950 */
+        background: #f59e0b; /* amber-500 */
+        border-radius: 6px;
+      }
+      .primary-btn:hover {
+        background: #fbbf24;
+      }
+      .primary-btn:active {
+        background: #d97706;
+      }
+      .seg {
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #57534e;
+        background: #f5f5f4;
+        border: 1px solid #e7e5e4;
+        border-radius: 6px;
+      }
+      .seg:hover {
+        background: #fff;
+        border-color: #d6d3d1;
+      }
+      .seg[data-active="true"] {
+        background: #fffbeb;
+        border-color: #f59e0b;
+        color: #92400e;
+      }
+    </style>
+
+    <script>
+      // ====================== Mock data (baked in) ======================
+      // Two plugins demonstrate per-plugin capability divergence:
+      //  - Jira: native status categories + JQL ORDER BY (rich sort fields)
+      //  - GitHub: open/closed only; "in progress" is approximated (FR-014)
+      const DATA = {
+        jira: {
+          label: "Self-hosted Jira",
+          keyName: "Key",
+          // Plugin-declared sort fields (FR-009). Jira supports JQL ORDER BY.
+          sortFields: [
+            { id: "key", label: "Key" },
+            { id: "updated", label: "Recently updated" },
+            { id: "created", label: "Created" },
+            { id: "priority", label: "Priority" },
+            { id: "rank", label: "Backlog rank" },
+          ],
+          // Live milestones/sprints only: closed/archived excluded source-side (FR-015).
+          milestones: ["Sprint 24 (active)", "Sprint 25 (planned)", "Hardening"],
+          // Status categories this plugin exposes (FR-013).
+          statusCategories: ["To Do", "In Progress", "Done"],
+          excludedDefault: ["In Progress", "Done"],
+          pluginNote:
+            "Jira exposes native status categories. Default hides In Progress and Done via statusCategory not in (...).",
+          excludedCount: 12,
+          issues: [
+            { key: "ROUBO-101", title: "Cache key must include sort + status exclusion", type: "Story", ms: "Sprint 24 (active)", label: "cache" },
+            { key: "ROUBO-104", title: "Treat corrupt cache file as a cold miss", type: "Bug", ms: "Sprint 24 (active)", label: "cache" },
+            { key: "ROUBO-108", title: "Persist first-page snapshot to ~/.roubo at 0600", type: "Story", ms: "Sprint 24 (active)", label: "security" },
+            { key: "ROUBO-112", title: "Prev/Next pagination replaces infinite scroll", type: "Story", ms: "Sprint 25 (planned)", label: "ui" },
+            { key: "ROUBO-115", title: "Retain visited cursors for Prev navigation", type: "Task", ms: "Sprint 25 (planned)", label: "ui" },
+            { key: "ROUBO-119", title: "getSortFields RPC + host-rendered sort picker", type: "Story", ms: "Sprint 25 (planned)", label: "plugin-api" },
+            { key: "ROUBO-123", title: "Default ascending by item key, applied source-side", type: "Story", ms: "Sprint 25 (planned)", label: "plugin-api" },
+            { key: "ROUBO-127", title: "Refresh control shows in-progress state", type: "Task", ms: "Hardening", label: "ui" },
+            { key: "ROUBO-131", title: "Last-updated and stale-snapshot indicators", type: "Task", ms: "Hardening", label: "ui" },
+            { key: "ROUBO-134", title: "Only-To-Do default + migration banner", type: "Story", ms: "Sprint 24 (active)", label: "ux" },
+            { key: "ROUBO-138", title: "Source-side exclusion of resolved epics", type: "Task", ms: "Hardening", label: "plugin-api" },
+            { key: "ROUBO-142", title: "WCAG AA for pagination + sort picker", type: "Task", ms: "Hardening", label: "a11y" },
+            { key: "ROUBO-146", title: "Cache eviction on project unregister", type: "Bug", ms: "Sprint 24 (active)", label: "cache" },
+            { key: "ROUBO-150", title: "GHE: implement filterFacets/getFacetOptions", type: "Story", ms: "Sprint 25 (planned)", label: "ghe" },
+            { key: "ROUBO-153", title: "Background revalidation must never crash on reject", type: "Bug", ms: "Hardening", label: "cache" },
+            { key: "ROUBO-157", title: "Cache hit/miss observability logging", type: "Task", ms: "Hardening", label: "obs" },
+            { key: "ROUBO-160", title: "Instance hash in cache key for tenant safety", type: "Story", ms: "Sprint 24 (active)", label: "security" },
+            { key: "ROUBO-164", title: "Sort selection persists to per-project config", type: "Task", ms: "Sprint 25 (planned)", label: "config" },
+          ],
+        },
+        github: {
+          label: "GitHub.com",
+          keyName: "Number",
+          // GitHub REST sort is limited; no native key sort exposed (FR-014).
+          sortFields: [
+            { id: "created", label: "Created" },
+            { id: "updated", label: "Recently updated" },
+            { id: "comments", label: "Comments" },
+          ],
+          milestones: ["v1.2 (open)", "Backlog (open)"],
+          statusCategories: ["Open", "Closed"],
+          excludedDefault: ["Closed"],
+          pluginNote:
+            "GitHub has only open/closed, no native In Progress category. Only-To-Do is approximated: open issues, optionally excluding a configured in-progress label. Default stays Closed-only.",
+          excludedCount: 7,
+          issues: [
+            { key: "#812", title: "Persist React Query cache hint across reload", type: "enhancement", ms: "v1.2 (open)", label: "perf" },
+            { key: "#834", title: "Spinner + last-updated on refresh", type: "enhancement", ms: "v1.2 (open)", label: "ui" },
+            { key: "#851", title: "Prev/Next stepping with opaque cursors", type: "enhancement", ms: "v1.2 (open)", label: "ui" },
+            { key: "#860", title: "Sort picker hidden when plugin declares none", type: "enhancement", ms: "Backlog (open)", label: "plugin-api" },
+            { key: "#877", title: "Exclude closed milestones from facet options", type: "bug", ms: "v1.2 (open)", label: "filters" },
+            { key: "#889", title: "Document open/closed to To-Do mapping", type: "docs", ms: "Backlog (open)", label: "docs" },
+            { key: "#902", title: "Deterministic order falls back to number asc", type: "enhancement", ms: "v1.2 (open)", label: "ordering" },
+            { key: "#915", title: "Graceful MethodNotFound for getSortFields", type: "enhancement", ms: "Backlog (open)", label: "plugin-api" },
+            { key: "#922", title: "Stale banner reuses snapshot fallback path", type: "enhancement", ms: "v1.2 (open)", label: "reliability" },
+            { key: "#938", title: "a11y: announce page changes politely", type: "enhancement", ms: "Backlog (open)", label: "a11y" },
+          ],
+        },
+        // FR-011 graceful degradation: a plugin built against an older host-API
+        // that does NOT implement the getSortFields RPC. The host renders NO sort
+        // picker and falls back to the plugin's natural / key-ascending order,
+        // surfacing no error.
+        nosort: {
+          label: "Plugin w/o sort RPC",
+          keyName: "Key",
+          sortFields: [], // empty -> host renders no sort picker (FR-011)
+          milestones: ["Current (open)"],
+          statusCategories: ["Open", "Closed"],
+          excludedDefault: ["Closed"],
+          pluginNote:
+            "This plugin does not implement getSortFields (built against an older host-API). The host renders no sort picker and uses the plugin's natural / key-ascending order, with no error.",
+          excludedCount: 3,
+          issues: [
+            { key: "LEG-7", title: "Legacy plugin lists issues without a sort RPC", type: "Story", ms: "Current (open)", label: "legacy" },
+            { key: "LEG-9", title: "Host degrades gracefully to key-ascending order", type: "Task", ms: "Current (open)", label: "legacy" },
+            { key: "LEG-12", title: "No sort picker is shown and no error is surfaced", type: "Task", ms: "Current (open)", label: "legacy" },
+          ],
+        },
+      };
+
+      const TYPE_TONE = {
+        Story: "violet", enhancement: "violet", Task: "stone", Bug: "red", bug: "red",
+        docs: "cyan",
+      };
+      const PAGE_SIZE = 6;
+
+      // ====================== State ======================
+      const state = {
+        plugin: "jira",
+        view: "warm", // warm | cold | refreshing | stale
+        page: 0,
+        sortBy: null, // resolved from plugin's first field (key for jira, created for github)
+        sortDir: "asc",
+        bannerVisible: true,
+        milestoneFilter: null,
+        excluded: null, // resolved per plugin
+        cursorHistory: [null], // demonstrates client-retained cursors (FR-008)
+      };
+
+      function ds() {
+        return DATA[state.plugin];
+      }
+      const live = () => document.getElementById("live");
+      function announce(msg) {
+        live().textContent = msg;
+      }
+
+      // ====================== Sorting (source-side semantics, mocked client-side) ======================
+      function sortedIssues() {
+        const d = ds();
+        let items = d.issues.slice();
+        if (state.milestoneFilter) items = items.filter((i) => i.ms === state.milestoneFilter);
+        const dir = state.sortDir === "asc" ? 1 : -1;
+        const by = state.sortBy || d.sortFields[0].id;
+        items.sort((a, b) => {
+          if (by === "key") {
+            // numeric-aware key compare (PROJ-101 / #812)
+            const na = parseInt(a.key.replace(/\D/g, ""), 10);
+            const nb = parseInt(b.key.replace(/\D/g, ""), 10);
+            return (na - nb) * dir;
+          }
+          // For non-key fields, mock a stable order by title so the demo is deterministic.
+          return a.title.localeCompare(b.title) * dir;
+        });
+        return items;
+      }
+
+      function pageCount(items) {
+        return Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+      }
+
+      // ====================== Rendering ======================
+      function chip(text, kind, tone) {
+        const tones = {
+          violet: "background:#ede9fe;color:#6d28d9;",
+          red: "background:rgba(239,68,68,.15);color:#b91c1c;",
+          stone: "background:#e7e5e4;color:#57534e;",
+          cyan: "background:transparent;border:1px solid rgba(6,182,212,.4);color:#0e7490;",
+          indigo: "background:rgba(99,102,241,.15);color:#4338ca;",
+        };
+        const radius = kind === "label" ? "4px" : "9999px";
+        return `<span class="font-medium" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;font-size:10px;line-height:1.4;border-radius:${radius};${tones[tone] || tones.stone}">${text}</span>`;
+      }
+
+      function renderRows(items) {
+        const start = state.page * PAGE_SIZE;
+        const slice = items.slice(start, start + PAGE_SIZE);
+        return slice
+          .map(
+            (i) => `
+          <button class="t w-full text-left px-4 py-3 border-b border-stone-100 hover:bg-stone-50 focus-visible:bg-stone-50 group" tabindex="0">
+            <div class="flex items-start gap-2.5">
+              <span class="font-mono text-[11px] text-stone-400 pt-0.5 shrink-0 w-[78px]">${i.key}</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[13px] text-stone-800 leading-snug truncate group-hover:text-stone-900">${i.title}</p>
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  ${chip("To Do", "status", "indigo")}
+                  ${chip(i.type, "type", TYPE_TONE[i.type] || "stone")}
+                  ${chip(i.ms, "milestone", "indigo")}
+                  ${chip(i.label, "label", "cyan")}
+                </div>
+              </div>
+              <i data-lucide="plus" class="w-3.5 h-3.5 text-stone-300 group-hover:text-amber-500 shrink-0 mt-0.5"></i>
+            </div>
+          </button>`,
+          )
+          .join("");
+      }
+
+      function skeleton() {
+        return Array.from({ length: 5 })
+          .map(
+            () => `
+          <div class="px-4 py-3 border-b border-stone-100">
+            <div class="flex items-start gap-2.5">
+              <div class="skel rounded h-3 w-[60px] mt-0.5"></div>
+              <div class="flex-1">
+                <div class="skel rounded h-3 w-4/5"></div>
+                <div class="flex gap-1.5 mt-2">
+                  <div class="skel rounded-full h-3.5 w-12"></div>
+                  <div class="skel rounded-full h-3.5 w-16"></div>
+                </div>
+              </div>
+            </div>
+          </div>`,
+          )
+          .join("");
+      }
+
+      function staleBanner() {
+        return `
+        <div class="px-3 pt-3">
+          <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5" role="status">
+            <i data-lucide="cloud-off" class="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0"></i>
+            <div class="min-w-0 flex-1">
+              <p class="text-[12px] leading-snug text-amber-800">
+                <strong>${ds().label}</strong> is unavailable. Showing the last successful snapshot from
+                <span class="font-mono">14m ago</span>.
+              </p>
+              <button class="t mt-1.5 text-[11px] font-medium text-amber-800 underline decoration-amber-300 underline-offset-2 hover:decoration-amber-500 rounded" onclick="setView('warm')">
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      function emptyState() {
+        return `
+        <div class="flex flex-col items-center justify-center text-center px-6 py-16">
+          <div class="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center mb-3">
+            <i data-lucide="check" class="w-4 h-4 text-stone-400"></i>
+          </div>
+          <p class="text-[13px] text-stone-600 font-medium">Nothing to pick up</p>
+          <p class="text-[11px] text-stone-400 mt-1">No To Do items match the current filters.</p>
+        </div>`;
+      }
+
+      function render() {
+        const d = ds();
+        // resolve sort + exclusion defaults per plugin
+        if (!d.sortFields.some((f) => f.id === state.sortBy)) state.sortBy = d.sortFields[0].id;
+        if (!state.excluded) state.excluded = d.excludedDefault.slice();
+
+        // header: cache badge + last-updated
+        const badge = document.getElementById("cacheBadge");
+        const upd = document.getElementById("lastUpdated");
+        const refreshIcon = document.querySelector("#refreshBtn i");
+        refreshIcon.classList.remove("spin");
+        badge.className = "";
+        if (state.view === "warm") {
+          badge.className =
+            "inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-700";
+          badge.textContent = "warm";
+          upd.textContent = "updated 2m ago";
+          upd.className = "text-[10px] font-mono text-stone-400 mr-1 whitespace-nowrap";
+        } else if (state.view === "cold") {
+          badge.className = "hidden";
+          upd.textContent = "loading…";
+          upd.className = "text-[10px] font-mono text-stone-400 mr-1 whitespace-nowrap";
+        } else if (state.view === "refreshing") {
+          badge.className =
+            "inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700";
+          badge.textContent = "revalidating";
+          upd.textContent = "refreshing…";
+          refreshIcon.classList.add("spin");
+        } else if (state.view === "stale") {
+          badge.className =
+            "inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800";
+          badge.textContent = "stale";
+          upd.textContent = "snapshot 14m ago";
+        }
+
+        // migration banner visibility
+        document.getElementById("migrationBanner").style.display = state.bannerVisible
+          ? "block"
+          : "none";
+
+        // sort picker options. FR-011: when the active plugin declares no sort
+        // fields (getSortFields absent / MethodNotFound), the host renders no
+        // sort picker at all and falls back to key-ascending, no error.
+        const sel = document.getElementById("sortField");
+        const sortControl = sel.closest("div");
+        if (sortControl) sortControl.style.display = d.sortFields.length ? "" : "none";
+        sel.innerHTML = d.sortFields
+          .map((f) => `<option value="${f.id}" ${f.id === state.sortBy ? "selected" : ""}>${f.label}</option>`)
+          .join("");
+        const dirBtn = document.getElementById("sortDir");
+        dirBtn.querySelector("i").setAttribute("data-lucide", state.sortDir === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow");
+        dirBtn.setAttribute("aria-label", `Sort direction: ${state.sortDir === "asc" ? "ascending" : "descending"}`);
+        dirBtn.title = state.sortDir === "asc" ? "Ascending" : "Descending";
+
+        // excluded note
+        document.getElementById("excludedNote").textContent = `${d.excludedCount} hidden by status`;
+
+        // milestone menu (live values only)
+        const mm = document.getElementById("milestoneMenu");
+        mm.innerHTML =
+          `<button class="t w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 ${state.milestoneFilter === null ? "text-amber-700 font-medium" : "text-stone-600"}" onclick="pickMilestone(null)">All milestones</button>` +
+          d.milestones
+            .map(
+              (m) =>
+                `<button class="t w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 ${state.milestoneFilter === m ? "text-amber-700 font-medium" : "text-stone-600"}" onclick="pickMilestone('${m.replace(/'/g, "")}')">${m}</button>`,
+            )
+            .join("") +
+          `<div class="border-t border-stone-100 mt-1 pt-1 px-3 py-1"><span class="text-[10px] text-stone-400 leading-snug">Closed / archived milestones are excluded at the source.</span></div>`;
+        document
+          .getElementById("milestoneTrigger")
+          .setAttribute("data-active", state.milestoneFilter ? "true" : "false");
+
+        // body
+        const body = document.getElementById("listBody");
+        const pager = document.getElementById("pager");
+        if (state.view === "cold") {
+          body.innerHTML = skeleton();
+          pager.style.visibility = "hidden";
+        } else {
+          const items = sortedIssues();
+          const pc = pageCount(items);
+          if (state.page >= pc) state.page = pc - 1;
+          const rows = renderRows(items);
+          const prefix = state.view === "stale" ? staleBanner() : "";
+          body.innerHTML = prefix + (items.length ? rows : emptyState());
+          pager.style.visibility = items.length > 0 ? "visible" : "hidden";
+          // pager controls
+          document.getElementById("prevBtn").disabled = state.page === 0;
+          document.getElementById("nextBtn").disabled = state.page >= pc - 1;
+          document.getElementById("pageLabel").textContent = `Page ${state.page + 1} of ${pc} · ${items.length} items`;
+        }
+
+        // controls reflect state
+        document.querySelectorAll("[data-plugin]").forEach((b) =>
+          b.setAttribute("data-active", b.dataset.plugin === state.plugin ? "true" : "false"),
+        );
+        document.querySelectorAll("[data-view]").forEach((b) =>
+          b.setAttribute("data-active", b.dataset.view === state.view ? "true" : "false"),
+        );
+        document.getElementById("reqHint").textContent = hintFor();
+
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hintFor() {
+        const map = {
+          warm: "FR-001/002/006: cached snapshot served instantly, badge=warm, revalidates behind.",
+          cold: "FR-001: cold first load skeleton (no warm snapshot yet).",
+          refreshing: "FR-005: refresh shows spinner + 'refreshing'; badge=revalidating.",
+          stale: "NFR-006/FR-006: plugin down, last snapshot served with a stale banner.",
+        };
+        return map[state.view];
+      }
+
+      // ====================== Interactions ======================
+      function setView(v) {
+        state.view = v;
+        // simulate refresh resolving back to warm
+        if (v === "refreshing") {
+          render();
+          announce("Refreshing cut list");
+          setTimeout(() => {
+            if (state.view === "refreshing") {
+              state.view = "warm";
+              announce("Cut list updated");
+              render();
+            }
+          }, 1400);
+          return;
+        }
+        render();
+      }
+      window.setView = setView;
+
+      function pickMilestone(m) {
+        state.milestoneFilter = m;
+        state.page = 0; // filter change resets to page 1 (FR-008)
+        state.cursorHistory = [null];
+        document.getElementById("milestoneMenu").classList.add("hidden");
+        announce(m ? `Filtered to milestone ${m}` : "Milestone filter cleared");
+        render();
+      }
+      window.pickMilestone = pickMilestone;
+
+      document.getElementById("refreshBtn").addEventListener("click", () => setView("refreshing"));
+
+      document.getElementById("sortField").addEventListener("change", (e) => {
+        state.sortBy = e.target.value;
+        state.page = 0; // sort change resets to page 1 (FR-008)
+        state.cursorHistory = [null];
+        announce(`Sorted by ${e.target.selectedOptions[0].textContent}`);
+        render();
+      });
+      document.getElementById("sortDir").addEventListener("click", () => {
+        state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        state.page = 0;
+        render();
+        announce(`Sort direction ${state.sortDir === "asc" ? "ascending" : "descending"}`);
+      });
+
+      document.getElementById("prevBtn").addEventListener("click", () => {
+        if (state.page > 0) {
+          state.page--; // Prev replays a retained cursor (FR-008)
+          render();
+          announce(`Page ${state.page + 1}`);
+        }
+      });
+      document.getElementById("nextBtn").addEventListener("click", () => {
+        const items = sortedIssues();
+        if (state.page < pageCount(items) - 1) {
+          state.page++;
+          state.cursorHistory.push("cursor-" + state.page); // retain forward cursor
+          render();
+          announce(`Page ${state.page + 1}`);
+        }
+      });
+
+      document.querySelectorAll("[data-plugin]").forEach((b) =>
+        b.addEventListener("click", () => {
+          state.plugin = b.dataset.plugin;
+          state.page = 0;
+          state.sortBy = null;
+          state.excluded = null;
+          state.milestoneFilter = null;
+          state.cursorHistory = [null];
+          render();
+          announce(`Active plugin ${ds().label}`);
+        }),
+      );
+      document.querySelectorAll("[data-view]").forEach((b) =>
+        b.addEventListener("click", () => setView(b.dataset.view)),
+      );
+
+      document.getElementById("toggleBanner").addEventListener("click", () => {
+        state.bannerVisible = !state.bannerVisible;
+        render();
+      });
+      document.getElementById("bannerDismiss").addEventListener("click", () => {
+        state.bannerVisible = false;
+        render();
+        announce("Migration notice dismissed");
+      });
+
+      // milestone menu toggle
+      document.getElementById("milestoneTrigger").addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.getElementById("milestoneMenu").classList.toggle("hidden");
+      });
+      document.addEventListener("click", () =>
+        document.getElementById("milestoneMenu").classList.add("hidden"),
+      );
+
+      // ===== status config modal (FR-013) =====
+      function openStatusModal() {
+        const d = ds();
+        const opts = document.getElementById("statusOptions");
+        opts.innerHTML = d.statusCategories
+          .map((c) => {
+            const checked = state.excluded.includes(c);
+            const isTodoish = c === "To Do" || c === "Open";
+            return `<label class="flex items-center gap-2.5 px-3 py-2 rounded-lg border ${checked ? "border-stone-200 bg-stone-50" : "border-stone-200"} ${isTodoish ? "opacity-60" : "cursor-pointer hover:border-stone-300"}">
+              <input type="checkbox" ${checked ? "checked" : ""} ${isTodoish ? "disabled" : ""} data-cat="${c}" class="accent-amber-500 w-3.5 h-3.5" />
+              <span class="text-[12px] text-stone-700">Hide <strong>${c}</strong>${isTodoish ? " <span class='text-[10px] text-stone-400'>(can't hide the actionable category)</span>" : ""}</span>
+            </label>`;
+          })
+          .join("");
+        document.getElementById("statusPluginNote").textContent = d.pluginNote;
+        document.getElementById("statusModal").classList.remove("hidden");
+      }
+      document.getElementById("statusConfigBtn").addEventListener("click", openStatusModal);
+      document.getElementById("bannerSettings").addEventListener("click", openStatusModal);
+      document.getElementById("statusModalClose").addEventListener("click", () =>
+        document.getElementById("statusModal").classList.add("hidden"),
+      );
+      document.getElementById("statusCancel").addEventListener("click", () =>
+        document.getElementById("statusModal").classList.add("hidden"),
+      );
+      document.getElementById("statusSave").addEventListener("click", () => {
+        const checks = document.querySelectorAll("#statusOptions input[type=checkbox]");
+        state.excluded = [...checks].filter((c) => c.checked).map((c) => c.dataset.cat);
+        // demo: recompute a plausible hidden count
+        ds().excludedCount = state.excluded.length ? ds().excludedCount : 0;
+        document.getElementById("statusModal").classList.add("hidden");
+        announce("Status filter saved");
+        render();
+      });
+
+      // init
+      render();
+    </script>
+  </body>
+</html>
