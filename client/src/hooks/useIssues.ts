@@ -29,6 +29,18 @@ export interface UseIssuesResult {
    * cut list's "N filtered out by status" banner.
    */
   excludedCount: number;
+  /**
+   * React Query's native `isRefetching`: true while a background refetch of
+   * already-loaded data is in flight (FR-005). Drives the refresh control's
+   * spinning in-progress state and guards against a second concurrent refresh.
+   */
+  isRefetching: boolean;
+  /**
+   * React Query's native `dataUpdatedAt`: epoch ms of the last successful
+   * fetch, advancing on each successful refresh (FR-006). Drives the
+   * last-updated indicator. 0 before the first successful fetch.
+   */
+  dataUpdatedAt: number;
 }
 
 /**
@@ -79,6 +91,8 @@ export function useIssues(
     stale,
     snapshotCapturedAt,
     excludedCount,
+    isRefetching: query.isRefetching,
+    dataUpdatedAt: query.dataUpdatedAt,
   };
 }
 

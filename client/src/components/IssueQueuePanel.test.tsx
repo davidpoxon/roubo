@@ -70,11 +70,12 @@ vi.mock("./CutListGroupByControl", () => ({
   ),
 }));
 
-import { useIssues } from "../hooks/useIssues";
+import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import { usePrefetchFacetOptions } from "../hooks/useCutListFacets";
 const mockedUseIssues = vi.mocked(useIssues);
+const mockedUseRefreshIssues = vi.mocked(useRefreshIssues);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 const mockedUsePlugins = vi.mocked(usePlugins);
 const mockedRecheck = vi.mocked(useOpportunisticRecheckOnMount);
@@ -90,6 +91,8 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     stale: false,
     snapshotCapturedAt: null,
     excludedCount: 0,
+    isRefetching: false,
+    dataUpdatedAt: 0,
     ...overrides,
   };
 }
@@ -147,6 +150,7 @@ const noBenches: Bench[] = [];
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockedUseRefreshIssues.mockReturnValue(vi.fn());
   mockedUseIssues.mockReturnValue(defaultResult());
   mockedUseProjectIntegration.mockReturnValue({
     data: undefined,
@@ -717,6 +721,146 @@ describe("IssueQueuePanel", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
       expect(live).toHaveTextContent("Page 1");
+    });
+  });
+
+  describe("refresh feedback (issue #557)", () => {
+    function renderPanel() {
+      return renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+    }
+
+    it("spins the refresh icon and disables the control while refetching (CLI-TC-015)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true }));
+      renderPanel();
+
+      const button = screen.getByRole("button", { name: "Refresh cut list" });
+      expect(button).toBeDisabled();
+      // The icon spins while a refresh is in flight.
+      expect(button.querySelector(".animate-spin")).not.toBeNull();
+      // The indicator reads "refreshing...", not a stale timestamp.
+      expect(screen.getByTestId("cut-list-last-updated")).toHaveTextContent("refreshing...");
+    });
+
+    it("does not spin and is enabled in the settled state (CLI-TC-016)", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ isRefetching: false, dataUpdatedAt: Date.now() }),
+      );
+      renderPanel();
+
+      const button = screen.getByRole("button", { name: "Refresh cut list" });
+      expect(button).not.toBeDisabled();
+      expect(button.querySelector(".animate-spin")).toBeNull();
+      expect(screen.getByTestId("cut-list-last-updated")).toHaveTextContent("updated just now");
+    });
+
+    it("shows a relative last-updated timestamp from dataUpdatedAt (CLI-TC-016)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ dataUpdatedAt: Date.now() - 2 * 60_000 }));
+      renderPanel();
+
+      const indicator = screen.getByTestId("cut-list-last-updated");
+      expect(indicator).toHaveTextContent("updated 2m ago");
+      expect(indicator).toHaveAttribute("data-state", "fresh");
+    });
+
+    it("advances the last-updated indicator as dataUpdatedAt moves forward (CLI-TC-021)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ dataUpdatedAt: Date.now() - 5 * 60_000 }));
+      const { rerender } = renderPanel();
+      expect(screen.getByTestId("cut-list-last-updated")).toHaveTextContent("updated 5m ago");
+
+      // A successful refresh advances dataUpdatedAt; the indicator moves forward
+      // (more recent), never backward.
+      mockedUseIssues.mockReturnValue(defaultResult({ dataUpdatedAt: Date.now() }));
+      rerender(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId("cut-list-last-updated")).toHaveTextContent("updated just now");
+    });
+
+    it("renders the stale snapshot indicator distinctly from the warm state (CLI-TC-018)", () => {
+      mockedUseProjectIntegration.mockReturnValue(integrationWithPlugin());
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          stale: true,
+          snapshotCapturedAt: new Date(Date.now() - 14 * 60_000).toISOString(),
+        }),
+      );
+      renderPanel();
+
+      const indicator = screen.getByTestId("cut-list-last-updated");
+      // Distinct wording ("snapshot N ago", not "updated N ago") ...
+      expect(indicator).toHaveTextContent("snapshot 14m ago");
+      expect(indicator).not.toHaveTextContent("updated");
+      // ... and a distinct state marker driving the distinct colour.
+      expect(indicator).toHaveAttribute("data-state", "stale");
+      // The stale banner is shown alongside it.
+      expect(screen.getByTestId("stale-snapshot-banner")).toBeInTheDocument();
+    });
+
+    it("announces refresh start and completion via a polite live region (CLI-TC-020)", () => {
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: false }));
+      const { rerender } = renderPanel();
+
+      const liveRegion = screen.getByTestId("cut-list-refresh-status");
+      expect(liveRegion).toHaveAttribute("aria-live", "polite");
+      expect(liveRegion).toHaveTextContent("");
+
+      // Refetch begins.
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true }));
+      rerender(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId("cut-list-refresh-status")).toHaveTextContent(
+        "Refreshing cut list",
+      );
+
+      // Refetch completes.
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ isRefetching: false, dataUpdatedAt: Date.now() }),
+      );
+      rerender(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId("cut-list-refresh-status")).toHaveTextContent("Cut list updated");
+    });
+
+    it("keeps the refresh control keyboard-operable and labelled (CLI-TC-020)", async () => {
+      const user = userEvent.setup();
+      const refreshFn = vi.fn();
+      mockedUseRefreshIssues.mockReturnValue(refreshFn);
+      renderPanel();
+
+      const button = screen.getByRole("button", { name: "Refresh cut list" });
+      // The label is exposed to assistive tech regardless of state.
+      expect(button).toHaveAttribute("aria-label", "Refresh cut list");
+      // The control is operable from the keyboard: focus it via Tab order, then
+      // activate with Enter.
+      await user.tab();
+      await user.keyboard("{Enter}");
+      expect(button).toHaveFocus();
+      expect(refreshFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not start a second refresh while one is in progress (CLI-TC-019)", async () => {
+      const user = userEvent.setup();
+      const refreshFn = vi.fn();
+      mockedUseRefreshIssues.mockReturnValue(refreshFn);
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true }));
+      renderPanel();
+
+      const button = screen.getByRole("button", { name: "Refresh cut list" });
+      expect(button).toBeDisabled();
+      await user.click(button);
+      expect(refreshFn).not.toHaveBeenCalled();
     });
   });
 });
