@@ -61,40 +61,41 @@
   "scope": null,
   "spikes": [
     {
-      "id": "spike-1",
+      "id": "CP-spike-1",
       "issue": 598,
       "class": "decision",
       "doc": "spikes/spike-598-host-owns-vs-plugin-owns.md",
       "produces": [],
-      "satisfies": ["FR-008", "FR-006", "FR-009"],
+      "satisfies": ["CP-FR-008", "CP-FR-006", "CP-FR-009"],
       "verified_by": [],
       "gates": [605, 606, 612],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     },
     {
-      "id": "spike-2",
+      "id": "CP-spike-2",
       "issue": 599,
       "class": "decision",
       "doc": "spikes/spike-599-v2-plugin-isolation-backend.md",
       "produces": [],
-      "satisfies": ["FR-018", "NFR-001"],
+      "satisfies": ["CP-FR-018", "CP-NFR-001"],
       "verified_by": [],
       "gates": [618, 620],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     },
     {
-      "id": "spike-3",
+      "id": "CP-spike-3",
       "issue": 600,
       "class": "decision",
       "doc": "spikes/spk-3-host-rpc-broker-granularity.md",
       "produces": [],
-      "satisfies": ["FR-008", "FR-017", "NFR-005"],
+      "satisfies": ["CP-FR-008", "CP-FR-017", "CP-NFR-005"],
       "verified_by": [],
       "gates": [605],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     }
-  ]
+  ],
+  "id_code": "CP"
 }

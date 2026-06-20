@@ -9,8 +9,8 @@
     "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-008", "FR-006", "FR-009"],
-      "user_story_ids": ["US-007", "US-008"],
+      "requirement_ids": ["CP-FR-008", "CP-FR-006", "CP-FR-009"],
+      "user_story_ids": ["CP-US-007", "CP-US-008"],
       "test_case_ids": []
     },
     "kind": "spike"
@@ -25,8 +25,8 @@
     "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-018", "NFR-001"],
-      "user_story_ids": ["US-009"],
+      "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+      "user_story_ids": ["CP-US-009"],
       "test_case_ids": []
     },
     "kind": "spike"
@@ -41,7 +41,7 @@
     "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-008", "FR-017", "NFR-005"],
+      "requirement_ids": ["CP-FR-008", "CP-FR-017", "CP-NFR-005"],
       "user_story_ids": [],
       "test_case_ids": []
     },
@@ -57,28 +57,28 @@
     "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-007", "NFR-002"],
-      "user_story_ids": ["US-002"],
+      "requirement_ids": ["CP-FR-007", "CP-NFR-002"],
+      "user_story_ids": ["CP-US-002"],
       "test_case_ids": [
-        "TC-021",
-        "TC-032",
-        "TC-033",
-        "TC-034",
-        "TC-035",
-        "TC-036",
-        "TC-037",
-        "TC-038",
-        "TC-039",
-        "TC-043",
-        "TC-044",
-        "TC-047",
-        "TC-050",
-        "TC-051",
-        "TC-052",
-        "TC-056",
-        "TC-057",
-        "TC-059",
-        "TC-060"
+        "CP-TC-021",
+        "CP-TC-032",
+        "CP-TC-033",
+        "CP-TC-034",
+        "CP-TC-035",
+        "CP-TC-036",
+        "CP-TC-037",
+        "CP-TC-038",
+        "CP-TC-039",
+        "CP-TC-043",
+        "CP-TC-044",
+        "CP-TC-047",
+        "CP-TC-050",
+        "CP-TC-051",
+        "CP-TC-052",
+        "CP-TC-056",
+        "CP-TC-057",
+        "CP-TC-059",
+        "CP-TC-060"
       ]
     }
   },
@@ -92,23 +92,23 @@
     "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-011"],
-      "user_story_ids": ["US-001", "US-005"],
+      "requirement_ids": ["CP-FR-001", "CP-FR-011"],
+      "user_story_ids": ["CP-US-001", "CP-US-005"],
       "test_case_ids": [
-        "TC-001",
-        "TC-007",
-        "TC-012",
-        "TC-013",
-        "TC-026",
-        "TC-027",
-        "TC-076",
-        "TC-078",
-        "TC-080",
-        "TC-085",
-        "TC-088",
-        "TC-090",
-        "TC-097",
-        "TC-098"
+        "CP-TC-001",
+        "CP-TC-007",
+        "CP-TC-012",
+        "CP-TC-013",
+        "CP-TC-026",
+        "CP-TC-027",
+        "CP-TC-076",
+        "CP-TC-078",
+        "CP-TC-080",
+        "CP-TC-085",
+        "CP-TC-088",
+        "CP-TC-090",
+        "CP-TC-097",
+        "CP-TC-098"
       ]
     }
   },
@@ -122,26 +122,26 @@
     "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-022"],
-      "user_story_ids": ["US-005", "US-012"],
+      "requirement_ids": ["CP-FR-002", "CP-FR-022"],
+      "user_story_ids": ["CP-US-005", "CP-US-012"],
       "test_case_ids": [
-        "TC-002",
-        "TC-003",
-        "TC-015",
-        "TC-016",
-        "TC-017",
-        "TC-018",
-        "TC-027",
-        "TC-028",
-        "TC-031",
-        "TC-122",
-        "TC-123",
-        "TC-124",
-        "TC-125",
-        "TC-126",
-        "TC-127",
-        "TC-128",
-        "TC-129"
+        "CP-TC-002",
+        "CP-TC-003",
+        "CP-TC-015",
+        "CP-TC-016",
+        "CP-TC-017",
+        "CP-TC-018",
+        "CP-TC-027",
+        "CP-TC-028",
+        "CP-TC-031",
+        "CP-TC-122",
+        "CP-TC-123",
+        "CP-TC-124",
+        "CP-TC-125",
+        "CP-TC-126",
+        "CP-TC-127",
+        "CP-TC-128",
+        "CP-TC-129"
       ]
     }
   },
@@ -155,19 +155,19 @@
     "labels": ["task", "P0"],
     "blocked_by": [598, 603],
     "implements": {
-      "requirement_ids": ["FR-002"],
-      "user_story_ids": ["US-005"],
+      "requirement_ids": ["CP-FR-002"],
+      "user_story_ids": ["CP-US-005"],
       "test_case_ids": [
-        "TC-002",
-        "TC-003",
-        "TC-015",
-        "TC-016",
-        "TC-017",
-        "TC-018",
-        "TC-027",
-        "TC-028",
-        "TC-031",
-        "TC-125"
+        "CP-TC-002",
+        "CP-TC-003",
+        "CP-TC-015",
+        "CP-TC-016",
+        "CP-TC-017",
+        "CP-TC-018",
+        "CP-TC-027",
+        "CP-TC-028",
+        "CP-TC-031",
+        "CP-TC-125"
       ]
     }
   },
@@ -181,28 +181,28 @@
     "labels": ["feature", "P0"],
     "blocked_by": [598, 600],
     "implements": {
-      "requirement_ids": ["FR-008", "FR-009", "FR-017"],
-      "user_story_ids": ["US-005", "US-008"],
+      "requirement_ids": ["CP-FR-008", "CP-FR-009", "CP-FR-017"],
+      "user_story_ids": ["CP-US-005", "CP-US-008"],
       "test_case_ids": [
-        "TC-008",
-        "TC-009",
-        "TC-016",
-        "TC-026",
-        "TC-028",
-        "TC-033",
-        "TC-037",
-        "TC-038",
-        "TC-040",
-        "TC-041",
-        "TC-042",
-        "TC-053",
-        "TC-054",
-        "TC-055",
-        "TC-056",
-        "TC-058",
-        "TC-123",
-        "TC-126",
-        "TC-128"
+        "CP-TC-008",
+        "CP-TC-009",
+        "CP-TC-016",
+        "CP-TC-026",
+        "CP-TC-028",
+        "CP-TC-033",
+        "CP-TC-037",
+        "CP-TC-038",
+        "CP-TC-040",
+        "CP-TC-041",
+        "CP-TC-042",
+        "CP-TC-053",
+        "CP-TC-054",
+        "CP-TC-055",
+        "CP-TC-056",
+        "CP-TC-058",
+        "CP-TC-123",
+        "CP-TC-126",
+        "CP-TC-128"
       ]
     }
   },
@@ -216,42 +216,42 @@
     "labels": ["feature", "P0"],
     "blocked_by": [603, 605],
     "implements": {
-      "requirement_ids": ["FR-007", "FR-014", "FR-022"],
-      "user_story_ids": ["US-002"],
+      "requirement_ids": ["CP-FR-007", "CP-FR-014", "CP-FR-022"],
+      "user_story_ids": ["CP-US-002"],
       "test_case_ids": [
-        "TC-022",
-        "TC-027",
-        "TC-032",
-        "TC-033",
-        "TC-034",
-        "TC-035",
-        "TC-036",
-        "TC-037",
-        "TC-038",
-        "TC-039",
-        "TC-043",
-        "TC-044",
-        "TC-047",
-        "TC-050",
-        "TC-051",
-        "TC-052",
-        "TC-056",
-        "TC-057",
-        "TC-059",
-        "TC-060",
-        "TC-061",
-        "TC-062",
-        "TC-069",
-        "TC-072",
-        "TC-074",
-        "TC-122",
-        "TC-123",
-        "TC-124",
-        "TC-125",
-        "TC-126",
-        "TC-127",
-        "TC-128",
-        "TC-129"
+        "CP-TC-022",
+        "CP-TC-027",
+        "CP-TC-032",
+        "CP-TC-033",
+        "CP-TC-034",
+        "CP-TC-035",
+        "CP-TC-036",
+        "CP-TC-037",
+        "CP-TC-038",
+        "CP-TC-039",
+        "CP-TC-043",
+        "CP-TC-044",
+        "CP-TC-047",
+        "CP-TC-050",
+        "CP-TC-051",
+        "CP-TC-052",
+        "CP-TC-056",
+        "CP-TC-057",
+        "CP-TC-059",
+        "CP-TC-060",
+        "CP-TC-061",
+        "CP-TC-062",
+        "CP-TC-069",
+        "CP-TC-072",
+        "CP-TC-074",
+        "CP-TC-122",
+        "CP-TC-123",
+        "CP-TC-124",
+        "CP-TC-125",
+        "CP-TC-126",
+        "CP-TC-127",
+        "CP-TC-128",
+        "CP-TC-129"
       ]
     }
   },
@@ -265,22 +265,22 @@
     "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-015"],
-      "user_story_ids": ["US-008"],
+      "requirement_ids": ["CP-FR-015"],
+      "user_story_ids": ["CP-US-008"],
       "test_case_ids": [
-        "TC-019",
-        "TC-023",
-        "TC-027",
-        "TC-028",
-        "TC-061",
-        "TC-063",
-        "TC-065",
-        "TC-066",
-        "TC-067",
-        "TC-068",
-        "TC-071",
-        "TC-073",
-        "TC-075"
+        "CP-TC-019",
+        "CP-TC-023",
+        "CP-TC-027",
+        "CP-TC-028",
+        "CP-TC-061",
+        "CP-TC-063",
+        "CP-TC-065",
+        "CP-TC-066",
+        "CP-TC-067",
+        "CP-TC-068",
+        "CP-TC-071",
+        "CP-TC-073",
+        "CP-TC-075"
       ]
     }
   },
@@ -294,19 +294,19 @@
     "labels": ["feature", "P0"],
     "blocked_by": [602, 604],
     "implements": {
-      "requirement_ids": ["FR-010", "FR-003"],
-      "user_story_ids": ["US-003"],
+      "requirement_ids": ["CP-FR-010", "CP-FR-003"],
+      "user_story_ids": ["CP-US-003"],
       "test_case_ids": [
-        "TC-004",
-        "TC-005",
-        "TC-006",
-        "TC-011",
-        "TC-014",
-        "TC-024",
-        "TC-025",
-        "TC-027",
-        "TC-030",
-        "TC-031"
+        "CP-TC-004",
+        "CP-TC-005",
+        "CP-TC-006",
+        "CP-TC-011",
+        "CP-TC-014",
+        "CP-TC-024",
+        "CP-TC-025",
+        "CP-TC-027",
+        "CP-TC-030",
+        "CP-TC-031"
       ]
     }
   },
@@ -320,22 +320,22 @@
     "labels": ["task", "P0"],
     "blocked_by": [602, 604],
     "implements": {
-      "requirement_ids": ["FR-003", "NFR-005"],
-      "user_story_ids": ["US-001"],
+      "requirement_ids": ["CP-FR-003", "CP-NFR-005"],
+      "user_story_ids": ["CP-US-001"],
       "test_case_ids": [
-        "TC-004",
-        "TC-005",
-        "TC-008",
-        "TC-009",
-        "TC-010",
-        "TC-011",
-        "TC-014",
-        "TC-024",
-        "TC-025",
-        "TC-027",
-        "TC-029",
-        "TC-030",
-        "TC-054"
+        "CP-TC-004",
+        "CP-TC-005",
+        "CP-TC-008",
+        "CP-TC-009",
+        "CP-TC-010",
+        "CP-TC-011",
+        "CP-TC-014",
+        "CP-TC-024",
+        "CP-TC-025",
+        "CP-TC-027",
+        "CP-TC-029",
+        "CP-TC-030",
+        "CP-TC-054"
       ]
     }
   },
@@ -349,28 +349,28 @@
     "labels": ["feature", "P0"],
     "blocked_by": [604, 606],
     "implements": {
-      "requirement_ids": ["FR-005", "FR-007"],
-      "user_story_ids": ["US-002"],
+      "requirement_ids": ["CP-FR-005", "CP-FR-007"],
+      "user_story_ids": ["CP-US-002"],
       "test_case_ids": [
-        "TC-032",
-        "TC-033",
-        "TC-034",
-        "TC-035",
-        "TC-036",
-        "TC-037",
-        "TC-038",
-        "TC-039",
-        "TC-043",
-        "TC-044",
-        "TC-047",
-        "TC-049",
-        "TC-050",
-        "TC-051",
-        "TC-052",
-        "TC-056",
-        "TC-057",
-        "TC-059",
-        "TC-060"
+        "CP-TC-032",
+        "CP-TC-033",
+        "CP-TC-034",
+        "CP-TC-035",
+        "CP-TC-036",
+        "CP-TC-037",
+        "CP-TC-038",
+        "CP-TC-039",
+        "CP-TC-043",
+        "CP-TC-044",
+        "CP-TC-047",
+        "CP-TC-049",
+        "CP-TC-050",
+        "CP-TC-051",
+        "CP-TC-052",
+        "CP-TC-056",
+        "CP-TC-057",
+        "CP-TC-059",
+        "CP-TC-060"
       ]
     }
   },
@@ -384,28 +384,28 @@
     "labels": ["feature", "P0"],
     "blocked_by": [604, 606, 607],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-007"],
-      "user_story_ids": ["US-002"],
+      "requirement_ids": ["CP-FR-004", "CP-FR-007"],
+      "user_story_ids": ["CP-US-002"],
       "test_case_ids": [
-        "TC-032",
-        "TC-033",
-        "TC-034",
-        "TC-035",
-        "TC-036",
-        "TC-037",
-        "TC-038",
-        "TC-039",
-        "TC-043",
-        "TC-044",
-        "TC-047",
-        "TC-048",
-        "TC-050",
-        "TC-051",
-        "TC-052",
-        "TC-056",
-        "TC-057",
-        "TC-059",
-        "TC-060"
+        "CP-TC-032",
+        "CP-TC-033",
+        "CP-TC-034",
+        "CP-TC-035",
+        "CP-TC-036",
+        "CP-TC-037",
+        "CP-TC-038",
+        "CP-TC-039",
+        "CP-TC-043",
+        "CP-TC-044",
+        "CP-TC-047",
+        "CP-TC-048",
+        "CP-TC-050",
+        "CP-TC-051",
+        "CP-TC-052",
+        "CP-TC-056",
+        "CP-TC-057",
+        "CP-TC-059",
+        "CP-TC-060"
       ]
     }
   },
@@ -419,17 +419,17 @@
     "labels": ["feature", "P0"],
     "blocked_by": [606, 608, 610, 611],
     "implements": {
-      "requirement_ids": ["FR-006", "FR-009", "NFR-002"],
-      "user_story_ids": ["US-007"],
+      "requirement_ids": ["CP-FR-006", "CP-FR-009", "CP-NFR-002"],
+      "user_story_ids": ["CP-US-007"],
       "test_case_ids": [
-        "TC-021",
-        "TC-033",
-        "TC-040",
-        "TC-041",
-        "TC-042",
-        "TC-043",
-        "TC-044",
-        "TC-058"
+        "CP-TC-021",
+        "CP-TC-033",
+        "CP-TC-040",
+        "CP-TC-041",
+        "CP-TC-042",
+        "CP-TC-043",
+        "CP-TC-044",
+        "CP-TC-058"
       ]
     }
   },
@@ -443,24 +443,24 @@
     "labels": ["feature", "P0"],
     "blocked_by": [605, 607, 608],
     "implements": {
-      "requirement_ids": ["FR-015", "FR-016", "NFR-003"],
-      "user_story_ids": ["US-008"],
+      "requirement_ids": ["CP-FR-015", "CP-FR-016", "CP-NFR-003"],
+      "user_story_ids": ["CP-US-008"],
       "test_case_ids": [
-        "TC-019",
-        "TC-020",
-        "TC-023",
-        "TC-027",
-        "TC-028",
-        "TC-061",
-        "TC-063",
-        "TC-064",
-        "TC-065",
-        "TC-066",
-        "TC-067",
-        "TC-068",
-        "TC-071",
-        "TC-073",
-        "TC-075"
+        "CP-TC-019",
+        "CP-TC-020",
+        "CP-TC-023",
+        "CP-TC-027",
+        "CP-TC-028",
+        "CP-TC-061",
+        "CP-TC-063",
+        "CP-TC-064",
+        "CP-TC-065",
+        "CP-TC-066",
+        "CP-TC-067",
+        "CP-TC-068",
+        "CP-TC-071",
+        "CP-TC-073",
+        "CP-TC-075"
       ]
     }
   },
@@ -474,9 +474,9 @@
     "labels": ["task", "P0"],
     "blocked_by": [609, 610, 611, 612],
     "implements": {
-      "requirement_ids": ["FR-013"],
-      "user_story_ids": ["US-002", "US-007"],
-      "test_case_ids": ["TC-032", "TC-033", "TC-034", "TC-045", "TC-046"]
+      "requirement_ids": ["CP-FR-013"],
+      "user_story_ids": ["CP-US-002", "CP-US-007"],
+      "test_case_ids": ["CP-TC-032", "CP-TC-033", "CP-TC-034", "CP-TC-045", "CP-TC-046"]
     }
   },
   {
@@ -489,32 +489,32 @@
     "labels": ["feature", "P0"],
     "blocked_by": [602, 608],
     "implements": {
-      "requirement_ids": ["FR-011", "FR-012", "NFR-001", "NFR-007"],
-      "user_story_ids": ["US-004"],
+      "requirement_ids": ["CP-FR-011", "CP-FR-012", "CP-NFR-001", "CP-NFR-007"],
+      "user_story_ids": ["CP-US-004"],
       "test_case_ids": [
-        "TC-007",
-        "TC-013",
-        "TC-026",
-        "TC-027",
-        "TC-076",
-        "TC-077",
-        "TC-078",
-        "TC-079",
-        "TC-080",
-        "TC-081",
-        "TC-082",
-        "TC-083",
-        "TC-084",
-        "TC-085",
-        "TC-087",
-        "TC-088",
-        "TC-089",
-        "TC-090",
-        "TC-091",
-        "TC-095",
-        "TC-096",
-        "TC-097",
-        "TC-098"
+        "CP-TC-007",
+        "CP-TC-013",
+        "CP-TC-026",
+        "CP-TC-027",
+        "CP-TC-076",
+        "CP-TC-077",
+        "CP-TC-078",
+        "CP-TC-079",
+        "CP-TC-080",
+        "CP-TC-081",
+        "CP-TC-082",
+        "CP-TC-083",
+        "CP-TC-084",
+        "CP-TC-085",
+        "CP-TC-087",
+        "CP-TC-088",
+        "CP-TC-089",
+        "CP-TC-090",
+        "CP-TC-091",
+        "CP-TC-095",
+        "CP-TC-096",
+        "CP-TC-097",
+        "CP-TC-098"
       ]
     }
   },
@@ -528,18 +528,18 @@
     "labels": ["feature", "P0"],
     "blocked_by": [605, 606],
     "implements": {
-      "requirement_ids": ["FR-014", "NFR-004"],
-      "user_story_ids": ["US-006"],
+      "requirement_ids": ["CP-FR-014", "CP-NFR-004"],
+      "user_story_ids": ["CP-US-006"],
       "test_case_ids": [
-        "TC-022",
-        "TC-027",
-        "TC-057",
-        "TC-061",
-        "TC-062",
-        "TC-069",
-        "TC-072",
-        "TC-074",
-        "TC-124"
+        "CP-TC-022",
+        "CP-TC-027",
+        "CP-TC-057",
+        "CP-TC-061",
+        "CP-TC-062",
+        "CP-TC-069",
+        "CP-TC-072",
+        "CP-TC-074",
+        "CP-TC-124"
       ]
     }
   },
@@ -553,9 +553,9 @@
     "labels": ["task", "P0"],
     "blocked_by": [612],
     "implements": {
-      "requirement_ids": ["NFR-006"],
-      "user_story_ids": ["US-007"],
-      "test_case_ids": ["TC-040", "TC-041", "TC-042", "TC-129"]
+      "requirement_ids": ["CP-NFR-006"],
+      "user_story_ids": ["CP-US-007"],
+      "test_case_ids": ["CP-TC-040", "CP-TC-041", "CP-TC-042", "CP-TC-129"]
     }
   },
   {
@@ -568,9 +568,9 @@
     "labels": ["feature", "P0"],
     "blocked_by": [599, 605],
     "implements": {
-      "requirement_ids": ["FR-018", "NFR-001"],
-      "user_story_ids": ["US-009"],
-      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
+      "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+      "user_story_ids": ["CP-US-009"],
+      "test_case_ids": ["CP-TC-086", "CP-TC-093", "CP-TC-094", "CP-TC-099"]
     }
   },
   {
@@ -583,9 +583,9 @@
     "labels": ["feature", "P0"],
     "blocked_by": [605],
     "implements": {
-      "requirement_ids": ["FR-019", "NFR-004"],
-      "user_story_ids": ["US-009"],
-      "test_case_ids": ["TC-070", "TC-086", "TC-092", "TC-093", "TC-099"]
+      "requirement_ids": ["CP-FR-019", "CP-NFR-004"],
+      "user_story_ids": ["CP-US-009"],
+      "test_case_ids": ["CP-TC-070", "CP-TC-086", "CP-TC-092", "CP-TC-093", "CP-TC-099"]
     }
   },
   {
@@ -598,9 +598,9 @@
     "labels": ["feature", "P0"],
     "blocked_by": [599, 618],
     "implements": {
-      "requirement_ids": ["FR-018", "NFR-001"],
-      "user_story_ids": ["US-009"],
-      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
+      "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+      "user_story_ids": ["CP-US-009"],
+      "test_case_ids": ["CP-TC-086", "CP-TC-093", "CP-TC-094", "CP-TC-099"]
     }
   },
   {
@@ -613,25 +613,25 @@
     "labels": ["feature", "P1"],
     "blocked_by": [608],
     "implements": {
-      "requirement_ids": ["FR-020", "NFR-007"],
-      "user_story_ids": ["US-010"],
+      "requirement_ids": ["CP-FR-020", "CP-NFR-007"],
+      "user_story_ids": ["CP-US-010"],
       "test_case_ids": [
-        "TC-100",
-        "TC-101",
-        "TC-102",
-        "TC-103",
-        "TC-104",
-        "TC-105",
-        "TC-106",
-        "TC-110",
-        "TC-111",
-        "TC-113",
-        "TC-114",
-        "TC-115",
-        "TC-116",
-        "TC-119",
-        "TC-120",
-        "TC-121"
+        "CP-TC-100",
+        "CP-TC-101",
+        "CP-TC-102",
+        "CP-TC-103",
+        "CP-TC-104",
+        "CP-TC-105",
+        "CP-TC-106",
+        "CP-TC-110",
+        "CP-TC-111",
+        "CP-TC-113",
+        "CP-TC-114",
+        "CP-TC-115",
+        "CP-TC-116",
+        "CP-TC-119",
+        "CP-TC-120",
+        "CP-TC-121"
       ]
     }
   },
@@ -645,20 +645,20 @@
     "labels": ["feature", "P1"],
     "blocked_by": [621],
     "implements": {
-      "requirement_ids": ["FR-021"],
-      "user_story_ids": ["US-010", "US-011"],
+      "requirement_ids": ["CP-FR-021"],
+      "user_story_ids": ["CP-US-010", "CP-US-011"],
       "test_case_ids": [
-        "TC-101",
-        "TC-104",
-        "TC-105",
-        "TC-106",
-        "TC-107",
-        "TC-108",
-        "TC-109",
-        "TC-110",
-        "TC-112",
-        "TC-117",
-        "TC-118"
+        "CP-TC-101",
+        "CP-TC-104",
+        "CP-TC-105",
+        "CP-TC-106",
+        "CP-TC-107",
+        "CP-TC-108",
+        "CP-TC-109",
+        "CP-TC-110",
+        "CP-TC-112",
+        "CP-TC-117",
+        "CP-TC-118"
       ]
     }
   },
@@ -672,12 +672,20 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-002", "FR-003", "FR-010", "FR-011", "FR-014", "FR-015"],
-      "user_story_ids": ["US-001", "US-003", "US-005"],
-      "test_case_ids": ["TC-027"]
+      "requirement_ids": [
+        "CP-FR-001",
+        "CP-FR-002",
+        "CP-FR-003",
+        "CP-FR-010",
+        "CP-FR-011",
+        "CP-FR-014",
+        "CP-FR-015"
+      ],
+      "user_story_ids": ["CP-US-001", "CP-US-003", "CP-US-005"],
+      "test_case_ids": ["CP-TC-027"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-027"],
+    "verified_by": ["CP-TC-027"],
     "covers": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616]
   },
   {
@@ -690,12 +698,19 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-008", "FR-013", "NFR-002"],
-      "user_story_ids": ["US-002", "US-007"],
-      "test_case_ids": ["TC-033", "TC-034"]
+      "requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-005",
+        "CP-FR-007",
+        "CP-FR-008",
+        "CP-FR-013",
+        "CP-NFR-002"
+      ],
+      "user_story_ids": ["CP-US-002", "CP-US-007"],
+      "test_case_ids": ["CP-TC-033", "CP-TC-034"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-033", "TC-034"],
+    "verified_by": ["CP-TC-033", "CP-TC-034"],
     "covers": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617]
   },
   {
@@ -708,12 +723,12 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [599, 602, 615, 618, 620],
     "implements": {
-      "requirement_ids": ["FR-011", "FR-012", "NFR-001"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-076"]
+      "requirement_ids": ["CP-FR-011", "CP-FR-012", "CP-NFR-001"],
+      "user_story_ids": ["CP-US-004"],
+      "test_case_ids": ["CP-TC-076"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-076"],
+    "verified_by": ["CP-TC-076"],
     "covers": [599, 602, 615, 618, 620]
   },
   {
@@ -726,12 +741,12 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [598, 600, 602, 603, 604, 605, 607, 613],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-015", "FR-017"],
-      "user_story_ids": ["US-005", "US-008"],
-      "test_case_ids": ["TC-028"]
+      "requirement_ids": ["CP-FR-002", "CP-FR-015", "CP-FR-017"],
+      "user_story_ids": ["CP-US-005", "CP-US-008"],
+      "test_case_ids": ["CP-TC-028"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-028"],
+    "verified_by": ["CP-TC-028"],
     "covers": [598, 600, 602, 603, 604, 605, 607, 613]
   },
   {
@@ -744,12 +759,12 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [598, 605, 606, 607, 613, 616, 619],
     "implements": {
-      "requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-003", "NFR-004"],
-      "user_story_ids": ["US-006", "US-008"],
-      "test_case_ids": ["TC-061"]
+      "requirement_ids": ["CP-FR-014", "CP-FR-015", "CP-FR-016", "CP-NFR-003", "CP-NFR-004"],
+      "user_story_ids": ["CP-US-006", "CP-US-008"],
+      "test_case_ids": ["CP-TC-061"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-061"],
+    "verified_by": ["CP-TC-061"],
     "covers": [598, 605, 606, 607, 613, 616, 619]
   },
   {
@@ -762,12 +777,12 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [599, 615, 618, 619, 620],
     "implements": {
-      "requirement_ids": ["FR-018", "FR-019", "NFR-001"],
-      "user_story_ids": ["US-009"],
-      "test_case_ids": ["TC-099"]
+      "requirement_ids": ["CP-FR-018", "CP-FR-019", "CP-NFR-001"],
+      "user_story_ids": ["CP-US-009"],
+      "test_case_ids": ["CP-TC-099"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-099"],
+    "verified_by": ["CP-TC-099"],
     "covers": [599, 615, 618, 619, 620]
   },
   {
@@ -780,12 +795,12 @@
     "labels": ["e2e", "P1"],
     "blocked_by": [621, 622],
     "implements": {
-      "requirement_ids": ["FR-020", "FR-021"],
-      "user_story_ids": ["US-010", "US-011"],
-      "test_case_ids": ["TC-101"]
+      "requirement_ids": ["CP-FR-020", "CP-FR-021"],
+      "user_story_ids": ["CP-US-010", "CP-US-011"],
+      "test_case_ids": ["CP-TC-101"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-101"],
+    "verified_by": ["CP-TC-101"],
     "covers": [621, 622]
   },
   {
@@ -798,12 +813,12 @@
     "labels": ["e2e", "P0"],
     "blocked_by": [600, 609],
     "implements": {
-      "requirement_ids": ["NFR-005"],
+      "requirement_ids": ["CP-NFR-005"],
       "user_story_ids": [],
-      "test_case_ids": ["TC-029"]
+      "test_case_ids": ["CP-TC-029"]
     },
     "kind": "e2e",
-    "verified_by": ["TC-029"],
+    "verified_by": ["CP-TC-029"],
     "covers": [600, 609]
   }
 ]
