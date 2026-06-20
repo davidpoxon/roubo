@@ -41,6 +41,25 @@ export async function resetWithScenario(
 }
 
 /**
+ * #574 (TC-047): stamp the only-to-do default-change notice marker (FR-018,
+ * issue #558) with a fixed ISO timestamp via the ROUBO_E2E-gated
+ * `POST /test/__seed-notice`. `/test/__reset` truncates state.json (so the
+ * marker is absent) and the boot seed only ever writes the never-surfaced
+ * `"seeded"` sentinel on a fresh install, so this is the only way to drive the
+ * "existing install, banner should show once" state the upgrade-banner journey
+ * needs. Returns the stamped timestamp so the spec can key its localStorage
+ * assertions on the same value the banner uses for dismissal.
+ */
+export async function seedOnlyToDoNotice(request: APIRequestContext, at?: string): Promise<string> {
+  const res = await request.post("/test/__seed-notice", {
+    data: at === undefined ? {} : { at },
+  });
+  expect(res.status(), "seed only-to-do notice marker").toBe(200);
+  const body = (await res.json()) as { marker: string; at: string };
+  return body.at;
+}
+
+/**
  * Fetch the stubbed plugin's live connection-status and assert both the
  * scenario-derived `detail` and the pinned `checkedAt`. This is the
  * end-to-end proof that the spec's --scenario / --now reached the spawned

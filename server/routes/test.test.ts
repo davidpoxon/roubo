@@ -85,6 +85,10 @@ vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
   addBench: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
+  // #574: the /test/__seed-notice route reads + rewrites state.json via these.
+  // Default to an empty state; tests that assert the merge override loadState.
+  loadState: vi.fn(() => ({ benches: [] })),
+  saveState: vi.fn(),
 }));
 
 vi.mock("../services/integration-overrides.js", () => ({
@@ -108,7 +112,7 @@ import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
-import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
+import { BUNDLED_PLUGIN_IDS, ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 
 const app = express();
 app.use(express.json());
@@ -387,6 +391,113 @@ describe("POST /test/__reset", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/bundledPluginsDisabled/);
     expect(pluginManager.shutdown).not.toHaveBeenCalled();
+  });
+});
+
+// #574: stamp the only-to-do default-change notice marker (FR-018, issue #558)
+// with a real ISO timestamp so the OnlyToDoNoticeBanner renders for the e2e
+// upgrade-banner journey (TC-047). /test/__reset truncates state.json, so the
+// marker is otherwise absent; this route writes it directly.
+describe("POST /test/__seed-notice", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).post("/test/__seed-notice");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(state.saveState).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when ROUBO_E2E is set to a value other than '1'", async () => {
+    process.env.ROUBO_E2E = "true";
+
+    const res = await request(app).post("/test/__seed-notice");
+
+    expect(res.status).toBe(404);
+    expect(state.saveState).not.toHaveBeenCalled();
+  });
+
+  it("stamps the marker with a fixed default ISO timestamp when no body is sent", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-notice");
+
+    expect(res.status).toBe(200);
+    expect(res.body.marker).toBe(ONLY_TO_DO_NOTICE_MARKER);
+    expect(res.body.at).toBe("2026-06-01T12:00:00.000Z");
+    expect(state.saveState).toHaveBeenCalledTimes(1);
+    expect(state.saveState).toHaveBeenCalledWith({
+      benches: [],
+      notices: { [ONLY_TO_DO_NOTICE_MARKER]: "2026-06-01T12:00:00.000Z" },
+    });
+  });
+
+  it("stamps the marker with the supplied ISO timestamp and preserves existing state", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(state.loadState).mockReturnValueOnce({
+      benches: [],
+      schemaVersion: 3,
+      notices: { "other-notice": "2026-01-01T00:00:00.000Z" },
+    });
+
+    const res = await request(app)
+      .post("/test/__seed-notice")
+      .send({ at: "2026-07-04T08:00:00.000Z" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.at).toBe("2026-07-04T08:00:00.000Z");
+    expect(state.saveState).toHaveBeenCalledWith({
+      benches: [],
+      schemaVersion: 3,
+      notices: {
+        "other-notice": "2026-01-01T00:00:00.000Z",
+        [ONLY_TO_DO_NOTICE_MARKER]: "2026-07-04T08:00:00.000Z",
+      },
+    });
+  });
+
+  it("returns 400 when at is the 'seeded' sentinel (which the banner never surfaces)", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-notice").send({ at: "seeded" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/seeded/);
+    expect(state.saveState).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when at is not a parseable ISO-8601 string", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-notice").send({ at: "not-a-date" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/ISO-8601/);
+    expect(state.saveState).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when at is a non-string", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-notice").send({ at: 123 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/non-empty string/);
+    expect(state.saveState).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 and logs when saveState throws", async () => {
+    process.env.ROUBO_E2E = "1";
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(state.saveState).mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+
+    const res = await request(app).post("/test/__seed-notice");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("disk full");
+    expect(consoleSpy).toHaveBeenCalledWith("/test/__seed-notice failed:", "disk full");
+    consoleSpy.mockRestore();
   });
 });
 
