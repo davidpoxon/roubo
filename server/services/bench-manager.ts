@@ -4,7 +4,7 @@ import type {
   Bench,
   BenchStatus,
   ComponentStatus,
-  ComponentConfig,
+  ComponentBinding,
   ComponentPhase,
   ProvisioningStep,
   ProvisioningStepStatus,
@@ -67,7 +67,7 @@ function readGlobalBenchCap(): number | null {
   return typeof max === "number" && Number.isInteger(max) && max >= 1 ? max : null;
 }
 
-function resolveComponentOrder(components: Record<string, ComponentConfig>): string[] {
+function resolveComponentOrder(components: Record<string, ComponentBinding>): string[] {
   const names = Object.keys(components);
   const visited = new Set<string>();
   const order: string[] = [];
@@ -93,7 +93,7 @@ function resolveComponentOrder(components: Record<string, ComponentConfig>): str
   return order;
 }
 
-function getComponentOrder(components: Record<string, ComponentConfig>): string[] {
+function getComponentOrder(components: Record<string, ComponentBinding>): string[] {
   const hasDependsOn = Object.values(components).some((s) => s.dependsOn?.length);
   if (hasDependsOn) return resolveComponentOrder(components);
 
@@ -414,7 +414,7 @@ function extractWorkspacePermissions(projectId: string, workspacePath: string): 
 }
 
 function makeTeardownSteps(
-  components: Record<string, ComponentConfig>,
+  components: Record<string, ComponentBinding>,
   hasDockerComponents: boolean,
   removeWorkspace: boolean,
 ): ProvisioningStep[] {
@@ -1506,7 +1506,7 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
 }
 
 function makeComponentPhases(
-  componentConfig: ComponentConfig,
+  componentConfig: ComponentBinding,
   includeSetup = false,
 ): ComponentPhase[] {
   const phases: ComponentPhase[] = [];
@@ -1565,7 +1565,7 @@ async function startDockerComponent(
   projectId: string,
   benchId: number,
   componentName: string,
-  componentConfig: ComponentConfig,
+  componentConfig: ComponentBinding,
   workspacePath: string,
   ctx: ResolvedTemplateContext,
   componentStatus: ComponentStatus,
@@ -1668,7 +1668,7 @@ async function startProcessComponent(
   projectId: string,
   benchId: number,
   componentName: string,
-  componentConfig: ComponentConfig,
+  componentConfig: ComponentBinding,
   workspacePath: string,
   ctx: ResolvedTemplateContext,
 ) {

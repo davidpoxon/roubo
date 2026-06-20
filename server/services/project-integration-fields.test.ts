@@ -31,7 +31,7 @@ const FIXTURE_CONFIG: RouboConfig = {
   },
   // validateConfigObject requires at least one component, so the fixture
   // ships a minimal process component to keep the round-trip honest.
-  components: { server: { type: "process", command: "npm start" } },
+  components: { server: { plugin: { id: "process" }, config: { command: "npm start" } } },
   ports: { server: { base: 3000 } },
   benches: { max: 5 },
 } as unknown as RouboConfig;
@@ -69,7 +69,7 @@ describe("getIntegrationFields", () => {
     const project = withProject({
       project: { name: "demo", displayName: "Demo" },
       layout: { type: "single-repo" },
-      components: { server: { type: "process", command: "npm start" } },
+      components: { server: { plugin: { id: "process" }, config: { command: "npm start" } } },
       ports: { server: { base: 3000 } },
       benches: { max: 5 },
     } as unknown as RouboConfig);

@@ -40,7 +40,7 @@ function baseConfig(): RouboConfig {
       repo: "acme/demo",
     },
     layout: { type: "single-repo" },
-    components: { server: { type: "process", command: "npm start" } },
+    components: { server: { plugin: { id: "process" }, config: { command: "npm start" } } },
     ports: { server: { base: 3000 } },
     benches: { max: 5 },
   } as unknown as RouboConfig;

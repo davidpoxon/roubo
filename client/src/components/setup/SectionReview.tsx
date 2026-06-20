@@ -9,6 +9,7 @@ import {
   WIZARD_SECTIONS,
   REQUIRED_SECTIONS,
   SECTION_LABELS,
+  legacyComponents,
   type WizardSection,
   type SectionStatus,
   type WizardAction,
@@ -272,7 +273,7 @@ export default function SectionReview({
         <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
           <SectionHeader icon={Server} label="Components" status={sectionStatus.components} />
           <div className="divide-y divide-stone-200 dark:divide-stone-800/50">
-            {Object.entries(config.components).map(([name, component]) => (
+            {Object.entries(legacyComponents(config.components)).map(([name, component]) => (
               <div key={name} className="py-4 first:pt-0 last:pb-0">
                 <ComponentMiniCard
                   name={name}

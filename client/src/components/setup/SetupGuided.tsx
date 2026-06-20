@@ -6,7 +6,7 @@ import * as YAML from "yaml";
 import type { Diagnostic } from "@codemirror/lint";
 import type { BenchesConfig, Bench } from "@roubo/shared";
 import type { WizardState, WizardAction } from "./wizardReducer";
-import { isWizardSaveDisabled } from "./wizardReducer";
+import { isWizardSaveDisabled, legacyComponents } from "./wizardReducer";
 import SectionProjectInfo from "./SectionProjectInfo";
 import SectionInspection from "./SectionInspection";
 import ToolChipList from "./ToolChipList";
@@ -244,7 +244,7 @@ export default function SetupGuided({
                     <span id="section-components">Components</span>
                   </SectionHeading>
                   <ComponentsList
-                    components={config.components ?? {}}
+                    components={legacyComponents(config.components)}
                     ports={config.ports ?? {}}
                     maxBenches={config.benches?.max ?? 0}
                     portConflicts={state.portConflicts}
@@ -313,7 +313,7 @@ export default function SetupGuided({
                     portNames={portNames}
                     componentNames={componentNames}
                     ports={config.ports ?? {}}
-                    components={config.components ?? {}}
+                    components={legacyComponents(config.components)}
                     projectName={projectName}
                     dispatch={dispatch}
                   />
@@ -331,7 +331,7 @@ export default function SetupGuided({
                     portNames={portNames}
                     componentNames={componentNames}
                     ports={config.ports ?? {}}
-                    components={config.components ?? {}}
+                    components={legacyComponents(config.components)}
                     projectName={projectName}
                     repoPath={repoPath}
                     dispatch={dispatch}

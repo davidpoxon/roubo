@@ -11,7 +11,7 @@ const validConfig: RouboConfig = {
     repo: "org/repo",
   },
   layout: { type: "single-repo" },
-  components: { api: { type: "process", command: "npm start" } },
+  components: { api: { plugin: { id: "process" }, config: { command: "npm start" } } },
   ports: { api: { base: 3000 } },
   benches: { max: 5 },
 };
@@ -54,7 +54,7 @@ describe("useConfigValidation", () => {
         repo: "org/repo",
       },
       layout: { type: "single-repo" },
-      components: { api: { type: "process", command: "npm start" } },
+      components: { api: { plugin: { id: "process" }, config: { command: "npm start" } } },
       ports: { api: { base: 3000 } },
       // benches omitted
     };
@@ -67,13 +67,13 @@ describe("useConfigValidation", () => {
     expect(result.current.fieldErrors["project.name"]).toBeUndefined();
   });
 
-  it("uses dotted keys for nested errors (e.g. components.api.command)", () => {
+  it("uses dotted keys for nested errors (e.g. components.api.plugin)", () => {
     const config = {
       ...validConfig,
-      components: { api: { type: "process" } }, // missing command
+      components: { api: { config: { command: "npm start" } } }, // missing plugin reference
     };
     const { result } = renderHook(() => useConfigValidation(config as Partial<RouboConfig>));
     expect(result.current.isClean).toBe(false);
-    expect(result.current.fieldErrors["components.api.command"]).toBeTruthy();
+    expect(result.current.fieldErrors["components.api.plugin"]).toBeTruthy();
   });
 });

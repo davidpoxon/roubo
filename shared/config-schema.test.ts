@@ -17,7 +17,9 @@ function makeConfig(overrides?: Partial<RouboConfig>): RouboConfig {
       repo: "org/test-project",
     },
     layout: { type: "single-repo" },
-    components: { backend: { type: "process", command: "dotnet run" } },
+    components: {
+      backend: { plugin: { id: "process" }, config: { command: "dotnet run" } },
+    },
     ports: { backend: { base: 5000 } },
     benches: { max: 5 },
     ...overrides,
@@ -50,19 +52,34 @@ describe("RouboConfigSchema: valid configs", () => {
     expect(RouboConfigSchema.safeParse(config).success).toBe(true);
   });
 
-  it("accepts a database component without command", () => {
-    const config = makeConfig({ components: { db: { type: "database" } } });
+  it("accepts a component binding with an empty config block (config defaults to {})", () => {
+    const config = makeConfig({ components: { db: { plugin: { id: "database" } } } });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.components.db.config).toEqual({});
+  });
+
+  it("accepts a binding that carries a plugin source", () => {
+    const config = makeConfig({
+      components: {
+        db: {
+          plugin: { id: "database", source: "git@github.com:acme/roubo-db-plugin.git" },
+          config: { image: "postgres:16" },
+        },
+      },
+    });
     expect(RouboConfigSchema.safeParse(config).success).toBe(true);
   });
 
-  it("accepts multiple components and ports", () => {
+  it("accepts multiple component bindings and ports", () => {
     const config = makeConfig({
       components: {
-        frontend: { type: "process", command: "npm start" },
-        backend: { type: "process", command: "dotnet run" },
+        frontend: { plugin: { id: "process" }, config: { command: "npm start" } },
+        backend: { plugin: { id: "process" }, config: { command: "dotnet run" } },
         db: {
-          type: "database",
-          docker: { composeFile: "docker-compose.yml", service: "db" },
+          plugin: { id: "database" },
+          config: { composeFile: "docker-compose.yml", service: "db" },
         },
       },
       ports: { frontend: { base: 3000 }, backend: { base: 5000, https: true } },
@@ -222,40 +239,91 @@ describe("components map", () => {
     expect(RouboConfigSchema.safeParse(makeConfig({ ports: {} })).success).toBe(true);
   });
 
-  it("rejects a process component without command", () => {
-    const result = RouboConfigSchema.safeParse(
-      makeConfig({ components: { api: { type: "process" } } }),
-    );
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    const paths = result.error.issues.map((i) => i.path.join("."));
-    expect(paths.some((p) => p.includes("command"))).toBe(true);
-  });
-
-  it("rejects a component with unknown keys", () => {
+  it("rejects a component binding without a plugin reference", () => {
     const result = RouboConfigSchema.safeParse(
       makeConfig({
         components: {
-          api: {
-            type: "process",
-            command: "npm start",
-            comand: "oops",
-          } as unknown as {
-            type: "process";
-            command: string;
+          api: { config: { command: "npm start" } } as unknown as {
+            plugin: { id: string };
+            config: Record<string, unknown>;
           },
         },
       }),
     );
     expect(result.success).toBe(false);
+    if (result.success) return;
+    const paths = result.error.issues.map((i) => i.path.join("."));
+    expect(paths.some((p) => p.includes("plugin"))).toBe(true);
+  });
+
+  it("rejects a plugin reference without an id", () => {
+    const result = RouboConfigSchema.safeParse(
+      makeConfig({
+        components: {
+          api: { plugin: {} as unknown as { id: string }, config: {} },
+        },
+      }),
+    );
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const paths = result.error.issues.map((i) => i.path.join("."));
+    expect(paths.some((p) => p.includes("plugin.id"))).toBe(true);
+  });
+
+  it("rejects the removed two-value type enum on a component (no longer in the schema)", () => {
+    const result = RouboConfigSchema.safeParse(
+      makeConfig({
+        components: {
+          api: {
+            plugin: { id: "process" },
+            config: { command: "npm start" },
+            type: "process",
+          } as unknown as { plugin: { id: string }; config: Record<string, unknown> },
+        },
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys at the binding level (strict)", () => {
+    const result = RouboConfigSchema.safeParse(
+      makeConfig({
+        components: {
+          api: {
+            plugin: { id: "process" },
+            config: { command: "npm start" },
+            bogus: true,
+          } as unknown as { plugin: { id: string }; config: Record<string, unknown> },
+        },
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("preserves dependsOn at the binding level", () => {
+    const config = makeConfig({
+      components: {
+        db: { plugin: { id: "database" }, config: {} },
+        api: {
+          plugin: { id: "process" },
+          config: { command: "npm start" },
+          dependsOn: ["db"],
+        },
+      },
+    });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.components.api.dependsOn).toEqual(["db"]);
   });
 });
 
-// Issue #608 (CP-FR-010): the minimal component-to-plugin binding shape the
-// ComponentPluginRegistry reads. Additive: existing `type`-only components stay
-// valid (asserted above), and a component may instead bind to a plugin.
+// Issue #608 (CP-FR-010): the component-to-plugin binding shape the
+// ComponentPluginRegistry reads. With #609 the binding is the ONLY component
+// shape: a component binds to a plugin (`plugin: { id, source? }`); the legacy
+// `type` enum is gone, so a component with no plugin reference is rejected.
 describe("component plugin binding (issue #608)", () => {
-  it("accepts a component bound to a plugin without a legacy type", () => {
+  it("accepts a component bound to a plugin", () => {
     const config = makeConfig({
       components: { db: { plugin: { id: "postgres-component" } } },
     });
@@ -271,7 +339,7 @@ describe("component plugin binding (issue #608)", () => {
     expect(RouboConfigSchema.safeParse(config).success).toBe(true);
   });
 
-  it("rejects a component with neither type nor plugin", () => {
+  it("rejects a component with no plugin reference", () => {
     const result = RouboConfigSchema.safeParse(makeConfig({ components: { db: {} as never } }));
     expect(result.success).toBe(false);
   });
