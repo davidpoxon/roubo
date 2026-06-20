@@ -346,6 +346,11 @@ export class DiskSnapshotStore {
       return null;
     }
 
+    // Refresh the file mtime on a read hit so the total-bound eviction in
+    // `enforceTotalBound` is genuinely LRU (by access recency), not FIFO (by
+    // write time). Best-effort: a failed touch must never turn a valid hit into
+    // a miss, so swallow any error and still serve the entry.
+    this.touchQuiet(file);
     return entry;
   }
 
@@ -396,6 +401,20 @@ export class DiskSnapshotStore {
       fs.rmSync(file, { force: true });
     } catch {
       // Best-effort cleanup only.
+    }
+  }
+
+  /**
+   * Refresh a file's access + modification time to now, swallowing any error.
+   * Used on a read hit so total-bound eviction orders by access recency (LRU),
+   * not write time (FIFO). A failed touch must never break the read.
+   */
+  private touchQuiet(file: string): void {
+    try {
+      const now = new Date();
+      fs.utimesSync(file, now, now);
+    } catch {
+      // Best-effort recency refresh only.
     }
   }
 

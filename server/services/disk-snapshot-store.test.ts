@@ -400,6 +400,36 @@ describe("eviction policy (CLI-FR-004)", () => {
     expect(tiny.get(k1)).toBeNull();
   });
 
+  it("LRU (not FIFO): a read hit refreshes recency so a freshly-read entry survives over an unread one", () => {
+    const tiny = new DiskSnapshotStore({
+      baseDir,
+      onDiscard: (e) => discards.push(e),
+      totalMaxBytes: 1500,
+    });
+    const k1 = buildCacheKey({ ...baseInput, pageSize: 11 });
+    const k2 = buildCacheKey({ ...baseInput, pageSize: 12 });
+    const k3 = buildCacheKey({ ...baseInput, pageSize: 13 });
+    tiny.put(k1, response(["one"]));
+    tiny.put(k2, response(["two"]));
+
+    // Age both writes into the past, with k1 the OLDER of the two. By write
+    // order alone (FIFO), k1 would be evicted first.
+    const f1 = path.join(baseDir, "p1", `${hashCacheKey(k1)}.json`);
+    const f2 = path.join(baseDir, "p1", `${hashCacheKey(k2)}.json`);
+    fs.utimesSync(f1, new Date(Date.now() - 120_000), new Date(Date.now() - 120_000));
+    fs.utimesSync(f2, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
+
+    // Read k1: this must refresh its mtime to now, making k2 the least-recently-used.
+    expect(tiny.get(k1)?.response.items[0].externalId).toBe("one");
+
+    // A new put forces one eviction. With true LRU the now-unread k2 goes, not
+    // the just-read k1.
+    tiny.put(k3, response(["three"]));
+    expect(discards.some((d) => d.trigger === "lru-evicted")).toBe(true);
+    expect(tiny.get(k1)?.response.items[0].externalId).toBe("one"); // survived: recently read
+    expect(tiny.get(k2)).toBeNull(); // evicted as the LRU entry
+  });
+
   it("under the total bound, no LRU eviction happens", () => {
     const k1 = buildCacheKey({ ...baseInput, pageSize: 11 });
     const k2 = buildCacheKey({ ...baseInput, pageSize: 12 });
