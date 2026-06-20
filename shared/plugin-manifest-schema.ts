@@ -38,15 +38,33 @@ export const ProcessesPermissionSchema = z.union([
 ]);
 export type ProcessesPermission = z.infer<typeof ProcessesPermissionSchema>;
 
+// `ports` lets a component plugin declare the bench ports it needs allocated.
+// Either false (no port allocation) or an object naming the port keys the host
+// resolves into BenchContext.ports (architecture.md, FR-001/FR-011).
+export const PortsPermissionSchema = z.union([
+  z.literal(false),
+  z.object({ names: z.array(z.string()) }).strict(),
+]);
+export type PortsPermission = z.infer<typeof PortsPermissionSchema>;
+
+// `docker` gates a component plugin's access to the host docker broker
+// (composeUp / waitForHealthy / assignContainer, etc.). Either false (no docker
+// access) or an object (reserved for future scoping fields).
+export const DockerPermissionSchema = z.union([z.literal(false), z.object({}).strict()]);
+export type DockerPermission = z.infer<typeof DockerPermissionSchema>;
+
 // `permissions` is intentionally `.passthrough()` (not `.strict()`) so future
-// permission categories (e.g. `ports`, `docker`) can be added in a 1.x minor
-// without breaking older hosts. See decisions-log.md AF-002.
+// permission categories can be added in a 1.x minor without breaking older
+// hosts. See decisions-log.md AF-002. `ports` and `docker` are the component
+// categories (optional, so existing integration manifests validate unchanged).
 export const PluginPermissionsSchema = z
   .object({
     network: NetworkPermissionsSchema,
     credentials: CredentialsPermissionsSchema,
     filesystem: FilesystemPermissionsSchema,
     processes: ProcessesPermissionSchema,
+    ports: PortsPermissionSchema.optional(),
+    docker: DockerPermissionSchema.optional(),
   })
   .passthrough();
 export type PluginPermissions = z.infer<typeof PluginPermissionsSchema>;
@@ -81,6 +99,40 @@ export const PluginIconSchema = z
   .max(16 * 1024, "Icon must be at most 16 KB");
 export type PluginIcon = z.infer<typeof PluginIconSchema>;
 
+// The set of plugin kinds the host understands. `component` lands with the
+// component-plugin work (FR-001); `integration` is the original kind. The
+// discriminator widens here without breaking existing integration manifests.
+export const PluginKindSchema = z.enum(["integration", "component"]);
+export type PluginKind = z.infer<typeof PluginKindSchema>;
+
+// A node-semver-compatible range, used to validate the manifest `roubo` field
+// at schema time so a malformed range is rejected with a clear error (FR-001),
+// rather than only at host-compatibility time. Kept dependency-free (the
+// `shared` workspace depends only on `yaml` + `zod`): this validates each
+// space- or `||`-separated comparator against the comparator grammar
+// node-semver accepts (operators, hyphen ranges, x-ranges, caret/tilde,
+// wildcards). It is intentionally permissive on the comparator side and strict
+// only about rejecting obvious garbage (the host re-checks with node-semver).
+const SEMVER_COMPARATOR =
+  /^(?:[<>]=?|=|\^|~)?\s*v?(?:\d+|[xX*])(?:\.(?:\d+|[xX*]))?(?:\.(?:\d+|[xX*]))?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+export function isValidRouboRange(range: string): boolean {
+  const trimmed = range.trim();
+  if (trimmed.length === 0) return false;
+  // `*` / `x` on their own is the match-anything range.
+  if (/^[*xX]$/.test(trimmed)) return true;
+  const orClauses = trimmed.split("||");
+  return orClauses.every((clause) => {
+    const comparators = clause.trim().split(/\s+/).filter(Boolean);
+    if (comparators.length === 0) return false;
+    // A hyphen range ("1.2.3 - 2.3.4") parses as [lo, "-", hi].
+    if (comparators.length === 3 && comparators[1] === "-") {
+      return SEMVER_COMPARATOR.test(comparators[0]) && SEMVER_COMPARATOR.test(comparators[2]);
+    }
+    return comparators.every((c) => SEMVER_COMPARATOR.test(c));
+  });
+}
+
 // ── Root manifest ──
 
 export const PluginManifestSchema = z
@@ -91,14 +143,20 @@ export const PluginManifestSchema = z
     name: z.string().min(1, "Required"),
     version: z.string().min(1, "Required"),
     description: z.string().min(1, "Required"),
-    kind: z.literal("integration"),
-    roubo: z.string().min(1, "Required"),
+    kind: PluginKindSchema,
+    roubo: z.string().min(1, "Required").refine(isValidRouboRange, "Must be a valid semver range"),
     entry: z.string().min(1, "Required"),
     icon: PluginIconSchema.optional(),
     configSchema: z.record(z.string(), z.unknown()).optional(),
     capabilities: PluginCapabilitiesSchema.optional(),
     defaultIntegrationConfig: PluginDefaultIntegrationConfigSchema.optional(),
     permissions: PluginPermissionsSchema,
+    // Component plugins declare the SDK component-contract version they target
+    // (FR-001/FR-002); the host validates the registered-method set against it.
+    contractVersion: z.number().int().positive().optional(),
+    // Optional ProvisionDescriptor schema version a declarative component plugin
+    // emits, so the host can reject a descriptor-schema mismatch (FR-017).
+    descriptorSchemaVersion: z.number().int().positive().optional(),
   })
   .strict();
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;

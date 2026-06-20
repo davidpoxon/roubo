@@ -30,11 +30,14 @@ import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
-// 1.2.0 (CLI-NFR-008): adds the non-breaking `getSortFields` RPC (CLI-FR-009).
-// The bump is backward-compatible: a plugin built against 1.0.0 / 1.1.0 simply
-// omits the method, and the host's `MethodNotFound` fallback renders no sort
-// picker (CLI-FR-011). No existing contract method changed shape.
-export const HOST_API_VERSION = "1.2.0";
+// 1.3.0 (issue #602): the `component` plugin kind lands, alongside the `ports`
+// and `docker` permission categories and the `contractVersion` /
+// `descriptorSchemaVersion` manifest fields. The bump is backward-compatible:
+// the new kind, categories, and fields are all additive (the manifest schema's
+// `permissions` is `.passthrough()` and the version fields are optional), so an
+// existing integration plugin built against 1.0.0 through 1.2.0 keeps working
+// unchanged. No existing contract method changed shape.
+export const HOST_API_VERSION = "1.3.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;

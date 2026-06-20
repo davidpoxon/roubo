@@ -142,8 +142,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.2.0 (CLI-NFR-008: non-breaking getSortFields bump)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.2.0");
+  it("reports host-API 1.3.0 (component kind landed: issue #602)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.3.0");
   });
 });
 

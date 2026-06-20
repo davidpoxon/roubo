@@ -260,13 +260,196 @@ describe("PluginManifestSchema: value validation", () => {
   });
 });
 
+describe("PluginManifestSchema: component kind (FR-001)", () => {
+  it("accepts a manifest with kind: component", () => {
+    const manifest = makeManifest({ kind: "component", contractVersion: 1 });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe("component");
+    }
+  });
+
+  it("still accepts a manifest with kind: integration unchanged", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest({ kind: "integration" }));
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown kind with a clear error", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "ai-agent" as unknown as "integration" }),
+    );
+    expectFieldError(result, "kind");
+  });
+
+  it("discovers a kind: component manifest through parseManifest", async () => {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const yaml = [
+      "id: db-postgres",
+      "name: Postgres database",
+      "version: 1.0.0",
+      "description: First-party database component plugin",
+      "kind: component",
+      "roubo: ^1.3.0",
+      "entry: ./dist/index.js",
+      "contractVersion: 1",
+      "permissions:",
+      "  network: { hosts: [] }",
+      "  credentials: { slots: [] }",
+      "  filesystem: { paths: [] }",
+      "  processes: false",
+      "  ports: { names: [postgres] }",
+      "  docker: {}",
+      "",
+    ].join("\n");
+    const result = parseManifest(yaml, "/fake/roubo-plugin.yaml");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.manifest.kind).toBe("component");
+      expect(result.manifest.contractVersion).toBe(1);
+    }
+  });
+});
+
+describe("PluginManifestSchema: ports / docker permission categories (FR-001/FR-011)", () => {
+  it("accepts a ports object naming bench port keys", () => {
+    const manifest = makeManifest({
+      kind: "component",
+      contractVersion: 1,
+      permissions: {
+        ...makeManifest().permissions,
+        ports: { names: ["postgres"] },
+      },
+    });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.permissions.ports).toEqual({ names: ["postgres"] });
+    }
+  });
+
+  it("accepts ports: false", () => {
+    const manifest = makeManifest({
+      permissions: { ...makeManifest().permissions, ports: false },
+    });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
+  });
+
+  it("accepts a docker object", () => {
+    const manifest = makeManifest({
+      kind: "component",
+      contractVersion: 1,
+      permissions: { ...makeManifest().permissions, docker: {} },
+    });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.permissions.docker).toEqual({});
+    }
+  });
+
+  it("accepts docker: false", () => {
+    const manifest = makeManifest({
+      permissions: { ...makeManifest().permissions, docker: false },
+    });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
+  });
+
+  it("rejects a malformed ports value (neither false nor a names object)", () => {
+    const manifest = makeManifest({
+      permissions: {
+        ...makeManifest().permissions,
+        ports: true as unknown as false,
+      },
+    });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+
+  it("rejects a ports object with an unknown key", () => {
+    const manifest = makeManifest({
+      permissions: {
+        ...makeManifest().permissions,
+        ports: { names: ["x"], extra: true } as unknown as { names: string[] },
+      },
+    });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+
+  it("rejects a docker object with an unknown key", () => {
+    const manifest = makeManifest({
+      permissions: {
+        ...makeManifest().permissions,
+        docker: { privileged: true } as unknown as Record<string, never>,
+      },
+    });
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+});
+
+describe("PluginManifestSchema: contractVersion / descriptorSchemaVersion", () => {
+  it("accepts contractVersion and descriptorSchemaVersion", () => {
+    const manifest = makeManifest({
+      kind: "component",
+      contractVersion: 1,
+      descriptorSchemaVersion: 1,
+    });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.contractVersion).toBe(1);
+      expect(result.data.descriptorSchemaVersion).toBe(1);
+    }
+  });
+
+  it("omitting both version fields still validates (integration manifests)", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.contractVersion).toBeUndefined();
+      expect(result.data.descriptorSchemaVersion).toBeUndefined();
+    }
+  });
+
+  it("rejects a non-positive contractVersion", () => {
+    expect(PluginManifestSchema.safeParse(makeManifest({ contractVersion: 0 })).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects a non-integer descriptorSchemaVersion", () => {
+    expect(
+      PluginManifestSchema.safeParse(makeManifest({ descriptorSchemaVersion: 1.5 })).success,
+    ).toBe(false);
+  });
+});
+
+describe("PluginManifestSchema: roubo range validation (FR-001)", () => {
+  for (const valid of ["^1.0.0", "~1.2.0", ">=1.3.0", "1.x", "*", "1.2.3 - 2.0.0", "1 || 2"]) {
+    it(`accepts a valid roubo range: ${valid}`, () => {
+      expect(PluginManifestSchema.safeParse(makeManifest({ roubo: valid })).success).toBe(true);
+    });
+  }
+
+  for (const bad of ["not-a-range", "^^1.0.0", ">=>1.0.0", "1.2.3.4.5", "abc || def"]) {
+    it(`rejects a malformed roubo range: ${bad}`, () => {
+      const result = PluginManifestSchema.safeParse(makeManifest({ roubo: bad }));
+      expectFieldError(result, "roubo");
+    });
+  }
+
+  it("rejects an empty roubo string", () => {
+    expectFieldError(PluginManifestSchema.safeParse(makeManifest({ roubo: "" })), "roubo");
+  });
+});
+
 describe("PluginManifestSchema: forward-compat passthrough", () => {
   it("accepts unknown permission categories so future 1.x minors can add them", () => {
     const manifest = {
       ...makeManifest(),
       permissions: {
         ...makeManifest().permissions,
-        ports: { allow: [3000] },
+        // A category not yet known to this host version; .passthrough() accepts it.
+        gpu: { devices: ["nvidia0"] },
       },
     } as unknown as PluginManifest;
     expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
@@ -440,6 +623,30 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       "processes",
     ]);
     expect(properties.permissions.additionalProperties).toBe(true);
+  });
+
+  it("kind enum accepts integration and component (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    expect(properties.kind.enum).toEqual(["integration", "component"]);
+  });
+
+  it("declares optional contractVersion and descriptorSchemaVersion integers (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    expect(properties.contractVersion).toMatchObject({ type: "integer", minimum: 1 });
+    expect(properties.descriptorSchemaVersion).toMatchObject({ type: "integer", minimum: 1 });
+    const required = jsonSchema.required as string[];
+    expect(required).not.toContain("contractVersion");
+    expect(required).not.toContain("descriptorSchemaVersion");
+  });
+
+  it("permissions sub-tree declares ports and docker categories (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const permProps = properties.permissions.properties as Record<string, unknown>;
+    expect(permProps.ports).toBeDefined();
+    expect(permProps.docker).toBeDefined();
+    // ports and docker are not required (optional component categories).
+    expect(properties.permissions.required).not.toContain("ports");
+    expect(properties.permissions.required).not.toContain("docker");
   });
 
   it("declares icon as an optional bounded string", () => {
