@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createMockChild as _createMockChild } from "../test/fixtures.js";
 
-function createMockChild() {
-  return _createMockChild(12345);
+function createMockChild(pid = 12345) {
+  return _createMockChild(pid);
 }
 
 vi.mock("tree-kill", () => ({ default: vi.fn() }));
@@ -69,10 +69,8 @@ describe("startProcess", () => {
     const treeKill = (await import("tree-kill")).default;
     const mockTreeKill = vi.mocked(treeKill);
 
-    const child1 = createMockChild();
-    child1.pid = 11111;
-    const child2 = createMockChild();
-    child2.pid = 22222;
+    const child1 = createMockChild(11111);
+    const child2 = createMockChild(22222);
     mockSpawn.mockReturnValueOnce(child1).mockReturnValueOnce(child2);
 
     const { startProcess } = await loadModule();
@@ -85,6 +83,93 @@ describe("startProcess", () => {
   });
 });
 
+describe("runProcess", () => {
+  it("resolves with the exit code when the process closes", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-ok", "echo", ["hi"], {}, "/cwd");
+    child.emit("close", 0);
+
+    await expect(promise).resolves.toEqual({ exitCode: 0 });
+    expect(mockSpawn).toHaveBeenCalledWith(
+      "echo",
+      ["hi"],
+      expect.objectContaining({ cwd: "/cwd", stdio: ["ignore", "pipe", "pipe"], shell: false }),
+    );
+  });
+
+  it("resolves with a non-zero code on a failing close", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-fail", "false", [], {}, "/cwd");
+    child.emit("close", 2);
+
+    await expect(promise).resolves.toEqual({ exitCode: 2 });
+  });
+
+  it("captures output into the log buffer readable via getProcessLogs", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess, getProcessLogs } = await loadModule();
+
+    const promise = runProcess("run-logs", "node", ["x.js"], {}, "/cwd");
+    child.stdout?.emit("data", Buffer.from("out line\n"));
+    child.stderr?.emit("data", Buffer.from("err line\n"));
+    child.emit("close", 0);
+    await promise;
+
+    expect(getProcessLogs("run-logs")).toEqual(["out line", "err line"]);
+  });
+
+  it("rejects when the process emits an error", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-err", "missing", [], {}, "/cwd");
+    child.emit("error", new Error("spawn ENOENT"));
+
+    await expect(promise).rejects.toThrow("spawn ENOENT");
+  });
+
+  it("force-kills and resolves with code 124 when timeoutMs elapses", async () => {
+    vi.useFakeTimers();
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+
+    const child = createMockChild(77777);
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-timeout", "sleep", ["999"], {}, "/cwd", 1000);
+    vi.advanceTimersByTime(1000);
+
+    expect(mockTreeKill).toHaveBeenCalledWith(77777, "SIGKILL", expect.any(Function));
+    await expect(promise).resolves.toEqual({ exitCode: 124 });
+  });
+
+  it("strips ROUBO_ env vars from the spawned environment", async () => {
+    process.env = { ...originalEnv, ROUBO_PORT: "3333", KEEP_ME: "yes" };
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-env", "node", ["x.js"], { EXTRA: "1" }, "/cwd");
+    child.emit("close", 0);
+    await promise;
+
+    const spawnedEnv = mockSpawn.mock.calls[0][2].env as Record<string, string>;
+    expect(spawnedEnv.ROUBO_PORT).toBeUndefined();
+    expect(spawnedEnv.KEEP_ME).toBe("yes");
+    expect(spawnedEnv.EXTRA).toBe("1");
+  });
+});
+
 describe("log capture", () => {
   it("captures stdout and stderr", async () => {
     const child = createMockChild();
@@ -93,8 +178,8 @@ describe("log capture", () => {
 
     startProcess("log-test", "node", ["app.js"], {}, "/cwd");
 
-    child.stdout.emit("data", Buffer.from("stdout line 1\nstdout line 2\n"));
-    child.stderr.emit("data", Buffer.from("stderr line 1\n"));
+    child.stdout?.emit("data", Buffer.from("stdout line 1\nstdout line 2\n"));
+    child.stderr?.emit("data", Buffer.from("stderr line 1\n"));
 
     const logs = getProcessLogs("log-test");
     expect(logs).toEqual(["stdout line 1", "stdout line 2", "stderr line 1"]);
@@ -109,7 +194,7 @@ describe("log capture", () => {
 
     // Push 5010 lines
     for (let i = 0; i < 5010; i++) {
-      child.stdout.emit("data", Buffer.from(`line-${i}\n`));
+      child.stdout?.emit("data", Buffer.from(`line-${i}\n`));
     }
 
     const logs = getProcessLogs("rotate-test", 5000);
@@ -170,7 +255,7 @@ describe("getProcessLogs", () => {
     startProcess("tail-test", "node", ["app.js"], {}, "/cwd");
 
     for (let i = 0; i < 10; i++) {
-      child.stdout.emit("data", Buffer.from(`line-${i}\n`));
+      child.stdout?.emit("data", Buffer.from(`line-${i}\n`));
     }
 
     const logs = getProcessLogs("tail-test", 3);
@@ -180,8 +265,7 @@ describe("getProcessLogs", () => {
 
 describe("getProcessPid", () => {
   it("returns pid for known process", async () => {
-    const child = createMockChild();
-    child.pid = 99999;
+    const child = createMockChild(99999);
     mockSpawn.mockReturnValue(child);
     const { startProcess, getProcessPid } = await loadModule();
 
@@ -219,8 +303,7 @@ describe("stopProcess", () => {
     const mockTreeKill = vi.mocked(treeKill);
     mockTreeKill.mockReset();
 
-    const child = createMockChild();
-    child.pid = 55555;
+    const child = createMockChild(55555);
     mockSpawn.mockReturnValue(child);
     const { startProcess, stopProcess } = await loadModule();
 
@@ -279,7 +362,7 @@ describe("storeCommandLogs", () => {
     const { startProcess, storeCommandLogs, getProcessLogs } = await loadModule();
 
     startProcess("append-test", "node", ["app.js"], {}, "/cwd");
-    child.stdout.emit("data", Buffer.from("from-process\n"));
+    child.stdout?.emit("data", Buffer.from("from-process\n"));
 
     storeCommandLogs("append-test", "from-command\n", "");
 
@@ -301,10 +384,8 @@ describe("stopAllProcesses", () => {
     const mockTreeKill = vi.mocked(treeKill);
     mockTreeKill.mockReset();
 
-    const child1 = createMockChild();
-    child1.pid = 10001;
-    const child2 = createMockChild();
-    child2.pid = 10002;
+    const child1 = createMockChild(10001);
+    const child2 = createMockChild(10002);
     mockSpawn.mockReturnValueOnce(child1).mockReturnValueOnce(child2);
 
     const { startProcess, stopAllProcesses } = await loadModule();

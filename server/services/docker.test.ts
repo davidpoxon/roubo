@@ -26,6 +26,7 @@ import {
   waitForHealthy,
   listDatabaseContainers,
   getComposeProjectName,
+  getContainerId,
 } from "./docker.js";
 import { runCommand } from "./exec.js";
 
@@ -108,6 +109,18 @@ describe("composeStop", () => {
     expect(mockRunCommand).toHaveBeenCalledWith(
       "docker",
       ["compose", "-f", "docker-compose.yml", "-p", "roubo-project-bench-1", "stop", "db"],
+      "/repo",
+    );
+  });
+
+  it("omits the service arg when none is given so the whole project stops", async () => {
+    mockRunCommand.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    await composeStop("roubo-project-bench-1", "docker-compose.yml", "/repo");
+
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "docker",
+      ["compose", "-f", "docker-compose.yml", "-p", "roubo-project-bench-1", "stop"],
       "/repo",
     );
   });
@@ -500,5 +513,38 @@ describe("getContainerStatusById", () => {
   it("returns not_found when inspect throws", async () => {
     mockInspect.mockRejectedValue(new Error("No such container"));
     expect(await getContainerStatusById("deadbeef")).toBe("not_found");
+  });
+});
+
+describe("getContainerId", () => {
+  it("returns the container Id for a matching compose service", async () => {
+    mockListContainers.mockResolvedValue([
+      {
+        Id: "abc123def456",
+        Labels: {
+          "com.docker.compose.project": "roubo-project-bench-1",
+          "com.docker.compose.service": "db",
+        },
+      },
+    ]);
+    expect(await getContainerId("roubo-project-bench-1", "db")).toBe("abc123def456");
+  });
+
+  it("returns null when no container matches", async () => {
+    mockListContainers.mockResolvedValue([
+      {
+        Id: "other",
+        Labels: {
+          "com.docker.compose.project": "other-project",
+          "com.docker.compose.service": "web",
+        },
+      },
+    ]);
+    expect(await getContainerId("roubo-project-bench-1", "db")).toBeNull();
+  });
+
+  it("returns null when listContainers throws", async () => {
+    mockListContainers.mockRejectedValue(new Error("docker down"));
+    expect(await getContainerId("p", "db")).toBeNull();
   });
 });

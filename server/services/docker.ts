@@ -38,16 +38,18 @@ export async function composeStop(
   projectName: string,
   composeFile: string,
   cwd: string,
-  service: string,
+  service?: string,
 ): Promise<void> {
   const composeDir = path.dirname(path.resolve(cwd, composeFile));
   const composeFileName = path.basename(composeFile);
 
-  await runCommand(
-    "docker",
-    ["compose", "-f", composeFileName, "-p", projectName, "stop", service],
-    composeDir,
-  );
+  // Omit the service arg entirely when none is given: `docker compose stop`
+  // with no service stops the whole project, whereas passing an empty-string
+  // positional arg would be treated as a service filter matching nothing.
+  const args = ["compose", "-f", composeFileName, "-p", projectName, "stop"];
+  if (service) args.push(service);
+
+  await runCommand("docker", args, composeDir);
 }
 
 export async function composeDown(
@@ -230,6 +232,26 @@ export async function getContainerStatusById(containerId: string): Promise<Conta
     return "running";
   } catch {
     return "not_found";
+  }
+}
+
+/**
+ * Resolve the container ID for a compose service in a project, or null when no
+ * matching container exists. Used by the broker to report `composeUp`'s
+ * containerId, which `composeUp` itself does not return (it returns only
+ * stdout/stderr/success).
+ */
+export async function getContainerId(projectName: string, service: string): Promise<string | null> {
+  try {
+    const containers = await docker.listContainers({ all: true });
+    const match = containers.find(
+      (c) =>
+        c.Labels?.["com.docker.compose.project"] === projectName &&
+        c.Labels?.["com.docker.compose.service"] === service,
+    );
+    return match ? match.Id : null;
+  } catch {
+    return null;
   }
 }
 

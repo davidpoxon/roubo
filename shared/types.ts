@@ -513,6 +513,58 @@ export interface ComponentStatus {
   setupComplete: boolean;
 }
 
+/**
+ * A single log line a component plugin pushes to the host via
+ * `host.component.reportLog`. Push-based so the host never polls the plugin for
+ * logs (NFR-002).
+ */
+export interface ComponentLogLine {
+  source: "stdout" | "stderr";
+  text: string;
+  ts: string;
+}
+
+/**
+ * The advisory permission categories the broker recognises. In v1 the broker
+ * gate is advisory only (enforcement lands in F2.1, #607), so an absent or
+ * permissive check never blocks a call; it only records intent.
+ */
+export type BrokerPermissionCategory = "process" | "docker" | "ports";
+
+/**
+ * Per-bench data the HostComponentBroker needs to service a component plugin's
+ * privileged calls. Injected at broker construction so handlers never reach into
+ * globals: ports are pre-resolved host-side, status and log reporting are
+ * push-based sinks, and the advisory permission check is supplied by the caller.
+ */
+export interface BrokerContext {
+  /** Host-allocated ports for this bench, keyed by component name. */
+  ports: Record<string, number>;
+  /** Push sink invoked by `host.component.reportStatus`. */
+  reportStatus: (status: ComponentStatus) => void;
+  /** Push sink invoked by `host.component.reportLog`. */
+  reportLog: (line: ComponentLogLine) => void;
+  /**
+   * Advisory permission check. Returns false when the plugin did not declare a
+   * category. In v1 the broker logs a denial but still proceeds (advisory);
+   * F2.1 (#607) turns this into hard enforcement.
+   */
+  hasPermission: (category: BrokerPermissionCategory) => boolean;
+  /** Records an externally-assigned container against a component (advisory). */
+  assignContainer?: (componentName: string, containerId: string) => void;
+}
+
+/**
+ * Result of `host.capability.query`. For a known method `available` is true and
+ * `introducedIn` carries the broker API version that first shipped it; for an
+ * unknown or future method `available` is false and `introducedIn` is omitted.
+ * The query never produces a host-side error (FR-017).
+ */
+export interface CapabilityQueryResult {
+  available: boolean;
+  introducedIn?: string;
+}
+
 export interface Bench {
   id: number;
   projectId: string;
