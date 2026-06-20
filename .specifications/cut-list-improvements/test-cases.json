@@ -722,7 +722,7 @@
     },
     {
       "id": "CLI-TC-017",
-      "title": "E2E: open cut list, refresh, see spinner and refreshing text, data swaps in, indicator reads updated just now",
+      "title": "E2E: open cut list, refresh, see spinner and refreshing text, rows re-render, indicator reads updated just now",
       "area": "refresh-feedback",
       "level": 2,
       "type": "e2e_flow",
@@ -741,7 +741,7 @@
             },
             {
               "id": "S001-O02",
-              "expected": "The last-updated indicator shows a time-ago string such as 'updated 2m ago'"
+              "expected": "The last-updated indicator shows a fresh 'updated ...' string such as 'updated just now'. The indicator keys on the client's just-completed fetch (React Query dataUpdatedAt), not the snapshot age, so the warm open reads fresh rather than snapshot-aged. The snapshot-aged wording belongs to the FR-014 stale path."
             },
             {
               "id": "S001-O03",
@@ -790,7 +790,7 @@
             },
             {
               "id": "S004-O04",
-              "expected": "The issue list reflects the latest data from the plugin"
+              "expected": "The issue rows re-render and remain populated as the indicator and badge settle: a re-render plus the settled 'updated just now' indicator and 'warm' badge, not a literal per-call content swap."
             }
           ]
         }
