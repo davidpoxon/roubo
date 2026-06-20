@@ -75,6 +75,90 @@ export async function startProcess(
   return { pid: proc.pid };
 }
 
+/**
+ * Run a command to completion and resolve with its exit code. Unlike
+ * {@link startProcess}, which tracks a long-lived process, this blocks until the
+ * command exits and is the one-shot primitive behind `host.process.run`
+ * (architecture.md FR-022). `timeoutMs`, when > 0, force-kills a hung run and
+ * resolves with a non-zero exit code rather than rejecting, so a stuck deploy
+ * surfaces as a failed run, not an unhandled error. Output is captured into the
+ * managed log buffer under `id` so `host.process.logs` can read it afterward.
+ */
+export function runProcess(
+  id: string,
+  command: string,
+  args: string[],
+  env: Record<string, string>,
+  cwd: string,
+  timeoutMs = 0,
+): Promise<{ exitCode: number }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(command, args, {
+      cwd,
+      env: { ...cleanEnv(), ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+    });
+
+    const managed: ManagedProcess = {
+      id,
+      process: proc,
+      logs: [],
+      alive: true,
+      exitCode: null,
+    };
+    processes.set(id, managed);
+
+    const pushLog = (data: Buffer) => {
+      const lines = data.toString().split("\n");
+      for (const line of lines) {
+        if (line.length > 0) {
+          managed.logs.push(line);
+          if (managed.logs.length > MAX_LOG_LINES) {
+            managed.logs.shift();
+          }
+        }
+      }
+    };
+
+    proc.stdout?.on("data", pushLog);
+    proc.stderr?.on("data", pushLog);
+
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      fn();
+    };
+
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        const pid = proc.pid;
+        if (pid) treeKill(pid, "SIGKILL", () => {});
+        finish(() => {
+          managed.alive = false;
+          managed.exitCode = managed.exitCode ?? 124;
+          resolve({ exitCode: managed.exitCode });
+        });
+      }, timeoutMs);
+    }
+
+    proc.on("close", (code) => {
+      managed.alive = false;
+      managed.exitCode = code ?? 0;
+      finish(() => resolve({ exitCode: managed.exitCode ?? 0 }));
+    });
+
+    proc.on("error", (err) => {
+      managed.alive = false;
+      managed.logs.push(`[process error] ${err.message}`);
+      finish(() => reject(err));
+    });
+  });
+}
+
 export function stopProcess(id: string): Promise<void> {
   return new Promise((resolve) => {
     const managed = processes.get(id);

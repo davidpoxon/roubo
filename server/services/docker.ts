@@ -233,6 +233,26 @@ export async function getContainerStatusById(containerId: string): Promise<Conta
   }
 }
 
+/**
+ * Resolve the container ID for a compose service in a project, or null when no
+ * matching container exists. Used by the broker to report `composeUp`'s
+ * containerId, which `composeUp` itself does not return (it returns only
+ * stdout/stderr/success).
+ */
+export async function getContainerId(projectName: string, service: string): Promise<string | null> {
+  try {
+    const containers = await docker.listContainers({ all: true });
+    const match = containers.find(
+      (c) =>
+        c.Labels?.["com.docker.compose.project"] === projectName &&
+        c.Labels?.["com.docker.compose.service"] === service,
+    );
+    return match ? match.Id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getComposeProjectName(projectId: string, benchNumber: number): string {
   return `roubo-${projectId}-bench-${benchNumber}`;
 }

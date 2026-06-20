@@ -85,6 +85,94 @@ describe("startProcess", () => {
   });
 });
 
+describe("runProcess", () => {
+  it("resolves with the exit code when the process closes", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-ok", "echo", ["hi"], {}, "/cwd");
+    child.emit("close", 0);
+
+    await expect(promise).resolves.toEqual({ exitCode: 0 });
+    expect(mockSpawn).toHaveBeenCalledWith(
+      "echo",
+      ["hi"],
+      expect.objectContaining({ cwd: "/cwd", stdio: ["ignore", "pipe", "pipe"], shell: false }),
+    );
+  });
+
+  it("resolves with a non-zero code on a failing close", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-fail", "false", [], {}, "/cwd");
+    child.emit("close", 2);
+
+    await expect(promise).resolves.toEqual({ exitCode: 2 });
+  });
+
+  it("captures output into the log buffer readable via getProcessLogs", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess, getProcessLogs } = await loadModule();
+
+    const promise = runProcess("run-logs", "node", ["x.js"], {}, "/cwd");
+    child.stdout.emit("data", Buffer.from("out line\n"));
+    child.stderr.emit("data", Buffer.from("err line\n"));
+    child.emit("close", 0);
+    await promise;
+
+    expect(getProcessLogs("run-logs")).toEqual(["out line", "err line"]);
+  });
+
+  it("rejects when the process emits an error", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-err", "missing", [], {}, "/cwd");
+    child.emit("error", new Error("spawn ENOENT"));
+
+    await expect(promise).rejects.toThrow("spawn ENOENT");
+  });
+
+  it("force-kills and resolves with code 124 when timeoutMs elapses", async () => {
+    vi.useFakeTimers();
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+
+    const child = createMockChild();
+    child.pid = 77777;
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-timeout", "sleep", ["999"], {}, "/cwd", 1000);
+    vi.advanceTimersByTime(1000);
+
+    expect(mockTreeKill).toHaveBeenCalledWith(77777, "SIGKILL", expect.any(Function));
+    await expect(promise).resolves.toEqual({ exitCode: 124 });
+  });
+
+  it("strips ROUBO_ env vars from the spawned environment", async () => {
+    process.env = { ...originalEnv, ROUBO_PORT: "3333", KEEP_ME: "yes" };
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    const promise = runProcess("run-env", "node", ["x.js"], { EXTRA: "1" }, "/cwd");
+    child.emit("close", 0);
+    await promise;
+
+    const spawnedEnv = mockSpawn.mock.calls[0][2].env as Record<string, string>;
+    expect(spawnedEnv.ROUBO_PORT).toBeUndefined();
+    expect(spawnedEnv.KEEP_ME).toBe("yes");
+    expect(spawnedEnv.EXTRA).toBe("1");
+  });
+});
+
 describe("log capture", () => {
   it("captures stdout and stderr", async () => {
     const child = createMockChild();
