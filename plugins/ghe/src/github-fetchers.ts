@@ -155,7 +155,8 @@ export async function fetchMilestones(repoFullName: string): Promise<string[]> {
   const result = await githubRequest<Array<{ title: string }>>({
     kind: "rest",
     route: "GET /repos/{owner}/{repo}/milestones",
-    params: { owner, repo, per_page: 100, state: "all" },
+    // Only open milestones populate the facet so stale closed milestones do not clutter the options.
+    params: { owner, repo, per_page: 100, state: "open" },
   });
   return result.data.map((m) => m.title);
 }
