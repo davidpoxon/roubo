@@ -14,6 +14,13 @@ vi.mock("../services/issue-snapshot-cache.js", () => ({
   recordSnapshot: vi.fn(),
 }));
 
+vi.mock("../services/cut-list-query-service.js", () => ({
+  cutListQueryService: {
+    queryFirstOrPage: vi.fn(),
+    buildListParams: vi.fn(),
+  },
+}));
+
 vi.mock("../services/active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(),
 }));
@@ -24,6 +31,7 @@ vi.mock("../services/plugin-activation.js", () => ({
   forgetPluginActivation: vi.fn(),
   resolveSources: vi.fn().mockReturnValue([{ kind: "repo", externalId: "foo/bar" }]),
   resolveExclusion: vi.fn().mockReturnValue({ excludedStatusCategories: [], excludedStatuses: [] }),
+  resolveInstanceEndpoint: vi.fn().mockReturnValue(null),
 }));
 
 vi.mock("../services/integration-migrations.js", () => ({
@@ -42,6 +50,7 @@ import * as pluginActivation from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as issueSnapshotCache from "../services/issue-snapshot-cache.js";
 import * as integrationMigrations from "../services/integration-migrations.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 
 const app = express();
 app.use(express.json());
@@ -83,6 +92,21 @@ beforeEach(() => {
     excludedStatuses: [],
   });
   vi.mocked(integrationMigrations.awaitPendingIntegrationSetup).mockResolvedValue(undefined);
+  // Default: the cut-list service returns an empty first page. The route's
+  // in-memory fallback path calls buildListParams to re-derive the cache key.
+  vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+    items: [],
+    nextCursor: null,
+    cacheStatus: "disk-miss",
+  });
+  vi.mocked(cutListQueryService.buildListParams).mockReturnValue({
+    sources: [{ kind: "repo", externalId: "foo/bar" }],
+    cursor: null,
+    pageSize: 50,
+    filters: undefined,
+    excludedStatusCategories: [],
+    excludedStatuses: [],
+  });
 });
 
 describe("GET /:projectId/issues", () => {
@@ -103,65 +127,67 @@ describe("GET /:projectId/issues", () => {
       error: "plugin-activation-failed",
       message: "bad config",
     });
-    expect(pluginManager.invoke).not.toHaveBeenCalled();
+    expect(cutListQueryService.queryFirstOrPage).not.toHaveBeenCalled();
   });
 
-  it("calls the plugin's listIssues with sources, the resolved pageSize, and forwarded filters", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
-    await request(app).get("/p1/issues?cursor=c1&labels=bug,feature&search=login");
-    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssues", {
-      sources: [{ kind: "repo", externalId: "foo/bar" }],
-      cursor: "c1",
-      pageSize: 50,
-      filters: { labels: ["bug", "feature"], search: "login" },
-      excludedStatusCategories: [],
-      excludedStatuses: [],
+  it("parses the query string and delegates to the cut-list service", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "disk-miss",
     });
-  });
-
-  it("threads the resolved status exclusion into listIssues (FR-009)", async () => {
-    vi.mocked(pluginActivation.resolveExclusion).mockReturnValueOnce({
-      excludedStatusCategories: ["Done"],
-      excludedStatuses: ["Closed", "Done", "Resolved"],
-    });
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
-    await request(app).get("/p1/issues");
-    expect(pluginManager.invoke).toHaveBeenCalledWith(
-      "github-com",
-      "listIssues",
-      expect.objectContaining({
-        excludedStatusCategories: ["Done"],
-        excludedStatuses: ["Closed", "Done", "Resolved"],
-      }),
+    await request(app).get("/p1/issues?cursor=c1&labels=bug,feature&search=login&pageSize=25");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ pluginId: "github-com" }),
+      { cursor: "c1", pageSize: 25, filters: { labels: ["bug", "feature"], search: "login" } },
     );
   });
 
-  it("awaits any pending integration setup before resolving sources for listIssues", async () => {
+  it("defaults to the active plugin pageSize and a null cursor when unspecified", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "disk-miss",
+    });
+    await request(app).get("/p1/issues");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+    });
+  });
+
+  it("awaits any pending integration setup before delegating", async () => {
     let releaseSetup!: () => void;
-    let invokedDuringWait = false;
+    let delegatedDuringWait = false;
     vi.mocked(integrationMigrations.awaitPendingIntegrationSetup).mockReturnValueOnce(
       new Promise<void>((resolve) => {
         releaseSetup = () => resolve();
       }),
     );
-    vi.mocked(pluginManager.invoke).mockImplementation(async () => {
-      invokedDuringWait = true;
-      return { items: [], nextCursor: null };
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockImplementation(async () => {
+      delegatedDuringWait = true;
+      return { items: [], nextCursor: null, cacheStatus: "disk-miss" };
     });
 
     const pending = request(app).get("/p1/issues");
     await new Promise((r) => setImmediate(r));
-    expect(invokedDuringWait).toBe(false);
+    expect(delegatedDuringWait).toBe(false);
 
     releaseSetup();
     await pending;
-    expect(invokedDuringWait).toBe(true);
+    expect(delegatedDuringWait).toBe(true);
     expect(integrationMigrations.awaitPendingIntegrationSetup).toHaveBeenCalledWith("p1");
   });
 
-  it("returns the paginated body with items and nextCursor", async () => {
+  it("serialises the service result into the response body", async () => {
     const issues = [makeIssue({ externalId: "1" }), makeIssue({ externalId: "2" })];
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: issues, nextCursor: "next" });
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: issues,
+      nextCursor: "next",
+      cacheStatus: "disk-hit",
+    });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(2);
@@ -169,93 +195,48 @@ describe("GET /:projectId/issues", () => {
     expect(res.body.stalled).toBeUndefined();
   });
 
-  it("dedupes items within a page by (integrationId, externalId) (TC-023)", async () => {
-    const a = makeIssue({ externalId: "10" });
-    const b = makeIssue({ externalId: "10" });
-    const c = makeIssue({ externalId: "11" });
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [a, b, c], nextCursor: "n2" });
-    const res = await request(app).get("/p1/issues");
-    expect(res.status).toBe(200);
-    expect(res.body.items).toHaveLength(2);
-    expect(res.body.items.map((i: NormalizedIssue) => i.externalId)).toEqual(["10", "11"]);
-  });
-
-  it("marks the response stalled when the plugin echoes back the request cursor (TC-071)", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [makeIssue({ externalId: "1" })],
-      nextCursor: "same",
-    });
-    const res = await request(app).get("/p1/issues?cursor=same");
-    expect(res.body.stalled).toBe(true);
-    expect(res.body.nextCursor).toBeNull();
-  });
-
-  it("does NOT mark stalled when the cursor changes, even if the new page repeats items", async () => {
-    const dup = makeIssue({ externalId: "5" });
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [dup, dup, dup],
-      nextCursor: "different",
-    });
-    const res = await request(app).get("/p1/issues?cursor=before");
-    expect(res.body.stalled).toBeUndefined();
-    expect(res.body.nextCursor).toBe("different");
-    // Items are still deduped within the page.
-    expect(res.body.items).toHaveLength(1);
-  });
-
-  it("forwards plugin warnings on the response body (WU-030)", async () => {
+  it("serialises stalled, warnings, and excludedCount when present", async () => {
     const warning = {
       category: "code-scanning",
       sourceExternalId: "foo/bar",
       cause: "Code Scanning unavailable: GHAS not enabled on this repo.",
       detail: { status: 404 },
     };
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [],
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [makeIssue({ externalId: "1" })],
       nextCursor: null,
+      stalled: true,
       warnings: [warning],
+      excludedCount: 3,
+      cacheStatus: "disk-miss",
     });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
+    expect(res.body.stalled).toBe(true);
     expect(res.body.warnings).toEqual([warning]);
+    expect(res.body.excludedCount).toBe(3);
   });
 
-  it("omits the warnings field when the plugin returns an empty warnings array", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
+  it("omits warnings and excludedCount when the service does not report them", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
-      warnings: [],
+      cacheStatus: "disk-miss",
     });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
     expect(res.body.warnings).toBeUndefined();
-  });
-
-  it("passes the plugin's excludedCount through on the response body (#358)", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [makeIssue({ externalId: "1" })],
-      nextCursor: null,
-      excludedCount: 3,
-    });
-    const res = await request(app).get("/p1/issues");
-    expect(res.status).toBe(200);
-    expect(res.body.excludedCount).toBe(3);
-  });
-
-  it("omits excludedCount when the plugin does not report one", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [makeIssue({ externalId: "1" })],
-      nextCursor: null,
-    });
-    const res = await request(app).get("/p1/issues");
-    expect(res.status).toBe(200);
     expect(res.body.excludedCount).toBeUndefined();
   });
 
-  it("maps plugin-not-enabled to 503", async () => {
-    vi.mocked(pluginManager.invoke).mockRejectedValue(
+  it("maps plugin-not-enabled to 503 when no in-memory fallback applies", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
       Object.assign(new Error("disabled"), { code: "plugin-not-enabled" }),
     );
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "github-com",
+      status: "enabled",
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("plugin-not-enabled");
@@ -263,44 +244,43 @@ describe("GET /:projectId/issues", () => {
   });
 
   it("maps timeout to 504", async () => {
-    vi.mocked(pluginManager.invoke).mockRejectedValue(
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
       Object.assign(new Error("timed out"), { code: "timeout" }),
     );
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "github-com",
+      status: "enabled",
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(504);
   });
 
   it("maps unknown rpc errors to 502", async () => {
-    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("boom"));
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(new Error("boom"));
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "github-com",
+      status: "enabled",
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(502);
   });
 
-  it("honors a per-request pageSize override", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
-    await request(app).get("/p1/issues?pageSize=25");
-    expect(pluginManager.invoke).toHaveBeenCalledWith(
-      "github-com",
-      "listIssues",
-      expect.objectContaining({ pageSize: 25 }),
-    );
-  });
-
-  describe("FR-014: last-good snapshot fallback (TC-163, TC-016)", () => {
-    it("records the first page on success so a later errored fallback has something to serve", async () => {
-      const issues = [makeIssue({ externalId: "1" })];
-      vi.mocked(pluginManager.invoke).mockResolvedValue({ items: issues, nextCursor: null });
+  describe("FR-014: last-good in-memory snapshot fallback (TC-163, TC-016)", () => {
+    it("records the first page in-memory on success so a later errored fallback has something to serve", async () => {
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+        items: [makeIssue({ externalId: "1" })],
+        nextCursor: null,
+        cacheStatus: "disk-miss",
+      });
       vi.mocked(pluginManager.getRecord).mockReturnValue({
         id: "github-com",
-        manifest: { name: "GitHub.com" },
+        manifest: { name: "GitHub.com", version: "1.0.0" },
       } as unknown as ReturnType<typeof pluginManager.getRecord>);
       await request(app).get("/p1/issues");
       expect(issueSnapshotCache.recordSnapshot).toHaveBeenCalledWith(
         "github-com",
         "p1",
-        expect.objectContaining({
-          sources: [{ kind: "repo", externalId: "foo/bar" }],
-        }),
+        expect.objectContaining({ sources: [{ kind: "repo", externalId: "foo/bar" }] }),
         expect.objectContaining({
           items: expect.arrayContaining([expect.objectContaining({ externalId: "1" })]),
         }),
@@ -309,17 +289,18 @@ describe("GET /:projectId/issues", () => {
       );
     });
 
-    it("does not record a snapshot for paginated requests (cursor != null)", async () => {
-      vi.mocked(pluginManager.invoke).mockResolvedValue({
+    it("does not record an in-memory snapshot for paginated requests (cursor != null)", async () => {
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
         items: [makeIssue({ externalId: "2" })],
         nextCursor: null,
+        cacheStatus: "uncached",
       });
       await request(app).get("/p1/issues?cursor=page-2");
       expect(issueSnapshotCache.recordSnapshot).not.toHaveBeenCalled();
     });
 
     it("serves the cached snapshot with stale: true when the plugin is errored and the first page is cached", async () => {
-      vi.mocked(pluginManager.invoke).mockRejectedValue(
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
         Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
       );
       vi.mocked(pluginManager.getRecord).mockReturnValue({
@@ -340,7 +321,7 @@ describe("GET /:projectId/issues", () => {
     });
 
     it("also serves the cached snapshot while the plugin is disabled", async () => {
-      vi.mocked(pluginManager.invoke).mockRejectedValue(
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
         Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
       );
       vi.mocked(pluginManager.getRecord).mockReturnValue({
@@ -358,7 +339,7 @@ describe("GET /:projectId/issues", () => {
     });
 
     it("falls through to the existing 503 when the plugin is errored but no snapshot is cached", async () => {
-      vi.mocked(pluginManager.invoke).mockRejectedValue(
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
         Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
       );
       vi.mocked(pluginManager.getRecord).mockReturnValue({
@@ -372,7 +353,7 @@ describe("GET /:projectId/issues", () => {
     });
 
     it("does not serve the cached snapshot on paginated requests (cursor > 0)", async () => {
-      vi.mocked(pluginManager.invoke).mockRejectedValue(
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
         Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
       );
       vi.mocked(pluginManager.getRecord).mockReturnValue({
@@ -390,7 +371,7 @@ describe("GET /:projectId/issues", () => {
     });
 
     it("does not serve the snapshot when the plugin is enabled (real error should surface)", async () => {
-      vi.mocked(pluginManager.invoke).mockRejectedValue(
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
         Object.assign(new Error("rpc broke"), { code: "rpc-error" }),
       );
       vi.mocked(pluginManager.getRecord).mockReturnValue({

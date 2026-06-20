@@ -81,6 +81,30 @@ function buildPluginConfig(projectId: string): Record<string, unknown> | null {
 }
 
 /**
+ * Resolve the effective integration `instance` endpoint for a project (the
+ * GHE / Jira instance URL), or `null` for a fixed-host plugin like github.com
+ * that has no configured instance. Used by the disk snapshot cache to derive
+ * the tenant-safety `instanceHash` key field (Spike-553 field 3); the endpoint
+ * is hashed by the cache, never stored raw, and never carries a credential.
+ */
+export function resolveInstanceEndpoint(projectId: string): string | null {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) return null;
+
+  let override = null;
+  try {
+    override = loadOverride(projectId);
+  } catch (err) {
+    if (!(err instanceof IntegrationOverrideError)) throw err;
+  }
+
+  const effective = getEffectiveWithGlobal(project.config.integration, override);
+  return typeof effective.instance === "string" && effective.instance.length > 0
+    ? effective.instance
+    : null;
+}
+
+/**
  * Resolve the per-project source selection into the `{ kind, externalId }[]`
  * shape plugins expect under params.sources on source-bound RPCs. Returns
  * an empty list when the project has no sources configured.

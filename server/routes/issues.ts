@@ -2,16 +2,16 @@ import { Router } from "express";
 import type {
   AssignIssueRequest,
   ListIssuesParams,
-  ListIssuesWarning,
   NormalizedComment,
   NormalizedIssue,
   PaginatedIssues,
 } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
-import { resolveSources, resolveExclusion } from "../services/plugin-activation.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
+import { resolveSources } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 import { parseIntParam } from "./helpers.js";
 import { getActivePluginOrRespond, fetchPluginComments } from "./plugin-route-helpers.js";
 import { ServiceError } from "../services/service-error.js";
@@ -24,7 +24,9 @@ router.get("/:projectId/issues", async (req, res) => {
   const active = await getActivePluginOrRespond(req.params.projectId, res);
   if (!active) return;
 
-  const requestCursor: string | null =
+  // Parse the query string. The cache, parameter, dedup, and stall logic all
+  // live in CutListQueryService; the route only parses, delegates, serialises.
+  const cursor: string | null =
     typeof req.query.cursor === "string" && req.query.cursor.length > 0 ? req.query.cursor : null;
 
   let pageSize = active.pageSize;
@@ -44,31 +46,34 @@ router.get("/:projectId/issues", async (req, res) => {
     filters.search = req.query.search;
   }
 
-  const isFirstPage = requestCursor === null;
-  let raw: {
-    items: NormalizedIssue[];
-    nextCursor: string | null;
-    warnings?: ListIssuesWarning[];
-    excludedCount?: number;
-  };
-  let params: ListIssuesParams | undefined;
+  const isFirstPage = cursor === null;
+  const queryInput = { cursor, pageSize, filters };
+
   try {
     await awaitPendingIntegrationSetup(req.params.projectId);
-    const exclusion = resolveExclusion(req.params.projectId);
-    params = {
-      sources: resolveSources(req.params.projectId),
-      cursor: requestCursor,
-      pageSize,
-      filters: Object.keys(filters).length > 0 ? filters : undefined,
-      excludedStatusCategories: exclusion.excludedStatusCategories,
-      excludedStatuses: exclusion.excludedStatuses,
+    const result = await cutListQueryService.queryFirstOrPage(
+      req.params.projectId,
+      active,
+      queryInput,
+    );
+    const body: PaginatedIssues = {
+      items: result.items,
+      nextCursor: result.nextCursor,
+      stalled: result.stalled,
     };
-    raw = await pluginManager.invoke<{
-      items: NormalizedIssue[];
-      nextCursor: string | null;
-      warnings?: ListIssuesWarning[];
-      excludedCount?: number;
-    }>(active.pluginId, "listIssues", params);
+    if (result.warnings) body.warnings = result.warnings;
+    if (typeof result.excludedCount === "number") body.excludedCount = result.excludedCount;
+    // FR-014: keep capturing every successful first-page response into the
+    // in-memory snapshot cache so the errored/disabled fallback above has
+    // something to serve. The persistent disk cache does not supersede this
+    // in-memory fallback in this slice; the behaviour here is unchanged.
+    if (isFirstPage) {
+      const params = cutListQueryService.buildListParams(req.params.projectId, queryInput);
+      const pluginName =
+        pluginManager.getRecord(active.pluginId)?.manifest?.name ?? active.pluginId;
+      recordSnapshot(active.pluginId, req.params.projectId, params, body, pluginName, true);
+    }
+    res.json(body);
   } catch (err) {
     // FR-014: when the active plugin is `errored` or `disabled` and we have a
     // first-page snapshot from a previous successful call, serve it so the
@@ -76,9 +81,12 @@ router.get("/:projectId/issues", async (req, res) => {
     // client surface the matching banner (#263 tracks the UI work). We only
     // bridge first-page requests because the snapshot captures only the first
     // page; falling through on cursor > 0 keeps the client from looking up an
-    // arbitrarily-stale tail page that no longer matches the first page.
+    // arbitrarily-stale tail page that no longer matches the first page. This
+    // in-memory fallback is unchanged: the persistent disk cache (this slice)
+    // does not yet supersede it.
     const record = pluginManager.getRecord(active.pluginId);
-    if (params && isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
+    if (isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
+      const params = cutListQueryService.buildListParams(req.params.projectId, queryInput);
       const cached = getSnapshot(active.pluginId, req.params.projectId, params);
       if (cached) {
         const stale: PaginatedIssues = {
@@ -91,47 +99,7 @@ router.get("/:projectId/issues", async (req, res) => {
       }
     }
     sendPluginRpcError(res, err);
-    return;
   }
-
-  // Per-request dedup keyed on (integrationId, externalId) (FR-020 / TC-023).
-  const seen = new Set<string>();
-  const deduped = raw.items.filter((item) => {
-    const key = `${item.integrationId}::${item.externalId}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  // Stall detection (TC-071): host marks the page stalled when the plugin
-  // echoes back the same cursor it was given. Per-page duplicate-collapse is
-  // not a stall indicator because dedup always preserves the first occurrence,
-  // so an N-item page of identical issues still yields one unique item.
-  const stalled = raw.nextCursor !== null && raw.nextCursor === requestCursor;
-
-  const body: PaginatedIssues = {
-    items: deduped,
-    nextCursor: stalled ? null : raw.nextCursor,
-    stalled: stalled || undefined,
-  };
-  if (raw.warnings && raw.warnings.length > 0) {
-    body.warnings = raw.warnings;
-  }
-  // Pass through the plugin's in-query excluded count (FR-009/FR-010) so the
-  // cut list can show how many issues the query dropped. Undefined-safe: a
-  // plugin that can't cheaply count simply omits it.
-  if (typeof raw.excludedCount === "number") {
-    body.excludedCount = raw.excludedCount;
-  }
-  // FR-014: capture every successful first-page response so the errored /
-  // disabled fallback above has something to serve. The cache normalizes the
-  // snapshot (strips any stale markers) on insert so subsequent reads start
-  // clean.
-  if (isFirstPage) {
-    const pluginName = pluginManager.getRecord(active.pluginId)?.manifest?.name ?? active.pluginId;
-    recordSnapshot(active.pluginId, req.params.projectId, params, body, pluginName, true);
-  }
-  res.json(body);
 });
 
 router.get("/:projectId/issues/:externalId", async (req, res) => {
