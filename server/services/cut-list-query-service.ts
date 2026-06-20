@@ -27,8 +27,18 @@ export interface QueryFirstOrPageInput {
   filters: ListIssuesParams["filters"];
 }
 
-/** Where a first-page result came from. */
-export type CacheStatus = "disk-hit" | "disk-miss" | "uncached";
+/**
+ * The stale-while-revalidate cache-state signal, aligned to the architecture's
+ * HTTP contract (`PaginatedIssues.cacheStatus`):
+ * - `revalidating`: the persisted disk snapshot was served instantly and a
+ *   background revalidation is in flight (the warm path, disk-hit).
+ * - `miss`: no usable snapshot, so the live RPC ran (and, for a first page, the
+ *   result was persisted). Also the value for paginated / bypassed queries that
+ *   never consult the disk cache.
+ * - `hit`: served from the snapshot without triggering a revalidation. Carried
+ *   in the contract for completeness; the warm path emits `revalidating`.
+ */
+export type CacheStatus = "hit" | "miss" | "revalidating";
 
 /** Structured result the route serialises into the HTTP body. */
 export interface CutListQueryResult {
@@ -41,6 +51,16 @@ export interface CutListQueryResult {
   snapshotCapturedAt?: string;
   cacheStatus: CacheStatus;
 }
+
+/**
+ * Cache-pipeline observability events (NFR-009). Carries only cache-state and
+ * identity, never issue content, credentials, or tokens. Surfaced through the
+ * service's `onObserve` hook (defaulting to a structured `console` line) so the
+ * unit tests can assert the events fire without leaking into test stdout.
+ */
+export type CacheObserveEvent =
+  | { kind: "cache"; status: CacheStatus; pluginId: string; projectId: string }
+  | { kind: "revalidate-failed"; pluginId: string; projectId: string; message: string };
 
 /** The raw shape the plugin's `listIssues` RPC returns. */
 interface RawListIssues {
@@ -73,14 +93,23 @@ export class CutListQueryService {
    * neutralises the persistence inside the e2e harness. Overridable for tests.
    */
   private readonly bypassDisk: boolean;
+  /**
+   * NFR-009 observability sink for cache-pipeline events (hit/miss/revalidating
+   * and background-revalidation failures). Defaults to a structured `console`
+   * line carrying no issue content or credentials. Overridable for tests so the
+   * events can be asserted without emitting into test stdout.
+   */
+  private readonly onObserve: (event: CacheObserveEvent) => void;
 
   constructor(opts?: {
     disk?: DiskSnapshotStore;
     onDiscard?: (e: DiscardLogEvent) => void;
     bypassDisk?: boolean;
+    onObserve?: (event: CacheObserveEvent) => void;
   }) {
     this.disk = opts?.disk ?? new DiskSnapshotStore({ onDiscard: opts?.onDiscard });
     this.bypassDisk = opts?.bypassDisk ?? process.env.ROUBO_E2E === "1";
+    this.onObserve = opts?.onObserve ?? defaultObserve;
   }
 
   /**
@@ -150,6 +179,17 @@ export class CutListQueryService {
       const key = this.buildKey(projectId, active.pluginId, params);
       const cached = this.disk.get(key);
       if (cached) {
+        // Stale-while-revalidate (FR-002): serve the warm snapshot immediately
+        // and revalidate behind it. The revalidation is fire-and-forget so it
+        // never blocks (or rejects into) the request that served the snapshot;
+        // the client picks up the fresher snapshot on its next refetch.
+        this.observe({
+          kind: "cache",
+          status: "revalidating",
+          pluginId: active.pluginId,
+          projectId,
+        });
+        this.reval(active.pluginId, projectId, key, params);
         return {
           items: cached.response.items,
           nextCursor: cached.response.nextCursor,
@@ -157,17 +197,56 @@ export class CutListQueryService {
           warnings: cached.response.warnings,
           excludedCount: cached.response.excludedCount,
           snapshotCapturedAt: cached.capturedAt,
-          cacheStatus: "disk-hit",
+          cacheStatus: "revalidating",
         };
       }
 
       const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
       this.disk.put(key, this.toPersistable(result));
-      return { ...result, cacheStatus: "disk-miss" };
+      this.observe({ kind: "cache", status: "miss", pluginId: active.pluginId, projectId });
+      return { ...result, cacheStatus: "miss" };
     }
 
     const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
-    return { ...result, cacheStatus: "uncached" };
+    return { ...result, cacheStatus: "miss" };
+  }
+
+  /** Emit an NFR-009 observability event, swallowing any sink error. */
+  private observe(event: CacheObserveEvent): void {
+    try {
+      this.onObserve(event);
+    } catch {
+      // Observability must never affect the request path.
+    }
+  }
+
+  /**
+   * Fire-and-forget background revalidation for a served disk-hit (FR-002). It
+   * re-runs the live `listIssues`, re-shapes the page, and overwrites the disk
+   * snapshot so the next read serves fresher data. It is deliberately not
+   * awaited by the request: a `.catch` logs (NFR-009) and discards any rejection
+   * so it never rejects into the request and never crashes Node on the
+   * unhandled-rejection default (NFR-006 / CLI-TC-014).
+   */
+  private reval(
+    pluginId: string,
+    projectId: string,
+    key: CacheKey,
+    params: ListIssuesParams,
+  ): void {
+    const run = async (): Promise<void> => {
+      // A first-page revalidation always replays the first-page cursor (null).
+      const fresh = await this.fetchAndShape(pluginId, params, null);
+      this.disk.put(key, this.toPersistable(fresh));
+    };
+    void run().catch((err: unknown) => {
+      this.observe({
+        kind: "revalidate-failed",
+        pluginId,
+        projectId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
   }
 
   /** Run the RPC and apply the per-request dedup + stall detection. */
@@ -212,6 +291,23 @@ export class CutListQueryService {
     if (typeof result.excludedCount === "number") body.excludedCount = result.excludedCount;
     return body;
   }
+}
+
+/**
+ * Default NFR-009 observability sink: a structured `console` line carrying only
+ * cache-state and identity, never issue content, credentials, or tokens. A
+ * `revalidate-failed` event logs at `warn`; cache state at `info`.
+ */
+function defaultObserve(event: CacheObserveEvent): void {
+  if (event.kind === "revalidate-failed") {
+    console.warn(
+      `[cut-list-cache] background revalidation failed plugin=${event.pluginId} project=${event.projectId}: ${event.message}`,
+    );
+    return;
+  }
+  console.info(
+    `[cut-list-cache] cache ${event.status} plugin=${event.pluginId} project=${event.projectId}`,
+  );
 }
 
 /** Process-wide default instance used by the route. */

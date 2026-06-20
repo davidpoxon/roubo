@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,8 +17,18 @@ vi.mock("./plugin-activation.js", () => ({
 
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginActivation from "./plugin-activation.js";
-import { CutListQueryService } from "./cut-list-query-service.js";
+import { CutListQueryService, type CacheObserveEvent } from "./cut-list-query-service.js";
 import { DiskSnapshotStore } from "./disk-snapshot-store.js";
+
+/**
+ * Drain pending microtasks/macrotasks so the fire-and-forget background
+ * revalidation (a `void run().catch(...)`) settles before assertions. Two
+ * `setImmediate` ticks cover the `await invoke` plus the `.catch` continuation.
+ */
+async function flushBackground(): Promise<void> {
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+}
 
 const active = { pluginId: "github-com", integrationId: "github-com", pageSize: 50 };
 
@@ -44,9 +54,13 @@ function makeIssue(overrides: Partial<NormalizedIssue>): NormalizedIssue {
 
 let baseDir: string;
 let service: CutListQueryService;
+let observed: CacheObserveEvent[];
+let onObserve: (e: CacheObserveEvent) => void;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  observed = [];
+  onObserve = (e) => observed.push(e);
   baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-cls-"));
   vi.mocked(pluginActivation.resolveSources).mockReturnValue([
     { kind: "repo", externalId: "foo/bar" },
@@ -64,7 +78,14 @@ beforeEach(() => {
   service = new CutListQueryService({
     disk: new DiskSnapshotStore({ baseDir }),
     bypassDisk: false,
+    onObserve,
   });
+});
+
+afterEach(async () => {
+  // Let any fire-and-forget background revalidation settle before the next test
+  // resets the mocks, so a late `.catch` never runs against torn-down state.
+  await flushBackground();
 });
 
 describe("buildListParams", () => {
@@ -113,12 +134,12 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
       excludedStatusCategories: [],
       excludedStatuses: [],
     });
-    expect(result.cacheStatus).toBe("disk-miss");
+    expect(result.cacheStatus).toBe("miss");
     expect(result.items.map((i) => i.externalId)).toEqual(["1"]);
     expect(result.nextCursor).toBe("next");
   });
 
-  it("serves the persisted snapshot on the next call without re-invoking the plugin (disk-hit)", async () => {
+  it("serves the persisted snapshot on the next call (cacheStatus revalidating) without an extra synchronous invoke", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({
       items: [makeIssue({ externalId: "cached" })],
       nextCursor: null,
@@ -128,8 +149,9 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
 
     const second = await service.queryFirstOrPage("p1", active, input);
-    expect(pluginManager.invoke).toHaveBeenCalledTimes(1); // not re-invoked
-    expect(second.cacheStatus).toBe("disk-hit");
+    // The snapshot is served synchronously from disk; the background
+    // revalidation invoke is fire-and-forget and runs after this resolves.
+    expect(second.cacheStatus).toBe("revalidating");
     expect(second.items[0].externalId).toBe("cached");
     expect(second.snapshotCapturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
@@ -144,13 +166,14 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     const restarted = new CutListQueryService({
       disk: new DiskSnapshotStore({ baseDir }),
       bypassDisk: false,
+      onObserve,
     });
     const hit = await restarted.queryFirstOrPage("p1", active, {
       cursor: null,
       pageSize: 50,
       filters: {},
     });
-    expect(hit.cacheStatus).toBe("disk-hit");
+    expect(hit.cacheStatus).toBe("revalidating");
     expect(hit.items[0].externalId).toBe("persisted");
   });
 
@@ -181,7 +204,7 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
 
     const result = await service.queryFirstOrPage("p1", active, input);
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2); // re-invoked, not disk-served
-    expect(result.cacheStatus).toBe("uncached");
+    expect(result.cacheStatus).toBe("miss");
   });
 
   it("does not serve a disk-hit when the plugin is disabled", async () => {
@@ -201,7 +224,7 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
 
     const result = await service.queryFirstOrPage("p1", active, input);
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
-    expect(result.cacheStatus).toBe("uncached");
+    expect(result.cacheStatus).toBe("miss");
   });
 
   // With bypassDisk on (the ROUBO_E2E=1 default), the persistent disk snapshot
@@ -221,13 +244,13 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     const input = { cursor: null, pageSize: 50, filters: {} };
 
     const first = await bypassed.queryFirstOrPage("p1", active, input);
-    expect(first.cacheStatus).toBe("uncached");
+    expect(first.cacheStatus).toBe("miss");
     expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
 
     // A second identical first-page call re-invokes the RPC: nothing was
     // persisted, so there is no disk-hit to serve.
     const second = await bypassed.queryFirstOrPage("p1", active, input);
-    expect(second.cacheStatus).toBe("uncached");
+    expect(second.cacheStatus).toBe("miss");
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
     expect(second.snapshotCapturedAt).toBeUndefined();
   });
@@ -263,7 +286,7 @@ describe("dedup + stall-detection parity with prior route behaviour", () => {
     });
     expect(result.stalled).toBe(true);
     expect(result.nextCursor).toBeNull();
-    expect(result.cacheStatus).toBe("uncached");
+    expect(result.cacheStatus).toBe("miss");
   });
 
   it("does not mark stalled when the cursor changes even if items repeat", async () => {
@@ -311,14 +334,14 @@ describe("first-page-only persistence", () => {
       pageSize: 50,
       filters: {},
     });
-    expect(result.cacheStatus).toBe("uncached");
+    expect(result.cacheStatus).toBe("miss");
     // Nothing was written for the paginated cursor: a first-page query is still a miss.
     const firstPage = await service.queryFirstOrPage("p1", active, {
       cursor: null,
       pageSize: 50,
       filters: {},
     });
-    expect(firstPage.cacheStatus).toBe("disk-miss");
+    expect(firstPage.cacheStatus).toBe("miss");
   });
 
   it("propagates a plugin RPC error (no fallback in the service)", async () => {
@@ -326,5 +349,142 @@ describe("first-page-only persistence", () => {
     await expect(
       service.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} }),
     ).rejects.toThrow("boom");
+  });
+});
+
+// CLI-FR-002 / CLI-TC-001, CLI-TC-014: stale-while-revalidate serving.
+describe("stale-while-revalidate background revalidation", () => {
+  const input = { cursor: null, pageSize: 50, filters: {} };
+
+  it("fires a background revalidation on a disk-hit and overwrites the snapshot with fresh data", async () => {
+    // First call: cold miss persists the original snapshot.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "original" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+
+    // Second call: warm serve returns the original immediately, and the
+    // background revalidation fetches fresher data.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "fresh" })],
+      nextCursor: null,
+    });
+    const warm = await service.queryFirstOrPage("p1", active, input);
+    expect(warm.cacheStatus).toBe("revalidating");
+    expect(warm.items[0].externalId).toBe("original");
+
+    // Let the fire-and-forget revalidation settle, then a third warm serve must
+    // see the fresher snapshot the background write produced.
+    await flushBackground();
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "ignored" })],
+      nextCursor: null,
+    });
+    const third = await service.queryFirstOrPage("p1", active, input);
+    expect(third.items[0].externalId).toBe("fresh");
+  });
+
+  it("emits an NFR-009 observability event for the warm (revalidating) serve and the cold miss", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "x" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+    await service.queryFirstOrPage("p1", active, input);
+    await flushBackground();
+
+    expect(observed).toContainEqual({
+      kind: "cache",
+      status: "miss",
+      pluginId: "github-com",
+      projectId: "p1",
+    });
+    expect(observed).toContainEqual({
+      kind: "cache",
+      status: "revalidating",
+      pluginId: "github-com",
+      projectId: "p1",
+    });
+  });
+
+  it("swallows a background revalidation rejection: no throw into the request, logged and discarded (CLI-TC-014)", async () => {
+    // Seed the snapshot.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "warm" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+
+    // The warm serve fires a revalidation that rejects. The served request must
+    // still resolve normally, and the rejection must be caught and logged.
+    vi.mocked(pluginManager.invoke).mockRejectedValueOnce(new Error("revalidate boom"));
+    const warm = await service.queryFirstOrPage("p1", active, input);
+    expect(warm.cacheStatus).toBe("revalidating");
+    expect(warm.items[0].externalId).toBe("warm");
+
+    await flushBackground();
+    expect(observed).toContainEqual({
+      kind: "revalidate-failed",
+      pluginId: "github-com",
+      projectId: "p1",
+      message: "revalidate boom",
+    });
+  });
+
+  it("does not fire a background revalidation under bypassDisk (e2e)", async () => {
+    const bypassed = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: true,
+      onObserve,
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "live" })],
+      nextCursor: null,
+    });
+    await bypassed.queryFirstOrPage("p1", active, input);
+    await bypassed.queryFirstOrPage("p1", active, input);
+    await flushBackground();
+    // Two live calls, one per query; no extra background revalidation invoke.
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+    expect(observed.some((e) => e.kind === "revalidate-failed")).toBe(false);
+    expect(observed.some((e) => e.kind === "cache" && e.status === "revalidating")).toBe(false);
+  });
+});
+
+// CLI-NFR-009: the default observability sink logs without leaking secrets. The
+// source intentionally calls console.* here, so spy + assert (per repo rules)
+// rather than letting it emit into test stdout.
+describe("default observability sink", () => {
+  it("logs cache state via console.info and revalidation failures via console.warn, with no credential material", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const defaulted = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: false,
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "seed" })],
+      nextCursor: null,
+    });
+    await defaulted.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} });
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("cache miss"));
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("plugin=github-com"));
+
+    // Warm serve + failing revalidation drives the console.warn path.
+    vi.mocked(pluginManager.invoke).mockRejectedValueOnce(new Error("nope"));
+    await defaulted.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} });
+    await flushBackground();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("background revalidation failed"));
+
+    // No credential/token material in any logged line.
+    const lines = [...info.mock.calls, ...warn.mock.calls].map((c) => String(c[0]));
+    for (const line of lines) {
+      expect(line).not.toMatch(/token|secret|credential|password/i);
+    }
+    info.mockRestore();
+    warn.mockRestore();
   });
 });

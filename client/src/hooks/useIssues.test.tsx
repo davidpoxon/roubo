@@ -113,6 +113,30 @@ describe("useIssues", () => {
     expect(result.current.snapshotCapturedAt).toBe("2024-02-02T03:04:05Z");
   });
 
+  it("surfaces cacheStatus from the page for the warm (revalidating) serve (CLI-FR-002)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: null,
+      cacheStatus: "revalidating",
+      snapshotCapturedAt: "2026-06-01T12:00:00Z",
+    } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.cacheStatus).toBe("revalidating");
+  });
+
+  it("defaults cacheStatus to null when the page reports none", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: null,
+    } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.cacheStatus).toBeNull();
+  });
+
   it("reports the page's excludedCount, treating absence as zero (#358)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
@@ -160,6 +184,36 @@ describe("useIssues", () => {
     const { result } = renderHookWithProviders(() => useIssues("p1"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isRefetching).toBe(false);
+  });
+
+  it("keeps the previous page's items on a cursor change instead of flashing the skeleton (placeholderData, CLI-NFR-002)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("page1")],
+      nextCursor: "c1",
+    } as PaginatedIssues);
+    // The next page resolves only after we assert, so the placeholder window is
+    // observable: with keepPreviousData the prior items stay rendered and
+    // isLoading stays false across the key change (no skeleton flash).
+    let resolveSecond: (v: PaginatedIssues) => void = () => {};
+    mockedFetch.mockReturnValueOnce(
+      new Promise<PaginatedIssues>((resolve) => {
+        resolveSecond = resolve;
+      }),
+    );
+
+    const { result, rerender } = renderHookWithProviders(
+      ({ cursor }: { cursor: string | null }) => useIssues("p1", {}, undefined, cursor),
+      { initialProps: { cursor: null as string | null } },
+    );
+    await waitFor(() => expect(result.current.issues.map((i) => i.externalId)).toEqual(["page1"]));
+
+    rerender({ cursor: "c1" });
+    // Mid-flight on the new key: previous page still shown, no loading skeleton.
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.issues.map((i) => i.externalId)).toEqual(["page1"]);
+
+    resolveSecond({ items: [makeIssue("page2")], nextCursor: null } as PaginatedIssues);
+    await waitFor(() => expect(result.current.issues.map((i) => i.externalId)).toEqual(["page2"]));
   });
 
   it("does not fetch when projectId is undefined", () => {

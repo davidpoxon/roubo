@@ -63,6 +63,16 @@ router.get("/:projectId/issues", async (req, res) => {
     };
     if (result.warnings) body.warnings = result.warnings;
     if (typeof result.excludedCount === "number") body.excludedCount = result.excludedCount;
+    // Stale-while-revalidate signal (FR-002): surface the cache-state and, when
+    // the warm snapshot was served, its capture timestamp so the client can
+    // drive the warm / revalidating indicator. First-page-only: the disk cache
+    // is first-page-only, so the signal is meaningful only there; paginated
+    // (cursor > 0) responses omit it, matching the PaginatedIssues.cacheStatus
+    // contract.
+    if (isFirstPage) {
+      body.cacheStatus = result.cacheStatus;
+      if (result.snapshotCapturedAt) body.snapshotCapturedAt = result.snapshotCapturedAt;
+    }
     // FR-014: keep capturing every successful first-page response into the
     // in-memory snapshot cache so the errored/disabled fallback above has
     // something to serve. The persistent disk cache does not supersede this

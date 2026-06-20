@@ -63,6 +63,7 @@ export default function IssueQueuePanel({
     excludedCount,
     isRefetching,
     dataUpdatedAt,
+    cacheStatus,
   } = useIssues(projectId, {}, undefined, activeCursor);
   const refreshItems = useRefreshIssues();
   // Guard the refresh control while a refetch is already in flight: disabling
@@ -265,6 +266,23 @@ export default function IssueQueuePanel({
     return formatLastUpdated(dataUpdatedAt);
   }, [isRefetching, stale, snapshotCapturedAt, dataUpdatedAt]);
 
+  // Stale-while-revalidate cache-state badge (CLI-FR-002 / CLI-TC-001). Distinct
+  // from the FR-014 stale-snapshot banner below: this is the inline warm /
+  // revalidating / stale chip. Precedence: the FR-014 stale serve (plugin
+  // unavailable) wins; then a background revalidation in flight (React Query's
+  // isRefetching) reads `revalidating`; then a warm snapshot served by the
+  // server (`cacheStatus === 'revalidating'`) reads `warm`. A genuinely fresh
+  // live load (`cacheStatus === 'miss'`) shows no chip (null) so the badge never
+  // competes with the steady state. Per CLI-TC-001 the warm open shows `warm`
+  // first, transitions to `revalidating` while the client refetches, then back
+  // to `warm` once fresh data lands.
+  const cacheState: "warm" | "revalidating" | "stale" | null = useMemo(() => {
+    if (stale) return "stale";
+    if (isRefetching) return "revalidating";
+    if (cacheStatus === "revalidating") return "warm";
+    return null;
+  }, [stale, isRefetching, cacheStatus]);
+
   // Polite live-region announcement for refresh start/completion (NFR-007 /
   // AC4). Announce "Refreshing cut list" when a refetch begins, then on
   // completion announce success or, when the refetch errored, a failure (a
@@ -293,6 +311,21 @@ export default function IssueQueuePanel({
             </h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {cacheState && (
+              <span
+                data-testid="cut-list-cache-state"
+                data-state={cacheState}
+                className={`text-[10px] font-medium uppercase tracking-wide whitespace-nowrap ${
+                  cacheState === "stale"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : cacheState === "revalidating"
+                      ? "text-stone-400 dark:text-stone-600"
+                      : "text-green-600 dark:text-green-500"
+                }`}
+              >
+                {cacheState}
+              </span>
+            )}
             {lastUpdatedLabel && (
               <span
                 data-testid="cut-list-last-updated"
