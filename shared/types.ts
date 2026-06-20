@@ -732,8 +732,36 @@ export interface PersistedBench {
   componentSetupState?: Record<string, boolean>;
 }
 
+/**
+ * One ResourceOwnershipLedger entry: the processes and compose projects the
+ * host started on a single plugin's behalf, scoped to a single bench. The host
+ * owns every handle, so the ledger is how the startup orphan sweep (issue #613)
+ * can reap resources that escaped a plugin crash or a host restart (FR-015).
+ *
+ * Stored as a flat array of entries (not a nested `Record<pluginId, ...>`) so a
+ * plugin-supplied `pluginId` never becomes an object key. That keeps the
+ * persisted shape off the CodeQL prototype-pollution surface that indexing by a
+ * user-controlled name would otherwise create.
+ */
+export interface ResourceOwnershipEntry {
+  /** The plugin that owns these resources. May be plugin-supplied; never used as an object key. */
+  pluginId: string;
+  /** The bench the resources belong to. */
+  benchId: number;
+  /** Opaque process-manager ids the host spawned for this (plugin, bench). */
+  processIds: string[];
+  /** Compose project names (the `roubo-<projectId>-bench-<N>` convention) the host brought up. */
+  composeProjects: string[];
+}
+
 export interface PersistedState {
   benches: PersistedBench[];
+  /**
+   * ResourceOwnershipLedger (FR-015): per-plugin, per-bench record of host-owned
+   * processes and compose projects. Optional and additive, so a state.json
+   * written before this field existed loads unchanged (no schema migration).
+   */
+  resourceOwnership?: ResourceOwnershipEntry[];
   /**
    * Single commit point for the pre-plugin → plugin migration (WU-024 / issue #42).
    * Absent on pre-migration installs; bumped to 1 only after every migration
