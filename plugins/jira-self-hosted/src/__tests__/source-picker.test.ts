@@ -32,6 +32,18 @@ describe("fetchEpicIssues (cut-list Epic facet loader)", () => {
     });
     expect(await fetchEpicIssues(ctx)).toEqual([]);
   });
+
+  it("excludes resolved epics by constraining the JQL to resolution = Unresolved (FR-015)", async () => {
+    let capturedUrl = "";
+    harness.fetchStub.on("/rest/api/2/search", (_init, url) => {
+      capturedUrl = url;
+      return { issues: [] };
+    });
+    await fetchEpicIssues(ctx);
+    const jql = new URL(capturedUrl).searchParams.get("jql") ?? "";
+    expect(jql).toContain("issuetype = Epic");
+    expect(jql).toContain("resolution = Unresolved");
+  });
 });
 
 describe("listSourceCandidates (searchable-categorized shape, WU-002)", () => {

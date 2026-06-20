@@ -31,7 +31,20 @@ describe("getFacetOptions", () => {
     const route = mocks.mockOctokit.request.mock.calls[0][0] as string;
     expect(route).toBe("GET /repos/{owner}/{repo}/milestones");
     const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
-    expect(params).toMatchObject({ owner: "foo", repo: "bar", state: "all", per_page: 100 });
+    expect(params).toMatchObject({ owner: "foo", repo: "bar", state: "open", per_page: 100 });
+  });
+
+  it("requests only open milestones so closed milestones are excluded at the source", async () => {
+    // The source already restricts the response to open milestones, so a closed
+    // milestone never reaches the facet options: the request never asks for it.
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([{ title: "v1.0" }]));
+
+    const result = await getFacetOptions({ facetId: "milestone", sources: REPO_SOURCES });
+
+    expect(result).toEqual([{ value: "v1.0", label: "v1.0" }]);
+    const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
+    expect(params).toMatchObject({ state: "open" });
+    expect(params).not.toMatchObject({ state: "all" });
   });
 
   it("applies a case-insensitive search filter on the option label", async () => {
