@@ -17,6 +17,7 @@ import { ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
+import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
 
 const router: Router = Router();
@@ -999,6 +1000,61 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__read-spec-results failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /test/__read-cut-list-cache-file (#567): read the persisted cut-list
+// first-page snapshot file for a project so the warm-restart drift guard
+// (CLI-TC-001) can assert its on-disk S003 invariants directly against disk: the
+// file mode is exactly 0600 (CLI-NFR-001), and the parsed JSON content carries
+// no credential or token fields. Modelled on /test/__read-spec-results: same
+// ROUBO_E2E gate, same per-spec wipe/reset hygiene (the snapshot dir lives under
+// `<rouboDir>/issue-snapshots/` and is wiped by wipePersistedTestState on every
+// /__reset, so no snapshot leaks between specs). DiskSnapshotStore names each
+// entry `<rouboDir>/issue-snapshots/<projectId>/<hash>.json`; the e2e flow primes
+// exactly one snapshot, so this returns that single entry file.
+//
+// Query: ?projectId=<id>. Returns { path, mode, content }: `mode` is the file's
+// permission bits (masked to 0o777, so the spec can compare against 0o600), and
+// `content` is the parsed JSON envelope.
+router.get("/__read-cut-list-cache-file", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const projectId = req.query.projectId;
+  if (typeof projectId !== "string" || !PROJECT_ID_RE.test(projectId)) {
+    return res
+      .status(400)
+      .json({ error: "projectId must be a kebab-case string matching the project-id allowlist" });
+  }
+  try {
+    // Re-derive the project's snapshot directory through the resolveWithin
+    // containment barrier (matching DiskSnapshotStore), so the projectId from the
+    // HTTP boundary reaches the fs sinks already laundered (code-scanning
+    // js/path-injection sanitizer).
+    const snapshotsRoot = path.join(state.getRouboDir(), "issue-snapshots");
+    const projectDir = resolveWithin(snapshotsRoot, projectId);
+    let files: string[];
+    try {
+      files = fs.readdirSync(projectDir).filter((f) => f.endsWith(".json"));
+    } catch {
+      files = [];
+    }
+    if (files.length === 0) {
+      return res
+        .status(404)
+        .json({ error: `No cut-list snapshot found for project '${projectId}'` });
+    }
+    // The e2e flow primes exactly one snapshot; pick the single entry file.
+    const filePath = resolveWithin(projectDir, files[0]);
+    const stat = fs.statSync(filePath);
+    const mode = stat.mode & 0o777;
+    const content = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    res.status(200).json({ path: filePath, mode, content });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__read-cut-list-cache-file failed:", message);
     res.status(500).json({ error: message });
   }
 });
