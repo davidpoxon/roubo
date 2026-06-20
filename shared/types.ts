@@ -1143,8 +1143,25 @@ export interface PaginatedIssues {
   warnings?: ListIssuesWarning[];
   /** True when this response is a cached snapshot served because the plugin is unavailable. */
   stale?: boolean;
-  /** ISO timestamp of the cached response, present iff `stale` is true. */
+  /**
+   * ISO timestamp of the cached response. Present when this body carries a
+   * persisted snapshot: set on the FR-014 errored/disabled stale serve and on
+   * the stale-while-revalidate warm serve (`cacheStatus: 'revalidating'`).
+   */
   snapshotCapturedAt?: string;
+  /**
+   * Where this first-page response came from, the stale-while-revalidate
+   * cache-state signal the client maps onto the warm / revalidating / stale
+   * indicator (CLI-FR-002):
+   * - `'revalidating'`: served instantly from the persisted disk snapshot while
+   *   a background revalidation fetches fresh data (the warm path).
+   * - `'miss'`: no usable snapshot, the live response was fetched (and, for a
+   *   first page, persisted).
+   * - `'hit'`: served from the snapshot without triggering a background
+   *   revalidation.
+   * Additive and first-page-only; absent on paginated (cursor > 0) responses.
+   */
+  cacheStatus?: "hit" | "miss" | "revalidating";
   /**
    * Count of issues the active plugin dropped in-query (e.g. status-category
    * exclusion, FR-009/FR-010). Passed through from the plugin's

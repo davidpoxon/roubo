@@ -97,7 +97,7 @@ beforeEach(() => {
   vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
     items: [],
     nextCursor: null,
-    cacheStatus: "disk-miss",
+    cacheStatus: "miss",
   });
   vi.mocked(cutListQueryService.buildListParams).mockReturnValue({
     sources: [{ kind: "repo", externalId: "foo/bar" }],
@@ -134,7 +134,7 @@ describe("GET /:projectId/issues", () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
-      cacheStatus: "disk-miss",
+      cacheStatus: "miss",
     });
     await request(app).get("/p1/issues?cursor=c1&labels=bug,feature&search=login&pageSize=25");
     expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
@@ -148,7 +148,7 @@ describe("GET /:projectId/issues", () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
-      cacheStatus: "disk-miss",
+      cacheStatus: "miss",
     });
     await request(app).get("/p1/issues");
     expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
@@ -168,7 +168,7 @@ describe("GET /:projectId/issues", () => {
     );
     vi.mocked(cutListQueryService.queryFirstOrPage).mockImplementation(async () => {
       delegatedDuringWait = true;
-      return { items: [], nextCursor: null, cacheStatus: "disk-miss" };
+      return { items: [], nextCursor: null, cacheStatus: "miss" };
     });
 
     const pending = request(app).get("/p1/issues");
@@ -186,13 +186,38 @@ describe("GET /:projectId/issues", () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: issues,
       nextCursor: "next",
-      cacheStatus: "disk-hit",
+      cacheStatus: "miss",
     });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(2);
     expect(res.body.nextCursor).toBe("next");
     expect(res.body.stalled).toBeUndefined();
+  });
+
+  it("serialises cacheStatus and snapshotCapturedAt onto the body for a warm (revalidating) serve (CLI-FR-002)", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [makeIssue({ externalId: "warm" })],
+      nextCursor: null,
+      snapshotCapturedAt: "2026-06-01T12:00:00.000Z",
+      cacheStatus: "revalidating",
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.cacheStatus).toBe("revalidating");
+    expect(res.body.snapshotCapturedAt).toBe("2026-06-01T12:00:00.000Z");
+  });
+
+  it("serialises cacheStatus 'miss' without a snapshotCapturedAt on a cold load", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [makeIssue({ externalId: "1" })],
+      nextCursor: null,
+      cacheStatus: "miss",
+    });
+    const res = await request(app).get("/p1/issues");
+    expect(res.status).toBe(200);
+    expect(res.body.cacheStatus).toBe("miss");
+    expect(res.body.snapshotCapturedAt).toBeUndefined();
   });
 
   it("serialises stalled, warnings, and excludedCount when present", async () => {
@@ -208,7 +233,7 @@ describe("GET /:projectId/issues", () => {
       stalled: true,
       warnings: [warning],
       excludedCount: 3,
-      cacheStatus: "disk-miss",
+      cacheStatus: "miss",
     });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
@@ -221,7 +246,7 @@ describe("GET /:projectId/issues", () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
-      cacheStatus: "disk-miss",
+      cacheStatus: "miss",
     });
     const res = await request(app).get("/p1/issues");
     expect(res.status).toBe(200);
@@ -270,7 +295,7 @@ describe("GET /:projectId/issues", () => {
       vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
         items: [makeIssue({ externalId: "1" })],
         nextCursor: null,
-        cacheStatus: "disk-miss",
+        cacheStatus: "miss",
       });
       vi.mocked(pluginManager.getRecord).mockReturnValue({
         id: "github-com",
@@ -293,7 +318,7 @@ describe("GET /:projectId/issues", () => {
       vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
         items: [makeIssue({ externalId: "2" })],
         nextCursor: null,
-        cacheStatus: "uncached",
+        cacheStatus: "miss",
       });
       await request(app).get("/p1/issues?cursor=page-2");
       expect(issueSnapshotCache.recordSnapshot).not.toHaveBeenCalled();

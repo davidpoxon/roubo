@@ -93,6 +93,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     excludedCount: 0,
     isRefetching: false,
     dataUpdatedAt: 0,
+    cacheStatus: null,
     ...overrides,
   };
 }
@@ -287,6 +288,63 @@ describe("IssueQueuePanel", () => {
         </MemoryRouter>,
       );
       expect(screen.queryByTestId("stale-snapshot-banner")).toBeNull();
+    });
+  });
+
+  describe("CLI-FR-002 / CLI-TC-001: stale-while-revalidate cache-state badge", () => {
+    it("reads 'warm' when the server served the persisted snapshot (cacheStatus revalidating, not refetching)", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [makeIssue("1")],
+          cacheStatus: "revalidating",
+          isRefetching: false,
+        }),
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      const badge = screen.getByTestId("cut-list-cache-state");
+      expect(badge).toHaveAttribute("data-state", "warm");
+      expect(badge).toHaveTextContent("warm");
+    });
+
+    it("transitions to 'revalidating' while a background refetch is in flight", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [makeIssue("1")],
+          cacheStatus: "revalidating",
+          isRefetching: true,
+        }),
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByTestId("cut-list-cache-state")).toHaveAttribute(
+        "data-state",
+        "revalidating",
+      );
+    });
+
+    it("reads 'stale' when the FR-014 stale serve is active, overriding the cache status (CLI-TC-009/014)", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ issues: [makeIssue("1")], stale: true, cacheStatus: "revalidating" }),
+      );
+      renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId("cut-list-cache-state")).toHaveAttribute("data-state", "stale");
+    });
+
+    it("renders no badge on a fresh live load (cacheStatus miss, not refetching)", () => {
+      mockedUseIssues.mockReturnValue(
+        defaultResult({ issues: [makeIssue("1")], cacheStatus: "miss", isRefetching: false }),
+      );
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByTestId("cut-list-cache-state")).toBeNull();
     });
   });
 

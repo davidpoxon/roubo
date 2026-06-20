@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NormalizedIssue, PaginatedIssues } from "@roubo/shared";
 import * as api from "../lib/api";
 
@@ -41,6 +41,14 @@ export interface UseIssuesResult {
    * last-updated indicator. 0 before the first successful fetch.
    */
   dataUpdatedAt: number;
+  /**
+   * The server's stale-while-revalidate cache-state signal for this page
+   * (CLI-FR-002), or null when the response carried none (paginated pages, or
+   * before the first successful fetch). `'revalidating'` means the warm disk
+   * snapshot was served while the server revalidates behind it; combined with
+   * React Query's `isRefetching` it drives the warm / revalidating indicator.
+   */
+  cacheStatus: "hit" | "miss" | "revalidating" | null;
 }
 
 /**
@@ -71,6 +79,12 @@ export function useIssues(
       }),
     staleTime: 30_000,
     retry: false,
+    // Paint the previously-loaded page instantly on a key change (revisit or
+    // refresh) instead of flashing the skeleton, then revalidate behind it
+    // (CLI-FR-002 / CLI-NFR-002). Pairs with the server's warm disk snapshot:
+    // the first warm load renders the persisted snapshot, and subsequent
+    // navigations keep the prior page on screen while fresh data lands.
+    placeholderData: keepPreviousData,
   });
 
   const page = query.data;
@@ -81,6 +95,7 @@ export function useIssues(
   const stale = page?.stale === true;
   const snapshotCapturedAt = (stale ? page?.snapshotCapturedAt : undefined) ?? null;
   const excludedCount = page?.excludedCount ?? 0;
+  const cacheStatus = page?.cacheStatus ?? null;
 
   return {
     issues,
@@ -93,6 +108,7 @@ export function useIssues(
     excludedCount,
     isRefetching: query.isRefetching,
     dataUpdatedAt: query.dataUpdatedAt,
+    cacheStatus,
   };
 }
 
