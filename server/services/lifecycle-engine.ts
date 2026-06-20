@@ -194,6 +194,9 @@ async function runDocker(
       throw new Error("migration command is empty");
     }
     const migrationId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:migration`;
+    // Record before spawning (AC5): a host crash mid-migration (up to
+    // MIGRATION_TIMEOUT_MS) must leave a ledger entry the orphan sweep can reap.
+    led.recordProcess(ctx.pluginId, ctx.benchId, migrationId);
     const { exitCode } = await pm.runProcess(
       migrationId,
       parts[0],
@@ -245,6 +248,9 @@ async function runProcess(
       throw new Error("setup command is empty");
     }
     const setupId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:setup`;
+    // Record before spawning (AC5): an unbounded setup (e.g. `npm install`)
+    // interrupted by a host crash must be reapable by the orphan sweep.
+    led.recordProcess(ctx.pluginId, ctx.benchId, setupId);
     const { exitCode } = await pm.runProcess(setupId, parts[0], parts.slice(1), env, cwd, 0);
     if (exitCode !== 0) {
       throw new Error(`setup failed with exit code ${exitCode}`);

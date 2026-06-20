@@ -157,6 +157,80 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(final?.status).toBe("error");
       expect(final?.error).toMatch(/did not become healthy/);
     });
+
+    it("drives to error and surfaces the message when composeUp fails", async () => {
+      const h = setup();
+      (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: false,
+        error: "compose boom",
+        stdout: "",
+        stderr: "",
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      // composeUp failed before the project was up, so nothing healthy-checks.
+      expect(h.docker.waitForHealthy).not.toHaveBeenCalled();
+      expect(h.statuses.at(-1)?.error).toMatch(/compose boom/);
+    });
+
+    it("drives to error when the optional init service fails", async () => {
+      const h = setup();
+      (h.docker.composeRunInit as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: false,
+        error: "init boom",
+        stdout: "",
+        stderr: "",
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        initService: "seed",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      expect(h.statuses.at(-1)?.error).toMatch(/init boom/);
+    });
+
+    it("drives to error when a migration exits non-zero", async () => {
+      const h = setup();
+      (h.pm.runProcess as ReturnType<typeof vi.fn>).mockResolvedValue({ exitCode: 1 });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        migration: { command: "npm run migrate" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      expect(h.statuses.at(-1)?.error).toMatch(/migration failed with exit code 1/);
+    });
   });
 
   // CP-TC-038: process phase machine + one-time setup.
@@ -381,6 +455,43 @@ describe("lifecycle-engine runDescriptor", () => {
       });
 
       expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:deploy");
+    });
+
+    it("records the docker migration process so a crash mid-migration is reapable", async () => {
+      const h = setup();
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        migration: { command: "npm run migrate" },
+      };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:db:migration");
+    });
+
+    it("records the process one-time setup so a crash mid-setup is reapable", async () => {
+      const h = setup({ componentName: "api", ports: {} });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "process",
+        command: "node server.js",
+        setup: "npm install",
+      };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:api:setup");
     });
   });
 
