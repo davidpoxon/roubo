@@ -92,9 +92,29 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
       (issue.statusCategory !== undefined && excludedCategories.has(issue.statusCategory)) ||
       excludedStatuses.has(issue.currentState);
     const kept = scenario.issues.filter((issue) => !isExcluded(issue));
+    // #569: cursor pagination over the kept set so the cut-list Prev/Next
+    // journey (FR-007/FR-008, TC-032) is exercised end to end. The host passes
+    // an opaque `cursor` and a `pageSize` (the project's integration pageSize,
+    // default 50); we treat the cursor as a numeric offset (same scheme as
+    // `getSourceOptions` below) and advance `nextCursor` until the set is
+    // exhausted. A malformed or missing cursor is the first page, so a bad
+    // token never throws inside the stub. Scenarios that fit in one page (the
+    // TC-024/TC-025 exclusion fixtures at the default pageSize) keep
+    // `nextCursor: null`, so the existing cut-list specs are unaffected.
+    const pageSize =
+      Number.isInteger(params.pageSize) && params.pageSize > 0 ? params.pageSize : 50;
+    const offset =
+      params.cursor != null && Number.isInteger(Number(params.cursor))
+        ? Math.max(0, Number(params.cursor))
+        : 0;
+    const pageItems = kept.slice(offset, offset + pageSize);
+    const nextOffset = offset + pageSize;
     return {
-      items: kept.map((issue) => projectIssue(issue, journal)),
-      nextCursor: null,
+      items: pageItems.map((issue) => projectIssue(issue, journal)),
+      nextCursor: nextOffset < kept.length ? String(nextOffset) : null,
+      // The excluded count is a property of the whole query, not a single
+      // page, so report it on every page (matching the real plugin, which
+      // excludes in-query regardless of which page is requested).
       excludedCount: scenario.issues.length - kept.length,
       ...(scenario.listIssuesWarnings && scenario.listIssuesWarnings.length > 0
         ? { warnings: scenario.listIssuesWarnings }

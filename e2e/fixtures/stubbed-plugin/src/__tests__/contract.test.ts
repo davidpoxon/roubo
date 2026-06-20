@@ -352,6 +352,57 @@ describe("listIssues status exclusion (WU-009, TC-024/TC-025)", () => {
   });
 });
 
+// #569: cursor pagination over the kept set, the stub behaviour the cut-list
+// Prev/Next e2e journey (TC-032) drives. The cut-list-pagination pack seeds six
+// To Do cuts; at a small pageSize the kept set spans multiple cursor pages.
+describe("listIssues cursor pagination (#569, TC-032)", () => {
+  function buildPaginationContract() {
+    const scenario = loadScenario("cut-list-pagination");
+    const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
+    const journal = createJournal();
+    return buildContract({ scenario, clock, journal });
+  }
+
+  const BASE = { sources: [], cursor: null } as const;
+
+  it("caps the first page at pageSize and advances the cursor when more remain", () => {
+    const contract = buildPaginationContract();
+    const first = contract.listIssues({ ...BASE, pageSize: 2 });
+    expect(first.items.map((i) => i.externalId)).toEqual(["acme/widgets#201", "acme/widgets#202"]);
+    expect(first.nextCursor).toBe("2");
+    // None of the six To Do cuts are excluded (the manifest default excludes Done).
+    expect(first.excludedCount).toBe(0);
+  });
+
+  it("walks the cursor through the middle and final pages, nulling at the end", () => {
+    const contract = buildPaginationContract();
+    const second = contract.listIssues({ ...BASE, pageSize: 2, cursor: "2" });
+    expect(second.items.map((i) => i.externalId)).toEqual(["acme/widgets#203", "acme/widgets#204"]);
+    expect(second.nextCursor).toBe("4");
+
+    const third = contract.listIssues({ ...BASE, pageSize: 2, cursor: "4" });
+    expect(third.items.map((i) => i.externalId)).toEqual(["acme/widgets#205", "acme/widgets#206"]);
+    expect(third.nextCursor).toBeNull();
+  });
+
+  it("treats a missing or malformed cursor as the first page", () => {
+    const contract = buildPaginationContract();
+    const noCursor = contract.listIssues({ ...BASE, pageSize: 2 });
+    const badCursor = contract.listIssues({ ...BASE, pageSize: 2, cursor: "not-a-number" });
+    expect(badCursor.items.map((i) => i.externalId)).toEqual(
+      noCursor.items.map((i) => i.externalId),
+    );
+    expect(badCursor.nextCursor).toBe("2");
+  });
+
+  it("keeps nextCursor null when the whole set fits in one page", () => {
+    const contract = buildPaginationContract();
+    const all = contract.listIssues({ ...BASE, pageSize: 50 });
+    expect(all.items).toHaveLength(6);
+    expect(all.nextCursor).toBeNull();
+  });
+});
+
 describe("argv parsing", () => {
   it("defaults to scenario=default and a pinned ISO date when no flags given", () => {
     const { scenario, now } = parseArgs([]);

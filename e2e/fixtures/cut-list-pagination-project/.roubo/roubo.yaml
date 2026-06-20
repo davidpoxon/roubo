@@ -1,0 +1,27 @@
+project:
+  name: e2e-cut-list-pagination
+  displayName: E2E Cut-List Pagination
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4930
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  # #569: a deliberately small page size so a six-item To Do scenario spans
+  # three Prev/Next pages, keeping the committed fixture small while genuinely
+  # exercising cursor paging (FR-007/FR-008, TC-032). The client requests no
+  # explicit pageSize, so the host falls back to this project's integration
+  # pageSize.
+  pageSize: 2
+  sources:
+    Repository:
+      - "acme/widgets"
