@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import type { NormalizedIssue } from "@roubo/shared";
@@ -304,6 +304,17 @@ describe("GET /:projectId/issues", () => {
   });
 
   describe("FR-014: last-good in-memory snapshot fallback (TC-163, TC-016)", () => {
+    // The stale-serve path logs an NFR-009 console.warn line. Spy on it for the
+    // whole block so the intentional log never leaks into test stdout (repo
+    // testing rule); the dedicated NFR-009 test below asserts against this spy.
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
     it("records the first page in-memory on success so a later errored fallback has something to serve", async () => {
       vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
         items: [makeIssue({ externalId: "1" })],
@@ -356,6 +367,35 @@ describe("GET /:projectId/issues", () => {
       expect(res.body.stale).toBe(true);
       expect(res.body.snapshotCapturedAt).toBe("2026-05-27T09:00:00.000Z");
       expect(res.body.items[0].externalId).toBe("cached-1");
+    });
+
+    // NFR-009: the stale serve is logged with diagnostic context (plugin,
+    // project, status, snapshot age) and no credential material. The route
+    // intentionally calls console.warn here, so spy + assert rather than emit
+    // into test stdout.
+    it("logs the stale serve with diagnostic context and no credential material (NFR-009)", async () => {
+      vi.mocked(cutListQueryService.queryFirstOrPage).mockRejectedValue(
+        Object.assign(new Error("not running"), { code: "plugin-not-enabled" }),
+      );
+      vi.mocked(pluginManager.getRecord).mockReturnValue({
+        id: "github-com",
+        status: "errored",
+      } as unknown as ReturnType<typeof pluginManager.getRecord>);
+      vi.mocked(issueSnapshotCache.getSnapshot).mockReturnValue({
+        response: { items: [], nextCursor: null },
+        capturedAt: "2026-05-27T09:00:00.000Z",
+        pluginName: "GitHub.com",
+      });
+      const res = await request(app).get("/p1/issues");
+      expect(res.status).toBe(200);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("stale-serve"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("plugin=github-com"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("project=p1"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("status=errored"));
+      const lines = warnSpy.mock.calls.map((c) => String(c[0]));
+      for (const line of lines) {
+        expect(line).not.toMatch(/token|secret|credential|password/i);
+      }
     });
 
     it("also serves the cached snapshot while the plugin is disabled", async () => {

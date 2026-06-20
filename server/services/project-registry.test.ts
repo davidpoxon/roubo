@@ -5,6 +5,16 @@ import { makeConfig } from "../test/fixtures.js";
 vi.mock("./config-parser.js");
 vi.mock("./state.js");
 vi.mock("./port-allocator.js");
+// FR-004 / NFR-001: unregisterProject evicts the persistent disk cache for the
+// project. Mock the query service so the call-site is asserted without touching
+// the real on-disk cache.
+const cutListMocks = vi.hoisted(() => ({
+  evictPlugin: vi.fn<(id: string) => void>(),
+  evictProject: vi.fn<(id: string) => void>(),
+}));
+vi.mock("./cut-list-query-service.js", () => ({
+  cutListQueryService: cutListMocks,
+}));
 
 import { parseConfig } from "./config-parser.js";
 import * as state from "./state.js";
@@ -23,6 +33,8 @@ let registryModule: typeof import("./project-registry.js");
 
 beforeEach(async () => {
   vi.resetModules();
+  cutListMocks.evictPlugin.mockReset();
+  cutListMocks.evictProject.mockReset();
   registryModule = await import("./project-registry.js");
 });
 
@@ -326,6 +338,17 @@ describe("unregisterProject", () => {
 
     expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
     expect(registryModule.getProject("test-project")).toBeUndefined();
+    // FR-004 / NFR-001: unregister evicts the project's persistent disk cache.
+    expect(cutListMocks.evictProject).toHaveBeenCalledWith("test-project");
+  });
+
+  it("does not evict the disk cache when unregister throws NOT_FOUND", () => {
+    try {
+      registryModule.unregisterProject("nonexistent");
+    } catch {
+      // expected
+    }
+    expect(cutListMocks.evictProject).not.toHaveBeenCalled();
   });
 
   it("throws NOT_FOUND", () => {

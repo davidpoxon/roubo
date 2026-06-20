@@ -12,6 +12,16 @@ vi.mock("./project-registry.js", () => ({
 vi.mock("./active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(() => null),
 }));
+// FR-004 / NFR-001: uninstall/disable evict the persistent disk cache. Mock the
+// query service so the call-site is asserted without touching the real on-disk
+// cache or pulling its module graph into the plugin-manager unit tests.
+const cutListMocks = vi.hoisted(() => ({
+  evictPlugin: vi.fn<(id: string) => void>(),
+  evictProject: vi.fn<(id: string) => void>(),
+}));
+vi.mock("./cut-list-query-service.js", () => ({
+  cutListQueryService: cutListMocks,
+}));
 
 // Mock the persistence boundary so plugin-manager tests don't touch the real
 // ~/.roubo/plugins-state.json. The unit-tested behaviour is "plugin-manager
@@ -36,6 +46,8 @@ beforeEach(() => {
     plugins: { [id]: enabled ? "enabled" : "disabled" },
   }));
   enableStateMocks.removePlugin.mockReset();
+  cutListMocks.evictPlugin.mockReset();
+  cutListMocks.evictProject.mockReset();
 });
 
 import * as pluginManager from "./plugin-manager.js";
@@ -285,6 +297,10 @@ describe("lifecycle", () => {
     const disabled = findRecord(mgr.listInstalled(), "echo");
     expect(disabled.status).toBe("disabled");
     expect(disabled.pid).toBeNull();
+    // FR-004 / NFR-001 (Spike 553, #553): disable EVICTS the persistent disk
+    // cache (distinct from the in-memory cache kept warm for the FR-014
+    // fallback).
+    expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("echo");
     await waitFor(() => {
       try {
         process.kill(firstPid, 0);
@@ -917,6 +933,9 @@ permissions:
     // WU-046: uninstall must also drop the plugin from plugins-state.json so
     // a future install of the same id starts from the default.
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-remove");
+    // FR-004 / NFR-001: uninstall evicts the persistent disk cache for the
+    // plugin (additive to the in-memory clearSnapshot).
+    expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-remove");
   });
 
   it("refuses to uninstall a bundled plugin", async () => {

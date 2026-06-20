@@ -10,6 +10,7 @@ import { parseConfig } from "./config-parser.js";
 import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
 import * as state from "./state.js";
 import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
+import { cutListQueryService } from "./cut-list-query-service.js";
 
 const projects = new Map<string, RegisteredProject>();
 
@@ -162,6 +163,10 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
 
   projects.delete(projectId);
   state.removeProject(projectId);
+  // FR-004 / NFR-001: drop every persisted disk snapshot for this project once
+  // it is unregistered (after the active-bench guard above). A project's
+  // subdirectory of the cache must not outlive the project.
+  cutListQueryService.evictProject(projectId);
 }
 
 export function getProjects(): RegisteredProject[] {

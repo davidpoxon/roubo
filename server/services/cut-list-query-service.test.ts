@@ -17,7 +17,11 @@ vi.mock("./plugin-activation.js", () => ({
 
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginActivation from "./plugin-activation.js";
-import { CutListQueryService, type CacheObserveEvent } from "./cut-list-query-service.js";
+import {
+  CutListQueryService,
+  defaultDiscard,
+  type CacheObserveEvent,
+} from "./cut-list-query-service.js";
 import { DiskSnapshotStore } from "./disk-snapshot-store.js";
 
 /**
@@ -570,5 +574,146 @@ describe("default observability sink", () => {
     }
     info.mockRestore();
     warn.mockRestore();
+  });
+
+  // CLI-NFR-009 / CLI-TC-006: a corrupt cache file is discarded as a cold miss
+  // and the store's discard event reaches the service's discard sink (here a
+  // spy standing in for the singleton's `defaultDiscard`). Proves the wiring
+  // path: store discard -> service onDiscard sink.
+  it("routes a corrupt-file discard to the configured discard sink as a cold miss", async () => {
+    const discards: Array<{ trigger: string; pluginId: string; projectId: string }> = [];
+    const wired = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir, onDiscard: (e) => discards.push(e) }),
+      bypassDisk: false,
+      onObserve,
+    });
+    // Seed a valid snapshot.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "seed" })],
+      nextCursor: null,
+    });
+    await wired.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} });
+
+    // Corrupt every persisted entry file so the next read discards it. The
+    // store is pointed at `baseDir` directly, so a project's entries live under
+    // `baseDir/<projectId>` (the `issue-snapshots` segment only exists on the
+    // default ~/.roubo path).
+    const snapDir = path.join(baseDir, "p1");
+    for (const f of fs.readdirSync(snapDir)) {
+      fs.writeFileSync(path.join(snapDir, f), "{ this is not valid json");
+    }
+
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce({
+      items: [makeIssue({ externalId: "refetched" })],
+      nextCursor: null,
+    });
+    const result = await wired.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+    });
+    // Cold miss, no throw, repopulated from the live RPC.
+    expect(result.cacheStatus).toBe("miss");
+    expect(result.items[0].externalId).toBe("refetched");
+    expect(discards).toContainEqual({
+      trigger: "corrupt",
+      pluginId: "github-com",
+      projectId: "p1",
+    });
+  });
+
+  // CLI-NFR-009: defaultDiscard (the singleton's store sink) logs the discard
+  // trigger + plugin/project identity only, never credentials. A `corrupt`
+  // discard logs at warn; routine evictions at info. The source intentionally
+  // calls console.*, so spy + assert rather than emit into test stdout.
+  it("defaultDiscard logs corrupt at warn and evictions at info, with no credential material", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    defaultDiscard({ trigger: "corrupt", pluginId: "github-com", projectId: "p1" });
+    defaultDiscard({ trigger: "plugin-evicted", pluginId: "github-com", projectId: "p1" });
+    defaultDiscard({ trigger: "project-evicted", pluginId: "unknown", projectId: "p1" });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("discard corrupt plugin=github-com"));
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("discard plugin-evicted"));
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("discard project-evicted"));
+
+    const lines = [...info.mock.calls, ...warn.mock.calls].map((c) => String(c[0]));
+    for (const line of lines) {
+      expect(line).not.toMatch(/token|secret|credential|password/i);
+    }
+    warn.mockRestore();
+    info.mockRestore();
+  });
+});
+
+// CLI-FR-004 / CLI-NFR-001: lifecycle eviction delegates. The service exposes
+// thin public evictPlugin/evictProject that forward to the private disk store;
+// the lifecycle owners (plugin-manager, project-registry) call these.
+describe("lifecycle eviction delegates", () => {
+  it("evictPlugin forwards to the disk store", () => {
+    const disk = new DiskSnapshotStore({ baseDir });
+    const spy = vi.spyOn(disk, "evictPlugin");
+    const svc = new CutListQueryService({ disk, bypassDisk: false, onObserve });
+    svc.evictPlugin("github-com");
+    expect(spy).toHaveBeenCalledWith("github-com");
+  });
+
+  it("evictProject forwards to the disk store", () => {
+    const disk = new DiskSnapshotStore({ baseDir });
+    const spy = vi.spyOn(disk, "evictProject");
+    const svc = new CutListQueryService({ disk, bypassDisk: false, onObserve });
+    svc.evictProject("p1");
+    expect(spy).toHaveBeenCalledWith("p1");
+  });
+});
+
+// CLI-FR-004 / CLI-NFR-001: integration reconfiguration needs no explicit
+// eviction hook. The cache key folds in instanceHash + sources, so changing the
+// configured instance or sources self-invalidates to a cold miss (the prior
+// key's snapshot is never read).
+describe("integration reconfiguration self-invalidates via the cache key", () => {
+  const input = { cursor: null, pageSize: 50, filters: {} };
+
+  it("a changed instance endpoint yields a miss, not the prior snapshot", async () => {
+    vi.mocked(pluginActivation.resolveInstanceEndpoint).mockReturnValue("https://ghe.example.com");
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "instance-a" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+
+    // Reconfigure the integration to a different instance: the key changes, so
+    // the next first-page query misses rather than serving instance-a's warm
+    // snapshot.
+    vi.mocked(pluginActivation.resolveInstanceEndpoint).mockReturnValue("https://ghe.other.com");
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "instance-b" })],
+      nextCursor: null,
+    });
+    const after = await service.queryFirstOrPage("p1", active, input);
+    expect(after.cacheStatus).toBe("miss");
+    expect(after.items[0].externalId).toBe("instance-b");
+  });
+
+  it("changed sources yield a miss, not the prior snapshot", async () => {
+    vi.mocked(pluginActivation.resolveSources).mockReturnValue([
+      { kind: "repo", externalId: "org/one" },
+    ]);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "sources-a" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+
+    vi.mocked(pluginActivation.resolveSources).mockReturnValue([
+      { kind: "repo", externalId: "org/two" },
+    ]);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "sources-b" })],
+      nextCursor: null,
+    });
+    const after = await service.queryFirstOrPage("p1", active, input);
+    expect(after.cacheStatus).toBe("miss");
+    expect(after.items[0].externalId).toBe("sources-b");
   });
 });

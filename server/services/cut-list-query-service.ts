@@ -112,7 +112,12 @@ export class CutListQueryService {
     bypassDisk?: boolean;
     onObserve?: (event: CacheObserveEvent) => void;
   }) {
-    this.disk = opts?.disk ?? new DiskSnapshotStore({ onDiscard: opts?.onDiscard });
+    // Default the store's discard sink to the NFR-009 log so corrupt-file
+    // discards (and the rest of the store's lifecycle/eviction triggers) are
+    // diagnosable on the singleton, not silently dropped. Tests pass an explicit
+    // `onDiscard` (or `disk`) to assert the events without emitting to stdout.
+    this.disk =
+      opts?.disk ?? new DiskSnapshotStore({ onDiscard: opts?.onDiscard ?? defaultDiscard });
     this.bypassDisk = opts?.bypassDisk ?? process.env.ROUBO_E2E === "1";
     this.onObserve = opts?.onObserve ?? defaultObserve;
   }
@@ -137,6 +142,26 @@ export class CutListQueryService {
    */
   restoreBypassDefault(): void {
     this.bypassDisk = process.env.ROUBO_E2E === "1";
+  }
+
+  /**
+   * Lifecycle eviction (FR-004 / NFR-001): drop every persisted snapshot owned
+   * by `pluginId` across all projects. A thin public delegate over the private
+   * disk store so the lifecycle owners (plugin-manager uninstall / disable /
+   * version change) can evict without reaching into the store. Never throws.
+   */
+  evictPlugin(pluginId: string): void {
+    this.disk.evictPlugin(pluginId);
+  }
+
+  /**
+   * Lifecycle eviction (FR-004 / NFR-001): drop every persisted snapshot for
+   * `projectId`. A thin public delegate over the private disk store so
+   * project-registry's unregisterProject can evict without reaching into the
+   * store. Never throws.
+   */
+  evictProject(projectId: string): void {
+    this.disk.evictProject(projectId);
   }
 
   /**
@@ -337,5 +362,39 @@ function defaultObserve(event: CacheObserveEvent): void {
   );
 }
 
-/** Process-wide default instance used by the route. */
-export const cutListQueryService = new CutListQueryService();
+/**
+ * Default NFR-009 sink for the disk store's discard/eviction events (corrupt
+ * file, schema / plugin-version mismatch, over-age, LRU / age sweeps, and the
+ * lifecycle plugin/project evictions). Carries only the discard trigger and
+ * plugin/project identity, never issue content, credentials, or tokens. A
+ * `corrupt` discard logs at `warn` (it signals a partial / damaged file worth
+ * noticing); the rest log at `info` as routine cache maintenance.
+ */
+export function defaultDiscard(event: DiscardLogEvent): void {
+  const line = `[cut-list-cache] discard ${event.trigger} plugin=${event.pluginId} project=${event.projectId}`;
+  if (event.trigger === "corrupt") {
+    console.warn(line);
+    return;
+  }
+  console.info(line);
+}
+
+/**
+ * Process-wide default instance used by the route and the lifecycle owners.
+ *
+ * Constructed lazily on first access (not at module-eval) so that merely
+ * importing this module, e.g. from project-registry for its evictProject
+ * delegate, does not eagerly build the DiskSnapshotStore (which resolves
+ * `getRouboDir()`). Several route/service unit tests mock `state.js` without a
+ * `getRouboDir`, so an eager construction at import time would throw inside any
+ * test that transitively imports this module. The lazy getter defers that cost
+ * until an actual query/evict call, by which point the real store is wired.
+ */
+let _singleton: CutListQueryService | undefined;
+export const cutListQueryService: CutListQueryService = new Proxy({} as CutListQueryService, {
+  get(_target, prop, receiver) {
+    _singleton ??= new CutListQueryService();
+    const value = Reflect.get(_singleton, prop, receiver) as unknown;
+    return typeof value === "function" ? value.bind(_singleton) : value;
+  },
+});
