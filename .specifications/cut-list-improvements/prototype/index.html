@@ -130,8 +130,8 @@
             <i data-lucide="info" class="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0"></i>
             <div class="min-w-0 flex-1">
               <p class="text-[12px] leading-snug text-amber-800">
-                The cut list now shows only <strong>To Do</strong> items by default. In&nbsp;progress
-                and done work are hidden.
+                The cut list now shows only <strong>To Do</strong> items by default.
+                In&nbsp;progress and done work are hidden.
               </p>
               <div class="mt-1.5 flex items-center gap-3">
                 <button
@@ -269,7 +269,9 @@
 
           <div class="space-y-3">
             <div>
-              <span class="block text-[10.5px] font-medium text-stone-500 mb-1.5">Active plugin</span>
+              <span class="block text-[10.5px] font-medium text-stone-500 mb-1.5"
+                >Active plugin</span
+              >
               <div class="flex gap-1 flex-wrap" role="group" aria-label="Active plugin">
                 <button class="seg t" data-plugin="jira">Self-hosted Jira</button>
                 <button class="seg t" data-plugin="github">GitHub.com</button>
@@ -300,10 +302,19 @@
       id="statusModal"
       class="hidden fixed inset-0 z-40 flex items-center justify-center bg-stone-900/20 p-4"
     >
-      <div class="w-[420px] max-w-full rounded-xl border border-stone-200 bg-white p-5" role="dialog" aria-modal="true" aria-labelledby="statusModalTitle">
+      <div
+        class="w-[420px] max-w-full rounded-xl border border-stone-200 bg-white p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="statusModalTitle"
+      >
         <div class="flex items-center justify-between mb-1">
           <h3 id="statusModalTitle" class="text-sm font-semibold text-stone-800">Status filter</h3>
-          <button id="statusModalClose" class="t p-1 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100" aria-label="Close">
+          <button
+            id="statusModalClose"
+            class="t p-1 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100"
+            aria-label="Close"
+          >
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
@@ -311,7 +322,10 @@
           Choose which status categories to hide from the cut list. Stored per project.
         </p>
         <div id="statusOptions" class="space-y-2"></div>
-        <p id="statusPluginNote" class="mt-4 text-[11px] leading-relaxed text-stone-500 rounded-lg bg-stone-50 border border-stone-200 px-3 py-2"></p>
+        <p
+          id="statusPluginNote"
+          class="mt-4 text-[11px] leading-relaxed text-stone-500 rounded-lg bg-stone-50 border border-stone-200 px-3 py-2"
+        ></p>
         <div class="mt-4 flex justify-end gap-2">
           <button id="statusCancel" class="pg-btn t">Cancel</button>
           <button id="statusSave" class="primary-btn t">Save</button>
@@ -418,24 +432,132 @@
             "Jira exposes native status categories. Default hides In Progress and Done via statusCategory not in (...).",
           excludedCount: 12,
           issues: [
-            { key: "ROUBO-101", title: "Cache key must include sort + status exclusion", type: "Story", ms: "Sprint 24 (active)", label: "cache" },
-            { key: "ROUBO-104", title: "Treat corrupt cache file as a cold miss", type: "Bug", ms: "Sprint 24 (active)", label: "cache" },
-            { key: "ROUBO-108", title: "Persist first-page snapshot to ~/.roubo at 0600", type: "Story", ms: "Sprint 24 (active)", label: "security" },
-            { key: "ROUBO-112", title: "Prev/Next pagination replaces infinite scroll", type: "Story", ms: "Sprint 25 (planned)", label: "ui" },
-            { key: "ROUBO-115", title: "Retain visited cursors for Prev navigation", type: "Task", ms: "Sprint 25 (planned)", label: "ui" },
-            { key: "ROUBO-119", title: "getSortFields RPC + host-rendered sort picker", type: "Story", ms: "Sprint 25 (planned)", label: "plugin-api" },
-            { key: "ROUBO-123", title: "Default ascending by item key, applied source-side", type: "Story", ms: "Sprint 25 (planned)", label: "plugin-api" },
-            { key: "ROUBO-127", title: "Refresh control shows in-progress state", type: "Task", ms: "Hardening", label: "ui" },
-            { key: "ROUBO-131", title: "Last-updated and stale-snapshot indicators", type: "Task", ms: "Hardening", label: "ui" },
-            { key: "ROUBO-134", title: "Only-To-Do default + migration banner", type: "Story", ms: "Sprint 24 (active)", label: "ux" },
-            { key: "ROUBO-138", title: "Source-side exclusion of resolved epics", type: "Task", ms: "Hardening", label: "plugin-api" },
-            { key: "ROUBO-142", title: "WCAG AA for pagination + sort picker", type: "Task", ms: "Hardening", label: "a11y" },
-            { key: "ROUBO-146", title: "Cache eviction on project unregister", type: "Bug", ms: "Sprint 24 (active)", label: "cache" },
-            { key: "ROUBO-150", title: "GHE: implement filterFacets/getFacetOptions", type: "Story", ms: "Sprint 25 (planned)", label: "ghe" },
-            { key: "ROUBO-153", title: "Background revalidation must never crash on reject", type: "Bug", ms: "Hardening", label: "cache" },
-            { key: "ROUBO-157", title: "Cache hit/miss observability logging", type: "Task", ms: "Hardening", label: "obs" },
-            { key: "ROUBO-160", title: "Instance hash in cache key for tenant safety", type: "Story", ms: "Sprint 24 (active)", label: "security" },
-            { key: "ROUBO-164", title: "Sort selection persists to per-project config", type: "Task", ms: "Sprint 25 (planned)", label: "config" },
+            {
+              key: "ROUBO-101",
+              title: "Cache key must include sort + status exclusion",
+              type: "Story",
+              ms: "Sprint 24 (active)",
+              label: "cache",
+            },
+            {
+              key: "ROUBO-104",
+              title: "Treat corrupt cache file as a cold miss",
+              type: "Bug",
+              ms: "Sprint 24 (active)",
+              label: "cache",
+            },
+            {
+              key: "ROUBO-108",
+              title: "Persist first-page snapshot to ~/.roubo at 0600",
+              type: "Story",
+              ms: "Sprint 24 (active)",
+              label: "security",
+            },
+            {
+              key: "ROUBO-112",
+              title: "Prev/Next pagination replaces infinite scroll",
+              type: "Story",
+              ms: "Sprint 25 (planned)",
+              label: "ui",
+            },
+            {
+              key: "ROUBO-115",
+              title: "Retain visited cursors for Prev navigation",
+              type: "Task",
+              ms: "Sprint 25 (planned)",
+              label: "ui",
+            },
+            {
+              key: "ROUBO-119",
+              title: "getSortFields RPC + host-rendered sort picker",
+              type: "Story",
+              ms: "Sprint 25 (planned)",
+              label: "plugin-api",
+            },
+            {
+              key: "ROUBO-123",
+              title: "Default ascending by item key, applied source-side",
+              type: "Story",
+              ms: "Sprint 25 (planned)",
+              label: "plugin-api",
+            },
+            {
+              key: "ROUBO-127",
+              title: "Refresh control shows in-progress state",
+              type: "Task",
+              ms: "Hardening",
+              label: "ui",
+            },
+            {
+              key: "ROUBO-131",
+              title: "Last-updated and stale-snapshot indicators",
+              type: "Task",
+              ms: "Hardening",
+              label: "ui",
+            },
+            {
+              key: "ROUBO-134",
+              title: "Only-To-Do default + migration banner",
+              type: "Story",
+              ms: "Sprint 24 (active)",
+              label: "ux",
+            },
+            {
+              key: "ROUBO-138",
+              title: "Source-side exclusion of resolved epics",
+              type: "Task",
+              ms: "Hardening",
+              label: "plugin-api",
+            },
+            {
+              key: "ROUBO-142",
+              title: "WCAG AA for pagination + sort picker",
+              type: "Task",
+              ms: "Hardening",
+              label: "a11y",
+            },
+            {
+              key: "ROUBO-146",
+              title: "Cache eviction on project unregister",
+              type: "Bug",
+              ms: "Sprint 24 (active)",
+              label: "cache",
+            },
+            {
+              key: "ROUBO-150",
+              title: "GHE: implement filterFacets/getFacetOptions",
+              type: "Story",
+              ms: "Sprint 25 (planned)",
+              label: "ghe",
+            },
+            {
+              key: "ROUBO-153",
+              title: "Background revalidation must never crash on reject",
+              type: "Bug",
+              ms: "Hardening",
+              label: "cache",
+            },
+            {
+              key: "ROUBO-157",
+              title: "Cache hit/miss observability logging",
+              type: "Task",
+              ms: "Hardening",
+              label: "obs",
+            },
+            {
+              key: "ROUBO-160",
+              title: "Instance hash in cache key for tenant safety",
+              type: "Story",
+              ms: "Sprint 24 (active)",
+              label: "security",
+            },
+            {
+              key: "ROUBO-164",
+              title: "Sort selection persists to per-project config",
+              type: "Task",
+              ms: "Sprint 25 (planned)",
+              label: "config",
+            },
           ],
         },
         github: {
@@ -454,16 +576,76 @@
             "GitHub has only open/closed, no native In Progress category. Only-To-Do is approximated: open issues, optionally excluding a configured in-progress label. Default stays Closed-only.",
           excludedCount: 7,
           issues: [
-            { key: "#812", title: "Persist React Query cache hint across reload", type: "enhancement", ms: "v1.2 (open)", label: "perf" },
-            { key: "#834", title: "Spinner + last-updated on refresh", type: "enhancement", ms: "v1.2 (open)", label: "ui" },
-            { key: "#851", title: "Prev/Next stepping with opaque cursors", type: "enhancement", ms: "v1.2 (open)", label: "ui" },
-            { key: "#860", title: "Sort picker hidden when plugin declares none", type: "enhancement", ms: "Backlog (open)", label: "plugin-api" },
-            { key: "#877", title: "Exclude closed milestones from facet options", type: "bug", ms: "v1.2 (open)", label: "filters" },
-            { key: "#889", title: "Document open/closed to To-Do mapping", type: "docs", ms: "Backlog (open)", label: "docs" },
-            { key: "#902", title: "Deterministic order falls back to number asc", type: "enhancement", ms: "v1.2 (open)", label: "ordering" },
-            { key: "#915", title: "Graceful MethodNotFound for getSortFields", type: "enhancement", ms: "Backlog (open)", label: "plugin-api" },
-            { key: "#922", title: "Stale banner reuses snapshot fallback path", type: "enhancement", ms: "v1.2 (open)", label: "reliability" },
-            { key: "#938", title: "a11y: announce page changes politely", type: "enhancement", ms: "Backlog (open)", label: "a11y" },
+            {
+              key: "#812",
+              title: "Persist React Query cache hint across reload",
+              type: "enhancement",
+              ms: "v1.2 (open)",
+              label: "perf",
+            },
+            {
+              key: "#834",
+              title: "Spinner + last-updated on refresh",
+              type: "enhancement",
+              ms: "v1.2 (open)",
+              label: "ui",
+            },
+            {
+              key: "#851",
+              title: "Prev/Next stepping with opaque cursors",
+              type: "enhancement",
+              ms: "v1.2 (open)",
+              label: "ui",
+            },
+            {
+              key: "#860",
+              title: "Sort picker hidden when plugin declares none",
+              type: "enhancement",
+              ms: "Backlog (open)",
+              label: "plugin-api",
+            },
+            {
+              key: "#877",
+              title: "Exclude closed milestones from facet options",
+              type: "bug",
+              ms: "v1.2 (open)",
+              label: "filters",
+            },
+            {
+              key: "#889",
+              title: "Document open/closed to To-Do mapping",
+              type: "docs",
+              ms: "Backlog (open)",
+              label: "docs",
+            },
+            {
+              key: "#902",
+              title: "Deterministic order falls back to number asc",
+              type: "enhancement",
+              ms: "v1.2 (open)",
+              label: "ordering",
+            },
+            {
+              key: "#915",
+              title: "Graceful MethodNotFound for getSortFields",
+              type: "enhancement",
+              ms: "Backlog (open)",
+              label: "plugin-api",
+            },
+            {
+              key: "#922",
+              title: "Stale banner reuses snapshot fallback path",
+              type: "enhancement",
+              ms: "v1.2 (open)",
+              label: "reliability",
+            },
+            {
+              key: "#938",
+              title: "a11y: announce page changes politely",
+              type: "enhancement",
+              ms: "Backlog (open)",
+              label: "a11y",
+            },
           ],
         },
         // FR-011 graceful degradation: a plugin built against an older host-API
@@ -481,15 +663,37 @@
             "This plugin does not implement getSortFields (built against an older host-API). The host renders no sort picker and uses the plugin's natural / key-ascending order, with no error.",
           excludedCount: 3,
           issues: [
-            { key: "LEG-7", title: "Legacy plugin lists issues without a sort RPC", type: "Story", ms: "Current (open)", label: "legacy" },
-            { key: "LEG-9", title: "Host degrades gracefully to key-ascending order", type: "Task", ms: "Current (open)", label: "legacy" },
-            { key: "LEG-12", title: "No sort picker is shown and no error is surfaced", type: "Task", ms: "Current (open)", label: "legacy" },
+            {
+              key: "LEG-7",
+              title: "Legacy plugin lists issues without a sort RPC",
+              type: "Story",
+              ms: "Current (open)",
+              label: "legacy",
+            },
+            {
+              key: "LEG-9",
+              title: "Host degrades gracefully to key-ascending order",
+              type: "Task",
+              ms: "Current (open)",
+              label: "legacy",
+            },
+            {
+              key: "LEG-12",
+              title: "No sort picker is shown and no error is surfaced",
+              type: "Task",
+              ms: "Current (open)",
+              label: "legacy",
+            },
           ],
         },
       };
 
       const TYPE_TONE = {
-        Story: "violet", enhancement: "violet", Task: "stone", Bug: "red", bug: "red",
+        Story: "violet",
+        enhancement: "violet",
+        Task: "stone",
+        Bug: "red",
+        bug: "red",
         docs: "cyan",
       };
       const PAGE_SIZE = 6;
@@ -673,11 +877,22 @@
         const sortControl = sel.closest("div");
         if (sortControl) sortControl.style.display = d.sortFields.length ? "" : "none";
         sel.innerHTML = d.sortFields
-          .map((f) => `<option value="${f.id}" ${f.id === state.sortBy ? "selected" : ""}>${f.label}</option>`)
+          .map(
+            (f) =>
+              `<option value="${f.id}" ${f.id === state.sortBy ? "selected" : ""}>${f.label}</option>`,
+          )
           .join("");
         const dirBtn = document.getElementById("sortDir");
-        dirBtn.querySelector("i").setAttribute("data-lucide", state.sortDir === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow");
-        dirBtn.setAttribute("aria-label", `Sort direction: ${state.sortDir === "asc" ? "ascending" : "descending"}`);
+        dirBtn
+          .querySelector("i")
+          .setAttribute(
+            "data-lucide",
+            state.sortDir === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow",
+          );
+        dirBtn.setAttribute(
+          "aria-label",
+          `Sort direction: ${state.sortDir === "asc" ? "ascending" : "descending"}`,
+        );
         dirBtn.title = state.sortDir === "asc" ? "Ascending" : "Descending";
 
         // excluded note
@@ -715,16 +930,21 @@
           // pager controls
           document.getElementById("prevBtn").disabled = state.page === 0;
           document.getElementById("nextBtn").disabled = state.page >= pc - 1;
-          document.getElementById("pageLabel").textContent = `Page ${state.page + 1} of ${pc} · ${items.length} items`;
+          document.getElementById("pageLabel").textContent =
+            `Page ${state.page + 1} of ${pc} · ${items.length} items`;
         }
 
         // controls reflect state
-        document.querySelectorAll("[data-plugin]").forEach((b) =>
-          b.setAttribute("data-active", b.dataset.plugin === state.plugin ? "true" : "false"),
-        );
-        document.querySelectorAll("[data-view]").forEach((b) =>
-          b.setAttribute("data-active", b.dataset.view === state.view ? "true" : "false"),
-        );
+        document
+          .querySelectorAll("[data-plugin]")
+          .forEach((b) =>
+            b.setAttribute("data-active", b.dataset.plugin === state.plugin ? "true" : "false"),
+          );
+        document
+          .querySelectorAll("[data-view]")
+          .forEach((b) =>
+            b.setAttribute("data-active", b.dataset.view === state.view ? "true" : "false"),
+          );
         document.getElementById("reqHint").textContent = hintFor();
 
         if (window.lucide) lucide.createIcons();
@@ -815,9 +1035,9 @@
           announce(`Active plugin ${ds().label}`);
         }),
       );
-      document.querySelectorAll("[data-view]").forEach((b) =>
-        b.addEventListener("click", () => setView(b.dataset.view)),
-      );
+      document
+        .querySelectorAll("[data-view]")
+        .forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 
       document.getElementById("toggleBanner").addEventListener("click", () => {
         state.bannerVisible = !state.bannerVisible;
@@ -857,12 +1077,16 @@
       }
       document.getElementById("statusConfigBtn").addEventListener("click", openStatusModal);
       document.getElementById("bannerSettings").addEventListener("click", openStatusModal);
-      document.getElementById("statusModalClose").addEventListener("click", () =>
-        document.getElementById("statusModal").classList.add("hidden"),
-      );
-      document.getElementById("statusCancel").addEventListener("click", () =>
-        document.getElementById("statusModal").classList.add("hidden"),
-      );
+      document
+        .getElementById("statusModalClose")
+        .addEventListener("click", () =>
+          document.getElementById("statusModal").classList.add("hidden"),
+        );
+      document
+        .getElementById("statusCancel")
+        .addEventListener("click", () =>
+          document.getElementById("statusModal").classList.add("hidden"),
+        );
       document.getElementById("statusSave").addEventListener("click", () => {
         const checks = document.querySelectorAll("#statusOptions input[type=checkbox]");
         state.excluded = [...checks].filter((c) => c.checked).map((c) => c.dataset.cat);
