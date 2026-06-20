@@ -33,7 +33,7 @@
             },
             {
               "id": "S001-O04",
-              "expected": "Time from panel mount to first visible row is under 200ms (p95 target per CLI-NFR-002)"
+              "expected": "The first visible row renders from the persisted on-disk snapshot without waiting on a live network round-trip (rows paint while/before the live RPC resolves). The literal <200ms p95 first-paint budget for CLI-NFR-002 is owned and measured by CLI-TC-011; this e2e-level observation is its no-network-wait proxy."
             }
           ]
         },
