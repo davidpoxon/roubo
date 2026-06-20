@@ -146,6 +146,11 @@ export async function registerFixtureProject(
     // resolves to a success state (the server derives sources from
     // `config.project.repo`).
     projectRepo?: string;
+    // CLI-TC-062 (#573): optional port base written into the fixture
+    // roubo.yaml. A spec that registers two fixture projects at once must give
+    // each a distinct base, since the port allocator rejects overlapping
+    // ranges. Defaults to the route's high base when omitted.
+    portBase?: number;
     // TC-161: optional list of benches to seed against the fixture project,
     // each pinned with its own `assignedIssue`. The server route persists
     // them onto fresh tmpdir-backed PersistedBench rows and reloads

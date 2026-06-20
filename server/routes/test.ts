@@ -101,6 +101,10 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
   }
 }
 
+// Default port base for a fixture project. High enough to keep collisions with
+// a developer's pre-existing dev projects unlikely.
+const FIXTURE_DEFAULT_PORT_BASE = 39100;
+
 // Minimum roubo.yaml that satisfies RouboConfigSchema (project, layout,
 // components ≥1, ports ≥1, benches). The single port uses a high base to
 // keep collisions with a developer's pre-existing dev projects unlikely;
@@ -108,7 +112,16 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
 // registerProject + saveOverride. `benches.max` is set to 5 (rather than 1)
 // so the `seedBenches` option below can pin multiple persisted benches
 // without violating the config cap.
-function writeFixtureRouboYaml(repoPath: string, projectId: string, repo?: string): void {
+//
+// CLI-TC-062 (#573): a spec that registers two fixture projects at once (e.g.
+// to prove per-project config independence across plugins) must give each a
+// distinct `portBase`, since the port allocator rejects overlapping ranges.
+function writeFixtureRouboYaml(
+  repoPath: string,
+  projectId: string,
+  repo?: string,
+  portBase: number = FIXTURE_DEFAULT_PORT_BASE,
+): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
   // TC-164/167/177: when a spec passes `projectRepo`, emit it under `project.repo`
@@ -128,7 +141,7 @@ components:
     command: "true"
 ports:
   app:
-    base: 39100
+    base: ${portBase}
 benches:
   max: 5
 `;
@@ -473,6 +486,11 @@ interface RegisterFixtureBody {
   // success state (the preview reads `config.project.repo` via
   // `deriveGithubSources`). Independent of `integrationConfig`.
   projectRepo?: unknown;
+  // CLI-TC-062 (#573): optional port base written into the fixture roubo.yaml.
+  // A spec that registers two fixture projects at once must give each a
+  // distinct base so the port allocator does not reject the second one's
+  // overlapping range. Defaults to FIXTURE_DEFAULT_PORT_BASE when omitted.
+  portBase?: unknown;
   // WU-068: optional extra integration fields (instance, sources,
   // capturedUserId, etc.) merged into the saved override after `plugin`.
   // `plugin` on this nested object is rejected so the top-level field
@@ -514,6 +532,7 @@ interface ParsedRegisterFixture {
   plugin: string | null;
   integrationConfig?: IntegrationConfig;
   projectRepo?: string;
+  portBase?: number;
   seedBenches: SeedBenchInput[];
   seedSpecs: SeedSpecInput[];
   gitInit: boolean;
@@ -633,6 +652,17 @@ function parseRegisterFixtureBody(
     }
     projectRepo = body.projectRepo;
   }
+  let portBase: number | undefined;
+  if (body?.portBase !== undefined) {
+    if (
+      typeof body.portBase !== "number" ||
+      !Number.isInteger(body.portBase) ||
+      body.portBase <= 0
+    ) {
+      return "portBase must be a positive integer when provided";
+    }
+    portBase = body.portBase;
+  }
   const seedBenches = parseSeedBenches(body?.seedBenches);
   if (typeof seedBenches === "string") return seedBenches;
   const seedSpecs = parseSeedSpecs(body?.seedSpecs);
@@ -647,6 +677,7 @@ function parseRegisterFixtureBody(
     plugin,
     integrationConfig,
     projectRepo,
+    portBase,
     seedBenches,
     seedSpecs,
     gitInit,
@@ -693,8 +724,16 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (typeof parsed === "string") {
     return res.status(400).json({ error: parsed });
   }
-  const { projectId, plugin, integrationConfig, projectRepo, seedBenches, seedSpecs, gitInit } =
-    parsed;
+  const {
+    projectId,
+    plugin,
+    integrationConfig,
+    projectRepo,
+    portBase,
+    seedBenches,
+    seedSpecs,
+    gitInit,
+  } = parsed;
 
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
@@ -710,7 +749,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
 
   const seededWorkspacePaths: string[] = [];
   try {
-    writeFixtureRouboYaml(repoPath, projectId, projectRepo);
+    writeFixtureRouboYaml(repoPath, projectId, projectRepo, portBase);
     // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both
     // to spec discovery (which reads the repo root) and to the provisioned
