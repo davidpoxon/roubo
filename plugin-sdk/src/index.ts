@@ -1,7 +1,26 @@
 export { definePlugin } from "./define-plugin.js";
+export { defineComponentPlugin } from "./define-component-plugin.js";
 export { host } from "./host-client.js";
+export { host as componentHost } from "./component-host-client.js";
+export { SUPPORTED_CONTRACT_VERSION } from "./types.js";
 export type {
+  BenchContext,
+  CapabilityQueryResult,
+  ComponentContract,
+  ComponentContractMethodName,
+  ComponentHostClient,
+  ComponentPluginHandle,
+  ComponentStatus,
   ConfiguredSource,
+  DeclarativeComponentContract,
+  DefineComponentPluginOptions,
+  DockerProvisionDescriptor,
+  ImperativeComponentContract,
+  OneshotProvisionDescriptor,
+  ProcessProvisionDescriptor,
+  ProcessRunResult,
+  ProcessStatusResult,
+  ProvisionDescriptor,
   ConnectionStatus,
   ContractMethodName,
   CurrentUser,
