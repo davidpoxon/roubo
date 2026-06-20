@@ -1,9 +1,5 @@
-import {
-  createMessageConnection,
-  StreamMessageReader,
-  StreamMessageWriter,
-  type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { createPluginConnection } from "./connection.js";
 import { bindHostConnection, host, unbindHostConnection } from "./host-client.js";
 import type {
   ContractMethodName,
@@ -62,12 +58,7 @@ export function definePlugin(
   contract: PluginContract,
   options: DefinePluginOptions = {},
 ): PluginHandle {
-  const input = options.streams?.input ?? process.stdin;
-  const output = options.streams?.output ?? process.stdout;
-
-  const reader = new StreamMessageReader(input);
-  const writer = new StreamMessageWriter(output);
-  const connection: MessageConnection = createMessageConnection(reader, writer);
+  const connection: MessageConnection = createPluginConnection(options.streams);
 
   for (const method of CONTRACT_METHODS) {
     const handler = contract[method];

@@ -545,3 +545,271 @@ export interface PluginHandle {
   /** Tear down the RPC connection. Tests use this; production plugins do not. */
   dispose(): void;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Component plugins (FR-002, US-005)
+//
+// A component plugin launches and supervises a bench component (a database, a
+// process, a one-shot deploy) instead of answering integration-issue queries.
+// It runs over the same vscode-jsonrpc/stdio transport as an integration
+// plugin, registered via `defineComponentPlugin()` rather than `definePlugin()`.
+//
+// See:
+//   .specifications/component-plugins/architecture.md ('Component contract')
+//   .specifications/component-plugins/prd.md (CP-FR-002, CP-US-005)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The SDK-level contract version a component plugin declares. The host gates
+ * compatibility at validation time (a mismatch is rejected before any
+ * lifecycle method is called, never at call time). A single integer mirrors
+ * the `schemaVersion: 1` precedent on `ProvisionDescriptor`.
+ */
+export const SUPPORTED_CONTRACT_VERSION = 1 as const;
+
+/**
+ * Minimal structural copy of `@roubo/shared`'s `ProvisionDescriptor` union.
+ *
+ * `@roubo/plugin-sdk` is a published, dependency-light package (`private:
+ * false`, only `vscode-jsonrpc`) whereas `@roubo/shared` is a `private: true`
+ * workspace package that ships raw TypeScript. Taking a workspace dependency on
+ * it would break both `npm publish` (an unpublished dependency) and the SDK's
+ * own `tsc` build (`rootDir: ./src` cannot import a `.ts` file outside `src`).
+ * So the descriptor shape is restated here. It MUST stay structurally in sync
+ * with `shared/provision-descriptor-schema.ts` (the Zod schema is the
+ * authority; the host validates every descriptor against it).
+ */
+export interface DockerProvisionDescriptor {
+  schemaVersion: 1;
+  kind: "docker";
+  composeFile: string;
+  service: string;
+  initService?: string;
+  portEnvVar?: string;
+  migration?: { command: string; args?: string[] };
+  connection?: { template: string };
+  assignedContainerId?: string;
+  healthcheck?: boolean;
+}
+
+export interface ProcessProvisionDescriptor {
+  schemaVersion: 1;
+  kind: "process";
+  command: string;
+  env?: Record<string, string>;
+  envFile?: string;
+  cwd?: string;
+  setup?: string;
+  dependsOn?: string[];
+}
+
+export interface OneshotProvisionDescriptor {
+  schemaVersion: 1;
+  kind: "oneshot";
+  command: string;
+  env?: Record<string, string>;
+  envFile?: string;
+  cwd?: string;
+  dependsOn?: string[];
+  timeoutMs?: number;
+}
+
+/**
+ * Discriminated (on `kind`) union a declarative component plugin returns from
+ * `translate`. The host's `LifecycleEngine` validates it against the supported
+ * `schemaVersion` and then executes it.
+ */
+export type ProvisionDescriptor =
+  | DockerProvisionDescriptor
+  | ProcessProvisionDescriptor
+  | OneshotProvisionDescriptor;
+
+/**
+ * Per-bench context the host resolves (ports allocated, env merged) before any
+ * lifecycle method runs. A component plugin is spawned once per plugin and
+ * multiplexes benches; `benchId` distinguishes the active bench so a single
+ * process serves several concurrently. Mirrors `BenchContext` in
+ * architecture.md ('Data model').
+ */
+export interface BenchContext {
+  projectId: string;
+  benchId: number;
+  componentName: string;
+  workspacePath: string;
+  ports: Record<string, number>;
+  env: Record<string, string>;
+}
+
+/**
+ * Lifecycle status a component plugin reports (imperative `health`, or pushed
+ * via `host.component.reportStatus`). `completed` is the terminal state for a
+ * successful one-shot lifecycle (FR-014 / FR-022 delta), distinct from
+ * `stopped` (idle) and `error`. This SDK-facing shape intentionally diverges
+ * from `@roubo/shared`'s `ComponentStatus`: it adds the `completed` status,
+ * treats `name` / `setupComplete` as optional (or absent) rather than required,
+ * and models `phases` as a `Record<string, string>` rather than a
+ * `ComponentPhase[]`. The shared type stays authoritative host-side; keep the
+ * two reconciled deliberately, not field-for-field identical.
+ */
+export interface ComponentStatus {
+  status: "stopped" | "starting" | "running" | "error" | "stopping" | "completed";
+  pid?: number;
+  containerId?: string;
+  phases?: Record<string, string>;
+  setupComplete?: boolean;
+  error?: string;
+  statusDetail?: string;
+  startedAt?: string;
+}
+
+/**
+ * Declarative (preferred) component contract: a pure function mapping the
+ * plugin's `config` plus the `BenchContext` to a `ProvisionDescriptor` the host
+ * executes. A plugin implements EITHER `translate` OR the imperative hooks
+ * below, never both (`defineComponentPlugin` rejects both at validation time).
+ */
+export interface DeclarativeComponentContract {
+  translate: (params: {
+    config: Record<string, unknown>;
+    context: BenchContext;
+  }) => Promise<ProvisionDescriptor> | ProvisionDescriptor;
+  start?: never;
+  stop?: never;
+  health?: never;
+  cleanup?: never;
+}
+
+/**
+ * Imperative (escape-hatch) component contract: lifecycle hooks the plugin
+ * drives through the broker (`host.process.*`, `host.docker.*`, `host.ports.*`)
+ * for a novel lifecycle a `ProvisionDescriptor` cannot express. All four hooks
+ * are required so the host never reaches a half-implemented lifecycle (a plugin
+ * missing `stop` is rejected at validation, not at stop-time).
+ */
+export interface ImperativeComponentContract {
+  start: (context: BenchContext) => Promise<void> | void;
+  stop: (context: BenchContext) => Promise<void> | void;
+  health: (context: BenchContext) => Promise<ComponentStatus> | ComponentStatus;
+  cleanup: (context: BenchContext) => Promise<void> | void;
+  translate?: never;
+}
+
+/**
+ * The contract a component plugin implements: the declarative `translate` path
+ * XOR the imperative lifecycle hooks. The TypeScript `never` guards make the
+ * two variants mutually exclusive at compile time; `defineComponentPlugin` also
+ * enforces the rule at runtime/validation time.
+ */
+export type ComponentContract = DeclarativeComponentContract | ImperativeComponentContract;
+
+export type ComponentContractMethodName = "translate" | "start" | "stop" | "health" | "cleanup";
+
+/** Options for `defineComponentPlugin`. */
+export interface DefineComponentPluginOptions {
+  /**
+   * The contract version the plugin declares. Must equal
+   * `SUPPORTED_CONTRACT_VERSION`; a mismatch is rejected synchronously at
+   * definition (validation) time, never deferred to a lifecycle call.
+   * Defaults to `SUPPORTED_CONTRACT_VERSION` when omitted.
+   */
+  contractVersion?: number;
+  /**
+   * Replace the default stdio streams. Test harnesses inject paired streams;
+   * production plugin code never sets this.
+   */
+  streams?: {
+    input: NodeJS.ReadableStream;
+    output: NodeJS.WritableStream;
+  };
+}
+
+/** Result of `host.process.run` (a blocking run-to-completion). */
+export interface ProcessRunResult {
+  exitCode: number;
+}
+
+/** Result of `host.process.status`. */
+export interface ProcessStatusResult {
+  alive: boolean;
+  exitCode?: number;
+}
+
+/** Result of `host.capability.query` (the FR-017 graceful version gate). */
+export interface CapabilityQueryResult {
+  available: boolean;
+  introducedIn?: string;
+}
+
+/**
+ * The host client surface available to a component plugin inside its contract
+ * methods. Each call is an RPC request (or notification) over the bound
+ * connection. The host owns every process and container handle; the plugin
+ * never spawns anything itself. Mirrors the broker surface in architecture.md.
+ */
+export interface ComponentHostClient {
+  process: {
+    start(params: {
+      id: string;
+      command: string;
+      args?: string[];
+      env: Record<string, string>;
+      cwd: string;
+    }): Promise<{ pid: number }>;
+    run(params: {
+      id: string;
+      command: string;
+      args?: string[];
+      env: Record<string, string>;
+      cwd: string;
+      timeoutMs: number;
+    }): Promise<ProcessRunResult>;
+    stop(params: { id: string }): Promise<void>;
+    status(params: { id: string }): Promise<ProcessStatusResult>;
+    logs(params: { id: string }): Promise<string[]>;
+  };
+  docker: {
+    composeUp(params: {
+      projectName: string;
+      composeFile: string;
+      cwd: string;
+      service: string;
+      env: Record<string, string>;
+    }): Promise<{ containerId: string }>;
+    waitForHealthy(params: {
+      projectName: string;
+      service: string;
+      timeoutMs: number;
+    }): Promise<{ healthy: boolean }>;
+    composeRunInit(params: {
+      projectName: string;
+      composeFile: string;
+      cwd: string;
+      initService: string;
+    }): Promise<void>;
+    composeStop(params: {
+      projectName: string;
+      composeFile: string;
+      cwd: string;
+      service?: string;
+    }): Promise<void>;
+    composeDown(params: { projectName: string; composeFile: string; cwd: string }): Promise<void>;
+    assignContainer(params: { componentName: string; containerId: string }): Promise<void>;
+  };
+  ports: {
+    get(params: { componentName: string }): Promise<number>;
+  };
+  component: {
+    reportStatus(status: ComponentStatus): void;
+    reportLog(params: { source: "stdout" | "stderr"; text: string; ts: number }): void;
+  };
+  capability: {
+    query(params: { method: string }): Promise<CapabilityQueryResult>;
+  };
+}
+
+export interface ComponentPluginHandle {
+  /** The connected component host client. Available before any hook is called. */
+  host: ComponentHostClient;
+  /** Tear down the RPC connection. Tests use this; production plugins do not. */
+  dispose(): void;
+}
