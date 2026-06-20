@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "component-plugins",
+  "title": "Component Plugins",
+  "created_at": "2026-06-20T06:05:01Z",
+  "updated_at": "2026-06-20T07:46:23Z",
+  "current_stage": "align",
+  "stages": {
+    "interview": {
+      "status": "done",
+      "artifact": "brief.md",
+      "updated_at": "2026-06-20T06:05:01Z"
+    },
+    "feasibility": {
+      "status": "done",
+      "artifact": "feasibility.md",
+      "updated_at": "2026-06-20T06:12:00Z"
+    },
+    "prd": {
+      "status": "done",
+      "artifact": "prd.md",
+      "updated_at": "2026-06-20T06:40:00Z"
+    },
+    "architecture": {
+      "status": "done",
+      "artifact": "architecture.md",
+      "updated_at": "2026-06-20T06:52:00Z"
+    },
+    "prototype": {
+      "status": "done",
+      "artifact": "prototype/",
+      "updated_at": "2026-06-20T07:05:00Z"
+    },
+    "test-cases": {
+      "status": "done",
+      "artifact": "test-cases.json",
+      "updated_at": "2026-06-20T07:23:17Z"
+    },
+    "breakdown": {
+      "status": "done",
+      "artifact": "issues.json",
+      "updated_at": "2026-06-20T07:39:02Z"
+    },
+    "review": {
+      "status": "pending",
+      "artifact": "implementation-review.md",
+      "updated_at": null
+    },
+    "align": {
+      "status": "done",
+      "artifact": null,
+      "updated_at": "2026-06-20T07:46:23Z"
+    }
+  },
+  "id_counters": {
+    "US": 12,
+    "FR": 22,
+    "NFR": 7,
+    "TC": 129
+  },
+  "scope": null
+}

@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en" class="antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roubo · Component Plugins prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+              mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+      }
+      .font-mono {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+      }
+      /* delicate, purposeful motion: 150-300ms, no overshoot (DESIGN.md) */
+      .t {
+        transition: all 160ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      [data-view],
+      [data-overlay] {
+        animation: fade 180ms ease both;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+      }
+      ::selection {
+        background: #fde68a;
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-stone-700">
+    <div class="flex min-h-screen">
+      <!-- Sidebar ---------------------------------------------------------- -->
+      <aside class="hidden md:flex w-60 shrink-0 flex-col border-r border-stone-200 bg-white">
+        <div class="flex items-center gap-2.5 px-5 h-14 border-b border-stone-200">
+          <div class="grid h-6 w-6 place-items-center rounded-md bg-amber-500">
+            <i data-lucide="hammer" class="h-3.5 w-3.5 text-stone-950"></i>
+          </div>
+          <span class="text-[15px] font-semibold tracking-tight text-stone-900">Roubo</span>
+        </div>
+        <nav class="flex-1 px-3 py-4 space-y-0.5" aria-label="Primary">
+          <button
+            data-nav="benches"
+            class="nav-item w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] t outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <i data-lucide="layers" class="h-4 w-4"></i> Benches
+          </button>
+          <button
+            data-nav="marketplace"
+            class="nav-item w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] t outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <i data-lucide="package" class="h-4 w-4"></i> Marketplace
+          </button>
+          <button
+            data-nav="settings"
+            class="nav-item w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] t outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <i data-lucide="settings" class="h-4 w-4"></i> Settings
+          </button>
+        </nav>
+        <div class="px-5 py-3 border-t border-stone-200">
+          <p class="text-[11px] text-stone-400 leading-relaxed">
+            Prototype · component-plugins<br />static mock, no backend
+          </p>
+        </div>
+      </aside>
+
+      <!-- Main ------------------------------------------------------------- -->
+      <main class="flex-1 min-w-0">
+        <!-- ===================== MARKETPLACE VIEW ===================== -->
+        <section data-view="marketplace">
+          <header class="border-b border-stone-200 bg-white/80 backdrop-blur px-6 lg:px-10 pt-7 pb-5">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Plugin Marketplace</h1>
+                <p class="mt-1 text-[13px] text-stone-500 max-w-xl">
+                  Browse, install, and update Roubo plugins. Component plugins define what a bench
+                  runs; integration plugins connect issue trackers.
+                </p>
+              </div>
+              <span
+                class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
+              >
+                <i data-lucide="shield-check" class="h-3.5 w-3.5"></i> First-party curated
+              </span>
+            </div>
+
+            <div class="mt-5 flex items-center gap-3 flex-wrap">
+              <div class="relative flex-1 min-w-[220px] max-w-md">
+                <i
+                  data-lucide="search"
+                  class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400"
+                ></i>
+                <input
+                  id="search"
+                  type="search"
+                  placeholder="Search plugins"
+                  aria-label="Search plugins"
+                  class="w-full rounded-lg border border-stone-200 bg-white pl-9 pr-3 py-2 text-[13px] text-stone-900 placeholder:text-stone-400 outline-none t focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 hover:border-stone-300"
+                />
+              </div>
+              <div class="flex items-center gap-1.5" role="tablist" aria-label="Filter by kind">
+                <button data-filter="all" class="filter-chip" role="tab">All</button>
+                <button data-filter="component" class="filter-chip" role="tab">Component</button>
+                <button data-filter="integration" class="filter-chip" role="tab">Integration</button>
+              </div>
+            </div>
+          </header>
+
+          <div class="px-6 lg:px-10 py-7">
+            <div id="grid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+            <p id="empty" class="hidden py-16 text-center text-sm text-stone-400">
+              No plugins match that search.
+            </p>
+          </div>
+        </section>
+
+        <!-- ===================== BENCHES VIEW ===================== -->
+        <section data-view="benches" class="hidden">
+          <header class="border-b border-stone-200 bg-white/80 backdrop-blur px-6 lg:px-10 pt-7 pb-5">
+            <div class="flex items-center gap-2 text-[12px] text-stone-400 font-mono">
+              responda <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i> bench-2
+            </div>
+            <h1 class="mt-1 text-2xl font-semibold tracking-tight text-stone-900">Components</h1>
+            <p class="mt-1 text-[13px] text-stone-500 max-w-2xl">
+              Every component on this bench is now backed by a plugin. Core holds no component-type
+              knowledge: the bench runs identically to the built-in version.
+            </p>
+          </header>
+          <div class="px-6 lg:px-10 py-7 grid gap-6 lg:grid-cols-5">
+            <div class="lg:col-span-3 space-y-3" id="components"></div>
+            <div class="lg:col-span-2 space-y-6">
+              <!-- config snippet -->
+              <div class="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2.5 border-b border-stone-200">
+                  <span class="text-[12px] font-medium text-stone-600 flex items-center gap-1.5">
+                    <i data-lucide="file-code" class="h-3.5 w-3.5"></i>
+                    <span class="font-mono">.roubo/roubo.yaml</span>
+                  </span>
+                  <span class="text-[11px] text-stone-400">migrated binding</span>
+                </div>
+                <pre class="px-4 py-3 text-[12px] leading-relaxed font-mono text-stone-700 overflow-x-auto"><span class="text-stone-400">components:</span>
+  <span class="text-stone-900">sql:</span>
+    <span class="text-amber-700">plugin:</span> roubo/database<span class="text-stone-400">   # was type: database</span>
+    <span class="text-amber-700">config:</span>
+      composeFile: docker-compose.yml
+      service: sql
+      migration: { command: dotnet run ... }
+  <span class="text-stone-900">frontend:</span>
+    <span class="text-amber-700">plugin:</span> roubo/process<span class="text-stone-400">    # was type: process</span>
+    <span class="text-amber-700">config:</span>
+      command: npm run dev
+      dependsOn: [intentional-responda-host]</pre>
+              </div>
+              <!-- logs -->
+              <div class="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2.5 border-b border-stone-200">
+                  <span class="text-[12px] font-medium text-stone-600 flex items-center gap-1.5">
+                    <i data-lucide="terminal" class="h-3.5 w-3.5"></i> sql · logs
+                  </span>
+                  <span class="text-[11px] text-stone-400 font-mono">roubo/database</span>
+                </div>
+                <pre class="px-4 py-3 text-[12px] leading-relaxed font-mono text-stone-500 overflow-x-auto bg-stone-50/60"><span class="text-green-800">[host]</span> compose up sql ... ok
+<span class="text-green-800">[host]</span> waitForHealthy sql ... healthy
+<span class="text-green-800">[host]</span> initdb ... ok
+<span class="text-amber-700">[plugin]</span> migration: applied 12 migrations
+<span class="text-green-800">[host]</span> connection resolved: <span class="text-stone-700">Server=localhost,3000;...</span></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== SETTINGS VIEW (stub) ===================== -->
+        <section data-view="settings" class="hidden">
+          <div class="px-6 lg:px-10 py-20 max-w-md">
+            <div class="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
+              <i data-lucide="settings" class="mx-auto h-6 w-6 text-stone-400"></i>
+              <p class="mt-3 text-sm text-stone-500">
+                Settings &rarr; Plugins lives here. Out of scope for this prototype, which focuses on
+                the marketplace and the install consent flow.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ===================== CONSENT DIALOG ===================== -->
+    <div
+      id="consent"
+      data-overlay
+      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="consent-title"
+        class="w-full max-w-lg rounded-xl border border-stone-200 bg-white shadow-2xl outline-none"
+      >
+        <div class="px-5 py-4 border-b border-stone-200">
+          <div class="flex items-start gap-3">
+            <div id="consent-icon" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-700"></div>
+            <div class="min-w-0">
+              <h2 id="consent-title" class="text-sm font-semibold text-stone-900"></h2>
+              <p id="consent-sub" class="mt-0.5 text-xs text-stone-500"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- trust banner -->
+        <div class="px-5 pt-4">
+          <div
+            id="consent-trust"
+            class="rounded-lg border px-3 py-2 text-[12px] flex items-start gap-2"
+          ></div>
+        </div>
+
+        <div class="px-5 pt-4">
+          <p class="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+            This plugin requests
+          </p>
+          <ul id="consent-perms" class="mt-2 space-y-2"></ul>
+        </div>
+
+        <label
+          class="mx-5 mt-4 mb-1 flex items-start gap-2.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 cursor-pointer t hover:border-stone-300"
+        >
+          <input
+            id="ack"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 shrink-0 rounded border-stone-300 text-amber-500 accent-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500"
+          />
+          <span class="text-[12px] text-stone-600"
+            >I understand this plugin runs with my privileges and acknowledge the access listed
+            above.</span
+          >
+        </label>
+
+        <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200">
+          <button
+            id="consent-cancel"
+            class="px-3 py-1.5 text-sm text-stone-600 hover:text-stone-900 rounded-lg t outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            Cancel
+          </button>
+          <button
+            id="consent-confirm"
+            disabled
+            class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg t outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+          >
+            <i data-lucide="download" class="h-3.5 w-3.5"></i> Install plugin
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== DETAIL DRAWER ===================== -->
+    <div id="drawer" data-overlay class="fixed inset-0 z-40 hidden">
+      <div class="absolute inset-0 bg-black/40" data-close-drawer></div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="drawer-title"
+        class="absolute right-0 top-0 h-full w-full max-w-md border-l border-stone-200 bg-white overflow-y-auto"
+      >
+        <div id="drawer-body"></div>
+      </div>
+    </div>
+
+    <!-- ===================== TOAST ===================== -->
+    <div
+      id="toast"
+      class="pointer-events-none fixed bottom-5 left-1/2 z-[60] hidden -translate-x-1/2 items-center gap-2 rounded-lg border border-green-200 bg-white px-4 py-2.5 text-[13px] text-stone-800"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="grid h-4 w-4 place-items-center rounded-full bg-green-500"
+        ><i data-lucide="check" class="h-3 w-3 text-white"></i
+      ></span>
+      <span id="toast-msg"></span>
+    </div>
+
+    <script>
+      // ----- mock catalog (baked in; no network) -----------------------------
+      const CAT = {
+        network: { label: "Network access", icon: "globe", blurb: "Reach external hosts" },
+        credentials: { label: "Stored credentials", icon: "key-round", blurb: "Read or write saved secrets" },
+        filesystem: { label: "Filesystem", icon: "folder", blurb: "Read files in the workspace" },
+        processes: { label: "Run processes", icon: "terminal", blurb: "Spawn host processes" },
+        ports: { label: "Bind ports", icon: "plug", blurb: "Reserve bench ports" },
+        docker: { label: "Docker / containers", icon: "boxes", blurb: "Manage compose containers" },
+      };
+
+      const PLUGINS = [
+        {
+          id: "roubo/database", name: "Database", kind: "component", version: "2.0.0",
+          icon: "database", installed: true, summary: "Docker-backed databases via compose, with migrations and connection-string templating.",
+          perms: { docker: "Manage the compose service for the database container.", processes: "Run the migration command.", filesystem: "Read the compose file and workspace.", ports: "Reserve the database host port." },
+        },
+        {
+          id: "roubo/process", name: "Process", kind: "component", version: "2.0.0",
+          icon: "terminal", installed: true, summary: "Long-running commands: dev servers, watchers, workers, with setup and env handling.",
+          perms: { processes: "Spawn and supervise the command.", filesystem: "Read the working directory and env file.", ports: "Reserve the component's dev port.", network: "Bind the dev server to localhost." },
+        },
+        {
+          id: "roubo/redis", name: "Redis", kind: "component", version: "1.3.0",
+          icon: "box", installed: false, summary: "A Redis cache component: brings up a Redis container and exposes its connection.",
+          perms: { docker: "Run the Redis container via compose.", ports: "Reserve the Redis host port." },
+        },
+        {
+          id: "roubo/clasp-deploy", name: "Clasp Deploy", kind: "component", version: "0.4.0", oneshot: true,
+          icon: "rocket", installed: false, summary: "Deploy Apps Script projects to Google Cloud via clasp. A one-shot component: start runs to completion.",
+          perms: { network: "Reach accounts.google.com and script.googleapis.com.", credentials: "Read your stored Google OAuth token.", processes: "Run the clasp CLI to push the deploy.", filesystem: "Read the project to deploy." },
+        },
+        {
+          id: "roubo/worker-queue", name: "Worker Queue", kind: "component", version: "1.0.0", latest: "1.1.0",
+          icon: "cpu", installed: true, update: true, summary: "A background job worker that processes a queue alongside your app.",
+          perms: { processes: "Run the worker process.", network: "Connect to the queue broker." },
+        },
+        {
+          id: "github-com", name: "GitHub.com", kind: "integration", version: "3.2.0",
+          icon: "git-branch", installed: true, summary: "Connect GitHub issues, projects, and code-scanning alerts to your benches.",
+          perms: { network: "Call the GitHub API.", credentials: "Read your GitHub token." },
+        },
+      ];
+
+      const byId = (id) => PLUGINS.find((p) => p.id === id);
+      const el = (id) => document.getElementById(id);
+      let activeFilter = "all";
+      let pendingInstall = null;
+
+      // ----- marketplace render ----------------------------------------------
+      function pill(kind) {
+        const c = kind === "component"
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-stone-200 bg-stone-100 text-stone-600";
+        return `<span class="inline-flex items-center rounded-full border ${c} px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">${kind}</span>`;
+      }
+      function actionBtn(p) {
+        if (p.update)
+          return `<button data-install="${p.id}" class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-stone-950 t hover:bg-amber-400 active:bg-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"><i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i> Update</button>`;
+        if (p.installed)
+          return `<span class="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-[12px] font-medium text-green-800"><i data-lucide="check" class="h-3.5 w-3.5"></i> Installed</span>`;
+        return `<button data-install="${p.id}" class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-stone-950 t hover:bg-amber-400 active:bg-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"><i data-lucide="download" class="h-3.5 w-3.5"></i> Install</button>`;
+      }
+      function card(p) {
+        const ver = p.update
+          ? `<span class="font-mono text-stone-400 line-through">${p.version}</span> <i data-lucide="arrow-right" class="inline h-3 w-3 text-stone-400"></i> <span class="font-mono text-amber-700">${p.latest}</span>`
+          : `<span class="font-mono text-stone-500">v${p.version}</span>`;
+        return `
+        <article class="group flex flex-col rounded-xl border border-stone-200 bg-white p-4 t hover:border-stone-300">
+          <div class="flex items-start gap-3">
+            <div class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-700"><i data-lucide="${p.icon}" class="h-5 w-5"></i></div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <button data-detail="${p.id}" class="truncate text-[14px] font-semibold text-stone-900 hover:text-amber-700 t outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded">${p.name}</button>
+                ${pill(p.kind)}
+              </div>
+              <p class="mt-0.5 font-mono text-[11px] text-stone-400">${p.id}</p>
+            </div>
+          </div>
+          <p class="mt-3 flex-1 text-[12.5px] leading-relaxed text-stone-600">${p.summary}</p>
+          <div class="mt-4 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-[11px]">
+              <span class="inline-flex items-center gap-1 text-green-800"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Verified</span>
+              <span class="text-stone-300">·</span>
+              ${ver}
+            </div>
+            ${actionBtn(p)}
+          </div>
+        </article>`;
+      }
+      function renderGrid() {
+        const q = el("search").value.trim().toLowerCase();
+        const list = PLUGINS.filter(
+          (p) =>
+            (activeFilter === "all" || p.kind === activeFilter) &&
+            (!q || (p.name + p.id + p.summary).toLowerCase().includes(q))
+        );
+        el("grid").innerHTML = list.map(card).join("");
+        el("empty").classList.toggle("hidden", list.length > 0);
+        lucide.createIcons();
+      }
+
+      // ----- consent dialog ---------------------------------------------------
+      function openConsent(id) {
+        const p = byId(id);
+        pendingInstall = id;
+        el("consent-title").textContent = `${p.update ? "Update" : "Install"} ${p.name}?`;
+        el("consent-sub").innerHTML =
+          `<span class="font-mono">${p.id}</span> · ${p.kind} plugin · v${p.latest || p.version}`;
+        el("consent-icon").innerHTML = `<i data-lucide="${p.icon}" class="h-4.5 w-4.5"></i>`;
+        // trust banner: marketplace plugins are first-party verified, but v1 enforcement is advisory
+        el("consent-trust").className =
+          "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] flex items-start gap-2 text-amber-800";
+        el("consent-trust").innerHTML =
+          `<i data-lucide="shield-alert" class="h-4 w-4 shrink-0 mt-px"></i><span><b>Verified, first-party</b>, but unsandboxed in this release. Enforced isolation arrives in v2; until then, review the access below.</span>`;
+        el("consent-perms").innerHTML = Object.entries(p.perms)
+          .map(([cat, detail]) => {
+            const m = CAT[cat];
+            return `<li class="flex items-start gap-2.5">
+              <span class="mt-px grid h-6 w-6 shrink-0 place-items-center rounded-md bg-stone-100 text-stone-600"><i data-lucide="${m.icon}" class="h-3.5 w-3.5"></i></span>
+              <span class="text-[12.5px] leading-snug"><span class="font-medium text-stone-800">${m.label}.</span> <span class="text-stone-500">${detail}</span></span>
+            </li>`;
+          })
+          .join("");
+        el("ack").checked = false;
+        el("consent-confirm").disabled = true;
+        const ov = el("consent");
+        ov.classList.remove("hidden");
+        ov.classList.add("flex");
+        lucide.createIcons();
+        setTimeout(() => el("consent-cancel").focus(), 0);
+      }
+      function closeConsent() {
+        el("consent").classList.add("hidden");
+        el("consent").classList.remove("flex");
+        pendingInstall = null;
+      }
+      function confirmInstall() {
+        const p = byId(pendingInstall);
+        if (!p) return;
+        const verb = p.update ? "Updated" : "Installed";
+        p.installed = true;
+        p.update = false;
+        if (p.latest) { p.version = p.latest; delete p.latest; }
+        closeConsent();
+        renderGrid();
+        toast(`${verb} ${p.name} · ${p.id}`);
+      }
+
+      // ----- detail drawer ----------------------------------------------------
+      function openDrawer(id) {
+        const p = byId(id);
+        const perms = Object.entries(p.perms)
+          .map(([cat, detail]) => {
+            const m = CAT[cat];
+            return `<div class="flex items-start gap-2.5 py-2 border-b border-stone-100 last:border-0">
+              <span class="mt-px grid h-6 w-6 shrink-0 place-items-center rounded-md bg-stone-100 text-stone-600"><i data-lucide="${m.icon}" class="h-3.5 w-3.5"></i></span>
+              <span class="text-[12.5px] leading-snug"><span class="font-medium text-stone-800">${m.label}.</span> <span class="text-stone-500">${detail}</span></span>
+            </div>`;
+          })
+          .join("");
+        const lifecycle = p.oneshot
+          ? `<span class="font-mono text-amber-700">one-shot</span> (start runs to completion, then <span class="font-mono">completed</span>)`
+          : `<span class="font-mono text-stone-700">long-running</span> (start / stop / health / logs)`;
+        el("drawer-body").innerHTML = `
+          <div class="sticky top-0 flex items-center justify-between border-b border-stone-200 bg-white/90 backdrop-blur px-5 h-14">
+            <h2 id="drawer-title" class="text-sm font-semibold text-stone-900">Plugin detail</h2>
+            <button data-close-drawer class="grid h-8 w-8 place-items-center rounded-lg text-stone-500 t hover:bg-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"><i data-lucide="x" class="h-4 w-4"></i></button>
+          </div>
+          <div class="p-5">
+            <div class="flex items-start gap-3">
+              <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-100 text-stone-700"><i data-lucide="${p.icon}" class="h-6 w-6"></i></div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-[16px] font-semibold text-stone-900">${p.name}</h3>${pill(p.kind)}
+                </div>
+                <p class="mt-0.5 font-mono text-[11px] text-stone-400">${p.id} · v${p.version}</p>
+              </div>
+            </div>
+            <p class="mt-4 text-[13px] leading-relaxed text-stone-600">${p.summary}</p>
+
+            <dl class="mt-5 space-y-2 text-[12.5px]">
+              <div class="flex items-center justify-between"><dt class="text-stone-400">Integrity</dt><dd class="inline-flex items-center gap-1 text-green-800"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Verified · signed by Roubo</dd></div>
+              <div class="flex items-center justify-between"><dt class="text-stone-400">Provenance</dt><dd class="font-mono text-stone-600">roubo/plugins@${p.id.split("/").pop() || p.id}</dd></div>
+              <div class="flex items-center justify-between"><dt class="text-stone-400">Sandbox</dt><dd class="inline-flex items-center gap-1 text-amber-800"><i data-lucide="shield-alert" class="h-3.5 w-3.5"></i> Unsandboxed (v2)</dd></div>
+              <div class="flex items-center justify-between"><dt class="text-stone-400">Lifecycle</dt><dd>${lifecycle}</dd></div>
+            </dl>
+
+            <p class="mt-6 text-[11px] font-medium uppercase tracking-wide text-stone-400">Declared permissions</p>
+            <div class="mt-1.5">${perms}</div>
+
+            <div class="mt-6">
+              ${p.installed && !p.update
+                ? `<span class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-[13px] font-medium text-green-800"><i data-lucide="check" class="h-4 w-4"></i> Installed</span>`
+                : `<button data-install="${p.id}" class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-[13px] font-medium text-stone-950 t hover:bg-amber-400 active:bg-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"><i data-lucide="${p.update ? "refresh-cw" : "download"}" class="h-4 w-4"></i> ${p.update ? "Update" : "Install"}</button>`}
+            </div>
+          </div>`;
+        el("drawer").classList.remove("hidden");
+        lucide.createIcons();
+      }
+      function closeDrawer() {
+        el("drawer").classList.add("hidden");
+      }
+
+      // ----- benches view -----------------------------------------------------
+      const COMPONENTS = [
+        { name: "sql", plugin: "roubo/database", status: "running", label: "Running", port: "3000", note: "container healthy · migrated" },
+        { name: "intentional-responda-host", plugin: "roubo/process", status: "running", label: "Running", port: "3005", note: "" },
+        { name: "frontend", plugin: "roubo/process", status: "recovered", label: "Recovered", port: "3020", note: "plugin crashed, host cleaned up and auto-recovered within budget" },
+      ];
+      const DOT = {
+        running: "bg-green-500", recovered: "bg-green-500", starting: "bg-amber-500",
+        error: "bg-red-500", stopped: "bg-stone-300",
+      };
+      function renderComponents() {
+        el("components").innerHTML = COMPONENTS.map(
+          (c) => `
+          <div class="rounded-xl border border-stone-200 bg-white px-4 py-3.5 t hover:border-stone-300">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="h-2 w-2 shrink-0 rounded-full ${DOT[c.status]}"></span>
+                <span class="truncate text-[14px] font-medium text-stone-900">${c.name}</span>
+                <span class="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-stone-50 px-1.5 py-0.5 font-mono text-[10.5px] text-stone-500"><i data-lucide="package" class="h-3 w-3"></i> ${c.plugin}</span>
+              </div>
+              <div class="flex items-center gap-3 shrink-0">
+                <span class="font-mono text-[12px] text-stone-500">:${c.port}</span>
+                <span class="text-[12px] font-medium ${c.status === "error" ? "text-red-600" : c.status === "recovered" ? "text-green-800" : "text-stone-600"}">${c.label}</span>
+              </div>
+            </div>
+            ${c.note ? `<p class="mt-1.5 pl-[18px] text-[11.5px] ${c.status === "recovered" ? "text-green-800" : "text-stone-400"}">${c.note}</p>` : ""}
+          </div>`
+        ).join("");
+        lucide.createIcons();
+      }
+
+      // ----- nav --------------------------------------------------------------
+      function setView(name) {
+        document.querySelectorAll("[data-view]").forEach((v) =>
+          v.classList.toggle("hidden", v.dataset.view !== name)
+        );
+        document.querySelectorAll(".nav-item").forEach((b) => {
+          const active = b.dataset.nav === name;
+          b.classList.toggle("bg-amber-500/10", active);
+          b.classList.toggle("text-amber-600", active);
+          b.classList.toggle("text-stone-500", !active);
+          b.classList.toggle("hover:text-stone-700", !active);
+          b.classList.toggle("hover:bg-stone-100", !active);
+        });
+        if (name === "benches") renderComponents();
+      }
+
+      // ----- toast ------------------------------------------------------------
+      let toastT;
+      function toast(msg) {
+        el("toast-msg").textContent = msg;
+        const t = el("toast");
+        t.classList.remove("hidden");
+        t.classList.add("flex");
+        lucide.createIcons();
+        clearTimeout(toastT);
+        toastT = setTimeout(() => {
+          t.classList.add("hidden");
+          t.classList.remove("flex");
+        }, 2600);
+      }
+
+      // ----- filter chips -----------------------------------------------------
+      function styleChips() {
+        document.querySelectorAll(".filter-chip").forEach((c) => {
+          const active = c.dataset.filter === activeFilter;
+          c.className =
+            "filter-chip rounded-lg px-3 py-1.5 text-[12px] font-medium t outline-none focus-visible:ring-2 focus-visible:ring-amber-500 " +
+            (active
+              ? "bg-stone-900 text-white"
+              : "text-stone-500 hover:text-stone-800 hover:bg-stone-100");
+          c.setAttribute("aria-selected", active ? "true" : "false");
+        });
+      }
+
+      // ----- wire up ----------------------------------------------------------
+      document.addEventListener("click", (e) => {
+        const install = e.target.closest("[data-install]");
+        if (install) return openConsent(install.dataset.install);
+        const detail = e.target.closest("[data-detail]");
+        if (detail) return openDrawer(detail.dataset.detail);
+        const nav = e.target.closest(".nav-item");
+        if (nav) return setView(nav.dataset.nav);
+        const chip = e.target.closest(".filter-chip");
+        if (chip) {
+          activeFilter = chip.dataset.filter;
+          styleChips();
+          renderGrid();
+          return;
+        }
+        if (e.target.closest("[data-close-drawer]")) return closeDrawer();
+        if (e.target === el("consent")) return closeConsent();
+        if (e.target.closest("#consent-cancel")) return closeConsent();
+        if (e.target.closest("#consent-confirm")) return confirmInstall();
+      });
+      el("ack").addEventListener("change", (e) => {
+        el("consent-confirm").disabled = !e.target.checked;
+      });
+      el("search").addEventListener("input", renderGrid);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeConsent();
+          closeDrawer();
+        }
+      });
+
+      // init
+      styleChips();
+      renderGrid();
+      setView("marketplace");
+      lucide.createIcons();
+    </script>
+  </body>
+</html>
