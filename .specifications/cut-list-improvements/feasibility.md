@@ -6,12 +6,12 @@
 
 ## Per-dimension summary
 
-| Dimension | Verdict | Confidence | Top risk | Mitigation |
-|-----------|---------|------------|----------|------------|
-| Technical | feasible-with-conditions | high | Persistent-cache key omits sort / status-exclusion / pageSize, so a config change silently serves a stale-shaped snapshot | Extend the cache key to all query-determining params + a cache schema version that rejects older-shaped files on load |
-| Effort / delivery | feasible-with-conditions | high | The plugin-declared sort RPC is a coordinated host-API bump across SDK + 3 plugins, and GHE has not implemented the existing 1.1.0 facet contract yet | Make the RPC additive with a MethodNotFound fallback; treat the GHE facet gap as a filed prerequisite; ship the low-risk batch (refresh, only-to-do, pagination) first |
-| Operational / scale | feasible-with-conditions | high | The only-to-do default flip silently removes in-progress items for existing users on upgrade | One-time dismissible migration banner keyed to a state.json marker, linking to the exclusion control |
-| Compliance / data | feasible-with-conditions | high | The persistent cache is the first place private GHE/Jira issue content is written to plaintext disk under ~/.roubo/ | Write the cache file mode 0o600 via atomicWrite; wire eviction to plugin uninstall / disable / project unregister; hand-roll a JSON store (no new dependency) |
+| Dimension           | Verdict                  | Confidence | Top risk                                                                                                                                              | Mitigation                                                                                                                                                             |
+| ------------------- | ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Technical           | feasible-with-conditions | high       | Persistent-cache key omits sort / status-exclusion / pageSize, so a config change silently serves a stale-shaped snapshot                             | Extend the cache key to all query-determining params + a cache schema version that rejects older-shaped files on load                                                  |
+| Effort / delivery   | feasible-with-conditions | high       | The plugin-declared sort RPC is a coordinated host-API bump across SDK + 3 plugins, and GHE has not implemented the existing 1.1.0 facet contract yet | Make the RPC additive with a MethodNotFound fallback; treat the GHE facet gap as a filed prerequisite; ship the low-risk batch (refresh, only-to-do, pagination) first |
+| Operational / scale | feasible-with-conditions | high       | The only-to-do default flip silently removes in-progress items for existing users on upgrade                                                          | One-time dismissible migration banner keyed to a state.json marker, linking to the exclusion control                                                                   |
+| Compliance / data   | feasible-with-conditions | high       | The persistent cache is the first place private GHE/Jira issue content is written to plaintext disk under ~/.roubo/                                   | Write the cache file mode 0o600 via atomicWrite; wire eviction to plugin uninstall / disable / project unregister; hand-roll a JSON store (no new dependency)          |
 
 ## Dimension detail
 

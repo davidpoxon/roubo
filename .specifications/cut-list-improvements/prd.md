@@ -1,15 +1,15 @@
 # PRD: Cut list performance, ordering, and filtering improvements
 
-| | |
-|---|---|
-| **Slug** | cut-list-improvements |
-| **Status** | draft |
-| **Brief** | ./brief.md |
-| **Feasibility** | ./feasibility.md |
+|                 |                       |
+| --------------- | --------------------- |
+| **Slug**        | cut-list-improvements |
+| **Status**      | draft                 |
+| **Brief**       | ./brief.md            |
+| **Feasibility** | ./feasibility.md      |
 
 ## Problem statement
 
-The cut list (the list of pickable work items a Roubo user draws from to start a bench) is slow and noisy in daily use, and the friction compounds for the users who need it most (large backlogs on GitHub Enterprise or self-hosted Jira). Every load is a full round-trip to the external system through the active integration plugin; the only cache (`server/services/issue-snapshot-cache.ts`) is in-memory, first-page-only, and serves solely as a crash fallback, and React Query holds results for just 30s. The refresh control gives no feedback. There is no deterministic order (`ListIssuesParams` has no sort field), so the list reshuffles between loads. In-progress work is shown even though the cut list is for picking up *new* work (today only Done-category issues are excluded). Closed/done/archived milestones and epics still clutter the filter choices. And the infinite-scroll list becomes unnavigable at scale. Feasibility returned **DE-RISK**: the work is buildable and additive, gated on three spikes (cache invalidation contract, the confirmed GHE facet-contract prerequisite, and per-plugin sort/status capability mapping).
+The cut list (the list of pickable work items a Roubo user draws from to start a bench) is slow and noisy in daily use, and the friction compounds for the users who need it most (large backlogs on GitHub Enterprise or self-hosted Jira). Every load is a full round-trip to the external system through the active integration plugin; the only cache (`server/services/issue-snapshot-cache.ts`) is in-memory, first-page-only, and serves solely as a crash fallback, and React Query holds results for just 30s. The refresh control gives no feedback. There is no deterministic order (`ListIssuesParams` has no sort field), so the list reshuffles between loads. In-progress work is shown even though the cut list is for picking up _new_ work (today only Done-category issues are excluded). Closed/done/archived milestones and epics still clutter the filter choices. And the infinite-scroll list becomes unnavigable at scale. Feasibility returned **DE-RISK**: the work is buildable and additive, gated on three spikes (cache invalidation contract, the confirmed GHE facet-contract prerequisite, and per-plugin sort/status capability mapping).
 
 ## Goals & non-goals
 
@@ -87,19 +87,19 @@ Each NFR has a measurable target and a verification method.
 
 ### Leading
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Warm cut-list time-to-first-paint | unmeasured (no warm cache today) | < 200ms p95 | perf test / mount timing instrumentation | CLI-US-001, CLI-FR-001, CLI-FR-002 |
-| Cold first-load latency vs today | current p95 (to be captured pre-change) | measurable reduction (or no regression beyond cache write) | route benchmark | CLI-US-001, CLI-FR-003 |
-| Cache hit rate on cut-list load | 0% (warm cache is new) | majority of loads served warm in a typical session | in-app cache metric (CLI-NFR-009) | CLI-FR-001 |
-| Repeated refresh clicks per session | unmeasured | reduced (feedback removes the "did it work?" re-click) | client interaction logging (if available) | CLI-US-002, CLI-FR-005 |
+| Indicator                           | Baseline                                | Target                                                     | Source                                    | Validates                          |
+| ----------------------------------- | --------------------------------------- | ---------------------------------------------------------- | ----------------------------------------- | ---------------------------------- |
+| Warm cut-list time-to-first-paint   | unmeasured (no warm cache today)        | < 200ms p95                                                | perf test / mount timing instrumentation  | CLI-US-001, CLI-FR-001, CLI-FR-002 |
+| Cold first-load latency vs today    | current p95 (to be captured pre-change) | measurable reduction (or no regression beyond cache write) | route benchmark                           | CLI-US-001, CLI-FR-003             |
+| Cache hit rate on cut-list load     | 0% (warm cache is new)                  | majority of loads served warm in a typical session         | in-app cache metric (CLI-NFR-009)         | CLI-FR-001                         |
+| Repeated refresh clicks per session | unmeasured                              | reduced (feedback removes the "did it work?" re-click)     | client interaction logging (if available) | CLI-US-002, CLI-FR-005             |
 
 ### Lagging
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Time from cut-list-open to bench start | unmeasured | reduced | usage telemetry (if available) / manual task-timing | the feature |
-| Cut-list slowness/noise reports | current volume (informal) | reduced after release | user feedback channel | the feature |
+| Indicator                              | Baseline                  | Target                | Source                                              | Validates   |
+| -------------------------------------- | ------------------------- | --------------------- | --------------------------------------------------- | ----------- |
+| Time from cut-list-open to bench start | unmeasured                | reduced               | usage telemetry (if available) / manual task-timing | the feature |
+| Cut-list slowness/noise reports        | current volume (informal) | reduced after release | user feedback channel                               | the feature |
 
 _(Roubo is a local developer tool, so production usage telemetry may be limited. The leading perf indicators are validated via the test/benchmark harness rather than a production analytics pipeline; the lagging indicators are tracked through the user-feedback channel and manual task-timing where telemetry is unavailable. `align`/`review` should treat the perf-test budgets, not an analytics dashboard, as the instrumentation of record.)_
 

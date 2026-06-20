@@ -9,7 +9,7 @@ The cut list (the list of pickable work items a user draws from to start a bench
 - **Slow loads.** Every load hits the external system (GitHub.com, GitHub Enterprise, self-hosted Jira) through the active integration plugin. The only cache today (`server/services/issue-snapshot-cache.ts`) is first-page-only and serves solely as a crash fallback when a plugin is `errored`/`disabled`; React Query holds results for just 30s (`staleTime: 30_000`). So the first load is always a full round-trip, a relaunch is always cold, and revisits past 30s refetch from scratch.
 - **No refresh feedback.** The reload control (`useRefreshIssues`) invalidates the query but surfaces no visible in-progress state, so the user cannot tell whether a refresh is happening, stalled, or done.
 - **Non-deterministic order.** There is no sort in the contract (`ListIssuesParams` has no sort field); the plugin's return order wins, so the list can reshuffle between loads and the same item is hard to find twice.
-- **Noisy contents.** In-progress work is shown alongside to-do work, even though the cut list is for picking up *new* work. Done-category issues are already excluded in-query (`excludedStatusCategories`), but in-progress is not.
+- **Noisy contents.** In-progress work is shown alongside to-do work, even though the cut list is for picking up _new_ work. Done-category issues are already excluded in-query (`excludedStatusCategories`), but in-progress is not.
 - **Stale filter choices.** Closed/done/archived milestones and epics still appear as filter options, cluttering the picker with choices that match nothing useful.
 - **Unnavigable long list.** Infinite scroll (`useInfiniteQuery`) sounds good but, on a large backlog, produces one very long list that is hard to navigate.
 

@@ -70,21 +70,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path",
-        "e2e",
-        "warm-cache"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-001",
-        "CLI-FR-002",
-        "CLI-NFR-001",
-        "CLI-NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["smoke", "happy-path", "e2e", "warm-cache"],
+      "linked_requirement_ids": ["CLI-FR-001", "CLI-FR-002", "CLI-NFR-001", "CLI-NFR-002"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-002",
@@ -130,17 +118,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "cold-load"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-001",
-        "CLI-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["smoke", "cold-load"],
+      "linked_requirement_ids": ["CLI-FR-001", "CLI-NFR-003"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-003",
@@ -187,15 +167,9 @@
           ]
         }
       ],
-      "tags": [
-        "cache-key"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["cache-key"],
+      "linked_requirement_ids": ["CLI-FR-003"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-004",
@@ -237,18 +211,9 @@
           ]
         }
       ],
-      "tags": [
-        "cache-key",
-        "eviction"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-003",
-        "CLI-FR-004",
-        "CLI-NFR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["cache-key", "eviction"],
+      "linked_requirement_ids": ["CLI-FR-003", "CLI-FR-004", "CLI-NFR-009"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-005",
@@ -290,20 +255,9 @@
           ]
         }
       ],
-      "tags": [
-        "cache-key",
-        "eviction",
-        "tenant-safety"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-003",
-        "CLI-FR-004",
-        "CLI-NFR-001",
-        "CLI-NFR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["cache-key", "eviction", "tenant-safety"],
+      "linked_requirement_ids": ["CLI-FR-003", "CLI-FR-004", "CLI-NFR-001", "CLI-NFR-009"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-006",
@@ -340,14 +294,8 @@
           ]
         }
       ],
-      "tags": [
-        "eviction",
-        "lifecycle"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-004",
-        "CLI-NFR-001"
-      ],
+      "tags": ["eviction", "lifecycle"],
+      "linked_requirement_ids": ["CLI-FR-004", "CLI-NFR-001"],
       "linked_user_story_ids": []
     },
     {
@@ -356,9 +304,7 @@
       "area": "caching",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "A warm cache entry exists for project P"
-      ],
+      "preconditions": ["A warm cache entry exists for project P"],
       "steps": [
         {
           "id": "S001",
@@ -381,14 +327,8 @@
           ]
         }
       ],
-      "tags": [
-        "eviction",
-        "lifecycle"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-004",
-        "CLI-NFR-001"
-      ],
+      "tags": ["eviction", "lifecycle"],
+      "linked_requirement_ids": ["CLI-FR-004", "CLI-NFR-001"],
       "linked_user_story_ids": []
     },
     {
@@ -444,16 +384,8 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "reliability",
-        "fault-injection"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-004",
-        "CLI-NFR-006",
-        "CLI-NFR-009"
-      ],
+      "tags": ["negative", "reliability", "fault-injection"],
+      "linked_requirement_ids": ["CLI-FR-004", "CLI-NFR-006", "CLI-NFR-009"],
       "linked_user_story_ids": []
     },
     {
@@ -500,18 +432,9 @@
           ]
         }
       ],
-      "tags": [
-        "reliability",
-        "fault-injection",
-        "stale-snapshot"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-002",
-        "CLI-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["reliability", "fault-injection", "stale-snapshot"],
+      "linked_requirement_ids": ["CLI-FR-002", "CLI-NFR-006"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-010",
@@ -555,14 +478,8 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "file-permissions",
-        "data-protection"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-001"
-      ],
+      "tags": ["security", "file-permissions", "data-protection"],
+      "linked_requirement_ids": ["CLI-NFR-001"],
       "linked_user_story_ids": []
     },
     {
@@ -597,17 +514,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "warm-cache",
-        "p95"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["performance", "warm-cache", "p95"],
+      "linked_requirement_ids": ["CLI-NFR-002"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-012",
@@ -649,17 +558,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "overhead",
-        "benchmark"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["performance", "overhead", "benchmark"],
+      "linked_requirement_ids": ["CLI-NFR-003"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-013",
@@ -693,15 +594,8 @@
           ]
         }
       ],
-      "tags": [
-        "observability",
-        "logging",
-        "security"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-009",
-        "CLI-NFR-001"
-      ],
+      "tags": ["observability", "logging", "security"],
+      "linked_requirement_ids": ["CLI-NFR-009", "CLI-NFR-001"],
       "linked_user_story_ids": []
     },
     {
@@ -748,19 +642,9 @@
           ]
         }
       ],
-      "tags": [
-        "reliability",
-        "fault-injection",
-        "negative"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-002",
-        "CLI-NFR-006",
-        "CLI-NFR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["reliability", "fault-injection", "negative"],
+      "linked_requirement_ids": ["CLI-FR-002", "CLI-NFR-006", "CLI-NFR-009"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-015",
@@ -792,16 +676,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-005"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-005"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-016",
@@ -809,9 +686,7 @@
       "area": "refresh-feedback",
       "level": 1,
       "type": "functional",
-      "preconditions": [
-        "A refresh has been initiated and the spinner is active"
-      ],
+      "preconditions": ["A refresh has been initiated and the spinner is active"],
       "steps": [
         {
           "id": "S001",
@@ -841,18 +716,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-005",
-        "CLI-FR-006",
-        "CLI-FR-002"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["smoke", "regression"],
+      "linked_requirement_ids": ["CLI-FR-005", "CLI-FR-006", "CLI-FR-002"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-017",
@@ -929,18 +795,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-005",
-        "CLI-FR-006",
-        "CLI-FR-002"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["e2e", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-005", "CLI-FR-006", "CLI-FR-002"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-018",
@@ -982,16 +839,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-006",
-        "CLI-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["regression"],
+      "linked_requirement_ids": ["CLI-FR-006", "CLI-NFR-006"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-019",
@@ -999,9 +849,7 @@
       "area": "refresh-feedback",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "A refresh is already in progress (spinner active)"
-      ],
+      "preconditions": ["A refresh is already in progress (spinner active)"],
       "steps": [
         {
           "id": "S001",
@@ -1022,15 +870,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-005"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["negative"],
+      "linked_requirement_ids": ["CLI-FR-005"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-020",
@@ -1074,19 +916,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "a11y",
-        "wcag-2.1-aa"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-005",
-        "CLI-FR-006",
-        "CLI-NFR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["accessibility", "a11y", "wcag-2.1-aa"],
+      "linked_requirement_ids": ["CLI-FR-005", "CLI-FR-006", "CLI-NFR-007"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-021",
@@ -1124,15 +956,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-006"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-002"
-      ]
+      "tags": ["regression"],
+      "linked_requirement_ids": ["CLI-FR-006"],
+      "linked_user_story_ids": ["CLI-US-002"]
     },
     {
       "id": "CLI-TC-022",
@@ -1164,16 +990,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-023",
@@ -1181,9 +1000,7 @@
       "area": "pagination",
       "level": 1,
       "type": "functional",
-      "preconditions": [
-        "Cut list is loaded with warm cached data showing page 1"
-      ],
+      "preconditions": ["Cut list is loaded with warm cached data showing page 1"],
       "steps": [
         {
           "id": "S001",
@@ -1210,16 +1027,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["smoke"],
+      "linked_requirement_ids": ["CLI-FR-007", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-024",
@@ -1227,9 +1037,7 @@
       "area": "pagination",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Cut list is loaded with warm cached data (at least 3 pages)"
-      ],
+      "preconditions": ["Cut list is loaded with warm cached data (at least 3 pages)"],
       "steps": [
         {
           "id": "S001",
@@ -1265,16 +1073,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["happy-path"],
+      "linked_requirement_ids": ["CLI-FR-007", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-025",
@@ -1282,9 +1083,7 @@
       "area": "pagination",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Cut list is loaded with warm cached data with a known total page count N"
-      ],
+      "preconditions": ["Cut list is loaded with warm cached data with a known total page count N"],
       "steps": [
         {
           "id": "S001",
@@ -1306,15 +1105,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["happy-path"],
+      "linked_requirement_ids": ["CLI-FR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-026",
@@ -1350,15 +1143,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["regression"],
+      "linked_requirement_ids": ["CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-027",
@@ -1366,9 +1153,7 @@
       "area": "pagination",
       "level": 3,
       "type": "edge_case",
-      "preconditions": [
-        "Cut list is loaded with warm cached data"
-      ],
+      "preconditions": ["Cut list is loaded with warm cached data"],
       "steps": [
         {
           "id": "S001",
@@ -1385,15 +1170,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["edge-case"],
+      "linked_requirement_ids": ["CLI-FR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-028",
@@ -1426,16 +1205,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["performance", "automated"],
+      "linked_requirement_ids": ["CLI-NFR-004"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-029",
@@ -1478,17 +1250,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "manual",
-        "wcag-2.1-aa"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["accessibility", "manual", "wcag-2.1-aa"],
+      "linked_requirement_ids": ["CLI-NFR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-030",
@@ -1522,19 +1286,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "manual",
-        "screen-reader",
-        "wcag-2.1-aa"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-007",
-        "CLI-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["accessibility", "manual", "screen-reader", "wcag-2.1-aa"],
+      "linked_requirement_ids": ["CLI-NFR-007", "CLI-FR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-031",
@@ -1542,9 +1296,7 @@
       "area": "pagination",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Cut list is loaded with warm cached data (at least 2 pages)"
-      ],
+      "preconditions": ["Cut list is loaded with warm cached data (at least 2 pages)"],
       "steps": [
         {
           "id": "S001",
@@ -1561,16 +1313,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["regression", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-007"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-032",
@@ -1635,18 +1380,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-007",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-003"
-      ]
+      "tags": ["e2e", "smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-007", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-003"]
     },
     {
       "id": "CLI-TC-033",
@@ -1678,17 +1414,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009",
-        "CLI-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-009", "CLI-FR-010"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-034",
@@ -1696,9 +1424,7 @@
       "area": "ordering",
       "level": 1,
       "type": "functional",
-      "preconditions": [
-        "Jira plugin getSortFields returns key, updated, created, priority, rank"
-      ],
+      "preconditions": ["Jira plugin getSortFields returns key, updated, created, priority, rank"],
       "steps": [
         {
           "id": "S001",
@@ -1725,15 +1451,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["smoke"],
+      "linked_requirement_ids": ["CLI-FR-009"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-035",
@@ -1807,19 +1527,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009",
-        "CLI-FR-010",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["e2e", "smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-009", "CLI-FR-010", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-036",
@@ -1850,16 +1560,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-011",
-        "CLI-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["happy-path"],
+      "linked_requirement_ids": ["CLI-FR-011", "CLI-NFR-006"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-037",
@@ -1867,9 +1570,7 @@
       "area": "ordering",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Jira plugin is active; outbound plugin requests can be observed"
-      ],
+      "preconditions": ["Jira plugin is active; outbound plugin requests can be observed"],
       "steps": [
         {
           "id": "S001",
@@ -1896,17 +1597,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "source-side"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009",
-        "CLI-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["regression", "source-side"],
+      "linked_requirement_ids": ["CLI-FR-009", "CLI-FR-010"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-038",
@@ -1948,17 +1641,9 @@
           ]
         }
       ],
-      "tags": [
-        "fault-injection",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-006",
-        "CLI-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["fault-injection", "reliability"],
+      "linked_requirement_ids": ["CLI-NFR-006", "CLI-FR-011"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-039",
@@ -1996,17 +1681,9 @@
           ]
         }
       ],
-      "tags": [
-        "contract",
-        "compatibility"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-008",
-        "CLI-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["contract", "compatibility"],
+      "linked_requirement_ids": ["CLI-NFR-008", "CLI-FR-011"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-040",
@@ -2053,18 +1730,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "wcag-aa",
-        "manual"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-007",
-        "CLI-FR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["accessibility", "wcag-aa", "manual"],
+      "linked_requirement_ids": ["CLI-NFR-007", "CLI-FR-009"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-041",
@@ -2072,9 +1740,7 @@
       "area": "ordering",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Jira plugin is active; the source has more than one page of issues"
-      ],
+      "preconditions": ["Jira plugin is active; the source has more than one page of issues"],
       "steps": [
         {
           "id": "S001",
@@ -2101,16 +1767,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-010",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["regression"],
+      "linked_requirement_ids": ["CLI-FR-010", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-042",
@@ -2151,16 +1810,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009",
-        "CLI-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["edge-case"],
+      "linked_requirement_ids": ["CLI-FR-009", "CLI-FR-010"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-043",
@@ -2168,9 +1820,7 @@
       "area": "ordering",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "GitHub.com plugin is active and declares created, updated, comments"
-      ],
+      "preconditions": ["GitHub.com plugin is active and declares created, updated, comments"],
       "steps": [
         {
           "id": "S001",
@@ -2191,18 +1841,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-009",
-        "CLI-FR-010",
-        "CLI-FR-014"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004"
-      ]
+      "tags": ["regression", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-009", "CLI-FR-010", "CLI-FR-014"],
+      "linked_user_story_ids": ["CLI-US-004"]
     },
     {
       "id": "CLI-TC-044",
@@ -2245,19 +1886,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "config-persistence"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017",
-        "CLI-FR-009",
-        "CLI-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-004",
-        "CLI-US-007"
-      ]
+      "tags": ["regression", "config-persistence"],
+      "linked_requirement_ids": ["CLI-FR-017", "CLI-FR-009", "CLI-FR-010"],
+      "linked_user_story_ids": ["CLI-US-004", "CLI-US-007"]
     },
     {
       "id": "CLI-TC-045",
@@ -2299,16 +1930,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-012"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-046",
@@ -2370,20 +1994,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "e2e",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-012",
-        "CLI-FR-013",
-        "CLI-FR-017"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005",
-        "CLI-US-007"
-      ]
+      "tags": ["smoke", "e2e", "happy-path"],
+      "linked_requirement_ids": ["CLI-FR-012", "CLI-FR-013", "CLI-FR-017"],
+      "linked_user_story_ids": ["CLI-US-005", "CLI-US-007"]
     },
     {
       "id": "CLI-TC-047",
@@ -2442,18 +2055,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "e2e",
-        "migration"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-018",
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-008"
-      ]
+      "tags": ["smoke", "e2e", "migration"],
+      "linked_requirement_ids": ["CLI-FR-018", "CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-008"]
     },
     {
       "id": "CLI-TC-048",
@@ -2495,16 +2099,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path",
-        "integration"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-014"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["happy-path", "integration"],
+      "linked_requirement_ids": ["CLI-FR-014"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-049",
@@ -2512,9 +2109,7 @@
       "area": "status-filter",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Two projects A and B both use Jira; neither has a custom override"
-      ],
+      "preconditions": ["Two projects A and B both use Jira; neither has a custom override"],
       "steps": [
         {
           "id": "S001",
@@ -2547,17 +2142,9 @@
           ]
         }
       ],
-      "tags": [
-        "persistence"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-013",
-        "CLI-FR-017"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005",
-        "CLI-US-007"
-      ]
+      "tags": ["persistence"],
+      "linked_requirement_ids": ["CLI-FR-013", "CLI-FR-017"],
+      "linked_user_story_ids": ["CLI-US-005", "CLI-US-007"]
     },
     {
       "id": "CLI-TC-050",
@@ -2590,15 +2177,9 @@
           ]
         }
       ],
-      "tags": [
-        "migration"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-018"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-008"
-      ]
+      "tags": ["migration"],
+      "linked_requirement_ids": ["CLI-FR-018"],
+      "linked_user_story_ids": ["CLI-US-008"]
     },
     {
       "id": "CLI-TC-051",
@@ -2606,9 +2187,7 @@
       "area": "status-filter",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Jira integration active; the status config dialog is open"
-      ],
+      "preconditions": ["Jira integration active; the status config dialog is open"],
       "steps": [
         {
           "id": "S001",
@@ -2625,15 +2204,9 @@
           ]
         }
       ],
-      "tags": [
-        "guard-rail"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["guard-rail"],
+      "linked_requirement_ids": ["CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-052",
@@ -2675,18 +2248,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "jira",
-        "fallback"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-012",
-        "CLI-FR-014"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["edge-case", "jira", "fallback"],
+      "linked_requirement_ids": ["CLI-FR-012", "CLI-FR-014"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-053",
@@ -2718,15 +2282,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["negative"],
+      "linked_requirement_ids": ["CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-054",
@@ -2757,16 +2315,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "empty-state"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["edge-case", "empty-state"],
+      "linked_requirement_ids": ["CLI-FR-012"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-055",
@@ -2774,9 +2325,7 @@
       "area": "status-filter",
       "level": 2,
       "type": "accessibility",
-      "preconditions": [
-        "Jira integration active; the cut list is open"
-      ],
+      "preconditions": ["Jira integration active; the cut list is open"],
       "steps": [
         {
           "id": "S001",
@@ -2817,17 +2366,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "wcag-aa",
-        "keyboard"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-007"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["accessibility", "wcag-aa", "keyboard"],
+      "linked_requirement_ids": ["CLI-NFR-007"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-056",
@@ -2835,9 +2376,7 @@
       "area": "status-filter",
       "level": 4,
       "type": "integration",
-      "preconditions": [
-        "Jira integration active; outgoing plugin queries can be observed"
-      ],
+      "preconditions": ["Jira integration active; outgoing plugin queries can be observed"],
       "steps": [
         {
           "id": "S001",
@@ -2864,17 +2403,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "source-side"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-012",
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-005"
-      ]
+      "tags": ["integration", "source-side"],
+      "linked_requirement_ids": ["CLI-FR-012", "CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-005"]
     },
     {
       "id": "CLI-TC-057",
@@ -2910,17 +2441,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "facet-exclusion",
-        "jira"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["smoke", "facet-exclusion", "jira"],
+      "linked_requirement_ids": ["CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-058",
@@ -2952,16 +2475,9 @@
           ]
         }
       ],
-      "tags": [
-        "facet-exclusion",
-        "github"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["facet-exclusion", "github"],
+      "linked_requirement_ids": ["CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-059",
@@ -3013,18 +2529,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "facet-exclusion",
-        "milestone"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-015",
-        "CLI-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["e2e", "facet-exclusion", "milestone"],
+      "linked_requirement_ids": ["CLI-FR-015", "CLI-FR-008"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-060",
@@ -3068,19 +2575,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "ghe",
-        "facet-contract",
-        "host-api"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-016",
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["integration", "ghe", "facet-contract", "host-api"],
+      "linked_requirement_ids": ["CLI-FR-016", "CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-061",
@@ -3134,17 +2631,9 @@
           ]
         }
       ],
-      "tags": [
-        "config-persistence",
-        "jira"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017",
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-007"
-      ]
+      "tags": ["config-persistence", "jira"],
+      "linked_requirement_ids": ["CLI-FR-017", "CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-007"]
     },
     {
       "id": "CLI-TC-062",
@@ -3197,18 +2686,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "config-persistence",
-        "per-project"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017",
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-007"
-      ]
+      "tags": ["e2e", "config-persistence", "per-project"],
+      "linked_requirement_ids": ["CLI-FR-017", "CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-007"]
     },
     {
       "id": "CLI-TC-063",
@@ -3216,9 +2696,7 @@
       "area": "facets-and-config",
       "level": 2,
       "type": "integration",
-      "preconditions": [
-        "Two projects: one using Jira, one using GitHub.com"
-      ],
+      "preconditions": ["Two projects: one using Jira, one using GitHub.com"],
       "steps": [
         {
           "id": "S001",
@@ -3241,18 +2719,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "plugin-capability"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017",
-        "CLI-FR-009",
-        "CLI-FR-013"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-007"
-      ]
+      "tags": ["integration", "plugin-capability"],
+      "linked_requirement_ids": ["CLI-FR-017", "CLI-FR-009", "CLI-FR-013"],
+      "linked_user_story_ids": ["CLI-US-007"]
     },
     {
       "id": "CLI-TC-064",
@@ -3290,14 +2759,8 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "automated",
-        "filter-budget"
-      ],
-      "linked_requirement_ids": [
-        "CLI-NFR-005"
-      ],
+      "tags": ["performance", "automated", "filter-budget"],
+      "linked_requirement_ids": ["CLI-NFR-005"],
       "linked_user_story_ids": []
     },
     {
@@ -3339,17 +2802,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "empty-state",
-        "facet-filter"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["edge-case", "empty-state", "facet-filter"],
+      "linked_requirement_ids": ["CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-066",
@@ -3387,17 +2842,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "config-layering",
-        "per-user-override"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-007"
-      ]
+      "tags": ["edge-case", "config-layering", "per-user-override"],
+      "linked_requirement_ids": ["CLI-FR-017"],
+      "linked_user_story_ids": ["CLI-US-007"]
     },
     {
       "id": "CLI-TC-067",
@@ -3428,17 +2875,9 @@
           ]
         }
       ],
-      "tags": [
-        "facet-exclusion",
-        "jira",
-        "epic"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["facet-exclusion", "jira", "epic"],
+      "linked_requirement_ids": ["CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-068",
@@ -3470,18 +2909,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "ghe",
-        "graceful-degradation"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-016",
-        "CLI-FR-015"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-006"
-      ]
+      "tags": ["negative", "ghe", "graceful-degradation"],
+      "linked_requirement_ids": ["CLI-FR-016", "CLI-FR-015"],
+      "linked_user_story_ids": ["CLI-US-006"]
     },
     {
       "id": "CLI-TC-069",
@@ -3509,17 +2939,9 @@
           ]
         }
       ],
-      "tags": [
-        "observability",
-        "cache-hit-rate"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-001",
-        "CLI-NFR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-001"
-      ]
+      "tags": ["observability", "cache-hit-rate"],
+      "linked_requirement_ids": ["CLI-FR-001", "CLI-NFR-009"],
+      "linked_user_story_ids": ["CLI-US-001"]
     },
     {
       "id": "CLI-TC-070",
@@ -3556,18 +2978,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "edge-case",
-        "graceful-degradation"
-      ],
-      "linked_requirement_ids": [
-        "CLI-FR-017",
-        "CLI-FR-009"
-      ],
-      "linked_user_story_ids": [
-        "CLI-US-007"
-      ]
+      "tags": ["regression", "edge-case", "graceful-degradation"],
+      "linked_requirement_ids": ["CLI-FR-017", "CLI-FR-009"],
+      "linked_user_story_ids": ["CLI-US-007"]
     }
   ]
 }
