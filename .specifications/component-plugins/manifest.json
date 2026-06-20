@@ -66,17 +66,9 @@
       "class": "decision",
       "doc": "spikes/spike-598-host-owns-vs-plugin-owns.md",
       "produces": [],
-      "satisfies": [
-        "CP-FR-008",
-        "CP-FR-006",
-        "CP-FR-009"
-      ],
+      "satisfies": ["CP-FR-008", "CP-FR-006", "CP-FR-009"],
       "verified_by": [],
-      "gates": [
-        605,
-        606,
-        612
-      ],
+      "gates": [605, 606, 612],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     },
@@ -86,15 +78,9 @@
       "class": "decision",
       "doc": "spikes/spike-599-v2-plugin-isolation-backend.md",
       "produces": [],
-      "satisfies": [
-        "CP-FR-018",
-        "CP-NFR-001"
-      ],
+      "satisfies": ["CP-FR-018", "CP-NFR-001"],
       "verified_by": [],
-      "gates": [
-        618,
-        620
-      ],
+      "gates": [618, 620],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     },
@@ -104,15 +90,9 @@
       "class": "decision",
       "doc": "spikes/spk-3-host-rpc-broker-granularity.md",
       "produces": [],
-      "satisfies": [
-        "CP-FR-008",
-        "CP-FR-017",
-        "CP-NFR-005"
-      ],
+      "satisfies": ["CP-FR-008", "CP-FR-017", "CP-NFR-005"],
       "verified_by": [],
-      "gates": [
-        605
-      ],
+      "gates": [605],
       "status": "resolved",
       "reconciled_at": "2026-06-20T09:02:20Z"
     }
