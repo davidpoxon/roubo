@@ -1,0 +1,31 @@
+project:
+  name: e2e-cut-list-only-todo
+  displayName: E2E Cut-List Only-To-Do
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4922
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  sources:
+    Repository:
+      - "acme/widgets"
+  # CLI-FR-012 / issue #558: this fixture's only-To-Do DEFAULT. The committed
+  # root excludes both In Progress and Done, so a fresh project (no per-user
+  # override) resolves to "show To Do only". This is distinct from the
+  # cut-list-flow-project fixture, which carries no root exclusion and relies on
+  # the stub manifest's [Done] default (used by TC-024/TC-025). TC-046 needs the
+  # only-To-Do default to start from, so it must NOT come from the shared
+  # manifest (which TC-024/025 depend on): it is committed here instead.
+  excludedStatusCategories:
+    - "In Progress"
+    - "Done"
