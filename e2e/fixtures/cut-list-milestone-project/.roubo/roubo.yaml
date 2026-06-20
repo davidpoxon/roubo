@@ -1,0 +1,27 @@
+project:
+  name: e2e-cut-list-milestone
+  displayName: E2E Cut-List Milestone Filter
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4932
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  # #572: a deliberately small page size so the five-item To Do scenario spans
+  # three Prev/Next pages, making the page-1 reset on a milestone select
+  # observable as a jump back (CLI-FR-008, TC-059 S002-O03). The client requests
+  # no explicit pageSize, so the host falls back to this project's integration
+  # pageSize.
+  pageSize: 2
+  sources:
+    Repository:
+      - "acme/widgets"
