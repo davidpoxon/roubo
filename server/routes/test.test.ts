@@ -273,6 +273,24 @@ describe("POST /test/__reset", () => {
     expect(order).toEqual(sorted);
   });
 
+  // The persistent first-page cut-list snapshot cache (`issue-snapshots/`,
+  // written by DiskSnapshotStore) survives a process restart by design, so a
+  // reset must wipe it: otherwise a snapshot written by one scenario would be
+  // served as a disk-hit to a later scenario sharing the same cache key,
+  // rendering stale or wrong issues across specs.
+  it("removes the issue-snapshots cache directory on reset", async () => {
+    process.env.ROUBO_E2E = "1";
+    const snapshotsDir = path.join(TEST_ROUBO_DIR, "issue-snapshots");
+    fs.mkdirSync(path.join(snapshotsDir, "some-project"), { recursive: true });
+    fs.writeFileSync(path.join(snapshotsDir, "some-project", "abc.json"), "{}");
+    expect(fs.existsSync(snapshotsDir)).toBe(true);
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(200);
+    expect(fs.existsSync(snapshotsDir)).toBe(false);
+  });
+
   it("returns 500 with the error message when a reset step throws", async () => {
     process.env.ROUBO_E2E = "1";
     vi.mocked(pluginManager.shutdown).mockRejectedValueOnce(new Error("boom"));
