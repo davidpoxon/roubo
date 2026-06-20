@@ -295,7 +295,7 @@ describe("host.docker.* delegation (CP-TC-037)", () => {
     ).rejects.toMatchObject({ code: -32603, message: "migration failed" });
   });
 
-  it("composeStop delegates with the service when given, and empty string otherwise", async () => {
+  it("composeStop delegates with the service when given, and undefined otherwise", async () => {
     const h = setup();
     await h.call("host.docker.composeStop", {
       projectName: "p",
@@ -304,8 +304,11 @@ describe("host.docker.* delegation (CP-TC-037)", () => {
       service: "db",
     });
     expect(h.docker.composeStop).toHaveBeenCalledWith("p", "c.yml", "/w", "db");
+    // When no service is given the broker passes undefined so the facade stops
+    // the whole project, rather than an empty-string positional arg that docker
+    // compose would treat as a service filter matching nothing.
     await h.call("host.docker.composeStop", { projectName: "p", composeFile: "c.yml", cwd: "/w" });
-    expect(h.docker.composeStop).toHaveBeenLastCalledWith("p", "c.yml", "/w", "");
+    expect(h.docker.composeStop).toHaveBeenLastCalledWith("p", "c.yml", "/w", undefined);
   });
 
   it("composeDown delegates and returns null", async () => {

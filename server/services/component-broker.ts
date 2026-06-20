@@ -369,7 +369,9 @@ export function registerBrokerHandlers(
       const cwd = requireString(method, "cwd", params?.cwd);
       // service is optional; when absent the docker facade stops the whole project.
       const service =
-        params?.service === undefined ? "" : requireString(method, "service", params.service);
+        params?.service === undefined
+          ? undefined
+          : requireString(method, "service", params.service);
       try {
         await docker.composeStop(projectName, composeFile, cwd, service);
         return null;

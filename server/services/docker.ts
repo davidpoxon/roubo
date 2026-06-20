@@ -38,16 +38,18 @@ export async function composeStop(
   projectName: string,
   composeFile: string,
   cwd: string,
-  service: string,
+  service?: string,
 ): Promise<void> {
   const composeDir = path.dirname(path.resolve(cwd, composeFile));
   const composeFileName = path.basename(composeFile);
 
-  await runCommand(
-    "docker",
-    ["compose", "-f", composeFileName, "-p", projectName, "stop", service],
-    composeDir,
-  );
+  // Omit the service arg entirely when none is given: `docker compose stop`
+  // with no service stops the whole project, whereas passing an empty-string
+  // positional arg would be treated as a service filter matching nothing.
+  const args = ["compose", "-f", composeFileName, "-p", projectName, "stop"];
+  if (service) args.push(service);
+
+  await runCommand("docker", args, composeDir);
 }
 
 export async function composeDown(

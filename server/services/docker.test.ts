@@ -112,6 +112,18 @@ describe("composeStop", () => {
       "/repo",
     );
   });
+
+  it("omits the service arg when none is given so the whole project stops", async () => {
+    mockRunCommand.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    await composeStop("roubo-project-bench-1", "docker-compose.yml", "/repo");
+
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "docker",
+      ["compose", "-f", "docker-compose.yml", "-p", "roubo-project-bench-1", "stop"],
+      "/repo",
+    );
+  });
 });
 
 describe("composeDown", () => {
