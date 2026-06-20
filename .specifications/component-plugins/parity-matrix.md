@@ -15,7 +15,7 @@ This baseline is what the plugin-build slices are verified against:
 - **F1.10** (issue #610, build the bundled process component plugin at full parity)
 - **F1.11** (issue #614, migrate the roubo and responda `roubo.yaml` configs to plugin components, the dogfood cut-over)
 
-A slice is parity-complete only when every parity test case in the rows it touches is green. The CI guard for zero-core-knowledge (CP-NFR-006, issue #612) is out of scope for this matrix; that guard proves the dispatch was removed, this matrix proves the behaviour survived the move.
+A slice is parity-complete only when every parity test case in the rows it touches is green. The CI guard for zero-core-knowledge (CP-NFR-006, issue #617) is out of scope for this matrix; that guard proves core retains zero component-type and docker knowledge (the dispatch removal it follows is issue #612), this matrix proves the behaviour survived the move.
 
 ## How to read a row
 
