@@ -12,7 +12,7 @@ Roubo already started down the plugin road with **integration plugins** (e.g. `g
 
 - **Primary: consumers (teams).** Developers who assemble a bench by declaring components in `roubo.yaml`, drawing on first-party plus community-authored component plugins. We optimize their experience: a clear config surface, reliable bench behaviour identical to today, legible errors, and confidence that a plugin only does what it declares. They should never have to fork Roubo to get the component type they need.
 - **Secondary: plugin authors.** Developers building and publishing a new component type as a plugin (against the `plugin-sdk`). Their ergonomics matter, but v1 is optimized for the consuming team first; authoring is a deliberate close-second.
-- **Not the user:** end users of the *applications* a bench runs. This is tooling for the developers operating Roubo, not for the apps' own users.
+- **Not the user:** end users of the _applications_ a bench runs. This is tooling for the developers operating Roubo, not for the apps' own users.
 
 ## Jobs to be done
 
@@ -24,7 +24,7 @@ Roubo already started down the plugin road with **integration plugins** (e.g. `g
 
 - **Fork Roubo and edit core** (`bench-manager.ts` dispatch + `config-schema.ts` schema): the only way to add a component type today. Gaps: requires a Roubo source change and release for every new type; no isolation (new code runs with full core privileges); no distribution path; does not compose with other people's component types.
 - **Abuse the existing `process` type**: shoe-horn a non-process capability into a shell command. Gaps: loses first-class lifecycle, health, and config; no structured supervision; brittle.
-- **Integration-plugin system as-is**: proves the plugin pattern but is bespoke to the integration domain (its `PluginContract` is issue/source/auth-shaped, the manifest `kind` literal is `"integration"` only). It cannot host a component, which must *launch and supervise real processes and containers*, not just answer RPC queries.
+- **Integration-plugin system as-is**: proves the plugin pattern but is bespoke to the integration domain (its `PluginContract` is issue/source/auth-shaped, the manifest `kind` literal is `"integration"` only). It cannot host a component, which must _launch and supervise real processes and containers_, not just answer RPC queries.
 
 ## Core capabilities
 
@@ -41,7 +41,7 @@ The spec covers all capabilities below; the **build is phased** (see Out of scop
 
 ## Out of scope (v1)
 
-- **Enforced sandboxing** — specced now, **built in v2**. v1 ships permission *declaration* and display only; enforcement is advisory in v1.
+- **Enforced sandboxing** — specced now, **built in v2**. v1 ships permission _declaration_ and display only; enforcement is advisory in v1.
 - **Marketplace** — specced now, **built in v3**. v1 distribution is local: bundled plugins plus `~/.roubo/plugins`, the existing integration-plugin discovery path, with local install.
 - **Google Cloud / Clasp deploy** — **design-for only**, never built in this work. The plugin architecture must not preclude it, and we validate the design against it, but no deploy plugin ships.
 - **Backward compatibility of the old config shape** — not a goal. The config shape may change; the two live projects (roubo, responda) will be **migrated** as part of this work rather than kept byte-compatible.
@@ -56,7 +56,7 @@ The spec covers all capabilities below; the **build is phased** (see Out of scop
 
 ## Differentiation
 
-Roubo's wedge is not "a plugin system" in the abstract; it is a plugin system for the **whole bench lifecycle**, where a third party can contribute a component type that *launches and supervises real processes and containers* and have it compose safely with everyone else's. The integration-plugin work proved the host/plugin seam; extending it to components, with declared-then-enforced permissions, is what turns Roubo from a fixed two-type tool into an extensible platform.
+Roubo's wedge is not "a plugin system" in the abstract; it is a plugin system for the **whole bench lifecycle**, where a third party can contribute a component type that _launches and supervises real processes and containers_ and have it compose safely with everyone else's. The integration-plugin work proved the host/plugin seam; extending it to components, with declared-then-enforced permissions, is what turns Roubo from a fixed two-type tool into an extensible platform.
 
 ## Success definition
 
@@ -69,7 +69,7 @@ All four indicators matter; they land across the phases:
 
 ## Open questions & risks
 
-- [ ] **Runtime/lifecycle ownership (central tension, deferred to architecture).** Component plugins must launch and supervise real processes and containers, unlike integration plugins which only answer RPC queries. Does the **host** keep owning the process-manager / docker services while the plugin only *describes and dispatches* what to spawn and how to health-check (maximal reuse of the current transport), or does the **plugin** own its children's lifecycle directly (more power, larger trust surface)? Architecture must explore both.
+- [ ] **Runtime/lifecycle ownership (central tension, deferred to architecture).** Component plugins must launch and supervise real processes and containers, unlike integration plugins which only answer RPC queries. Does the **host** keep owning the process-manager / docker services while the plugin only _describes and dispatches_ what to spawn and how to health-check (maximal reuse of the current transport), or does the **plugin** own its children's lifecycle directly (more power, larger trust surface)? Architecture must explore both.
 - [ ] **Sandboxing mechanism on macOS/Node (v2).** How to actually enforce declared permissions for a process-spawning plugin on a macOS-primary, Node runtime: OS sandbox (`sandbox-exec`, containers, namespaces) vs a capability broker where the host is the sole privileged actor. Genuinely hard; feasibility risk.
 - [ ] **Marketplace infrastructure & trust (v3).** Registry/backend hosting, plugin signing, update channels, versioning, and curation/trust model. Where is it hosted and who curates?
 - [ ] **Config-schema binding shape.** Exactly how a component declares its plugin and passes plugin-owned config (a per-component `plugin:` reference plus an opaque, plugin-validated config block?), and how today's type-specific fields (docker / migration / connection) relocate into plugin-owned schemas while keeping the consumer config legible.

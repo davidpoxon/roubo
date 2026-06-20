@@ -6,21 +6,11 @@
     "title": "Spike: resolve host-owns vs plugin-owns component lifecycle (ADR)",
     "type": "task",
     "milestone": "Component plugins: Phase 0 De-risk spikes",
-    "labels": [
-      "spike",
-      "P0"
-    ],
+    "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-008",
-        "FR-006",
-        "FR-009"
-      ],
-      "user_story_ids": [
-        "US-007",
-        "US-008"
-      ],
+      "requirement_ids": ["FR-008", "FR-006", "FR-009"],
+      "user_story_ids": ["US-007", "US-008"],
       "test_case_ids": []
     },
     "kind": "spike"
@@ -32,19 +22,11 @@
     "title": "Spike: select the v2 plugin-isolation backend on macOS/Node",
     "type": "task",
     "milestone": "Component plugins: Phase 0 De-risk spikes",
-    "labels": [
-      "spike",
-      "P0"
-    ],
+    "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-018",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-009"
-      ],
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
       "test_case_ids": []
     },
     "kind": "spike"
@@ -56,17 +38,10 @@
     "title": "Spike: finalize host-RPC broker granularity + host-capability versioning",
     "type": "task",
     "milestone": "Component plugins: Phase 0 De-risk spikes",
-    "labels": [
-      "spike",
-      "P0"
-    ],
+    "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-008",
-        "FR-017",
-        "NFR-005"
-      ],
+      "requirement_ids": ["FR-008", "FR-017", "NFR-005"],
       "user_story_ids": [],
       "test_case_ids": []
     },
@@ -79,19 +54,11 @@
     "title": "Author the lifecycle-parity test matrix before extraction",
     "type": "task",
     "milestone": "Component plugins: Phase 0 De-risk spikes",
-    "labels": [
-      "task",
-      "P0"
-    ],
+    "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-007",
-        "NFR-002"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
+      "requirement_ids": ["FR-007", "NFR-002"],
+      "user_story_ids": ["US-002"],
       "test_case_ids": [
         "TC-021",
         "TC-032",
@@ -122,20 +89,11 @@
     "title": "Extend the plugin manifest to a component kind (+ ports/docker permissions, version fields)",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
+    "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-001",
-        "FR-011"
-      ],
-      "user_story_ids": [
-        "US-001",
-        "US-005"
-      ],
+      "requirement_ids": ["FR-001", "FR-011"],
+      "user_story_ids": ["US-001", "US-005"],
       "test_case_ids": [
         "TC-001",
         "TC-007",
@@ -161,20 +119,11 @@
     "title": "Define the ProvisionDescriptor shared union (docker | process | oneshot)",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
+    "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-002",
-        "FR-022"
-      ],
-      "user_story_ids": [
-        "US-005",
-        "US-012"
-      ],
+      "requirement_ids": ["FR-002", "FR-022"],
+      "user_story_ids": ["US-005", "US-012"],
       "test_case_ids": [
         "TC-002",
         "TC-003",
@@ -203,21 +152,11 @@
     "title": "Define the ComponentContract + defineComponentPlugin SDK",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
-    "blocked_by": [
-      598,
-      603
-    ],
+    "labels": ["task", "P0"],
+    "blocked_by": [598, 603],
     "implements": {
-      "requirement_ids": [
-        "FR-002"
-      ],
-      "user_story_ids": [
-        "US-005"
-      ],
+      "requirement_ids": ["FR-002"],
+      "user_story_ids": ["US-005"],
       "test_case_ids": [
         "TC-002",
         "TC-003",
@@ -239,24 +178,11 @@
     "title": "Implement the HostComponentBroker RPC surface (process/docker/ports/report/capability)",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      598,
-      600
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [598, 600],
     "implements": {
-      "requirement_ids": [
-        "FR-008",
-        "FR-009",
-        "FR-017"
-      ],
-      "user_story_ids": [
-        "US-005",
-        "US-008"
-      ],
+      "requirement_ids": ["FR-008", "FR-009", "FR-017"],
+      "user_story_ids": ["US-005", "US-008"],
       "test_case_ids": [
         "TC-008",
         "TC-009",
@@ -287,23 +213,11 @@
     "title": "Implement the LifecycleEngine (generic descriptor executor + ComponentStatus incl. completed)",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      603,
-      605
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [603, 605],
     "implements": {
-      "requirement_ids": [
-        "FR-007",
-        "FR-014",
-        "FR-022"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
+      "requirement_ids": ["FR-007", "FR-014", "FR-022"],
+      "user_story_ids": ["US-002"],
       "test_case_ids": [
         "TC-022",
         "TC-027",
@@ -348,18 +262,11 @@
     "title": "Implement the ResourceOwnershipLedger (persistent per-plugin/per-bench resource map)",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
+    "labels": ["task", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-015"
-      ],
-      "user_story_ids": [
-        "US-008"
-      ],
+      "requirement_ids": ["FR-015"],
+      "user_story_ids": ["US-008"],
       "test_case_ids": [
         "TC-019",
         "TC-023",
@@ -384,22 +291,11 @@
     "title": "Extend plugin-manager to discover/spawn/supervise the component kind + binding resolution",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      602,
-      604
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [602, 604],
     "implements": {
-      "requirement_ids": [
-        "FR-010",
-        "FR-003"
-      ],
-      "user_story_ids": [
-        "US-003"
-      ],
+      "requirement_ids": ["FR-010", "FR-003"],
+      "user_story_ids": ["US-003"],
       "test_case_ids": [
         "TC-004",
         "TC-005",
@@ -421,22 +317,11 @@
     "title": "Redesign the roubo.yaml components map to plugin bindings",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
-    "blocked_by": [
-      602,
-      604
-    ],
+    "labels": ["task", "P0"],
+    "blocked_by": [602, 604],
     "implements": {
-      "requirement_ids": [
-        "FR-003",
-        "NFR-005"
-      ],
-      "user_story_ids": [
-        "US-001"
-      ],
+      "requirement_ids": ["FR-003", "NFR-005"],
+      "user_story_ids": ["US-001"],
       "test_case_ids": [
         "TC-004",
         "TC-005",
@@ -461,22 +346,11 @@
     "title": "Build the bundled process component plugin at full parity",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      604,
-      606
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [604, 606],
     "implements": {
-      "requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
+      "requirement_ids": ["FR-005", "FR-007"],
+      "user_story_ids": ["US-002"],
       "test_case_ids": [
         "TC-032",
         "TC-033",
@@ -507,23 +381,11 @@
     "title": "Build the bundled database component plugin at full parity",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      604,
-      606,
-      607
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [604, 606, 607],
     "implements": {
-      "requirement_ids": [
-        "FR-004",
-        "FR-007"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
+      "requirement_ids": ["FR-004", "FR-007"],
+      "user_story_ids": ["US-002"],
       "test_case_ids": [
         "TC-032",
         "TC-033",
@@ -554,25 +416,11 @@
     "title": "Remove all component-type dispatch from bench-manager (delegate to engine/registry)",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      606,
-      608,
-      610,
-      611
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [606, 608, 610, 611],
     "implements": {
-      "requirement_ids": [
-        "FR-006",
-        "FR-009",
-        "NFR-002"
-      ],
-      "user_story_ids": [
-        "US-007"
-      ],
+      "requirement_ids": ["FR-006", "FR-009", "NFR-002"],
+      "user_story_ids": ["US-007"],
       "test_case_ids": [
         "TC-021",
         "TC-033",
@@ -592,24 +440,11 @@
     "title": "Crash cleanup, graceful degradation, auto-recovery + startup orphan sweep",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      605,
-      607,
-      608
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [605, 607, 608],
     "implements": {
-      "requirement_ids": [
-        "FR-015",
-        "FR-016",
-        "NFR-003"
-      ],
-      "user_story_ids": [
-        "US-008"
-      ],
+      "requirement_ids": ["FR-015", "FR-016", "NFR-003"],
+      "user_story_ids": ["US-008"],
       "test_case_ids": [
         "TC-019",
         "TC-020",
@@ -636,31 +471,12 @@
     "title": "Migrate the roubo and responda roubo.yaml configs to plugin components",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
-    "blocked_by": [
-      609,
-      610,
-      611,
-      612
-    ],
+    "labels": ["task", "P0"],
+    "blocked_by": [609, 610, 611, 612],
     "implements": {
-      "requirement_ids": [
-        "FR-013"
-      ],
-      "user_story_ids": [
-        "US-002",
-        "US-007"
-      ],
-      "test_case_ids": [
-        "TC-032",
-        "TC-033",
-        "TC-034",
-        "TC-045",
-        "TC-046"
-      ]
+      "requirement_ids": ["FR-013"],
+      "user_story_ids": ["US-002", "US-007"],
+      "test_case_ids": ["TC-032", "TC-033", "TC-034", "TC-045", "TC-046"]
     }
   },
   {
@@ -670,24 +486,11 @@
     "title": "Permission consent dialog + declaration display + consent gate",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      602,
-      608
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [602, 608],
     "implements": {
-      "requirement_ids": [
-        "FR-011",
-        "FR-012",
-        "NFR-001",
-        "NFR-007"
-      ],
-      "user_story_ids": [
-        "US-004"
-      ],
+      "requirement_ids": ["FR-011", "FR-012", "NFR-001", "NFR-007"],
+      "user_story_ids": ["US-004"],
       "test_case_ids": [
         "TC-007",
         "TC-013",
@@ -722,22 +525,11 @@
     "title": "Plugin-backed component status/logs parity surface",
     "type": "feature",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      605,
-      606
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [605, 606],
     "implements": {
-      "requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "user_story_ids": [
-        "US-006"
-      ],
+      "requirement_ids": ["FR-014", "NFR-004"],
+      "user_story_ids": ["US-006"],
       "test_case_ids": [
         "TC-022",
         "TC-027",
@@ -758,26 +550,12 @@
     "title": "ComponentTypeKnowledgeGuard CI check (zero core type/docker knowledge)",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "task",
-      "P0"
-    ],
-    "blocked_by": [
-      612
-    ],
+    "labels": ["task", "P0"],
+    "blocked_by": [612],
     "implements": {
-      "requirement_ids": [
-        "NFR-006"
-      ],
-      "user_story_ids": [
-        "US-007"
-      ],
-      "test_case_ids": [
-        "TC-040",
-        "TC-041",
-        "TC-042",
-        "TC-129"
-      ]
+      "requirement_ids": ["NFR-006"],
+      "user_story_ids": ["US-007"],
+      "test_case_ids": ["TC-040", "TC-041", "TC-042", "TC-129"]
     }
   },
   {
@@ -787,28 +565,12 @@
     "title": "PermissionEnforcer: deny undeclared broker calls (v2)",
     "type": "feature",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      599,
-      605
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [599, 605],
     "implements": {
-      "requirement_ids": [
-        "FR-018",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-009"
-      ],
-      "test_case_ids": [
-        "TC-086",
-        "TC-093",
-        "TC-094",
-        "TC-099"
-      ]
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
     }
   },
   {
@@ -818,28 +580,12 @@
     "title": "AuditLog: record every privileged broker call, queryable per plugin/bench (v2)",
     "type": "feature",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      605
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [605],
     "implements": {
-      "requirement_ids": [
-        "FR-019",
-        "NFR-004"
-      ],
-      "user_story_ids": [
-        "US-009"
-      ],
-      "test_case_ids": [
-        "TC-070",
-        "TC-086",
-        "TC-092",
-        "TC-093",
-        "TC-099"
-      ]
+      "requirement_ids": ["FR-019", "NFR-004"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-070", "TC-086", "TC-092", "TC-093", "TC-099"]
     }
   },
   {
@@ -849,28 +595,12 @@
     "title": "PluginIsolationSandbox: OS-level isolation per plugin (v2)",
     "type": "feature",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      599,
-      618
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [599, 618],
     "implements": {
-      "requirement_ids": [
-        "FR-018",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-009"
-      ],
-      "test_case_ids": [
-        "TC-086",
-        "TC-093",
-        "TC-094",
-        "TC-099"
-      ]
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
     }
   },
   {
@@ -880,21 +610,11 @@
     "title": "Marketplace catalog: browse/search/install/update (first-party curated) (v3)",
     "type": "feature",
     "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-    "labels": [
-      "feature",
-      "P1"
-    ],
-    "blocked_by": [
-      608
-    ],
+    "labels": ["feature", "P1"],
+    "blocked_by": [608],
     "implements": {
-      "requirement_ids": [
-        "FR-020",
-        "NFR-007"
-      ],
-      "user_story_ids": [
-        "US-010"
-      ],
+      "requirement_ids": ["FR-020", "NFR-007"],
+      "user_story_ids": ["US-010"],
       "test_case_ids": [
         "TC-100",
         "TC-101",
@@ -922,21 +642,11 @@
     "title": "Marketplace integrity verification + revocation (v3)",
     "type": "feature",
     "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-    "labels": [
-      "feature",
-      "P1"
-    ],
-    "blocked_by": [
-      621
-    ],
+    "labels": ["feature", "P1"],
+    "blocked_by": [621],
     "implements": {
-      "requirement_ids": [
-        "FR-021"
-      ],
-      "user_story_ids": [
-        "US-010",
-        "US-011"
-      ],
+      "requirement_ids": ["FR-021"],
+      "user_story_ids": ["US-010", "US-011"],
       "test_case_ids": [
         "TC-101",
         "TC-104",
@@ -959,59 +669,16 @@
     "title": "E2E: author scaffolds, consumer binds, installs, and runs a component plugin",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      602,
-      603,
-      604,
-      605,
-      606,
-      607,
-      608,
-      609,
-      613,
-      615,
-      616
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616],
     "implements": {
-      "requirement_ids": [
-        "FR-001",
-        "FR-002",
-        "FR-003",
-        "FR-010",
-        "FR-011",
-        "FR-014",
-        "FR-015"
-      ],
-      "user_story_ids": [
-        "US-001",
-        "US-003",
-        "US-005"
-      ],
-      "test_case_ids": [
-        "TC-027"
-      ]
+      "requirement_ids": ["FR-001", "FR-002", "FR-003", "FR-010", "FR-011", "FR-014", "FR-015"],
+      "user_story_ids": ["US-001", "US-003", "US-005"],
+      "test_case_ids": ["TC-027"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-027"
-    ],
-    "covers": [
-      602,
-      603,
-      604,
-      605,
-      606,
-      607,
-      608,
-      609,
-      613,
-      615,
-      616
-    ]
+    "verified_by": ["TC-027"],
+    "covers": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616]
   },
   {
     "number": 624,
@@ -1020,57 +687,16 @@
     "title": "E2E: responda bench runs entirely on plugin-backed components, identical to built-in",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      598,
-      600,
-      601,
-      605,
-      606,
-      610,
-      611,
-      612,
-      614,
-      617
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617],
     "implements": {
-      "requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "FR-007",
-        "FR-008",
-        "FR-013",
-        "NFR-002"
-      ],
-      "user_story_ids": [
-        "US-002",
-        "US-007"
-      ],
-      "test_case_ids": [
-        "TC-033",
-        "TC-034"
-      ]
+      "requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-008", "FR-013", "NFR-002"],
+      "user_story_ids": ["US-002", "US-007"],
+      "test_case_ids": ["TC-033", "TC-034"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-033",
-      "TC-034"
-    ],
-    "covers": [
-      598,
-      600,
-      601,
-      605,
-      606,
-      610,
-      611,
-      612,
-      614,
-      617
-    ]
+    "verified_by": ["TC-033", "TC-034"],
+    "covers": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617]
   },
   {
     "number": 625,
@@ -1079,41 +705,16 @@
     "title": "E2E: consumer reviews declared permissions and consents before a plugin runs",
     "type": "task",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      599,
-      602,
-      615,
-      618,
-      620
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [599, 602, 615, 618, 620],
     "implements": {
-      "requirement_ids": [
-        "FR-011",
-        "FR-012",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-004"
-      ],
-      "test_case_ids": [
-        "TC-076"
-      ]
+      "requirement_ids": ["FR-011", "FR-012", "NFR-001"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-076"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-076"
-    ],
-    "covers": [
-      599,
-      602,
-      615,
-      618,
-      620
-    ]
+    "verified_by": ["TC-076"],
+    "covers": [599, 602, 615, 618, 620]
   },
   {
     "number": 626,
@@ -1122,48 +723,16 @@
     "title": "E2E: author publishes a component plugin; a host-capability mismatch fails gracefully",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      598,
-      600,
-      602,
-      603,
-      604,
-      605,
-      607,
-      613
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 600, 602, 603, 604, 605, 607, 613],
     "implements": {
-      "requirement_ids": [
-        "FR-002",
-        "FR-015",
-        "FR-017"
-      ],
-      "user_story_ids": [
-        "US-005",
-        "US-008"
-      ],
-      "test_case_ids": [
-        "TC-028"
-      ]
+      "requirement_ids": ["FR-002", "FR-015", "FR-017"],
+      "user_story_ids": ["US-005", "US-008"],
+      "test_case_ids": ["TC-028"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-028"
-    ],
-    "covers": [
-      598,
-      600,
-      602,
-      603,
-      604,
-      605,
-      607,
-      613
-    ]
+    "verified_by": ["TC-028"],
+    "covers": [598, 600, 602, 603, 604, 605, 607, 613]
   },
   {
     "number": 627,
@@ -1172,48 +741,16 @@
     "title": "E2E: a crashed component plugin is cleaned up, siblings survive, and it auto-recovers",
     "type": "task",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      598,
-      605,
-      606,
-      607,
-      613,
-      616,
-      619
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 605, 606, 607, 613, 616, 619],
     "implements": {
-      "requirement_ids": [
-        "FR-014",
-        "FR-015",
-        "FR-016",
-        "NFR-003",
-        "NFR-004"
-      ],
-      "user_story_ids": [
-        "US-006",
-        "US-008"
-      ],
-      "test_case_ids": [
-        "TC-061"
-      ]
+      "requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-003", "NFR-004"],
+      "user_story_ids": ["US-006", "US-008"],
+      "test_case_ids": ["TC-061"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-061"
-    ],
-    "covers": [
-      598,
-      605,
-      606,
-      607,
-      613,
-      616,
-      619
-    ]
+    "verified_by": ["TC-061"],
+    "covers": [598, 605, 606, 607, 613, 616, 619]
   },
   {
     "number": 628,
@@ -1222,41 +759,16 @@
     "title": "E2E (v2): a plugin's undeclared actions are blocked and audited while the bench keeps running",
     "type": "task",
     "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      599,
-      615,
-      618,
-      619,
-      620
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [599, 615, 618, 619, 620],
     "implements": {
-      "requirement_ids": [
-        "FR-018",
-        "FR-019",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-009"
-      ],
-      "test_case_ids": [
-        "TC-099"
-      ]
+      "requirement_ids": ["FR-018", "FR-019", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-099"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-099"
-    ],
-    "covers": [
-      599,
-      615,
-      618,
-      619,
-      620
-    ]
+    "verified_by": ["TC-099"],
+    "covers": [599, 615, 618, 619, 620]
   },
   {
     "number": 629,
@@ -1265,35 +777,16 @@
     "title": "E2E (v3): consumer browses, installs (integrity-verified), and updates a marketplace plugin",
     "type": "task",
     "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-    "labels": [
-      "e2e",
-      "P1"
-    ],
-    "blocked_by": [
-      621,
-      622
-    ],
+    "labels": ["e2e", "P1"],
+    "blocked_by": [621, 622],
     "implements": {
-      "requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "user_story_ids": [
-        "US-010",
-        "US-011"
-      ],
-      "test_case_ids": [
-        "TC-101"
-      ]
+      "requirement_ids": ["FR-020", "FR-021"],
+      "user_story_ids": ["US-010", "US-011"],
+      "test_case_ids": ["TC-101"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-101"
-    ],
-    "covers": [
-      621,
-      622
-    ]
+    "verified_by": ["TC-101"],
+    "covers": [621, 622]
   },
   {
     "number": 630,
@@ -1302,30 +795,15 @@
     "title": "E2E: the component kind coexists with integration plugins (no regression)",
     "type": "task",
     "milestone": "Component plugins: Phase 1 Foundation (v1)",
-    "labels": [
-      "e2e",
-      "P0"
-    ],
-    "blocked_by": [
-      600,
-      609
-    ],
+    "labels": ["e2e", "P0"],
+    "blocked_by": [600, 609],
     "implements": {
-      "requirement_ids": [
-        "NFR-005"
-      ],
+      "requirement_ids": ["NFR-005"],
       "user_story_ids": [],
-      "test_case_ids": [
-        "TC-029"
-      ]
+      "test_case_ids": ["TC-029"]
     },
     "kind": "e2e",
-    "verified_by": [
-      "TC-029"
-    ],
-    "covers": [
-      600,
-      609
-    ]
+    "verified_by": ["TC-029"],
+    "covers": [600, 609]
   }
 ]

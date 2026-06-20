@@ -1,11 +1,11 @@
 # PRD: Component Plugins
 
-| | |
-|---|---|
-| **Slug** | component-plugins |
-| **Status** | draft |
-| **Brief** | ./brief.md |
-| **Feasibility** | ./feasibility.md |
+|                 |                   |
+| --------------- | ----------------- |
+| **Slug**        | component-plugins |
+| **Status**      | draft             |
+| **Brief**       | ./brief.md        |
+| **Feasibility** | ./feasibility.md  |
 
 ## Problem statement
 
@@ -109,20 +109,20 @@ Each NFR has a measurable target and a verification method.
 
 ### Leading
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Dogfood parity pass rate | n/a (new) | 100% of the parity suite green; roubo + responda benches start/stop/reconcile identically on plugin components | parity test suite + manual bench runs | US-002, US-007, FR-004, FR-005, FR-007, FR-013 |
-| Core type-knowledge | 4 dispatch sites in `bench-manager.ts` + 2-value enum in `config-schema.ts` | 0 component-type literals / docker-field branches in core (CI guard green) | the NFR-006 CI guard | US-007, FR-006, FR-009 |
-| Third-party plugin runs without a core change | 0 (impossible today) | >= 1 non-first-party component plugin (e.g. redis or a Clasp-deploy stub) authored and run on an unmodified Roubo | manual / example plugin | US-003, US-005, FR-001, FR-002, FR-010 |
-| Time-to-first-plugin | n/a | an author scaffolds and runs a hello-world component plugin in < 30 min using the SDK + docs | author-onboarding dry run | US-005, FR-002 |
+| Indicator                                     | Baseline                                                                    | Target                                                                                                            | Source                                | Validates                                      |
+| --------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------- |
+| Dogfood parity pass rate                      | n/a (new)                                                                   | 100% of the parity suite green; roubo + responda benches start/stop/reconcile identically on plugin components    | parity test suite + manual bench runs | US-002, US-007, FR-004, FR-005, FR-007, FR-013 |
+| Core type-knowledge                           | 4 dispatch sites in `bench-manager.ts` + 2-value enum in `config-schema.ts` | 0 component-type literals / docker-field branches in core (CI guard green)                                        | the NFR-006 CI guard                  | US-007, FR-006, FR-009                         |
+| Third-party plugin runs without a core change | 0 (impossible today)                                                        | >= 1 non-first-party component plugin (e.g. redis or a Clasp-deploy stub) authored and run on an unmodified Roubo | manual / example plugin               | US-003, US-005, FR-001, FR-002, FR-010         |
+| Time-to-first-plugin                          | n/a                                                                         | an author scaffolds and runs a hello-world component plugin in < 30 min using the SDK + docs                      | author-onboarding dry run             | US-005, FR-002                                 |
 
 ### Lagging
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Core PRs required to add a component type | 1+ per new type (today) | 0 (new types ship as plugins, no core change) | git history of `bench-manager.ts` / `config-schema.ts` | US-007, the feature |
-| Permission-escape incidents (post-v2) | n/a | 0 reported cases of a plugin exceeding its declared permissions | issue tracker / incident reports | US-009, FR-018 |
-| Curated plugins installed via marketplace (post-v3) | 0 | installs / active component plugins per project trending up | marketplace registry telemetry | US-010, FR-020 |
+| Indicator                                           | Baseline                | Target                                                          | Source                                                 | Validates           |
+| --------------------------------------------------- | ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------ | ------------------- |
+| Core PRs required to add a component type           | 1+ per new type (today) | 0 (new types ship as plugins, no core change)                   | git history of `bench-manager.ts` / `config-schema.ts` | US-007, the feature |
+| Permission-escape incidents (post-v2)               | n/a                     | 0 reported cases of a plugin exceeding its declared permissions | issue tracker / incident reports                       | US-009, FR-018      |
+| Curated plugins installed via marketplace (post-v3) | 0                       | installs / active component plugins per project trending up     | marketplace registry telemetry                         | US-010, FR-020      |
 
 ## Dependencies & assumptions
 

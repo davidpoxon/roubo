@@ -45,18 +45,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "manifest",
-        "kind-discriminator"
-      ],
-      "linked_requirement_ids": [
-        "FR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-001",
-        "US-005"
-      ]
+      "tags": ["smoke", "manifest", "kind-discriminator"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-001", "US-005"]
     },
     {
       "id": "TC-002",
@@ -94,17 +85,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "sdk",
-        "declarative"
-      ],
-      "linked_requirement_ids": [
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["smoke", "sdk", "declarative"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-003",
@@ -167,17 +150,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path",
-        "sdk",
-        "imperative"
-      ],
-      "linked_requirement_ids": [
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["happy-path", "sdk", "imperative"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-004",
@@ -219,17 +194,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "config",
-        "binding"
-      ],
-      "linked_requirement_ids": [
-        "FR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-001"
-      ]
+      "tags": ["smoke", "config", "binding"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-001"]
     },
     {
       "id": "TC-005",
@@ -267,16 +234,9 @@
           ]
         }
       ],
-      "tags": [
-        "validation",
-        "config-schema"
-      ],
-      "linked_requirement_ids": [
-        "FR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-001"
-      ]
+      "tags": ["validation", "config-schema"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-001"]
     },
     {
       "id": "TC-006",
@@ -326,17 +286,9 @@
           ]
         }
       ],
-      "tags": [
-        "install",
-        "discovery",
-        "supervision"
-      ],
-      "linked_requirement_ids": [
-        "FR-010"
-      ],
-      "linked_user_story_ids": [
-        "US-003"
-      ]
+      "tags": ["install", "discovery", "supervision"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-003"]
     },
     {
       "id": "TC-007",
@@ -344,9 +296,7 @@
       "area": "plugin-kind-contract",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "A roubo-plugin.yaml for a component plugin is authored"
-      ],
+      "preconditions": ["A roubo-plugin.yaml for a component plugin is authored"],
       "steps": [
         {
           "id": "S001",
@@ -373,16 +323,9 @@
           ]
         }
       ],
-      "tags": [
-        "permissions",
-        "manifest"
-      ],
-      "linked_requirement_ids": [
-        "FR-011"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["permissions", "manifest"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-008",
@@ -390,9 +333,7 @@
       "area": "plugin-kind-contract",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "An imperative component plugin is running and connected via JSON-RPC"
-      ],
+      "preconditions": ["An imperative component plugin is running and connected via JSON-RPC"],
       "steps": [
         {
           "id": "S001",
@@ -415,18 +356,9 @@
           ]
         }
       ],
-      "tags": [
-        "capability-gate",
-        "broker",
-        "versioning"
-      ],
-      "linked_requirement_ids": [
-        "FR-017",
-        "NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["capability-gate", "broker", "versioning"],
+      "linked_requirement_ids": ["FR-017", "NFR-005"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-009",
@@ -468,19 +400,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "capability-gate",
-        "graceful-degradation"
-      ],
-      "linked_requirement_ids": [
-        "FR-017",
-        "NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "US-005",
-        "US-008"
-      ]
+      "tags": ["negative", "capability-gate", "graceful-degradation"],
+      "linked_requirement_ids": ["FR-017", "NFR-005"],
+      "linked_user_story_ids": ["US-005", "US-008"]
     },
     {
       "id": "TC-010",
@@ -522,14 +444,8 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "backwards-compat",
-        "integration-plugin"
-      ],
-      "linked_requirement_ids": [
-        "NFR-005"
-      ],
+      "tags": ["regression", "backwards-compat", "integration-plugin"],
+      "linked_requirement_ids": ["NFR-005"],
       "linked_user_story_ids": []
     },
     {
@@ -572,18 +488,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "version-mismatch",
-        "graceful-error"
-      ],
-      "linked_requirement_ids": [
-        "NFR-005",
-        "FR-010"
-      ],
-      "linked_user_story_ids": [
-        "US-003"
-      ]
+      "tags": ["negative", "version-mismatch", "graceful-error"],
+      "linked_requirement_ids": ["NFR-005", "FR-010"],
+      "linked_user_story_ids": ["US-003"]
     },
     {
       "id": "TC-012",
@@ -614,14 +521,8 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "manifest-validation",
-        "kind-discriminator"
-      ],
-      "linked_requirement_ids": [
-        "FR-001"
-      ],
+      "tags": ["negative", "manifest-validation", "kind-discriminator"],
+      "linked_requirement_ids": ["FR-001"],
       "linked_user_story_ids": []
     },
     {
@@ -649,17 +550,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "manifest-validation",
-        "permissions"
-      ],
-      "linked_requirement_ids": [
-        "FR-011"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["negative", "manifest-validation", "permissions"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-014",
@@ -667,9 +560,7 @@
       "area": "plugin-kind-contract",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "A roubo-plugin.yaml specifies hostApiVersionRequired: 'not-semver'"
-      ],
+      "preconditions": ["A roubo-plugin.yaml specifies hostApiVersionRequired: 'not-semver'"],
       "steps": [
         {
           "id": "S001",
@@ -686,15 +577,8 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "manifest-validation",
-        "semver"
-      ],
-      "linked_requirement_ids": [
-        "FR-010",
-        "NFR-005"
-      ],
+      "tags": ["negative", "manifest-validation", "semver"],
+      "linked_requirement_ids": ["FR-010", "NFR-005"],
       "linked_user_story_ids": []
     },
     {
@@ -722,17 +606,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "sdk",
-        "contract-validation"
-      ],
-      "linked_requirement_ids": [
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["edge-case", "sdk", "contract-validation"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-016",
@@ -760,18 +636,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "descriptor-validation",
-        "versioning"
-      ],
-      "linked_requirement_ids": [
-        "FR-002",
-        "FR-017"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["edge-case", "descriptor-validation", "versioning"],
+      "linked_requirement_ids": ["FR-002", "FR-017"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-017",
@@ -802,17 +669,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "contract-validation",
-        "imperative"
-      ],
-      "linked_requirement_ids": [
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["edge-case", "contract-validation", "imperative"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-018",
@@ -850,17 +709,9 @@
           ]
         }
       ],
-      "tags": [
-        "oneshot",
-        "descriptor",
-        "terminal-state"
-      ],
-      "linked_requirement_ids": [
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["oneshot", "descriptor", "terminal-state"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-019",
@@ -907,19 +758,9 @@
           ]
         }
       ],
-      "tags": [
-        "reliability",
-        "crash",
-        "cleanup",
-        "orphan-prevention"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["reliability", "crash", "cleanup", "orphan-prevention"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-020",
@@ -961,18 +802,9 @@
           ]
         }
       ],
-      "tags": [
-        "reliability",
-        "graceful-degradation",
-        "auto-recovery"
-      ],
-      "linked_requirement_ids": [
-        "FR-016",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["reliability", "graceful-degradation", "auto-recovery"],
+      "linked_requirement_ids": ["FR-016", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-021",
@@ -1011,17 +843,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "latency",
-        "benchmark"
-      ],
-      "linked_requirement_ids": [
-        "NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["performance", "latency", "benchmark"],
+      "linked_requirement_ids": ["NFR-002"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-022",
@@ -1064,19 +888,9 @@
           ]
         }
       ],
-      "tags": [
-        "observability",
-        "logs",
-        "status",
-        "parity"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006"
-      ]
+      "tags": ["observability", "logs", "status", "parity"],
+      "linked_requirement_ids": ["FR-014", "NFR-004"],
+      "linked_user_story_ids": ["US-006"]
     },
     {
       "id": "TC-023",
@@ -1119,18 +933,9 @@
           ]
         }
       ],
-      "tags": [
-        "reliability",
-        "startup-sweep",
-        "orphan-reap"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["reliability", "startup-sweep", "orphan-reap"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-024",
@@ -1157,17 +962,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "config",
-        "binding-validation"
-      ],
-      "linked_requirement_ids": [
-        "FR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-001"
-      ]
+      "tags": ["negative", "config", "binding-validation"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-001"]
     },
     {
       "id": "TC-025",
@@ -1198,19 +995,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "config",
-        "unresolvable-plugin"
-      ],
-      "linked_requirement_ids": [
-        "FR-003",
-        "FR-010"
-      ],
-      "linked_user_story_ids": [
-        "US-001",
-        "US-003"
-      ]
+      "tags": ["negative", "config", "unresolvable-plugin"],
+      "linked_requirement_ids": ["FR-003", "FR-010"],
+      "linked_user_story_ids": ["US-001", "US-003"]
     },
     {
       "id": "TC-026",
@@ -1242,18 +1029,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "permissions",
-        "broker-enforcement"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-017"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["edge-case", "permissions", "broker-enforcement"],
+      "linked_requirement_ids": ["FR-011", "FR-017"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-027",
@@ -1378,14 +1156,7 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "smoke",
-        "happy-path",
-        "third-party",
-        "install",
-        "declarative"
-      ],
+      "tags": ["e2e", "smoke", "happy-path", "third-party", "install", "declarative"],
       "linked_requirement_ids": [
         "FR-001",
         "FR-002",
@@ -1395,11 +1166,7 @@
         "FR-014",
         "FR-015"
       ],
-      "linked_user_story_ids": [
-        "US-001",
-        "US-003",
-        "US-005"
-      ]
+      "linked_user_story_ids": ["US-001", "US-003", "US-005"]
     },
     {
       "id": "TC-028",
@@ -1482,22 +1249,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "happy-path",
-        "imperative",
-        "escape-hatch",
-        "oneshot"
-      ],
-      "linked_requirement_ids": [
-        "FR-002",
-        "FR-017",
-        "FR-015"
-      ],
-      "linked_user_story_ids": [
-        "US-005",
-        "US-008"
-      ]
+      "tags": ["e2e", "happy-path", "imperative", "escape-hatch", "oneshot"],
+      "linked_requirement_ids": ["FR-002", "FR-017", "FR-015"],
+      "linked_user_story_ids": ["US-005", "US-008"]
     },
     {
       "id": "TC-029",
@@ -1551,15 +1305,8 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "regression",
-        "backwards-compat",
-        "integration-plugin"
-      ],
-      "linked_requirement_ids": [
-        "NFR-005"
-      ],
+      "tags": ["e2e", "regression", "backwards-compat", "integration-plugin"],
+      "linked_requirement_ids": ["NFR-005"],
       "linked_user_story_ids": []
     },
     {
@@ -1588,17 +1335,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "config",
-        "opaque-passthrough"
-      ],
-      "linked_requirement_ids": [
-        "FR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-001"
-      ]
+      "tags": ["edge-case", "config", "opaque-passthrough"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-001"]
     },
     {
       "id": "TC-031",
@@ -1646,19 +1385,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "multi-bench",
-        "multiplexing"
-      ],
-      "linked_requirement_ids": [
-        "FR-010",
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-001",
-        "US-003"
-      ]
+      "tags": ["edge-case", "multi-bench", "multiplexing"],
+      "linked_requirement_ids": ["FR-010", "FR-002"],
+      "linked_user_story_ids": ["US-001", "US-003"]
     },
     {
       "id": "TC-032",
@@ -1726,20 +1455,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "FR-007",
-        "FR-013"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["smoke", "regression", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-013"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-033",
@@ -1863,24 +1581,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "e2e",
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "FR-007",
-        "FR-008",
-        "FR-013",
-        "NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-002",
-        "US-007"
-      ]
+      "tags": ["smoke", "e2e", "regression", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-008", "FR-013", "NFR-002"],
+      "linked_user_story_ids": ["US-002", "US-007"]
     },
     {
       "id": "TC-034",
@@ -1953,21 +1656,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "e2e",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "FR-007",
-        "FR-013"
-      ],
-      "linked_user_story_ids": [
-        "US-002",
-        "US-007"
-      ]
+      "tags": ["regression", "e2e", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-013"],
+      "linked_user_story_ids": ["US-002", "US-007"]
     },
     {
       "id": "TC-035",
@@ -2025,17 +1716,9 @@
           ]
         }
       ],
-      "tags": [
-        "unit",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["unit", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-036",
@@ -2093,17 +1776,9 @@
           ]
         }
       ],
-      "tags": [
-        "unit",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["unit", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-037",
@@ -2154,18 +1829,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-007",
-        "FR-008"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["integration", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-007", "FR-008"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-038",
@@ -2216,18 +1882,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007",
-        "FR-008"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["integration", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007", "FR-008"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-039",
@@ -2260,17 +1917,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["regression", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-040",
@@ -2321,19 +1970,9 @@
           ]
         }
       ],
-      "tags": [
-        "structural",
-        "ci-guard",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-006",
-        "FR-009",
-        "NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "US-007"
-      ]
+      "tags": ["structural", "ci-guard", "automated"],
+      "linked_requirement_ids": ["FR-006", "FR-009", "NFR-006"],
+      "linked_user_story_ids": ["US-007"]
     },
     {
       "id": "TC-041",
@@ -2341,9 +1980,7 @@
       "area": "dogfood-parity",
       "level": 3,
       "type": "structural",
-      "preconditions": [
-        "v1 branch with the CI guard installed and passing"
-      ],
+      "preconditions": ["v1 branch with the CI guard installed and passing"],
       "steps": [
         {
           "id": "S001",
@@ -2380,20 +2017,9 @@
           ]
         }
       ],
-      "tags": [
-        "structural",
-        "ci-guard",
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-006",
-        "FR-009",
-        "NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "US-007"
-      ]
+      "tags": ["structural", "ci-guard", "negative", "automated"],
+      "linked_requirement_ids": ["FR-006", "FR-009", "NFR-006"],
+      "linked_user_story_ids": ["US-007"]
     },
     {
       "id": "TC-042",
@@ -2401,9 +2027,7 @@
       "area": "dogfood-parity",
       "level": 3,
       "type": "structural",
-      "preconditions": [
-        "v1 branch with the CI guard passing"
-      ],
+      "preconditions": ["v1 branch with the CI guard passing"],
       "steps": [
         {
           "id": "S001",
@@ -2426,19 +2050,9 @@
           ]
         }
       ],
-      "tags": [
-        "structural",
-        "ci-guard",
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-009",
-        "NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "US-007"
-      ]
+      "tags": ["structural", "ci-guard", "negative", "automated"],
+      "linked_requirement_ids": ["FR-009", "NFR-006"],
+      "linked_user_story_ids": ["US-007"]
     },
     {
       "id": "TC-043",
@@ -2492,17 +2106,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "NFR-002",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["performance", "automated"],
+      "linked_requirement_ids": ["NFR-002", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-044",
@@ -2537,17 +2143,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "NFR-002",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["performance", "automated"],
+      "linked_requirement_ids": ["NFR-002", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-045",
@@ -2612,17 +2210,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-013"
-      ],
-      "linked_user_story_ids": [
-        "US-002",
-        "US-007"
-      ]
+      "tags": ["regression", "automated"],
+      "linked_requirement_ids": ["FR-013"],
+      "linked_user_story_ids": ["US-002", "US-007"]
     },
     {
       "id": "TC-046",
@@ -2654,16 +2244,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-013"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["regression", "automated"],
+      "linked_requirement_ids": ["FR-013"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-047",
@@ -2694,17 +2277,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["negative", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-048",
@@ -2712,9 +2287,7 @@
       "area": "dogfood-parity",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "BundledDatabasePlugin unit test environment"
-      ],
+      "preconditions": ["BundledDatabasePlugin unit test environment"],
       "steps": [
         {
           "id": "S001",
@@ -2731,17 +2304,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "unit",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["negative", "unit", "automated"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-049",
@@ -2749,9 +2314,7 @@
       "area": "dogfood-parity",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "BundledProcessPlugin unit test environment"
-      ],
+      "preconditions": ["BundledProcessPlugin unit test environment"],
       "steps": [
         {
           "id": "S001",
@@ -2768,17 +2331,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "unit",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["negative", "unit", "automated"],
+      "linked_requirement_ids": ["FR-005"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-050",
@@ -2805,18 +2360,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["edge_case", "negative", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-051",
@@ -2847,17 +2393,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["edge_case", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-052",
@@ -2889,17 +2427,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["edge_case", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-053",
@@ -2907,9 +2437,7 @@
       "area": "dogfood-parity",
       "level": 3,
       "type": "functional",
-      "preconditions": [
-        "HostComponentBroker running on the v1 host"
-      ],
+      "preconditions": ["HostComponentBroker running on the v1 host"],
       "steps": [
         {
           "id": "S001",
@@ -2932,17 +2460,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-008",
-        "FR-017"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["integration", "automated"],
+      "linked_requirement_ids": ["FR-008", "FR-017"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-054",
@@ -2974,17 +2494,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-017",
-        "NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["negative", "automated"],
+      "linked_requirement_ids": ["FR-017", "NFR-005"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-055",
@@ -3016,17 +2528,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-008",
-        "FR-017"
-      ],
-      "linked_user_story_ids": [
-        "US-005"
-      ]
+      "tags": ["negative", "automated"],
+      "linked_requirement_ids": ["FR-008", "FR-017"],
+      "linked_user_story_ids": ["US-005"]
     },
     {
       "id": "TC-056",
@@ -3060,17 +2564,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-007",
-        "FR-008"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["integration", "automated"],
+      "linked_requirement_ids": ["FR-007", "FR-008"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-057",
@@ -3117,17 +2613,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-007",
-        "FR-014"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["regression", "automated"],
+      "linked_requirement_ids": ["FR-007", "FR-014"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-058",
@@ -3183,19 +2671,9 @@
           ]
         }
       ],
-      "tags": [
-        "exhaustive",
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-008",
-        "FR-009"
-      ],
-      "linked_user_story_ids": [
-        "US-002",
-        "US-007"
-      ]
+      "tags": ["exhaustive", "integration", "automated"],
+      "linked_requirement_ids": ["FR-008", "FR-009"],
+      "linked_user_story_ids": ["US-002", "US-007"]
     },
     {
       "id": "TC-059",
@@ -3228,17 +2706,9 @@
           ]
         }
       ],
-      "tags": [
-        "exhaustive",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-005",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["exhaustive", "automated"],
+      "linked_requirement_ids": ["FR-005", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-060",
@@ -3262,17 +2732,9 @@
           ]
         }
       ],
-      "tags": [
-        "exhaustive",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "FR-004",
-        "FR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-002"
-      ]
+      "tags": ["exhaustive", "automated"],
+      "linked_requirement_ids": ["FR-004", "FR-007"],
+      "linked_user_story_ids": ["US-002"]
     },
     {
       "id": "TC-061",
@@ -3373,24 +2835,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "e2e",
-        "chaos",
-        "auto-recovery",
-        "orphan-guard"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "FR-015",
-        "FR-016",
-        "NFR-003",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006",
-        "US-008"
-      ]
+      "tags": ["smoke", "e2e", "chaos", "auto-recovery", "orphan-guard"],
+      "linked_requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-003", "NFR-004"],
+      "linked_user_story_ids": ["US-006", "US-008"]
     },
     {
       "id": "TC-062",
@@ -3458,18 +2905,9 @@
           ]
         }
       ],
-      "tags": [
-        "parity",
-        "observability",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006"
-      ]
+      "tags": ["parity", "observability", "regression"],
+      "linked_requirement_ids": ["FR-014", "NFR-004"],
+      "linked_user_story_ids": ["US-006"]
     },
     {
       "id": "TC-063",
@@ -3520,18 +2958,9 @@
           ]
         }
       ],
-      "tags": [
-        "chaos",
-        "cleanup",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["chaos", "cleanup", "reliability"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-064",
@@ -3572,18 +3001,9 @@
           ]
         }
       ],
-      "tags": [
-        "chaos",
-        "graceful-degradation",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-016",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["chaos", "graceful-degradation", "reliability"],
+      "linked_requirement_ids": ["FR-016", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-065",
@@ -3635,19 +3055,9 @@
           ]
         }
       ],
-      "tags": [
-        "chaos",
-        "host-restart",
-        "orphan-sweep",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["chaos", "host-restart", "orphan-sweep", "reliability"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-066",
@@ -3702,18 +3112,9 @@
           ]
         }
       ],
-      "tags": [
-        "teardown",
-        "cleanup",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["teardown", "cleanup", "reliability"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-067",
@@ -3789,20 +3190,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "restart-budget",
-        "chaos",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "FR-016",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["negative", "restart-budget", "chaos", "reliability"],
+      "linked_requirement_ids": ["FR-015", "FR-016", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-068",
@@ -3853,19 +3243,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "one-shot",
-        "timeout",
-        "orphan-guard"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["edge-case", "one-shot", "timeout", "orphan-guard"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-069",
@@ -3915,18 +3295,9 @@
           ]
         }
       ],
-      "tags": [
-        "observability",
-        "log-continuity",
-        "chaos"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006"
-      ]
+      "tags": ["observability", "log-continuity", "chaos"],
+      "linked_requirement_ids": ["FR-014", "NFR-004"],
+      "linked_user_story_ids": ["US-006"]
     },
     {
       "id": "TC-070",
@@ -3981,18 +3352,9 @@
           ]
         }
       ],
-      "tags": [
-        "v2",
-        "audit",
-        "observability"
-      ],
-      "linked_requirement_ids": [
-        "FR-019",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["v2", "audit", "observability"],
+      "linked_requirement_ids": ["FR-019", "NFR-004"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-071",
@@ -4044,20 +3406,9 @@
           ]
         }
       ],
-      "tags": [
-        "chaos",
-        "multi-bench",
-        "orphan-guard",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "FR-016",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["chaos", "multi-bench", "orphan-guard", "reliability"],
+      "linked_requirement_ids": ["FR-015", "FR-016", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-072",
@@ -4108,18 +3459,9 @@
           ]
         }
       ],
-      "tags": [
-        "parity",
-        "observability",
-        "functional"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006"
-      ]
+      "tags": ["parity", "observability", "functional"],
+      "linked_requirement_ids": ["FR-014", "NFR-004"],
+      "linked_user_story_ids": ["US-006"]
     },
     {
       "id": "TC-073",
@@ -4170,19 +3512,9 @@
           ]
         }
       ],
-      "tags": [
-        "chaos",
-        "mid-lifecycle-crash",
-        "reliability",
-        "orphan-guard"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["chaos", "mid-lifecycle-crash", "reliability", "orphan-guard"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-074",
@@ -4226,20 +3558,9 @@
           ]
         }
       ],
-      "tags": [
-        "observability",
-        "sse",
-        "concurrency",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-014",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-006",
-        "US-008"
-      ]
+      "tags": ["observability", "sse", "concurrency", "reliability"],
+      "linked_requirement_ids": ["FR-014", "NFR-004"],
+      "linked_user_story_ids": ["US-006", "US-008"]
     },
     {
       "id": "TC-075",
@@ -4281,19 +3602,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "host-restart",
-        "orphan-sweep",
-        "pattern-scoping"
-      ],
-      "linked_requirement_ids": [
-        "FR-015",
-        "NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "US-008"
-      ]
+      "tags": ["edge-case", "host-restart", "orphan-sweep", "pattern-scoping"],
+      "linked_requirement_ids": ["FR-015", "NFR-003"],
+      "linked_user_story_ids": ["US-008"]
     },
     {
       "id": "TC-076",
@@ -4393,20 +3704,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["smoke", "happy-path", "consent", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-077",
@@ -4456,18 +3756,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["regression", "consent", "v1"],
+      "linked_requirement_ids": ["FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-078",
@@ -4516,19 +3807,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "consent",
-        "all-categories",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["regression", "consent", "all-categories", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-079",
@@ -4572,19 +3853,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "consent",
-        "trust-tier",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["regression", "consent", "trust-tier", "v1"],
+      "linked_requirement_ids": ["FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-080",
@@ -4641,18 +3912,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "drawer",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["regression", "drawer", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-081",
@@ -4690,17 +3952,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["negative", "consent", "v1"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-082",
@@ -4728,19 +3982,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "keyboard",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012",
-        "NFR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["negative", "keyboard", "consent", "v1"],
+      "linked_requirement_ids": ["FR-012", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-083",
@@ -4787,19 +4031,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "api",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["negative", "api", "consent", "v1"],
+      "linked_requirement_ids": ["FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-084",
@@ -4833,19 +4067,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "consent",
-        "server-enforcement",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["negative", "consent", "server-enforcement", "v1"],
+      "linked_requirement_ids": ["FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-085",
@@ -4901,20 +4125,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "consent",
-        "gate",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["security", "consent", "gate", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012", "NFR-001"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-086",
@@ -4964,20 +4177,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "v2",
-        "enforcement",
-        "audit"
-      ],
-      "linked_requirement_ids": [
-        "FR-018",
-        "FR-019",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["security", "v2", "enforcement", "audit"],
+      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-087",
@@ -4986,10 +4188,7 @@
       "level": 2,
       "type": "accessibility",
       "priority": "P0",
-      "preconditions": [
-        "A component plugin is not installed",
-        "The consent dialog is closed"
-      ],
+      "preconditions": ["A component plugin is not installed", "The consent dialog is closed"],
       "steps": [
         {
           "id": "S001",
@@ -5062,20 +4261,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "wcag-aa",
-        "keyboard",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "NFR-007",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["accessibility", "wcag-aa", "keyboard", "consent", "v1"],
+      "linked_requirement_ids": ["NFR-007", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-088",
@@ -5104,18 +4292,9 @@
           ]
         }
       ],
-      "tags": [
-        "api",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["api", "consent", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-089",
@@ -5142,18 +4321,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "api",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["edge-case", "api", "consent", "v1"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-090",
@@ -5187,18 +4357,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["edge-case", "consent", "v1"],
+      "linked_requirement_ids": ["FR-011", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-091",
@@ -5230,18 +4391,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "consent",
-        "update",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["edge-case", "consent", "update", "v1"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-092",
@@ -5282,18 +4434,9 @@
           ]
         }
       ],
-      "tags": [
-        "v2",
-        "audit",
-        "functional"
-      ],
-      "linked_requirement_ids": [
-        "FR-019",
-        "NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["v2", "audit", "functional"],
+      "linked_requirement_ids": ["FR-019", "NFR-004"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-093",
@@ -5341,19 +4484,9 @@
           ]
         }
       ],
-      "tags": [
-        "v2",
-        "enforcement",
-        "functional"
-      ],
-      "linked_requirement_ids": [
-        "FR-018",
-        "FR-019",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["v2", "enforcement", "functional"],
+      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-094",
@@ -5393,19 +4526,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "v2",
-        "sandboxing",
-        "os-isolation"
-      ],
-      "linked_requirement_ids": [
-        "FR-018",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["security", "v2", "sandboxing", "os-isolation"],
+      "linked_requirement_ids": ["FR-018", "NFR-001"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-095",
@@ -5452,20 +4575,9 @@
           ]
         }
       ],
-      "tags": [
-        "accessibility",
-        "screen-reader",
-        "wcag-aa",
-        "consent",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "NFR-007",
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["accessibility", "screen-reader", "wcag-aa", "consent", "v1"],
+      "linked_requirement_ids": ["NFR-007", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-096",
@@ -5509,18 +4621,9 @@
           ]
         }
       ],
-      "tags": [
-        "functional",
-        "consent",
-        "reinstall",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-012"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["functional", "consent", "reinstall", "v1"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-097",
@@ -5548,18 +4651,9 @@
           ]
         }
       ],
-      "tags": [
-        "functional",
-        "drawer",
-        "oneshot",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["functional", "drawer", "oneshot", "v1"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-098",
@@ -5607,18 +4701,9 @@
           ]
         }
       ],
-      "tags": [
-        "functional",
-        "marketplace",
-        "filter",
-        "v1"
-      ],
-      "linked_requirement_ids": [
-        "FR-011"
-      ],
-      "linked_user_story_ids": [
-        "US-004"
-      ]
+      "tags": ["functional", "marketplace", "filter", "v1"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
     },
     {
       "id": "TC-099",
@@ -5715,22 +4800,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "v2",
-        "sandboxing",
-        "enforcement",
-        "audit",
-        "e2e"
-      ],
-      "linked_requirement_ids": [
-        "FR-018",
-        "FR-019",
-        "NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "US-009"
-      ]
+      "tags": ["security", "v2", "sandboxing", "enforcement", "audit", "e2e"],
+      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
+      "linked_user_story_ids": ["US-009"]
     },
     {
       "id": "TC-100",
@@ -5767,17 +4839,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["smoke", "v3", "regression"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-101",
@@ -5921,20 +4985,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "v3",
-        "happy-path",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-010",
-        "US-011"
-      ]
+      "tags": ["smoke", "v3", "happy-path", "regression"],
+      "linked_requirement_ids": ["FR-020", "FR-021"],
+      "linked_user_story_ids": ["US-010", "US-011"]
     },
     {
       "id": "TC-102",
@@ -5942,9 +4995,7 @@
       "area": "marketplace",
       "level": 3,
       "type": "edge_case",
-      "preconditions": [
-        "Marketplace view is open and the catalog has loaded"
-      ],
+      "preconditions": ["Marketplace view is open and the catalog has loaded"],
       "steps": [
         {
           "id": "S001",
@@ -5965,16 +5016,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "edge-case"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-103",
@@ -6030,16 +5074,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-104",
@@ -6047,9 +5084,7 @@
       "area": "marketplace",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Marketplace view is open and the catalog has loaded"
-      ],
+      "preconditions": ["Marketplace view is open and the catalog has loaded"],
       "steps": [
         {
           "id": "S001",
@@ -6096,18 +5131,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-010",
-        "US-011"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020", "FR-021"],
+      "linked_user_story_ids": ["US-010", "US-011"]
     },
     {
       "id": "TC-105",
@@ -6169,18 +5195,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-010",
-        "US-011"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020", "FR-021"],
+      "linked_user_story_ids": ["US-010", "US-011"]
     },
     {
       "id": "TC-106",
@@ -6222,19 +5239,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "negative",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-010",
-        "US-011"
-      ]
+      "tags": ["v3", "negative", "reliability"],
+      "linked_requirement_ids": ["FR-020", "FR-021"],
+      "linked_user_story_ids": ["US-010", "US-011"]
     },
     {
       "id": "TC-107",
@@ -6270,17 +5277,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "integrity"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "integrity"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-108",
@@ -6311,17 +5310,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "integrity"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "integrity"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-109",
@@ -6359,17 +5350,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "revocation"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "revocation"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-110",
@@ -6429,18 +5412,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020",
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-010",
-        "US-011"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020", "FR-021"],
+      "linked_user_story_ids": ["US-010", "US-011"]
     },
     {
       "id": "TC-111",
@@ -6448,9 +5422,7 @@
       "area": "marketplace",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "Marketplace view is open"
-      ],
+      "preconditions": ["Marketplace view is open"],
       "steps": [
         {
           "id": "S001",
@@ -6473,17 +5445,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "negative",
-        "scope"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "negative", "scope"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-112",
@@ -6515,17 +5479,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "integrity"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "integrity"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-113",
@@ -6533,9 +5489,7 @@
       "area": "marketplace",
       "level": 2,
       "type": "accessibility",
-      "preconditions": [
-        "Marketplace view is open"
-      ],
+      "preconditions": ["Marketplace view is open"],
       "steps": [
         {
           "id": "S001",
@@ -6592,17 +5546,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "accessibility",
-        "a11y"
-      ],
-      "linked_requirement_ids": [
-        "NFR-007"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "accessibility", "a11y"],
+      "linked_requirement_ids": ["NFR-007"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-114",
@@ -6634,16 +5580,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-115",
@@ -6689,16 +5628,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "edge-case"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-116",
@@ -6736,16 +5668,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "edge-case"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-117",
@@ -6753,9 +5678,7 @@
       "area": "marketplace",
       "level": 2,
       "type": "security",
-      "preconditions": [
-        "Registry serves a correctly signed catalog response"
-      ],
+      "preconditions": ["Registry serves a correctly signed catalog response"],
       "steps": [
         {
           "id": "S001",
@@ -6772,17 +5695,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "integrity"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "integrity"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-118",
@@ -6813,17 +5728,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "security",
-        "integrity"
-      ],
-      "linked_requirement_ids": [
-        "FR-021"
-      ],
-      "linked_user_story_ids": [
-        "US-011"
-      ]
+      "tags": ["v3", "security", "integrity"],
+      "linked_requirement_ids": ["FR-021"],
+      "linked_user_story_ids": ["US-011"]
     },
     {
       "id": "TC-119",
@@ -6855,16 +5762,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-120",
@@ -6892,16 +5792,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "performance"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "performance"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-121",
@@ -6909,9 +5802,7 @@
       "area": "marketplace",
       "level": 4,
       "type": "functional",
-      "preconditions": [
-        "Marketplace view is open with a mix of installed and uninstalled plugins"
-      ],
+      "preconditions": ["Marketplace view is open with a mix of installed and uninstalled plugins"],
       "steps": [
         {
           "id": "S001",
@@ -6948,16 +5839,9 @@
           ]
         }
       ],
-      "tags": [
-        "v3",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "FR-020"
-      ],
-      "linked_user_story_ids": [
-        "US-010"
-      ]
+      "tags": ["v3", "regression"],
+      "linked_requirement_ids": ["FR-020"],
+      "linked_user_story_ids": ["US-010"]
     },
     {
       "id": "TC-122",
@@ -7008,18 +5892,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "contract"
-      ],
-      "linked_requirement_ids": [
-        "FR-022"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "contract"],
+      "linked_requirement_ids": ["FR-022"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-123",
@@ -7076,19 +5951,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "broker"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "FR-008"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "broker"],
+      "linked_requirement_ids": ["FR-022", "FR-008"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-124",
@@ -7145,20 +6010,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "fr-014",
-        "status"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "FR-014"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "fr-014", "status"],
+      "linked_requirement_ids": ["FR-022", "FR-014"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-125",
@@ -7210,19 +6064,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "declarative"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "FR-002"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "declarative"],
+      "linked_requirement_ids": ["FR-022", "FR-002"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-126",
@@ -7280,20 +6124,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "imperative",
-        "escape-hatch"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "FR-008"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "imperative", "escape-hatch"],
+      "linked_requirement_ids": ["FR-022", "FR-008"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-127",
@@ -7355,19 +6188,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "timeout",
-        "edge-case"
-      ],
-      "linked_requirement_ids": [
-        "FR-022"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "timeout", "edge-case"],
+      "linked_requirement_ids": ["FR-022"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-128",
@@ -7415,22 +6238,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "broker",
-        "audit",
-        "enforcement"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "FR-008",
-        "FR-019"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "broker", "audit", "enforcement"],
+      "linked_requirement_ids": ["FR-022", "FR-008", "FR-019"],
+      "linked_user_story_ids": ["US-012"]
     },
     {
       "id": "TC-129",
@@ -7484,20 +6294,9 @@
           ]
         }
       ],
-      "tags": [
-        "design-for",
-        "structural",
-        "fr-022",
-        "nfr-006",
-        "zero-core-change"
-      ],
-      "linked_requirement_ids": [
-        "FR-022",
-        "NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "US-012"
-      ]
+      "tags": ["design-for", "structural", "fr-022", "nfr-006", "zero-core-change"],
+      "linked_requirement_ids": ["FR-022", "NFR-006"],
+      "linked_user_story_ids": ["US-012"]
     }
   ]
 }
