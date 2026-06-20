@@ -13,7 +13,7 @@ vi.mock("./plugin-activation.js", () => ({
   resolveSources: vi.fn(),
   resolveExclusion: vi.fn(),
   resolveInstanceEndpoint: vi.fn(),
-  resolveSort: vi.fn(),
+  resolveSortForActivePlugin: vi.fn(),
 }));
 
 import * as pluginManager from "./plugin-manager.js";
@@ -75,7 +75,7 @@ beforeEach(() => {
     excludedStatuses: [],
   });
   vi.mocked(pluginActivation.resolveInstanceEndpoint).mockReturnValue(null);
-  vi.mocked(pluginActivation.resolveSort).mockReturnValue({
+  vi.mocked(pluginActivation.resolveSortForActivePlugin).mockResolvedValue({
     sortBy: undefined,
     sortDir: undefined,
   });
@@ -124,17 +124,18 @@ describe("buildListParams", () => {
   });
 
   it("forwards the request's sort when present, overriding the persisted sort (CLI-FR-009)", () => {
-    vi.mocked(pluginActivation.resolveSort).mockReturnValue({
-      sortBy: "updated",
-      sortDir: "desc",
-    });
-    const params = service.buildListParams("p1", {
-      cursor: null,
-      pageSize: 50,
-      filters: {},
-      sortBy: "created",
-      sortDir: "asc",
-    });
+    const params = service.buildListParams(
+      "p1",
+      {
+        cursor: null,
+        pageSize: 50,
+        filters: {},
+        sortBy: "created",
+        sortDir: "asc",
+      },
+      // Persisted fallback differs; the live request sort must still win.
+      { sortBy: "updated", sortDir: "desc" },
+    );
     expect(params.sortBy).toBe("created");
     expect(params.sortDir).toBe("asc");
   });
@@ -149,20 +150,55 @@ describe("buildListParams", () => {
     expect(params.sortDir).toBe("asc");
   });
 
-  it("falls back to the persisted per-project sort when the request carries none (CLI-FR-013)", () => {
-    vi.mocked(pluginActivation.resolveSort).mockReturnValue({
-      sortBy: "priority",
-      sortDir: "desc",
-    });
-    const params = service.buildListParams("p1", { cursor: null, pageSize: 50, filters: {} });
-    expect(params.sortBy).toBe("priority");
+  it("falls back to the validated persisted per-project sort when the request carries none (CLI-FR-013/CLI-FR-017)", () => {
+    const params = service.buildListParams(
+      "p1",
+      { cursor: null, pageSize: 50, filters: {} },
+      { sortBy: "comments", sortDir: "desc" },
+    );
+    expect(params.sortBy).toBe("comments");
     expect(params.sortDir).toBe("desc");
   });
 
-  it("omits sort fields entirely when neither the request nor the project has a sort", () => {
+  it("omits sort fields entirely when neither the request nor the persisted fallback has a sort", () => {
     const params = service.buildListParams("p1", { cursor: null, pageSize: 50, filters: {} });
     expect(params.sortBy).toBeUndefined();
     expect(params.sortDir).toBeUndefined();
+  });
+});
+
+describe("queryFirstOrPage persisted-sort resolution (CLI-FR-017/CLI-TC-070)", () => {
+  it("validates the persisted sort against the active plugin and feeds the result into listIssues", async () => {
+    // The plugin validation replaced an unsupported persisted value with the
+    // plugin's first declared field; the query service must forward that, not
+    // the raw persisted value, into the listIssues params + cache key.
+    vi.mocked(pluginActivation.resolveSortForActivePlugin).mockResolvedValue({
+      sortBy: "created",
+      sortDir: "desc",
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
+
+    await service.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} });
+
+    expect(pluginActivation.resolveSortForActivePlugin).toHaveBeenCalledWith("p1", "github-com");
+    const params = vi.mocked(pluginManager.invoke).mock.calls[0][2] as {
+      sortBy?: string;
+      sortDir?: string;
+    };
+    expect(params.sortBy).toBe("created");
+    expect(params.sortDir).toBe("desc");
+  });
+
+  it("does not consult the persisted-sort resolver when the request carries a live sort", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ items: [], nextCursor: null });
+    await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "updated",
+      sortDir: "asc",
+    });
+    expect(pluginActivation.resolveSortForActivePlugin).not.toHaveBeenCalled();
   });
 });
 

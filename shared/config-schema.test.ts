@@ -686,6 +686,45 @@ describe("IntegrationConfigSchema excludedStatusCategories (FR-010)", () => {
   });
 });
 
+describe("IntegrationConfigSchema sortBy/sortDir (CLI-FR-017, CLI-TC-044/CLI-TC-061)", () => {
+  it("CLI-TC-044: persists a sort field and direction in the roubo.yaml integration block", () => {
+    const config = makeConfig({ integration: { sortBy: "priority", sortDir: "desc" } });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.integration?.sortBy).toBe("priority");
+    expect(result.data.integration?.sortDir).toBe("desc");
+  });
+
+  it("CLI-TC-061: persists sort and status exclusion together in one integration block", () => {
+    const config = makeConfig({
+      integration: {
+        sortBy: "priority",
+        sortDir: "desc",
+        excludedStatusCategories: ["Done"],
+      },
+    });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.integration).toMatchObject({
+      sortBy: "priority",
+      sortDir: "desc",
+      excludedStatusCategories: ["Done"],
+    });
+  });
+
+  it("rejects an empty-string sortBy", () => {
+    const config = makeConfig({ integration: { sortBy: "" } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects a sortDir outside asc/desc", () => {
+    const config = makeConfig({ integration: { sortDir: "sideways" } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+});
+
 describe("IntegrationOverrideSchema", () => {
   it("accepts a minimal envelope with an empty integration block", () => {
     expect(IntegrationOverrideSchema.safeParse({ schemaVersion: 1, integration: {} }).success).toBe(
@@ -723,6 +762,17 @@ describe("IntegrationOverrideSchema", () => {
       project: "PLAT",
       boardMode: "active-sprint",
     });
+  });
+
+  it("CLI-TC-044: accepts a per-user override carrying sortBy/sortDir", () => {
+    const result = IntegrationOverrideSchema.safeParse({
+      schemaVersion: 1,
+      integration: { sortBy: "priority", sortDir: "desc" },
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.integration.sortBy).toBe("priority");
+    expect(result.data.integration.sortDir).toBe("desc");
   });
 
   it("rejects a missing schemaVersion", () => {

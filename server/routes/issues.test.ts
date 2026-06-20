@@ -18,6 +18,7 @@ vi.mock("../services/cut-list-query-service.js", () => ({
   cutListQueryService: {
     queryFirstOrPage: vi.fn(),
     buildListParams: vi.fn(),
+    resolvePersistedSort: vi.fn(),
   },
 }));
 
@@ -111,6 +112,10 @@ beforeEach(() => {
     filters: undefined,
     excludedStatusCategories: [],
     excludedStatuses: [],
+  });
+  vi.mocked(cutListQueryService.resolvePersistedSort).mockResolvedValue({
+    sortBy: undefined,
+    sortDir: undefined,
   });
 });
 

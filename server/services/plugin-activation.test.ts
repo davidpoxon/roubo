@@ -26,6 +26,7 @@ import {
   resolveSources,
   resolveExclusion,
   resolveSort,
+  resolveSortForActivePlugin,
 } from "./plugin-activation.js";
 import * as projectRegistry from "./project-registry.js";
 import { loadOverride } from "./integration-overrides.js";
@@ -409,6 +410,28 @@ describe("resolveExclusion (FR-009/FR-010)", () => {
       excludedStatuses: [],
     });
   });
+
+  it("CLI-TC-049: status exclusion is scoped per project (project A's config does not bleed into project B)", () => {
+    // Project A persists a custom exclusion; project B is silent and keeps the
+    // plugin manifest default. Resolution keys on the per-project config, so the
+    // two are independent.
+    vi.mocked(loadOverride).mockReturnValue(null);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      { id: JIRA_PLUGIN, manifest: JIRA_MANIFEST },
+    ] as never);
+    vi.mocked(projectRegistry.getProject).mockImplementation((id: string) =>
+      id === "project-a"
+        ? ({
+            config: {
+              integration: { plugin: JIRA_PLUGIN, excludedStatusCategories: ["In Progress"] },
+            },
+          } as never)
+        : ({ config: { integration: { plugin: JIRA_PLUGIN } } } as never),
+    );
+
+    expect(resolveExclusion("project-a").excludedStatusCategories).toEqual(["In Progress"]);
+    expect(resolveExclusion("project-b").excludedStatusCategories).toEqual(["Done"]);
+  });
 });
 
 describe("resolveSort (CLI-FR-013/CLI-FR-017)", () => {
@@ -441,5 +464,77 @@ describe("resolveSort (CLI-FR-013/CLI-FR-017)", () => {
   it("returns undefined fields when the project is unknown", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
     expect(resolveSort(PROJECT_ID)).toEqual({ sortBy: undefined, sortDir: undefined });
+  });
+});
+
+describe("resolveSortForActivePlugin (CLI-FR-017)", () => {
+  function mockProject(integration: Record<string, unknown>): void {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { integration: { plugin: GITHUB_PLUGIN, ...integration } },
+    } as never);
+    vi.mocked(loadOverride).mockReturnValue(null);
+  }
+
+  // The github family declares created/updated/comments in that order, so the
+  // first declared field is `created` (defaultDir `desc`).
+  const GITHUB_SORT_FIELDS = [
+    { id: "created", label: "Created", defaultDir: "desc" },
+    { id: "updated", label: "Updated", defaultDir: "desc" },
+    { id: "comments", label: "Comments", defaultDir: "desc" },
+  ];
+
+  function mockSortFields(fields: Array<{ id: string; label: string; defaultDir: string }>): void {
+    vi.mocked(pluginManager.invoke).mockResolvedValue(fields as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("CLI-TC-063: keeps a persisted sortBy that the active plugin declares", async () => {
+    mockProject({ sortBy: "updated", sortDir: "asc" });
+    mockSortFields(GITHUB_SORT_FIELDS);
+    await expect(resolveSortForActivePlugin(PROJECT_ID, GITHUB_PLUGIN)).resolves.toEqual({
+      sortBy: "updated",
+      sortDir: "asc",
+    });
+  });
+
+  it("CLI-TC-070: falls back to the plugin's first declared field when the persisted sortBy is unsupported", async () => {
+    // `priority` is not a github-declared field, so it is replaced by the first
+    // declared field (`created`) and that field's defaultDir (`desc`).
+    mockProject({ sortBy: "priority", sortDir: "asc" });
+    mockSortFields(GITHUB_SORT_FIELDS);
+    await expect(resolveSortForActivePlugin(PROJECT_ID, GITHUB_PLUGIN)).resolves.toEqual({
+      sortBy: "created",
+      sortDir: "desc",
+    });
+  });
+
+  it("CLI-TC-063: switching the active plugin resets an unsupported persisted value to the new plugin's first field", async () => {
+    // A value valid under a previous plugin (e.g. jira's `key`) is unsupported
+    // by the now-active github plugin, so it resets to github's first field.
+    mockProject({ sortBy: "key", sortDir: "asc" });
+    mockSortFields(GITHUB_SORT_FIELDS);
+    await expect(resolveSortForActivePlugin(PROJECT_ID, GITHUB_PLUGIN)).resolves.toEqual({
+      sortBy: "created",
+      sortDir: "desc",
+    });
+  });
+
+  it("CLI-TC-070: returns natural order when the plugin declares no sort fields", async () => {
+    mockProject({ sortBy: "created", sortDir: "desc" });
+    mockSortFields([]);
+    await expect(resolveSortForActivePlugin(PROJECT_ID, GITHUB_PLUGIN)).resolves.toEqual({
+      sortBy: undefined,
+      sortDir: undefined,
+    });
+  });
+
+  it("returns natural order (no RPC) when nothing is persisted", async () => {
+    mockProject({});
+    await resolveSortForActivePlugin(PROJECT_ID, GITHUB_PLUGIN);
+    // No persisted sort: the declared-fields RPC is never consulted.
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });

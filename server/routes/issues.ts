@@ -62,6 +62,16 @@ router.get("/:projectId/issues", async (req, res) => {
   const isFirstPage = cursor === null;
   const queryInput = { cursor, pageSize, filters, sortBy, sortDir };
 
+  // Resolve the plugin-validated persisted sort once for the in-memory
+  // fallback's `buildListParams` cache-key derivations below, so they match the
+  // params the query service builds for the live RPC. Only the fallback path
+  // (no live `sortBy`) consults it; when the request carries a sort the picker's
+  // live selection wins and the persisted value is irrelevant to the key.
+  const persistedSort =
+    sortBy === undefined
+      ? await cutListQueryService.resolvePersistedSort(req.params.projectId, active.pluginId)
+      : undefined;
+
   try {
     await awaitPendingIntegrationSetup(req.params.projectId);
     const result = await cutListQueryService.queryFirstOrPage(
@@ -91,7 +101,11 @@ router.get("/:projectId/issues", async (req, res) => {
     // something to serve. The persistent disk cache does not supersede this
     // in-memory fallback in this slice; the behaviour here is unchanged.
     if (isFirstPage) {
-      const params = cutListQueryService.buildListParams(req.params.projectId, queryInput);
+      const params = cutListQueryService.buildListParams(
+        req.params.projectId,
+        queryInput,
+        persistedSort,
+      );
       const pluginName =
         pluginManager.getRecord(active.pluginId)?.manifest?.name ?? active.pluginId;
       recordSnapshot(active.pluginId, req.params.projectId, params, body, pluginName, true);
@@ -109,7 +123,11 @@ router.get("/:projectId/issues", async (req, res) => {
     // does not yet supersede it.
     const record = pluginManager.getRecord(active.pluginId);
     if (isFirstPage && (record?.status === "errored" || record?.status === "disabled")) {
-      const params = cutListQueryService.buildListParams(req.params.projectId, queryInput);
+      const params = cutListQueryService.buildListParams(
+        req.params.projectId,
+        queryInput,
+        persistedSort,
+      );
       const cached = getSnapshot(active.pluginId, req.params.projectId, params);
       if (cached) {
         const stale: PaginatedIssues = {
