@@ -120,7 +120,17 @@ export class CutListQueryService {
     const params = this.buildListParams(projectId, input);
     const isFirstPage = input.cursor === null;
 
-    if (isFirstPage) {
+    // Only serve the persistent disk snapshot while the plugin is healthy. When
+    // the plugin is errored/disabled (or otherwise not enabled), serving a
+    // disk-hit would shadow the route's in-memory errored/disabled stale
+    // fallback: it would return a fresh-looking body with no `stale` marker, so
+    // the client could never surface the stale banner (FR-014). This slice
+    // deliberately leaves that fallback to the in-memory cache and does not
+    // route it through the disk store, so on a non-healthy plugin we skip the
+    // disk read and let the live RPC fail through to the route's catch block.
+    const healthy = pluginManager.getRecord(active.pluginId)?.status === "enabled";
+
+    if (isFirstPage && healthy) {
       const key = this.buildKey(projectId, active.pluginId, params);
       const cached = this.disk.get(key);
       if (cached) {

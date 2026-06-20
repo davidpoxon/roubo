@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type { ConfiguredSource, ListIssuesParams, PaginatedIssues } from "@roubo/shared";
 import { atomicWrite, getRouboDir } from "./state.js";
-import { PROJECT_ID_RE } from "../lib/safe-path.js";
+import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 
 // Persistent, on-disk first-page issue snapshot cache (CLI-FR-001, CLI-FR-003,
 // CLI-NFR-001). This is the first place private GHE/Jira issue content (titles,
@@ -278,12 +278,19 @@ export class DiskSnapshotStore {
     this.onDiscard?.(event);
   }
 
+  // Re-derive every project subdirectory through `resolveWithin(baseDir, ...)`,
+  // not a bare `path.join`. The projectId reaches here from the HTTP boundary,
+  // and although `isSafeProjectId` (PROJECT_ID_RE) already rejects traversal
+  // segments, `resolveWithin` is the join-under-fixed-root containment barrier
+  // CodeQL's default js/path-injection suite recognises as a sanitizer, so the
+  // returned path reaches the downstream fs sinks (read/mkdir/rm/utimes) already
+  // laundered. See server/lib/safe-path.ts and code-scanning alert #117.
   private projectDir(projectId: string): string {
-    return path.join(this.baseDir, projectId);
+    return resolveWithin(this.baseDir, projectId);
   }
 
   private entryPath(projectId: string, hash: string): string {
-    return path.join(this.projectDir(projectId), `${hash}.json`);
+    return resolveWithin(this.baseDir, projectId, `${hash}.json`);
   }
 
   /**

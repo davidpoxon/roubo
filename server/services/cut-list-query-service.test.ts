@@ -58,6 +58,7 @@ beforeEach(() => {
   vi.mocked(pluginActivation.resolveInstanceEndpoint).mockReturnValue(null);
   vi.mocked(pluginManager.getRecord).mockReturnValue({
     id: "github-com",
+    status: "enabled",
     manifest: { name: "GitHub.com", version: "1.0.0" },
   } as unknown as ReturnType<typeof pluginManager.getRecord>);
   service = new CutListQueryService({ disk: new DiskSnapshotStore({ baseDir }) });
@@ -145,6 +146,56 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     });
     expect(hit.cacheStatus).toBe("disk-hit");
     expect(hit.items[0].externalId).toBe("persisted");
+  });
+
+  // FR-014 regression: the disk cache must not shadow the route's in-memory
+  // errored/disabled stale-fallback. When the plugin is not `enabled`, a
+  // first-page request must skip the disk read and run the live RPC (which on a
+  // real errored plugin throws, so the route's catch serves the in-memory
+  // snapshot with `stale: true`). If the disk-hit were served here instead, the
+  // response would carry no `stale` marker and the client could never surface
+  // the stale banner.
+  it("does not serve a disk-hit when the plugin is errored: re-invokes so the route's in-memory fallback owns the stale serve", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "warm" })],
+      nextCursor: null,
+    });
+    const input = { cursor: null, pageSize: 50, filters: {} };
+    // First call (enabled) populates the disk snapshot.
+    await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    // Plugin goes errored. The next first-page call must NOT short-circuit on
+    // the disk snapshot; it must re-invoke the RPC.
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "github-com",
+      status: "errored",
+      manifest: { name: "GitHub.com", version: "1.0.0" },
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
+
+    const result = await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2); // re-invoked, not disk-served
+    expect(result.cacheStatus).toBe("uncached");
+  });
+
+  it("does not serve a disk-hit when the plugin is disabled", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "warm" })],
+      nextCursor: null,
+    });
+    const input = { cursor: null, pageSize: 50, filters: {} };
+    await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "github-com",
+      status: "disabled",
+      manifest: { name: "GitHub.com", version: "1.0.0" },
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
+
+    const result = await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+    expect(result.cacheStatus).toBe("uncached");
   });
 });
 

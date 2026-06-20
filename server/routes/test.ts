@@ -196,6 +196,17 @@ function wipePersistedTestState(): void {
       throw err;
     }
   }
+  // Drop the persistent first-page cut-list snapshot cache
+  // (`issue-snapshots/`, written by DiskSnapshotStore). It survives a process
+  // restart by design, so without an explicit wipe a snapshot written by one
+  // scenario would be served as a disk-hit to a later scenario sharing the same
+  // cache key (same fixture projectId + plugin + instance), rendering stale or
+  // wrong issues. Clearing it here keeps successive specs starting clean.
+  try {
+    fs.rmSync(path.join(rouboDir, "issue-snapshots"), { recursive: true, force: true });
+  } catch {
+    // Best-effort: tolerate a missing directory or a transient unlink failure.
+  }
 }
 
 function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string {
