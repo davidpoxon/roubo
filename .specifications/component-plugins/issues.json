@@ -1,0 +1,809 @@
+[
+  {
+    "number": 598,
+    "url": "https://github.com/davidpoxon/roubo/issues/598",
+    "node_id": "I_kwDOSiX_888AAAABGHmGzg",
+    "title": "Spike: resolve host-owns vs plugin-owns component lifecycle (ADR)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 0 De-risk spikes",
+    "labels": ["spike", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-008", "FR-006", "FR-009"],
+      "user_story_ids": ["US-007", "US-008"],
+      "test_case_ids": []
+    },
+    "kind": "spike"
+  },
+  {
+    "number": 599,
+    "url": "https://github.com/davidpoxon/roubo/issues/599",
+    "node_id": "I_kwDOSiX_888AAAABGHmHIg",
+    "title": "Spike: select the v2 plugin-isolation backend on macOS/Node",
+    "type": "task",
+    "milestone": "Component plugins: Phase 0 De-risk spikes",
+    "labels": ["spike", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": []
+    },
+    "kind": "spike"
+  },
+  {
+    "number": 600,
+    "url": "https://github.com/davidpoxon/roubo/issues/600",
+    "node_id": "I_kwDOSiX_888AAAABGHmHcw",
+    "title": "Spike: finalize host-RPC broker granularity + host-capability versioning",
+    "type": "task",
+    "milestone": "Component plugins: Phase 0 De-risk spikes",
+    "labels": ["spike", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-008", "FR-017", "NFR-005"],
+      "user_story_ids": [],
+      "test_case_ids": []
+    },
+    "kind": "spike"
+  },
+  {
+    "number": 601,
+    "url": "https://github.com/davidpoxon/roubo/issues/601",
+    "node_id": "I_kwDOSiX_888AAAABGHmHwQ",
+    "title": "Author the lifecycle-parity test matrix before extraction",
+    "type": "task",
+    "milestone": "Component plugins: Phase 0 De-risk spikes",
+    "labels": ["task", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-007", "NFR-002"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": [
+        "TC-021",
+        "TC-032",
+        "TC-033",
+        "TC-034",
+        "TC-035",
+        "TC-036",
+        "TC-037",
+        "TC-038",
+        "TC-039",
+        "TC-043",
+        "TC-044",
+        "TC-047",
+        "TC-050",
+        "TC-051",
+        "TC-052",
+        "TC-056",
+        "TC-057",
+        "TC-059",
+        "TC-060"
+      ]
+    }
+  },
+  {
+    "number": 602,
+    "url": "https://github.com/davidpoxon/roubo/issues/602",
+    "node_id": "I_kwDOSiX_888AAAABGHmIIQ",
+    "title": "Extend the plugin manifest to a component kind (+ ports/docker permissions, version fields)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-011"],
+      "user_story_ids": ["US-001", "US-005"],
+      "test_case_ids": [
+        "TC-001",
+        "TC-007",
+        "TC-012",
+        "TC-013",
+        "TC-026",
+        "TC-027",
+        "TC-076",
+        "TC-078",
+        "TC-080",
+        "TC-085",
+        "TC-088",
+        "TC-090",
+        "TC-097",
+        "TC-098"
+      ]
+    }
+  },
+  {
+    "number": 603,
+    "url": "https://github.com/davidpoxon/roubo/issues/603",
+    "node_id": "I_kwDOSiX_888AAAABGHmIdQ",
+    "title": "Define the ProvisionDescriptor shared union (docker | process | oneshot)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-022"],
+      "user_story_ids": ["US-005", "US-012"],
+      "test_case_ids": [
+        "TC-002",
+        "TC-003",
+        "TC-015",
+        "TC-016",
+        "TC-017",
+        "TC-018",
+        "TC-027",
+        "TC-028",
+        "TC-031",
+        "TC-122",
+        "TC-123",
+        "TC-124",
+        "TC-125",
+        "TC-126",
+        "TC-127",
+        "TC-128",
+        "TC-129"
+      ]
+    }
+  },
+  {
+    "number": 604,
+    "url": "https://github.com/davidpoxon/roubo/issues/604",
+    "node_id": "I_kwDOSiX_888AAAABGHmI8Q",
+    "title": "Define the ComponentContract + defineComponentPlugin SDK",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [598, 603],
+    "implements": {
+      "requirement_ids": ["FR-002"],
+      "user_story_ids": ["US-005"],
+      "test_case_ids": [
+        "TC-002",
+        "TC-003",
+        "TC-015",
+        "TC-016",
+        "TC-017",
+        "TC-018",
+        "TC-027",
+        "TC-028",
+        "TC-031",
+        "TC-125"
+      ]
+    }
+  },
+  {
+    "number": 605,
+    "url": "https://github.com/davidpoxon/roubo/issues/605",
+    "node_id": "I_kwDOSiX_888AAAABGHmJTg",
+    "title": "Implement the HostComponentBroker RPC surface (process/docker/ports/report/capability)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [598, 600],
+    "implements": {
+      "requirement_ids": ["FR-008", "FR-009", "FR-017"],
+      "user_story_ids": ["US-005", "US-008"],
+      "test_case_ids": [
+        "TC-008",
+        "TC-009",
+        "TC-016",
+        "TC-026",
+        "TC-028",
+        "TC-033",
+        "TC-037",
+        "TC-038",
+        "TC-040",
+        "TC-041",
+        "TC-042",
+        "TC-053",
+        "TC-054",
+        "TC-055",
+        "TC-056",
+        "TC-058",
+        "TC-123",
+        "TC-126",
+        "TC-128"
+      ]
+    }
+  },
+  {
+    "number": 606,
+    "url": "https://github.com/davidpoxon/roubo/issues/606",
+    "node_id": "I_kwDOSiX_888AAAABGHmJpA",
+    "title": "Implement the LifecycleEngine (generic descriptor executor + ComponentStatus incl. completed)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [603, 605],
+    "implements": {
+      "requirement_ids": ["FR-007", "FR-014", "FR-022"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": [
+        "TC-022",
+        "TC-027",
+        "TC-032",
+        "TC-033",
+        "TC-034",
+        "TC-035",
+        "TC-036",
+        "TC-037",
+        "TC-038",
+        "TC-039",
+        "TC-043",
+        "TC-044",
+        "TC-047",
+        "TC-050",
+        "TC-051",
+        "TC-052",
+        "TC-056",
+        "TC-057",
+        "TC-059",
+        "TC-060",
+        "TC-061",
+        "TC-062",
+        "TC-069",
+        "TC-072",
+        "TC-074",
+        "TC-122",
+        "TC-123",
+        "TC-124",
+        "TC-125",
+        "TC-126",
+        "TC-127",
+        "TC-128",
+        "TC-129"
+      ]
+    }
+  },
+  {
+    "number": 607,
+    "url": "https://github.com/davidpoxon/roubo/issues/607",
+    "node_id": "I_kwDOSiX_888AAAABGHmKDQ",
+    "title": "Implement the ResourceOwnershipLedger (persistent per-plugin/per-bench resource map)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-015"],
+      "user_story_ids": ["US-008"],
+      "test_case_ids": [
+        "TC-019",
+        "TC-023",
+        "TC-027",
+        "TC-028",
+        "TC-061",
+        "TC-063",
+        "TC-065",
+        "TC-066",
+        "TC-067",
+        "TC-068",
+        "TC-071",
+        "TC-073",
+        "TC-075"
+      ]
+    }
+  },
+  {
+    "number": 608,
+    "url": "https://github.com/davidpoxon/roubo/issues/608",
+    "node_id": "I_kwDOSiX_888AAAABGHmKhw",
+    "title": "Extend plugin-manager to discover/spawn/supervise the component kind + binding resolution",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [602, 604],
+    "implements": {
+      "requirement_ids": ["FR-010", "FR-003"],
+      "user_story_ids": ["US-003"],
+      "test_case_ids": [
+        "TC-004",
+        "TC-005",
+        "TC-006",
+        "TC-011",
+        "TC-014",
+        "TC-024",
+        "TC-025",
+        "TC-027",
+        "TC-030",
+        "TC-031"
+      ]
+    }
+  },
+  {
+    "number": 609,
+    "url": "https://github.com/davidpoxon/roubo/issues/609",
+    "node_id": "I_kwDOSiX_888AAAABGHmK0g",
+    "title": "Redesign the roubo.yaml components map to plugin bindings",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [602, 604],
+    "implements": {
+      "requirement_ids": ["FR-003", "NFR-005"],
+      "user_story_ids": ["US-001"],
+      "test_case_ids": [
+        "TC-004",
+        "TC-005",
+        "TC-008",
+        "TC-009",
+        "TC-010",
+        "TC-011",
+        "TC-014",
+        "TC-024",
+        "TC-025",
+        "TC-027",
+        "TC-029",
+        "TC-030",
+        "TC-054"
+      ]
+    }
+  },
+  {
+    "number": 610,
+    "url": "https://github.com/davidpoxon/roubo/issues/610",
+    "node_id": "I_kwDOSiX_888AAAABGHmLKQ",
+    "title": "Build the bundled process component plugin at full parity",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [604, 606],
+    "implements": {
+      "requirement_ids": ["FR-005", "FR-007"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": [
+        "TC-032",
+        "TC-033",
+        "TC-034",
+        "TC-035",
+        "TC-036",
+        "TC-037",
+        "TC-038",
+        "TC-039",
+        "TC-043",
+        "TC-044",
+        "TC-047",
+        "TC-049",
+        "TC-050",
+        "TC-051",
+        "TC-052",
+        "TC-056",
+        "TC-057",
+        "TC-059",
+        "TC-060"
+      ]
+    }
+  },
+  {
+    "number": 611,
+    "url": "https://github.com/davidpoxon/roubo/issues/611",
+    "node_id": "I_kwDOSiX_888AAAABGHmLjA",
+    "title": "Build the bundled database component plugin at full parity",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [604, 606, 607],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-007"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": [
+        "TC-032",
+        "TC-033",
+        "TC-034",
+        "TC-035",
+        "TC-036",
+        "TC-037",
+        "TC-038",
+        "TC-039",
+        "TC-043",
+        "TC-044",
+        "TC-047",
+        "TC-048",
+        "TC-050",
+        "TC-051",
+        "TC-052",
+        "TC-056",
+        "TC-057",
+        "TC-059",
+        "TC-060"
+      ]
+    }
+  },
+  {
+    "number": 612,
+    "url": "https://github.com/davidpoxon/roubo/issues/612",
+    "node_id": "I_kwDOSiX_888AAAABGHmL1w",
+    "title": "Remove all component-type dispatch from bench-manager (delegate to engine/registry)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [606, 608, 610, 611],
+    "implements": {
+      "requirement_ids": ["FR-006", "FR-009", "NFR-002"],
+      "user_story_ids": ["US-007"],
+      "test_case_ids": [
+        "TC-021",
+        "TC-033",
+        "TC-040",
+        "TC-041",
+        "TC-042",
+        "TC-043",
+        "TC-044",
+        "TC-058"
+      ]
+    }
+  },
+  {
+    "number": 613,
+    "url": "https://github.com/davidpoxon/roubo/issues/613",
+    "node_id": "I_kwDOSiX_888AAAABGHmMJA",
+    "title": "Crash cleanup, graceful degradation, auto-recovery + startup orphan sweep",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [605, 607, 608],
+    "implements": {
+      "requirement_ids": ["FR-015", "FR-016", "NFR-003"],
+      "user_story_ids": ["US-008"],
+      "test_case_ids": [
+        "TC-019",
+        "TC-020",
+        "TC-023",
+        "TC-027",
+        "TC-028",
+        "TC-061",
+        "TC-063",
+        "TC-064",
+        "TC-065",
+        "TC-066",
+        "TC-067",
+        "TC-068",
+        "TC-071",
+        "TC-073",
+        "TC-075"
+      ]
+    }
+  },
+  {
+    "number": 614,
+    "url": "https://github.com/davidpoxon/roubo/issues/614",
+    "node_id": "I_kwDOSiX_888AAAABGHmMgw",
+    "title": "Migrate the roubo and responda roubo.yaml configs to plugin components",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [609, 610, 611, 612],
+    "implements": {
+      "requirement_ids": ["FR-013"],
+      "user_story_ids": ["US-002", "US-007"],
+      "test_case_ids": ["TC-032", "TC-033", "TC-034", "TC-045", "TC-046"]
+    }
+  },
+  {
+    "number": 615,
+    "url": "https://github.com/davidpoxon/roubo/issues/615",
+    "node_id": "I_kwDOSiX_888AAAABGHmM4g",
+    "title": "Permission consent dialog + declaration display + consent gate",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [602, 608],
+    "implements": {
+      "requirement_ids": ["FR-011", "FR-012", "NFR-001", "NFR-007"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": [
+        "TC-007",
+        "TC-013",
+        "TC-026",
+        "TC-027",
+        "TC-076",
+        "TC-077",
+        "TC-078",
+        "TC-079",
+        "TC-080",
+        "TC-081",
+        "TC-082",
+        "TC-083",
+        "TC-084",
+        "TC-085",
+        "TC-087",
+        "TC-088",
+        "TC-089",
+        "TC-090",
+        "TC-091",
+        "TC-095",
+        "TC-096",
+        "TC-097",
+        "TC-098"
+      ]
+    }
+  },
+  {
+    "number": 616,
+    "url": "https://github.com/davidpoxon/roubo/issues/616",
+    "node_id": "I_kwDOSiX_888AAAABGHmNKg",
+    "title": "Plugin-backed component status/logs parity surface",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [605, 606],
+    "implements": {
+      "requirement_ids": ["FR-014", "NFR-004"],
+      "user_story_ids": ["US-006"],
+      "test_case_ids": [
+        "TC-022",
+        "TC-027",
+        "TC-057",
+        "TC-061",
+        "TC-062",
+        "TC-069",
+        "TC-072",
+        "TC-074",
+        "TC-124"
+      ]
+    }
+  },
+  {
+    "number": 617,
+    "url": "https://github.com/davidpoxon/roubo/issues/617",
+    "node_id": "I_kwDOSiX_888AAAABGHmNlA",
+    "title": "ComponentTypeKnowledgeGuard CI check (zero core type/docker knowledge)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["task", "P0"],
+    "blocked_by": [612],
+    "implements": {
+      "requirement_ids": ["NFR-006"],
+      "user_story_ids": ["US-007"],
+      "test_case_ids": ["TC-040", "TC-041", "TC-042", "TC-129"]
+    }
+  },
+  {
+    "number": 618,
+    "url": "https://github.com/davidpoxon/roubo/issues/618",
+    "node_id": "I_kwDOSiX_888AAAABGHmN4Q",
+    "title": "PermissionEnforcer: deny undeclared broker calls (v2)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [599, 605],
+    "implements": {
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
+    }
+  },
+  {
+    "number": 619,
+    "url": "https://github.com/davidpoxon/roubo/issues/619",
+    "node_id": "I_kwDOSiX_888AAAABGHmOVg",
+    "title": "AuditLog: record every privileged broker call, queryable per plugin/bench (v2)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [605],
+    "implements": {
+      "requirement_ids": ["FR-019", "NFR-004"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-070", "TC-086", "TC-092", "TC-093", "TC-099"]
+    }
+  },
+  {
+    "number": 620,
+    "url": "https://github.com/davidpoxon/roubo/issues/620",
+    "node_id": "I_kwDOSiX_888AAAABGHmOsg",
+    "title": "PluginIsolationSandbox: OS-level isolation per plugin (v2)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["feature", "P0"],
+    "blocked_by": [599, 618],
+    "implements": {
+      "requirement_ids": ["FR-018", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-086", "TC-093", "TC-094", "TC-099"]
+    }
+  },
+  {
+    "number": 621,
+    "url": "https://github.com/davidpoxon/roubo/issues/621",
+    "node_id": "I_kwDOSiX_888AAAABGHmPDQ",
+    "title": "Marketplace catalog: browse/search/install/update (first-party curated) (v3)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 3 Marketplace (v3)",
+    "labels": ["feature", "P1"],
+    "blocked_by": [608],
+    "implements": {
+      "requirement_ids": ["FR-020", "NFR-007"],
+      "user_story_ids": ["US-010"],
+      "test_case_ids": [
+        "TC-100",
+        "TC-101",
+        "TC-102",
+        "TC-103",
+        "TC-104",
+        "TC-105",
+        "TC-106",
+        "TC-110",
+        "TC-111",
+        "TC-113",
+        "TC-114",
+        "TC-115",
+        "TC-116",
+        "TC-119",
+        "TC-120",
+        "TC-121"
+      ]
+    }
+  },
+  {
+    "number": 622,
+    "url": "https://github.com/davidpoxon/roubo/issues/622",
+    "node_id": "I_kwDOSiX_888AAAABGHmPTw",
+    "title": "Marketplace integrity verification + revocation (v3)",
+    "type": "feature",
+    "milestone": "Component plugins: Phase 3 Marketplace (v3)",
+    "labels": ["feature", "P1"],
+    "blocked_by": [621],
+    "implements": {
+      "requirement_ids": ["FR-021"],
+      "user_story_ids": ["US-010", "US-011"],
+      "test_case_ids": [
+        "TC-101",
+        "TC-104",
+        "TC-105",
+        "TC-106",
+        "TC-107",
+        "TC-108",
+        "TC-109",
+        "TC-110",
+        "TC-112",
+        "TC-117",
+        "TC-118"
+      ]
+    }
+  },
+  {
+    "number": 623,
+    "url": "https://github.com/davidpoxon/roubo/issues/623",
+    "node_id": "I_kwDOSiX_888AAAABGHmjHw",
+    "title": "E2E: author scaffolds, consumer binds, installs, and runs a component plugin",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-002", "FR-003", "FR-010", "FR-011", "FR-014", "FR-015"],
+      "user_story_ids": ["US-001", "US-003", "US-005"],
+      "test_case_ids": ["TC-027"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-027"],
+    "covers": [602, 603, 604, 605, 606, 607, 608, 609, 613, 615, 616]
+  },
+  {
+    "number": 624,
+    "url": "https://github.com/davidpoxon/roubo/issues/624",
+    "node_id": "I_kwDOSiX_888AAAABGHmlhw",
+    "title": "E2E: responda bench runs entirely on plugin-backed components, identical to built-in",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-008", "FR-013", "NFR-002"],
+      "user_story_ids": ["US-002", "US-007"],
+      "test_case_ids": ["TC-033", "TC-034"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-033", "TC-034"],
+    "covers": [598, 600, 601, 605, 606, 610, 611, 612, 614, 617]
+  },
+  {
+    "number": 625,
+    "url": "https://github.com/davidpoxon/roubo/issues/625",
+    "node_id": "I_kwDOSiX_888AAAABGHmoPg",
+    "title": "E2E: consumer reviews declared permissions and consents before a plugin runs",
+    "type": "task",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [599, 602, 615, 618, 620],
+    "implements": {
+      "requirement_ids": ["FR-011", "FR-012", "NFR-001"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-076"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-076"],
+    "covers": [599, 602, 615, 618, 620]
+  },
+  {
+    "number": 626,
+    "url": "https://github.com/davidpoxon/roubo/issues/626",
+    "node_id": "I_kwDOSiX_888AAAABGHmpgQ",
+    "title": "E2E: author publishes a component plugin; a host-capability mismatch fails gracefully",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 600, 602, 603, 604, 605, 607, 613],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-015", "FR-017"],
+      "user_story_ids": ["US-005", "US-008"],
+      "test_case_ids": ["TC-028"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-028"],
+    "covers": [598, 600, 602, 603, 604, 605, 607, 613]
+  },
+  {
+    "number": 627,
+    "url": "https://github.com/davidpoxon/roubo/issues/627",
+    "node_id": "I_kwDOSiX_888AAAABGHmr4Q",
+    "title": "E2E: a crashed component plugin is cleaned up, siblings survive, and it auto-recovers",
+    "type": "task",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [598, 605, 606, 607, 613, 616, 619],
+    "implements": {
+      "requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-003", "NFR-004"],
+      "user_story_ids": ["US-006", "US-008"],
+      "test_case_ids": ["TC-061"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-061"],
+    "covers": [598, 605, 606, 607, 613, 616, 619]
+  },
+  {
+    "number": 628,
+    "url": "https://github.com/davidpoxon/roubo/issues/628",
+    "node_id": "I_kwDOSiX_888AAAABGHmufQ",
+    "title": "E2E (v2): a plugin's undeclared actions are blocked and audited while the bench keeps running",
+    "type": "task",
+    "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [599, 615, 618, 619, 620],
+    "implements": {
+      "requirement_ids": ["FR-018", "FR-019", "NFR-001"],
+      "user_story_ids": ["US-009"],
+      "test_case_ids": ["TC-099"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-099"],
+    "covers": [599, 615, 618, 619, 620]
+  },
+  {
+    "number": 629,
+    "url": "https://github.com/davidpoxon/roubo/issues/629",
+    "node_id": "I_kwDOSiX_888AAAABGHmvtQ",
+    "title": "E2E (v3): consumer browses, installs (integrity-verified), and updates a marketplace plugin",
+    "type": "task",
+    "milestone": "Component plugins: Phase 3 Marketplace (v3)",
+    "labels": ["e2e", "P1"],
+    "blocked_by": [621, 622],
+    "implements": {
+      "requirement_ids": ["FR-020", "FR-021"],
+      "user_story_ids": ["US-010", "US-011"],
+      "test_case_ids": ["TC-101"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-101"],
+    "covers": [621, 622]
+  },
+  {
+    "number": 630,
+    "url": "https://github.com/davidpoxon/roubo/issues/630",
+    "node_id": "I_kwDOSiX_888AAAABGHmwrw",
+    "title": "E2E: the component kind coexists with integration plugins (no regression)",
+    "type": "task",
+    "milestone": "Component plugins: Phase 1 Foundation (v1)",
+    "labels": ["e2e", "P0"],
+    "blocked_by": [600, 609],
+    "implements": {
+      "requirement_ids": ["NFR-005"],
+      "user_story_ids": [],
+      "test_case_ids": ["TC-029"]
+    },
+    "kind": "e2e",
+    "verified_by": ["TC-029"],
+    "covers": [600, 609]
+  }
+]
