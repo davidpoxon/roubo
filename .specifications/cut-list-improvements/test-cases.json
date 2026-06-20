@@ -1463,7 +1463,8 @@
       "type": "e2e_flow",
       "preconditions": [
         "Jira plugin is active and returns multiple pages of issues",
-        "Cut list is loaded and on page 2 sorted by Key ascending"
+        "Cut list is loaded and on page 2 sorted by Key ascending",
+        "Reconciled to the shipped contract by #570 (mirroring the #584 reconciliation of TC-032): the shipped sort picker (CutListSortControl) is a single trigger + popover with no standalone selected-value readout and no separate direction toggle, there is no sort-specific live region, and the pager has no total page count"
       ],
       "steps": [
         {
@@ -1472,11 +1473,11 @@
           "observations": [
             {
               "id": "S001-O01",
-              "expected": "Sort picker selected value is 'Key' and direction is ascending"
+              "expected": "Sort field 'Key' is active in ascending direction (reconciled by #570: the shipped picker has no standalone selected-value readout; when no sort is active the trigger is icon-only with aria-label 'Sort cut list', and once 'Key' is selected the trigger aria-label reads 'Sort cut list by Key, ascending')"
             },
             {
               "id": "S001-O02",
-              "expected": "Page indicator reads 'Page 2 of N'"
+              "expected": "Page indicator reads 'Page 2' (reconciled by #570: no total page count, same as TC-032 S001-O01: forward-only cursors cannot compute N, and numbered-page jumps is a PRD non-goal)"
             }
           ]
         },
@@ -1486,25 +1487,25 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "The list resets to page 1 ('Page 1 of N')"
+              "expected": "The list resets to page 1 ('Page 1', no total page count, reconciled by #570) and Prev becomes disabled"
             },
             {
               "id": "S002-O02",
-              "expected": "Issues are ordered by last-updated"
+              "expected": "Issues are ordered by last-updated (ascending, the field's defaultDir)"
             },
             {
               "id": "S002-O03",
-              "expected": "A live-region announcement is made (e.g. 'Sorted by Recently updated')"
+              "expected": "The shipped live region (data-testid 'cut-list-page-live', aria-live polite) announces the reset as 'Page 1' (reconciled by #570: there is no sort-specific announcement; the only live region reports the page change)"
             }
           ]
         },
         {
           "id": "S003",
-          "instruction": "Click the sort direction toggle to descending",
+          "instruction": "Re-select the active 'Recently updated' field to toggle the direction to descending (reconciled by #570: there is no standalone direction toggle; re-selecting the active field flips its direction)",
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The toggle aria-label becomes 'Sort direction: descending' and issues reorder to most recently updated first"
+              "expected": "The trigger aria-label becomes 'Sort cut list by Recently updated, descending' (reconciled by #570, not 'Sort direction: descending') and issues reorder to most recently updated first"
             },
             {
               "id": "S003-O02",
