@@ -16,13 +16,23 @@
     "description": { "type": "string", "minLength": 1, "description": "One-line description" },
     "kind": {
       "type": "string",
-      "enum": ["integration"],
+      "enum": ["integration", "component"],
       "description": "Plugin kind. Future kinds will widen this enum without breaking existing manifests."
     },
     "roubo": {
       "type": "string",
       "minLength": 1,
-      "description": "Semver range for the host API version the plugin requires"
+      "description": "Semver range for the host API version the plugin requires. Must be a valid node-semver range."
+    },
+    "contractVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Component-contract version the plugin targets (component plugins). The host validates the registered-method set against it."
+    },
+    "descriptorSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional ProvisionDescriptor schema version a declarative component plugin emits, so the host can reject a descriptor-schema mismatch."
     },
     "entry": {
       "type": "string",
@@ -128,6 +138,30 @@
             }
           ],
           "description": "Either false (no child-process spawning) or an object listing the executables the plugin may spawn"
+        },
+        "ports": {
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            {
+              "type": "object",
+              "required": ["names"],
+              "additionalProperties": false,
+              "properties": {
+                "names": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          ],
+          "description": "Component category. Either false (no port allocation) or an object naming the bench port keys the host resolves into BenchContext.ports"
+        },
+        "docker": {
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            { "type": "object", "additionalProperties": false, "properties": {} }
+          ],
+          "description": "Component category gating access to the host docker broker. Either false (no docker access) or an object (reserved for future scoping fields)"
         }
       }
     }

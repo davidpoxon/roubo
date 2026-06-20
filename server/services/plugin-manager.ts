@@ -34,7 +34,7 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // The bump is backward-compatible: a plugin built against 1.0.0 / 1.1.0 simply
 // omits the method, and the host's `MethodNotFound` fallback renders no sort
 // picker (CLI-FR-011). No existing contract method changed shape.
-export const HOST_API_VERSION = "1.2.0";
+export const HOST_API_VERSION = "1.3.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
