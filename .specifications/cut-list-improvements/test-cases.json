@@ -2515,13 +2515,13 @@
             },
             {
               "id": "S002-O03",
-              "expected": "Pagination resets to page 1 and a 'Filtered to milestone Sprint 24 (active)' announcement is made"
+              "expected": "Pagination resets to page 1 (Prev disabled). Reconciled by #572 to the shipped UI: there is no milestone-specific live-region announcement; the only cut-list live region (cut-list-page-live) announces paging, so the assertable signal is the FR-008 page-1 reset, not a 'Filtered to milestone ...' announcement."
             }
           ]
         },
         {
           "id": "S003",
-          "instruction": "Click the Milestone chip again and select 'All milestones'",
+          "instruction": "Clear the milestone filter via the shipped clear affordance (the 'Clear Milestone filter' button, or 'Clear all', in the filter popover). Reconciled by #572: the shipped filter popover has no in-list 'All milestones' option; clearing a facet is a dedicated button, not a list selection.",
           "observations": [
             {
               "id": "S003-O01",
