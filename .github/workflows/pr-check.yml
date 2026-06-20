@@ -27,6 +27,20 @@ jobs:
       - run: npm run lint
       - run: npm run lint:em-dash
 
+  format:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run format:check
+
   typecheck:
     runs-on: ubuntu-latest
     permissions:
