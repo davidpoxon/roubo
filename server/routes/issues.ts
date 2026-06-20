@@ -104,6 +104,12 @@ router.get("/:projectId/issues", async (req, res) => {
           stale: true,
           snapshotCapturedAt: cached.capturedAt,
         };
+        // NFR-009: log the stale serve so a degraded cut list is diagnosable.
+        // Carries only cache-state and identity (plugin, project, plugin
+        // status, snapshot age), never issue content, credentials, or tokens.
+        console.warn(
+          `[cut-list-cache] stale-serve plugin=${active.pluginId} project=${req.params.projectId} status=${record?.status} capturedAt=${cached.capturedAt}`,
+        );
         res.json(stale);
         return;
       }

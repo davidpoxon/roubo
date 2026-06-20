@@ -26,6 +26,7 @@ import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
+import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
@@ -961,6 +962,13 @@ export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
+  // FR-004 / NFR-001 (per Spike 553, #553): disable EVICTS the persistent disk
+  // snapshots. This is deliberately distinct from the in-memory
+  // issue-snapshot-cache, which is kept warm on disable so the route's
+  // errored/disabled stale fallback (FR-014) still has something to serve. The
+  // disk cache is the stale-while-revalidate warm path for a *healthy* plugin
+  // and must not be served once the plugin is disabled.
+  cutListQueryService.evictPlugin(pluginId);
   if (!entry.process) {
     entry.record.status = "disabled";
     return;
@@ -1032,6 +1040,11 @@ export async function uninstall(pluginId: string): Promise<void> {
   // we deliberately do *not* clear the snapshot on disable(): FR-014 calls
   // for serving the last-good snapshot while a plugin is `disabled`.
   issueSnapshotCache.clearSnapshot(pluginId);
+  // FR-004 / NFR-001: additionally drop the persistent disk snapshots for this
+  // plugin. Separate from the in-memory clearSnapshot above (which feeds the
+  // errored/disabled stale fallback): the disk cache has its own lifecycle and
+  // must not survive an uninstall.
+  cutListQueryService.evictPlugin(pluginId);
 }
 
 /**
