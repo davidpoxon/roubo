@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { Button, DialogTrigger } from "react-aria-components";
 import { RefreshCw, X, ChevronDown, ChevronRight, ChevronLeft, PanelLeftClose } from "lucide-react";
 import type { Bench, RouboConfig } from "@roubo/shared";
@@ -15,6 +15,7 @@ import type { FilterFacet } from "@roubo/shared";
 import CutListGroupByControl from "./CutListGroupByControl";
 import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 import type { GroupingState } from "../lib/cut-list-groups";
+import { formatLastUpdated, formatSnapshotAge } from "../lib/last-updated";
 import GitHubErrorState from "./GitHubErrorState";
 import PluginConfigureDialog from "./PluginConfigureDialog";
 import StaleSnapshotBanner from "./StaleSnapshotBanner";
@@ -58,9 +59,19 @@ export default function IssueQueuePanel({
     nextCursor,
     stalled,
     stale,
+    snapshotCapturedAt,
     excludedCount,
+    isRefetching,
+    dataUpdatedAt,
   } = useIssues(projectId, {}, undefined, activeCursor);
   const refreshItems = useRefreshIssues();
+  // Guard the refresh control while a refetch is already in flight: disabling
+  // the Button is what prevents a second concurrent refresh (FR-005 / AC5),
+  // not React Query's request dedupe alone.
+  const handleRefresh = useCallback(() => {
+    if (isRefetching) return;
+    void refreshItems();
+  }, [isRefetching, refreshItems]);
   const integrationQuery = useProjectIntegration(projectId);
 
   // WU-050: loading the cut list triggers a fresh connection-status re-check
@@ -241,6 +252,36 @@ export default function IssueQueuePanel({
     });
   }, [nextCursor, pageIndex]);
 
+  // Last-updated indicator (FR-006). The stale path (cached snapshot, plugin
+  // unavailable) is worded and coloured distinctly from the warm path so a
+  // frozen snapshot never reads as a fresh update (AC3). While a refresh is in
+  // flight the indicator reads "refreshing..." instead of a timestamp (AC1).
+  const lastUpdatedLabel = useMemo(() => {
+    if (isRefetching) return "refreshing...";
+    if (stale) {
+      const captured = snapshotCapturedAt ? Date.parse(snapshotCapturedAt) : NaN;
+      return Number.isNaN(captured) ? "stale snapshot" : formatSnapshotAge(captured);
+    }
+    return formatLastUpdated(dataUpdatedAt);
+  }, [isRefetching, stale, snapshotCapturedAt, dataUpdatedAt]);
+
+  // Polite live-region announcement for refresh start/completion (NFR-007 /
+  // AC4). Announce "Refreshing cut list" when a refetch begins, then on
+  // completion announce success or, when the refetch errored, a failure (a
+  // failed refetch settles isRefetching to false the same way a success does,
+  // so the completion message is gated on itemsError rather than reading "Cut
+  // list updated" when nothing updated). Stay silent before the first refresh.
+  const [refreshAnnouncement, setRefreshAnnouncement] = useState("");
+  const wasRefetchingRef = useRef(false);
+  useEffect(() => {
+    if (isRefetching && !wasRefetchingRef.current) {
+      setRefreshAnnouncement("Refreshing cut list");
+    } else if (!isRefetching && wasRefetchingRef.current) {
+      setRefreshAnnouncement(itemsError ? "Cut list refresh failed" : "Cut list updated");
+    }
+    wasRefetchingRef.current = isRefetching;
+  }, [isRefetching, itemsError]);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -251,13 +292,27 @@ export default function IssueQueuePanel({
               Cut List
             </h3>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {lastUpdatedLabel && (
+              <span
+                data-testid="cut-list-last-updated"
+                data-state={stale ? "stale" : "fresh"}
+                className={`text-[10px] font-mono whitespace-nowrap ${
+                  stale
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-stone-400 dark:text-stone-600"
+                }`}
+              >
+                {lastUpdatedLabel}
+              </span>
+            )}
             <Button
-              onPress={refreshItems}
-              className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+              onPress={handleRefresh}
+              isDisabled={isRefetching}
+              className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-60 disabled:cursor-default"
               aria-label="Refresh cut list"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={13} className={isRefetching ? "animate-spin" : undefined} />
             </Button>
             {onCollapse && (
               <Button
@@ -269,6 +324,15 @@ export default function IssueQueuePanel({
               </Button>
             )}
           </div>
+        </div>
+        {/* Polite live region announcing refresh start/completion (NFR-007). */}
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="cut-list-refresh-status"
+          className="sr-only"
+        >
+          {refreshAnnouncement}
         </div>
       </div>
 

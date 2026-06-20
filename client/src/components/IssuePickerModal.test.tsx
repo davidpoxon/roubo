@@ -20,6 +20,8 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     stale: false,
     snapshotCapturedAt: null,
     excludedCount: 0,
+    isRefetching: false,
+    dataUpdatedAt: 0,
     ...overrides,
   };
 }

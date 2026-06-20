@@ -136,6 +136,32 @@ describe("useIssues", () => {
     expect(result.current.excludedCount).toBe(0);
   });
 
+  it("surfaces dataUpdatedAt once the first fetch succeeds (CLI-TC-016)", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [makeIssue("1")],
+      nextCursor: null,
+    } as PaginatedIssues);
+
+    const before = Date.now();
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    // Before any successful fetch, dataUpdatedAt is the React Query default of 0.
+    expect(result.current.dataUpdatedAt).toBe(0);
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.dataUpdatedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("exposes isRefetching, false in the idle settled state (CLI-TC-015)", async () => {
+    mockedFetch.mockResolvedValue({
+      items: [makeIssue("1")],
+      nextCursor: null,
+    } as PaginatedIssues);
+
+    const { result } = renderHookWithProviders(() => useIssues("p1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.isRefetching).toBe(false);
+  });
+
   it("does not fetch when projectId is undefined", () => {
     renderHookWithProviders(() => useIssues(undefined));
     expect(mockedFetch).not.toHaveBeenCalled();
