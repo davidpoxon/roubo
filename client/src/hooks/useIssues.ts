@@ -7,6 +7,16 @@ export interface UseIssuesFilters {
   search?: string;
 }
 
+/**
+ * The cut-list sort selection (CLI-FR-009). `sortBy` is a field id the active
+ * plugin declared via `getSortFields`; `sortDir` is the direction. Absent
+ * means the plugin's natural order (key-ascending fallback, CLI-FR-010).
+ */
+export interface UseIssuesSort {
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+}
+
 export interface UseIssuesResult {
   issues: NormalizedIssue[];
   isLoading: boolean;
@@ -66,9 +76,24 @@ export function useIssues(
   filters: UseIssuesFilters = {},
   pageSize?: number,
   cursor: string | null = null,
+  sort: UseIssuesSort = {},
 ): UseIssuesResult {
+  const sortBy = sort.sortBy;
+  const sortDir = sort.sortDir;
   const query = useQuery<PaginatedIssues, Error>({
-    queryKey: ["issues", projectId, filters, pageSize ?? null, cursor],
+    // The sort selection is part of the key: a sort change is a distinct query
+    // (a different first page, CLI-FR-003) and must refetch rather than serve
+    // the prior order. The caller (IssueQueuePanel) resets its cursor history
+    // to page 1 on the same change (CLI-FR-008).
+    queryKey: [
+      "issues",
+      projectId,
+      filters,
+      pageSize ?? null,
+      cursor,
+      sortBy ?? null,
+      sortDir ?? null,
+    ],
     enabled: !!projectId,
     queryFn: () =>
       api.fetchIssuesPage(projectId as string, {
@@ -76,6 +101,8 @@ export function useIssues(
         pageSize,
         labels: filters.labels,
         search: filters.search,
+        sortBy,
+        sortDir,
       }),
     staleTime: 30_000,
     retry: false,

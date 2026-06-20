@@ -7,12 +7,14 @@ import Spinner from "./Spinner";
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
-import { useFilterFacets, usePrefetchFacetOptions } from "../hooks/useCutListFacets";
+import { useFilterFacets, usePrefetchFacetOptions, useSortFields } from "../hooks/useCutListFacets";
 import CutListFilterBar from "./CutListFilterBar";
 import { applyFilters, createEmptyFilters, isFiltersEmpty } from "../lib/cut-list-filters";
 import type { FilterState } from "../lib/cut-list-filters";
-import type { FilterFacet } from "@roubo/shared";
+import type { FilterFacet, SortField } from "@roubo/shared";
 import CutListGroupByControl from "./CutListGroupByControl";
+import CutListSortControl from "./CutListSortControl";
+import type { SortSelection } from "./CutListSortControl";
 import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 import type { GroupingState } from "../lib/cut-list-groups";
 import { formatLastUpdated, formatSnapshotAge } from "../lib/last-updated";
@@ -52,6 +54,11 @@ export default function IssueQueuePanel({
   // Announced to screen readers via the polite live region on each page change.
   const [pageAnnouncement, setPageAnnouncement] = useState("");
 
+  // Cut-list sort selection (CLI-FR-009/CLI-FR-010). Null means the plugin's
+  // natural order (key-ascending fallback). A sort change resets paging to
+  // page 1 (CLI-FR-008) via the paging-reset signature below.
+  const [sortSelection, setSortSelection] = useState<SortSelection | null>(null);
+
   const {
     issues,
     isLoading: itemsLoading,
@@ -64,7 +71,7 @@ export default function IssueQueuePanel({
     isRefetching,
     dataUpdatedAt,
     cacheStatus,
-  } = useIssues(projectId, {}, undefined, activeCursor);
+  } = useIssues(projectId, {}, undefined, activeCursor, sortSelection ?? {});
   const refreshItems = useRefreshIssues();
   // Guard the refresh control while a refetch is already in flight: disabling
   // the Button is what prevents a second concurrent refresh (FR-005 / AC5),
@@ -90,6 +97,10 @@ export default function IssueQueuePanel({
   const activePluginName = integrationQuery.data?.plugin?.manifest?.name ?? null;
   const facetsQuery = useFilterFacets(projectId, activePluginId);
   const facets: FilterFacet[] = useMemo(() => facetsQuery.data ?? [], [facetsQuery.data]);
+  // Plugin-declared sort fields (CLI-FR-009). Empty => no sort picker renders
+  // (CLI-FR-011). Keyed on the active plugin so a plugin switch refetches.
+  const sortFieldsQuery = useSortFields(projectId, activePluginId);
+  const sortFields: SortField[] = useMemo(() => sortFieldsQuery.data ?? [], [sortFieldsQuery.data]);
   // Warm the option cache for async facets so the filter popover shows options
   // immediately instead of behind a "Load options" click.
   usePrefetchFacetOptions(projectId, activePluginId, facets);
@@ -125,16 +136,18 @@ export default function IssueQueuePanel({
   );
 
   // Reset paging to page 1 and discard forward cursor history whenever the query
-  // inputs change (project, filters, grouping/sources). Forward-only cursors are
-  // only valid for the shape they were issued against, so retaining them across a
-  // shape change would replay stale cursors (FR-008). A stable signature lets us
-  // detect a genuine input change without firing on unrelated re-renders.
+  // inputs change (project, filters, grouping/sources, sort). Forward-only
+  // cursors are only valid for the shape they were issued against, so retaining
+  // them across a shape change would replay stale cursors (CLI-FR-008). A sort
+  // change is exactly such a shape change (a new first page, CLI-FR-003), so the
+  // selection is part of the signature. A stable signature lets us detect a
+  // genuine input change without firing on unrelated re-renders.
   const pagingResetSignature = useMemo(
     () =>
-      JSON.stringify({ projectId, filters, grouping }, (_key, value) =>
+      JSON.stringify({ projectId, filters, grouping, sortSelection }, (_key, value) =>
         value instanceof Set ? [...value].sort() : value,
       ),
-    [projectId, filters, grouping],
+    [projectId, filters, grouping, sortSelection],
   );
   // Adjust state during render when the inputs change (React's recommended
   // alternative to a reset effect): React restarts the render with the new state
@@ -383,6 +396,11 @@ export default function IssueQueuePanel({
             />
           </div>
           <div className="flex items-center gap-1 pr-2 shrink-0">
+            <CutListSortControl
+              fields={sortFields}
+              selection={sortSelection}
+              onSelectionChange={setSortSelection}
+            />
             <CutListGroupByControl
               grouping={grouping}
               onGroupingChange={updateGrouping}

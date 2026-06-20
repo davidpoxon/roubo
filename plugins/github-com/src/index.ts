@@ -8,6 +8,7 @@ import { getComments } from "./methods/get-comments.js";
 import { getConnectionStatus } from "./methods/get-connection-status.js";
 import { getCurrentUser } from "./methods/get-current-user.js";
 import { getFacetOptions } from "./methods/get-facet-options.js";
+import { getSortFields } from "./methods/get-sort-fields.js";
 import { getIssue } from "./methods/get-issue.js";
 import { listIssueTypes } from "./methods/list-issue-types.js";
 import { listIssues } from "./methods/list-issues.js";
@@ -36,6 +37,7 @@ definePlugin({
   listLabels,
   filterFacets,
   getFacetOptions,
+  getSortFields,
   getConnectionStatus,
   probeAlertCategories,
   probeRepoAccess,

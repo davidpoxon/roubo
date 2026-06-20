@@ -27,6 +27,7 @@ vi.mock("../hooks/useCutListFacets", () => ({
       { id: "milestone", label: "Milestone", type: "enum-async" },
     ],
   })),
+  useSortFields: vi.fn(() => ({ data: [] })),
   useFacetOptions: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
   usePrefetchFacetOptions: vi.fn(),
 }));
@@ -69,12 +70,29 @@ vi.mock("./CutListGroupByControl", () => ({
     </div>
   ),
 }));
+vi.mock("./CutListSortControl", () => ({
+  default: ({
+    fields,
+    onSelectionChange,
+  }: {
+    fields: { id: string }[];
+    onSelectionChange: (s: { sortBy: string; sortDir: "asc" | "desc" } | null) => void;
+  }) =>
+    fields.length === 0 ? null : (
+      <div data-testid="sort-control">
+        <button onClick={() => onSelectionChange({ sortBy: "created", sortDir: "desc" })}>
+          Sort by created
+        </button>
+      </div>
+    ),
+}));
 
 import { useIssues, useRefreshIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
-import { usePrefetchFacetOptions } from "../hooks/useCutListFacets";
+import { usePrefetchFacetOptions, useSortFields } from "../hooks/useCutListFacets";
 const mockedUseIssues = vi.mocked(useIssues);
+const mockedUseSortFields = vi.mocked(useSortFields);
 const mockedUseRefreshIssues = vi.mocked(useRefreshIssues);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 const mockedUsePlugins = vi.mocked(usePlugins);
@@ -779,6 +797,65 @@ describe("IssueQueuePanel", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Filter by Bug" }));
       expect(live).toHaveTextContent("Page 1");
+    });
+  });
+
+  describe("CLI-FR-009/CLI-FR-010/CLI-FR-011: sort picker", () => {
+    type Page = { items: NormalizedIssue[]; nextCursor: string | null };
+
+    it("omits the sort picker when the plugin declares no sort fields (CLI-FR-011)", () => {
+      mockedUseSortFields.mockReturnValue({ data: [] } as unknown as ReturnType<
+        typeof useSortFields
+      >);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.queryByTestId("sort-control")).toBeNull();
+    });
+
+    it("renders the sort picker when the plugin declares sort fields (CLI-FR-009)", () => {
+      mockedUseSortFields.mockReturnValue({
+        data: [{ id: "created", label: "Created", defaultDir: "desc" }],
+      } as unknown as ReturnType<typeof useSortFields>);
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByTestId("sort-control")).toBeInTheDocument();
+    });
+
+    it("a sort change resets paging to page 1 and forwards the sort to useIssues (CLI-FR-008/CLI-FR-010)", async () => {
+      mockedUseSortFields.mockReturnValue({
+        data: [{ id: "created", label: "Created", defaultDir: "desc" }],
+      } as unknown as ReturnType<typeof useSortFields>);
+      const threePages: Record<string, Page> = {
+        page1: { items: [makeIssue("a1")], nextCursor: "c1" },
+        c1: { items: [makeIssue("b1")], nextCursor: "c2" },
+        c2: { items: [makeIssue("c1card")], nextCursor: null },
+      };
+      // The 5th positional arg is the sort selection the panel passes to useIssues.
+      const sortSeen: Array<{ sortBy?: string; sortDir?: "asc" | "desc" }> = [];
+      mockedUseIssues.mockImplementation((_projectId, _filters, _pageSize, cursor, sort) => {
+        sortSeen.push((sort ?? {}) as { sortBy?: string; sortDir?: "asc" | "desc" });
+        const page = threePages[cursor ?? "page1"];
+        return defaultResult({
+          issues: page.items,
+          nextCursor: page.nextCursor,
+        }) as ReturnType<typeof useIssues>;
+      });
+
+      renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 2");
+
+      await userEvent.click(screen.getByRole("button", { name: "Sort by created" }));
+
+      // CLI-FR-008: the sort change reset paging back to page 1.
+      expect(screen.getByTestId("cut-list-page-indicator")).toHaveTextContent("Page 1");
+      expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+      // CLI-FR-010: the new selection reached useIssues.
+      expect(sortSeen).toContainEqual({ sortBy: "created", sortDir: "desc" });
     });
   });
 

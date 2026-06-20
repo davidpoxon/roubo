@@ -71,6 +71,19 @@ export interface FilterFacetOption {
   label: string;
 }
 
+/**
+ * One sort field returned by `getSortFields` (host-API 1.2.0+, CLI-FR-009).
+ * Core renders a sort picker from these; `defaultDir` is the direction first
+ * applied when the user selects the field. Plugins built against host-API
+ * 1.0.0 / 1.1.0 omit `getSortFields` and core renders no picker (CLI-FR-011).
+ * Mirrored as `SortField` in `@roubo/shared`.
+ */
+export interface SortField {
+  id: string;
+  label: string;
+  defaultDir: "asc" | "desc";
+}
+
 export interface NormalizedComment {
   externalId: string;
   author: { externalId: string; displayName: string };
@@ -167,6 +180,15 @@ export interface ListIssuesParams {
    */
   excludedStatusCategories?: string[];
   excludedStatuses?: string[];
+  /**
+   * Plugin-declared sort selection (CLI-FR-009/CLI-FR-010). `sortBy` is one of
+   * the field ids the plugin returned from `getSortFields`; `sortDir` is the
+   * direction. Plugins MUST apply the sort source-side so the order is stable
+   * across pages. Absent means the plugin's natural order; a plugin that does
+   * not declare any sort fields (and so never receives these) is unaffected.
+   */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
 }
 
 export interface ListIssueTypesParams {
@@ -450,6 +472,15 @@ export interface PluginContract {
   getFacetOptions?: (
     params: GetFacetOptionsParams,
   ) => Promise<FilterFacetOption[]> | FilterFacetOption[];
+  /**
+   * Declare the sort fields the cut-list picker offers (host-API 1.2.0+,
+   * CLI-FR-009). Each field carries a stable `id` (forwarded back as
+   * `ListIssuesParams.sortBy`), a human `label`, and a `defaultDir`. Plugins
+   * omitting this method resolve to `MethodNotFound`, which core maps to an
+   * empty list so no picker renders (CLI-FR-011). A plugin that declares fields
+   * MUST honour `sortBy`/`sortDir` source-side in `listIssues` (CLI-FR-010).
+   */
+  getSortFields?: () => Promise<SortField[]> | SortField[];
   /**
    * Scoped, paginated, type-ahead search over a plugin's selectable source
    * categories (project / board / filter / epic). The host calls this from the

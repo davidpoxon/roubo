@@ -29,11 +29,21 @@ import type {
   SearchIssuesResult,
 } from "./types.js";
 
+/** GitHub REST `sort` values the cut-list sort picker offers (CLI-FR-009). */
+export type IssueSortField = "created" | "updated" | "comments";
+
 interface ListIssuesOptions {
   labels?: string;
   search?: string;
   page?: number;
   perPage?: number;
+  /**
+   * Source-side sort (CLI-FR-010). Maps directly onto the GitHub REST `sort` /
+   * `direction` params so the order is stable across pages (the API paginates
+   * the sorted set). Defaults to `updated` / `desc`, the prior behaviour.
+   */
+  sort?: IssueSortField;
+  direction?: "asc" | "desc";
 }
 
 interface ListIssuesPage {
@@ -47,7 +57,11 @@ export async function fetchIssuesPage(
 ): Promise<ListIssuesPage> {
   const page = options.page ?? 1;
   const perPage = Math.min(Math.max(options.perPage ?? 50, 1), 100);
-  const cacheKey = `${repoFullName}:${options.labels ?? ""}:${options.search ?? ""}:p=${page}:s=${perPage}`;
+  const sort: IssueSortField = options.sort ?? "updated";
+  const direction: "asc" | "desc" = options.direction ?? "desc";
+  // Sort/direction participate in the cache key: a different ordering is a
+  // different first page, so a sort change must not serve a stale cached page.
+  const cacheKey = `${repoFullName}:${options.labels ?? ""}:${options.search ?? ""}:p=${page}:s=${perPage}:sort=${sort}:dir=${direction}`;
   const cached = issueCache.get(cacheKey) as
     | { data: ListIssuesPage; timestamp: number }
     | undefined;
@@ -65,7 +79,9 @@ export async function fetchIssuesPage(
     const result = await githubRequest<SearchIssuesResult>({
       kind: "rest",
       route: "GET /search/issues",
-      params: { q, per_page: perPage, page, sort: "updated", order: "desc" },
+      // The search API shares the cut-list sort vocabulary (created/updated/
+      // comments) but names the direction param `order` (CLI-FR-010).
+      params: { q, per_page: perPage, page, sort, order: direction },
     });
     rawPageSize = result.data.items.length;
     items = result.data.items.filter((item) => !item.pull_request);
@@ -76,8 +92,8 @@ export async function fetchIssuesPage(
       state: "open",
       per_page: perPage,
       page,
-      sort: "updated",
-      direction: "desc",
+      sort,
+      direction,
     };
     if (options.labels) params.labels = options.labels;
     const result = await githubRequest<RawIssue[]>({

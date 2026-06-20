@@ -25,6 +25,10 @@ vi.mock("../services/active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(),
 }));
 
+vi.mock("../services/plugin-sort-fields.js", () => ({
+  getPluginSortFields: vi.fn(),
+}));
+
 vi.mock("../services/plugin-activation.js", () => ({
   ensurePluginActivated: vi.fn().mockResolvedValue(undefined),
   forgetProjectActivation: vi.fn(),
@@ -51,6 +55,7 @@ import * as issueAssignment from "../services/issue-assignment.js";
 import * as issueSnapshotCache from "../services/issue-snapshot-cache.js";
 import * as integrationMigrations from "../services/integration-migrations.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
+import { getPluginSortFields } from "../services/plugin-sort-fields.js";
 
 const app = express();
 app.use(express.json());
@@ -140,7 +145,13 @@ describe("GET /:projectId/issues", () => {
     expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
       "p1",
       expect.objectContaining({ pluginId: "github-com" }),
-      { cursor: "c1", pageSize: 25, filters: { labels: ["bug", "feature"], search: "login" } },
+      {
+        cursor: "c1",
+        pageSize: 25,
+        filters: { labels: ["bug", "feature"], search: "login" },
+        sortBy: undefined,
+        sortDir: undefined,
+      },
     );
   });
 
@@ -155,6 +166,40 @@ describe("GET /:projectId/issues", () => {
       cursor: null,
       pageSize: 50,
       filters: {},
+      sortBy: undefined,
+      sortDir: undefined,
+    });
+  });
+
+  it("parses sortBy/sortDir and forwards them to the cut-list service (CLI-FR-009)", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "miss",
+    });
+    await request(app).get("/p1/issues?sortBy=created&sortDir=asc");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+      sortDir: "asc",
+    });
+  });
+
+  it("ignores an unrecognised sortDir value, leaving the direction unset", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "miss",
+    });
+    await request(app).get("/p1/issues?sortBy=created&sortDir=sideways");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+      sortDir: undefined,
     });
   });
 
@@ -465,6 +510,49 @@ describe("GET /:projectId/issues", () => {
       expect(res.status).toBe(502);
       expect(issueSnapshotCache.getSnapshot).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("GET /:projectId/issues/sort-fields (CLI-FR-009/CLI-FR-011)", () => {
+  it("returns the plugin's declared sort fields", async () => {
+    const fields = [
+      { id: "created", label: "Created", defaultDir: "desc" },
+      { id: "updated", label: "Updated", defaultDir: "desc" },
+    ];
+    vi.mocked(getPluginSortFields).mockResolvedValue(fields);
+
+    const res = await request(app).get("/p1/issues/sort-fields");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(fields);
+    expect(getPluginSortFields).toHaveBeenCalledWith("github-com");
+  });
+
+  it("returns an empty array when the plugin declares no sort fields (no picker)", async () => {
+    vi.mocked(getPluginSortFields).mockResolvedValue([]);
+
+    const res = await request(app).get("/p1/issues/sort-fields");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns 503 when no active integration plugin is configured", async () => {
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+
+    const res = await request(app).get("/p1/issues/sort-fields");
+
+    expect(res.status).toBe(503);
+    expect(getPluginSortFields).not.toHaveBeenCalled();
+  });
+
+  it("is not captured by the :externalId issue route (literal segment wins)", async () => {
+    vi.mocked(getPluginSortFields).mockResolvedValue([]);
+
+    await request(app).get("/p1/issues/sort-fields");
+
+    // The single-issue getIssue RPC must not fire for the literal sort-fields path.
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 });
 

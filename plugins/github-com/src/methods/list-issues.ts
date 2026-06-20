@@ -10,6 +10,7 @@ import {
   fetchBlockingRelationships,
   fetchIssuesPage,
   fetchProjectItems,
+  type IssueSortField,
 } from "../github-fetchers.js";
 import {
   normalizeState,
@@ -35,6 +36,28 @@ function decodeRepoCursor(cursor: string | null): number {
 function clampPageSize(size: number | undefined): number {
   if (!size || size <= 0) return DEFAULT_PAGE_SIZE;
   return Math.min(size, MAX_PAGE_SIZE);
+}
+
+/** The github.com sort fields (CLI-FR-009, from `getSortFields`). */
+const SORT_FIELDS: ReadonlySet<IssueSortField> = new Set(["created", "updated", "comments"]);
+
+/**
+ * Map the host's `sortBy`/`sortDir` onto the GitHub REST `sort`/`direction`
+ * params (CLI-FR-010). Applied source-side so order is stable across pages.
+ * An unrecognised field (e.g. one this plugin never declared) is ignored, so
+ * the call falls back to the API default ordering rather than erroring.
+ */
+function resolveSort(params: ListIssuesParams): {
+  sort?: IssueSortField;
+  direction?: "asc" | "desc";
+} {
+  if (typeof params.sortBy !== "string" || !SORT_FIELDS.has(params.sortBy as IssueSortField)) {
+    return {};
+  }
+  return {
+    sort: params.sortBy as IssueSortField,
+    direction: params.sortDir === "asc" ? "asc" : "desc",
+  };
 }
 
 function parseProjectExternalId(externalId: string): { owner: string; projectNumber: number } {
@@ -72,12 +95,24 @@ async function listFromRepo(
 
   const labels = params.filters?.labels?.join(",");
   const search = params.filters?.search;
-  const fetchOpts: { page: number; perPage: number; labels?: string; search?: string } = {
+  const { sort, direction } = resolveSort(params);
+  const fetchOpts: {
+    page: number;
+    perPage: number;
+    labels?: string;
+    search?: string;
+    sort?: IssueSortField;
+    direction?: "asc" | "desc";
+  } = {
     page,
     perPage: pageSize,
   };
   if (labels) fetchOpts.labels = labels;
   if (search) fetchOpts.search = search;
+  if (sort) {
+    fetchOpts.sort = sort;
+    fetchOpts.direction = direction;
+  }
 
   const result = await fetchIssuesPage(repoFullName, fetchOpts);
   const issueNumbers = result.items.map((i) => i.number);

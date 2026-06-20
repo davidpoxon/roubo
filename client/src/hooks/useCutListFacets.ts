@@ -20,6 +20,23 @@ export function useFilterFacets(projectId: string | undefined, pluginId: string 
 }
 
 /**
+ * Fetches the active integration plugin's declared cut-list sort fields via
+ * `getSortFields` (CLI-FR-009). Keyed by `pluginId` so switching the active
+ * integration triggers a refetch and old sort fields never bleed across.
+ * Returns an empty array when the plugin omits the method (server maps
+ * `MethodNotFound` to `[]`); the panel then renders no sort picker
+ * (CLI-FR-011).
+ */
+export function useSortFields(projectId: string | undefined, pluginId: string | null) {
+  return useQuery({
+    queryKey: ["sort-fields", projectId, pluginId],
+    queryFn: () => api.fetchSortFields(projectId as string),
+    enabled: !!projectId && !!pluginId,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
  * Lazy facet-option loader for `enum-async` facets. Disabled by default;
  * the consuming component sets `enabled` to true once the user opens the
  * facet section so the network call only fires on demand (TC-181). Keyed

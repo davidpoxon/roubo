@@ -1333,7 +1333,7 @@
           "observations": [
             {
               "id": "S001-O01",
-              "expected": "Page indicator reads 'Page 1 of N' (N >= 3)"
+              "expected": "Page indicator reads 'Page 1 - X items' (no total page count: forward-only cursors cannot compute N, and numbered-page jumps is a PRD non-goal)"
             },
             {
               "id": "S001-O02",
@@ -1347,7 +1347,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "Page indicator updates to 'Page 2 of N' and Prev becomes enabled"
+              "expected": "Page indicator updates to 'Page 2 - X items' and Prev becomes enabled"
             },
             {
               "id": "S002-O02",
@@ -1371,18 +1371,18 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "Navigation resets to page 1 ('Page 1 of N')"
+              "expected": "Navigation resets to page 1 ('Page 1 - X items') and Prev becomes disabled"
             },
             {
               "id": "S004-O02",
-              "expected": "Prev button is disabled and items are reordered by the new sort field"
+              "expected": "Items are reordered by the new sort field (the page-1 item set after the sort change differs from the page-1 item set before it)"
             }
           ]
         }
       ],
       "tags": ["e2e", "smoke", "happy-path"],
-      "linked_requirement_ids": ["CLI-FR-007", "CLI-FR-008"],
-      "linked_user_story_ids": ["CLI-US-003"]
+      "linked_requirement_ids": ["CLI-FR-007", "CLI-FR-008", "CLI-FR-009", "CLI-FR-010"],
+      "linked_user_story_ids": ["CLI-US-003", "CLI-US-004"]
     },
     {
       "id": "CLI-TC-033",

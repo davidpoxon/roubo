@@ -11,6 +11,7 @@ import type {
   NormalizedComment,
   NormalizedIssue,
   ProbeAlertCategoriesResult,
+  SortField,
   SourceCandidateItem,
   SourceCandidatesResponse,
 } from "@roubo/plugin-sdk";
@@ -75,6 +76,13 @@ export interface Scenario {
   labels: string[];
   facets: FilterFacet[];
   facetOptions: ScenarioFacetOptions;
+  // CLI-FR-009 (#584): the sort fields the stub declares via `getSortFields`.
+  // When present and non-empty the contract exposes the method (the host
+  // renders a sort picker) and `listIssues` orders the kept set source-side by
+  // the requested field (`title` / `updated`). When omitted or empty the method
+  // is left off the contract, so the host sees MethodNotFound and renders no
+  // picker (CLI-FR-011). Existing scenarios omit it and are unaffected.
+  sortFields?: SortField[];
   // WU-067 (TC-175): when true, the contract omits `filterFacets` and
   // `getFacetOptions` so the host's RPC layer rejects with MethodNotFound,
   // which `plugin-filter-facets.ts` maps to `COMMON_FACET_FALLBACK`. Models a

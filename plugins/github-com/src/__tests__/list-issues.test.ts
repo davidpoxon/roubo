@@ -122,6 +122,51 @@ describe("listIssues", () => {
     expect(params.labels).toBe("bug,p1");
   });
 
+  it("applies the host sortBy/sortDir source-side via the REST sort/direction params (CLI-FR-010)", async () => {
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([]));
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
+
+    await listIssues({
+      sources: REPO_SOURCES,
+      cursor: null,
+      pageSize: 5,
+      sortBy: "created",
+      sortDir: "asc",
+    });
+
+    const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
+    expect(params.sort).toBe("created");
+    expect(params.direction).toBe("asc");
+  });
+
+  it("falls back to the default updated/desc ordering when no sort is requested", async () => {
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([]));
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
+
+    await listIssues({ sources: REPO_SOURCES, cursor: null, pageSize: 5 });
+
+    const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
+    expect(params.sort).toBe("updated");
+    expect(params.direction).toBe("desc");
+  });
+
+  it("ignores an unrecognised sortBy field (falls back to the default ordering)", async () => {
+    mocks.mockOctokit.request.mockResolvedValueOnce(okResponse([]));
+    mocks.mockOctokit.graphql.mockResolvedValueOnce({ repository: {} });
+
+    await listIssues({
+      sources: REPO_SOURCES,
+      cursor: null,
+      pageSize: 5,
+      sortBy: "nonsense",
+      sortDir: "asc",
+    });
+
+    const params = mocks.mockOctokit.request.mock.calls[0][1] as Record<string, unknown>;
+    expect(params.sort).toBe("updated");
+    expect(params.direction).toBe("desc");
+  });
+
   it("reports hasNextPage when the unfiltered API response is a full page, even if PRs were filtered out", async () => {
     // Regression: `/repos/{owner}/{repo}/issues` returns issues and PRs
     // interleaved. Computing hasNextPage from the post-filter item count

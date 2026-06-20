@@ -128,5 +128,6 @@
   "issueTypes": [],
   "labels": [],
   "facets": [],
-  "facetOptions": {}
+  "facetOptions": {},
+  "sortFields": [{ "id": "title", "label": "Title", "defaultDir": "desc" }]
 }

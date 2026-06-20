@@ -3,12 +3,13 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// #569: the integration-level drift guard for the US-003 journey "page through
-// the cut list and reset to page 1 on sort change". It spans the pagination
-// slice #556 and asserts the integrated journey against the authoritative
-// e2e_flow case CLI-TC-032, not whatever any single slice implemented.
+// #569: the integration-level drift guard for the US-003/US-004 journey "page
+// through the cut list and reset to page 1 on sort change". It spans the
+// pagination slice #556 and the sort-picker slice #584 and asserts the
+// integrated journey against the authoritative e2e_flow case CLI-TC-032, not
+// whatever any single slice implemented.
 //
-// TC-032 DIVERGENCES (decided: adapt to the shipped contract, tracked by #584):
+// TC-032 (reconciled to the shipped contract by #584):
 //
 //   1. S001-O01 "Page 1 of N". The shipped pager
 //      (client/src/components/IssueQueuePanel.tsx, testid
@@ -16,21 +17,21 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //      total N: cursors are forward-only (PaginatedIssues exposes nextCursor
 //      only) and numbered-page jumps is a PRD non-goal, so a total page count
 //      is unknowable. We assert the shipped "Page 1" / "Page 2" / "Page 3"
-//      tracking, not "of N". Reconciling TC-032's wording is deferred to #584.
+//      tracking, not "of N" (test-cases.json S001-O01 was updated to match).
 //
-//   2. S004 sort picker. There is no sort picker in the client and no sort RPC
-//      (FR-009/FR-010/US-004 are unbuilt). We drive the FR-008 reset-to-page-1
-//      invariant via a SHIPPED query-input change (the cut-list search filter)
-//      as a stand-in for the sort trigger: any change to the paging signature
-//      (project / filters / grouping) resets to page 1 and discards forward
-//      cursor history. We assert reset to page 1 + Prev disabled + the list
-//      content changes. We do NOT assert "items reorder by sort field" (not
-//      observable without a sort); that is deferred to #584.
+//   2. S004 sort picker. #584 shipped the host-rendered sort picker
+//      (CutListSortControl, populated from the plugin's `getSortFields`) and the
+//      source-side sort RPC. We drive the FR-008 reset-to-page-1 invariant via
+//      the real picker (the scenario's stub declares a `Title` sort field that
+//      defaults to descending), and assert BOTH faithful behaviours: paging
+//      resets to page 1 with Prev disabled AND the list reorders by the new
+//      field (page 1 now shows the title-descending cuts, not the natural-order
+//      page-1 cuts).
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step, the expected-vs-actual, and the
-// owning slice issue #556, so a regression points straight at the step and the
-// slice that broke it.
+// owning slice issue (#556 for paging, #584 for sort), so a regression points
+// straight at the step and the slice that broke it.
 //
 // The fixture project (e2e/fixtures/cut-list-pagination-project) pins
 // `integration.pageSize: 2`, and the scenario seeds six To Do cuts, so the cut
@@ -61,9 +62,15 @@ async function registerProject(request: APIRequestContext): Promise<void> {
   expect(body.id).toBe(PROJECT_ID);
 }
 
+// Title-descending page-1 cuts (#584). The scenario's six cuts sort by title:
+// Alpha (#201/#202), Bravo (#203/#204), Charlie (#206 "fit" < #205 "wax").
+// Descending reverses that, so page 1 at pageSize 2 is #205 then #206.
+const SORT_DESC_PAGE_1_REFS = ["#205", "#206"] as const;
+
 const indicator = (page: Page) => page.getByTestId("cut-list-page-indicator");
 const prevButton = (page: Page) => page.getByRole("button", { name: "Previous page" });
 const nextButton = (page: Page) => page.getByRole("button", { name: "Next page" });
+const sortButton = (page: Page) => page.getByRole("button", { name: "Sort cut list" });
 
 async function expectRefsVisible(page: Page, refs: readonly string[], step: string): Promise<void> {
   for (const ref of refs) {
@@ -92,16 +99,14 @@ test.afterEach(async ({ request }) => {
   await request.delete(`/api/projects/${PROJECT_ID}?force=true`);
 });
 
-test("TC-032: page through the cut list and reset to page 1 on a query-input change", async ({
-  page,
-}) => {
+test("TC-032: page through the cut list and reset to page 1 on a sort change", async ({ page }) => {
   await loadAppShell(page);
   await page.goto(`/projects/${PROJECT_ID}`);
 
   // S001: a cached list of at least three pages. Page 1 shows the first page of
   // cuts, the page indicator tracks "Page 1", Prev is disabled and Next enabled.
-  // (TC-032 S001-O01 says "Page 1 of N"; the shipped pager has no total N, so we
-  // assert the shipped "Page 1" tracking instead. Divergence tracked by #584.)
+  // (The shipped pager has no total N, so we assert the shipped "Page 1"
+  // tracking; test-cases.json S001-O01 was reconciled to match by #584.)
   await expectRefsVisible(page, PAGE_1_REFS, "S001 page 1 content");
   await expectRefsAbsent(page, PAGE_2_REFS, "S001 page 1 excludes page 2");
   await expect(
@@ -154,32 +159,38 @@ test("TC-032: page through the cut list and reset to page 1 on a query-input cha
   await expectRefsVisible(page, PAGE_2_REFS, "S003 Prev replays the retained page-2 cursor");
   await expectRefsAbsent(page, PAGE_3_REFS, "S003 page 2 differs from page 3 after Prev");
 
-  // S004 (adapted): a query-input change resets paging to page 1. TC-032 drives
-  // this with a sort-field change; there is no sort picker in the shipped client
-  // (divergence tracked by #584), so we drive the same FR-008 reset invariant
-  // via the shipped cut-list search filter. Advance to page 3 first so the reset
-  // is observable as a jump back, then type a search term matching only a page-1
-  // cut. The paging signature changes, paging resets to page 1, and the visible
-  // list content changes (now the filtered page-1 cut, not the page-3 cuts).
+  // S004 (#584): change the sort field via the real sort picker. Advance to
+  // page 3 first so the reset is observable as a jump back, then open the
+  // picker and select the stub's `Title` field (it defaults to descending).
+  // TC-032 S004 asserts BOTH faithful behaviours: paging resets to page 1 with
+  // Prev disabled (CLI-FR-008), AND the items reorder by the new field
+  // (CLI-FR-010): page 1 now shows the title-descending cuts (#205/#206), not
+  // the natural-order page-1 cuts (#201/#202).
+  const SORT_SLICE = "#584";
   await nextButton(page).click();
   await expect(
     indicator(page),
-    `S004 setup (TC-032, slice ${OWNING_SLICE}): expected to be on "Page 3" before the reset, got "${await indicator(page).textContent()}"`,
+    `S004 setup (TC-032, slice ${SORT_SLICE}): expected to be on "Page 3" before the sort change, got "${await indicator(page).textContent()}"`,
   ).toContainText("Page 3");
 
-  await page.getByRole("textbox", { name: "Search cuts by title or number" }).fill("Alpha");
+  await sortButton(page).click();
+  await page.getByRole("option", { name: "Title" }).click();
 
   await expect(
     indicator(page),
-    `S004 (TC-032, slice ${OWNING_SLICE}): a query-input change (the sort-picker stand-in) must reset paging to "Page 1", got "${await indicator(page).textContent()}"`,
+    `S004 (TC-032, slice ${SORT_SLICE}): a sort-field change must reset paging to "Page 1", got "${await indicator(page).textContent()}"`,
   ).toContainText("Page 1");
   await expect(
     prevButton(page),
-    `S004 (TC-032, slice ${OWNING_SLICE}): Prev must be disabled after the reset to page 1`,
+    `S004 (TC-032, slice ${SORT_SLICE}): Prev must be disabled after the reset to page 1`,
   ).toBeDisabled();
-  // The list content changed: the page-1 "Alpha" cut is now visible and the
-  // page-3 cuts are gone. (TC-032 also expects "items reorder by sort field";
-  // that is not observable without a sort and is deferred to #584.)
-  await expectRefsVisible(page, ["#201"], "S004 reset shows filtered page-1 content");
-  await expectRefsAbsent(page, PAGE_3_REFS, "S004 reset cleared the page-3 cuts");
+  // The items reordered by the new sort field: page 1 now shows the
+  // title-descending cuts (#205/#206) and the original natural-order page-1
+  // cuts (#201/#202) are gone.
+  await expectRefsVisible(page, SORT_DESC_PAGE_1_REFS, "S004 sort reorders page 1 by title desc");
+  await expectRefsAbsent(
+    page,
+    PAGE_1_REFS,
+    "S004 sort moved the natural-order page-1 cuts off page 1",
+  );
 });

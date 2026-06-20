@@ -5,7 +5,12 @@ import type {
   PaginatedIssues,
 } from "@roubo/shared";
 import * as pluginManager from "./plugin-manager.js";
-import { resolveSources, resolveExclusion, resolveInstanceEndpoint } from "./plugin-activation.js";
+import {
+  resolveSources,
+  resolveExclusion,
+  resolveInstanceEndpoint,
+  resolveSort,
+} from "./plugin-activation.js";
 import {
   DiskSnapshotStore,
   buildCacheKey,
@@ -25,6 +30,14 @@ export interface QueryFirstOrPageInput {
   cursor: string | null;
   pageSize: number;
   filters: ListIssuesParams["filters"];
+  /**
+   * The sort selection from the request's `sortBy`/`sortDir` query params
+   * (CLI-FR-009). When present these win over the persisted per-project sort
+   * (so the picker's live selection takes effect immediately); when absent the
+   * service falls back to `resolveSort(projectId)` (CLI-FR-013/CLI-FR-017).
+   */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
 }
 
 /**
@@ -173,7 +186,15 @@ export class CutListQueryService {
     const filters =
       input.filters && Object.keys(input.filters).length > 0 ? input.filters : undefined;
     const exclusion = resolveExclusion(projectId);
-    return {
+    // The request's sort params win when present (the picker's live selection,
+    // CLI-FR-009); otherwise fall back to the persisted per-project sort
+    // (CLI-FR-013/CLI-FR-017). `sortDir` defaults to `asc` only when a `sortBy`
+    // is set without an explicit direction (CLI-FR-010 key-ascending default).
+    const sort: { sortBy: string | undefined; sortDir: "asc" | "desc" | undefined } =
+      typeof input.sortBy === "string" && input.sortBy.length > 0
+        ? { sortBy: input.sortBy, sortDir: input.sortDir === "desc" ? "desc" : "asc" }
+        : resolveSort(projectId);
+    const params: ListIssuesParams = {
       sources: resolveSources(projectId),
       cursor: input.cursor,
       pageSize: input.pageSize,
@@ -181,6 +202,11 @@ export class CutListQueryService {
       excludedStatusCategories: exclusion.excludedStatusCategories,
       excludedStatuses: exclusion.excludedStatuses,
     };
+    if (sort.sortBy) {
+      params.sortBy = sort.sortBy;
+      params.sortDir = sort.sortDir;
+    }
+    return params;
   }
 
   private buildKey(projectId: string, pluginId: string, params: ListIssuesParams): CacheKey {
@@ -193,10 +219,11 @@ export class CutListQueryService {
       filters: params.filters,
       excludedStatusCategories: params.excludedStatusCategories ?? [],
       excludedStatuses: params.excludedStatuses ?? [],
-      // The sort RPC is out of scope for this slice; the key carries the fields
-      // (so a later sort change invalidates) but they are always null here.
-      sortBy: null,
-      sortDir: null,
+      // CLI-FR-003: the resolved sort participates in the cache key so a sort
+      // change is a cache miss (a different field/direction is a different
+      // first page). Null when no sort is selected (the natural-order default).
+      sortBy: params.sortBy ?? null,
+      sortDir: params.sortDir ?? null,
       pageSize: params.pageSize,
     });
   }

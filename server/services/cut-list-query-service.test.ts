@@ -13,6 +13,7 @@ vi.mock("./plugin-activation.js", () => ({
   resolveSources: vi.fn(),
   resolveExclusion: vi.fn(),
   resolveInstanceEndpoint: vi.fn(),
+  resolveSort: vi.fn(),
 }));
 
 import * as pluginManager from "./plugin-manager.js";
@@ -74,6 +75,10 @@ beforeEach(() => {
     excludedStatuses: [],
   });
   vi.mocked(pluginActivation.resolveInstanceEndpoint).mockReturnValue(null);
+  vi.mocked(pluginActivation.resolveSort).mockReturnValue({
+    sortBy: undefined,
+    sortDir: undefined,
+  });
   vi.mocked(pluginManager.getRecord).mockReturnValue({
     id: "github-com",
     status: "enabled",
@@ -116,6 +121,81 @@ describe("buildListParams", () => {
       filters: { labels: ["bug"], search: "x" },
     });
     expect(params.filters).toEqual({ labels: ["bug"], search: "x" });
+  });
+
+  it("forwards the request's sort when present, overriding the persisted sort (CLI-FR-009)", () => {
+    vi.mocked(pluginActivation.resolveSort).mockReturnValue({
+      sortBy: "updated",
+      sortDir: "desc",
+    });
+    const params = service.buildListParams("p1", {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+      sortDir: "asc",
+    });
+    expect(params.sortBy).toBe("created");
+    expect(params.sortDir).toBe("asc");
+  });
+
+  it("defaults sortDir to asc when the request carries a sortBy but no direction (CLI-FR-010)", () => {
+    const params = service.buildListParams("p1", {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+    });
+    expect(params.sortDir).toBe("asc");
+  });
+
+  it("falls back to the persisted per-project sort when the request carries none (CLI-FR-013)", () => {
+    vi.mocked(pluginActivation.resolveSort).mockReturnValue({
+      sortBy: "priority",
+      sortDir: "desc",
+    });
+    const params = service.buildListParams("p1", { cursor: null, pageSize: 50, filters: {} });
+    expect(params.sortBy).toBe("priority");
+    expect(params.sortDir).toBe("desc");
+  });
+
+  it("omits sort fields entirely when neither the request nor the project has a sort", () => {
+    const params = service.buildListParams("p1", { cursor: null, pageSize: 50, filters: {} });
+    expect(params.sortBy).toBeUndefined();
+    expect(params.sortDir).toBeUndefined();
+  });
+});
+
+describe("sort change is a cache miss (CLI-FR-003)", () => {
+  it("a different sort selection writes a distinct disk snapshot, not a shared hit", async () => {
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({ items: [makeIssue({ externalId: "a" })], nextCursor: null })
+      .mockResolvedValueOnce({ items: [makeIssue({ externalId: "z" })], nextCursor: null });
+
+    // First load: sort by created/asc. Cold miss, persists a snapshot.
+    const first = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+      sortDir: "asc",
+    });
+    expect(first.cacheStatus).toBe("miss");
+    expect(first.items[0]?.externalId).toBe("a");
+
+    // Second load with a different direction must NOT serve the first snapshot:
+    // the sort participates in the cache key, so this is a fresh miss with its
+    // own RPC result.
+    const second = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+      sortBy: "created",
+      sortDir: "desc",
+    });
+    expect(second.cacheStatus).toBe("miss");
+    expect(second.items[0]?.externalId).toBe("z");
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 });
 
