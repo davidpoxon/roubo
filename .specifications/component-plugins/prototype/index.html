@@ -619,6 +619,14 @@
           port: "3020",
           note: "plugin crashed, host cleaned up and auto-recovered within budget",
         },
+        {
+          name: "clasp-deploy",
+          plugin: "roubo/clasp-deploy",
+          status: "completed",
+          label: "Completed",
+          port: "",
+          note: "one-shot deploy ran to completion (exit 0)",
+        },
       ];
       const DOT = {
         running: "bg-green-500",
@@ -626,6 +634,7 @@
         starting: "bg-amber-500",
         error: "bg-red-500",
         stopped: "bg-stone-300",
+        completed: "bg-sky-500",
       };
       function renderComponents() {
         el("components").innerHTML = COMPONENTS.map(
@@ -638,7 +647,7 @@
                 <span class="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-stone-50 px-1.5 py-0.5 font-mono text-[10.5px] text-stone-500"><i data-lucide="package" class="h-3 w-3"></i> ${c.plugin}</span>
               </div>
               <div class="flex items-center gap-3 shrink-0">
-                <span class="font-mono text-[12px] text-stone-500">:${c.port}</span>
+                ${c.port ? `<span class="font-mono text-[12px] text-stone-500">:${c.port}</span>` : ""}
                 <span class="text-[12px] font-medium ${c.status === "error" ? "text-red-600" : c.status === "recovered" ? "text-green-800" : "text-stone-600"}">${c.label}</span>
               </div>
             </div>
