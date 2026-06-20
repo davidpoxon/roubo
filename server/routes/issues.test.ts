@@ -157,6 +157,9 @@ describe("GET /:projectId/issues", () => {
         sortBy: undefined,
         sortDir: undefined,
       },
+      // No live sort, so the route resolves the persisted sort once and threads
+      // it in (a single getSortFields RPC serves both this and the snapshot key).
+      { sortBy: undefined, sortDir: undefined },
     );
   });
 
@@ -167,13 +170,19 @@ describe("GET /:projectId/issues", () => {
       cacheStatus: "miss",
     });
     await request(app).get("/p1/issues");
-    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
-      cursor: null,
-      pageSize: 50,
-      filters: {},
-      sortBy: undefined,
-      sortDir: undefined,
-    });
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.anything(),
+      {
+        cursor: null,
+        pageSize: 50,
+        filters: {},
+        sortBy: undefined,
+        sortDir: undefined,
+      },
+      // No live sort: the route's resolved persisted sort is threaded through.
+      { sortBy: undefined, sortDir: undefined },
+    );
   });
 
   it("parses sortBy/sortDir and forwards them to the cut-list service (CLI-FR-009)", async () => {
@@ -183,13 +192,19 @@ describe("GET /:projectId/issues", () => {
       cacheStatus: "miss",
     });
     await request(app).get("/p1/issues?sortBy=created&sortDir=asc");
-    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
-      cursor: null,
-      pageSize: 50,
-      filters: {},
-      sortBy: "created",
-      sortDir: "asc",
-    });
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.anything(),
+      {
+        cursor: null,
+        pageSize: 50,
+        filters: {},
+        sortBy: "created",
+        sortDir: "asc",
+      },
+      // A live sort wins, so the route passes no resolved persisted sort.
+      undefined,
+    );
   });
 
   it("ignores an unrecognised sortDir value, leaving the direction unset", async () => {
@@ -199,13 +214,20 @@ describe("GET /:projectId/issues", () => {
       cacheStatus: "miss",
     });
     await request(app).get("/p1/issues?sortBy=created&sortDir=sideways");
-    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith("p1", expect.anything(), {
-      cursor: null,
-      pageSize: 50,
-      filters: {},
-      sortBy: "created",
-      sortDir: undefined,
-    });
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.anything(),
+      {
+        cursor: null,
+        pageSize: 50,
+        filters: {},
+        sortBy: "created",
+        sortDir: undefined,
+      },
+      // A live sortBy is present (only the direction was unrecognised), so the
+      // route passes no resolved persisted sort.
+      undefined,
+    );
   });
 
   it("awaits any pending integration setup before delegating", async () => {

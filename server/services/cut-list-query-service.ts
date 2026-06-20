@@ -270,14 +270,18 @@ export class CutListQueryService {
     projectId: string,
     active: ActivePluginContext,
     input: QueryFirstOrPageInput,
+    persistedSort?: ResolvedSort,
   ): Promise<CutListQueryResult> {
     // Resolve the plugin-validated persisted sort only when the request carries
     // no live sort (the picker's selection wins and skips the RPC otherwise).
-    const persistedSort =
+    // The caller may pass an already-resolved value (the route resolves it once
+    // for its in-memory-fallback cache key); reuse it so a single `getSortFields`
+    // RPC serves both paths instead of each firing its own (CLI-FR-017).
+    const resolvedPersistedSort =
       typeof input.sortBy === "string" && input.sortBy.length > 0
         ? undefined
-        : await this.resolvePersistedSort(projectId, active.pluginId);
-    const params = this.buildListParams(projectId, input, persistedSort);
+        : (persistedSort ?? (await this.resolvePersistedSort(projectId, active.pluginId)));
+    const params = this.buildListParams(projectId, input, resolvedPersistedSort);
     const isFirstPage = input.cursor === null;
 
     // Only serve the persistent disk snapshot while the plugin is healthy. When

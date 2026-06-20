@@ -78,6 +78,7 @@ router.get("/:projectId/issues", async (req, res) => {
       req.params.projectId,
       active,
       queryInput,
+      persistedSort,
     );
     const body: PaginatedIssues = {
       items: result.items,
