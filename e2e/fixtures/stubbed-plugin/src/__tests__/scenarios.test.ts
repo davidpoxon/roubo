@@ -147,6 +147,20 @@ describe("WU-007 scenario pack", () => {
   });
 });
 
+// #569 (TC-032): the cut-list-pagination pack seeds six open To Do cuts so the
+// cut list spans three Prev/Next pages at the fixture project's pageSize of 2.
+// Assert the pack loads with enough open cuts to force paging, and that none
+// land in the manifest's default Done exclusion, before Playwright spins up.
+describe("#569 scenario pack", () => {
+  it("cut-list-pagination seeds six open To Do cuts for multi-page paging", () => {
+    const scenario = loadScenario("cut-list-pagination");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.sourceCandidates.shape).toBe("multi-list");
+    expect(scenario.issues).toHaveLength(6);
+    expect(scenario.issues.every((i) => i.statusCategory === "To Do")).toBe(true);
+  });
+});
+
 // WU-008 (TC-022): the source-search pack scopes more boards to one project than
 // fit in a single page, so the stub's getSourceOptions returns a "Load more"
 // cursor and the picker surfaces its result-count readout. Assert the pack loads
