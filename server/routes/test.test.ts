@@ -103,6 +103,16 @@ vi.mock("../services/bench-manager.js", () => ({
   },
 }));
 
+// #568: the singleton the /test/__set-cut-list-disk-cache route toggles and
+// /test/__reset restores. Mocked so the unit suite asserts the route wiring
+// without touching the real DiskSnapshotStore.
+vi.mock("../services/cut-list-query-service.js", () => ({
+  cutListQueryService: {
+    setDiskCacheEnabled: vi.fn(),
+    restoreBypassDefault: vi.fn(),
+  },
+}));
+
 import router from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -112,6 +122,7 @@ import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 import { BUNDLED_PLUGIN_IDS, ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 
 const app = express();
@@ -235,6 +246,10 @@ describe("POST /test/__reset", () => {
     // TC-001 (#438): the bench-manager Map is re-hydrated from the wiped
     // state.json so a previous spec's real-create bench cannot survive a reset.
     expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
+    // #568: the cut-list disk-cache bypass is restored to its env default so a
+    // prior spec's /test/__set-cut-list-disk-cache toggle cannot leak the warm
+    // path into the next spec.
+    expect(cutListQueryService.restoreBypassDefault).toHaveBeenCalledTimes(1);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
     // No body: setE2EConfig still fires with null/null so any prior pinning is
     // cleared on a plain reset.
@@ -516,6 +531,58 @@ describe("POST /test/__seed-notice", () => {
     expect(res.body.error).toBe("disk full");
     expect(consoleSpy).toHaveBeenCalledWith("/test/__seed-notice failed:", "disk full");
     consoleSpy.mockRestore();
+  });
+});
+
+// #568: toggle the cut-list disk-cache bypass so the warm-snapshot drift guard
+// (CLI-TC-017) can reach the disk path the harness bypasses by default.
+describe("POST /test/__set-cut-list-disk-cache", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).post("/test/__set-cut-list-disk-cache").send({ enabled: true });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(cutListQueryService.setDiskCacheEnabled).not.toHaveBeenCalled();
+  });
+
+  it("enables the disk cache and returns 200 when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__set-cut-list-disk-cache").send({ enabled: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, enabled: true });
+    expect(cutListQueryService.setDiskCacheEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it("re-bypasses the disk cache when enabled is false", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__set-cut-list-disk-cache").send({ enabled: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, enabled: false });
+    expect(cutListQueryService.setDiskCacheEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("returns 400 when enabled is not a boolean", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__set-cut-list-disk-cache").send({ enabled: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "enabled must be a boolean" });
+    expect(cutListQueryService.setDiskCacheEnabled).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when enabled is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__set-cut-list-disk-cache").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "enabled must be a boolean" });
+    expect(cutListQueryService.setDiskCacheEnabled).not.toHaveBeenCalled();
   });
 });
 

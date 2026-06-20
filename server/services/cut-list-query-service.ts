@@ -91,8 +91,13 @@ export class CutListQueryService {
    * cache key, which is a source of cross-test nondeterminism the harness does
    * not want. The disk path stays fully exercised by the unit tests; this only
    * neutralises the persistence inside the e2e harness. Overridable for tests.
+   *
+   * Not `readonly`: the ROUBO_E2E-gated `/test/__set-cut-list-disk-cache` route
+   * flips it at runtime so the warm-snapshot journey (CLI-TC-017, the #568 drift
+   * guard) can reach the disk path the harness otherwise bypasses. `/test/__reset`
+   * restores the env-derived default so other specs keep the bypass.
    */
-  private readonly bypassDisk: boolean;
+  private bypassDisk: boolean;
   /**
    * NFR-009 observability sink for cache-pipeline events (hit/miss/revalidating
    * and background-revalidation failures). Defaults to a structured `console`
@@ -110,6 +115,28 @@ export class CutListQueryService {
     this.disk = opts?.disk ?? new DiskSnapshotStore({ onDiscard: opts?.onDiscard });
     this.bypassDisk = opts?.bypassDisk ?? process.env.ROUBO_E2E === "1";
     this.onObserve = opts?.onObserve ?? defaultObserve;
+  }
+
+  /**
+   * Toggle whether the persistent disk snapshot is bypassed, at runtime. The
+   * ROUBO_E2E-gated `/test/__set-cut-list-disk-cache` route uses this so the
+   * warm-snapshot journey (CLI-TC-017, the #568 e2e drift guard) can reach the
+   * disk path the harness bypasses by default. Passing `enabled: true` un-bypasses
+   * the disk (warm serve reachable); `false` (or `/test/__reset`'s call to
+   * `restoreBypassDefault`) returns to the env-derived bypass. Production never
+   * calls this; the default stays env-driven.
+   */
+  setDiskCacheEnabled(enabled: boolean): void {
+    this.bypassDisk = !enabled;
+  }
+
+  /**
+   * Restore `bypassDisk` to its env-derived default (bypassed under ROUBO_E2E=1).
+   * Called by `/test/__reset` so a spec that un-bypassed the disk cache via
+   * `setDiskCacheEnabled` does not leak the warm path into the next spec.
+   */
+  restoreBypassDefault(): void {
+    this.bypassDisk = process.env.ROUBO_E2E === "1";
   }
 
   /**

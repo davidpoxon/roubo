@@ -1,0 +1,81 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "cut-list-refresh",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#301",
+      "externalUrl": "https://stub.example/acme/widgets/issues/301",
+      "title": "Flatten the bench top",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#302",
+      "externalUrl": "https://stub.example/acme/widgets/issues/302",
+      "title": "Chop the dog-hole grid",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#303",
+      "externalUrl": "https://stub.example/acme/widgets/issues/303",
+      "title": "Fit the leg vise",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {}
+}
