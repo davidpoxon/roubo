@@ -26,6 +26,10 @@ export interface RegisterTestProjectOptions {
   // roubo.yaml. Drives the github-com Configure modal's derived-sources
   // preview to its success state (sources are derived from `project.repo`).
   projectRepo?: string;
+  // CLI-TC-062 (#573): optional port base for the generated fixture roubo.yaml.
+  // Required when a spec registers two fixture projects at once so their port
+  // ranges do not overlap (the allocator rejects overlaps).
+  portBase?: number;
 }
 
 export interface RegisterTestProjectResult {
@@ -61,6 +65,7 @@ export async function registerTestProject(
     plugin,
     integrationConfig: opts.integrationConfig as Record<string, unknown> | undefined,
     projectRepo: opts.projectRepo,
+    portBase: opts.portBase,
   });
 }
 

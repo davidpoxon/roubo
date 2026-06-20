@@ -739,6 +739,49 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
+  // CLI-TC-062 (#573): an optional `portBase` lets a spec that registers two
+  // fixture projects at once give each a non-overlapping port range so the
+  // allocator does not reject the second one.
+  it("writes a custom portBase into the fixture roubo.yaml", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-port-base", plugin: "e2e-stub", portBase: 39200 });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^\s{4}base: 39200$/m);
+  });
+
+  it("defaults the fixture port base to 39100 when portBase is omitted", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-default-port", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^\s{4}base: 39100$/m);
+  });
+
+  it("returns 400 when portBase is not a positive integer", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-bad-port", plugin: "e2e-stub", portBase: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/portBase/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
   it("merges optional integrationConfig into the saved override alongside plugin", async () => {
     process.env.ROUBO_E2E = "1";
 
