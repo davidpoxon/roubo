@@ -62,9 +62,25 @@ interface RawListIssues {
  */
 export class CutListQueryService {
   private readonly disk: DiskSnapshotStore;
+  /**
+   * When true, the persistent disk snapshot is bypassed entirely (never read,
+   * never written) and every query goes straight to the live RPC. Enabled under
+   * the e2e harness (ROUBO_E2E=1): the disk cache persists across process
+   * restarts by design, so under the single-server, many-scenario e2e suite a
+   * snapshot written by one spec can be served to a later spec sharing the same
+   * cache key, which is a source of cross-test nondeterminism the harness does
+   * not want. The disk path stays fully exercised by the unit tests; this only
+   * neutralises the persistence inside the e2e harness. Overridable for tests.
+   */
+  private readonly bypassDisk: boolean;
 
-  constructor(opts?: { disk?: DiskSnapshotStore; onDiscard?: (e: DiscardLogEvent) => void }) {
+  constructor(opts?: {
+    disk?: DiskSnapshotStore;
+    onDiscard?: (e: DiscardLogEvent) => void;
+    bypassDisk?: boolean;
+  }) {
     this.disk = opts?.disk ?? new DiskSnapshotStore({ onDiscard: opts?.onDiscard });
+    this.bypassDisk = opts?.bypassDisk ?? process.env.ROUBO_E2E === "1";
   }
 
   /**
@@ -130,7 +146,7 @@ export class CutListQueryService {
     // disk read and let the live RPC fail through to the route's catch block.
     const healthy = pluginManager.getRecord(active.pluginId)?.status === "enabled";
 
-    if (isFirstPage && healthy) {
+    if (isFirstPage && healthy && !this.bypassDisk) {
       const key = this.buildKey(projectId, active.pluginId, params);
       const cached = this.disk.get(key);
       if (cached) {

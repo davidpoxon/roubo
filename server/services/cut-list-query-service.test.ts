@@ -61,7 +61,10 @@ beforeEach(() => {
     status: "enabled",
     manifest: { name: "GitHub.com", version: "1.0.0" },
   } as unknown as ReturnType<typeof pluginManager.getRecord>);
-  service = new CutListQueryService({ disk: new DiskSnapshotStore({ baseDir }) });
+  service = new CutListQueryService({
+    disk: new DiskSnapshotStore({ baseDir }),
+    bypassDisk: false,
+  });
 });
 
 describe("buildListParams", () => {
@@ -138,7 +141,10 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     });
     await service.queryFirstOrPage("p1", active, { cursor: null, pageSize: 50, filters: {} });
 
-    const restarted = new CutListQueryService({ disk: new DiskSnapshotStore({ baseDir }) });
+    const restarted = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: false,
+    });
     const hit = await restarted.queryFirstOrPage("p1", active, {
       cursor: null,
       pageSize: 50,
@@ -196,6 +202,34 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     const result = await service.queryFirstOrPage("p1", active, input);
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
     expect(result.cacheStatus).toBe("uncached");
+  });
+
+  // With bypassDisk on (the ROUBO_E2E=1 default), the persistent disk snapshot
+  // is never read or written: every first-page query goes straight to the live
+  // RPC. This neutralises cross-scenario persistence inside the single-server
+  // e2e harness, where a snapshot left by one spec could otherwise be served to
+  // a later spec sharing the same cache key.
+  it("bypasses the disk cache entirely when bypassDisk is set (e2e default)", async () => {
+    const bypassed = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: true,
+    });
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "live" })],
+      nextCursor: null,
+    });
+    const input = { cursor: null, pageSize: 50, filters: {} };
+
+    const first = await bypassed.queryFirstOrPage("p1", active, input);
+    expect(first.cacheStatus).toBe("uncached");
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    // A second identical first-page call re-invokes the RPC: nothing was
+    // persisted, so there is no disk-hit to serve.
+    const second = await bypassed.queryFirstOrPage("p1", active, input);
+    expect(second.cacheStatus).toBe("uncached");
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+    expect(second.snapshotCapturedAt).toBeUndefined();
   });
 });
 
