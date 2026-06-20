@@ -19,6 +19,7 @@
   "types": "./types.ts",
   "exports": {
     ".": "./types.ts",
+    "./provision-descriptor-schema": "./provision-descriptor-schema.ts",
     "./testbench-contracts": "./testbench-contracts.ts",
     "./testbench-canonicalize": "./testbench-canonicalize.ts",
     "./testbench-domain": "./testbench-domain.ts"
