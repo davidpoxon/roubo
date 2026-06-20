@@ -1617,3 +1617,107 @@ describe("TestBench harness endpoints (#440)", () => {
     });
   });
 });
+
+// #567 (CLI-TC-001): the warm-restart drift guard reads the persisted cut-list
+// snapshot file through this route to assert the S003 on-disk invariants (mode
+// 0600, no credential/token fields). The state mock points getRouboDir() at the
+// throwaway TEST_ROUBO_DIR, so these tests write real snapshot files under
+// `<TEST_ROUBO_DIR>/issue-snapshots/<projectId>/` and read them back.
+describe("GET /test/__read-cut-list-cache-file (#567)", () => {
+  const CACHE_PROJECT_ID = "e2e-cut-list-refresh";
+  const snapshotsRoot = path.join(TEST_ROUBO_DIR, "issue-snapshots");
+
+  function projectDir(projectId: string): string {
+    return path.join(snapshotsRoot, projectId);
+  }
+
+  function seedSnapshot(projectId: string, content: unknown, mode = 0o600): string {
+    const dir = projectDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, "deadbeef.json");
+    fs.writeFileSync(file, JSON.stringify(content), "utf-8");
+    fs.chmodSync(file, mode);
+    return file;
+  }
+
+  afterEach(() => {
+    fs.rmSync(snapshotsRoot, { recursive: true, force: true });
+  });
+
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get(
+      `/test/__read-cut-list-cache-file?projectId=${CACHE_PROJECT_ID}`,
+    );
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+  });
+
+  it("returns the file path, 0600 mode, and parsed content when ROUBO_E2E=1", async () => {
+    const content = {
+      cacheSchemaVersion: 1,
+      response: { items: [{ externalId: "acme/widgets#301" }] },
+    };
+    const file = seedSnapshot(CACHE_PROJECT_ID, content, 0o600);
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).get(
+      `/test/__read-cut-list-cache-file?projectId=${CACHE_PROJECT_ID}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.path).toBe(file);
+    expect(res.body.mode).toBe(0o600);
+    expect(res.body.content).toEqual(content);
+  });
+
+  it("masks the reported mode to the permission bits (0o777)", async () => {
+    seedSnapshot(CACHE_PROJECT_ID, { ok: true }, 0o640);
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).get(
+      `/test/__read-cut-list-cache-file?projectId=${CACHE_PROJECT_ID}`,
+    );
+    expect(res.status).toBe(200);
+    // The mode must carry only permission bits, so a non-0600 file is observable
+    // by the spec (which asserts exactly 0o600).
+    expect(res.body.mode).toBe(0o640);
+    expect(res.body.mode & ~0o777).toBe(0);
+  });
+
+  it("returns 400 when projectId fails the allowlist", async () => {
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).get("/test/__read-cut-list-cache-file?projectId=..");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/projectId/);
+  });
+
+  it("returns 400 when projectId is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).get("/test/__read-cut-list-cache-file");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/projectId/);
+  });
+
+  it("returns 404 when no snapshot exists for the project", async () => {
+    process.env.ROUBO_E2E = "1";
+    const res = await request(app).get(
+      `/test/__read-cut-list-cache-file?projectId=${CACHE_PROJECT_ID}`,
+    );
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/No cut-list snapshot/);
+  });
+
+  it("returns 500 and logs when the snapshot file is unreadable JSON", async () => {
+    const dir = projectDir(CACHE_PROJECT_ID);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "deadbeef.json"), "{ not json", "utf-8");
+    process.env.ROUBO_E2E = "1";
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await request(app).get(
+      `/test/__read-cut-list-cache-file?projectId=${CACHE_PROJECT_ID}`,
+    );
+    expect(res.status).toBe(500);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "/test/__read-cut-list-cache-file failed:",
+      expect.any(String),
+    );
+    consoleSpy.mockRestore();
+  });
+});

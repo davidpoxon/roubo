@@ -226,6 +226,26 @@ export async function readTestResults(
 }
 
 /**
+ * #567 (CLI-TC-001): read the persisted cut-list first-page snapshot file for a
+ * project via the ROUBO_E2E-gated `/test/__read-cut-list-cache-file`. The
+ * warm-restart drift guard uses this to assert the on-disk file's S003
+ * invariants directly against disk: the file mode is exactly 0600 (CLI-NFR-001)
+ * and the parsed JSON content carries no credential or token fields. Modelled on
+ * `readTestResults`. Returns the file path, its numeric mode (permission bits
+ * only, masked to 0o777), and the parsed JSON content.
+ */
+export async function readCutListCacheFile(
+  request: APIRequestContext,
+  opts: { projectId: string },
+): Promise<{ path: string; mode: number; content: unknown }> {
+  const res = await request.get(
+    `/test/__read-cut-list-cache-file?projectId=${encodeURIComponent(opts.projectId)}`,
+  );
+  expect(res.status(), "read cut-list cache file").toBe(200);
+  return (await res.json()) as { path: string; mode: number; content: unknown };
+}
+
+/**
  * Fetch a single plugin's record by id from `GET /api/plugins`. The endpoint
  * returns the full installed list; TC-163 (#240) keeps the helper focused so
  * specs don't repeat the find-by-id boilerplate.
