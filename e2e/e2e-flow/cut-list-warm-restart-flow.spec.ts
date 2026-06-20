@@ -31,19 +31,25 @@ import {
 // a later spec), so beforeEach calls `setCutListDiskCacheEnabled(true)` and
 // `/test/__reset` restores the bypass + wipes issue-snapshots/ for the next spec.
 //
-// CLI-TC-001 DIVERGENCES (decided: adapt to the e2e harness, tracked by #592):
+// CLI-TC-001 HARNESS ADAPTATIONS (decided: adapt to the e2e harness):
 //
-//   1. S001-O04 (<200ms p95). A Playwright run yields one noisy wall-clock
-//      sample, so a literal p95 budget would be unsound and flaky here. We assert
-//      the e2e-appropriate proxy instead: on the warm serve the cache-state badge
-//      reads `warm` (the shipped badge only reads `warm` when the server served
-//      the persisted disk snapshot, cacheStatus 'revalidating'; a cold miss shows
-//      no chip), so the `warm` badge + rendered rows are the integrated proof
-//      that first meaningful paint came from the snapshot, not a cold network
-//      round-trip. The literal p95 budget stays owned by the perf unit test
-//      client/src/components/cut-list-warm-paint.perf.tc-011.test.tsx
-//      (CLI-TC-011 / CLI-NFR-002). This deliberate TC-001 divergence is tracked
-//      by #592.
+//   1. S001-O04 (RECONCILED, no longer a divergence; #592 reconciled the
+//      wording). S001-O04 in the authoritative case now reads as the
+//      e2e-level no-network-wait proxy this guard asserts: the first visible row
+//      renders from the persisted on-disk snapshot without waiting on a live
+//      network round-trip. That reconciled spec wording is now authoritative, and
+//      this guard implements it exactly. We assert the proxy because a Playwright
+//      run yields one noisy wall-clock sample, so a literal p95 budget would be
+//      unsound and flaky here: on the warm serve the cache-state badge reads
+//      `warm` (the shipped badge only reads `warm` when the server served the
+//      persisted disk snapshot, cacheStatus 'revalidating'; a cold miss shows no
+//      chip), so the `warm` badge + rendered rows are the integrated proof that
+//      first meaningful paint came from the snapshot, not a cold network
+//      round-trip. The literal <200ms p95 budget stays owned by the perf unit
+//      test client/src/components/cut-list-warm-paint.perf.tc-011.test.tsx
+//      (CLI-TC-011 / CLI-NFR-002). #592 reconciled S001-O04's spec wording to
+//      this proxy (the audit trail for why the proxy stands in for the literal
+//      budget).
 //
 //   2. S002 background revalidation is driven via the Refresh control. In the
 //      shipped UI the `revalidating` badge state is client-refetch driven
