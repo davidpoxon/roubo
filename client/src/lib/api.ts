@@ -44,6 +44,7 @@ import type {
   IntegrationTestResult,
   FilterFacet,
   FilterFacetOption,
+  SortField,
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
@@ -521,15 +522,35 @@ export function fetchProjectGitHubProjects(projectId: string): Promise<GitHubPro
 // Issues: paginated through the active integration plugin (WU-016).
 export function fetchIssuesPage(
   projectId: string,
-  opts: { cursor?: string | null; pageSize?: number; labels?: string; search?: string },
+  opts: {
+    cursor?: string | null;
+    pageSize?: number;
+    labels?: string;
+    search?: string;
+    sortBy?: string;
+    sortDir?: "asc" | "desc";
+  },
 ): Promise<PaginatedIssues> {
   const params = new URLSearchParams();
   if (opts.cursor) params.set("cursor", opts.cursor);
   if (opts.pageSize) params.set("pageSize", String(opts.pageSize));
   if (opts.labels) params.set("labels", opts.labels);
   if (opts.search) params.set("search", opts.search);
+  if (opts.sortBy) {
+    params.set("sortBy", opts.sortBy);
+    if (opts.sortDir) params.set("sortDir", opts.sortDir);
+  }
   const qs = params.toString();
   return request(`/projects/${projectId}/issues${qs ? `?${qs}` : ""}`);
+}
+
+/**
+ * Fetch the active integration plugin's declared cut-list sort fields
+ * (CLI-FR-009). An empty array means the plugin omits `getSortFields`, so the
+ * host renders no sort picker (CLI-FR-011).
+ */
+export function fetchSortFields(projectId: string): Promise<SortField[]> {
+  return request(`/projects/${projectId}/issues/sort-fields`);
 }
 
 export function fetchIssue(projectId: string, externalId: string): Promise<NormalizedIssue> {

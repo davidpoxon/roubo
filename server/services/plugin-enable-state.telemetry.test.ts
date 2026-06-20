@@ -75,7 +75,7 @@ vi.mock("../services/plugin-manager.js", async () => {
     pid: 4242,
   };
   return {
-    HOST_API_VERSION: "1.1.0",
+    HOST_API_VERSION: "1.2.0",
     listInstalled: vi.fn(() => [record]),
     enable: vi.fn(async (id: string) => {
       realEnableState.setPluginEnabled(id, true);

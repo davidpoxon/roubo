@@ -38,6 +38,7 @@ export type {
   SourceCandidateItem,
   SourceCandidatesResponse,
   SourceCandidatesShape,
+  SortField,
   SourceCategoryOption,
   SourceOptionsResult,
   ValidateConfigResult,

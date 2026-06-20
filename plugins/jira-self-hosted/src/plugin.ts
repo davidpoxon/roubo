@@ -14,6 +14,7 @@ import type {
   PluginContract,
   SearchableSourceCategory,
   SetActiveConfigResult,
+  SortField,
   SourceCandidatesResponse,
   SourceOptionsResult,
   ValidateConfigResult,
@@ -25,7 +26,13 @@ import {
   isStatusCategoryUnsupportedError,
   type JiraRequestContext,
 } from "./jira-client.js";
-import { assertProjectKey, buildIssueListJql, type SourceClause, type SourceKind } from "./jql.js";
+import {
+  assertProjectKey,
+  buildIssueListJql,
+  JIRA_SORT_FIELDS,
+  type SourceClause,
+  type SourceKind,
+} from "./jql.js";
 import { resolveBoardClause } from "./board-resolve.js";
 import {
   normalizeComment,
@@ -303,6 +310,10 @@ export function createPluginContract(): PluginContract {
           excludedStatusCategories: params.excludedStatusCategories,
           excludedStatuses: params.excludedStatuses,
           statusCategorySupported,
+          // Source-side sort (CLI-FR-010): the selection becomes the JQL
+          // `ORDER BY` tail so the order is stable across the startAt walk.
+          sortBy: params.sortBy,
+          sortDir: params.sortDir,
         });
 
       const search = await searchWithExclusionFallback(ctx, config.instance, buildJql, {
@@ -482,6 +493,13 @@ export function createPluginContract(): PluginContract {
 
     filterFacets(): FilterFacet[] {
       return [{ id: "epic", label: "Epic", type: "enum-async" }];
+    },
+
+    getSortFields(): SortField[] {
+      // CLI-FR-009 / Spike 554 (#554): Jira can sort source-side by key,
+      // updated, created, and priority. `rank` is instance-conditional (it
+      // needs the Agile/rank field) and is deferred; see the #584 summary.
+      return JIRA_SORT_FIELDS.map((f) => ({ ...f }));
     },
 
     async getFacetOptions(

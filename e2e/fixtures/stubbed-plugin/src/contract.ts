@@ -15,6 +15,7 @@ import type {
   PluginContract,
   ProbeAlertCategoriesResult,
   SetActiveConfigResult,
+  SortField,
   SourceCandidateItem,
   SourceCandidatesResponse,
   SourceOptionsResult,
@@ -61,6 +62,26 @@ function findIssue(scenario: Scenario, externalId: string): ScenarioIssue {
   return issue;
 }
 
+/**
+ * Source-side cut-list ordering for the stub (CLI-FR-010, #584). Sorts the kept
+ * set by the requested field before pagination so the order is stable across
+ * pages and a sort change visibly reorders the list (TC-032 S004). Supported
+ * keys: `title` and `updated`. An unrecognised / absent field returns the input
+ * order untouched (the natural externalId order the pagination spec relies on).
+ */
+function sortKept(
+  issues: ScenarioIssue[],
+  sortBy: string | undefined,
+  sortDir: "asc" | "desc" | undefined,
+): ScenarioIssue[] {
+  if (sortBy !== "title" && sortBy !== "updated") return issues;
+  const dir = sortDir === "desc" ? -1 : 1;
+  const keyOf = (issue: ScenarioIssue): string =>
+    sortBy === "title" ? issue.title : issue.updatedAt;
+  // Stable sort over a copy so the caller's array is never mutated.
+  return [...issues].sort((a, b) => dir * keyOf(a).localeCompare(keyOf(b)));
+}
+
 export function buildContract({ scenario, clock, journal }: BuildContractDeps): PluginContract {
   const listSourceCandidates = (): SourceCandidatesResponse => scenario.sourceCandidates;
 
@@ -91,7 +112,14 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     const isExcluded = (issue: ScenarioIssue): boolean =>
       (issue.statusCategory !== undefined && excludedCategories.has(issue.statusCategory)) ||
       excludedStatuses.has(issue.currentState);
-    const kept = scenario.issues.filter((issue) => !isExcluded(issue));
+    const keptUnsorted = scenario.issues.filter((issue) => !isExcluded(issue));
+    // CLI-FR-010 (#584): when the scenario declares sort fields and the host
+    // passes a `sortBy` matching one, order the kept set source-side BEFORE
+    // pagination so the order is stable across pages and the picker visibly
+    // reorders the list (TC-032 S004). `title` and `updated` are the supported
+    // keys; an unrecognised field falls through to the natural externalId order
+    // (the default the existing pagination spec relies on).
+    const kept = sortKept(keptUnsorted, params.sortBy, params.sortDir);
     // #569: cursor pagination over the kept set so the cut-list Prev/Next
     // journey (FR-007/FR-008, TC-032) is exercised end to end. The host passes
     // an opaque `cursor` and a `pageSize` (the project's integration pageSize,
@@ -263,6 +291,8 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
 
   const filterFacets = (): FilterFacet[] => scenario.facets;
 
+  const getSortFields = (): SortField[] => scenario.sortFields ?? [];
+
   const getFacetOptions = (params: GetFacetOptionsParams): FilterFacetOption[] => {
     const options = scenario.facetOptions[params.facetId] ?? [];
     if (!params.search) return options;
@@ -298,6 +328,15 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
   if (!scenario.omitFilterFacets) {
     contract.filterFacets = filterFacets;
     contract.getFacetOptions = getFacetOptions;
+  }
+
+  // CLI-FR-009/CLI-FR-011 (#584): only register `getSortFields` when the
+  // scenario declares sort fields. A scenario without them leaves the method
+  // off the contract, so the host RPC layer rejects with MethodNotFound and
+  // `plugin-sort-fields.ts` maps it to an empty list (no sort picker). Models a
+  // plugin built against host-API 1.0.0 / 1.1.0.
+  if (scenario.sortFields && scenario.sortFields.length > 0) {
+    contract.getSortFields = getSortFields;
   }
 
   return contract;

@@ -1106,12 +1106,36 @@ export interface FilterFacetOption {
   label: string;
 }
 
+/**
+ * Descriptor returned by the active integration plugin's `getSortFields` RPC
+ * (host-API 1.2.0+, CLI-FR-009). The cut-list sort picker renders one option
+ * per field; `defaultDir` is the direction first applied when the user selects
+ * the field. Mirrors `SortField` in `@roubo/plugin-sdk` so the web client can
+ * consume the server's `/issues/sort-fields` response without depending on the
+ * plugin SDK. An empty array (or `MethodNotFound` from an older plugin) means
+ * the host renders no picker (CLI-FR-011).
+ */
+export interface SortField {
+  id: string;
+  label: string;
+  defaultDir: "asc" | "desc";
+}
+
 /** Parameters for the plugin's paginated `listIssues` JSON-RPC call (FR-022). */
 export interface ListIssuesParams {
   sources: ConfiguredSource[];
   cursor: string | null;
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
+  /**
+   * Plugin-declared sort selection (CLI-FR-009/CLI-FR-010). `sortBy` is a
+   * field id the plugin returned from `getSortFields`; `sortDir` is the
+   * direction. Applied source-side by the plugin so the order is stable across
+   * pages. Absent means the plugin's natural order (key-ascending fallback,
+   * CLI-FR-010); a plugin that ignores these fields yields its natural order.
+   */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
   /**
    * Status exclusion resolved by the host from the three-layer merge (FR-009,
    * FR-010). Applied in the query so excluded issues never occupy a result

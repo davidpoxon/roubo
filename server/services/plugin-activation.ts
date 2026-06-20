@@ -162,6 +162,39 @@ export function resolveExclusion(projectId: string): {
 }
 
 /**
+ * Resolve the per-project cut-list sort selection (CLI-FR-013/CLI-FR-017): the
+ * merged effective `sortBy`/`sortDir` (roubo.yaml integration block, the global
+ * plugin override, and the per-user override, already shallow-replaced by
+ * `getEffectiveWithGlobal`). Forwarded into `listIssues` so the plugin orders
+ * source-side (CLI-FR-010). A project with no config, or no sort persisted at
+ * any layer, yields `{ sortBy: undefined, sortDir: undefined }`, which the
+ * plugin treats as its natural order (key-ascending fallback). `sortDir`
+ * defaults to `asc` only when a `sortBy` is set without an explicit direction.
+ */
+export function resolveSort(projectId: string): {
+  sortBy: string | undefined;
+  sortDir: "asc" | "desc" | undefined;
+} {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) return { sortBy: undefined, sortDir: undefined };
+
+  let override = null;
+  try {
+    override = loadOverride(projectId);
+  } catch (err) {
+    if (!(err instanceof IntegrationOverrideError)) throw err;
+  }
+
+  const effective = getEffectiveWithGlobal(project.config.integration, override);
+  const sortBy = effective.sortBy;
+  if (typeof sortBy !== "string" || sortBy.length === 0) {
+    return { sortBy: undefined, sortDir: undefined };
+  }
+  const sortDir = effective.sortDir === "desc" ? "desc" : "asc";
+  return { sortBy, sortDir };
+}
+
+/**
  * Ensure the plugin process has been told about the plugin-wide config
  * (instance URL, TLS toggle, advanced settings) before a source-bound RPC
  * is invoked. If the plugin has no plugin-wide config (e.g. github.com,

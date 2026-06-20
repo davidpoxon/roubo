@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertProjectKey, buildIssueListJql, jqlSearchTerm } from "../jql.js";
+import { assertProjectKey, buildIssueListJql, JIRA_SORT_FIELDS, jqlSearchTerm } from "../jql.js";
 
 describe("buildIssueListJql", () => {
   it("never emits an 'updated >=' clause (point-in-time, no watermark)", () => {
@@ -35,6 +35,30 @@ describe("buildIssueListJql", () => {
 
   it("emits a bare ORDER BY when nothing constrains the search", () => {
     expect(buildIssueListJql({ sources: [] })).toBe("ORDER BY updated ASC");
+  });
+
+  it("emits the requested sort field as the ORDER BY tail (CLI-FR-010)", () => {
+    const jql = buildIssueListJql({
+      sources: [{ kind: "project", externalId: "PLAT" }],
+      sortBy: "priority",
+      sortDir: "desc",
+    });
+    expect(jql.endsWith("ORDER BY priority DESC")).toBe(true);
+  });
+
+  it("supports source-side key ordering (CLI-FR-014)", () => {
+    const jql = buildIssueListJql({ sources: [], sortBy: "key", sortDir: "asc" });
+    expect(jql).toBe("ORDER BY key ASC");
+  });
+
+  it("falls back to the deterministic updated ASC default for an unrecognised sort field", () => {
+    const jql = buildIssueListJql({ sources: [], sortBy: "nonsense", sortDir: "desc" });
+    expect(jql).toBe("ORDER BY updated ASC");
+  });
+
+  it("declares key/updated/created/priority sort fields (Spike 554)", () => {
+    expect(JIRA_SORT_FIELDS.map((f) => f.id)).toEqual(["key", "updated", "created", "priority"]);
+    expect(JIRA_SORT_FIELDS.find((f) => f.id === "key")?.defaultDir).toBe("asc");
   });
 
   it("builds a project clause (TC-008)", () => {

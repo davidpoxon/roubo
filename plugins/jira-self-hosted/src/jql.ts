@@ -58,6 +58,54 @@ export interface BuildJqlInput {
    * JQL parse error and rebuilds with the name list.
    */
   statusCategorySupported?: boolean;
+  /**
+   * Cut-list sort selection (CLI-FR-009/CLI-FR-010). `sortBy` is one of the
+   * fields this plugin declares via `getSortFields` (key/updated/created/
+   * priority); `sortDir` is the direction. Emitted as the JQL `ORDER BY` tail
+   * so the order is stable across the `startAt` pagination walk. Absent (or an
+   * unrecognised field) falls back to the deterministic `updated ASC` default.
+   */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+}
+
+/**
+ * The JQL columns this plugin offers in the sort picker (CLI-FR-009, Spike
+ * 554 / #554), mapped to their JQL field name. `key` is the native issue-key
+ * sort (CLI-FR-014 makes key-ascending the host fallback; Jira can sort by it
+ * source-side, so it is offered here). `rank` is instance-conditional and is
+ * deferred (see the plugin summary for #584).
+ */
+const JQL_SORT_FIELDS: Readonly<Record<string, string>> = {
+  key: "key",
+  updated: "updated",
+  created: "created",
+  priority: "priority",
+};
+
+/**
+ * The sort fields this plugin declares to the host (CLI-FR-009). Order is the
+ * order shown in the picker. `key` defaults to ascending (the conventional
+ * issue-key order, matching the host fallback CLI-FR-014); the date and
+ * priority fields default to descending (newest / highest first).
+ */
+export const JIRA_SORT_FIELDS: ReadonlyArray<{
+  id: string;
+  label: string;
+  defaultDir: "asc" | "desc";
+}> = [
+  { id: "key", label: "Key", defaultDir: "asc" },
+  { id: "updated", label: "Updated", defaultDir: "desc" },
+  { id: "created", label: "Created", defaultDir: "desc" },
+  { id: "priority", label: "Priority", defaultDir: "desc" },
+];
+
+/** Resolve the `ORDER BY` tail from the requested sort, or the safe default. */
+function buildOrderBy(sortBy: string | undefined, sortDir: "asc" | "desc" | undefined): string {
+  const column = sortBy ? JQL_SORT_FIELDS[sortBy] : undefined;
+  if (!column) return "ORDER BY updated ASC";
+  const dir = sortDir === "desc" ? "DESC" : "ASC";
+  return `ORDER BY ${column} ${dir}`;
 }
 
 export function buildIssueListJql({
@@ -65,6 +113,8 @@ export function buildIssueListJql({
   excludedStatusCategories,
   excludedStatuses,
   statusCategorySupported = true,
+  sortBy,
+  sortDir,
 }: BuildJqlInput): string {
   // `mine` is a narrowing filter, not an additional cut-list: it must be
   // AND-ed across the union of the other sources, not OR-ed into it.
@@ -89,7 +139,7 @@ export function buildIssueListJql({
   const where = [sourceClause, mineClause, exclusionClause]
     .filter((part) => part.length > 0)
     .join(" AND ");
-  const tail = "ORDER BY updated ASC";
+  const tail = buildOrderBy(sortBy, sortDir);
   return where.length > 0 ? `${where} ${tail}` : tail;
 }
 

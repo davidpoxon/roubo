@@ -37,6 +37,7 @@ vi.mock("../hooks/usePlugins", () => ({
 }));
 vi.mock("../hooks/useCutListFacets", () => ({
   useFilterFacets: vi.fn(() => ({ data: [] })),
+  useSortFields: vi.fn(() => ({ data: [] })),
   useFacetOptions: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
   usePrefetchFacetOptions: vi.fn(),
 }));

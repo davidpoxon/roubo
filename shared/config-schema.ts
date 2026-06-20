@@ -268,6 +268,14 @@ export const IntegrationConfigSchema = z
     // emits `statusCategory not in (...)` and falls back to `excludedStatuses`
     // names when the instance does not support `statusCategory` in JQL.
     excludedStatusCategories: z.array(z.string().min(1)).optional(),
+    // Cut-list sort selection (CLI-FR-009/CLI-FR-013/CLI-FR-017). `sortBy` is a
+    // field id the active plugin declared via `getSortFields`; `sortDir` is the
+    // direction. Persisted at the project level and overridable per user (the
+    // override file rides the same IntegrationConfigSchema), resolved at query
+    // time and forwarded into `listIssues` so the plugin orders source-side.
+    // Absent means the plugin's natural order (key-ascending fallback).
+    sortBy: z.string().min(1).optional(),
+    sortDir: z.enum(["asc", "desc"]).optional(),
   })
   .strict();
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;

@@ -12,6 +12,7 @@ import { resolveSources } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
+import { getPluginSortFields } from "../services/plugin-sort-fields.js";
 import { parseIntParam } from "./helpers.js";
 import { getActivePluginOrRespond, fetchPluginComments } from "./plugin-route-helpers.js";
 import { ServiceError } from "../services/service-error.js";
@@ -46,8 +47,20 @@ router.get("/:projectId/issues", async (req, res) => {
     filters.search = req.query.search;
   }
 
+  // Sort selection (CLI-FR-009). `sortBy` is a field id the active plugin
+  // declared via `getSortFields`; `sortDir` is the direction (default `asc`,
+  // the key-ascending fallback per CLI-FR-010). The query service folds these
+  // into the listIssues params and the cache key, falling back to the
+  // persisted per-project sort when the request carries none.
+  const sortBy =
+    typeof req.query.sortBy === "string" && req.query.sortBy.length > 0
+      ? req.query.sortBy
+      : undefined;
+  const sortDir: "asc" | "desc" | undefined =
+    req.query.sortDir === "desc" ? "desc" : req.query.sortDir === "asc" ? "asc" : undefined;
+
   const isFirstPage = cursor === null;
-  const queryInput = { cursor, pageSize, filters };
+  const queryInput = { cursor, pageSize, filters, sortBy, sortDir };
 
   try {
     await awaitPendingIntegrationSetup(req.params.projectId);
@@ -114,6 +127,22 @@ router.get("/:projectId/issues", async (req, res) => {
         return;
       }
     }
+    sendPluginRpcError(res, err);
+  }
+});
+
+// Sort-fields discovery (CLI-FR-009/CLI-FR-011). Returns the active plugin's
+// declared sort fields, or an empty array when the plugin omits `getSortFields`
+// (host then renders no picker). Registered before the `:externalId` route so
+// the literal `sort-fields` segment is not captured as an issue id.
+router.get("/:projectId/issues/sort-fields", async (req, res) => {
+  const active = await getActivePluginOrRespond(req.params.projectId, res);
+  if (!active) return;
+
+  try {
+    const fields = await getPluginSortFields(active.pluginId);
+    res.json(fields);
+  } catch (err) {
     sendPluginRpcError(res, err);
   }
 });

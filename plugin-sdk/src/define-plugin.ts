@@ -34,6 +34,7 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "probeRepoAccess",
   "filterFacets",
   "getFacetOptions",
+  "getSortFields",
 ] as const;
 
 /**

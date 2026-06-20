@@ -72,6 +72,8 @@ describe("useIssues", () => {
       pageSize: undefined,
       labels: undefined,
       search: undefined,
+      sortBy: undefined,
+      sortDir: undefined,
     });
   });
 
@@ -84,6 +86,24 @@ describe("useIssues", () => {
       pageSize: undefined,
       labels: undefined,
       search: undefined,
+      sortBy: undefined,
+      sortDir: undefined,
+    });
+  });
+
+  it("forwards the sort selection into the query function call (CLI-FR-009)", async () => {
+    mockedFetch.mockResolvedValueOnce({ items: [], nextCursor: null } as PaginatedIssues);
+    renderHookWithProviders(() =>
+      useIssues("p1", {}, undefined, null, { sortBy: "created", sortDir: "desc" }),
+    );
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
+    expect(mockedFetch).toHaveBeenCalledWith("p1", {
+      cursor: null,
+      pageSize: undefined,
+      labels: undefined,
+      search: undefined,
+      sortBy: "created",
+      sortDir: "desc",
     });
   });
 
@@ -230,6 +250,8 @@ describe("useIssues", () => {
       pageSize: undefined,
       labels: "bug",
       search: "login",
+      sortBy: undefined,
+      sortDir: undefined,
     });
   });
 });

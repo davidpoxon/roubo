@@ -25,6 +25,7 @@ import {
   forgetProjectActivation,
   resolveSources,
   resolveExclusion,
+  resolveSort,
 } from "./plugin-activation.js";
 import * as projectRegistry from "./project-registry.js";
 import { loadOverride } from "./integration-overrides.js";
@@ -407,5 +408,38 @@ describe("resolveExclusion (FR-009/FR-010)", () => {
       excludedStatusCategories: [],
       excludedStatuses: [],
     });
+  });
+});
+
+describe("resolveSort (CLI-FR-013/CLI-FR-017)", () => {
+  function mockProject(integration: Record<string, unknown>): void {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { integration: { plugin: GITHUB_PLUGIN, ...integration } },
+    } as never);
+    vi.mocked(loadOverride).mockReturnValue(null);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves the persisted sortBy/sortDir from the project config", () => {
+    mockProject({ sortBy: "created", sortDir: "desc" });
+    expect(resolveSort(PROJECT_ID)).toEqual({ sortBy: "created", sortDir: "desc" });
+  });
+
+  it("defaults sortDir to asc when a sortBy is set without a direction (CLI-FR-010)", () => {
+    mockProject({ sortBy: "updated" });
+    expect(resolveSort(PROJECT_ID)).toEqual({ sortBy: "updated", sortDir: "asc" });
+  });
+
+  it("returns undefined fields when no sort is persisted (natural order)", () => {
+    mockProject({});
+    expect(resolveSort(PROJECT_ID)).toEqual({ sortBy: undefined, sortDir: undefined });
+  });
+
+  it("returns undefined fields when the project is unknown", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    expect(resolveSort(PROJECT_ID)).toEqual({ sortBy: undefined, sortDir: undefined });
   });
 });
