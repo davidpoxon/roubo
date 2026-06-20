@@ -105,6 +105,24 @@ export async function expectConnectionStatePillState(
 }
 
 /**
+ * #568 (CLI-TC-017): un-bypass the persistent cut-list disk snapshot for the
+ * duration of one spec via the ROUBO_E2E-gated `/test/__set-cut-list-disk-cache`
+ * endpoint. The harness bypasses the disk path by default (so a snapshot from
+ * one scenario is never served to a later one, NFR-018), which makes the
+ * warm-snapshot serve unreachable. The cut-list-refresh drift guard needs that
+ * warm path: it enables the disk cache after the per-spec reset, drives a first
+ * open (miss -> snapshot written) then a reload (warm serve), and `/test/__reset`
+ * restores the default for the next spec. Pass `enabled: false` to re-bypass.
+ */
+export async function setCutListDiskCacheEnabled(
+  request: APIRequestContext,
+  enabled: boolean,
+): Promise<void> {
+  const res = await request.post("/test/__set-cut-list-disk-cache", { data: { enabled } });
+  expect(res.status(), "toggle cut-list disk cache").toBe(200);
+}
+
+/**
  * Register a throwaway project for the duration of one spec, pinned to the
  * requested plugin via an integration override. The fixture is torn down by
  * the next `/test/__reset` call (see #232), so specs that need a registered

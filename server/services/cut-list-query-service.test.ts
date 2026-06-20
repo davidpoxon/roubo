@@ -256,6 +256,90 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
   });
 });
 
+// #568: the runtime bypass toggle the ROUBO_E2E-gated
+// `/test/__set-cut-list-disk-cache` route drives so the warm-snapshot journey
+// (CLI-TC-017) can reach the disk path the harness bypasses by default, and the
+// `restoreBypassDefault` the route's `/test/__reset` calls so a toggled spec
+// never leaks the warm path into the next one. These assert the real method
+// bodies (the route's own unit suite mocks the whole service, so it never runs
+// them) via the observable disk hit/miss behaviour the rest of this file uses.
+describe("runtime disk-cache toggle (setDiskCacheEnabled / restoreBypassDefault)", () => {
+  const input = { cursor: null, pageSize: 50, filters: {} };
+
+  it("setDiskCacheEnabled(true) un-bypasses the disk so the next first-page query persists and warm-serves", async () => {
+    const svc = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: true,
+      onObserve,
+    });
+    svc.setDiskCacheEnabled(true);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "warm" })],
+      nextCursor: null,
+    });
+
+    const first = await svc.queryFirstOrPage("p1", active, input);
+    expect(first.cacheStatus).toBe("miss");
+    const second = await svc.queryFirstOrPage("p1", active, input);
+    expect(second.cacheStatus).toBe("revalidating");
+    expect(second.items[0].externalId).toBe("warm");
+  });
+
+  it("setDiskCacheEnabled(false) re-bypasses the disk so every first-page query is a fresh miss", async () => {
+    const svc = new CutListQueryService({
+      disk: new DiskSnapshotStore({ baseDir }),
+      bypassDisk: false,
+      onObserve,
+    });
+    svc.setDiskCacheEnabled(false);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "live" })],
+      nextCursor: null,
+    });
+
+    const first = await svc.queryFirstOrPage("p1", active, input);
+    expect(first.cacheStatus).toBe("miss");
+    const second = await svc.queryFirstOrPage("p1", active, input);
+    expect(second.cacheStatus).toBe("miss");
+    expect(second.snapshotCapturedAt).toBeUndefined();
+  });
+
+  it("restoreBypassDefault() re-derives the bypass from ROUBO_E2E: bypassed when '1', un-bypassed otherwise", async () => {
+    const prev = process.env.ROUBO_E2E;
+    try {
+      vi.mocked(pluginManager.invoke).mockResolvedValue({
+        items: [makeIssue({ externalId: "x" })],
+        nextCursor: null,
+      });
+
+      // ROUBO_E2E=1: restore bypasses the disk, so the second query re-misses.
+      process.env.ROUBO_E2E = "1";
+      const e2e = new CutListQueryService({
+        disk: new DiskSnapshotStore({ baseDir }),
+        bypassDisk: false,
+        onObserve,
+      });
+      e2e.restoreBypassDefault();
+      expect((await e2e.queryFirstOrPage("p1", active, input)).cacheStatus).toBe("miss");
+      expect((await e2e.queryFirstOrPage("p1", active, input)).cacheStatus).toBe("miss");
+
+      // ROUBO_E2E unset: restore leaves the disk active, so the second query warm-serves.
+      delete process.env.ROUBO_E2E;
+      const local = new CutListQueryService({
+        disk: new DiskSnapshotStore({ baseDir }),
+        bypassDisk: true,
+        onObserve,
+      });
+      local.restoreBypassDefault();
+      expect((await local.queryFirstOrPage("p2", active, input)).cacheStatus).toBe("miss");
+      expect((await local.queryFirstOrPage("p2", active, input)).cacheStatus).toBe("revalidating");
+    } finally {
+      if (prev === undefined) delete process.env.ROUBO_E2E;
+      else process.env.ROUBO_E2E = prev;
+    }
+  });
+});
+
 describe("dedup + stall-detection parity with prior route behaviour", () => {
   it("dedupes items within a page by (integrationId, externalId) (TC-023)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({

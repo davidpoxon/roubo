@@ -1,0 +1,21 @@
+project:
+  name: e2e-cut-list-refresh
+  displayName: E2E Cut-List Refresh
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4940
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  sources:
+    Repository:
+      - "acme/widgets"

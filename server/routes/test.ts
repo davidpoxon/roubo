@@ -16,6 +16,7 @@ import * as state from "../services/state.js";
 import { ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
 
 const router: Router = Router();
@@ -325,6 +326,13 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // the helper itself refuses to run unless ROUBO_PRODUCTION is unset and
     // the resolved roubo dir lives under `.roubo-dev/`.
     wipePersistedTestState();
+    // #568: restore the cut-list disk-cache bypass to its env-derived default.
+    // The cut-list-refresh drift guard (CLI-TC-017) un-bypasses the disk path
+    // via /test/__set-cut-list-disk-cache to reach the warm-snapshot serve;
+    // without this restore that toggle would leak the warm path into the next
+    // spec, breaking 10x determinism (NFR-018). wipePersistedTestState already
+    // wiped issue-snapshots/, so the next warm spec starts from a clean disk.
+    cutListQueryService.restoreBypassDefault();
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
     projectRegistry.__test.reset();
@@ -417,6 +425,29 @@ router.post("/__seed-notice", (req: Request, res: Response) => {
     console.error("/test/__seed-notice failed:", message);
     res.status(500).json({ error: message });
   }
+});
+
+// POST /test/__set-cut-list-disk-cache (#568): toggle whether the persistent
+// cut-list disk snapshot is bypassed at runtime. Under the e2e harness
+// (ROUBO_E2E=1) the CutListQueryService bypasses the disk path by default so a
+// snapshot written by one scenario is never served to a later one (NFR-018). The
+// cut-list-refresh drift guard (CLI-TC-017) needs the warm-snapshot serve, which
+// only happens on a disk hit, so it un-bypasses the disk via this endpoint after
+// the per-spec reset. /test/__reset restores the env-derived default, so the
+// warm path never leaks into another spec. Gated by ROUBO_E2E; production 404s.
+//
+// Body: { enabled: boolean }. `true` un-bypasses the disk (warm path reachable),
+// `false` re-enables the bypass.
+router.post("/__set-cut-list-disk-cache", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { enabled?: unknown };
+  if (typeof body.enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean" });
+  }
+  cutListQueryService.setDiskCacheEnabled(body.enabled);
+  res.status(200).json({ ok: true, enabled: body.enabled });
 });
 
 // POST /test/__register-fixture-project (#232): create a throwaway project
