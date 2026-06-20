@@ -40,7 +40,7 @@
       "description": "Each component binds to a component plugin plus an opaque config block the plugin's own configSchema validates (FR-003).",
       "additionalProperties": {
         "type": "object",
-        "required": ["plugin", "config"],
+        "required": ["plugin"],
         "additionalProperties": false,
         "properties": {
           "plugin": {
