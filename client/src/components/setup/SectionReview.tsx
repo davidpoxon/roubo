@@ -13,7 +13,7 @@ import {
   type SectionStatus,
   type WizardAction,
 } from "./wizardReducer";
-import { TOOL_ICON_MAP, COMPONENT_TYPE_LABELS } from "./styles";
+import { TOOL_ICON_MAP, componentTypeBadge } from "./styles";
 
 interface Props {
   config: Partial<RouboConfig>;
@@ -130,7 +130,7 @@ function ComponentMiniCard({
 }) {
   return (
     <div className="space-y-2">
-      <ItemHeader name={name} badge={COMPONENT_TYPE_LABELS[component.type] ?? component.type} />
+      <ItemHeader name={name} badge={componentTypeBadge(component)} />
       {component.docker && (
         <Row label="Docker">
           <span className="inline-flex items-center gap-2 min-w-0">

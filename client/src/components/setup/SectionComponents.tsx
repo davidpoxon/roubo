@@ -12,7 +12,7 @@ import { nextAvailablePort, type WizardAction } from "./wizardReducer";
 import ComponentEditor from "./ComponentEditor";
 import Select from "../Select";
 import { filePathItems } from "../filePathItems";
-import { COMPONENT_TYPE_LABELS } from "./styles";
+import { COMPONENT_TYPE_LABELS, componentTypeBadge } from "./styles";
 
 export { COMPONENT_TYPE_LABELS };
 
@@ -422,7 +422,7 @@ export default function SectionComponents({
           {key}
         </span>
         <span className="text-[11px] text-stone-400 dark:text-stone-600">
-          {COMPONENT_TYPE_LABELS[component.type] ?? component.type}
+          {componentTypeBadge(component)}
         </span>
         <ChevronRight size={13} className="text-stone-400 dark:text-stone-600 shrink-0" />
       </Button>

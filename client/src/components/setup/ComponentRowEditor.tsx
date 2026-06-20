@@ -31,8 +31,12 @@ function draftsToRecord(drafts: DraftEnv[]): Record<string, string> {
   return out;
 }
 
-function RoleBadge({ role }: { role: ComponentType }) {
+function RoleBadge({ role }: { role: ComponentType | undefined }) {
+  // A plugin-bound component (issue #608) carries no legacy `type`; render a
+  // neutral "Plugin" badge for it. Existing database/process components are
+  // unchanged.
   const isDb = role === "database";
+  const isPlugin = role === undefined;
   return (
     <span
       className={
@@ -42,7 +46,7 @@ function RoleBadge({ role }: { role: ComponentType }) {
           : "bg-stone-500/10 text-stone-400 border-stone-500/25")
       }
     >
-      {isDb ? "Database" : "Process"}
+      {isPlugin ? "Plugin" : isDb ? "Database" : "Process"}
     </span>
   );
 }

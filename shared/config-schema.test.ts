@@ -251,6 +251,39 @@ describe("components map", () => {
   });
 });
 
+// Issue #608 (CP-FR-010): the minimal component-to-plugin binding shape the
+// ComponentPluginRegistry reads. Additive: existing `type`-only components stay
+// valid (asserted above), and a component may instead bind to a plugin.
+describe("component plugin binding (issue #608)", () => {
+  it("accepts a component bound to a plugin without a legacy type", () => {
+    const config = makeConfig({
+      components: { db: { plugin: { id: "postgres-component" } } },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("accepts a plugin binding with an optional source", () => {
+    const config = makeConfig({
+      components: {
+        db: { plugin: { id: "postgres-component", source: "github.com/acme/db" } },
+      },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("rejects a component with neither type nor plugin", () => {
+    const result = RouboConfigSchema.safeParse(makeConfig({ components: { db: {} as never } }));
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a plugin binding missing the id", () => {
+    const result = RouboConfigSchema.safeParse(
+      makeConfig({ components: { db: { plugin: {} as never } } }),
+    );
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("layout submodule reserved key", () => {
   it('rejects "." as a submodule key', () => {
     const config = makeConfig({
