@@ -1,0 +1,27 @@
+project:
+  name: e2e-cut-list-ordering
+  displayName: E2E Cut-List Ordering
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    type: process
+    command: "echo noop"
+ports:
+  app:
+    base: 4940
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  # #570: a deliberately small page size so a four-item To Do scenario spans
+  # two Prev/Next pages, keeping the committed fixture small while genuinely
+  # exercising deterministic ordering across the page boundary (CLI-FR-008/
+  # CLI-FR-010, TC-035). The client requests no explicit pageSize, so the host
+  # falls back to this project's integration pageSize.
+  pageSize: 2
+  sources:
+    Repository:
+      - "acme/widgets"

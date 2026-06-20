@@ -1,0 +1,102 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "cut-list-ordering",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#301",
+      "externalUrl": "https://stub.example/acme/widgets/issues/301",
+      "title": "Plane the apron",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-12T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#302",
+      "externalUrl": "https://stub.example/acme/widgets/issues/302",
+      "title": "Square the leg",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-09T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#303",
+      "externalUrl": "https://stub.example/acme/widgets/issues/303",
+      "title": "Chop the mortise",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-15T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#304",
+      "externalUrl": "https://stub.example/acme/widgets/issues/304",
+      "title": "Cut the tenon",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-11T00:00:00.000Z",
+      "raw": null
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [],
+  "facetOptions": {},
+  "sortFields": [
+    { "id": "key", "label": "Key", "defaultDir": "asc" },
+    { "id": "updated", "label": "Recently updated", "defaultDir": "asc" }
+  ]
+}
