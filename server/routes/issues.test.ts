@@ -220,6 +220,19 @@ describe("GET /:projectId/issues", () => {
     expect(res.body.snapshotCapturedAt).toBeUndefined();
   });
 
+  it("omits cacheStatus and snapshotCapturedAt on a paginated (cursor > 0) response, even when the service returns them (CLI-FR-002, first-page-only contract)", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [makeIssue({ externalId: "2" })],
+      nextCursor: null,
+      snapshotCapturedAt: "2026-06-01T12:00:00.000Z",
+      cacheStatus: "revalidating",
+    });
+    const res = await request(app).get("/p1/issues?cursor=page-2");
+    expect(res.status).toBe(200);
+    expect(res.body.cacheStatus).toBeUndefined();
+    expect(res.body.snapshotCapturedAt).toBeUndefined();
+  });
+
   it("serialises stalled, warnings, and excludedCount when present", async () => {
     const warning = {
       category: "code-scanning",
