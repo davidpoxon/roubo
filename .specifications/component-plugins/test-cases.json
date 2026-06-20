@@ -4,7 +4,7 @@
   "specSlug": "component-plugins",
   "cases": [
     {
-      "id": "TC-001",
+      "id": "CP-TC-001",
       "title": "Component kind is accepted as a valid plugin manifest discriminator value",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -45,12 +45,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "manifest", "kind-discriminator"],
-      "linked_requirement_ids": ["FR-001"],
-      "linked_user_story_ids": ["US-001", "US-005"]
+      "tags": [
+        "smoke",
+        "manifest",
+        "kind-discriminator"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001",
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-002",
+      "id": "CP-TC-002",
       "title": "SDK ComponentContract declarative path: translate returns a valid ProvisionDescriptor",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -85,12 +94,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "sdk", "declarative"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "smoke",
+        "sdk",
+        "declarative"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-003",
+      "id": "CP-TC-003",
       "title": "SDK ComponentContract imperative path: start/stop/health/cleanup hooks are dispatched correctly",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -150,12 +167,20 @@
           ]
         }
       ],
-      "tags": ["happy-path", "sdk", "imperative"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "happy-path",
+        "sdk",
+        "imperative"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-004",
+      "id": "CP-TC-004",
       "title": "roubo.yaml component binding is parsed and resolves a plugin by id with opaque config block",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -194,12 +219,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "config", "binding"],
-      "linked_requirement_ids": ["FR-003"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "smoke",
+        "config",
+        "binding"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001"
+      ]
     },
     {
-      "id": "TC-005",
+      "id": "CP-TC-005",
       "title": "Component plugin config block is validated against the plugin's own configSchema",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -234,12 +267,19 @@
           ]
         }
       ],
-      "tags": ["validation", "config-schema"],
-      "linked_requirement_ids": ["FR-003"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "validation",
+        "config-schema"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001"
+      ]
     },
     {
-      "id": "TC-006",
+      "id": "CP-TC-006",
       "title": "Local drop-in component plugin in ~/.roubo/plugins is discovered, validated, spawned, and supervised",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -286,17 +326,27 @@
           ]
         }
       ],
-      "tags": ["install", "discovery", "supervision"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-003"]
+      "tags": [
+        "install",
+        "discovery",
+        "supervision"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-003"
+      ]
     },
     {
-      "id": "TC-007",
+      "id": "CP-TC-007",
       "title": "Component plugin manifest declares ports and docker permission categories",
       "area": "plugin-kind-contract",
       "level": 2,
       "type": "functional",
-      "preconditions": ["A roubo-plugin.yaml for a component plugin is authored"],
+      "preconditions": [
+        "A roubo-plugin.yaml for a component plugin is authored"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -323,17 +373,26 @@
           ]
         }
       ],
-      "tags": ["permissions", "manifest"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "permissions",
+        "manifest"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-008",
+      "id": "CP-TC-008",
       "title": "host.capability.query returns available: true for a supported broker method and available: false for an unknown method",
       "area": "plugin-kind-contract",
       "level": 2,
       "type": "functional",
-      "preconditions": ["An imperative component plugin is running and connected via JSON-RPC"],
+      "preconditions": [
+        "An imperative component plugin is running and connected via JSON-RPC"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -356,12 +415,21 @@
           ]
         }
       ],
-      "tags": ["capability-gate", "broker", "versioning"],
-      "linked_requirement_ids": ["FR-017", "NFR-005"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "capability-gate",
+        "broker",
+        "versioning"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-017",
+        "CP-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-009",
+      "id": "CP-TC-009",
       "title": "Invoking a host-RPC method after capability.query returns false produces a clear error, not a bench crash",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -400,12 +468,22 @@
           ]
         }
       ],
-      "tags": ["negative", "capability-gate", "graceful-degradation"],
-      "linked_requirement_ids": ["FR-017", "NFR-005"],
-      "linked_user_story_ids": ["US-005", "US-008"]
+      "tags": [
+        "negative",
+        "capability-gate",
+        "graceful-degradation"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-017",
+        "CP-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005",
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-010",
+      "id": "CP-TC-010",
       "title": "Existing integration plugins continue to load and operate after the component kind is introduced",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -444,12 +522,18 @@
           ]
         }
       ],
-      "tags": ["regression", "backwards-compat", "integration-plugin"],
-      "linked_requirement_ids": ["NFR-005"],
+      "tags": [
+        "regression",
+        "backwards-compat",
+        "integration-plugin"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-005"
+      ],
       "linked_user_story_ids": []
     },
     {
-      "id": "TC-011",
+      "id": "CP-TC-011",
       "title": "A component plugin whose HOST_API_VERSION semver requirement is not met fails gracefully at load time",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -488,12 +572,21 @@
           ]
         }
       ],
-      "tags": ["negative", "version-mismatch", "graceful-error"],
-      "linked_requirement_ids": ["NFR-005", "FR-010"],
-      "linked_user_story_ids": ["US-003"]
+      "tags": [
+        "negative",
+        "version-mismatch",
+        "graceful-error"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-005",
+        "CP-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-003"
+      ]
     },
     {
-      "id": "TC-012",
+      "id": "CP-TC-012",
       "title": "Manifest with an unknown kind value is rejected at validation time",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -521,12 +614,18 @@
           ]
         }
       ],
-      "tags": ["negative", "manifest-validation", "kind-discriminator"],
-      "linked_requirement_ids": ["FR-001"],
+      "tags": [
+        "negative",
+        "manifest-validation",
+        "kind-discriminator"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-001"
+      ],
       "linked_user_story_ids": []
     },
     {
-      "id": "TC-013",
+      "id": "CP-TC-013",
       "title": "Manifest with an unrecognised permission category is rejected at validation time",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -550,17 +649,27 @@
           ]
         }
       ],
-      "tags": ["negative", "manifest-validation", "permissions"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "manifest-validation",
+        "permissions"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-014",
+      "id": "CP-TC-014",
       "title": "Manifest with a malformed semver in hostApiVersionRequired is rejected at validation time",
       "area": "plugin-kind-contract",
       "level": 3,
       "type": "negative",
-      "preconditions": ["A roubo-plugin.yaml specifies hostApiVersionRequired: 'not-semver'"],
+      "preconditions": [
+        "A roubo-plugin.yaml specifies hostApiVersionRequired: 'not-semver'"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -577,12 +686,19 @@
           ]
         }
       ],
-      "tags": ["negative", "manifest-validation", "semver"],
-      "linked_requirement_ids": ["FR-010", "NFR-005"],
+      "tags": [
+        "negative",
+        "manifest-validation",
+        "semver"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-010",
+        "CP-NFR-005"
+      ],
       "linked_user_story_ids": []
     },
     {
-      "id": "TC-015",
+      "id": "CP-TC-015",
       "title": "A plugin implementing both translate and imperative hooks is rejected at load time",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -606,12 +722,20 @@
           ]
         }
       ],
-      "tags": ["edge-case", "sdk", "contract-validation"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge-case",
+        "sdk",
+        "contract-validation"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-016",
+      "id": "CP-TC-016",
       "title": "A declarative plugin returning a ProvisionDescriptor with an unsupported schemaVersion is rejected before execution",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -636,12 +760,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "descriptor-validation", "versioning"],
-      "linked_requirement_ids": ["FR-002", "FR-017"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge-case",
+        "descriptor-validation",
+        "versioning"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002",
+        "CP-FR-017"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-017",
+      "id": "CP-TC-017",
       "title": "A component plugin missing required imperative hooks (e.g., stop) is rejected at validation, not at stop-time",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -669,12 +802,20 @@
           ]
         }
       ],
-      "tags": ["edge-case", "contract-validation", "imperative"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge-case",
+        "contract-validation",
+        "imperative"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-018",
+      "id": "CP-TC-018",
       "title": "ProvisionDescriptor oneshot kind reaches completed terminal status on exit-code 0",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -709,12 +850,20 @@
           ]
         }
       ],
-      "tags": ["oneshot", "descriptor", "terminal-state"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "oneshot",
+        "descriptor",
+        "terminal-state"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-019",
+      "id": "CP-TC-019",
       "title": "Plugin process crash during start triggers ledger-based cleanup with no orphaned containers",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -758,12 +907,22 @@
           ]
         }
       ],
-      "tags": ["reliability", "crash", "cleanup", "orphan-prevention"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "reliability",
+        "crash",
+        "cleanup",
+        "orphan-prevention"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-020",
+      "id": "CP-TC-020",
       "title": "Single component plugin crash does not affect sibling components in the same bench",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -802,12 +961,21 @@
           ]
         }
       ],
-      "tags": ["reliability", "graceful-degradation", "auto-recovery"],
-      "linked_requirement_ids": ["FR-016", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "reliability",
+        "graceful-degradation",
+        "auto-recovery"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-016",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-021",
+      "id": "CP-TC-021",
       "title": "Plugin start latency overhead over built-in component is within +500ms p95",
       "area": "plugin-kind-contract",
       "level": 4,
@@ -843,12 +1011,20 @@
           ]
         }
       ],
-      "tags": ["performance", "latency", "benchmark"],
-      "linked_requirement_ids": ["NFR-002"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "performance",
+        "latency",
+        "benchmark"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-022",
+      "id": "CP-TC-022",
       "title": "ComponentStatus and logs from a plugin-backed component reach the same API surfaces as built-in components",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -888,12 +1064,22 @@
           ]
         }
       ],
-      "tags": ["observability", "logs", "status", "parity"],
-      "linked_requirement_ids": ["FR-014", "NFR-004"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "observability",
+        "logs",
+        "status",
+        "parity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006"
+      ]
     },
     {
-      "id": "TC-023",
+      "id": "CP-TC-023",
       "title": "Startup sweep after host restart reaps orphaned containers from crashed previous run",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -933,12 +1119,21 @@
           ]
         }
       ],
-      "tags": ["reliability", "startup-sweep", "orphan-reap"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "reliability",
+        "startup-sweep",
+        "orphan-reap"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-024",
+      "id": "CP-TC-024",
       "title": "roubo.yaml component binding with a missing plugin id field is rejected with a clear error",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -962,12 +1157,20 @@
           ]
         }
       ],
-      "tags": ["negative", "config", "binding-validation"],
-      "linked_requirement_ids": ["FR-003"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "config",
+        "binding-validation"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001"
+      ]
     },
     {
-      "id": "TC-025",
+      "id": "CP-TC-025",
       "title": "roubo.yaml references a plugin id that is not installed: clear error at bench start",
       "area": "plugin-kind-contract",
       "level": 3,
@@ -995,12 +1198,22 @@
           ]
         }
       ],
-      "tags": ["negative", "config", "unresolvable-plugin"],
-      "linked_requirement_ids": ["FR-003", "FR-010"],
-      "linked_user_story_ids": ["US-001", "US-003"]
+      "tags": [
+        "negative",
+        "config",
+        "unresolvable-plugin"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-003",
+        "CP-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001",
+        "CP-US-003"
+      ]
     },
     {
-      "id": "TC-026",
+      "id": "CP-TC-026",
       "title": "Host-RPC broker call gated on docker permission is denied when the plugin did not declare docker",
       "area": "plugin-kind-contract",
       "level": 4,
@@ -1029,12 +1242,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "permissions", "broker-enforcement"],
-      "linked_requirement_ids": ["FR-011", "FR-017"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "permissions",
+        "broker-enforcement"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-017"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-027",
+      "id": "CP-TC-027",
       "title": "E2E: plugin author scaffolds, consumer installs, and runs a third-party component plugin end to end",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -1156,20 +1378,31 @@
           ]
         }
       ],
-      "tags": ["e2e", "smoke", "happy-path", "third-party", "install", "declarative"],
-      "linked_requirement_ids": [
-        "FR-001",
-        "FR-002",
-        "FR-003",
-        "FR-010",
-        "FR-011",
-        "FR-014",
-        "FR-015"
+      "tags": [
+        "e2e",
+        "smoke",
+        "happy-path",
+        "third-party",
+        "install",
+        "declarative"
       ],
-      "linked_user_story_ids": ["US-001", "US-003", "US-005"]
+      "linked_requirement_ids": [
+        "CP-FR-001",
+        "CP-FR-002",
+        "CP-FR-003",
+        "CP-FR-010",
+        "CP-FR-011",
+        "CP-FR-014",
+        "CP-FR-015"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001",
+        "CP-US-003",
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-028",
+      "id": "CP-TC-028",
       "title": "E2E: consumer uses an imperative escape-hatch component plugin for a novel lifecycle end to end",
       "area": "plugin-kind-contract",
       "level": 2,
@@ -1249,12 +1482,25 @@
           ]
         }
       ],
-      "tags": ["e2e", "happy-path", "imperative", "escape-hatch", "oneshot"],
-      "linked_requirement_ids": ["FR-002", "FR-017", "FR-015"],
-      "linked_user_story_ids": ["US-005", "US-008"]
+      "tags": [
+        "e2e",
+        "happy-path",
+        "imperative",
+        "escape-hatch",
+        "oneshot"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-002",
+        "CP-FR-017",
+        "CP-FR-015"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005",
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-029",
+      "id": "CP-TC-029",
       "title": "E2E: existing integration plugin regression suite remains green after HOST_API_VERSION bump",
       "area": "plugin-kind-contract",
       "level": 1,
@@ -1305,12 +1551,19 @@
           ]
         }
       ],
-      "tags": ["e2e", "regression", "backwards-compat", "integration-plugin"],
-      "linked_requirement_ids": ["NFR-005"],
+      "tags": [
+        "e2e",
+        "regression",
+        "backwards-compat",
+        "integration-plugin"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-005"
+      ],
       "linked_user_story_ids": []
     },
     {
-      "id": "TC-030",
+      "id": "CP-TC-030",
       "title": "translate() called with an opaque config block forwards the exact config bytes to the plugin without host mutation",
       "area": "plugin-kind-contract",
       "level": 4,
@@ -1335,12 +1588,20 @@
           ]
         }
       ],
-      "tags": ["edge-case", "config", "opaque-passthrough"],
-      "linked_requirement_ids": ["FR-003"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "edge-case",
+        "config",
+        "opaque-passthrough"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001"
+      ]
     },
     {
-      "id": "TC-031",
+      "id": "CP-TC-031",
       "title": "A component plugin spawned once multiplexes two concurrent benches via distinct BenchContext.benchId values",
       "area": "plugin-kind-contract",
       "level": 4,
@@ -1385,19 +1646,29 @@
           ]
         }
       ],
-      "tags": ["edge-case", "multi-bench", "multiplexing"],
-      "linked_requirement_ids": ["FR-010", "FR-002"],
-      "linked_user_story_ids": ["US-001", "US-003"]
+      "tags": [
+        "edge-case",
+        "multi-bench",
+        "multiplexing"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-010",
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-001",
+        "CP-US-003"
+      ]
     },
     {
-      "id": "TC-032",
+      "id": "CP-TC-032",
       "title": "Smoke: responda bench starts entirely on plugin-backed components without error",
       "area": "dogfood-parity",
       "level": 1,
       "type": "functional",
       "preconditions": [
         "Roubo server running against a checkout of the v1 branch",
-        "responda project registered and its roubo.yaml migrated to plugin-based component declarations (FR-013)",
+        "responda project registered and its roubo.yaml migrated to plugin-based component declarations (CP-FR-013)",
         "Docker daemon running and docker compose available",
         "No existing bench running for responda"
       ],
@@ -1455,12 +1726,23 @@
           ]
         }
       ],
-      "tags": ["smoke", "regression", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-013"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "smoke",
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-005",
+        "CP-FR-007",
+        "CP-FR-013"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-033",
+      "id": "CP-TC-033",
       "title": "E2E: responda bench runs the full plugin-backed lifecycle (database migration + connection template + two process components)",
       "area": "dogfood-parity",
       "level": 1,
@@ -1581,19 +1863,34 @@
           ]
         }
       ],
-      "tags": ["smoke", "e2e", "regression", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-008", "FR-013", "NFR-002"],
-      "linked_user_story_ids": ["US-002", "US-007"]
+      "tags": [
+        "smoke",
+        "e2e",
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-005",
+        "CP-FR-007",
+        "CP-FR-008",
+        "CP-FR-013",
+        "CP-NFR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002",
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-034",
+      "id": "CP-TC-034",
       "title": "E2E: roubo bench starts identically on plugin-backed components (database + process)",
       "area": "dogfood-parity",
       "level": 2,
       "type": "e2e_flow",
       "preconditions": [
         "Roubo server running on v1 branch with bundled plugins",
-        "roubo project's own roubo.yaml migrated to plugin declarations (FR-013)",
+        "roubo project's own roubo.yaml migrated to plugin declarations (CP-FR-013)",
         "Docker daemon running"
       ],
       "steps": [
@@ -1656,12 +1953,24 @@
           ]
         }
       ],
-      "tags": ["regression", "e2e", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-005", "FR-007", "FR-013"],
-      "linked_user_story_ids": ["US-002", "US-007"]
+      "tags": [
+        "regression",
+        "e2e",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-005",
+        "CP-FR-007",
+        "CP-FR-013"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002",
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-035",
+      "id": "CP-TC-035",
       "title": "BundledDatabasePlugin translate produces a valid docker ProvisionDescriptor for all database roubo.yaml fields",
       "area": "dogfood-parity",
       "level": 2,
@@ -1716,12 +2025,20 @@
           ]
         }
       ],
-      "tags": ["unit", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "unit",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-036",
+      "id": "CP-TC-036",
       "title": "BundledProcessPlugin translate produces a valid process ProvisionDescriptor for all process roubo.yaml fields",
       "area": "dogfood-parity",
       "level": 2,
@@ -1776,12 +2093,20 @@
           ]
         }
       ],
-      "tags": ["unit", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "unit",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-037",
+      "id": "CP-TC-037",
       "title": "LifecycleEngine runs the docker phase machine through the broker for a database component",
       "area": "dogfood-parity",
       "level": 2,
@@ -1829,12 +2154,21 @@
           ]
         }
       ],
-      "tags": ["integration", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-007", "FR-008"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-007",
+        "CP-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-038",
+      "id": "CP-TC-038",
       "title": "LifecycleEngine runs the process phase machine through the broker including one-time setup",
       "area": "dogfood-parity",
       "level": 2,
@@ -1882,12 +2216,21 @@
           ]
         }
       ],
-      "tags": ["integration", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007", "FR-008"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007",
+        "CP-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-039",
+      "id": "CP-TC-039",
       "title": "dependsOn ordering: process components wait for the database component before starting",
       "area": "dogfood-parity",
       "level": 2,
@@ -1917,12 +2260,20 @@
           ]
         }
       ],
-      "tags": ["regression", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-040",
+      "id": "CP-TC-040",
       "title": "bench-manager contains zero component-type dispatch after v1 refactor",
       "area": "dogfood-parity",
       "level": 1,
@@ -1970,17 +2321,29 @@
           ]
         }
       ],
-      "tags": ["structural", "ci-guard", "automated"],
-      "linked_requirement_ids": ["FR-006", "FR-009", "NFR-006"],
-      "linked_user_story_ids": ["US-007"]
+      "tags": [
+        "structural",
+        "ci-guard",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-006",
+        "CP-FR-009",
+        "CP-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-041",
+      "id": "CP-TC-041",
       "title": "CI guard catches an intentional reintroduction of a component-type literal in core",
       "area": "dogfood-parity",
       "level": 3,
       "type": "structural",
-      "preconditions": ["v1 branch with the CI guard installed and passing"],
+      "preconditions": [
+        "v1 branch with the CI guard installed and passing"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -2017,17 +2380,30 @@
           ]
         }
       ],
-      "tags": ["structural", "ci-guard", "negative", "automated"],
-      "linked_requirement_ids": ["FR-006", "FR-009", "NFR-006"],
-      "linked_user_story_ids": ["US-007"]
+      "tags": [
+        "structural",
+        "ci-guard",
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-006",
+        "CP-FR-009",
+        "CP-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-042",
+      "id": "CP-TC-042",
       "title": "CI guard catches an intentional reintroduction of a core docker-field branch",
       "area": "dogfood-parity",
       "level": 3,
       "type": "structural",
-      "preconditions": ["v1 branch with the CI guard passing"],
+      "preconditions": [
+        "v1 branch with the CI guard passing"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -2050,12 +2426,22 @@
           ]
         }
       ],
-      "tags": ["structural", "ci-guard", "negative", "automated"],
-      "linked_requirement_ids": ["FR-009", "NFR-006"],
-      "linked_user_story_ids": ["US-007"]
+      "tags": [
+        "structural",
+        "ci-guard",
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-009",
+        "CP-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-043",
+      "id": "CP-TC-043",
       "title": "Performance: plugin-backed database component starts within +500 ms p95 of the built-in baseline",
       "area": "dogfood-parity",
       "level": 2,
@@ -2106,12 +2492,20 @@
           ]
         }
       ],
-      "tags": ["performance", "automated"],
-      "linked_requirement_ids": ["NFR-002", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "performance",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-002",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-044",
+      "id": "CP-TC-044",
       "title": "Performance: plugin-backed process component starts within +500 ms p95 of the built-in baseline",
       "area": "dogfood-parity",
       "level": 2,
@@ -2143,12 +2537,20 @@
           ]
         }
       ],
-      "tags": ["performance", "automated"],
-      "linked_requirement_ids": ["NFR-002", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "performance",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-002",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-045",
+      "id": "CP-TC-045",
       "title": "Config migration: responda roubo.yaml migrated config is schema-valid and binds to correct plugins",
       "area": "dogfood-parity",
       "level": 2,
@@ -2210,12 +2612,20 @@
           ]
         }
       ],
-      "tags": ["regression", "automated"],
-      "linked_requirement_ids": ["FR-013"],
-      "linked_user_story_ids": ["US-002", "US-007"]
+      "tags": [
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-013"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002",
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-046",
+      "id": "CP-TC-046",
       "title": "Config migration: roubo project's own roubo.yaml migrates identically",
       "area": "dogfood-parity",
       "level": 2,
@@ -2244,12 +2654,19 @@
           ]
         }
       ],
-      "tags": ["regression", "automated"],
-      "linked_requirement_ids": ["FR-013"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-013"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-047",
+      "id": "CP-TC-047",
       "title": "Negative: migration fails gracefully when composeFile path is absent from a database component",
       "area": "dogfood-parity",
       "level": 3,
@@ -2277,17 +2694,27 @@
           ]
         }
       ],
-      "tags": ["negative", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-048",
+      "id": "CP-TC-048",
       "title": "Negative: BundledDatabasePlugin translate rejects a config missing the required composeFile field",
       "area": "dogfood-parity",
       "level": 3,
       "type": "negative",
-      "preconditions": ["BundledDatabasePlugin unit test environment"],
+      "preconditions": [
+        "BundledDatabasePlugin unit test environment"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -2304,17 +2731,27 @@
           ]
         }
       ],
-      "tags": ["negative", "unit", "automated"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "negative",
+        "unit",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-049",
+      "id": "CP-TC-049",
       "title": "Negative: BundledProcessPlugin translate rejects a config missing the required command field",
       "area": "dogfood-parity",
       "level": 3,
       "type": "negative",
-      "preconditions": ["BundledProcessPlugin unit test environment"],
+      "preconditions": [
+        "BundledProcessPlugin unit test environment"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -2331,12 +2768,20 @@
           ]
         }
       ],
-      "tags": ["negative", "unit", "automated"],
-      "linked_requirement_ids": ["FR-005"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "negative",
+        "unit",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-050",
+      "id": "CP-TC-050",
       "title": "Edge case: dependsOn cycle between two process components is detected and rejected at bench start",
       "area": "dogfood-parity",
       "level": 3,
@@ -2360,12 +2805,21 @@
           ]
         }
       ],
-      "tags": ["edge_case", "negative", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "edge_case",
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-051",
+      "id": "CP-TC-051",
       "title": "Edge case: a database component with no migration or initService starts correctly (optional fields absent)",
       "area": "dogfood-parity",
       "level": 3,
@@ -2393,12 +2847,20 @@
           ]
         }
       ],
-      "tags": ["edge_case", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "edge_case",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-052",
+      "id": "CP-TC-052",
       "title": "Edge case: a process component with a one-time setup that has already run does not re-run setup on bench restart",
       "area": "dogfood-parity",
       "level": 3,
@@ -2427,17 +2889,27 @@
           ]
         }
       ],
-      "tags": ["edge_case", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "edge_case",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-053",
+      "id": "CP-TC-053",
       "title": "host.capability.query returns available:false for an unknown or future broker method",
       "area": "dogfood-parity",
       "level": 3,
       "type": "functional",
-      "preconditions": ["HostComponentBroker running on the v1 host"],
+      "preconditions": [
+        "HostComponentBroker running on the v1 host"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -2460,12 +2932,20 @@
           ]
         }
       ],
-      "tags": ["integration", "automated"],
-      "linked_requirement_ids": ["FR-008", "FR-017"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-008",
+        "CP-FR-017"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-054",
+      "id": "CP-TC-054",
       "title": "Negative: a plugin invoking a host-RPC method not in the v1 surface receives a graceful error, not a crash",
       "area": "dogfood-parity",
       "level": 3,
@@ -2494,12 +2974,20 @@
           ]
         }
       ],
-      "tags": ["negative", "automated"],
-      "linked_requirement_ids": ["FR-017", "NFR-005"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-017",
+        "CP-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-055",
+      "id": "CP-TC-055",
       "title": "Negative: ProvisionDescriptor with an unsupported schemaVersion is rejected with a clear error",
       "area": "dogfood-parity",
       "level": 3,
@@ -2528,12 +3016,20 @@
           ]
         }
       ],
-      "tags": ["negative", "automated"],
-      "linked_requirement_ids": ["FR-008", "FR-017"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-008",
+        "CP-FR-017"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-005"
+      ]
     },
     {
-      "id": "TC-056",
+      "id": "CP-TC-056",
       "title": "ResourceOwnershipLedger records and clears compose projects and process IDs across start/stop cycles",
       "area": "dogfood-parity",
       "level": 2,
@@ -2564,12 +3060,20 @@
           ]
         }
       ],
-      "tags": ["integration", "automated"],
-      "linked_requirement_ids": ["FR-007", "FR-008"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-007",
+        "CP-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-057",
+      "id": "CP-TC-057",
       "title": "Logs from plugin-backed database and process components are accessible via the existing logs endpoint",
       "area": "dogfood-parity",
       "level": 2,
@@ -2613,12 +3117,20 @@
           ]
         }
       ],
-      "tags": ["regression", "automated"],
-      "linked_requirement_ids": ["FR-007", "FR-014"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "regression",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-007",
+        "CP-FR-014"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-058",
+      "id": "CP-TC-058",
       "title": "L4: all host-RPC broker methods are exercised by the bundled plugins across a full bench lifecycle",
       "area": "dogfood-parity",
       "level": 4,
@@ -2671,12 +3183,22 @@
           ]
         }
       ],
-      "tags": ["exhaustive", "integration", "automated"],
-      "linked_requirement_ids": ["FR-008", "FR-009"],
-      "linked_user_story_ids": ["US-002", "US-007"]
+      "tags": [
+        "exhaustive",
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-008",
+        "CP-FR-009"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002",
+        "CP-US-007"
+      ]
     },
     {
-      "id": "TC-059",
+      "id": "CP-TC-059",
       "title": "L4: env and envFile values from the process plugin config are injected into the spawned process environment",
       "area": "dogfood-parity",
       "level": 4,
@@ -2706,12 +3228,20 @@
           ]
         }
       ],
-      "tags": ["exhaustive", "automated"],
-      "linked_requirement_ids": ["FR-005", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "exhaustive",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-005",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-060",
+      "id": "CP-TC-060",
       "title": "L4: portEnvVar from the database plugin config is present in the spawned database container environment",
       "area": "dogfood-parity",
       "level": 4,
@@ -2732,12 +3262,20 @@
           ]
         }
       ],
-      "tags": ["exhaustive", "automated"],
-      "linked_requirement_ids": ["FR-004", "FR-007"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "exhaustive",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-004",
+        "CP-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-002"
+      ]
     },
     {
-      "id": "TC-061",
+      "id": "CP-TC-061",
       "title": "Consumer observes plugin crash, sibling survival, auto-recovery, and zero orphaned containers end-to-end",
       "area": "supervision-resilience",
       "level": 1,
@@ -2776,7 +3314,7 @@
             },
             {
               "id": "S003-O02",
-              "expected": "The 'api' component status remains 'running' throughout, confirming graceful degradation (FR-016)"
+              "expected": "The 'api' component status remains 'running' throughout, confirming graceful degradation (CP-FR-016)"
             }
           ]
         },
@@ -2786,7 +3324,7 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "No containers whose compose project name matches roubo-<projectId>-bench-1 remain running (pre-restart cleanup hook fired, FR-015 / NFR-003)"
+              "expected": "No containers whose compose project name matches roubo-<projectId>-bench-1 remain running (pre-restart cleanup hook fired, CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -2806,7 +3344,7 @@
           "observations": [
             {
               "id": "S006-O01",
-              "expected": "The 'db' component returns status 'running' within the 3-restarts / 5-minute budget, confirming auto-recovery (FR-016)"
+              "expected": "The 'db' component returns status 'running' within the 3-restarts / 5-minute budget, confirming auto-recovery (CP-FR-016)"
             },
             {
               "id": "S006-O02",
@@ -2820,7 +3358,7 @@
           "observations": [
             {
               "id": "S007-O01",
-              "expected": "The SSE stream emitted a component-status-change event for 'db' transitioning to error/stopped and then back to running with no gaps or duplicated events (FR-014 / NFR-004)"
+              "expected": "The SSE stream emitted a component-status-change event for 'db' transitioning to error/stopped and then back to running with no gaps or duplicated events (CP-FR-014 / CP-NFR-004)"
             }
           ]
         },
@@ -2830,17 +3368,32 @@
           "observations": [
             {
               "id": "S008-O01",
-              "expected": "Logs are returned with no empty body; restart boundary is visible in the log sequence (FR-014)"
+              "expected": "Logs are returned with no empty body; restart boundary is visible in the log sequence (CP-FR-014)"
             }
           ]
         }
       ],
-      "tags": ["smoke", "e2e", "chaos", "auto-recovery", "orphan-guard"],
-      "linked_requirement_ids": ["FR-014", "FR-015", "FR-016", "NFR-003", "NFR-004"],
-      "linked_user_story_ids": ["US-006", "US-008"]
+      "tags": [
+        "smoke",
+        "e2e",
+        "chaos",
+        "auto-recovery",
+        "orphan-guard"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-FR-015",
+        "CP-FR-016",
+        "CP-NFR-003",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006",
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-062",
+      "id": "CP-TC-062",
       "title": "Plugin-backed component status and logs reach ComponentStatus and SSE stream with built-in parity",
       "area": "supervision-resilience",
       "level": 2,
@@ -2890,7 +3443,7 @@
             },
             {
               "id": "S003-O02",
-              "expected": "No duplicate or missing events are observed on the stream (FR-014 / NFR-004)"
+              "expected": "No duplicate or missing events are observed on the stream (CP-FR-014 / CP-NFR-004)"
             }
           ]
         },
@@ -2905,12 +3458,21 @@
           ]
         }
       ],
-      "tags": ["parity", "observability", "regression"],
-      "linked_requirement_ids": ["FR-014", "NFR-004"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "parity",
+        "observability",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006"
+      ]
     },
     {
-      "id": "TC-063",
+      "id": "CP-TC-063",
       "title": "Pre-restart cleanup hook stops all owned processes and containers before plugin is restarted",
       "area": "supervision-resilience",
       "level": 2,
@@ -2933,7 +3495,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "No containers matching roubo-<projectId>-bench-1 are running; the pre-restart cleanup hook completed composeDown before the plugin was restarted (FR-015 / NFR-003)"
+              "expected": "No containers matching roubo-<projectId>-bench-1 are running; the pre-restart cleanup hook completed composeDown before the plugin was restarted (CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -2958,12 +3520,21 @@
           ]
         }
       ],
-      "tags": ["chaos", "cleanup", "reliability"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "chaos",
+        "cleanup",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-064",
+      "id": "CP-TC-064",
       "title": "Sibling components remain running when one plugin crashes",
       "area": "supervision-resilience",
       "level": 2,
@@ -2986,7 +3557,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "Both 'api' and 'worker' components remain in 'running' status throughout; neither is stopped, restarted, or transitions to error as a result of the 'db' plugin crash (FR-016 / NFR-003)"
+              "expected": "Both 'api' and 'worker' components remain in 'running' status throughout; neither is stopped, restarted, or transitions to error as a result of the 'db' plugin crash (CP-FR-016 / CP-NFR-003)"
             }
           ]
         },
@@ -3001,12 +3572,21 @@
           ]
         }
       ],
-      "tags": ["chaos", "graceful-degradation", "reliability"],
-      "linked_requirement_ids": ["FR-016", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "chaos",
+        "graceful-degradation",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-016",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-065",
+      "id": "CP-TC-065",
       "title": "Startup reconcile sweep reaps orphaned compose projects after a hard host kill",
       "area": "supervision-resilience",
       "level": 2,
@@ -3040,7 +3620,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "No containers from compose project roubo-<projectId>-bench-2 are running; the startup sweep performed composeDown (FR-015 / NFR-003)"
+              "expected": "No containers from compose project roubo-<projectId>-bench-2 are running; the startup sweep performed composeDown (CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -3055,12 +3635,22 @@
           ]
         }
       ],
-      "tags": ["chaos", "host-restart", "orphan-sweep", "reliability"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "chaos",
+        "host-restart",
+        "orphan-sweep",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-066",
+      "id": "CP-TC-066",
       "title": "Bench teardown cleans up all processes and containers owned by component plugins",
       "area": "supervision-resilience",
       "level": 2,
@@ -3087,7 +3677,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "No containers from bench-3's compose project are running (FR-015 / NFR-003)"
+              "expected": "No containers from bench-3's compose project are running (CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -3097,7 +3687,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The process is not alive; process-manager confirms it was stopped during teardown (FR-015)"
+              "expected": "The process is not alive; process-manager confirms it was stopped during teardown (CP-FR-015)"
             }
           ]
         },
@@ -3112,12 +3702,21 @@
           ]
         }
       ],
-      "tags": ["teardown", "cleanup", "reliability"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "teardown",
+        "cleanup",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-067",
+      "id": "CP-TC-067",
       "title": "Auto-recovery respects the 3-restarts / 5-minute budget and marks component errored on exhaustion",
       "area": "supervision-resilience",
       "level": 3,
@@ -3155,7 +3754,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "plugin-manager does not attempt a fourth restart; the 'db' component status is set to 'error' with a statusDetail indicating budget exhaustion (NFR-003 / FR-016)"
+              "expected": "plugin-manager does not attempt a fourth restart; the 'db' component status is set to 'error' with a statusDetail indicating budget exhaustion (CP-NFR-003 / CP-FR-016)"
             }
           ]
         },
@@ -3175,7 +3774,7 @@
           "observations": [
             {
               "id": "S005-O01",
-              "expected": "An SSE notification event is emitted indicating the component has entered a terminal error state (FR-014)"
+              "expected": "An SSE notification event is emitted indicating the component has entered a terminal error state (CP-FR-014)"
             }
           ]
         },
@@ -3185,17 +3784,28 @@
           "observations": [
             {
               "id": "S006-O01",
-              "expected": "No orphaned containers or processes remain after each crash-and-cleanup cycle (NFR-003)"
+              "expected": "No orphaned containers or processes remain after each crash-and-cleanup cycle (CP-NFR-003)"
             }
           ]
         }
       ],
-      "tags": ["negative", "restart-budget", "chaos", "reliability"],
-      "linked_requirement_ids": ["FR-015", "FR-016", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "negative",
+        "restart-budget",
+        "chaos",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-FR-016",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-068",
+      "id": "CP-TC-068",
       "title": "Hung one-shot component is bounded by timeoutMs and does not leave orphaned processes",
       "area": "supervision-resilience",
       "level": 3,
@@ -3228,7 +3838,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The process is dead; no orphaned process remains after timeout enforcement (NFR-003 / FR-015)"
+              "expected": "The process is dead; no orphaned process remains after timeout enforcement (CP-NFR-003 / CP-FR-015)"
             }
           ]
         },
@@ -3243,12 +3853,22 @@
           ]
         }
       ],
-      "tags": ["edge-case", "one-shot", "timeout", "orphan-guard"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "edge-case",
+        "one-shot",
+        "timeout",
+        "orphan-guard"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-069",
+      "id": "CP-TC-069",
       "title": "Logs and status report no fidelity loss when a plugin-backed component restarts mid-stream",
       "area": "supervision-resilience",
       "level": 3,
@@ -3290,17 +3910,26 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "Status transitions are: running -> error/stopped -> starting -> running; no status value outside this sequence appears; no duplicate events for the same transition (FR-014 / NFR-004)"
+              "expected": "Status transitions are: running -> error/stopped -> starting -> running; no status value outside this sequence appears; no duplicate events for the same transition (CP-FR-014 / CP-NFR-004)"
             }
           ]
         }
       ],
-      "tags": ["observability", "log-continuity", "chaos"],
-      "linked_requirement_ids": ["FR-014", "NFR-004"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "observability",
+        "log-continuity",
+        "chaos"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006"
+      ]
     },
     {
-      "id": "TC-070",
+      "id": "CP-TC-070",
       "title": "v2 audit log records every privileged host-RPC call queryable per plugin and per bench",
       "area": "supervision-resilience",
       "level": 2,
@@ -3337,7 +3966,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The same audit entries are returned, confirming the log is queryable by bench as well as by plugin (FR-019 / NFR-004)"
+              "expected": "The same audit entries are returned, confirming the log is queryable by bench as well as by plugin (CP-FR-019 / CP-NFR-004)"
             }
           ]
         },
@@ -3352,12 +3981,21 @@
           ]
         }
       ],
-      "tags": ["v2", "audit", "observability"],
-      "linked_requirement_ids": ["FR-019", "NFR-004"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "v2",
+        "audit",
+        "observability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-019",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-071",
+      "id": "CP-TC-071",
       "title": "Host-owned ledger prevents any roubo-* container orphan after plugin crash on all benches",
       "area": "supervision-resilience",
       "level": 3,
@@ -3381,7 +4019,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "No containers from any of the three bench compose projects remain running; the pre-restart hook cleaned up all three via the ledger (FR-015 / NFR-003)"
+              "expected": "No containers from any of the three bench compose projects remain running; the pre-restart hook cleaned up all three via the ledger (CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -3406,12 +4044,23 @@
           ]
         }
       ],
-      "tags": ["chaos", "multi-bench", "orphan-guard", "reliability"],
-      "linked_requirement_ids": ["FR-015", "FR-016", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "chaos",
+        "multi-bench",
+        "orphan-guard",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-FR-016",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-072",
+      "id": "CP-TC-072",
       "title": "GET /components/:name/logs returns identical field shape for plugin-backed and built-in components",
       "area": "supervision-resilience",
       "level": 3,
@@ -3454,17 +4103,26 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "Both return 200 with Content-Type: application/json; no difference in HTTP surface (FR-014 / NFR-004)"
+              "expected": "Both return 200 with Content-Type: application/json; no difference in HTTP surface (CP-FR-014 / CP-NFR-004)"
             }
           ]
         }
       ],
-      "tags": ["parity", "observability", "functional"],
-      "linked_requirement_ids": ["FR-014", "NFR-004"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "parity",
+        "observability",
+        "functional"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006"
+      ]
     },
     {
-      "id": "TC-073",
+      "id": "CP-TC-073",
       "title": "Plugin crash during composeUp leaves no partially-started containers",
       "area": "supervision-resilience",
       "level": 4,
@@ -3487,7 +4145,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "Any partially started containers are stopped and removed by the pre-restart cleanup hook; neither running nor exited containers remain (NFR-003 / FR-015)"
+              "expected": "Any partially started containers are stopped and removed by the pre-restart cleanup hook; neither running nor exited containers remain (CP-NFR-003 / CP-FR-015)"
             }
           ]
         },
@@ -3512,12 +4170,22 @@
           ]
         }
       ],
-      "tags": ["chaos", "mid-lifecycle-crash", "reliability", "orphan-guard"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "chaos",
+        "mid-lifecycle-crash",
+        "reliability",
+        "orphan-guard"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-074",
+      "id": "CP-TC-074",
       "title": "SSE stream emits no duplicate or out-of-order events across a plugin crash-and-recovery cycle",
       "area": "supervision-resilience",
       "level": 4,
@@ -3553,17 +4221,28 @@
             },
             {
               "id": "S003-O03",
-              "expected": "Events for 'db' and 'api' are interleaved but each component's own sequence is internally ordered (FR-014 / NFR-004)"
+              "expected": "Events for 'db' and 'api' are interleaved but each component's own sequence is internally ordered (CP-FR-014 / CP-NFR-004)"
             }
           ]
         }
       ],
-      "tags": ["observability", "sse", "concurrency", "reliability"],
-      "linked_requirement_ids": ["FR-014", "NFR-004"],
-      "linked_user_story_ids": ["US-006", "US-008"]
+      "tags": [
+        "observability",
+        "sse",
+        "concurrency",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-014",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-006",
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-075",
+      "id": "CP-TC-075",
       "title": "Startup reconcile sweep processes all compose project names matching roubo-<projectId>-bench-<N> pattern",
       "area": "supervision-resilience",
       "level": 4,
@@ -3587,7 +4266,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "roubo-proj1-bench-1, roubo-proj1-bench-4, and roubo-proj2-bench-2 have no running or exited containers; the sweep cleaned all three (FR-015 / NFR-003)"
+              "expected": "roubo-proj1-bench-1, roubo-proj1-bench-4, and roubo-proj2-bench-2 have no running or exited containers; the sweep cleaned all three (CP-FR-015 / CP-NFR-003)"
             }
           ]
         },
@@ -3602,12 +4281,22 @@
           ]
         }
       ],
-      "tags": ["edge-case", "host-restart", "orphan-sweep", "pattern-scoping"],
-      "linked_requirement_ids": ["FR-015", "NFR-003"],
-      "linked_user_story_ids": ["US-008"]
+      "tags": [
+        "edge-case",
+        "host-restart",
+        "orphan-sweep",
+        "pattern-scoping"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-015",
+        "CP-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-008"
+      ]
     },
     {
-      "id": "TC-076",
+      "id": "CP-TC-076",
       "title": "Install plugin: consent dialog enumerates every declared permission category before run (e2e)",
       "area": "permissions-trust",
       "level": 1,
@@ -3704,12 +4393,23 @@
           ]
         }
       ],
-      "tags": ["smoke", "happy-path", "consent", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "smoke",
+        "happy-path",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-077",
+      "id": "CP-TC-077",
       "title": "Consent dialog Install button is disabled until acknowledgement checkbox is ticked",
       "area": "permissions-trust",
       "level": 1,
@@ -3756,12 +4456,21 @@
           ]
         }
       ],
-      "tags": ["regression", "consent", "v1"],
-      "linked_requirement_ids": ["FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "regression",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-078",
+      "id": "CP-TC-078",
       "title": "Consent dialog enumerates all six possible permission categories for a plugin that declares all of them",
       "area": "permissions-trust",
       "level": 2,
@@ -3807,12 +4516,22 @@
           ]
         }
       ],
-      "tags": ["regression", "consent", "all-categories", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "regression",
+        "consent",
+        "all-categories",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-079",
+      "id": "CP-TC-079",
       "title": "Non-first-party plugin is labeled unsandboxed in the consent dialog",
       "area": "permissions-trust",
       "level": 2,
@@ -3853,12 +4572,22 @@
           ]
         }
       ],
-      "tags": ["regression", "consent", "trust-tier", "v1"],
-      "linked_requirement_ids": ["FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "regression",
+        "consent",
+        "trust-tier",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-080",
+      "id": "CP-TC-080",
       "title": "Plugin detail drawer displays declared permissions and unsandboxed sandbox status",
       "area": "permissions-trust",
       "level": 2,
@@ -3912,12 +4641,21 @@
           ]
         }
       ],
-      "tags": ["regression", "drawer", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "regression",
+        "drawer",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-081",
+      "id": "CP-TC-081",
       "title": "Cancelling the consent dialog does not install the plugin or persist a ConsentRecord",
       "area": "permissions-trust",
       "level": 2,
@@ -3952,12 +4690,20 @@
           ]
         }
       ],
-      "tags": ["negative", "consent", "v1"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-082",
+      "id": "CP-TC-082",
       "title": "Pressing Escape closes the consent dialog without installing",
       "area": "permissions-trust",
       "level": 3,
@@ -3982,12 +4728,22 @@
           ]
         }
       ],
-      "tags": ["negative", "keyboard", "consent", "v1"],
-      "linked_requirement_ids": ["FR-012", "NFR-007"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "keyboard",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012",
+        "CP-NFR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-083",
+      "id": "CP-TC-083",
       "title": "POST /api/plugins/:pluginId/consent rejects a body that omits any declared category",
       "area": "permissions-trust",
       "level": 2,
@@ -4031,12 +4787,22 @@
           ]
         }
       ],
-      "tags": ["negative", "api", "consent", "v1"],
-      "linked_requirement_ids": ["FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "api",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-084",
+      "id": "CP-TC-084",
       "title": "A component plugin is blocked from running when no ConsentRecord exists (server enforcement)",
       "area": "permissions-trust",
       "level": 1,
@@ -4067,12 +4833,22 @@
           ]
         }
       ],
-      "tags": ["negative", "consent", "server-enforcement", "v1"],
-      "linked_requirement_ids": ["FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "consent",
+        "server-enforcement",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-085",
+      "id": "CP-TC-085",
       "title": "Security: consent dialog enumerates EVERY declared category and blocks run until acknowledged",
       "area": "permissions-trust",
       "level": 1,
@@ -4125,12 +4901,23 @@
           ]
         }
       ],
-      "tags": ["security", "consent", "gate", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012", "NFR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "security",
+        "consent",
+        "gate",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-086",
+      "id": "CP-TC-086",
       "title": "Security (v2): a plugin attempting an undeclared broker action is blocked and audit-logged",
       "area": "permissions-trust",
       "level": 1,
@@ -4177,18 +4964,32 @@
           ]
         }
       ],
-      "tags": ["security", "v2", "enforcement", "audit"],
-      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "security",
+        "v2",
+        "enforcement",
+        "audit"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-018",
+        "CP-FR-019",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-087",
+      "id": "CP-TC-087",
       "title": "Accessibility: consent dialog is keyboard-navigable with correct focus order and aria-modal",
       "area": "permissions-trust",
       "level": 2,
       "type": "accessibility",
       "priority": "P0",
-      "preconditions": ["A component plugin is not installed", "The consent dialog is closed"],
+      "preconditions": [
+        "A component plugin is not installed",
+        "The consent dialog is closed"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -4261,12 +5062,23 @@
           ]
         }
       ],
-      "tags": ["accessibility", "wcag-aa", "keyboard", "consent", "v1"],
-      "linked_requirement_ids": ["NFR-007", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "accessibility",
+        "wcag-aa",
+        "keyboard",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-007",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-088",
+      "id": "CP-TC-088",
       "title": "GET /api/plugins/:pluginId/consent returns declared categories, first-party flag, and consentedAt when previously consented",
       "area": "permissions-trust",
       "level": 2,
@@ -4292,12 +5104,21 @@
           ]
         }
       ],
-      "tags": ["api", "consent", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "api",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-089",
+      "id": "CP-TC-089",
       "title": "GET /api/plugins/:pluginId/consent returns no consentedAt for a plugin that has never been consented",
       "area": "permissions-trust",
       "level": 3,
@@ -4321,12 +5142,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "api", "consent", "v1"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "api",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-090",
+      "id": "CP-TC-090",
       "title": "Plugin manifest with zero declared permissions shows an empty permissions list and no consent prompt categories",
       "area": "permissions-trust",
       "level": 3,
@@ -4357,12 +5187,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "consent", "v1"],
-      "linked_requirement_ids": ["FR-011", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-091",
+      "id": "CP-TC-091",
       "title": "Opening the consent dialog for an update requires re-acknowledgement before the update proceeds",
       "area": "permissions-trust",
       "level": 3,
@@ -4391,12 +5230,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "consent", "update", "v1"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "consent",
+        "update",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-092",
+      "id": "CP-TC-092",
       "title": "v2: audit log records allowed and denied broker calls, queryable per plugin and per bench",
       "area": "permissions-trust",
       "level": 2,
@@ -4434,12 +5282,21 @@
           ]
         }
       ],
-      "tags": ["v2", "audit", "functional"],
-      "linked_requirement_ids": ["FR-019", "NFR-004"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "v2",
+        "audit",
+        "functional"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-019",
+        "CP-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-093",
+      "id": "CP-TC-093",
       "title": "v2: PermissionEnforcer allows broker calls within declared categories and denies those outside",
       "area": "permissions-trust",
       "level": 2,
@@ -4484,12 +5341,22 @@
           ]
         }
       ],
-      "tags": ["v2", "enforcement", "functional"],
-      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "v2",
+        "enforcement",
+        "functional"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-018",
+        "CP-FR-019",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-094",
+      "id": "CP-TC-094",
       "title": "v2: OS-level isolation prevents a plugin from making undeclared network calls outside the broker (sandboxing spike backend)",
       "area": "permissions-trust",
       "level": 3,
@@ -4526,12 +5393,22 @@
           ]
         }
       ],
-      "tags": ["security", "v2", "sandboxing", "os-isolation"],
-      "linked_requirement_ids": ["FR-018", "NFR-001"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "security",
+        "v2",
+        "sandboxing",
+        "os-isolation"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-018",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-095",
+      "id": "CP-TC-095",
       "title": "Consent dialog is announced correctly by screen reader on open (aria-modal, aria-labelledby, live region)",
       "area": "permissions-trust",
       "level": 3,
@@ -4575,12 +5452,23 @@
           ]
         }
       ],
-      "tags": ["accessibility", "screen-reader", "wcag-aa", "consent", "v1"],
-      "linked_requirement_ids": ["NFR-007", "FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "accessibility",
+        "screen-reader",
+        "wcag-aa",
+        "consent",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-007",
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-096",
+      "id": "CP-TC-096",
       "title": "Re-installing a plugin after uninstall requires re-acknowledgement of permissions",
       "area": "permissions-trust",
       "level": 3,
@@ -4621,12 +5509,21 @@
           ]
         }
       ],
-      "tags": ["functional", "consent", "reinstall", "v1"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "functional",
+        "consent",
+        "reinstall",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-097",
+      "id": "CP-TC-097",
       "title": "Detail drawer lifecycle field displays 'one-shot' for a oneshot component plugin",
       "area": "permissions-trust",
       "level": 4,
@@ -4651,12 +5548,21 @@
           ]
         }
       ],
-      "tags": ["functional", "drawer", "oneshot", "v1"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "functional",
+        "drawer",
+        "oneshot",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-098",
+      "id": "CP-TC-098",
       "title": "Marketplace filter chips reduce the grid to only component or integration plugins without consent state side-effects",
       "area": "permissions-trust",
       "level": 4,
@@ -4701,12 +5607,21 @@
           ]
         }
       ],
-      "tags": ["functional", "marketplace", "filter", "v1"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "functional",
+        "marketplace",
+        "filter",
+        "v1"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-004"
+      ]
     },
     {
-      "id": "TC-099",
+      "id": "CP-TC-099",
       "title": "Enforced sandboxing e2e (v2): a plugin's undeclared actions are blocked and audited while the bench keeps running",
       "area": "permissions-trust",
       "level": 2,
@@ -4800,12 +5715,25 @@
           ]
         }
       ],
-      "tags": ["security", "v2", "sandboxing", "enforcement", "audit", "e2e"],
-      "linked_requirement_ids": ["FR-018", "FR-019", "NFR-001"],
-      "linked_user_story_ids": ["US-009"]
+      "tags": [
+        "security",
+        "v2",
+        "sandboxing",
+        "enforcement",
+        "audit",
+        "e2e"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-018",
+        "CP-FR-019",
+        "CP-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-009"
+      ]
     },
     {
-      "id": "TC-100",
+      "id": "CP-TC-100",
       "title": "Marketplace catalog loads and displays all first-party plugins with Verified badge",
       "area": "marketplace",
       "level": 1,
@@ -4839,13 +5767,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "v3", "regression"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "smoke",
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-101",
-      "title": "Consumer browses, installs, and then updates a first-party plugin with integrity verified (US-010 / US-011 e2e journey)",
+      "id": "CP-TC-101",
+      "title": "Consumer browses, installs, and then updates a first-party plugin with integrity verified (CP-US-010 / CP-US-011 e2e journey)",
       "area": "marketplace",
       "level": 1,
       "type": "e2e_flow",
@@ -4985,17 +5921,30 @@
           ]
         }
       ],
-      "tags": ["smoke", "v3", "happy-path", "regression"],
-      "linked_requirement_ids": ["FR-020", "FR-021"],
-      "linked_user_story_ids": ["US-010", "US-011"]
+      "tags": [
+        "smoke",
+        "v3",
+        "happy-path",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020",
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010",
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-102",
+      "id": "CP-TC-102",
       "title": "Search returns no results for an unknown plugin name",
       "area": "marketplace",
       "level": 3,
       "type": "edge_case",
-      "preconditions": ["Marketplace view is open and the catalog has loaded"],
+      "preconditions": [
+        "Marketplace view is open and the catalog has loaded"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5016,12 +5965,19 @@
           ]
         }
       ],
-      "tags": ["v3", "edge-case"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "edge-case"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-103",
+      "id": "CP-TC-103",
       "title": "Kind filter restricts catalog to component plugins only",
       "area": "marketplace",
       "level": 2,
@@ -5074,17 +6030,26 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-104",
+      "id": "CP-TC-104",
       "title": "Plugin detail drawer shows provenance, signed-by, and sandbox status",
       "area": "marketplace",
       "level": 2,
       "type": "functional",
-      "preconditions": ["Marketplace view is open and the catalog has loaded"],
+      "preconditions": [
+        "Marketplace view is open and the catalog has loaded"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5131,12 +6096,21 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020", "FR-021"],
-      "linked_user_story_ids": ["US-010", "US-011"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020",
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010",
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-105",
+      "id": "CP-TC-105",
       "title": "Install consent dialog is blocked until acknowledgement checkbox is checked",
       "area": "marketplace",
       "level": 2,
@@ -5195,12 +6169,21 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020", "FR-021"],
-      "linked_user_story_ids": ["US-010", "US-011"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020",
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010",
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-106",
+      "id": "CP-TC-106",
       "title": "Registry unavailable: marketplace shows a graceful error and already-installed plugins keep running",
       "area": "marketplace",
       "level": 3,
@@ -5239,12 +6222,22 @@
           ]
         }
       ],
-      "tags": ["v3", "negative", "reliability"],
-      "linked_requirement_ids": ["FR-020", "FR-021"],
-      "linked_user_story_ids": ["US-010", "US-011"]
+      "tags": [
+        "v3",
+        "negative",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020",
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010",
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-107",
+      "id": "CP-TC-107",
       "title": "Tampered plugin package is rejected: install fails with an integrity error",
       "area": "marketplace",
       "level": 2,
@@ -5277,12 +6270,20 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "integrity"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "integrity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-108",
+      "id": "CP-TC-108",
       "title": "Unsigned plugin package is rejected at install time",
       "area": "marketplace",
       "level": 2,
@@ -5310,12 +6311,20 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "integrity"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "integrity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-109",
+      "id": "CP-TC-109",
       "title": "Revoked plugin is blocked from install and removed from the catalog",
       "area": "marketplace",
       "level": 2,
@@ -5350,12 +6359,20 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "revocation"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "revocation"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-110",
+      "id": "CP-TC-110",
       "title": "Installed plugin with a pending update shows both current and new version, and update flow works",
       "area": "marketplace",
       "level": 2,
@@ -5412,17 +6429,28 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020", "FR-021"],
-      "linked_user_story_ids": ["US-010", "US-011"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020",
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010",
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-111",
+      "id": "CP-TC-111",
       "title": "No third-party submission path exists in the marketplace UI",
       "area": "marketplace",
       "level": 3,
       "type": "negative",
-      "preconditions": ["Marketplace view is open"],
+      "preconditions": [
+        "Marketplace view is open"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5445,12 +6473,20 @@
           ]
         }
       ],
-      "tags": ["v3", "negative", "scope"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "negative",
+        "scope"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-112",
+      "id": "CP-TC-112",
       "title": "Tampered plugin package is rejected during update (not just initial install)",
       "area": "marketplace",
       "level": 3,
@@ -5479,17 +6515,27 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "integrity"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "integrity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-113",
+      "id": "CP-TC-113",
       "title": "Marketplace is keyboard-navigable and meets WCAG 2.1 AA (accessibility)",
       "area": "marketplace",
       "level": 2,
       "type": "accessibility",
-      "preconditions": ["Marketplace view is open"],
+      "preconditions": [
+        "Marketplace view is open"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5546,12 +6592,20 @@
           ]
         }
       ],
-      "tags": ["v3", "accessibility", "a11y"],
-      "linked_requirement_ids": ["NFR-007"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "accessibility",
+        "a11y"
+      ],
+      "linked_requirement_ids": [
+        "CP-NFR-007"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-114",
+      "id": "CP-TC-114",
       "title": "Already-installed plugin shows 'Installed' state and Install button is absent",
       "area": "marketplace",
       "level": 2,
@@ -5580,12 +6634,19 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-115",
+      "id": "CP-TC-115",
       "title": "Consent dialog cancel discards install without side effects",
       "area": "marketplace",
       "level": 3,
@@ -5628,12 +6689,19 @@
           ]
         }
       ],
-      "tags": ["v3", "edge-case"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "edge-case"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-116",
+      "id": "CP-TC-116",
       "title": "Combined search and kind filter narrow results correctly",
       "area": "marketplace",
       "level": 3,
@@ -5668,17 +6736,26 @@
           ]
         }
       ],
-      "tags": ["v3", "edge-case"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "edge-case"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-117",
+      "id": "CP-TC-117",
       "title": "Catalog integrity: signed catalog with valid signature is accepted by the client",
       "area": "marketplace",
       "level": 2,
       "type": "security",
-      "preconditions": ["Registry serves a correctly signed catalog response"],
+      "preconditions": [
+        "Registry serves a correctly signed catalog response"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5695,12 +6772,20 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "integrity"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "integrity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-118",
+      "id": "CP-TC-118",
       "title": "Tampered catalog (invalid signature) is rejected before any plugins are displayed",
       "area": "marketplace",
       "level": 2,
@@ -5728,12 +6813,20 @@
           ]
         }
       ],
-      "tags": ["v3", "security", "integrity"],
-      "linked_requirement_ids": ["FR-021"],
-      "linked_user_story_ids": ["US-011"]
+      "tags": [
+        "v3",
+        "security",
+        "integrity"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-021"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-011"
+      ]
     },
     {
-      "id": "TC-119",
+      "id": "CP-TC-119",
       "title": "Integration plugin install consent dialog shows correct kind label ('integration plugin')",
       "area": "marketplace",
       "level": 3,
@@ -5762,12 +6855,19 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-120",
+      "id": "CP-TC-120",
       "title": "Marketplace catalog load performance: catalog renders within 2 seconds on a standard connection",
       "area": "marketplace",
       "level": 4,
@@ -5792,17 +6892,26 @@
           ]
         }
       ],
-      "tags": ["v3", "performance"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "performance"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-121",
+      "id": "CP-TC-121",
       "title": "Plugin detail drawer can be opened from both the card name link and from the Install/Update button flow",
       "area": "marketplace",
       "level": 4,
       "type": "functional",
-      "preconditions": ["Marketplace view is open with a mix of installed and uninstalled plugins"],
+      "preconditions": [
+        "Marketplace view is open with a mix of installed and uninstalled plugins"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -5839,19 +6948,26 @@
           ]
         }
       ],
-      "tags": ["v3", "regression"],
-      "linked_requirement_ids": ["FR-020"],
-      "linked_user_story_ids": ["US-010"]
+      "tags": [
+        "v3",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-020"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-010"
+      ]
     },
     {
-      "id": "TC-122",
+      "id": "CP-TC-122",
       "title": "ProvisionDescriptor union declares a oneshot kind with the required fields",
       "area": "deploy-extensibility",
       "level": 3,
       "type": "structural",
       "preconditions": [
         "The ProvisionDescriptor type definition is available in shared/ (architecture data-model section)",
-        "The architecture document and PRD FR-022 are the authoritative contract source"
+        "The architecture document and PRD CP-FR-022 are the authoritative contract source"
       ],
       "steps": [
         {
@@ -5892,12 +7008,21 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "contract"],
-      "linked_requirement_ids": ["FR-022"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "contract"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-123",
+      "id": "CP-TC-123",
       "title": "host.process.run is defined as a distinct blocking run-to-completion broker method separate from host.process.start",
       "area": "deploy-extensibility",
       "level": 3,
@@ -5951,19 +7076,29 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "broker"],
-      "linked_requirement_ids": ["FR-022", "FR-008"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "broker"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-124",
+      "id": "CP-TC-124",
       "title": "ComponentStatus includes a completed terminal state distinct from stopped and error",
       "area": "deploy-extensibility",
       "level": 3,
       "type": "structural",
       "preconditions": [
         "The ComponentStatus data-model entry is available in the architecture document",
-        "The PRD deltas / Supersedes table (FR-014 / FR-022 row) is the authoritative change record"
+        "The PRD deltas / Supersedes table (CP-FR-014 / CP-FR-022 row) is the authoritative change record"
       ],
       "steps": [
         {
@@ -5991,7 +7126,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The architecture PRD-delta note for FR-014/FR-022 states that a one-shot deploy that exits 0 is neither stopped (idle) nor error, so a distinct terminal state keeps the status surface honest"
+              "expected": "The architecture PRD-delta note for CP-FR-014/CP-FR-022 states that a one-shot deploy that exits 0 is neither stopped (idle) nor error, so a distinct terminal state keeps the status surface honest"
             },
             {
               "id": "S003-O02",
@@ -6005,24 +7140,35 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "The architecture FR-022 sequence flow describes host.process.run resolving with an exit code and the plugin reporting ComponentStatus.status = completed for a successful deploy, implying non-zero exit maps to error, not completed"
+              "expected": "The architecture CP-FR-022 sequence flow describes host.process.run resolving with an exit code and the plugin reporting ComponentStatus.status = completed for a successful deploy, implying non-zero exit maps to error, not completed"
             }
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "fr-014", "status"],
-      "linked_requirement_ids": ["FR-022", "FR-014"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "fr-014",
+        "status"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-FR-014"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-125",
+      "id": "CP-TC-125",
       "title": "A deploy can be expressed declaratively as a oneshot descriptor without requiring a new plugin kind",
       "area": "deploy-extensibility",
       "level": 3,
       "type": "structural",
       "preconditions": [
         "The ProvisionDescriptor union and the ComponentContract translate path are defined in the architecture",
-        "FR-022 states the deploy capability must fit the existing kind boundary without redesign"
+        "CP-FR-022 states the deploy capability must fit the existing kind boundary without redesign"
       ],
       "steps": [
         {
@@ -6064,19 +7210,29 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "declarative"],
-      "linked_requirement_ids": ["FR-022", "FR-002"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "declarative"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-126",
+      "id": "CP-TC-126",
       "title": "A deploy can be expressed imperatively via the broker escape hatch without requiring a new plugin kind",
       "area": "deploy-extensibility",
       "level": 3,
       "type": "structural",
       "preconditions": [
         "The imperative hook path (start/stop/health/cleanup) and the HostComponentBroker are defined in the architecture",
-        "FR-022 states the architecture must accommodate deploy via either the declarative or the imperative path"
+        "CP-FR-022 states the architecture must accommodate deploy via either the declarative or the imperative path"
       ],
       "steps": [
         {
@@ -6109,7 +7265,7 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "host.component.reportStatus is available to imperative-path plugins and accepts the completed status value, per the architecture sequence flow for FR-022"
+              "expected": "host.component.reportStatus is available to imperative-path plugins and accepts the completed status value, per the architecture sequence flow for CP-FR-022"
             }
           ]
         },
@@ -6124,12 +7280,23 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "imperative", "escape-hatch"],
-      "linked_requirement_ids": ["FR-022", "FR-008"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "imperative",
+        "escape-hatch"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-127",
+      "id": "CP-TC-127",
       "title": "A hung one-shot lifecycle is bounded by timeoutMs on host.process.run so it cannot block the plugin-manager restart budget",
       "area": "deploy-extensibility",
       "level": 3,
@@ -6188,19 +7355,29 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "timeout", "edge-case"],
-      "linked_requirement_ids": ["FR-022"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "timeout",
+        "edge-case"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-128",
+      "id": "CP-TC-128",
       "title": "The broker is the single privileged choke-point for both declarative and imperative deploy paths, preserving enforcement and audit attach points",
       "area": "deploy-extensibility",
       "level": 4,
       "type": "structural",
       "preconditions": [
         "The HostComponentBroker design rationale is documented in the architecture security and decision sections",
-        "FR-022 requires a deploy to be addable without redesign, which includes the v2 audit/enforcement layer"
+        "CP-FR-022 requires a deploy to be addable without redesign, which includes the v2 audit/enforcement layer"
       ],
       "steps": [
         {
@@ -6238,19 +7415,32 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "broker", "audit", "enforcement"],
-      "linked_requirement_ids": ["FR-022", "FR-008", "FR-019"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "broker",
+        "audit",
+        "enforcement"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-FR-008",
+        "CP-FR-019"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     },
     {
-      "id": "TC-129",
+      "id": "CP-TC-129",
       "title": "Adding a deploy plugin requires zero changes to core (bench-manager, LifecycleEngine, plugin-manager, broker surface)",
       "area": "deploy-extensibility",
       "level": 4,
       "type": "structural",
       "preconditions": [
         "The architecture documents the full set of components that must remain unchanged when a new component plugin is added",
-        "US-012 states deploy must be addable without redesign; NFR-006 requires zero component-type literals in core"
+        "CP-US-012 states deploy must be addable without redesign; CP-NFR-006 requires zero component-type literals in core"
       ],
       "steps": [
         {
@@ -6285,7 +7475,7 @@
         },
         {
           "id": "S004",
-          "instruction": "Confirm that the NFR-006 ComponentTypeKnowledgeGuard CI check would continue to pass after adding a deploy plugin, because the plugin ships outside core and introduces no component-type literals in bench-manager or shared/",
+          "instruction": "Confirm that the CP-NFR-006 ComponentTypeKnowledgeGuard CI check would continue to pass after adding a deploy plugin, because the plugin ships outside core and introduces no component-type literals in bench-manager or shared/",
           "observations": [
             {
               "id": "S004-O01",
@@ -6294,9 +7484,20 @@
           ]
         }
       ],
-      "tags": ["design-for", "structural", "fr-022", "nfr-006", "zero-core-change"],
-      "linked_requirement_ids": ["FR-022", "NFR-006"],
-      "linked_user_story_ids": ["US-012"]
+      "tags": [
+        "design-for",
+        "structural",
+        "fr-022",
+        "nfr-006",
+        "zero-core-change"
+      ],
+      "linked_requirement_ids": [
+        "CP-FR-022",
+        "CP-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CP-US-012"
+      ]
     }
   ]
 }
