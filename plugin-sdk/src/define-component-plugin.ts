@@ -37,10 +37,11 @@ const COMPONENT_CONTRACT_METHODS: readonly ComponentContractMethodName[] = [
  *   returning a `ProvisionDescriptor` the host's LifecycleEngine executes.
  * - **Imperative (escape hatch):** implement all four lifecycle hooks
  *   `start` / `stop` / `health` / `cleanup`, driving the host broker
- *   (`host.process.*`, `host.docker.*`, `host.ports.*`) from inside them.
+ *   (`componentHost.process.*`, `componentHost.docker.*`,
+ *   `componentHost.ports.*`) from inside them.
  *
  * ```ts
- * import { defineComponentPlugin, host } from "@roubo/plugin-sdk";
+ * import { defineComponentPlugin, componentHost } from "@roubo/plugin-sdk";
  *
  * // declarative
  * defineComponentPlugin({

@@ -644,8 +644,12 @@ export interface BenchContext {
  * Lifecycle status a component plugin reports (imperative `health`, or pushed
  * via `host.component.reportStatus`). `completed` is the terminal state for a
  * successful one-shot lifecycle (FR-014 / FR-022 delta), distinct from
- * `stopped` (idle) and `error`. Kept in sync with `ComponentStatus` in
- * `@roubo/shared`.
+ * `stopped` (idle) and `error`. This SDK-facing shape intentionally diverges
+ * from `@roubo/shared`'s `ComponentStatus`: it adds the `completed` status,
+ * treats `name` / `setupComplete` as optional (or absent) rather than required,
+ * and models `phases` as a `Record<string, string>` rather than a
+ * `ComponentPhase[]`. The shared type stays authoritative host-side; keep the
+ * two reconciled deliberately, not field-for-field identical.
  */
 export interface ComponentStatus {
   status: "stopped" | "starting" | "running" | "error" | "stopping" | "completed";
