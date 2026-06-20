@@ -66,11 +66,11 @@ Reframed: little regulated PII, but the feature **runs arbitrary third-party exe
 
 These become `spike` issues when `breakdown` runs.
 
-- [ ] **Spike: host-owns vs plugin-owns lifecycle ADR.** Prototype both models against the docker-init / migration / connection-string / reconcile flow; confirm host-owns reuses `process-manager`/`docker` with no structural change and resolves the orphan + enforcement risks. Resolves risks 1, 3, and (transitively) 2's enforceability. Cap 3-5 days.
-- [ ] **Spike: v2 sandboxing mechanism on macOS/Node.** Evaluate the Node 24 permission model (+ flag propagation), container-per-plugin, macOS Virtualization.framework, and the capability-broker model; state honestly what "cannot exceed declared permissions" can guarantee vs only approximate. Resolves risk 2 and the "safe by default" over-promise.
+- [x] **Spike: host-owns vs plugin-owns lifecycle ADR.** Prototype both models against the docker-init / migration / connection-string / reconcile flow; confirm host-owns reuses `process-manager`/`docker` with no structural change and resolves the orphan + enforcement risks. Resolves risks 1, 3, and (transitively) 2's enforceability. Cap 3-5 days. **Resolved by spike #598 (SPK-1): host-owns adopted.**
+- [x] **Spike: v2 sandboxing mechanism on macOS/Node.** Evaluate the Node 24 permission model (+ flag propagation), container-per-plugin, macOS Virtualization.framework, and the capability-broker model; state honestly what "cannot exceed declared permissions" can guarantee vs only approximate. Resolves risk 2 and the "safe by default" over-promise. **Resolved by spike #599 (SPK-2): capability-broker primary, opt-in container/VM tier, Docker not required.**
 - [ ] **Design: lifecycle-parity test matrix.** Enumerate every existing component feature (dependsOn, docker init/portEnvVar, migration, connection templates, env/envFile, directory, setup, port allocation, container assignment, logs, reconcile) as a baseline parity test **before** extraction begins. Resolves risk 4.
 - [ ] **Design: v1 consent/trust UX + v3 trust-pipeline sketch.** An explicit consent UI that names the missing sandbox and labels v1 plugins as unsandboxed; a v3 signing/provenance/takedown sketch the v1 install format must stay compatible with. Resolves risk 5 and the "normalizing unsandboxed third-party code" concern.
-- [ ] **Design: host-RPC surface + host-capability versioning.** Define the new `host.docker.*` / `host.process.*` surface and how a component plugin gates on host-method availability (a `host.capabilities()` RPC vs the plugin's `roubo` semver range). Resolves the "new versioned host surface with no current analogue" gap.
+- [x] **Design: host-RPC surface + host-capability versioning.** Define the new `host.docker.*` / `host.process.*` surface and how a component plugin gates on host-method availability (a `host.capabilities()` RPC vs the plugin's `roubo` semver range). Resolves the "new versioned host surface with no current analogue" gap. **Resolved by spike #600 (SPK-3): fine-grained broker surface plus dual `host.capability.query` + `HOST_API_VERSION` versioning.**
 
 ## Recommendation
 
@@ -86,9 +86,9 @@ These become `spike` issues when `breakdown` runs.
 
 ## Open questions
 
-- [ ] Coarse vs fine-grained component lifecycle contract (single blocking `host.docker.startService` vs separate `composeUp` / `waitForHealthy` calls): coarse is simpler, fine-grained composes better for novel types like a Clasp deploy.
-- [ ] Does `assignContainer` (today `type === "database"`) become a manifest capability flag, or is it inferred from a declared `docker` permission category?
-- [ ] How does the host-RPC surface version independently of `HOST_API_VERSION` so a plugin calling a newer host method on an older host fails gracefully?
-- [ ] Deploy stress-test: a Clasp deploy is start-and-complete, not start-and-stay-running. Does `ComponentContract.start` need a `oneShot: true` flag (so a zero exit is not an error), or does deploy need its own plugin kind?
+- [x] Coarse vs fine-grained component lifecycle contract (single blocking `host.docker.startService` vs separate `composeUp` / `waitForHealthy` calls): coarse is simpler, fine-grained composes better for novel types like a Clasp deploy. **Resolved by spike #600 (SPK-3): fine-grained broker, coarse engine, no `host.docker.startService`.**
+- [x] Does `assignContainer` (today `type === "database"`) become a manifest capability flag, or is it inferred from a declared `docker` permission category? **Resolved by spike #600 (SPK-3): both per path (descriptor field + broker method gated on the `docker` permission); manifest flag rejected.**
+- [x] How does the host-RPC surface version independently of `HOST_API_VERSION` so a plugin calling a newer host method on an older host fails gracefully? **Resolved by spike #600 (SPK-3): a runtime `host.capability.query({ method })` probe complements the load-time `HOST_API_VERSION` semver gate.**
+- [x] Deploy stress-test: a Clasp deploy is start-and-complete, not start-and-stay-running. Does `ComponentContract.start` need a `oneShot: true` flag (so a zero exit is not an error), or does deploy need its own plugin kind? **Resolved by the architecture design stress-test: a `oneshot` `ProvisionDescriptor` variant plus the broker escape hatch; no `oneShot` start flag and no separate plugin kind.**
 - [ ] Trust tiers: bundled first-party vs user-installed component plugins, and whether that distinction should change the v1 permission-display UX and the v2 enforcement default.
 - [ ] Does the SDK split into `integration-sdk` / `component-sdk` workspaces, or does one `plugin-sdk` host both contracts behind a kind-aware `defineComponentPlugin()`?
