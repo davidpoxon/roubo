@@ -9,7 +9,7 @@ import {
   resolveSources,
   resolveExclusion,
   resolveInstanceEndpoint,
-  resolveSort,
+  resolveSortForActivePlugin,
 } from "./plugin-activation.js";
 import {
   DiskSnapshotStore,
@@ -38,6 +38,12 @@ export interface QueryFirstOrPageInput {
    */
   sortBy?: string;
   sortDir?: "asc" | "desc";
+}
+
+/** A resolved sort selection (field id + direction), or natural order when both are undefined. */
+export interface ResolvedSort {
+  sortBy: string | undefined;
+  sortDir: "asc" | "desc" | undefined;
 }
 
 /**
@@ -178,22 +184,46 @@ export class CutListQueryService {
   }
 
   /**
+   * Resolve the per-project persisted sort, validated against the active
+   * plugin's declared sort fields (CLI-FR-017 / CLI-TC-070): an unsupported
+   * persisted value falls back to the plugin's first declared field, and a
+   * plugin that declares no fields yields natural order. Thin delegate over
+   * `resolveSortForActivePlugin` so the route and `queryFirstOrPage` resolve the
+   * fallback path identically and feed the same value into `buildListParams`.
+   */
+  resolvePersistedSort(projectId: string, pluginId: string): Promise<ResolvedSort> {
+    return resolveSortForActivePlugin(projectId, pluginId);
+  }
+
+  /**
    * Build the `listIssues` params for a request. Exposed so the route's
    * errored/disabled in-memory fallback can reuse the exact same params shape
    * it always has.
+   *
+   * `persistedSort` carries the already-resolved, plugin-validated per-project
+   * sort for the fallback path (when the request itself carries no `sortBy`);
+   * the caller resolves it once via `resolvePersistedSort` and passes it in so
+   * this stays synchronous and the live and fallback paths derive identical
+   * cache keys. When omitted, the fallback path yields natural order.
    */
-  buildListParams(projectId: string, input: QueryFirstOrPageInput): ListIssuesParams {
+  buildListParams(
+    projectId: string,
+    input: QueryFirstOrPageInput,
+    persistedSort?: ResolvedSort,
+  ): ListIssuesParams {
     const filters =
       input.filters && Object.keys(input.filters).length > 0 ? input.filters : undefined;
     const exclusion = resolveExclusion(projectId);
     // The request's sort params win when present (the picker's live selection,
-    // CLI-FR-009); otherwise fall back to the persisted per-project sort
-    // (CLI-FR-013/CLI-FR-017). `sortDir` defaults to `asc` only when a `sortBy`
-    // is set without an explicit direction (CLI-FR-010 key-ascending default).
-    const sort: { sortBy: string | undefined; sortDir: "asc" | "desc" | undefined } =
+    // CLI-FR-009); otherwise fall back to the persisted per-project sort,
+    // already validated against the active plugin's declared fields by the
+    // caller (CLI-FR-017/CLI-TC-070). `sortDir` defaults to `asc` only when a
+    // request `sortBy` is set without an explicit direction (CLI-FR-010
+    // key-ascending default).
+    const sort: ResolvedSort =
       typeof input.sortBy === "string" && input.sortBy.length > 0
         ? { sortBy: input.sortBy, sortDir: input.sortDir === "desc" ? "desc" : "asc" }
-        : resolveSort(projectId);
+        : (persistedSort ?? { sortBy: undefined, sortDir: undefined });
     const params: ListIssuesParams = {
       sources: resolveSources(projectId),
       cursor: input.cursor,
@@ -240,8 +270,18 @@ export class CutListQueryService {
     projectId: string,
     active: ActivePluginContext,
     input: QueryFirstOrPageInput,
+    persistedSort?: ResolvedSort,
   ): Promise<CutListQueryResult> {
-    const params = this.buildListParams(projectId, input);
+    // Resolve the plugin-validated persisted sort only when the request carries
+    // no live sort (the picker's selection wins and skips the RPC otherwise).
+    // The caller may pass an already-resolved value (the route resolves it once
+    // for its in-memory-fallback cache key); reuse it so a single `getSortFields`
+    // RPC serves both paths instead of each firing its own (CLI-FR-017).
+    const resolvedPersistedSort =
+      typeof input.sortBy === "string" && input.sortBy.length > 0
+        ? undefined
+        : (persistedSort ?? (await this.resolvePersistedSort(projectId, active.pluginId)));
+    const params = this.buildListParams(projectId, input, resolvedPersistedSort);
     const isFirstPage = input.cursor === null;
 
     // Only serve the persistent disk snapshot while the plugin is healthy. When

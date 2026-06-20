@@ -497,6 +497,32 @@ describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
     expect(effective.excludedStatuses).toEqual(["Blocked"]);
   });
 
+  it("CLI-TC-066: the per-user override replaces (not merges) the roubo.yaml excludedStatusCategories array and scalar sort", () => {
+    // roubo.yaml excludes Done + In Progress and sorts by created; the per-user
+    // override replaces the exclusion array with just Done and re-points the
+    // sort to priority. A merge would have kept In Progress excluded.
+    const effective = mod.getEffectiveIntegrationConfig(
+      {
+        plugin: "jira-self-hosted",
+        sortBy: "created",
+        sortDir: "asc",
+        excludedStatusCategories: ["Done", "In Progress"],
+      },
+      null,
+      {
+        schemaVersion: 1,
+        integration: {
+          sortBy: "priority",
+          sortDir: "desc",
+          excludedStatusCategories: ["Done"],
+        },
+      },
+    );
+    expect(effective.excludedStatusCategories).toEqual(["Done"]);
+    expect(effective.sortBy).toBe("priority");
+    expect(effective.sortDir).toBe("desc");
+  });
+
   it("returns input unchanged when sources is absent", () => {
     const input: import("@roubo/shared").IntegrationConfig = {
       plugin: "github-com",

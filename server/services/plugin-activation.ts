@@ -10,6 +10,7 @@ import * as pluginManager from "./plugin-manager.js";
 import { filterAdvancedAgainstManifest } from "./plugin-config-filter.js";
 import { translateSources } from "./plugin-source-translation.js";
 import { deriveInstanceHost, setInstanceHost } from "./plugin-instance-registry.js";
+import { getPluginSortFields } from "./plugin-sort-fields.js";
 
 interface ActivationResult {
   ok: boolean;
@@ -192,6 +193,57 @@ export function resolveSort(projectId: string): {
   }
   const sortDir = effective.sortDir === "desc" ? "desc" : "asc";
   return { sortBy, sortDir };
+}
+
+/**
+ * Resolve the per-project cut-list sort selection (CLI-FR-017) and validate it
+ * against the active plugin's declared sort fields (CLI-FR-009). Starts from the
+ * merged persisted value (`resolveSort`), then reconciles it with what the
+ * plugin actually supports:
+ *
+ * - The persisted `sortBy` is a declared field id: keep it (with its persisted
+ *   `sortDir`, defaulting to `asc`).
+ * - The persisted `sortBy` is set but NOT among the plugin's declared field ids
+ *   (an unsupported value, e.g. a field carried over from a different plugin, or
+ *   one the active plugin dropped): fall back to the plugin's FIRST declared
+ *   field id and its `defaultDir`, with no error (CLI-TC-070). This is also what
+ *   delivers "switching the active plugin resets to that plugin's defaults"
+ *   (AC3): a value the new plugin does not declare is replaced by its first
+ *   field rather than passed through verbatim.
+ * - The plugin declares no sort fields (host-API < 1.2.0, or `getSortFields`
+ *   omitted): return natural order (`{ undefined, undefined }`), matching the
+ *   "no picker" rendering (CLI-FR-011).
+ * - Nothing persisted at any layer: natural order, regardless of declarations.
+ *
+ * Async because the declared-field set comes from the plugin's `getSortFields`
+ * RPC; kept separate from the synchronous `resolveSort` so that function's
+ * contract and callers are undisturbed.
+ */
+export async function resolveSortForActivePlugin(
+  projectId: string,
+  pluginId: string,
+): Promise<{ sortBy: string | undefined; sortDir: "asc" | "desc" | undefined }> {
+  const persisted = resolveSort(projectId);
+  if (persisted.sortBy === undefined) {
+    return { sortBy: undefined, sortDir: undefined };
+  }
+
+  const fields = await getPluginSortFields(pluginId);
+  if (fields.length === 0) {
+    // The plugin declares no sort fields: there is nothing to validate against
+    // and no picker is rendered, so fall back to the plugin's natural order.
+    return { sortBy: undefined, sortDir: undefined };
+  }
+
+  const declared = fields.find((f) => f.id === persisted.sortBy);
+  if (declared) {
+    return { sortBy: persisted.sortBy, sortDir: persisted.sortDir };
+  }
+
+  // Persisted value is unsupported by the active plugin: substitute its first
+  // declared field and that field's default direction (CLI-TC-070 / AC3).
+  const first = fields[0];
+  return { sortBy: first.id, sortDir: first.defaultDir };
 }
 
 /**
