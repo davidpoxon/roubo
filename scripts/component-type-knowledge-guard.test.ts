@@ -109,6 +109,21 @@ describe("scanFiles (ComponentTypeKnowledgeGuard, CP-NFR-006)", () => {
     expect(findings).toEqual([]);
   });
 
+  it("does NOT flag a docker-field name in a comment in a non-allowlisted core file", () => {
+    // server/routes/benches.ts is NOT docker-field-allowlisted, so rule 2 runs
+    // against it. A docker-field name appearing only in a comment must not be a
+    // violation: rule 2 strips comments before matching, like rule 1.
+    const findings = scan({
+      "server/routes/benches.ts": [
+        "function listBenches(req, res) {",
+        "  // the plugin descriptor (not config) owns .composeFile / .initService",
+        "  return res.json(benches);",
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toEqual([]);
+  });
+
   it("returns zero findings on clean input", () => {
     const findings = scan({
       "server/routes/benches.ts": [

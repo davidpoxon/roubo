@@ -12,8 +12,6 @@
 //      an equality (=== / ==) against 'database' or 'process', or a
 //      `case 'database':` / `case 'process':`. These are the dispatch sites the
 //      refactor removed; reintroducing one is the regression NFR-006 forbids.
-//      Comments are stripped before scanning so prose that documents the rule
-//      (e.g. "no `=== \"database\"` dispatch") is not itself a violation.
 //
 //   2. Docker/compose field branch. Member access on a docker-only descriptor
 //      field (composeFile, initService, portEnvVar, composeUp, composeDown,
@@ -23,6 +21,12 @@
 //      reads the PLUGIN's cached descriptor, not a config docker-field, to
 //      drive teardown / reconcile). Everywhere else, reading a docker field
 //      means core has regrown container knowledge.
+//
+// Both rules match against the comment-stripped source so prose that documents
+// the forbidden patterns (e.g. "no `=== \"database\"` dispatch", or a
+// `.composeFile` mention in a comment) is not itself a violation. Stripping
+// comments can never hide a real dispatch or field access, so the guard stays
+// sound.
 //
 // Run with: npm run lint:component-guard
 
@@ -93,10 +97,16 @@ export function scanFiles(files, readFn) {
     }
 
     const rawLines = contents.split("\n");
+    // Both rules match against the comment-stripped source so prose that
+    // documents the forbidden patterns (a `=== "database"` or `.composeFile`
+    // mention in a comment) is never itself a violation. rawLines is kept only
+    // for the reported `text`. Stripping comments can never hide a real
+    // dispatch or field access (those are code, not comments), so the guard
+    // stays sound for both rules.
+    const codeLines = stripComments(contents).split("\n");
 
-    // Rule 1: component-type literal dispatch, comments stripped.
+    // Rule 1: component-type literal dispatch.
     if (!TYPE_LITERAL_ALLOWLIST.has(file)) {
-      const codeLines = stripComments(contents).split("\n");
       for (let i = 0; i < codeLines.length; i++) {
         if (TYPE_LITERAL.test(codeLines[i])) {
           findings.push({
@@ -113,8 +123,8 @@ export function scanFiles(files, readFn) {
 
     // Rule 2: docker/compose field branch outside the owning modules.
     if (!DOCKER_FIELD_ALLOWLIST.has(file)) {
-      for (let i = 0; i < rawLines.length; i++) {
-        if (DOCKER_FIELD.test(rawLines[i])) {
+      for (let i = 0; i < codeLines.length; i++) {
+        if (DOCKER_FIELD.test(codeLines[i])) {
           findings.push({
             file,
             line: i + 1,
