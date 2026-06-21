@@ -28,6 +28,7 @@ import {
   listDatabaseContainers,
   getComposeProjectName,
   getContainerId,
+  getContainerInfoById,
 } from "./docker.js";
 import { runCommand } from "./exec.js";
 
@@ -561,5 +562,51 @@ describe("getContainerId", () => {
   it("returns null when listContainers throws", async () => {
     mockListContainers.mockRejectedValue(new Error("docker down"));
     expect(await getContainerId("p", "db")).toBeNull();
+  });
+});
+
+describe("getContainerInfoById", () => {
+  it("returns identity and published port for any container, by full or short id", async () => {
+    mockListContainers.mockResolvedValue([
+      {
+        Id: "abc123def456789",
+        Names: ["/my-postgres"],
+        Ports: [{ PrivatePort: 5432, PublicPort: 5433 }],
+        State: "running",
+      },
+    ]);
+    expect(await getContainerInfoById("abc123def456789")).toEqual({
+      id: "abc123def456",
+      name: "my-postgres",
+      port: 5433,
+      status: "running",
+    });
+    // matches on the short (12-char) id too
+    expect(await getContainerInfoById("abc123def456")).toMatchObject({ id: "abc123def456" });
+  });
+
+  it("returns undefined port when the container publishes none", async () => {
+    mockListContainers.mockResolvedValue([
+      {
+        Id: "abc123def456789",
+        Names: ["/redis"],
+        Ports: [{ PrivatePort: 6379 }],
+        State: "running",
+      },
+    ]);
+    const info = await getContainerInfoById("abc123def456789");
+    expect(info?.port).toBeUndefined();
+  });
+
+  it("returns null when no container matches", async () => {
+    mockListContainers.mockResolvedValue([
+      { Id: "other", Names: ["/other"], Ports: [], State: "running" },
+    ]);
+    expect(await getContainerInfoById("missing")).toBeNull();
+  });
+
+  it("returns null when listContainers throws", async () => {
+    mockListContainers.mockRejectedValue(new Error("docker down"));
+    expect(await getContainerInfoById("abc")).toBeNull();
   });
 });
