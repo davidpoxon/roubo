@@ -283,6 +283,14 @@ GET /api/projects/:projectId/benches/:id/components/:name/logs?tail=N
 
 Returns `{ logs: string[] }`. `tail` defaults to **200**. Each entry is a line of captured stdout/stderr. There is no SSE stream for logs today; poll if you need a live feed.
 
+### Audit log
+
+```
+GET /api/projects/:projectId/benches/:id/audit-log?pluginId=PLUGIN_ID
+```
+
+Returns `AuditEntry[]`: the privileged HostComponentBroker calls recorded for this bench, in chronological order. The optional `pluginId` query narrows the result to a single plugin. Each entry is `{ ts, pluginId, benchId, method, params, outcome }`, where `outcome` is `"allowed"` or `"denied"`. The store is in-memory only (it is not persisted to `state.json`), so a bench's log is empty after a server restart and is dropped when the bench is cleared.
+
 ---
 
 ## Tools
