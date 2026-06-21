@@ -1,0 +1,19 @@
+id: github-com
+name: GitHub.com
+version: 0.1.0
+description: Spawnable integration-kind fixture mirroring the bundled github-com plugin for the CP-TC-029 drift guard (issue #630).
+kind: integration
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts:
+      - api.github.com
+  credentials:
+    slots:
+      - slot: github-token
+        scope: read
+        description: Personal access token or OAuth token for GitHub.com
+  filesystem:
+    paths: []
+  processes: false
