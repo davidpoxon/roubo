@@ -19,26 +19,23 @@
 // mocked (no network, no real server). The useToast hook is mocked so the error
 // path's addToast emits no console noise.
 //
-// FIDELITY NOTE (asserts real shipped behaviour, NOT the spec's literal prose):
-// CP-TC-076's authoritative observation strings quote surfaces that DO NOT EXIST
-// in the shipped slices, and the modal is not wired into any install flow. The
-// "Install Redis?" title (modal renders "Review permissions for {name}"), the
-// "Install plugin" button label (modal renders "Acknowledge and continue"), the
-// "Docker / containers" + "Run the Redis container via compose." and "Bind ports"
-// + "Reserve the Redis host port." category surfaces (modal renders "Docker" /
-// "Network ports" with generic descriptions), the "Installed Redis · roubo/redis"
-// success toast, the marketplace-grid Install card + "Installed" badge, and the
-// `roubo/redis` v1.3.0 plugin identity are all absent. A literal-prose assertion
-// cannot pass without out-of-scope slice/UI work, so this guard asserts the REAL
-// integrated behaviour through the shipped seams (the only path to a passing
-// committed drift guard, exactly as CP-TC-027 did). Reconciling TC-076's prose
-// with the shipped UX (or building the missing marketplace install -> consent ->
-// toast -> badge integration) is tracked in #678.
+// FIDELITY NOTE (asserts the real shipped behaviour, now matched by the spec):
+// CP-TC-076's authoritative prose has been reconciled to the shipped consent UX
+// (#678 chose option 1: reconcile the spec, keep the marketplace install flow out
+// of scope for v1). The spec now states the shipped surfaces, so this guard's
+// assertions and CP-TC-076's prose agree: the "Review permissions for {name}"
+// title, the "Acknowledge and continue" confirm label, the "Docker" /
+// "Network ports" categories with their generic descriptions, the grantConsent ->
+// onConsented seam (no success toast, no marketplace badge, no `roubo/redis`
+// v1.3.0 plugin identity), and the aria-disabled confirm gate (NFR-007). This
+// guard still asserts the integrated journey through the shipped seams, exactly as
+// CP-TC-027 did; #678 is now closed out by the reconciled prose.
 //
-// Icon discrepancy (S002): TC-076 specifies a "shield-alert" trust icon, but the
-// modal uses ShieldCheck for a first-party plugin (ShieldAlert is reserved for
-// third-party). So S002 asserts the trust banner's content/role (unsandboxed in
-// this release + the v2-isolation note) and data-first-party, NOT the exact icon.
+// Icon discrepancy (S002): CP-TC-076 now specifies a "shield-check" trust icon, in
+// line with the shipped modal, which renders ShieldCheck for a first-party plugin
+// (ShieldAlert is reserved for third-party). S002 asserts the trust banner's
+// content/role (unsandboxed in this release + the v2-isolation note) and
+// data-first-party, NOT the exact icon.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, within } from "@testing-library/react";
