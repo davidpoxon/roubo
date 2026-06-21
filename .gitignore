@@ -11,6 +11,8 @@ plugins/*/dist
 plugins/*/node_modules
 e2e/fixtures/stubbed-plugin/dist
 e2e/fixtures/stubbed-plugin/node_modules
+e2e/fixtures/clasp-deploy-stub/dist
+e2e/fixtures/clasp-deploy-stub/node_modules
 # Runtime log dirs created by the plugin-manager when the e2e harness points
 # ROUBO_USER_PLUGINS_DIR at e2e/fixtures/ (WU-063): logs end up at
 # e2e/fixtures/<pluginId>/logs/. Pure runtime artefact, never committed.
@@ -22,6 +24,7 @@ e2e/fixtures/github-com/
 e2e/fixtures/ghe/
 e2e/fixtures/jira-self-hosted/
 e2e/fixtures/broken-plugin/
+e2e/fixtures/clasp-deploy-stub/logs/
 electron/out
 electron/node_modules
 **/.DS_Store
