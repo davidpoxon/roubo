@@ -15,6 +15,7 @@ vi.mock("../services/bench-manager.js", async (importOriginal) => {
     startComponent: vi.fn(),
     stopComponent: vi.fn(),
     getComponentLogs: vi.fn(),
+    queryAuditLog: vi.fn(),
     assignContainer: vi.fn(),
     unassignContainer: vi.fn(),
     cleanupAndRetryBench: vi.fn(),
@@ -761,6 +762,53 @@ describe("GET /:projectId/benches/:id/components/:name/logs", () => {
     expect(res.status).toBe(200);
     expect(res.body.logs).toEqual(logs);
     expect(benchManager.getComponentLogs).toHaveBeenCalledWith("my-project", 1, "backend", 2);
+  });
+});
+
+describe("GET /:projectId/benches/:id/audit-log", () => {
+  const entries = [
+    {
+      ts: "2026-06-21T00:00:00.000Z",
+      pluginId: "github-com",
+      benchId: 1,
+      method: "host.process.start",
+      params: {},
+      outcome: "allowed" as const,
+    },
+    {
+      ts: "2026-06-21T00:00:01.000Z",
+      pluginId: "github-com",
+      benchId: 1,
+      method: "host.docker.up",
+      params: {},
+      outcome: "denied" as const,
+    },
+  ];
+
+  it("returns recorded entries in chronological order", async () => {
+    vi.mocked(benchManager.queryAuditLog).mockReturnValue(entries);
+
+    const res = await request(app).get("/my-project/benches/1/audit-log");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(entries);
+    expect(benchManager.queryAuditLog).toHaveBeenCalledWith("my-project", 1, undefined);
+  });
+
+  it("passes the pluginId filter through to the query", async () => {
+    vi.mocked(benchManager.queryAuditLog).mockReturnValue([entries[0]]);
+
+    const res = await request(app).get("/my-project/benches/1/audit-log?pluginId=github-com");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([entries[0]]);
+    expect(benchManager.queryAuditLog).toHaveBeenCalledWith("my-project", 1, "github-com");
+  });
+
+  it("returns an empty array when no calls have been recorded", async () => {
+    vi.mocked(benchManager.queryAuditLog).mockReturnValue([]);
+
+    const res = await request(app).get("/my-project/benches/1/audit-log");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 });
 
