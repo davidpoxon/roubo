@@ -555,17 +555,31 @@ export interface ComponentLogLine {
 }
 
 /**
- * The advisory permission categories the broker recognises. In v1 the broker
- * gate is advisory only (enforcement lands in F2.1, #607), so an absent or
- * permissive check never blocks a call; it only records intent.
+ * The permission categories the broker enforces (F2.1, #618). Every broker
+ * method maps to one of these; a call whose category the plugin did not declare
+ * is denied with a permission-denied error before reaching the host delegate.
  */
 export type BrokerPermissionCategory = "process" | "docker" | "ports";
+
+/**
+ * Structured payload carried by a broker permission-denied error
+ * (PERMISSION_DENIED_CODE, -32001). Mirrors FilesystemPermissionDeniedData /
+ * ProcessesPermissionDeniedData so every host surface reports denials in the
+ * same shape. `method` is the broker method that was denied; `reason` is fixed
+ * (the plugin did not declare the category the method needs).
+ */
+export interface BrokerPermissionDeniedData {
+  code: "permission-denied";
+  category: BrokerPermissionCategory;
+  method: string;
+  reason: "category-not-declared";
+}
 
 /**
  * Per-bench data the HostComponentBroker needs to service a component plugin's
  * privileged calls. Injected at broker construction so handlers never reach into
  * globals: ports are pre-resolved host-side, status and log reporting are
- * push-based sinks, and the advisory permission check is supplied by the caller.
+ * push-based sinks, and the enforced permission check is supplied by the caller.
  */
 export interface BrokerContext {
   /** Host-allocated ports for this bench, keyed by component name. */
@@ -575,12 +589,12 @@ export interface BrokerContext {
   /** Push sink invoked by `host.component.reportLog`. */
   reportLog: (line: ComponentLogLine) => void;
   /**
-   * Advisory permission check. Returns false when the plugin did not declare a
-   * category. In v1 the broker logs a denial but still proceeds (advisory);
-   * F2.1 (#607) turns this into hard enforcement.
+   * Permission check. Returns false when the plugin did not declare a category.
+   * The broker denies any call whose category returns false with a
+   * permission-denied error, before delegating to the host (F2.1, #618).
    */
   hasPermission: (category: BrokerPermissionCategory) => boolean;
-  /** Records an externally-assigned container against a component (advisory). */
+  /** Records an externally-assigned container against a component. */
   assignContainer?: (componentName: string, containerId: string) => void;
 }
 

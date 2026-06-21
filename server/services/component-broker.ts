@@ -2,6 +2,7 @@ import { ResponseError } from "vscode-jsonrpc/node.js";
 import type {
   BrokerContext,
   BrokerPermissionCategory,
+  BrokerPermissionDeniedData,
   CapabilityQueryResult,
   ComponentLogLine,
   ComponentStatus,
@@ -11,11 +12,12 @@ import * as processManager from "./process-manager.js";
 import * as dockerService from "./docker.js";
 
 // JSON-RPC server-error range; mirrors the conventions in plugin-host-api.ts so
-// broker errors look identical to the rest of the host surface. Permission
-// enforcement is advisory in v1 (the gate logs but never throws), so no
-// permission-denied code is used here yet; F2.1 (#607) adds it.
+// broker errors look identical to the rest of the host surface. The
+// permission-denied code matches plugin-fs.ts / plugin-spawn.ts /
+// plugin-host-api.ts so every host surface speaks one denial code (F2.1, #618).
 const INVALID_PARAMS_CODE = -32602;
 const INTERNAL_ERROR_CODE = -32603;
+const PERMISSION_DENIED_CODE = -32001;
 
 /**
  * The broker API version. Every method in the v1 surface ships in this version,
@@ -132,18 +134,33 @@ function requireNumber(method: string, name: string, value: unknown): number {
 }
 
 /**
- * Advisory permission gate. In v1 a denied category is logged but the call still
- * proceeds; F2.1 (#607) turns this into hard enforcement. Centralised here so
- * the enforcement flip is a one-line change.
+ * Permission gate (F2.1, #618). Throws a permission-denied ResponseError when
+ * the plugin did not declare the category the method needs, so a broker call
+ * outside the consented categories never reaches the host delegate. Mirrors the
+ * denyFs / denyProcesses pattern in plugin-fs.ts / plugin-spawn.ts: same
+ * permission-denied code and structured data shape across every host surface.
+ * Centralised here because the broker is the single privileged choke-point, so
+ * one gate covers every host.process.* / host.docker.* / host.ports.* method.
  */
-function advisoryGate(
+function enforcePermission(
   ctx: BrokerContext,
   method: string,
   category: BrokerPermissionCategory,
   log: BrokerLogger,
 ): void {
   if (!ctx.hasPermission(category)) {
-    log("warn", `${method} not declared "${category}" permission (advisory; proceeding in v1)`);
+    const data: BrokerPermissionDeniedData = {
+      code: "permission-denied",
+      category,
+      method,
+      reason: "category-not-declared",
+    };
+    log("warn", `${method} denied: category="${category}" reason="${data.reason}"`);
+    throw new ResponseError<BrokerPermissionDeniedData>(
+      PERMISSION_DENIED_CODE,
+      `Permission denied: ${data.reason} for category "${category}"`,
+      data,
+    );
   }
 }
 
@@ -172,8 +189,9 @@ interface ComposeBaseParams {
  * process-manager / docker services, and maps the service shape to the frozen
  * broker contract (architecture.md "Interfaces / contracts", SPK-3).
  *
- * Permission enforcement is advisory in v1 (the issue's Out of Scope); the gate
- * logs but does not block. F2.1 (#607) makes it enforce.
+ * Permission is enforced (F2.1, #618): each handler calls enforcePermission
+ * before delegating, so a call outside the plugin's consented categories throws
+ * a permission-denied error and the host delegate never runs.
  */
 export function registerBrokerHandlers(
   connection: JsonRpcConnection,
@@ -190,7 +208,7 @@ export function registerBrokerHandlers(
     "host.process.start",
     async (params) => {
       const method = "host.process.start";
-      advisoryGate(ctx, method, "process", log);
+      enforcePermission(ctx, method, "process", log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -208,7 +226,7 @@ export function registerBrokerHandlers(
     "host.process.run",
     async (params) => {
       const method = "host.process.run";
-      advisoryGate(ctx, method, "process", log);
+      enforcePermission(ctx, method, "process", log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -226,7 +244,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, null>("host.process.stop", async (params) => {
     const method = "host.process.stop";
-    advisoryGate(ctx, method, "process", log);
+    enforcePermission(ctx, method, "process", log);
     const id = requireString(method, "id", params?.id);
     try {
       await pm.stopProcess(id);
@@ -240,7 +258,7 @@ export function registerBrokerHandlers(
     "host.process.status",
     (params) => {
       const method = "host.process.status";
-      advisoryGate(ctx, method, "process", log);
+      enforcePermission(ctx, method, "process", log);
       const id = requireString(method, "id", params?.id);
       try {
         const status = pm.getProcessStatus(id);
@@ -255,7 +273,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, string[]>("host.process.logs", (params) => {
     const method = "host.process.logs";
-    advisoryGate(ctx, method, "process", log);
+    enforcePermission(ctx, method, "process", log);
     const id = requireString(method, "id", params?.id);
     try {
       return pm.getProcessLogs(id);
@@ -271,7 +289,7 @@ export function registerBrokerHandlers(
     { containerId: string }
   >("host.docker.composeUp", async (params) => {
     const method = "host.docker.composeUp";
-    advisoryGate(ctx, method, "docker", log);
+    enforcePermission(ctx, method, "docker", log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -314,7 +332,7 @@ export function registerBrokerHandlers(
     { healthy: boolean }
   >("host.docker.waitForHealthy", async (params) => {
     const method = "host.docker.waitForHealthy";
-    advisoryGate(ctx, method, "docker", log);
+    enforcePermission(ctx, method, "docker", log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const service = requireString(method, "service", params?.service);
     const timeoutMs =
@@ -333,7 +351,7 @@ export function registerBrokerHandlers(
     "host.docker.composeRunInit",
     async (params) => {
       const method = "host.docker.composeRunInit";
-      advisoryGate(ctx, method, "docker", log);
+      enforcePermission(ctx, method, "docker", log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -363,7 +381,7 @@ export function registerBrokerHandlers(
     "host.docker.composeStop",
     async (params) => {
       const method = "host.docker.composeStop";
-      advisoryGate(ctx, method, "docker", log);
+      enforcePermission(ctx, method, "docker", log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -383,7 +401,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<ComposeBaseParams, null>("host.docker.composeDown", async (params) => {
     const method = "host.docker.composeDown";
-    advisoryGate(ctx, method, "docker", log);
+    enforcePermission(ctx, method, "docker", log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -400,7 +418,7 @@ export function registerBrokerHandlers(
     (params) => {
       const method = "host.docker.assignContainer";
       // assignContainer is gated on the docker permission category (SPK-3 AC3).
-      advisoryGate(ctx, method, "docker", log);
+      enforcePermission(ctx, method, "docker", log);
       const componentName = requireString(method, "componentName", params?.componentName);
       const containerId = requireString(method, "containerId", params?.containerId);
       try {
@@ -418,7 +436,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ componentName?: unknown }, number>("host.ports.get", (params) => {
     const method = "host.ports.get";
-    advisoryGate(ctx, method, "ports", log);
+    enforcePermission(ctx, method, "ports", log);
     const componentName = requireString(method, "componentName", params?.componentName);
     const port = ctx.ports[componentName];
     if (typeof port !== "number") {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ResponseError } from "vscode-jsonrpc/node.js";
-import type { BrokerContext, ComponentStatus } from "@roubo/shared";
+import type { BrokerContext, BrokerPermissionCategory, ComponentStatus } from "@roubo/shared";
 import {
   registerBrokerHandlers,
   BROKER_API_VERSION,
@@ -67,14 +67,25 @@ interface Harness {
   call: (method: string, params?: unknown) => Promise<unknown>;
 }
 
-function setup(opts: { ports?: Record<string, number>; allow?: boolean } = {}): Harness {
+function setup(
+  opts: {
+    ports?: Record<string, number>;
+    allow?: boolean;
+    deny?: BrokerPermissionCategory[];
+  } = {},
+): Harness {
   const connection = makeConnection();
   const pm = makeProcessManager();
   const docker = makeDocker();
   const reportStatus = vi.fn();
   const reportLog = vi.fn();
   const assignContainer = vi.fn();
-  const hasPermission = vi.fn(() => opts.allow ?? true);
+  // `deny` (a set of categories to refuse) takes precedence; otherwise fall
+  // back to the blanket `allow` flag (default: every category permitted).
+  const denied = new Set(opts.deny ?? []);
+  const hasPermission = vi.fn((category: BrokerPermissionCategory) =>
+    opts.deny ? !denied.has(category) : (opts.allow ?? true),
+  );
   const log = vi.fn();
   const ctx: BrokerContext = {
     ports: opts.ports ?? { web: 3001, db: 5433 },
@@ -323,7 +334,7 @@ describe("host.docker.* delegation (CP-TC-037)", () => {
   });
 });
 
-describe("host.docker.assignContainer advisory gate (CP-TC-026)", () => {
+describe("host.docker.assignContainer permission gate (CP-TC-026)", () => {
   it("records the assignment through the injected sink", async () => {
     const h = setup();
     const result = await h.call("host.docker.assignContainer", {
@@ -334,15 +345,20 @@ describe("host.docker.assignContainer advisory gate (CP-TC-026)", () => {
     expect(result).toBeNull();
   });
 
-  it("warns but still proceeds when docker permission is not declared (advisory in v1)", async () => {
+  it("denies and never assigns when docker permission is not declared", async () => {
     const h = setup({ allow: false });
-    await h.call("host.docker.assignContainer", { componentName: "db", containerId: "ext-1" });
-    // advisory: the call is NOT denied, the assignment still happens.
-    expect(h.assignContainer).toHaveBeenCalledWith("db", "ext-1");
+    await expect(
+      h.call("host.docker.assignContainer", { componentName: "db", containerId: "ext-1" }),
+    ).rejects.toMatchObject({
+      code: -32001,
+      data: { code: "permission-denied", category: "docker", reason: "category-not-declared" },
+    });
+    // enforced: the call is denied, the assignment never happens.
+    expect(h.assignContainer).not.toHaveBeenCalled();
     expect(h.hasPermission).toHaveBeenCalledWith("docker");
     expect(h.log).toHaveBeenCalledWith(
       "warn",
-      expect.stringContaining("host.docker.assignContainer"),
+      expect.stringContaining("host.docker.assignContainer denied"),
     );
   });
 
@@ -447,6 +463,86 @@ describe("unknown invoked method (FR-017, CP-TC-009, CP-TC-054)", () => {
     // surfaces as a clean JSON-RPC error, not an exception in the host.
     const err = new ResponseError(-32601, "Method not found");
     expect(err.code).toBe(-32601);
+  });
+});
+
+describe("PermissionEnforcer: deny undeclared broker calls (CP-TC-086, CP-TC-093)", () => {
+  // One representative method per enforced category, with the args its handler
+  // needs and the host delegate (on the harness) it must NOT reach when denied.
+  const cases: Array<{
+    category: BrokerPermissionCategory;
+    method: string;
+    params: unknown;
+    delegate: (h: Harness) => ReturnType<typeof vi.fn>;
+  }> = [
+    {
+      category: "process",
+      method: "host.process.start",
+      params: { id: "web", command: "node", args: [], env: {}, cwd: "/work" },
+      delegate: (h) => h.pm.startProcess as ReturnType<typeof vi.fn>,
+    },
+    {
+      category: "docker",
+      method: "host.docker.composeUp",
+      params: { projectName: "p", composeFile: "c.yml", cwd: "/w", service: "db", env: {} },
+      delegate: (h) => h.docker.composeUp as ReturnType<typeof vi.fn>,
+    },
+    {
+      category: "ports",
+      method: "host.ports.get",
+      params: { componentName: "web" },
+      // ports.get reads ctx.ports directly; the "delegate" we assert against is
+      // simply that no port value is returned (covered by the AC2 rejection).
+      delegate: () => vi.fn(),
+    },
+  ];
+
+  for (const { category, method, params } of cases) {
+    it(`AC1: ${method} passes through unchanged when "${category}" is declared`, async () => {
+      const h = setup({ allow: true, ports: { web: 3001 } });
+      await expect(h.call(method, params)).resolves.toBeDefined();
+      expect(h.hasPermission).toHaveBeenCalledWith(category);
+    });
+
+    it(`AC2: ${method} is denied with a permission-denied error when "${category}" is not declared`, async () => {
+      const h = setup({ deny: [category], ports: { web: 3001 } });
+      await expect(h.call(method, params)).rejects.toMatchObject({
+        code: -32001,
+        data: { code: "permission-denied", category, reason: "category-not-declared", method },
+      });
+      expect(h.hasPermission).toHaveBeenCalledWith(category);
+      expect(h.log).toHaveBeenCalledWith("warn", expect.stringContaining(`${method} denied`));
+    });
+  }
+
+  // AC3: a denied docker / process operation must never execute on the host.
+  for (const { category, method, params, delegate } of cases.filter(
+    (c) => c.category !== "ports",
+  )) {
+    it(`AC3: ${method} never reaches the host delegate when "${category}" is denied`, async () => {
+      const h = setup({ deny: [category], ports: { web: 3001 } });
+      await expect(h.call(method, params)).rejects.toMatchObject({ code: -32001 });
+      expect(delegate(h)).not.toHaveBeenCalled();
+    });
+  }
+
+  it("only the denied category is blocked; an unrelated declared category still passes", async () => {
+    // process denied, docker allowed: the docker call must still go through.
+    const h = setup({ deny: ["process"] });
+    await expect(
+      h.call("host.docker.composeDown", { projectName: "p", composeFile: "c.yml", cwd: "/w" }),
+    ).resolves.toBeNull();
+    expect(h.docker.composeDown).toHaveBeenCalled();
+  });
+
+  it("host.component.report* is not gated (no privileged category)", async () => {
+    // reportStatus / reportLog are push sinks, not privileged ops; denying every
+    // category must not block them.
+    const h = setup({ deny: ["process", "docker", "ports"] });
+    await expect(
+      h.call("host.component.reportStatus", { name: "db", status: "running" }),
+    ).resolves.toBeNull();
+    expect(h.reportStatus).toHaveBeenCalled();
   });
 });
 
