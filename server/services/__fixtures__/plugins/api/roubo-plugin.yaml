@@ -1,0 +1,25 @@
+id: api
+name: API Sibling Component Fixture
+version: 0.0.0
+description: >-
+  Long-lived sibling component fixture for the CP-TC-099 enforced sandboxing e2e
+  drift guard (issue #628). It stands in for the bench's well-behaved 'api'
+  component: it spawns, answers a liveness ping, and stays running so the test
+  can assert graceful degradation (the sibling remains 'running' throughout while
+  the offending ports-only plugin's undeclared actions are blocked and audited).
+kind: component
+roubo: ^1.3.0
+entry: ./index.cjs
+contractVersion: 1
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+  ports:
+    names:
+      - http
+  docker: false
