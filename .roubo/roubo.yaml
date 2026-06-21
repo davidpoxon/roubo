@@ -9,19 +9,23 @@ layout:
   type: single-repo
 components:
   server:
-    type: process
-    command: npx tsx watch server/index.ts
-    env:
-      ROUBO_PORT: "{{ports.server}}"
+    plugin:
+      id: process
+    config:
+      command: npx tsx watch server/index.ts
+      env:
+        ROUBO_PORT: "{{ports.server}}"
   client:
-    type: process
+    plugin:
+      id: process
     dependsOn:
       - server
-    command: npm run dev
-    env:
-      DEV_PORT: "{{ports.client}}"
-      DEV_API_PORT: "{{ports.server}}"
-    directory: client
+    config:
+      command: npm run dev
+      env:
+        DEV_PORT: "{{ports.client}}"
+        DEV_API_PORT: "{{ports.server}}"
+      directory: client
 ports:
   server:
     base: 4100
