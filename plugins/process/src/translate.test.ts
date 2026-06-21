@@ -12,7 +12,7 @@ const context: BenchContext = {
 };
 
 describe("process plugin translate (CP-FR-005, CP-FR-007)", () => {
-  it("maps command, setup, env, envFile, directory, and dependsOn to a process descriptor (AC1)", () => {
+  it("maps command, setup, env, envFile, and directory to a process descriptor (AC1)", () => {
     const descriptor = translate({
       config: {
         command: "node server.js",
@@ -20,7 +20,6 @@ describe("process plugin translate (CP-FR-005, CP-FR-007)", () => {
         env: { NODE_ENV: "test", PORT: "3000" },
         envFile: ".env.local",
         directory: "packages/api",
-        dependsOn: ["db", "cache"],
       },
       context,
     });
@@ -33,8 +32,18 @@ describe("process plugin translate (CP-FR-005, CP-FR-007)", () => {
       env: { NODE_ENV: "test", PORT: "3000" },
       envFile: ".env.local",
       cwd: "packages/api",
-      dependsOn: ["db", "cache"],
     });
+  });
+
+  it("never carries dependsOn: core owns it at the component entry level, not in config", () => {
+    const descriptor = translate({
+      config: { command: "node app.js", dependsOn: ["db", "cache"] },
+      context,
+    });
+
+    // `dependsOn` placed inside `config` is ignored by translate (core models it
+    // at the entry level), so it never leaks onto the descriptor.
+    expect("dependsOn" in descriptor).toBe(false);
   });
 
   it("emits only the required command for a minimal config", () => {

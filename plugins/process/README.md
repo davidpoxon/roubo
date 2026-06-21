@@ -27,12 +27,16 @@ The component's opaque `config` block (validated host-side against the manifest
 | `env`       | no       | `env`              | Environment variables injected into the process. Win over `envFile` on conflict.                                    |
 | `envFile`   | no       | `envFile`          | Workspace-relative KEY=VALUE file merged into the process environment.                                              |
 | `directory` | no       | `cwd`              | Workspace-relative working directory; the engine resolves it against the workspace. Defaults to the workspace root. |
-| `dependsOn` | no       | `dependsOn`        | Component names that must be up before this process starts.                                                         |
 
 The only user-facing rename is `directory` -> the descriptor's `cwd`; the host
 engine resolves the relative path against the bench `workspacePath`, and merges
 `env` / `envFile` (explicit `env` wins), preserving built-in env/envFile
 injection.
+
+`dependsOn` is **not** a `config` key. It is declared at the component entry
+level (a sibling of `plugin` and `config`, see the example below), where core
+validates it and drives start/stop ordering, so it never reaches this plugin's
+opaque `config`.
 
 ## Example
 

@@ -19,7 +19,11 @@ import type { BenchContext, ProcessProvisionDescriptor } from "@roubo/plugin-sdk
  * - `directory`: a workspace-relative working directory. It maps to the
  *   descriptor's `cwd`, which the engine resolves against the bench
  *   `workspacePath`. Omitted means the workspace root.
- * - `dependsOn`: component names that must be up before this process starts.
+ *
+ * `dependsOn` is deliberately NOT a plugin-config field: core models it at the
+ * component entry level (sibling to `config`, see `ComponentConfigSchema`) and
+ * drives start/stop ordering from there, so it never reaches the opaque `config`
+ * this function receives.
  *
  * The user-facing key is `directory`; the descriptor key is `cwd`. The rename is
  * the only transform (the engine resolves the relative path against the bench
@@ -68,11 +72,6 @@ export function translate(params: {
   const setup = config.setup;
   if (typeof setup === "string" && setup.length > 0) {
     descriptor.setup = setup;
-  }
-
-  const dependsOn = config.dependsOn;
-  if (Array.isArray(dependsOn)) {
-    descriptor.dependsOn = dependsOn as string[];
   }
 
   return descriptor;
