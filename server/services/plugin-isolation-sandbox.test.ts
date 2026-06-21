@@ -1,12 +1,25 @@
-import { describe, it, expect } from "vitest";
+import os from "node:os";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import type { IsolationCapabilities, PluginManifest } from "@roubo/shared";
 import {
   buildSandboxedSpawn,
+  defaultIsolationProbes,
   detectIsolationCapabilities,
   deriveEgressPolicy,
   selectTier,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
+
+// dockerode is lazy-imported inside the docker probe; mock it so the probe can
+// be exercised without a live daemon. pingMock is reassigned per test.
+let pingMock: () => Promise<unknown> = () => Promise.resolve("OK");
+vi.mock("dockerode", () => ({
+  default: class {
+    ping() {
+      return pingMock();
+    }
+  },
+}));
 
 function manifest(hosts: string[] = []): PluginManifest {
   return {
@@ -134,5 +147,55 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
   it("degrades vz-vm / apple-container to null (no VM backend ships in this slice)", () => {
     expect(buildSandboxedSpawn(manifest([]), "vz-vm", opts)).toBeNull();
     expect(buildSandboxedSpawn(manifest([]), "apple-container", opts)).toBeNull();
+  });
+});
+
+describe("plugin-isolation-sandbox: defaultIsolationProbes (#675 real runtime detection)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    pingMock = () => Promise.resolve("OK");
+  });
+
+  it("vzVm is conservatively false (no VM backend ships in this slice)", async () => {
+    expect(await defaultIsolationProbes().vzVm()).toBe(false);
+  });
+
+  it("docker probe is true when the daemon ping resolves", async () => {
+    pingMock = () => Promise.resolve("OK");
+    expect(await defaultIsolationProbes().docker()).toBe(true);
+  });
+
+  it("docker probe rejects (treated as unavailable) when the daemon ping fails", async () => {
+    pingMock = () => Promise.reject(new Error("daemon unreachable"));
+    // The probe propagates the rejection; detectIsolationCapabilities swallows
+    // it into a false capability (degrade one rung, NFR-005).
+    await expect(defaultIsolationProbes().docker()).rejects.toThrow("daemon unreachable");
+    const caps = await detectIsolationCapabilities({
+      vzVm: () => false,
+      appleContainer: () => false,
+      docker: defaultIsolationProbes().docker,
+    });
+    expect(caps.docker).toBe(false);
+  });
+
+  it("appleContainer is false off macOS regardless of the container CLI", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("linux");
+    vi.spyOn(os, "arch").mockReturnValue("arm64");
+    expect(await defaultIsolationProbes().appleContainer()).toBe(false);
+  });
+
+  it("appleContainer is false on macOS but non-arm64 (Intel) hosts", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    vi.spyOn(os, "arch").mockReturnValue("x64");
+    expect(await defaultIsolationProbes().appleContainer()).toBe(false);
+  });
+
+  it("appleContainer falls through to the PATH check on macOS arm64 (absent CLI -> false)", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    vi.spyOn(os, "arch").mockReturnValue("arm64");
+    // The `container` CLI is not installed in the test environment, so the PATH
+    // lookup resolves false. This exercises the platform+arch guard passing and
+    // the executable check returning the conservative answer.
+    expect(await defaultIsolationProbes().appleContainer()).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { mkdtemp, rm, symlink, writeFile, mkdir, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import os, { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginEnableState, PluginRecord } from "@roubo/shared";
@@ -36,6 +36,18 @@ const enableStateMocks = vi.hoisted(() => {
   };
 });
 vi.mock("./plugin-enable-state.js", () => enableStateMocks);
+
+// dockerode is lazy-imported by the real isolation probe (#675). Mock it so the
+// boot-install branch can be exercised without a live daemon: dockerPingMock is
+// reassigned per test to model a reachable / unreachable daemon.
+let dockerPingMock: () => Promise<unknown> = () => Promise.reject(new Error("no daemon"));
+vi.mock("dockerode", () => ({
+  default: class {
+    ping() {
+      return dockerPingMock();
+    }
+  },
+}));
 
 beforeEach(() => {
   enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
@@ -2010,5 +2022,50 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
     expect(pluginManager.querySandboxAudit({ pluginId: "sibling" })).toEqual([]);
     expect(pluginManager.querySandboxAudit({ pluginId: "noisy" })).toHaveLength(2);
     expect(pluginManager.querySandboxAudit({ benchId: 2 })).toHaveLength(2);
+  });
+
+  describe("boot-time real-probe install (#675)", () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    beforeEach(() => {
+      // Pin platform/arch so the appleContainer probe is deterministically off
+      // regardless of the host running the suite, isolating the docker rung.
+      vi.spyOn(os, "platform").mockReturnValue("linux");
+      vi.spyOn(os, "arch").mockReturnValue("x64");
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+      dockerPingMock = () => Promise.reject(new Error("no daemon"));
+    });
+
+    it("keeps the broker-only floor under NODE_ENV=test (no live-daemon probe at boot)", async () => {
+      // The daemon would be reachable, but the test-env guard must keep the
+      // conservative floor so the suite never probes a live Docker.
+      dockerPingMock = () => Promise.resolve("OK");
+      process.env.NODE_ENV = "test";
+      sandbox = await makeSandbox({ bundled: [] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(await mgr.__test.resolveIsolationTier()).toBe("broker-only");
+    });
+
+    it("installs the real probes outside test env so a reachable daemon engages the docker rung (AC2)", async () => {
+      dockerPingMock = () => Promise.resolve("OK");
+      process.env.NODE_ENV = "production";
+      sandbox = await makeSandbox({ bundled: [] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(await mgr.__test.resolveIsolationTier()).toBe("docker");
+    });
+
+    it("degrades to the broker-only floor outside test env when the daemon is unreachable (NFR-005)", async () => {
+      dockerPingMock = () => Promise.reject(new Error("daemon down"));
+      process.env.NODE_ENV = "production";
+      sandbox = await makeSandbox({ bundled: [] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(await mgr.__test.resolveIsolationTier()).toBe("broker-only");
+    });
   });
 });

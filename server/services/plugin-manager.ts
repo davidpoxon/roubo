@@ -25,6 +25,7 @@ import { registerHostHandlers } from "./plugin-host-api.js";
 import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
+  defaultIsolationProbes,
   detectIsolationCapabilities,
   selectTier,
   type IsolationProbes,
@@ -129,14 +130,18 @@ function isComponentPlugin(entry: PluginEntry): boolean {
 // fold into the shared log unchanged (same AuditEntry shape, source:"sandbox").
 const sandboxAuditLog = new AuditLog();
 
-// Default isolation probes (NFR-005: query each runtime, never assume). These
-// are conservative no-ops by default: detecting a usable Virtualization.framework
-// / Apple container / Docker daemon is host-environment work, and a probe that
-// throws or returns false degrades the host one rung. The real probes are
-// injected here as F2.3's runtime detection lands; tests swap them via
-// __test.setIsolationProbes to exercise tier selection deterministically. With
-// all probes false, selectTier returns the broker-only floor and spawnPlugin's
-// behaviour is byte-for-byte identical to today.
+// Isolation probes (NFR-005: query each runtime, never assume). The real
+// host-capability probes (defaultIsolationProbes: Docker daemon reachability via
+// dockerode ping, Apple `container` presence, Virtualization.framework
+// conservatively false until a VM backend ships) are installed at boot in
+// initialize(). Tests swap them via __test.setIsolationProbes to exercise tier
+// selection deterministically without a live daemon. Each probe is
+// exception-safe, so a throw/rejection degrades the host one rung rather than
+// crashing detection; on a host with no usable runtime selectTier returns the
+// broker-only floor and spawnPlugin's behaviour is byte-for-byte the direct
+// spawn it has always used. The module-load default below stays conservative
+// (all false) so any code path that resolves a tier before initialize() runs
+// the floor.
 let isolationProbes: IsolationProbes = {
   vzVm: () => false,
   appleContainer: () => false,
@@ -945,6 +950,20 @@ export async function initialize(): Promise<void> {
   }
   initialized = true;
 
+  // PluginIsolationSandbox runtime detection (F2.3, #620 / #675). Install the
+  // real host-capability probes so the OS-isolation tier actually engages at
+  // runtime: a host with a reachable Docker daemon selects the docker rung and a
+  // plugin declaring no network hosts is spawned under `docker run --network
+  // none` (AC2). A host with no usable runtime keeps the broker-only floor. The
+  // probes are exception-safe, so a failing probe degrades a rung without
+  // crashing boot (NFR-005). Under NODE_ENV=test we keep the conservative floor
+  // (matching the existing test-env guard above) so the unit suite never probes
+  // a live Docker daemon at boot; tier-selection tests inject deterministic
+  // fakes via __test.setIsolationProbes instead.
+  if (process.env.NODE_ENV !== "test") {
+    isolationProbes = defaultIsolationProbes();
+  }
+
   // WU-046: load the persisted enable-state once at boot. The migrate.run()
   // pass that ran moments earlier seeds this file; a missing file means
   // legacy install (pre-WU-046), and isPluginEnabled() preserves the prior
@@ -1296,10 +1315,12 @@ export function querySandboxAudit(
 }
 
 /**
- * Inject the host's OS-isolation capability probes (NFR-005). Called once at
- * boot as the real Virtualization.framework / Apple container / Docker detection
- * lands; defaults are conservative no-ops so the host runs on the broker-only
- * floor until real probes are supplied. Passing `null` restores the defaults.
+ * Inject the host's OS-isolation capability probes (NFR-005). initialize()
+ * installs the real Virtualization.framework / Apple container / Docker
+ * detection (defaultIsolationProbes) at boot; this setter lets tests pin
+ * deterministic fakes. Passing `null` restores the conservative all-false floor
+ * (not the real probes), so a test that resets keeps a live daemon out of the
+ * loop and the host runs the broker-only floor until real probes are installed.
  */
 export function setIsolationProbes(probes: IsolationProbes | null): void {
   isolationProbes = probes ?? {
