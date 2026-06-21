@@ -3,7 +3,7 @@ import { mkdtemp, rm, symlink, writeFile, mkdir, stat } from "node:fs/promises";
 import os, { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PluginEnableState, PluginRecord } from "@roubo/shared";
+import type { BrokerContext, PluginEnableState, PluginRecord } from "@roubo/shared";
 import type { ConnectionStatus } from "@roubo/plugin-sdk";
 
 vi.mock("./project-registry.js", () => ({
@@ -326,6 +326,66 @@ describe("component plugins (issue #608)", () => {
     const component = findRecord(mgr.listInstalled(), "component-echo");
     expect(component.status).toBe("enabled");
   }, 30_000);
+});
+
+describe("per-bench BrokerContext registry (#677)", () => {
+  function makeCtx(pluginId: string, benchId: number): BrokerContext {
+    return {
+      pluginId,
+      benchId,
+      ports: {},
+      reportStatus: () => {},
+      reportLog: () => {},
+      hasPermission: () => true,
+      recordAudit: () => {},
+    };
+  }
+
+  beforeEach(() => {
+    pluginManager.__test.reset();
+  });
+
+  it("resolves null when no bench is bound to the plugin", () => {
+    expect(pluginManager.__test.resolveBrokerContext("p")).toBeNull();
+  });
+
+  it("resolves the registered context for a single bound bench", () => {
+    const ctx = makeCtx("p", 1);
+    pluginManager.registerBrokerContext("p", 1, ctx);
+    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(ctx);
+  });
+
+  it("resolves the most-recently-registered bench when a plugin backs several", () => {
+    const a = makeCtx("p", 1);
+    const b = makeCtx("p", 2);
+    pluginManager.registerBrokerContext("p", 1, a);
+    pluginManager.registerBrokerContext("p", 2, b);
+    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(b);
+  });
+
+  it("falls back to a remaining bench after the newest is unregistered", () => {
+    const a = makeCtx("p", 1);
+    const b = makeCtx("p", 2);
+    pluginManager.registerBrokerContext("p", 1, a);
+    pluginManager.registerBrokerContext("p", 2, b);
+    pluginManager.unregisterBrokerContext("p", 2);
+    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(a);
+  });
+
+  it("resolves null once every bench for the plugin is unregistered", () => {
+    pluginManager.registerBrokerContext("p", 1, makeCtx("p", 1));
+    pluginManager.unregisterBrokerContext("p", 1);
+    expect(pluginManager.__test.resolveBrokerContext("p")).toBeNull();
+  });
+
+  it("keeps each plugin's contexts isolated", () => {
+    const a = makeCtx("a", 1);
+    const b = makeCtx("b", 1);
+    pluginManager.registerBrokerContext("a", 1, a);
+    pluginManager.registerBrokerContext("b", 1, b);
+    expect(pluginManager.__test.resolveBrokerContext("a")).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("b")).toBe(b);
+  });
 });
 
 describe("component-plugin crash hooks (issue #613)", () => {

@@ -673,6 +673,87 @@ describe("audit recording of privileged calls (CP-TC-070/093)", () => {
   });
 });
 
+describe("per-call BrokerContext resolver (#677, multiplexed connection)", () => {
+  // Build a BrokerContext that records its own audit entries, so we can assert a
+  // privileged call routed to the context the resolver returned at call time.
+  function makeCtx(benchId: number): BrokerContext & { audit: AuditEntry[] } {
+    const audit: AuditEntry[] = [];
+    return {
+      pluginId: "plugin-under-test",
+      benchId,
+      ports: { web: 3000 + benchId },
+      reportStatus: vi.fn(),
+      reportLog: vi.fn(),
+      hasPermission: () => true,
+      recordAudit: (entry: AuditEntry) => audit.push(entry),
+      audit,
+    };
+  }
+
+  it("resolves the context per call, so a privileged call audits against the active bench", async () => {
+    const connection = makeConnection();
+    const ctxA = makeCtx(1);
+    const ctxB = makeCtx(2);
+    let active: BrokerContext = ctxA;
+    registerBrokerHandlers(connection, () => active, {
+      processManager: makeProcessManager(),
+      docker: makeDocker(),
+      log: vi.fn(),
+    });
+    const call = (method: string, params?: unknown) =>
+      need(connection.handlers.get(method), method)(params);
+
+    await call("host.process.start", { id: "x", command: "node", args: [], env: {}, cwd: "/w" });
+    // Switch the active bench between calls: the resolver is read per request, so
+    // the next privileged call accumulates into ctxB's log, not ctxA's.
+    active = ctxB;
+    await call("host.process.stop", { id: "x" });
+
+    expect(ctxA.audit.map((e) => e.method)).toEqual(["host.process.start"]);
+    expect(ctxA.audit[0].benchId).toBe(1);
+    expect(ctxB.audit.map((e) => e.method)).toEqual(["host.process.stop"]);
+    expect(ctxB.audit[0].benchId).toBe(2);
+  });
+
+  it("reads ports from the resolved context", async () => {
+    const connection = makeConnection();
+    const ctx = makeCtx(5);
+    registerBrokerHandlers(connection, () => ctx, {
+      processManager: makeProcessManager(),
+      docker: makeDocker(),
+      log: vi.fn(),
+    });
+    const port = await need(
+      connection.handlers.get("host.ports.get"),
+      "host.ports.get",
+    )({
+      componentName: "web",
+    });
+    expect(port).toBe(3005);
+  });
+
+  it("fails a privileged call with an internal-error when no bench context is bound", async () => {
+    const connection = makeConnection();
+    registerBrokerHandlers(connection, () => null, {
+      processManager: makeProcessManager(),
+      docker: makeDocker(),
+      log: vi.fn(),
+    });
+    await expect(
+      need(
+        connection.handlers.get("host.process.start"),
+        "host.process.start",
+      )({
+        id: "x",
+        command: "node",
+        args: [],
+        env: {},
+        cwd: "/w",
+      }),
+    ).rejects.toMatchObject({ code: -32603 });
+  });
+});
+
 describe("BROKER_METHODS registry", () => {
   beforeEach(() => {
     vi.restoreAllMocks();

@@ -167,7 +167,10 @@ vi.mock("./component-plugin-registry.js", () => ({
 vi.mock("./plugin-manager.js", () => ({
   invoke: vi.fn(),
   getConnection: vi.fn(() => ({})),
+  getRecord: vi.fn(() => undefined),
   registerComponentPluginHooks: vi.fn(),
+  registerBrokerContext: vi.fn(),
+  unregisterBrokerContext: vi.fn(),
 }));
 
 let benchManager: typeof import("./bench-manager.js");
@@ -6574,5 +6577,86 @@ describe("per-bench audit log registry (#671)", () => {
     benchManager.clearAuditLog("test-project", 1);
 
     expect(benchManager.queryAuditLog("test-project", 1)).toEqual([]);
+  });
+});
+
+describe("per-bench BrokerContext wiring on provision/teardown (#677)", () => {
+  const flushBackground = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    benchManager._resetAuditLogsForTest();
+    // Default: no record (so hasPermission denies everything) unless a test
+    // overrides it. Reset so a manifest set by one test does not leak.
+    vi.mocked(pluginManager.getRecord).mockReturnValue(undefined);
+  });
+
+  // A complete, schema-shaped permissions block (parseManifest guarantees these
+  // fields exist in production). Tests vary only the broker categories.
+  const fullPermissions = (over: Record<string, unknown>) => ({
+    network: { hosts: [] },
+    credentials: { slots: [] },
+    filesystem: { paths: [] },
+    processes: false as const,
+    ...over,
+  });
+
+  it("registers a per-bench BrokerContext when a plugin-bound component is provisioned", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    // The backend component is plugin-bound (pluginId "process" via the mocked
+    // registry), so provisioning wires its BrokerContext onto the plugin's
+    // connection through plugin-manager.
+    expect(pluginManager.registerBrokerContext).toHaveBeenCalledWith(
+      "process",
+      1,
+      expect.objectContaining({ pluginId: "process", benchId: 1 }),
+    );
+    // The wired context records audit entries into THIS bench's log.
+    const ctx = vi.mocked(pluginManager.registerBrokerContext).mock.calls[0][2];
+    ctx.recordAudit({
+      ts: "2026-06-21T00:00:00.000Z",
+      pluginId: "process",
+      benchId: 1,
+      method: "host.process.start",
+      params: {},
+      outcome: "allowed",
+    });
+    expect(benchManager.queryAuditLog("test-project", 1)).toHaveLength(1);
+  });
+
+  it("derives hasPermission from the plugin manifest's declared categories", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue({
+      id: "process",
+      manifest: {
+        permissions: fullPermissions({ processes: { executables: ["node"] }, docker: false }),
+      },
+    } as unknown as ReturnType<typeof pluginManager.getRecord>);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const ctx = vi.mocked(pluginManager.registerBrokerContext).mock.calls.at(-1)?.[2];
+    expect(ctx).toBeDefined();
+    // "process" maps to the manifest "processes" category (declared); "docker"
+    // is false (not declared); "ports" is absent (not declared).
+    expect(ctx?.hasPermission("process")).toBe(true);
+    expect(ctx?.hasPermission("docker")).toBe(false);
+    expect(ctx?.hasPermission("ports")).toBe(false);
+  });
+
+  it("drops the per-bench BrokerContext on teardown", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    setupDockerServiceMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    benchManager.teardownBench("test-project", 1);
+    await flushBackground();
+
+    expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
   });
 });
