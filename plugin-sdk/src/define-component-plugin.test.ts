@@ -290,7 +290,11 @@ describe("defineComponentPlugin", () => {
 
     await hostConnection.sendRequest("start", benchContext);
 
+    // The SDK stamps the in-flight lifecycle call's benchId onto every host.*
+    // request, so the host can route it to the right bench (#685). benchContext
+    // here carries benchId: 2.
     expect(captured.start).toEqual({
+      benchId: 2,
       id: "p1",
       command: "node",
       args: ["server.js"],
@@ -298,6 +302,7 @@ describe("defineComponentPlugin", () => {
       cwd: "/ws",
     });
     expect(captured.run).toEqual({
+      benchId: 2,
       id: "p2",
       command: "deploy",
       env: {},
@@ -464,9 +469,22 @@ describe("defineComponentPlugin", () => {
     // Notifications race the response; give the reader a tick.
     await new Promise((r) => setTimeout(r, 10));
 
+    // The SDK stamps the in-flight lifecycle call's routing onto both
+    // notifications (#685): benchId on each, and componentName on reportLog so a
+    // bench with two components routes each component's logs to its own sink.
+    // benchContext here carries benchId: 2 and componentName: "db".
     expect(events).toEqual([
-      { method: "reportLog", payload: { source: "stdout", text: "deploying", ts: 1000 } },
-      { method: "reportStatus", payload: { status: "completed" } },
+      {
+        method: "reportLog",
+        payload: {
+          source: "stdout",
+          text: "deploying",
+          ts: 1000,
+          benchId: 2,
+          componentName: "db",
+        },
+      },
+      { method: "reportStatus", payload: { status: "completed", benchId: 2 } },
     ]);
   });
 
@@ -475,6 +493,35 @@ describe("defineComponentPlugin", () => {
     handles = [];
     await expect(host.ports.get({ componentName: "db" })).rejects.toThrow(
       /host\.\* called before defineComponentPlugin/,
+    );
+  });
+
+  it("throws when a bench-routed host.* call is made outside a lifecycle handler (no routing context, #685)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    hostConnection.onRequest("host.ports.get", () => 5432);
+
+    // Capture the host client from a defined plugin, then call a bench-routed
+    // method directly (not from inside a lifecycle handler). With a live
+    // connection but no ambient routing context, the SDK cannot route the call,
+    // so it throws rather than mis-attributing it to a bench.
+    handles.push(
+      defineComponentPlugin(
+        {
+          start() {},
+          stop() {},
+          health(): ComponentStatus {
+            return { status: "running" };
+          },
+          cleanup() {},
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    await expect(host.ports.get({ componentName: "db" })).rejects.toThrow(
+      /outside a lifecycle handler/,
     );
   });
 });

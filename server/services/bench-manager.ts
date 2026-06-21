@@ -1687,7 +1687,7 @@ async function provisionComponent(
   // AuditEntry into THIS bench's AuditLog (via recordAuditEntry). Registered
   // before runDescriptor runs so the broker is live for the launch, and dropped
   // on bench teardown alongside clearAuditLog.
-  registerBrokerContextForBench(projectId, benchId, componentName, binding.pluginId, tplCtx.ports);
+  registerBrokerContextForBench(projectId, benchId, binding.pluginId, tplCtx.ports);
 
   const lifecycleCtx: LifecycleContext = {
     pluginId: binding.pluginId,
@@ -2016,16 +2016,18 @@ export function buildReportStatus(
 }
 
 /**
- * Build the host.component.reportLog sink for a plugin-backed component on a given
- * bench. Appends to the restart-safe structured log store keyed by
- * (projectId, benchId, componentName), the read side of getComponentLogs.
+ * Build the host.component.reportLog sink for a bench. Appends to the
+ * restart-safe structured log store keyed by (projectId, benchId,
+ * componentName), the read side of getComponentLogs. The `componentName` is the
+ * one the broker call named in its params, so two components sharing one bench
+ * (and one plugin) each route to their own log instead of overwriting whichever
+ * provisioned last (#685).
  */
 export function buildReportLog(
   projectId: string,
   benchId: number,
-  componentName: string,
-): (line: ComponentLogLine) => void {
-  return (line: ComponentLogLine) => {
+): (componentName: string, line: ComponentLogLine) => void {
+  return (componentName: string, line: ComponentLogLine) => {
     componentLogStore.appendComponentLog(projectId, benchId, componentName, line);
   };
 }
@@ -2052,7 +2054,6 @@ const BROKER_TO_CONSENT_CATEGORY: Record<BrokerPermissionCategory, PermissionCat
 function registerBrokerContextForBench(
   projectId: string,
   benchId: number,
-  componentName: string,
   pluginId: string,
   ports: Record<string, number>,
 ): void {
@@ -2070,13 +2071,13 @@ function registerBrokerContextForBench(
     benchId,
     ports,
     reportStatus: buildReportStatus(projectId, benchId),
-    // The registry keys a BrokerContext by (pluginId, benchId) only, so when two
+    // The registry keys a BrokerContext by (pluginId, benchId), so when two
     // components in one bench share a plugin the later provision overwrites this
-    // ctx. reportStatus carries params.name and self-corrects, but reportLog binds
-    // a single componentName here (the RPC carries no component name), so its
-    // output routes to the last-provisioned component. Precise per-component
-    // routing is tracked in #685.
-    reportLog: buildReportLog(projectId, benchId, componentName),
+    // ctx. That is fine: both reportStatus and reportLog route by the component
+    // the call names in its params (reportStatus via params.name, reportLog via
+    // the componentName arg the broker passes through, #685), so neither
+    // component's output is lost regardless of which provision installed the ctx.
+    reportLog: buildReportLog(projectId, benchId),
     hasPermission: (category: BrokerPermissionCategory) =>
       declared !== null && declared.has(BROKER_TO_CONSENT_CATEGORY[category]),
     recordAudit: (entry: AuditEntry) => recordAuditEntry(projectId, benchId, entry),

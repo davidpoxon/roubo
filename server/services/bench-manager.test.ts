@@ -4582,14 +4582,31 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
 
   it("appends pushed logs into the structured store read by getComponentLogs", () => {
     seedBench();
-    const log = benchManager.buildReportLog("test-project", 1, "backend");
+    const log = benchManager.buildReportLog("test-project", 1);
 
-    log({ source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" });
-    log({ source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" });
+    log("backend", { source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" });
+    log("backend", { source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" });
 
     expect(benchManager.getComponentLogs("test-project", 1, "backend")).toEqual([
       { source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" },
       { source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" },
+    ]);
+  });
+
+  it("routes each component's logs to its own store when two components share a bench (#685)", () => {
+    seedBench();
+    // One sink for the whole bench (as registerBrokerContextForBench builds it),
+    // driven by two components that share the bench's plugin connection.
+    const log = benchManager.buildReportLog("test-project", 1);
+
+    log("backend", { source: "stdout", text: "backend up", ts: "2026-06-21T00:00:00.000Z" });
+    log("frontend", { source: "stdout", text: "frontend up", ts: "2026-06-21T00:00:01.000Z" });
+
+    expect(benchManager.getComponentLogs("test-project", 1, "backend")).toEqual([
+      { source: "stdout", text: "backend up", ts: "2026-06-21T00:00:00.000Z" },
+    ]);
+    expect(benchManager.getComponentLogs("test-project", 1, "frontend")).toEqual([
+      { source: "stdout", text: "frontend up", ts: "2026-06-21T00:00:01.000Z" },
     ]);
   });
 

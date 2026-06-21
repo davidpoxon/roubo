@@ -288,7 +288,14 @@ function makePortsOnlyBroker(): BrokerHarness {
   const call = async (method: string, params?: unknown) => {
     const handler = connection.handlers.get(method);
     if (!handler) throw new Error(`broker did not register ${method}`);
-    return handler(params);
+    // Every broker call carries the benchId it acts for in its params (#685);
+    // the production SDK stamps it from the in-flight lifecycle call. Stamp the
+    // ctx's bench here for object params so these contract-level calls route.
+    const withBenchId =
+      params && typeof params === "object" && !Array.isArray(params) && !("benchId" in params)
+        ? { benchId: BENCH_ID, ...params }
+        : params;
+    return handler(withBenchId);
   };
   return { call, docker, audit, allocatedPort };
 }

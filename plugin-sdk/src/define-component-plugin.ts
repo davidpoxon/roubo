@@ -2,6 +2,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import {
   bindComponentHostConnection,
   host,
+  type HostRoutingContext,
+  runWithHostRoutingContext,
   unbindComponentHostConnection,
 } from "./component-host-client.js";
 import { createPluginConnection } from "./connection.js";
@@ -25,6 +27,26 @@ const COMPONENT_CONTRACT_METHODS: readonly ComponentContractMethodName[] = [
   "translate",
   ...IMPERATIVE_HOOKS,
 ] as const;
+
+/** Pull the `context` field out of a `translate` call's `{ config, context }`. */
+function extractContext(params: unknown): unknown {
+  return params && typeof params === "object" ? (params as { context?: unknown }).context : params;
+}
+
+/**
+ * Read the bench routing key (benchId + componentName) off a lifecycle call's
+ * BenchContext. Returns null when the shape does not carry both, so the handler
+ * runs without an ambient routing context rather than with a partial one.
+ */
+function readRouting(benchContext: unknown): HostRoutingContext | null {
+  if (!benchContext || typeof benchContext !== "object") return null;
+  const { benchId, componentName } = benchContext as {
+    benchId?: unknown;
+    componentName?: unknown;
+  };
+  if (typeof benchId !== "number" || typeof componentName !== "string") return null;
+  return { benchId, componentName };
+}
 
 /**
  * Register a component plugin's contract over the host JSON-RPC channel,
@@ -101,9 +123,20 @@ export function defineComponentPlugin(
   for (const method of COMPONENT_CONTRACT_METHODS) {
     const handler = fields[method];
     if (typeof handler !== "function") continue;
-    connection.onRequest(method, (params: unknown) =>
-      (handler as (p: unknown) => unknown)(params as never),
-    );
+    connection.onRequest(method, (params: unknown) => {
+      // Bind the in-flight lifecycle call's routing context for the duration of
+      // the handler, so any host.* broker call it makes is stamped with this
+      // bench/component (#685). `translate` receives `{ config, context }`; the
+      // imperative hooks receive the BenchContext directly. Both carry benchId
+      // and componentName. When the params do not carry a usable context (an
+      // unexpected shape), dispatch the handler without a routing context: a
+      // broker call inside it then throws the "outside a lifecycle handler"
+      // error rather than mis-routing.
+      const benchContext = method === "translate" ? extractContext(params) : params;
+      const routing = readRouting(benchContext);
+      const invoke = () => (handler as (p: unknown) => unknown)(params as never);
+      return routing ? runWithHostRoutingContext(routing, invoke) : invoke();
+    });
   }
 
   bindComponentHostConnection(connection);

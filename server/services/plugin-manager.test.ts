@@ -346,36 +346,42 @@ describe("per-bench BrokerContext registry (#677)", () => {
   });
 
   it("resolves null when no bench is bound to the plugin", () => {
-    expect(pluginManager.__test.resolveBrokerContext("p")).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBeNull();
   });
 
   it("resolves the registered context for a single bound bench", () => {
     const ctx = makeCtx("p", 1);
     pluginManager.registerBrokerContext("p", 1, ctx);
-    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(ctx);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(ctx);
   });
 
-  it("resolves the most-recently-registered bench when a plugin backs several", () => {
+  it("routes each call to its own bench when a plugin backs several (#685)", () => {
     const a = makeCtx("p", 1);
     const b = makeCtx("p", 2);
     pluginManager.registerBrokerContext("p", 1, a);
     pluginManager.registerBrokerContext("p", 2, b);
-    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(b);
+    // A call naming bench 1 resolves bench 1's context, even though bench 2
+    // registered later: exact-key routing, no most-recent-wins fallback.
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("p", 2)).toBe(b);
   });
 
-  it("falls back to a remaining bench after the newest is unregistered", () => {
+  it("resolves null for a benchId with no bound context (no fallback to a sibling)", () => {
     const a = makeCtx("p", 1);
     const b = makeCtx("p", 2);
     pluginManager.registerBrokerContext("p", 1, a);
     pluginManager.registerBrokerContext("p", 2, b);
     pluginManager.unregisterBrokerContext("p", 2);
-    expect(pluginManager.__test.resolveBrokerContext("p")).toBe(a);
+    // Bench 2 is gone; a call naming bench 2 resolves null rather than falling
+    // back to bench 1.
+    expect(pluginManager.__test.resolveBrokerContext("p", 2)).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(a);
   });
 
-  it("resolves null once every bench for the plugin is unregistered", () => {
+  it("resolves null once the bench for the plugin is unregistered", () => {
     pluginManager.registerBrokerContext("p", 1, makeCtx("p", 1));
     pluginManager.unregisterBrokerContext("p", 1);
-    expect(pluginManager.__test.resolveBrokerContext("p")).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBeNull();
   });
 
   it("keeps each plugin's contexts isolated", () => {
@@ -383,8 +389,8 @@ describe("per-bench BrokerContext registry (#677)", () => {
     const b = makeCtx("b", 1);
     pluginManager.registerBrokerContext("a", 1, a);
     pluginManager.registerBrokerContext("b", 1, b);
-    expect(pluginManager.__test.resolveBrokerContext("a")).toBe(a);
-    expect(pluginManager.__test.resolveBrokerContext("b")).toBe(b);
+    expect(pluginManager.__test.resolveBrokerContext("a", 1)).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("b", 1)).toBe(b);
   });
 });
 

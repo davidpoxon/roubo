@@ -317,11 +317,7 @@ function seedRunningBench(): void {
   // A startup log line so the restart-boundary assertion (S008) has a "before",
   // emitted through the REAL host.component.reportLog sink (buildReportLog), the
   // same seam a plugin pushes logs through, not a raw store write.
-  benchManager.buildReportLog(
-    PROJECT_ID,
-    BENCH_ID,
-    DB_COMPONENT,
-  )({
+  benchManager.buildReportLog(PROJECT_ID, BENCH_ID)(DB_COMPONENT, {
     source: "stdout",
     text: "database system is ready to accept connections",
     ts: "2026-06-21T00:00:00.000Z",
@@ -594,11 +590,7 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
         // seeded via the same sink in seedRunningBench. Asserting the boundary on
         // lines a production sink emitted (not raw store writes) keeps S008 a
         // faithful drift guard for the plugin log path (FR-014).
-        benchManager.buildReportLog(
-          PROJECT_ID,
-          BENCH_ID,
-          DB_COMPONENT,
-        )({
+        benchManager.buildReportLog(PROJECT_ID, BENCH_ID)(DB_COMPONENT, {
           source: "stdout",
           text: "database system is ready to accept connections",
           ts: "2026-06-21T00:05:00.000Z",

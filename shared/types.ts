@@ -681,8 +681,13 @@ export interface BrokerContext {
   ports: Record<string, number>;
   /** Push sink invoked by `host.component.reportStatus`. */
   reportStatus: (status: ComponentStatus) => void;
-  /** Push sink invoked by `host.component.reportLog`. */
-  reportLog: (line: ComponentLogLine) => void;
+  /**
+   * Push sink invoked by `host.component.reportLog`. The `componentName` is the
+   * one the call named in its params, so a bench with two plugin-bound
+   * components routes each component's output to its own log instead of
+   * overwriting whichever provisioned last (#685).
+   */
+  reportLog: (componentName: string, line: ComponentLogLine) => void;
   /**
    * Permission check. Returns false when the plugin did not declare a category.
    * The broker denies any call whose category returns false with a

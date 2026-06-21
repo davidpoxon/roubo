@@ -63,10 +63,14 @@ function fakeDocker(): DockerLike {
 }
 
 function register(connection: JsonRpcConnection): void {
-  registerBrokerHandlers(connection, () => pluginManager.__test.resolveBrokerContext(PLUGIN), {
-    processManager: fakeProcessManager(),
-    docker: fakeDocker(),
-  });
+  registerBrokerHandlers(
+    connection,
+    (benchId) => pluginManager.__test.resolveBrokerContext(PLUGIN, benchId),
+    {
+      processManager: fakeProcessManager(),
+      docker: fakeDocker(),
+    },
+  );
 }
 
 function buildBenchContext(benchId: number, allowed: Set<BrokerPermissionCategory>): BrokerContext {
@@ -102,7 +106,7 @@ describe("HostComponentBroker live wiring accumulates audit entries (#677)", () 
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
 
-    const params = { id: "db", command: "node", args: ["x.js"], env: {}, cwd: "/w" };
+    const params = { benchId: 1, id: "db", command: "node", args: ["x.js"], env: {}, cwd: "/w" };
     await connection.handlers.get("host.process.start")?.(params);
 
     const log = benchManager.queryAuditLog(PROJECT, 1);
@@ -128,6 +132,7 @@ describe("HostComponentBroker live wiring accumulates audit entries (#677)", () 
 
     await expect(
       connection.handlers.get("host.docker.composeDown")?.({
+        benchId: 1,
         projectName: "p",
         composeFile: "c.yml",
         cwd: "/w",
@@ -139,25 +144,25 @@ describe("HostComponentBroker live wiring accumulates audit entries (#677)", () 
     expect(log[0]).toMatchObject({ method: "host.docker.composeDown", outcome: "denied" });
   });
 
-  it("routes each bench's calls to its own audit log over the shared connection", async () => {
+  it("routes each bench's calls to its own audit log by the param benchId over the shared connection (#685)", async () => {
     const connection = makeConnection();
     register(connection);
+    // Both benches bind to the same plugin connection concurrently.
     pluginManager.registerBrokerContext(
       PLUGIN,
       1,
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
-
-    await connection.handlers.get("host.process.stop")?.({ id: "a" });
-
-    // A second bench provisions a component bound to the same plugin: its context
-    // becomes the active one the resolver returns.
     pluginManager.registerBrokerContext(
       PLUGIN,
       2,
       buildBenchContext(2, new Set<BrokerPermissionCategory>(["process"])),
     );
-    await connection.handlers.get("host.process.stop")?.({ id: "b" });
+
+    // A call naming bench 1 audits to bench 1's log even though bench 2 was
+    // registered later: routing is by the param benchId, not registration order.
+    await connection.handlers.get("host.process.stop")?.({ benchId: 1, id: "a" });
+    await connection.handlers.get("host.process.stop")?.({ benchId: 2, id: "b" });
 
     expect(benchManager.queryAuditLog(PROJECT, 1)).toHaveLength(1);
     expect(benchManager.queryAuditLog(PROJECT, 1)[0].benchId).toBe(1);
@@ -177,11 +182,11 @@ describe("HostComponentBroker live wiring accumulates audit entries (#677)", () 
 
     // With no context bound, a privileged call fails internal-error rather than
     // crashing the host, and nothing is recorded.
-    await expect(connection.handlers.get("host.process.stop")?.({ id: "a" })).rejects.toMatchObject(
-      {
-        code: -32603,
-      },
-    );
+    await expect(
+      connection.handlers.get("host.process.stop")?.({ benchId: 1, id: "a" }),
+    ).rejects.toMatchObject({
+      code: -32603,
+    });
     expect(benchManager.queryAuditLog(PROJECT, 1)).toEqual([]);
   });
 });
