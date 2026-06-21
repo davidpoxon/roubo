@@ -151,6 +151,26 @@ export function stripSurroundingQuotes(value: string): string {
   return value;
 }
 
+// Read a component's connection template, preferring the migrated location
+// (`config.connection.template`, validated by the database plugin's
+// configSchema per #614) and falling back to the legacy top-level
+// `connection.template` for any not-yet-migrated configs (#666). `config` is
+// opaque to core (`Record<string, unknown>`), so narrow it locally.
+function readConnectionTemplate(component: {
+  config?: Record<string, unknown>;
+  connection?: { template?: string };
+}): string | undefined {
+  const config = component.config;
+  if (config && typeof config === "object") {
+    const connection = (config as { connection?: unknown }).connection;
+    if (connection && typeof connection === "object") {
+      const template = (connection as { template?: unknown }).template;
+      if (typeof template === "string") return template;
+    }
+  }
+  return component.connection?.template;
+}
+
 export function buildTemplateContext(
   config: RouboConfig,
   benchNumber: number,
@@ -165,7 +185,8 @@ export function buildTemplateContext(
 
   const components: Record<string, { connection?: string }> = {};
   for (const [name, component] of Object.entries(config.components)) {
-    if (component.connection?.template) {
+    const connectionTemplate = readConnectionTemplate(component);
+    if (connectionTemplate) {
       const partialCtx: ResolvedTemplateContext = {
         ports,
         portHttps,
@@ -173,7 +194,7 @@ export function buildTemplateContext(
         components: {},
       };
       components[name] = {
-        connection: resolveTemplate(component.connection.template, partialCtx),
+        connection: resolveTemplate(connectionTemplate, partialCtx),
       };
     } else {
       components[name] = {};

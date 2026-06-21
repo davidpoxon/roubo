@@ -145,6 +145,40 @@ describe("buildTemplateContext", () => {
     expect(ctx.components.backend).toEqual({});
   });
 
+  it("resolves connection from migrated config.connection.template (#666)", () => {
+    // A plugin-bound database component whose connection template lives under
+    // the migrated `config` block (validated by the database plugin's
+    // configSchema, #614), referenced by a sibling's env via
+    // {{components.sql.connection}}.
+    const config = makeConfig({
+      ports: { host: { base: 5000 } },
+      components: {
+        sql: {
+          plugin: { id: "database" },
+          config: {
+            connection: { template: "Server=localhost,{{ports.host}};Database=app" },
+          },
+        },
+        host: {
+          plugin: { id: "process" },
+          config: {},
+          command: "dotnet run",
+        },
+      },
+    });
+
+    const ctx = buildTemplateContext(config, 1, "/wt");
+    expect(ctx.components.sql.connection).toBe("Server=localhost,5000;Database=app");
+
+    const env = resolveServiceEnv(
+      { ConnectionStrings__AZURE_SQL_CONNECTIONSTRING: "{{components.sql.connection}}" },
+      ctx,
+    );
+    expect(env.ConnectionStrings__AZURE_SQL_CONNECTIONSTRING).toBe(
+      "Server=localhost,5000;Database=app",
+    );
+  });
+
   it("offsets ports by bench number", () => {
     const config = makeConfig({ ports: { web: { base: 3000 } } });
     const ctx = buildTemplateContext(config, 3, "/wt");
