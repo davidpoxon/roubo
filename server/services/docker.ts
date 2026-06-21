@@ -250,6 +250,36 @@ export async function getContainerStatusById(containerId: string): Promise<Conta
 }
 
 /**
+ * Resolve identity + published port for ANY container by id, independent of its
+ * image type. Replaces the database-image-pattern lookup (`listDatabaseContainers`)
+ * in the assign-container path so core carries no docker-image/component-type
+ * knowledge there (#612, NFR-006): the host validates the assigned container
+ * exists and exposes a port, and the bound plugin (via its `assignedContainerId`
+ * descriptor) owns the type-specific adoption. Returns null when no container by
+ * that id exists.
+ */
+export async function getContainerInfoById(containerId: string): Promise<{
+  id: string;
+  name: string;
+  port?: number;
+  status: string;
+} | null> {
+  try {
+    const containers = await docker.listContainers({ all: true });
+    const match = containers.find((c) => c.Id === containerId || c.Id.slice(0, 12) === containerId);
+    if (!match) return null;
+    return {
+      id: match.Id.slice(0, 12),
+      name: match.Names[0]?.replace(/^\//, "") ?? match.Id.slice(0, 12),
+      port: match.Ports.find((p) => p.PublicPort)?.PublicPort,
+      status: match.State,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve the container ID for a compose service in a project, or null when no
  * matching container exists. Used by the broker to report `composeUp`'s
  * containerId, which `composeUp` itself does not return (it returns only

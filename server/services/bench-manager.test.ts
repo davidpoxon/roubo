@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { BenchNotification, RouboConfig } from "@roubo/shared";
+import type { BenchNotification, RouboConfig, ComponentConfig } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { makeConfig, makeProject, makePersistedBench } from "../test/fixtures.js";
 import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
+import type { ResolvedTemplateContext } from "./config-parser.js";
 
 vi.mock("./project-registry.js", () => ({
   getProject: vi.fn(),
@@ -31,15 +32,18 @@ vi.mock("./state.js", async (importOriginal) => {
 });
 
 vi.mock("./docker.js", () => ({
-  composeUp: vi.fn(),
-  composeRunInit: vi.fn(),
+  composeUp: vi.fn(async () => ({ success: true, stdout: "", stderr: "" })),
+  composeRunInit: vi.fn(async () => ({ success: true, stdout: "", stderr: "" })),
   composeStop: vi.fn(),
   composeDown: vi.fn(),
   composeDownByProject: vi.fn(),
-  waitForHealthy: vi.fn(),
+  waitForHealthy: vi.fn(async () => true),
   getContainerStatus: vi.fn(),
   getContainerStatuses: vi.fn(),
   getComposeProjectName: vi.fn(),
+  getContainerId: vi.fn(async () => "container-abc"),
+  getContainerStatusById: vi.fn(async () => "running"),
+  getContainerInfoById: vi.fn(),
   listDatabaseContainers: vi.fn(),
 }));
 
@@ -53,7 +57,8 @@ vi.mock("./resource-ownership-ledger.js", () => ({
 
 vi.mock("./process-manager.js", () => ({
   MAX_LOG_LINES: 5000,
-  startProcess: vi.fn(),
+  startProcess: vi.fn(async () => ({ pid: 12345 })),
+  runProcess: vi.fn(async () => ({ exitCode: 0 })),
   stopProcess: vi.fn(),
   getProcessStatus: vi.fn(() => ({ alive: false, exitCode: null })),
   getProcessLogs: vi.fn(() => []),
@@ -142,6 +147,29 @@ vi.mock("./git-helpers.js", () => ({
   DEFAULT_BRANCH_RESOLUTION_ERROR: "Could not determine the default branch",
 }));
 
+// #612: bench-manager delegates each component to its bound plugin. The
+// registry resolves the binding (plugin id + a stub live connection) and
+// plugin-manager.invoke("translate", ...) synthesizes the ProvisionDescriptor
+// from the component's legacy shim fields (type/docker/command/...), so the REAL
+// LifecycleEngine (not mocked) then drives the mocked process-manager / docker
+// exactly as the built-in path did. The default test fixtures bind `process`
+// components to plugin id "process" and `database` components to "database".
+vi.mock("./component-plugin-registry.js", () => ({
+  resolveBinding: vi.fn((_projectId: string, componentName: string) => {
+    const pluginId =
+      componentName === "db" || componentName === "database" ? "database" : "process";
+    return { pluginId, connection: {} };
+  }),
+  isNotBound: (value: unknown) =>
+    !!value && typeof value === "object" && "reason" in (value as Record<string, unknown>),
+}));
+
+vi.mock("./plugin-manager.js", () => ({
+  invoke: vi.fn(),
+  getConnection: vi.fn(() => ({})),
+  registerComponentPluginHooks: vi.fn(),
+}));
+
 let benchManager: typeof import("./bench-manager.js");
 let projectRegistry: typeof import("./project-registry.js");
 let stateService: typeof import("./state.js");
@@ -158,6 +186,8 @@ let sseService: typeof import("./sse.js");
 let claudeSettingsLocal: typeof import("./claude-settings-local.js");
 let gitHelpers: typeof import("./git-helpers.js");
 let fs: typeof import("node:fs");
+let pluginManager: typeof import("./plugin-manager.js");
+let componentRegistry: typeof import("./component-plugin-registry.js");
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -186,7 +216,102 @@ beforeEach(async () => {
   claudeSettingsLocal = await import("./claude-settings-local.js");
   gitHelpers = await import("./git-helpers.js");
   fs = await import("node:fs");
+  pluginManager = await import("./plugin-manager.js");
+  componentRegistry = await import("./component-plugin-registry.js");
+
+  // Re-establish default success impls for the engine-driven host calls, so a
+  // prior test's failure override (e.g. setup exitCode 1, or a not-bound
+  // resolveBinding) never leaks across the shared module instance.
+  vi.mocked(componentRegistry.resolveBinding).mockImplementation(
+    (_projectId: string, componentName: string) => {
+      const pluginId =
+        componentName === "db" || componentName === "database" ? "database" : "process";
+      return { pluginId, connection: {} as never };
+    },
+  );
+  vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0 });
+  vi.mocked(processManager.startProcess).mockResolvedValue({ pid: 12345 });
+  vi.mocked(dockerService.composeUp).mockResolvedValue({
+    success: true,
+    stdout: "",
+    stderr: "",
+  });
+  vi.mocked(dockerService.waitForHealthy).mockResolvedValue(true);
+  vi.mocked(dockerService.composeRunInit).mockResolvedValue({
+    success: true,
+    stdout: "",
+    stderr: "",
+  });
+
+  // Default translate: synthesize a ProvisionDescriptor from the component's
+  // legacy shim fields on the registered project config, so the real
+  // LifecycleEngine drives the mocked process-manager / docker. Tests that need
+  // a specific descriptor (or a translate failure) override this per-case.
+  vi.mocked(pluginManager.invoke).mockImplementation((async (
+    _pluginId: string,
+    _method: string,
+    params: unknown,
+  ) => {
+    const p = (params ?? {}) as {
+      context?: { projectId?: string; componentName?: string };
+      config?: Record<string, unknown>;
+    };
+    const projectId = p.context?.projectId ?? "";
+    const componentName = p.context?.componentName ?? "";
+    const project = vi.mocked(projectRegistry.getProject)(projectId);
+    const cc = (project?.config?.components?.[componentName] as ComponentConfig | undefined) ?? {};
+    return synthesizeDescriptor(cc, p.config ?? {});
+  }) as typeof pluginManager.invoke);
 });
+
+// Build a ProvisionDescriptor from a component's legacy inline fields (the test
+// fixtures still carry them as the #609 transition shim). Mirrors what the
+// bundled process / database plugin `translate` functions produce, so the real
+// LifecycleEngine exercises the mocked host services identically to the old
+// built-in dispatch.
+function synthesizeDescriptor(
+  cc: ComponentConfig,
+  translateConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  if (cc.docker) {
+    const d: Record<string, unknown> = {
+      schemaVersion: 1,
+      kind: "docker",
+      composeFile: cc.docker.composeFile,
+      service: cc.docker.service,
+    };
+    if (cc.docker.initService) d.initService = cc.docker.initService;
+    if (cc.docker.portEnvVar) d.portEnvVar = cc.docker.portEnvVar;
+    if (cc.migration) d.migration = cc.migration;
+    if (cc.connection) d.connection = cc.connection;
+    if (cc.env) d.env = cc.env;
+    if (translateConfig.assignedContainerId)
+      d.assignedContainerId = translateConfig.assignedContainerId;
+    return d;
+  }
+  // provisionComponent resolves templates in the config block before translate;
+  // the legacy fixtures carry `command` at the top level, so apply the same
+  // resolveTemplate the host would to keep command-templating parity.
+  const rawCommand = translateConfig.command ?? cc.command ?? "";
+  const command =
+    typeof rawCommand === "string"
+      ? configParser.resolveTemplate(rawCommand, {} as ResolvedTemplateContext)
+      : "";
+  const p: Record<string, unknown> = {
+    schemaVersion: 1,
+    kind: "process",
+    command,
+  };
+  const env = translateConfig?.env ?? cc.env;
+  if (env) p.env = env;
+  const envFile = translateConfig?.envFile ?? cc.envFile;
+  if (envFile) p.envFile = envFile;
+  const directory = translateConfig?.directory ?? cc.directory;
+  if (directory) p.cwd = directory;
+  const setup = translateConfig?.setup ?? cc.setup;
+  if (setup) p.setup = setup;
+  return p;
+}
 
 function setupCreateBenchMocks(overrides?: { project?: ReturnType<typeof makeProject> }) {
   const project =
@@ -1499,12 +1624,15 @@ describe("background provisioning", () => {
       // observed to occasionally see "active" before the for-loop's await
       // boundaries had settled: waiting on the runCommand mock directly is a
       // stronger sync point than just bench.status.
+      // bench-setup ("npm ci") still runs via runCommand; component-setup
+      // ("npm install") now runs through the engine's process-manager (#612).
       await vi.waitFor(() => {
         const bench = benchManager.getBench("test-project", 1);
         expect(bench?.status).toBe("active");
-        const calls = vi.mocked(execModule.runCommand).mock.calls;
-        expect(calls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
-        expect(calls.some((c) => c[0] === "npm" && c[1]?.[0] === "install")).toBe(true);
+        const benchSetupCalls = vi.mocked(execModule.runCommand).mock.calls;
+        expect(benchSetupCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+        const setupCalls = vi.mocked(processManager.runProcess).mock.calls;
+        expect(setupCalls.some((c) => c[1] === "npm" && c[2]?.[0] === "install")).toBe(true);
       });
 
       const bench = benchManager.getBench("test-project", 1);
@@ -1513,7 +1641,8 @@ describe("background provisioning", () => {
       expect(processManager.startProcess).toHaveBeenCalled();
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
       expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
-      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "install")).toBe(true);
+      const runProcessCalls = vi.mocked(processManager.runProcess).mock.calls;
+      expect(runProcessCalls.some((c) => c[1] === "npm" && c[2]?.[0] === "install")).toBe(true);
       expect(bench.provisioningSteps.length).toBeGreaterThan(1);
       expect(bench.provisioningSteps.some((s) => s.id.startsWith("component:"))).toBe(true);
     });
@@ -2409,11 +2538,16 @@ describe("teardownBench", () => {
     setupProcessMocks();
     setupDockerServiceMocks();
 
+    // Start the components first so the engine caches their descriptors, which
+    // teardown consults (the plugin's output) instead of config docker-fields.
+    await benchManager.startComponent("test-project", 1, "db");
+    await benchManager.startComponent("test-project", 1, "backend");
+
     benchManager.teardownBench("test-project", 1);
     await flushBackground();
 
-    expect(processManager.stopProcess).not.toHaveBeenCalledWith("test-project-bench-1-db");
-    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
+    expect(processManager.stopProcess).not.toHaveBeenCalledWith("database:1:db");
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
     expect(dockerService.composeDown).toHaveBeenCalled();
   });
 
@@ -2573,7 +2707,7 @@ describe("teardownBench", () => {
     );
   });
 
-  it("populates correct teardown steps based on config", () => {
+  it("populates correct teardown steps based on provisioned descriptors", async () => {
     const config = makeConfig({
       components: {
         db: {
@@ -2589,6 +2723,10 @@ describe("teardownBench", () => {
     setupExistingBench({ config, ports: { db: 5432, backend: 5001 } });
     setupProcessMocks();
     setupDockerServiceMocks();
+
+    // Start so the engine caches the docker descriptor that teardown reads for
+    // its docker-down step (#612: step derivation is no longer config-driven).
+    await benchManager.startComponent("test-project", 1, "db");
 
     const bench = benchManager.teardownBench("test-project", 1, true);
 
@@ -3092,7 +3230,7 @@ describe("startComponent", () => {
     await benchManager.startComponent("test-project", 1, "backend");
 
     expect(processManager.startProcess).toHaveBeenCalledWith(
-      "test-project-bench-1-backend",
+      "process:1:backend",
       "dotnet",
       ["run", "--project", "src/Api/Api.csproj"],
       expect.any(Object),
@@ -3101,6 +3239,35 @@ describe("startComponent", () => {
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     expect(bench.components.backend.status).toBe("running");
+  });
+
+  it("delegates to the bound plugin's translate then the LifecycleEngine (#612)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    // The component is launched by asking its bound plugin to translate, never
+    // by a core type/docker dispatch.
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "process",
+      "translate",
+      expect.objectContaining({
+        context: expect.objectContaining({ componentName: "backend", benchId: 1 }),
+      }),
+    );
+  });
+
+  it("surfaces a clear error when a component has no plugin binding (#612)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // A component that resolves to not-bound (config migration #614 is out of
+    // scope) is reported as an actionable error, not silently skipped.
+    vi.mocked(componentRegistry.resolveBinding).mockReturnValue({ reason: "not-bound" });
+
+    await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject({
+      code: "COMPONENT_NOT_BOUND",
+    });
   });
 
   it("starts process service with directory as cwd", async () => {
@@ -3120,7 +3287,7 @@ describe("startComponent", () => {
     await benchManager.startComponent("test-project", 1, "frontend");
 
     expect(processManager.startProcess).toHaveBeenCalledWith(
-      "test-project-bench-1-frontend",
+      "process:1:frontend",
       "npm",
       ["run", "dev"],
       {},
@@ -3128,15 +3295,19 @@ describe("startComponent", () => {
     );
   });
 
-  it("writes env file for process component with envFile config", async () => {
+  it("injects env into the spawned process (plugin env model, #612)", async () => {
+    // #612: env reaches the process via direct injection (the engine's process
+    // descriptor env), not by core writing a .env file. The user-visible parity
+    // is the variable landing in the spawned process environment.
     const config = makeConfig({
       components: {
         frontend: {
+          plugin: { id: "process" },
+          config: { command: "npm run dev", directory: "client" },
           type: "process",
           command: "npm run dev",
           directory: "client",
-          envFile: ".env.local",
-          envVars: { VITE_API_URL: "http://localhost:5000" },
+          env: { VITE_API_URL: "http://localhost:5000" },
         },
       },
       ports: { frontend: { base: 3000 } },
@@ -3146,33 +3317,12 @@ describe("startComponent", () => {
 
     await benchManager.startComponent("test-project", 1, "frontend");
 
-    expect(fs.default.promises.writeFile).toHaveBeenCalledWith(
-      "/home/.roubo/workspaces/test-project/bench-1/.env.local",
-      expect.stringContaining("VITE_API_URL="),
-    );
-  });
-
-  it("writes env file relative to workspace root, not service directory", async () => {
-    const config = makeConfig({
-      components: {
-        frontend: {
-          type: "process",
-          command: "npm run dev",
-          directory: "client",
-          envFile: "client/.env.local",
-          envVars: { VITE_API_URL: "http://localhost:5000" },
-        },
-      },
-      ports: { frontend: { base: 3000 } },
-    });
-    setupExistingBench({ config, ports: { frontend: 3000 } });
-    setupProcessMocks();
-
-    await benchManager.startComponent("test-project", 1, "frontend");
-
-    expect(fs.default.promises.writeFile).toHaveBeenCalledWith(
-      "/home/.roubo/workspaces/test-project/bench-1/client/.env.local",
-      expect.stringContaining("VITE_API_URL="),
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "process:1:frontend",
+      "npm",
+      ["run", "dev"],
+      expect.objectContaining({ VITE_API_URL: "http://localhost:5000" }),
+      expect.stringContaining("client"),
     );
   });
 
@@ -3195,7 +3345,7 @@ describe("startComponent", () => {
     await benchManager.startComponent("test-project", 1, "backend");
 
     expect(processManager.startProcess).toHaveBeenCalledWith(
-      "test-project-bench-1-backend",
+      "process:1:backend",
       "dotnet",
       ["run", "--urls=http://localhost:5000"],
       expect.any(Object),
@@ -3224,11 +3374,12 @@ describe("startComponent", () => {
 
     await benchManager.startComponent("test-project", 1, "db");
 
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "database:1:db:migration",
       "dotnet",
       ["ef", "database", "update"],
+      expect.objectContaining({ HOST_PORT: "5432" }),
       "/home/.roubo/workspaces/test-project/bench-1",
-      {},
       300_000,
     );
   });
@@ -3257,11 +3408,12 @@ describe("startComponent", () => {
 
     await benchManager.startComponent("test-project", 1, "db");
 
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "database:1:db:migration",
       "dotnet",
       ["run", "--project", "responda-service/Seeder", "connection-string"],
+      expect.objectContaining({ HOST_PORT: "5432" }),
       "/home/.roubo/workspaces/test-project/bench-1",
-      {},
       300_000,
     );
   });
@@ -3296,11 +3448,12 @@ describe("startComponent", () => {
         }),
       }),
     );
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "database:1:db:migration",
       "dotnet",
       ["ef", "database", "update"],
+      expect.objectContaining({ GITHUB_PAT: "my-pat", DB_NAME: "mydb" }),
       "/home/.roubo/workspaces/test-project/bench-1",
-      { GITHUB_PAT: "my-pat", DB_NAME: "mydb" },
       300_000,
     );
   });
@@ -3501,9 +3654,9 @@ describe("startComponent", () => {
       phases.push(getPhase());
       return { success: true };
     });
-    vi.mocked(execModule.runCommand).mockImplementation(async () => {
+    vi.mocked(processManager.runProcess).mockImplementation(async () => {
       phases.push(getPhase());
-      return { code: 0, stdout: "", stderr: "" };
+      return { exitCode: 0 };
     });
 
     await benchManager.startComponent("test-project", 1, "db");
@@ -3738,14 +3891,13 @@ describe("startComponent", () => {
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    expect(bench.components.db.phases).toEqual([
-      { label: "Starting container", status: "done" },
-      { label: "Waiting for healthy", status: "error" },
-      { label: "Running migrations", status: "pending" },
-    ]);
+    // The LifecycleEngine drives phases now (#612); a docker failure surfaces as
+    // an error status with the failing-phase message, the user-visible contract.
+    expect(bench.components.db.status).toBe("error");
+    expect(bench.components.db.error).toContain("healthy");
   });
 
-  it("does not create phases for non-docker services", async () => {
+  it("creates a single process phase for a non-docker component (#612)", async () => {
     setupExistingBench();
     setupProcessMocks();
 
@@ -3753,7 +3905,11 @@ describe("startComponent", () => {
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    expect(bench.components.backend.phases).toEqual([]);
+    // The engine's process phase machine emits one "Starting process" phase,
+    // marked done on success.
+    expect(bench.components.backend.phases).toEqual([
+      { label: "Starting process", status: "done" },
+    ]);
   });
 
   it("creates a component-error notification when a process component fails to start", async () => {
@@ -3908,7 +4064,7 @@ describe("stopComponent", () => {
 
     await benchManager.stopComponent("test-project", 1, "backend");
 
-    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
   });
 
   it("updates status to stopped", async () => {
@@ -4167,9 +4323,9 @@ describe("startAllComponents / stopAllComponents", () => {
       return { success: true };
     });
     vi.mocked(processManager.startProcess).mockImplementation((...args) => {
-      // Extract component name from process id: "test-project-bench-1-<component>"
+      // Extract component name from the engine process id: "<pluginId>:<benchId>:<component>"
       const pid = args[0] as string;
-      const componentKey = pid.split("-").pop() ?? "";
+      const componentKey = pid.split(":").pop() ?? "";
       startOrder.push(componentKey);
       return { pid: 123 };
     });
@@ -4262,10 +4418,7 @@ describe("getComponentLogs", () => {
 
     const logs = benchManager.getComponentLogs("test-project", 1, "backend");
 
-    expect(processManager.getProcessLogLines).toHaveBeenCalledWith(
-      "test-project-bench-1-backend",
-      undefined,
-    );
+    expect(processManager.getProcessLogLines).toHaveBeenCalledWith("process:1:backend", undefined);
     expect(logs).toEqual(lines);
   });
 
@@ -4282,10 +4435,7 @@ describe("getComponentLogs", () => {
       { source: "stdout", text: "compose up", ts: "2026-06-21T00:00:00.000Z" },
     ]);
     // Plugin-backed read does not fall through to the process buffer.
-    expect(processManager.getProcessLogLines).not.toHaveBeenCalledWith(
-      "test-project-bench-1-db",
-      undefined,
-    );
+    expect(processManager.getProcessLogLines).not.toHaveBeenCalledWith("database:1:db", undefined);
   });
 });
 
@@ -5108,20 +5258,25 @@ describe("assignContainer", () => {
     ).rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
   });
 
-  it("throws INVALID_COMPONENT_TYPE when component is not a database type", async () => {
+  it("no longer rejects a non-database component with a core type guard (#612)", async () => {
+    // #612 removed the `type === "database"` guard: assignment is gated by the
+    // plugin (via the docker permission), not a core component-type literal. A
+    // non-database component is no longer rejected with INVALID_COMPONENT_TYPE;
+    // it falls through to generic container validation instead.
     setupExistingBench();
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue(null);
 
     await expect(
       benchManager.assignContainer("test-project", 1, "backend", "abc123"),
-    ).rejects.toMatchObject({ code: "INVALID_COMPONENT_TYPE" });
+    ).rejects.toMatchObject({ code: "CONTAINER_NOT_FOUND" });
   });
 
-  it("throws CONTAINER_NOT_FOUND when container ID not in docker list", async () => {
+  it("throws CONTAINER_NOT_FOUND when container ID not found", async () => {
     setupExistingBench({
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
     });
-    vi.mocked(dockerService.listDatabaseContainers).mockResolvedValue([]);
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue(null);
 
     await expect(
       benchManager.assignContainer("test-project", 1, "db", "abc123"),
@@ -5133,15 +5288,12 @@ describe("assignContainer", () => {
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
     });
-    vi.mocked(dockerService.listDatabaseContainers).mockResolvedValue([
-      {
-        id: "abc123",
-        name: "my-postgres",
-        image: "postgres:16",
-        status: "running",
-        port: null,
-      },
-    ]);
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "abc123",
+      name: "my-postgres",
+      status: "running",
+      port: undefined,
+    });
 
     await expect(
       benchManager.assignContainer("test-project", 1, "db", "abc123"),
@@ -5153,15 +5305,12 @@ describe("assignContainer", () => {
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
     });
-    vi.mocked(dockerService.listDatabaseContainers).mockResolvedValue([
-      {
-        id: "abc123",
-        name: "my-postgres",
-        image: "postgres:16",
-        status: "running",
-        port: 5433,
-      },
-    ]);
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "abc123",
+      name: "my-postgres",
+      status: "running",
+      port: 5433,
+    });
 
     const bench = await benchManager.assignContainer("test-project", 1, "db", "abc123");
 
@@ -5175,20 +5324,45 @@ describe("assignContainer", () => {
     expect(stateService.updateBench).toHaveBeenCalled();
   });
 
+  it("routes an assigned container through the plugin path on start (#612)", async () => {
+    setupExistingBench({
+      config: dbConfig,
+      ports: { backend: 5001, db: 5432 },
+    });
+    setupDockerServiceMocks();
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "abc123",
+      name: "my-postgres",
+      status: "running",
+      port: 5433,
+    });
+
+    await benchManager.assignContainer("test-project", 1, "db", "abc123");
+    await benchManager.startComponent("test-project", 1, "db");
+
+    // The assignment reaches the database plugin's translate as
+    // `config.assignedContainerId`, so the engine adopts it (no core
+    // type === "database" guard).
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "database",
+      "translate",
+      expect.objectContaining({
+        config: expect.objectContaining({ assignedContainerId: "abc123" }),
+      }),
+    );
+  });
+
   it("preserves injectedJigSource in updateBench call", async () => {
     setupExistingBench({
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
     });
-    vi.mocked(dockerService.listDatabaseContainers).mockResolvedValue([
-      {
-        id: "abc123",
-        name: "my-postgres",
-        image: "postgres:16",
-        status: "running",
-        port: 5433,
-      },
-    ]);
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "abc123",
+      name: "my-postgres",
+      status: "running",
+      port: 5433,
+    });
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     bench.injectedJigId = "my-jig";
@@ -5208,15 +5382,12 @@ describe("assignContainer", () => {
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
     });
-    vi.mocked(dockerService.listDatabaseContainers).mockResolvedValue([
-      {
-        id: "abc123",
-        name: "my-postgres",
-        image: "postgres:16",
-        status: "running",
-        port: 5433,
-      },
-    ]);
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "abc123",
+      name: "my-postgres",
+      status: "running",
+      port: 5433,
+    });
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     bench.components.backend.setupComplete = false;
@@ -5461,12 +5632,15 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
       expect(bench?.status).toBe("active");
     });
 
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    // Setup is now run by the LifecycleEngine through process-manager (#612),
+    // under the engine's per-component setup id, not core's runCommand.
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "process:1:backend:setup",
       "npm",
       ["ci"],
+      expect.any(Object),
       "/home/.roubo/workspaces/test-project/bench-1",
-      undefined,
-      300_000,
+      0,
     );
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ componentSetupState: { backend: true } }),
@@ -5526,11 +5700,9 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
       { backend: 5001, worker: 5002 },
     );
     setupProcessMocks();
-    vi.mocked(execModule.runCommand).mockResolvedValue({
-      code: 1,
-      stdout: "",
-      stderr: "install failed",
-    });
+    // The engine runs setup via process-manager; a non-zero setup exit drives
+    // the component to error before the process is started (#612).
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
 
     benchManager.startAllComponents("test-project", 1);
 
@@ -5598,12 +5770,13 @@ describe("startComponent (per-component Start setup gating)", () => {
 
     await benchManager.startComponent("test-project", 1, "backend");
 
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "process:1:backend:setup",
       "npm",
       ["ci"],
+      expect.any(Object),
       "/home/.roubo/workspaces/test-project/bench-1",
-      undefined,
-      300_000,
+      0,
     );
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ componentSetupState: { backend: true } }),
@@ -5655,11 +5828,9 @@ describe("startComponent (per-component Start setup gating)", () => {
     });
     setupBenchWithSetupState(config, { backend: false });
     setupProcessMocks();
-    vi.mocked(execModule.runCommand).mockResolvedValue({
-      code: 1,
-      stdout: "",
-      stderr: "install failed",
-    });
+    // Setup runs through the engine's process-manager now (#612); a non-zero
+    // setup exit drives the component to error before the process starts.
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
 
     await benchManager.startComponent("test-project", 1, "backend");
 
@@ -6035,7 +6206,7 @@ describe("handleComponentPluginPreRestart", () => {
       {
         pluginId: "process",
         benchId: 1,
-        processIds: ["test-project-bench-1-backend"],
+        processIds: ["process:1:backend"],
         composeProjects: ["roubo-test-project-bench-1"],
       },
     ]);
@@ -6044,7 +6215,7 @@ describe("handleComponentPluginPreRestart", () => {
 
     await benchManager.handleComponentPluginPreRestart("process");
 
-    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
     expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
   });
@@ -6054,13 +6225,13 @@ describe("handleComponentPluginPreRestart", () => {
       {
         pluginId: "process",
         benchId: 1,
-        processIds: ["test-project-bench-1-backend"],
+        processIds: ["process:1:backend"],
         composeProjects: [],
       },
       {
         pluginId: "database",
         benchId: 1,
-        processIds: ["test-project-bench-1-db"],
+        processIds: ["database:1:db"],
         composeProjects: ["roubo-test-project-bench-1"],
       },
     ]);
@@ -6069,8 +6240,8 @@ describe("handleComponentPluginPreRestart", () => {
 
     await benchManager.handleComponentPluginPreRestart("process");
 
-    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
-    expect(processManager.stopProcess).not.toHaveBeenCalledWith("test-project-bench-1-db");
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
+    expect(processManager.stopProcess).not.toHaveBeenCalledWith("database:1:db");
     expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
     expect(ledgerService.clearEntry).not.toHaveBeenCalledWith("database", 1);
@@ -6081,7 +6252,7 @@ describe("handleComponentPluginPreRestart", () => {
       {
         pluginId: "process",
         benchId: 1,
-        processIds: ["test-project-bench-1-backend"],
+        processIds: ["process:1:backend"],
         composeProjects: [],
       },
     ]);
@@ -6109,7 +6280,7 @@ describe("handleComponentPluginRestarted", () => {
     // The default fixture binds `backend` to plugin `process`, so re-provision
     // drives the process launch path.
     expect(processManager.startProcess).toHaveBeenCalledWith(
-      "test-project-bench-1-backend",
+      "process:1:backend",
       "dotnet",
       ["run", "--project", "src/Api/Api.csproj"],
       expect.any(Object),
@@ -6148,7 +6319,7 @@ describe("handleComponentPluginRestarted", () => {
     await benchManager.handleComponentPluginRestarted("process");
 
     expect(processManager.startProcess).toHaveBeenCalledWith(
-      "test-project-bench-1-backend",
+      "process:1:backend",
       "dotnet",
       ["run", "--project", "src/Api/Api.csproj"],
       expect.any(Object),

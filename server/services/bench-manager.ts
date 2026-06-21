@@ -19,6 +19,10 @@ import * as dockerService from "./docker.js";
 import type { ContainerStatus } from "./docker.js";
 import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
+import * as pluginManager from "./plugin-manager.js";
+import { resolveBinding, isNotBound, type NotBound } from "./component-plugin-registry.js";
+import { runDescriptor, type LifecycleContext } from "./lifecycle-engine.js";
+import type { ProvisionDescriptor } from "@roubo/shared/provision-descriptor-schema";
 import * as componentLogStore from "./component-log-store.js";
 import * as terminalService from "./terminal.js";
 import * as notificationService from "./notification.js";
@@ -28,7 +32,6 @@ import {
   buildTemplateContext,
   resolveTemplate,
   resolveServiceEnv,
-  stripSurroundingQuotes,
   type ResolvedTemplateContext,
 } from "./config-parser.js";
 import { runCommand, parseCommand } from "./exec.js";
@@ -68,6 +71,22 @@ function readGlobalBenchCap(): number | null {
   }
   const max = settings.benches?.maxGlobal;
   return typeof max === "number" && Number.isInteger(max) && max >= 1 ? max : null;
+}
+
+/**
+ * Whether a component declares a one-time `setup` step, read from the opaque
+ * plugin-config block (where the bundled process plugin carries it) rather than
+ * a legacy top-level field. This is the only field core consults to seed the
+ * initial `setupComplete` flag; it is not a component-type literal or a
+ * docker-field branch (#612, NFR-006). The engine owns actually running setup.
+ */
+function componentHasSetup(componentConfig: ComponentConfig | undefined): boolean {
+  // Prefer the opaque plugin config (the post-migration home of `setup`); fall
+  // back to the legacy top-level field still present on pre-migration configs
+  // (#609 transition shim, migrated by #614). Either being a non-empty string
+  // means the component declares a one-time setup the engine will run once.
+  const setup = componentConfig?.config?.setup ?? componentConfig?.setup;
+  return typeof setup === "string" && setup.trim().length > 0;
 }
 
 function resolveComponentOrder(components: Record<string, ComponentConfig>): string[] {
@@ -156,7 +175,7 @@ export function initialize() {
         const persistedFlag = ps.componentSetupState?.[name];
         const setupComplete = isLegacy
           ? true
-          : (persistedFlag ?? (componentConfig.setup ? false : true));
+          : (persistedFlag ?? (componentHasSetup(componentConfig) ? false : true));
         components[name] = { name, status: "stopped", setupComplete };
       }
     }
@@ -224,11 +243,12 @@ export async function reconcile() {
     }
 
     validBenches.push(bench);
-    for (const [, componentConfig] of Object.entries(project.config.components)) {
-      if (componentConfig.docker) {
+    for (const name of Object.keys(project.config.components)) {
+      const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
+      if (descriptor?.kind === "docker") {
         dockerQueries.push({
           projectName: dockerService.getComposeProjectName(bench.projectId, bench.id),
-          service: componentConfig.docker.service,
+          service: descriptor.service,
         });
       }
     }
@@ -243,11 +263,19 @@ export async function reconcile() {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
 
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
-      if (componentConfig.docker) {
+    // Reconcile from live HOST state (container / process), never by polling the
+    // plugin over IPC (NFR-002). The cached descriptor tells core which host
+    // resource backs each component, with no config docker-field read.
+    for (const name of Object.keys(project.config.components)) {
+      const descriptor = componentDescriptors.get(
+        descriptorKindKey(bench.projectId, bench.id, name),
+      );
+      const binding = resolveBinding(bench.projectId, name);
+      const pluginId = isNotBound(binding) ? undefined : binding.pluginId;
+      if (descriptor?.kind === "docker") {
         const projectName = dockerService.getComposeProjectName(bench.projectId, bench.id);
         const containerStatus =
-          containerStatuses.get(`${projectName}/${componentConfig.docker.service}`) ?? "not_found";
+          containerStatuses.get(`${projectName}/${descriptor.service}`) ?? "not_found";
         const newStatus =
           containerStatus === "running"
             ? "running"
@@ -257,14 +285,10 @@ export async function reconcile() {
         if (bench.components[name]) {
           bench.components[name].status = newStatus;
         } else {
-          bench.components[name] = {
-            name,
-            status: newStatus,
-            setupComplete: !componentConfig.setup,
-          };
+          bench.components[name] = { name, status: newStatus, setupComplete: true };
         }
-      } else {
-        const pid = processId(bench.projectId, bench.id, name);
+      } else if (pluginId) {
+        const pid = `${pluginId}:${bench.id}:${name}`;
         const procStatus = processManager.getProcessStatus(pid);
         if (procStatus.alive) {
           if (bench.components[name]) {
@@ -275,7 +299,7 @@ export async function reconcile() {
               name,
               status: "running",
               pid: processManager.getProcessPid(pid),
-              setupComplete: !componentConfig.setup,
+              setupComplete: true,
             };
           }
         }
@@ -424,8 +448,11 @@ function makeTeardownSteps(
   const steps: ProvisioningStep[] = [
     { id: "terminals", label: "Closing terminals", status: "pending" },
   ];
-  const hasNonDockerComponents = Object.values(components).some((s) => !s.docker);
-  if (hasNonDockerComponents) {
+  // Core no longer knows which components are docker-backed (#612), so the
+  // process-stop step is shown whenever the bench has any components: stopping a
+  // component's engine-spawned process is a no-op when none exists, and a
+  // docker-backed component is additionally torn down by the docker-down step.
+  if (Object.keys(components).length > 0) {
     steps.push({
       id: "stop-components",
       label: "Stopping components",
@@ -541,7 +568,7 @@ export function createBench(
     components[name] = {
       name,
       status: "stopped",
-      setupComplete: !componentConfig.setup,
+      setupComplete: !componentHasSetup(componentConfig),
     };
   }
 
@@ -629,50 +656,25 @@ async function runComponentsInOrder(
     const componentStatus = bench.components[name];
     updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "running");
 
-    if (config) {
-      const componentConfig = config.components[name];
-      const needsSetup = !!componentConfig?.setup && !componentStatus.setupComplete;
-      componentStatus.phases = makeComponentPhases(componentConfig, needsSetup);
-
-      if (needsSetup) {
-        setComponentPhase(componentStatus, "Installing dependencies");
-        const cwd = componentConfig.directory
-          ? path.resolve(bench.workspacePath, componentConfig.directory)
-          : bench.workspacePath;
-        const parts = parseCommand(componentConfig.setup as string);
-        const result = await runCommand(parts[0], parts.slice(1), cwd, undefined, 300_000);
-        processManager.storeCommandLogs(
-          processId(bench.projectId, bench.id, name),
-          result.stdout,
-          result.stderr,
-        );
-        if (result.code !== 0) {
-          const errorMsg = result.stderr || `Setup command failed with exit code ${result.code}`;
-          errorCurrentPhase(componentStatus);
-          updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "error", errorMsg);
-          bench.status = "error";
-          bench.error = `Setup for '${name}' failed: ${errorMsg}`;
-          return;
-        }
-        completeAllPhases(componentStatus);
-        componentStatus.setupComplete = true;
-        stateService.updateBench(stateService.toPersistedBench(bench));
-      }
-    } else {
-      componentStatus.phases = [];
-    }
+    // The plugin's LifecycleEngine owns one-time setup and phase reporting now
+    // (#612); core no longer reads legacy setup/docker fields here. The engine
+    // pushes phases through reportStatus into componentStatus.
+    componentStatus.phases = [];
 
     await launchComponent(bench.projectId, bench.id, name);
 
-    if (componentStatus?.status === "error") {
+    // Re-read the live status: the engine's reportStatus sink replaces the
+    // bench.components[name] object, so the captured reference is now stale.
+    const launched = bench.components[name];
+    if (launched?.status === "error") {
       updateStep(
         bench.provisioningSteps,
         `${COMPONENT_STEP_PREFIX}${name}`,
         "error",
-        componentStatus.error,
+        launched.error,
       );
       bench.status = "error";
-      bench.error = `Component '${name}' failed to start: ${componentStatus.error ?? "unknown error"}`;
+      bench.error = `Component '${name}' failed to start: ${launched.error ?? "unknown error"}`;
       return;
     }
     updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "done");
@@ -1048,7 +1050,15 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
 
   const project = projectRegistry.getProject(projectId);
   const components = project?.config?.components ?? {};
-  const hasDockerComponents = Object.values(components).some((s) => !!s.docker);
+  // Whether any component the engine provisioned this bench is docker-backed,
+  // read from the cached descriptors (the plugin's output) rather than a config
+  // docker-field (#612, NFR-006). A never-started bench has no descriptors, so
+  // its teardown shows no docker-down step, matching prior behaviour for benches
+  // that never brought a container up.
+  const hasDockerComponents = Object.keys(components).some(
+    (name) =>
+      componentDescriptors.get(descriptorKindKey(projectId, benchId, name))?.kind === "docker",
+  );
 
   bench.status = "clearing";
   bench.teardownSteps = makeTeardownSteps(components, hasDockerComponents, removeWorkspace);
@@ -1081,37 +1091,40 @@ async function runTeardownBackground(
     terminalService.destroyBenchSessions(projectId, benchId);
     updateStep(bench.teardownSteps, "terminals", "done");
 
-    // Step 2: Stop non-docker components
+    // Step 2: Stop component processes. Core branches on the descriptor KIND the
+    // plugin emitted (its output), not a config docker-field (#612): a
+    // docker-backed component is left for the docker-down step, every other
+    // component's engine-spawned process is stopped.
     if (bench.teardownSteps.some((s) => s.id === "stop-components")) {
       updateStep(bench.teardownSteps, "stop-components", "running");
       for (const name of Object.keys(bench.components)) {
-        if (project?.config?.components[name]?.docker) continue;
-        const pid = processId(projectId, benchId, name);
-        await processManager.stopProcess(pid);
+        const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
+        if (descriptor?.kind === "docker") continue;
+        const binding = resolveBinding(projectId, name);
+        if (!isNotBound(binding)) {
+          await processManager.stopProcess(`${binding.pluginId}:${benchId}:${name}`);
+        }
+        await processManager.stopProcess(processId(projectId, benchId, name));
         bench.components[name].status = "stopped";
       }
       updateStep(bench.teardownSteps, "stop-components", "done");
     }
 
-    // Step 3: Docker compose down
+    // Step 3: Docker compose down. Driven by the cached descriptors (the
+    // plugin's output) rather than a config docker-field: each docker-backed
+    // component's compose file is downed once, scoped to the bench project name.
     if (bench.teardownSteps.some((s) => s.id === "docker-down")) {
       updateStep(bench.teardownSteps, "docker-down", "running");
-      if (project?.config) {
-        const downedComposeFiles = new Set<string>();
-        for (const [name, componentConfig] of Object.entries(project.config.components)) {
-          if (componentConfig.docker) {
-            if (!downedComposeFiles.has(componentConfig.docker.composeFile)) {
-              const projectName = dockerService.getComposeProjectName(projectId, benchId);
-              await dockerService.composeDown(
-                projectName,
-                componentConfig.docker.composeFile,
-                bench.workspacePath,
-              );
-              downedComposeFiles.add(componentConfig.docker.composeFile);
-            }
-            if (bench.components[name]) bench.components[name].status = "stopped";
-          }
+      const downedComposeFiles = new Set<string>();
+      for (const name of Object.keys(bench.components)) {
+        const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
+        if (descriptor?.kind !== "docker") continue;
+        if (!downedComposeFiles.has(descriptor.composeFile)) {
+          const projectName = dockerService.getComposeProjectName(projectId, benchId);
+          await dockerService.composeDown(projectName, descriptor.composeFile, bench.workspacePath);
+          downedComposeFiles.add(descriptor.composeFile);
         }
+        if (bench.components[name]) bench.components[name].status = "stopped";
       }
       updateStep(bench.teardownSteps, "docker-down", "done");
     }
@@ -1357,20 +1370,26 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   // Clean up stale resources
   terminalService.destroyBenchSessions(projectId, benchId);
 
+  // Stop every component's engine-spawned process (a no-op for docker-backed
+  // components); no component-type / docker-field branch in core (#612).
   for (const name of Object.keys(bench.components)) {
-    if (config.components[name]?.docker) continue;
-    await processManager.stopProcess(processId(projectId, benchId, name));
+    const binding = resolveBinding(projectId, name);
+    if (!isNotBound(binding)) {
+      await processManager.stopProcess(`${binding.pluginId}:${benchId}:${name}`).catch(() => {});
+    }
+    await processManager.stopProcess(processId(projectId, benchId, name)).catch(() => {});
   }
 
   if (fs.existsSync(bench.workspacePath)) {
     const downedComposeFiles = new Set<string>();
-    for (const [, componentConfig] of Object.entries(config.components)) {
-      if (componentConfig.docker && !downedComposeFiles.has(componentConfig.docker.composeFile)) {
+    for (const name of Object.keys(config.components)) {
+      const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
+      if (descriptor?.kind === "docker" && !downedComposeFiles.has(descriptor.composeFile)) {
         const projectName = dockerService.getComposeProjectName(projectId, benchId);
         await dockerService
-          .composeDown(projectName, componentConfig.docker.composeFile, bench.workspacePath)
+          .composeDown(projectName, descriptor.composeFile, bench.workspacePath)
           .catch(() => {});
-        downedComposeFiles.add(componentConfig.docker.composeFile);
+        downedComposeFiles.add(descriptor.composeFile);
       }
     }
   }
@@ -1432,7 +1451,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     bench.components[name] = {
       name,
       status: "stopped",
-      setupComplete: !componentConfig.setup,
+      setupComplete: !componentHasSetup(componentConfig),
     };
   }
 
@@ -1441,9 +1460,259 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 }
 
 /**
- * Pure launch: runs the docker / process steps for a component without doing
- * any setup. `runComponentsInOrder` is responsible for running setup first when
- * needed; `startComponent` (the route-facing entry point) wraps both steps.
+ * Per-(bench, component) cache of the ProvisionDescriptor the plugin's
+ * `translate` last emitted, keyed by `${projectId}:${benchId}:${componentName}`.
+ *
+ * The descriptor is the PLUGIN's output (the engine's domain), not a core
+ * component-type literal or a docker-FIELD branch: NFR-006 forbids
+ * `=== "database"` / `=== "process"` dispatch and `componentConfig.docker` field
+ * reads, neither of which reading a cached descriptor is. Stop and reconcile
+ * consult it to drive the right teardown / live-state check for a component
+ * without re-deriving the shape from config, mirroring how the ledger (not
+ * config) already drives crash cleanup. A component the engine has never
+ * provisioned this process has no entry; stop then only stops its process id.
+ */
+const componentDescriptors = new Map<string, ProvisionDescriptor>();
+
+function descriptorKindKey(projectId: string, benchId: number, componentName: string): string {
+  return `${projectId}:${benchId}:${componentName}`;
+}
+
+/**
+ * Recursively resolve template placeholders in the string values of an opaque
+ * component config (e.g. a `command` carrying `{{urls.backend}}`), using the
+ * bench template context. This is the host's job (it owns ports / the resolved
+ * context), done before the plugin's pure translate, so command/value templating
+ * matches the built-in path (FR-007). Non-string leaves pass through unchanged.
+ */
+function resolveConfigTemplates(value: unknown, ctx: ResolvedTemplateContext): unknown {
+  if (typeof value === "string") return resolveTemplate(value, ctx);
+  if (Array.isArray(value)) return value.map((v) => resolveConfigTemplates(v, ctx));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = resolveConfigTemplates(v, ctx);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Resolve a component's ProvisionDescriptor for reconcile, preferring the cache.
+ * On a cold start (a bench provisioned in a previous process) the cache is empty,
+ * so the descriptor is resolved once via the plugin's pure `translate` and cached.
+ * This is a one-time provision-shape resolve, NOT status polling: reconcile reads
+ * live status from host container/process state (and pushed reportStatus), never
+ * by polling the plugin per cycle, so NFR-002 (no polling IPC) holds. Returns
+ * undefined when the component is unbound or translate fails.
+ */
+async function getOrResolveDescriptor(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+): Promise<ProvisionDescriptor | undefined> {
+  const cached = componentDescriptors.get(descriptorKindKey(projectId, benchId, componentName));
+  if (cached) return cached;
+
+  const binding = resolveBinding(projectId, componentName);
+  if (isNotBound(binding)) return undefined;
+  const project = projectRegistry.getProject(projectId);
+  const bench = getBench(projectId, benchId);
+  if (!project?.config || !bench) return undefined;
+  const componentConfig = project.config.components[componentName];
+  if (!componentConfig) return undefined;
+
+  try {
+    const tplCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+    const ports = tplCtx?.ports ?? bench.ports;
+    const resolvedEnv = resolveServiceEnv(
+      (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
+      tplCtx,
+    );
+    const raw = await pluginManager.invoke<unknown>(binding.pluginId, "translate", {
+      config: componentConfig.config ?? {},
+      context: {
+        projectId,
+        benchId,
+        componentName,
+        workspacePath: bench.workspacePath,
+        ports,
+        env: resolvedEnv,
+      },
+    });
+    if (raw && typeof raw === "object" && "kind" in raw) {
+      const descriptor = raw as ProvisionDescriptor;
+      componentDescriptors.set(descriptorKindKey(projectId, benchId, componentName), descriptor);
+      return descriptor;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Human-readable reason a component could not be resolved to a running plugin.
+ * A built-in component whose roubo.yaml entry carries no `plugin:` binding
+ * resolves to `not-bound`: binding the bundled process/database plugins to the
+ * live configs is the config migration of #614 (F1.13), out of scope here, so
+ * core surfaces a clear, actionable error rather than silently doing nothing.
+ */
+function notBoundMessage(componentName: string, nb: NotBound): string {
+  switch (nb.reason) {
+    case "unknown-project":
+      return `Component '${componentName}' could not be resolved: project not registered`;
+    case "invalid-config":
+      return `Component '${componentName}' could not be resolved: invalid roubo.yaml`;
+    case "unknown-component":
+      return `Component '${componentName}' is not defined in roubo.yaml`;
+    case "not-bound":
+      return `Component '${componentName}' has no plugin binding (bind it to a component plugin in roubo.yaml)`;
+    case "not-consented":
+      return `Component plugin '${nb.pluginId}' has not been consented; acknowledge its permissions before starting '${componentName}'`;
+    case "plugin-unavailable":
+      return `Component plugin '${nb.pluginId}' is not running; cannot start '${componentName}'`;
+  }
+}
+
+/**
+ * Resolve the component's bound plugin, ask it to `translate` its opaque config
+ * into a ProvisionDescriptor, and run that descriptor through the host
+ * LifecycleEngine. This is the single delegation seam that replaces the four
+ * built-in dispatch sites (#612, FR-006 / FR-009): core carries no component
+ * type or docker-field knowledge; the plugin describes and the host owns the
+ * lifecycle. Status is pushed through the engine's `reportStatus` sink into
+ * `bench.components` (NFR-002, no polling).
+ */
+async function provisionComponent(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+): Promise<void> {
+  const bench = getBench(projectId, benchId);
+  if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
+
+  const binding = resolveBinding(projectId, componentName);
+  if (isNotBound(binding)) {
+    throw new BenchError(notBoundMessage(componentName, binding), "COMPONENT_NOT_BOUND");
+  }
+
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
+  const componentConfig = project.config.components[componentName];
+  if (!componentConfig)
+    throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
+
+  const componentStatus = bench.components[componentName];
+  if (!componentStatus)
+    throw new BenchError(`Component '${componentName}' not found in bench`, "COMPONENT_NOT_FOUND");
+
+  // Mark the component in-flight: `startedAt` is the guard reconcile /
+  // refreshComponentStatuses honour to avoid overriding a component while an
+  // active start is managing its lifecycle (parity with the built-in path).
+  componentStatus.status = "starting";
+  componentStatus.startedAt = new Date().toISOString();
+
+  // Resolve the per-bench env (templates filled, e.g. {{ports.x}}) the engine
+  // needs in the BenchContext, preserving FR-005/FR-007 env injection parity.
+  const tplCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+  const resolvedEnv = resolveServiceEnv(
+    (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
+    tplCtx,
+  );
+
+  // Resolve `{{ports.x}}` / `{{urls.x}}` / `{{components.x}}` template strings in
+  // the opaque config before the plugin's pure translate sees it, preserving the
+  // built-in command/value templating parity (FR-007). Resolution is a host
+  // concern (the host owns ports), keeping translate pure.
+  const resolvedConfig = resolveConfigTemplates(componentConfig.config ?? {}, tplCtx) as Record<
+    string,
+    unknown
+  >;
+
+  // Merge an externally-assigned container into the opaque config so the
+  // database plugin's translate emits a descriptor that adopts it (AC: container
+  // assignment routes through the plugin path, not a core type === 'database').
+  const assigned = bench.assignedContainers?.[componentName];
+  const translateConfig: Record<string, unknown> = {
+    ...resolvedConfig,
+    ...(assigned ? { assignedContainerId: assigned.containerId } : {}),
+  };
+
+  let rawDescriptor: unknown;
+  try {
+    rawDescriptor = await pluginManager.invoke(binding.pluginId, "translate", {
+      config: translateConfig,
+      context: {
+        projectId,
+        benchId,
+        componentName,
+        workspacePath: bench.workspacePath,
+        ports: tplCtx.ports,
+        env: resolvedEnv,
+      },
+    });
+  } catch (err) {
+    componentStatus.status = "error";
+    componentStatus.error = (err as Error).message;
+    notificationService.createNotification(bench, "component-error");
+    updateBenchStatus(bench);
+    return;
+  }
+
+  if (rawDescriptor && typeof rawDescriptor === "object" && "kind" in rawDescriptor) {
+    componentDescriptors.set(
+      descriptorKindKey(projectId, benchId, componentName),
+      rawDescriptor as ProvisionDescriptor,
+    );
+  }
+
+  const lifecycleCtx: LifecycleContext = {
+    pluginId: binding.pluginId,
+    projectId,
+    benchId,
+    componentName,
+    workspacePath: bench.workspacePath,
+    ports: tplCtx.ports,
+    reportStatus: buildReportStatus(projectId, benchId),
+    setupComplete: componentStatus.setupComplete,
+  };
+
+  const result = await runDescriptor(rawDescriptor, lifecycleCtx, {
+    processManager,
+    docker: dockerService,
+    ledger,
+  });
+
+  // The engine's reportStatus sink REPLACES bench.components[name] with a fresh
+  // object, so re-read the live status here rather than mutate the now-stale
+  // local reference.
+  const liveStatus = bench.components[componentName] ?? componentStatus;
+
+  // The engine ran any one-time setup; persist setupComplete on first success so
+  // a later Stop -> Start cycle skips it (FR-007 parity).
+  if (result.status !== "error" && liveStatus.setupComplete !== true) {
+    liveStatus.setupComplete = true;
+    stateService.updateBench(stateService.toPersistedBench(bench));
+  }
+  if (result.status === "error") {
+    notificationService.createNotification(bench, "component-error");
+  }
+
+  // Clear the in-flight markers (parity with the built-in launch path), so
+  // reconcile resumes managing this component's live state.
+  liveStatus.statusDetail = undefined;
+  liveStatus.statusDetailStartedAt = undefined;
+  liveStatus.startedAt = undefined;
+
+  updateBenchStatus(bench);
+}
+
+/**
+ * Pure launch: delegates a component's lifecycle to its bound plugin via the
+ * LifecycleEngine. `runComponentsInOrder` orders the launches; `startComponent`
+ * (the route-facing entry point) wraps it.
  */
 async function launchComponent(
   projectId: string,
@@ -1454,64 +1723,7 @@ async function launchComponent(
     throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
   }
 
-  const bench = getBench(projectId, benchId);
-  if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
-
-  const project = projectRegistry.getProject(projectId);
-  if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
-
-  const componentConfig = project.config.components[componentName];
-  if (!componentConfig)
-    throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
-
-  const componentStatus = bench.components[componentName];
-  if (!componentStatus)
-    throw new BenchError(`Component '${componentName}' not found in bench`, "COMPONENT_NOT_FOUND");
-
-  componentStatus.status = "starting";
-  if (!componentStatus.phases || componentStatus.phases.length === 0) {
-    componentStatus.phases = makeComponentPhases(componentConfig);
-  }
-
-  const ctx = buildTemplateContext(project.config, benchId, bench.workspacePath);
-
-  try {
-    if (componentConfig.docker) {
-      componentStatus.startedAt = new Date().toISOString();
-      await startDockerComponent(
-        projectId,
-        benchId,
-        componentName,
-        componentConfig,
-        bench.workspacePath,
-        ctx,
-        componentStatus,
-      );
-      completeAllPhases(componentStatus);
-      componentStatus.status = "running";
-    } else if (componentConfig.type === "process") {
-      await startProcessComponent(
-        projectId,
-        benchId,
-        componentName,
-        componentConfig,
-        bench.workspacePath,
-        ctx,
-      );
-      componentStatus.status = "running";
-    }
-  } catch (err) {
-    errorCurrentPhase(componentStatus);
-    componentStatus.status = "error";
-    componentStatus.error = (err as Error).message;
-    notificationService.createNotification(bench, "component-error");
-  }
-
-  componentStatus.statusDetail = undefined;
-  componentStatus.statusDetailStartedAt = undefined;
-  componentStatus.startedAt = undefined;
-
-  updateBenchStatus(bench);
+  await provisionComponent(projectId, benchId, componentName);
 }
 
 /**
@@ -1574,24 +1786,37 @@ export async function stopComponent(
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
-  const project = projectRegistry.getProject(projectId);
-  const componentConfig = project?.config?.components[componentName];
   const componentStatus = bench.components[componentName];
   if (!componentStatus)
     throw new BenchError(`Component '${componentName}' not found`, "COMPONENT_NOT_FOUND");
 
   componentStatus.status = "stopping";
 
-  if (componentConfig?.docker) {
+  // Delegate teardown to the plugin path: stop whatever the LifecycleEngine
+  // provisioned, driven by the descriptor the plugin emitted (the plugin's
+  // output, not a core docker-field branch). A docker component's compose
+  // service is stopped; every component's engine-spawned process id is stopped
+  // (a no-op when none exists). No component-type literal, no `.docker` field.
+  const descriptor = await getOrResolveDescriptor(projectId, benchId, componentName);
+  if (descriptor?.kind === "docker" && !bench.assignedContainers?.[componentName]) {
     const projectName = dockerService.getComposeProjectName(projectId, benchId);
     await dockerService.composeStop(
       projectName,
-      componentConfig.docker.composeFile,
+      descriptor.composeFile,
       bench.workspacePath,
-      componentConfig.docker.service,
+      descriptor.service,
     );
   }
 
+  const binding = resolveBinding(projectId, componentName);
+  const enginePid = isNotBound(binding)
+    ? undefined
+    : `${binding.pluginId}:${benchId}:${componentName}`;
+  if (enginePid) {
+    await processManager.stopProcess(enginePid);
+  }
+  // Also stop the legacy host-id process (idempotent) so a process started
+  // before this refactor's id scheme is cleaned up.
   await processManager.stopProcess(processId(projectId, benchId, componentName));
   componentStatus.status = "stopped";
   componentStatus.pid = undefined;
@@ -1635,197 +1860,6 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
   for (const name of ordered) {
     await stopComponent(projectId, benchId, name);
   }
-}
-
-function makeComponentPhases(
-  componentConfig: ComponentConfig,
-  includeSetup = false,
-): ComponentPhase[] {
-  const phases: ComponentPhase[] = [];
-  if (includeSetup && componentConfig.setup) {
-    phases.push({ label: "Installing dependencies", status: "pending" });
-  }
-  if (!componentConfig.docker) return phases;
-  phases.push(
-    { label: "Starting container", status: "pending" },
-    { label: "Waiting for healthy", status: "pending" },
-  );
-  if (componentConfig.docker.initService) {
-    phases.push({ label: "Running init component", status: "pending" });
-  }
-  if (componentConfig.migration) {
-    phases.push({ label: "Running migrations", status: "pending" });
-  }
-  return phases;
-}
-
-function setComponentPhase(componentStatus: ComponentStatus, detail: string): void {
-  componentStatus.statusDetail = detail;
-  componentStatus.statusDetailStartedAt = new Date().toISOString();
-  if (componentStatus.phases) {
-    for (const phase of componentStatus.phases) {
-      if (phase.label === detail) {
-        phase.status = "running";
-      } else if (phase.status === "running") {
-        phase.status = "done";
-      }
-    }
-  }
-}
-
-function completeAllPhases(componentStatus: ComponentStatus): void {
-  if (componentStatus.phases) {
-    for (const phase of componentStatus.phases) {
-      if (phase.status === "running") {
-        phase.status = "done";
-      }
-    }
-  }
-}
-
-function errorCurrentPhase(componentStatus: ComponentStatus): void {
-  if (componentStatus.phases) {
-    for (const phase of componentStatus.phases) {
-      if (phase.status === "running") {
-        phase.status = "error";
-      }
-    }
-  }
-}
-
-async function startDockerComponent(
-  projectId: string,
-  benchId: number,
-  componentName: string,
-  componentConfig: ComponentConfig,
-  workspacePath: string,
-  ctx: ResolvedTemplateContext,
-  componentStatus: ComponentStatus,
-) {
-  if (!componentConfig.docker) return;
-
-  processManager.clearProcessLogs(processId(projectId, benchId, componentName));
-
-  // Skip docker-compose if using an externally assigned container
-  const bench = getBench(projectId, benchId);
-  if (bench?.assignedContainers?.[componentName]) {
-    const assigned = bench.assignedContainers[componentName];
-    const status = await dockerService.getContainerStatusById(assigned.containerId);
-    if (status !== "running") {
-      throw new Error(`Assigned container '${assigned.containerName}' is not running`);
-    }
-    return;
-  }
-
-  const projectName = dockerService.getComposeProjectName(projectId, benchId);
-
-  const componentEnv = componentConfig.env ? resolveServiceEnv(componentConfig.env, ctx) : {};
-
-  const portOverrides: Record<string, string> = { ...componentEnv };
-  if (ctx.ports[componentName]) {
-    const envVarName = componentConfig.docker?.portEnvVar ?? "HOST_PORT";
-    portOverrides[envVarName] = String(ctx.ports[componentName]);
-  }
-
-  setComponentPhase(componentStatus, "Starting container");
-  const result = await dockerService.composeUp({
-    composeFile: componentConfig.docker.composeFile,
-    service: componentConfig.docker.service,
-    projectName,
-    portOverrides,
-    cwd: workspacePath,
-  });
-
-  processManager.storeCommandLogs(
-    processId(projectId, benchId, componentName),
-    result.stdout,
-    result.stderr,
-  );
-
-  if (!result.success) {
-    throw new Error(result.error);
-  }
-
-  setComponentPhase(componentStatus, "Waiting for healthy");
-  const healthy = await dockerService.waitForHealthy(projectName, componentConfig.docker.service);
-  if (!healthy) {
-    throw new Error(
-      `Container '${componentConfig.docker.service}' did not become healthy within timeout`,
-    );
-  }
-
-  if (componentConfig.docker.initService) {
-    setComponentPhase(componentStatus, "Running init component");
-    const initResult = await dockerService.composeRunInit({
-      composeFile: componentConfig.docker.composeFile,
-      initService: componentConfig.docker.initService,
-      projectName,
-      portOverrides,
-      cwd: workspacePath,
-      timeoutMs: 120_000,
-    });
-    processManager.storeCommandLogs(
-      processId(projectId, benchId, componentName),
-      initResult.stdout,
-      initResult.stderr,
-    );
-
-    if (!initResult.success) {
-      throw new Error(initResult.error);
-    }
-  }
-
-  if (componentConfig.migration) {
-    setComponentPhase(componentStatus, "Running migrations");
-    const cmdParts = parseCommand(componentConfig.migration.command);
-    const migCmd = cmdParts[0];
-    const migrationArgs = [
-      ...cmdParts.slice(1),
-      ...(componentConfig.migration.args ?? []).map((arg) => resolveTemplate(arg, ctx)),
-    ];
-    const migResult = await runCommand(migCmd, migrationArgs, workspacePath, componentEnv, 300_000);
-    processManager.storeCommandLogs(
-      processId(projectId, benchId, componentName),
-      migResult.stdout,
-      migResult.stderr,
-    );
-
-    if (migResult.code !== 0) {
-      throw new Error(`Migration failed: ${migResult.stderr}`);
-    }
-  }
-}
-
-async function startProcessComponent(
-  projectId: string,
-  benchId: number,
-  componentName: string,
-  componentConfig: ComponentConfig,
-  workspacePath: string,
-  ctx: ResolvedTemplateContext,
-) {
-  const componentDir = componentConfig.directory
-    ? path.resolve(workspacePath, componentConfig.directory)
-    : workspacePath;
-
-  if (componentConfig.envFile && componentConfig.envVars) {
-    const envContent = Object.entries(componentConfig.envVars)
-      .map(([k, v]) => `${k}=${stripSurroundingQuotes(resolveTemplate(v, ctx))}`)
-      .join("\n");
-    // envFile paths are always relative to the workspace root, not the component's directory.
-    await fs.promises.writeFile(
-      path.join(workspacePath, componentConfig.envFile),
-      envContent + "\n",
-    );
-  }
-
-  const resolvedCommand = resolveTemplate(componentConfig.command ?? "", ctx);
-  const parts = parseCommand(resolvedCommand);
-  if (parts.length === 0) throw new Error(`Component '${componentName}' has no command`);
-
-  const env = componentConfig.env ? resolveServiceEnv(componentConfig.env, ctx) : {};
-  const pid = processId(projectId, benchId, componentName);
-  await processManager.startProcess(pid, parts[0], parts.slice(1), env, componentDir);
 }
 
 function updateBenchStatus(bench: Bench) {
@@ -1872,7 +1906,13 @@ export function getComponentLogs(
   if (componentLogStore.hasComponentLogs(projectId, benchId, componentName)) {
     return componentLogStore.getComponentLogLines(projectId, benchId, componentName, tail);
   }
-  return processManager.getProcessLogLines(processId(projectId, benchId, componentName), tail);
+  // A declarative plugin-backed component's process logs are captured by
+  // process-manager under the engine's id scheme (`${pluginId}:${benchId}:${name}`).
+  const binding = resolveBinding(projectId, componentName);
+  const pid = isNotBound(binding)
+    ? processId(projectId, benchId, componentName)
+    : `${binding.pluginId}:${benchId}:${componentName}`;
+  return processManager.getProcessLogLines(pid, tail);
 }
 
 /**
@@ -1918,16 +1958,20 @@ export function buildReportLog(
 }
 
 export async function refreshComponentStatuses() {
-  // Collect all docker queries to batch into a single listContainers call
+  // Collect all docker queries to batch into a single listContainers call. The
+  // descriptor the engine pushed (the plugin's output) tells core which host
+  // resource backs each component; core reads no config docker-field (#612,
+  // NFR-006) and never polls the plugin over IPC (NFR-002).
   const dockerQueries: Array<{ projectName: string; service: string }> = [];
   for (const bench of benches.values()) {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
-      if (componentConfig.docker && bench.components[name]) {
+    for (const name of Object.keys(project.config.components)) {
+      const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
+      if (descriptor?.kind === "docker" && bench.components[name]) {
         dockerQueries.push({
           projectName: dockerService.getComposeProjectName(bench.projectId, bench.id),
-          service: componentConfig.docker.service,
+          service: descriptor.service,
         });
       }
     }
@@ -1942,7 +1986,7 @@ export async function refreshComponentStatuses() {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
 
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+    for (const name of Object.keys(project.config.components)) {
       const componentStatus = bench.components[name];
       if (!componentStatus) continue;
 
@@ -1952,10 +1996,16 @@ export async function refreshComponentStatuses() {
       if (componentStatus.status === "error" || componentStatus.status === "stopping") continue;
       if (componentStatus.startedAt) continue;
 
-      if (componentConfig.docker) {
+      const descriptor = componentDescriptors.get(
+        descriptorKindKey(bench.projectId, bench.id, name),
+      );
+      const binding = resolveBinding(bench.projectId, name);
+      const pluginId = isNotBound(binding) ? undefined : binding.pluginId;
+
+      if (descriptor?.kind === "docker") {
         const projectName = dockerService.getComposeProjectName(bench.projectId, bench.id);
         const containerStatus =
-          containerStatuses.get(`${projectName}/${componentConfig.docker.service}`) ?? "not_found";
+          containerStatuses.get(`${projectName}/${descriptor.service}`) ?? "not_found";
         if (containerStatus === "running") {
           componentStatus.status = "running";
         } else if (containerStatus === "starting") {
@@ -1966,10 +2016,8 @@ export async function refreshComponentStatuses() {
         } else if (componentStatus.status === "running") {
           componentStatus.status = "stopped";
         }
-      } else {
-        const procStatus = processManager.getProcessStatus(
-          processId(bench.projectId, bench.id, name),
-        );
+      } else if (pluginId) {
+        const procStatus = processManager.getProcessStatus(`${pluginId}:${bench.id}:${name}`);
         if (procStatus.alive && componentStatus.status === "starting") {
           componentStatus.status = "running";
         } else if (
@@ -2024,14 +2072,14 @@ export async function assignContainer(
   const componentConfig = project.config.components[componentName];
   if (!componentConfig)
     throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
-  if (componentConfig.type !== "database")
-    throw new BenchError(
-      `Component '${componentName}' is not a database component`,
-      "INVALID_COMPONENT_TYPE",
-    );
 
-  const containers = await dockerService.listDatabaseContainers();
-  const container = containers.find((c) => c.id === containerId);
+  // No core `type === 'database'` guard (#612): the assigned container is
+  // validated generically (it exists, it publishes a port) and the bound plugin
+  // owns the type-specific adoption. At provision time provisionComponent injects
+  // `assignedContainerId` into the plugin's translate config, so the database
+  // plugin emits a descriptor the LifecycleEngine adopts (the plugin path), and
+  // assignment is gated on the plugin's `docker` permission via the broker.
+  const container = await dockerService.getContainerInfoById(containerId);
   if (!container)
     throw new BenchError(`Container '${containerId}' not found`, "CONTAINER_NOT_FOUND");
   if (!container.port)
