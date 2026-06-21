@@ -1,0 +1,29 @@
+id: ports-only
+name: Ports-Only Component Fixture
+version: 0.0.0
+description: >-
+  Component-kind fixture with a ports-only consent for the CP-TC-099 enforced
+  sandboxing e2e drift guard (issue #628). Its declared consent is ports only:
+  everything else (docker, processes, network, credentials, filesystem) is
+  false/empty. Its instrumented start hook (a) calls the declared host.ports.get,
+  (b) attempts the undeclared host.docker.composeUp via the broker, and (c)
+  attempts a direct outbound TCP connection from its own process code, bypassing
+  the broker. The CP-TC-099 plugin identity is 'test/ports-only'; the manifest id
+  is the schema-valid 'ports-only' (manifest ids match ^[a-z][a-z0-9-]*$), and
+  the broker/audit identity carries the 'test/ports-only' string in-process.
+kind: component
+roubo: ^1.3.0
+entry: ./index.cjs
+contractVersion: 1
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+  ports:
+    names:
+      - http
+  docker: false
