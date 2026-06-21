@@ -24,6 +24,9 @@ vi.mock("./services/bench-manager.js", () => ({
   reconcile: vi.fn(() => Promise.resolve()),
   getBenches: vi.fn(() => []),
   refreshComponentStatuses: vi.fn(() => Promise.resolve()),
+  sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
+  handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
+  handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./services/process-manager.js", () => ({
   stopAllProcesses: vi.fn(() => Promise.resolve()),
@@ -50,6 +53,7 @@ vi.mock("./services/plugin-manager.js", () => ({
   initialize: vi.fn(() => Promise.resolve()),
   shutdown: vi.fn(() => Promise.resolve()),
   listInstalled: vi.fn(() => []),
+  registerComponentPluginHooks: vi.fn(),
 }));
 vi.mock("./services/migrate.js", () => ({
   run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
@@ -76,6 +80,29 @@ describe.sequential("startServer", () => {
     expect(handle.port).toBeGreaterThan(0);
     const res = await fetch(`http://127.0.0.1:${handle.port}/api/benches`);
     expect(res.status).toBe(200);
+    await handle.shutdown();
+  });
+
+  it("runs the startup orphan sweep before reconcile and registers the crash hooks (issue #613)", async () => {
+    const pluginManager = await import("./services/plugin-manager.js");
+    const sweep = vi.mocked(benchManager.sweepOrphanedComposeProjects);
+    const reconcile = vi.mocked(benchManager.reconcile);
+    sweep.mockClear();
+    reconcile.mockClear();
+
+    const handle = await startServer({ port: 0 });
+
+    expect(sweep).toHaveBeenCalledTimes(1);
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    // Sweep must reap escaped projects before reconcile rebuilds the live view.
+    expect(sweep.mock.invocationCallOrder[0]).toBeLessThan(reconcile.mock.invocationCallOrder[0]);
+    expect(pluginManager.registerComponentPluginHooks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onComponentPluginPreRestart: benchManager.handleComponentPluginPreRestart,
+        onComponentPluginRestarted: benchManager.handleComponentPluginRestarted,
+      }),
+    );
+
     await handle.shutdown();
   });
 
@@ -178,6 +205,9 @@ describe.sequential("startServer", () => {
         reconcile: vi.fn(() => Promise.resolve()),
         getBenches: vi.fn(() => []),
         refreshComponentStatuses: vi.fn(() => Promise.resolve()),
+        sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
+        handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
+        handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/process-manager.js", () => ({
         stopAllProcesses: vi.fn(() => Promise.resolve()),
@@ -204,6 +234,7 @@ describe.sequential("startServer", () => {
         initialize: vi.fn(() => Promise.resolve()),
         shutdown: vi.fn(() => Promise.resolve()),
         listInstalled: vi.fn(() => []),
+        registerComponentPluginHooks: vi.fn(),
       }));
       vi.doMock("./services/migrate.js", () => ({
         run: vi.fn(() => Promise.resolve({ status: "noop" as const })),

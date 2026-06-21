@@ -182,6 +182,16 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
 
+  // Wire the component-plugin crash-cleanup / auto-recovery hooks (issue #613).
+  // The supervisor fires these when a `component` plugin crashes: pre-restart
+  // reaps the resources the plugin owned (no orphans, no duplicate containers on
+  // restart), and restarted re-provisions its components (auto-recovery). They
+  // are injected (not imported) to avoid a plugin-manager → bench-manager cycle.
+  pluginManager.registerComponentPluginHooks({
+    onComponentPluginPreRestart: benchManager.handleComponentPluginPreRestart,
+    onComponentPluginRestarted: benchManager.handleComponentPluginRestarted,
+  });
+
   // Run integration backfills after the plugin runtime is up: the github-com
   // sources derivation issues a `listSourceCandidates` RPC, which needs a
   // ready plugin manager. Subscribes for later registerProject/reloadConfig
@@ -239,6 +249,15 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   console.log("Initializing bench manager...");
   benchManager.initialize();
+
+  // Startup orphan sweep (issue #613): replay the ledger and reap any compose
+  // project that escaped a hard host kill (matching `roubo-<projectId>-bench-<N>`
+  // only), before reconcile rebuilds the live bench view. Best-effort: a failure
+  // here must not block boot.
+  console.log("Sweeping orphaned compose projects...");
+  await benchManager.sweepOrphanedComposeProjects().catch((err) => {
+    console.error("Startup orphan sweep failed:", (err as Error).message);
+  });
 
   console.log("Reconciling state with system...");
   await benchManager.reconcile();

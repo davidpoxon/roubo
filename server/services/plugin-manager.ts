@@ -68,6 +68,46 @@ interface PluginEntry {
 const plugins = new Map<string, PluginEntry>();
 let initialized = false;
 
+// Crash-cleanup / auto-recovery hooks (issue #613, FR-015 / FR-016).
+//
+// When a `component`-kind plugin crashes, the host must reap the processes and
+// compose projects it owned before respawning (no orphans, no duplicate
+// containers on restart), then re-provision the affected components once the
+// plugin is back. bench-manager owns the ledger and the re-provision path, but
+// importing bench-manager here would create a cycle (bench-manager imports the
+// plugin-manager API). So bench-manager injects its handlers via
+// `registerComponentPluginHooks`; plugin-manager only knows the two callback
+// shapes, never bench-manager itself. Both are optional: integration-only
+// installs and the unit tests that never register them keep working unchanged.
+export interface ComponentPluginHooks {
+  /**
+   * Fired before a crashed component plugin is restarted (and before the
+   * budget-exhaustion error path). The host stops every process and compose
+   * project the plugin owned, scoped to that plugin's ledger entries only, so
+   * sibling components are untouched (graceful degradation).
+   */
+  onComponentPluginPreRestart?: (pluginId: string) => void | Promise<void>;
+  /**
+   * Fired after a crashed component plugin has been respawned. The host
+   * re-provisions the components the plugin was supervising (auto-recovery).
+   */
+  onComponentPluginRestarted?: (pluginId: string) => void | Promise<void>;
+}
+let componentPluginHooks: ComponentPluginHooks = {};
+
+/**
+ * Registers the bench-manager crash-cleanup / re-provision callbacks the
+ * supervisor fires for `component`-kind plugins. Called once at boot. Passing
+ * `null` clears them (used by tests to restore a clean slate).
+ */
+export function registerComponentPluginHooks(hooks: ComponentPluginHooks | null): void {
+  componentPluginHooks = hooks ?? {};
+}
+
+function isComponentPlugin(entry: PluginEntry): boolean {
+  return entry.record.manifest?.kind === "component";
+}
+
 interface CachedConnectionStatus {
   value: ConnectionStatus;
   expiresAt: number;
@@ -703,6 +743,21 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
     return;
   }
 
+  // Unexpected exit of a component plugin. Reap the resources it owned before we
+  // do anything else (issue #613): this runs whether we go on to restart or to
+  // error out on an exhausted budget, so a crash never leaves orphaned processes
+  // or compose projects, and a restart never duplicates containers. The cleanup
+  // is scoped to this plugin's ledger entries, so sibling components survive
+  // (graceful degradation). Fired as fire-and-forget so a slow or failing
+  // cleanup never blocks the supervisor's budget/backoff bookkeeping below.
+  if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginPreRestart) {
+    void invokeComponentHook(
+      entry,
+      "pre-restart cleanup",
+      componentPluginHooks.onComponentPluginPreRestart,
+    );
+  }
+
   // Unexpected exit. Record in restart history and decide whether to restart.
   const now = Date.now();
   const event: RestartEvent = {
@@ -736,9 +791,44 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   entry.restartTimer = setTimeout(() => {
     entry.restartTimer = null;
     if (entry.intentionalStop || !initialized) return;
-    void spawnPlugin(entry);
+    void spawnPlugin(entry).then(() => {
+      // Auto-recovery (FR-016): once the plugin is back up, re-provision the
+      // components it supervises. Only on a successful respawn; a failed spawn
+      // leaves the entry errored and runs no re-provision.
+      if (
+        isComponentPlugin(entry) &&
+        entry.record.status === "enabled" &&
+        componentPluginHooks.onComponentPluginRestarted
+      ) {
+        void invokeComponentHook(
+          entry,
+          "post-restart re-provision",
+          componentPluginHooks.onComponentPluginRestarted,
+        );
+      }
+    });
   }, delay);
   if (typeof entry.restartTimer.unref === "function") entry.restartTimer.unref();
+}
+
+/**
+ * Invokes a component-plugin crash hook, swallowing and logging any rejection.
+ * A hook failure must never crash the supervisor or abort the restart loop:
+ * cleanup and re-provision are best-effort, and the startup sweep is the
+ * backstop for anything they miss.
+ */
+async function invokeComponentHook(
+  entry: PluginEntry,
+  label: string,
+  hook: (pluginId: string) => void | Promise<void>,
+): Promise<void> {
+  try {
+    await hook(entry.record.id);
+  } catch (err) {
+    await writeLog(entry, "host", `${label} hook failed: ${(err as Error).message}`, "error").catch(
+      () => {},
+    );
+  }
 }
 
 async function stopPluginProcess(entry: PluginEntry): Promise<void> {

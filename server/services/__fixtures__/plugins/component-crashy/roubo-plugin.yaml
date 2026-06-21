@@ -1,0 +1,19 @@
+id: component-crashy
+name: Component Crashy Fixture
+version: 0.0.0
+description: A component-kind test fixture that exits immediately
+kind: component
+roubo: ^1.3.0
+entry: ./index.cjs
+contractVersion: 1
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+  ports:
+    names: []
+  docker: false
