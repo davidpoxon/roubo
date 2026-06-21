@@ -3621,22 +3621,21 @@
       "type": "e2e_flow",
       "priority": "P0",
       "preconditions": [
-        "Roubo is running with the marketplace view active",
-        "The 'Redis' component plugin (roubo/redis) is not yet installed",
+        "The permission consent modal is opened for a first-party, Redis-shaped component plugin (pluginId 'redis', name 'Redis')",
         "The plugin manifest declares the 'docker' and 'ports' permission categories"
       ],
       "steps": [
         {
           "id": "S001",
-          "instruction": "Click the 'Install' button on the Redis plugin card in the marketplace grid",
+          "instruction": "Render the permission consent modal for the first-party Redis-shaped plugin",
           "observations": [
             {
               "id": "S001-O01",
-              "expected": "The permission consent dialog opens, overlaying the marketplace with a modal backdrop"
+              "expected": "The permission consent dialog renders over a modal backdrop"
             },
             {
               "id": "S001-O02",
-              "expected": "The dialog title reads 'Install Redis?' and the subtitle shows 'roubo/redis \u00b7 component plugin \u00b7 v1.3.0'"
+              "expected": "The dialog title reads 'Review permissions for Redis' and the intro subtitle reads 'This plugin requests the access listed below. Review it before continuing.'"
             }
           ]
         },
@@ -3646,7 +3645,7 @@
           "observations": [
             {
               "id": "S002-O01",
-              "expected": "A banner is present with a shield-alert icon stating the plugin is verified and first-party but labeled 'unsandboxed in this release', noting that enforced isolation arrives in v2"
+              "expected": "A banner is present with a shield-check icon stating the plugin is verified and first-party but labeled 'unsandboxed in this release', noting that enforced isolation arrives in v2"
             }
           ]
         },
@@ -3656,11 +3655,11 @@
           "observations": [
             {
               "id": "S003-O01",
-              "expected": "The 'Docker / containers' category is listed with its plain-language description ('Run the Redis container via compose.')"
+              "expected": "The 'Docker' category is listed with its plain-language description ('Manage Docker containers via the host broker.')"
             },
             {
               "id": "S003-O02",
-              "expected": "The 'Bind ports' category is listed with its plain-language description ('Reserve the Redis host port.')"
+              "expected": "The 'Network ports' category is listed with its plain-language description ('Allocate bench ports: redis.')"
             },
             {
               "id": "S003-O03",
@@ -3670,43 +3669,39 @@
         },
         {
           "id": "S004",
-          "instruction": "Observe the state of the 'Install plugin' button before ticking the acknowledgement checkbox",
+          "instruction": "Observe the state of the 'Acknowledge and continue' button before ticking the acknowledgement checkbox",
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "The 'Install plugin' button is disabled (non-interactive, visually dimmed) and cannot be activated"
+              "expected": "The 'Acknowledge and continue' confirm control is aria-disabled (focusable but inert) before acknowledgement, and pressing it does not fire the consent mutation"
             }
           ]
         },
         {
           "id": "S005",
-          "instruction": "Tick the acknowledgement checkbox labelled 'I understand this plugin runs with my privileges and acknowledge the access listed above.'",
+          "instruction": "Tick the acknowledgement checkbox labelled 'I understand this plugin runs with my privileges and acknowledge the access listed.'",
           "observations": [
             {
               "id": "S005-O01",
-              "expected": "The 'Install plugin' button becomes enabled (no longer dimmed or inert)"
+              "expected": "The 'Acknowledge and continue' confirm control becomes enabled (aria-disabled false)"
             }
           ]
         },
         {
           "id": "S006",
-          "instruction": "Click the now-enabled 'Install plugin' button",
+          "instruction": "Press the now-enabled 'Acknowledge and continue' button",
           "observations": [
             {
               "id": "S006-O01",
-              "expected": "The consent dialog closes"
+              "expected": "The grantConsent mutation fires and the onConsented callback runs (closing the dialog is the parent's responsibility, not the modal's)"
             },
             {
               "id": "S006-O02",
-              "expected": "A success toast appears reading 'Installed Redis \u00b7 roubo/redis'"
-            },
-            {
-              "id": "S006-O03",
-              "expected": "The Redis plugin card in the marketplace grid now shows an 'Installed' badge instead of the Install button"
+              "expected": "grantConsent is called with the acknowledged categories (ports, docker)"
             },
             {
               "id": "S006-O04",
-              "expected": "A ConsentRecord is persisted for pluginId 'roubo/redis' recording the acknowledged categories and consentedAt timestamp"
+              "expected": "A ConsentRecord is persisted for pluginId 'redis' recording the acknowledged categories and consentedAt timestamp (on-disk persistence is covered by server/component-plugins-e2e.test.ts)"
             }
           ]
         }
