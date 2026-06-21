@@ -34,6 +34,7 @@ function makeDocker(): DockerLike {
     waitForHealthy: vi.fn(async () => true),
     composeRunInit: vi.fn(async () => ({ success: true, stdout: "", stderr: "" })),
     getContainerId: vi.fn(async () => "container-abc123"),
+    getContainerStatusById: vi.fn(async () => "running" as const),
     getComposeProjectName: vi.fn(
       (projectId: string, benchId: number) => `roubo-${projectId}-bench-${benchId}`,
     ),

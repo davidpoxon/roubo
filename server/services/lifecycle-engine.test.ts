@@ -22,6 +22,7 @@ function makeDocker(): DockerLike {
     waitForHealthy: vi.fn(async () => true),
     composeRunInit: vi.fn(async () => ({ success: true, stdout: "", stderr: "" })),
     getContainerId: vi.fn(async () => "container-abc123"),
+    getContainerStatusById: vi.fn(async () => "running" as const),
     getComposeProjectName: vi.fn(
       (projectId: string, benchId: number) => `roubo-${projectId}-bench-${benchId}`,
     ),
@@ -209,6 +210,94 @@ describe("lifecycle-engine runDescriptor", () => {
 
       expect(result.status).toBe("error");
       expect(h.statuses.at(-1)?.error).toMatch(/init boom/);
+    });
+
+    it("merges descriptor env into the compose port overrides, with the port override applied last (AC1, CP-TC-035, CP-TC-060)", async () => {
+      const h = setup();
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        portEnvVar: "DB_PORT",
+        env: { POSTGRES_PASSWORD: "secret", DB_PORT: "ignored-by-port-override" },
+        migration: { command: "npm run migrate" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      // env entries are present; the allocated port wins on the portEnvVar key.
+      expect(h.docker.composeUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          portOverrides: { POSTGRES_PASSWORD: "secret", DB_PORT: "5433" },
+        }),
+      );
+      // the migration process env carries the merged env + port override too.
+      expect(h.pm.runProcess).toHaveBeenCalledWith(
+        "db-plugin:3:db:migration",
+        "npm",
+        ["run", "migrate"],
+        { POSTGRES_PASSWORD: "secret", DB_PORT: "5433" },
+        "/tmp/ws",
+        300_000,
+      );
+    });
+
+    it("skips composeUp and only verifies the running container when assignedContainerId is set (AC3, CP-TC-034)", async () => {
+      const h = setup();
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        assignedContainerId: "ext-container-123",
+        connection: { template: "postgres://localhost:{{port}}/app" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      // the connection template still resolves with the allocated port.
+      expect(result.connection).toBe("postgres://localhost:5433/app");
+      // the assigned container's running state is verified.
+      expect(h.docker.getContainerStatusById).toHaveBeenCalledWith("ext-container-123");
+      // compose is skipped entirely: the user owns the container's lifecycle.
+      expect(h.docker.composeUp).not.toHaveBeenCalled();
+      expect(h.docker.waitForHealthy).not.toHaveBeenCalled();
+      expect(h.led.recordComposeProject).not.toHaveBeenCalled();
+    });
+
+    it("drives to error when the assigned container is not running (AC3)", async () => {
+      const h = setup();
+      (h.docker.getContainerStatusById as ReturnType<typeof vi.fn>).mockResolvedValue("stopped");
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        assignedContainerId: "ext-container-123",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      expect(h.docker.composeUp).not.toHaveBeenCalled();
+      expect(h.statuses.at(-1)?.error).toMatch(
+        /Assigned container 'ext-container-123' is not running/,
+      );
     });
 
     it("drives to error when a migration exits non-zero", async () => {

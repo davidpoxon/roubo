@@ -589,6 +589,11 @@ export interface DockerProvisionDescriptor {
   migration?: { command: string; args?: string[] };
   connection?: { template: string };
   assignedContainerId?: string;
+  // Component-level env merged into the compose interpolation environment (and
+  // the migration process env) alongside the allocated port. Mirrors the
+  // built-in database env injection so a plugin-backed database reaches parity.
+  // MUST stay in sync with `DockerProvisionDescriptorSchema` in shared/.
+  env?: Record<string, string>;
   healthcheck?: boolean;
 }
 

@@ -45,7 +45,12 @@ export type ProcessManagerLike = Pick<typeof processManager, "startProcess" | "r
 /** The subset of the docker facade the engine drives. Mirrors the broker's Pick. */
 export type DockerLike = Pick<
   typeof dockerService,
-  "composeUp" | "waitForHealthy" | "composeRunInit" | "getContainerId" | "getComposeProjectName"
+  | "composeUp"
+  | "waitForHealthy"
+  | "composeRunInit"
+  | "getContainerId"
+  | "getContainerStatusById"
+  | "getComposeProjectName"
 >;
 
 /** The subset of the ResourceOwnershipLedger the engine writes to (FR-015). */
@@ -144,11 +149,33 @@ async function runDocker(
   const phases: ComponentPhase[] = makeDockerPhases(descriptor);
   const projectName = docker.getComposeProjectName(ctx.projectId, ctx.benchId);
 
-  // Resolve the allocated port into the compose env under portEnvVar.
+  // Resolve the allocated port into the compose env under portEnvVar, layered
+  // over the component-level `env`. This mirrors the built-in database path,
+  // which folds `componentConfig.env` into the compose `portOverrides` with the
+  // port override applied last (see bench-manager `startDockerComponent`), so a
+  // plugin-backed database reaches env parity (AC1 / CP-FR-004 / CP-FR-007).
   const port = ctx.ports[ctx.componentName];
-  const portOverrides: Record<string, string> = {};
+  const portOverrides: Record<string, string> = { ...(descriptor.env ?? {}) };
   if (typeof port === "number") {
     portOverrides[descriptor.portEnvVar ?? DEFAULT_PORT_ENV_VAR] = String(port);
+  }
+
+  // External container assignment (AC3): when the descriptor names an already
+  // running container, skip compose entirely (the user owns its lifecycle) and
+  // only verify it is running, mirroring the built-in assigned-container path.
+  if (descriptor.assignedContainerId) {
+    push(ctx, "starting", phases, "Starting container");
+    const status = await docker.getContainerStatusById(descriptor.assignedContainerId);
+    if (status !== "running") {
+      throw new Error(`Assigned container '${descriptor.assignedContainerId}' is not running`);
+    }
+    const connection =
+      descriptor.connection && typeof port === "number"
+        ? resolveConnectionTemplate(descriptor.connection.template, ctx.componentName, port)
+        : descriptor.connection?.template;
+    completePhases(phases);
+    push(ctx, "running", phases);
+    return { status: "running", connection };
   }
 
   push(ctx, "starting", phases, "Starting container");
