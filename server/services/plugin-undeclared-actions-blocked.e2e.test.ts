@@ -44,13 +44,26 @@
  *   - The broker-layer AuditLog (audit-log.ts) records the allowed/denied
  *     *broker* calls (S002 host.ports.get allowed, S003 host.docker.composeUp
  *     denied). S006's per-plugin / per-bench query asserts these.
- *   - The sandbox-layer audit (plugin-manager.querySandboxAudit) records the
- *     OS-level TCP denial in S004 (source: "sandbox"), because there is no
- *     host.network.* broker method, so the broker AuditLog never sees the direct
- *     egress attempt. S004 asserts the sandbox actually blocks (deny-all egress
- *     derived from the ports-only manifest, the spawn wrapped with --network
- *     none) and that the OS-tier denial is recorded; it does NOT silently degrade
- *     to a broker-only assertion that would make the step vacuous.
+ *   - The sandbox-layer audit (plugin-manager.querySandboxAudit) records an
+ *     OS-attributed denial (source: "sandbox"), because there is no host.network.*
+ *     broker method, so the broker AuditLog never sees the direct egress attempt.
+ *
+ * What S004 verifies, and what it deliberately does NOT. CP-TC-099's S004-O01 is
+ * "the OS-level PluginIsolationSandbox blocks the connection." Exercising that
+ * end to end would require running the offending plugin under a real
+ * network-isolated spawn (`docker run --network none ...`), which is not viable
+ * in a unit-test run (it needs a Docker runtime and would break the symlinked
+ * fixture's module resolution) and whose production wiring is out of scope for
+ * this drift guard. So the live-spawn test below runs the offender at the
+ * broker-only tier (it injects no OS-isolation probe), i.e. NOT network-isolated:
+ * there, S004-O01's "does not succeed" is enforced by the non-routable
+ * TEST-NET-1 target, and the meaningful integrated assertion is the
+ * process-survival half (S004-O02 / S005). The OS-block MECHANISM is then
+ * verified at the unit level in the dedicated S004 test: deriveEgressPolicy maps
+ * the ports-only manifest to deny-all egress, and buildSandboxedSpawn maps the
+ * docker tier to a `--network none` spawn, plus the sandbox audit tier's
+ * record/query contract. This is an honest split (mechanism-level, not a live
+ * network-isolated connection), not a silent degrade to a broker-only assertion.
  *
  * NOTE on the plugin identity. CP-TC-099 names the plugin 'test/ports-only'
  * (and the audit endpoint GET /api/plugins/test%2Fports-only/audit). A *manifest*
@@ -194,7 +207,18 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
 // connection. We drive that surface directly (the e2e pattern this repo uses)
 // with a ports-only ConsentRecord: hasPermission('ports') is true, every other
 // category is false. A real AuditLog instance is the recordAudit sink, so S006
-// queries the same store the broker wrote.
+// queries the same store THIS harness's broker wrote.
+//
+// Scope note for S006. CP-TC-099 phrases the audit query as an HTTP endpoint
+// (GET /api/plugins/test%2Fports-only/audit, plus a bench-scoped endpoint). That
+// endpoint, and the runtime wiring of the broker AuditLog into the live spawn
+// path, do not exist yet and are out of scope for this drift guard (writing the
+// spanned slices' production code). plugin-manager documents that the v2 broker
+// is "not yet runtime-wired into spawnPlugin". So S006 verifies the broker +
+// AuditLog record/query CONTRACT (allowed + denied entries, queryable per plugin
+// and per bench with all required fields) against this in-process broker, not
+// the integrated HTTP endpoint path. It is contract-level coverage of the audit
+// query the integrated journey relies on, not the live endpoint itself.
 
 function makeConnection(): JsonRpcConnection & {
   handlers: Map<string, (params: unknown) => unknown>;
@@ -331,20 +355,23 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
       );
 
       // Drive the offender's instrumented start hook over the live connection.
-      // Its three attempts run against the host's real (v1) connection surface;
-      // the load-bearing assertion here is the *process-level* one (S004-O02 /
-      // S005-O01): the blocked direct TCP does not crash the plugin or take down
-      // the sibling. The broker allow/deny semantics (S002/S003) and the OS-tier
-      // egress block (S004-O01) are asserted against the broker / sandbox
-      // surfaces directly in the dedicated tests below.
+      // Its three attempts run against the host's real (v1) connection surface.
+      // This live spawn is NOT network-isolated: the offender runs at the
+      // broker-only tier (no OS-isolation probe is injected here; see the file
+      // header), so the load-bearing integrated assertion is the *process-level*
+      // one (S004-O02 / S005-O01): the failed direct TCP does not crash the
+      // plugin or take down the sibling. The broker allow/deny semantics
+      // (S002/S003) and the OS-block mechanism (S004-O01) are asserted against
+      // the broker / sandbox surfaces directly in the dedicated tests below.
       const hookResult = (await pluginManager.invoke(PLUGIN_MANIFEST_ID, "start", {
         componentName: "http",
       })) as { directTcp: { connected: boolean; error?: string } };
 
-      // S004-O01 (process-observable half): the direct outbound TCP did not
-      // succeed. The non-routable TEST-NET-1 target guarantees it cannot connect
-      // even absent a sandbox; under a deny-all sandbox it is refused at the OS
-      // layer.
+      // S004-O01 (process-observable half only): the direct outbound TCP did not
+      // succeed. Because this spawn is not network-isolated, the non-routable
+      // TEST-NET-1 target is what guarantees it cannot connect; the OS-level
+      // deny-all-egress block itself is verified at the mechanism level in the
+      // dedicated S004 test, not by this live spawn.
       expectStep(
         "S004",
         "the plugin's direct outbound TCP connection attempt does not succeed",
@@ -495,13 +522,15 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
   //
   // The S001/S004/S005 live-spawn test above asserts the process-observable
   // halves (the TCP does not succeed; nothing crashes). This test asserts the
-  // OS-tier mechanism itself: the ports-only manifest derives a deny-all egress
-  // policy, the sandbox builds a spawn that drops the plugin's network
-  // (`docker run --network none`), and the OS-attributed denial is recorded in
-  // the sandbox audit tier (the broker AuditLog never sees it: there is no
-  // host.network.* broker method). This keeps S004 non-vacuous: it does not
-  // silently degrade to a broker-only assertion.
-  it("S004: the OS-level PluginIsolationSandbox blocks the direct outbound TCP (deny-all egress) and records the denial", async () => {
+  // OS-block MECHANISM at the unit level, since a live network-isolated spawn is
+  // out of scope / not viable in a unit run (see the file header): the ports-only
+  // manifest derives a deny-all egress policy (deriveEgressPolicy), and the docker
+  // tier maps to a spawn that drops the plugin's network (buildSandboxedSpawn ->
+  // `docker run --network none`). It then asserts the sandbox audit tier's
+  // record/query contract (the broker AuditLog never sees a direct egress attempt:
+  // there is no host.network.* broker method). This is mechanism-level coverage,
+  // not a live OS-blocked connection; it does not pretend otherwise.
+  it("S004: the sandbox maps the ports-only manifest to a deny-all `--network none` spawn, and the sandbox audit tier records the OS-attributed denial", async () => {
     sandbox = await makeSandbox([PLUGIN_MANIFEST_ID]);
     const pluginManager = await import("./plugin-manager.js");
     pluginManager.__test.reset();
@@ -531,7 +560,8 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
 
       // With an OS-isolation runtime present (here: docker), the sandbox wraps
       // the plugin spawn so its network is dropped (`docker run --network none`).
-      // This is the OS layer that blocks the direct outbound TCP attempt.
+      // This is the spawn shape that, when used, drops the plugin's network at
+      // the OS layer; here we assert the mapping, not a live blocked connection.
       const dockerTier = selectTier({ vzVm: false, appleContainer: false, docker: true });
       const spawn = manifest
         ? buildSandboxedSpawn(manifest, dockerTier, {
@@ -555,9 +585,14 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
         },
       );
 
-      // The OS-attributed denial is recorded in the sandbox audit tier (source:
-      // "sandbox"), queryable per plugin and per bench, even though the broker
-      // AuditLog never sees the direct egress attempt.
+      // The sandbox audit tier's record/query contract: an OS-attributed denial
+      // (source: "sandbox"), once recorded, is queryable per plugin and per bench,
+      // even though the broker AuditLog never sees a direct egress attempt. NOTE:
+      // the denial is INJECTED here via recordSandboxDenial rather than produced
+      // by observing a real blocked connection: no production path yet feeds a
+      // live OS egress-block into recordSandboxDenial (that wiring is out of scope
+      // for this drift guard), so this asserts the record/query contract the
+      // integrated journey relies on, not the act of observing a block.
       pluginManager.recordSandboxDenial({
         pluginId: PLUGIN_AUDIT_ID,
         benchId: BENCH_ID,
@@ -570,7 +605,7 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
       });
       expectStep(
         "S004",
-        "the OS-tier TCP denial is recorded in the sandbox audit tier",
+        "the sandbox audit tier records and returns an OS-attributed denial, queryable per plugin and per bench (record/query contract; denial injected, see above)",
         () => {
           expect(sandboxAudit).toHaveLength(1);
           expect(sandboxAudit[0]?.outcome).toBe("denied");
