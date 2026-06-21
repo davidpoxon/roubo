@@ -18,10 +18,11 @@ import {
   type RestartEvent,
 } from "@roubo/shared";
 import type { ConnectionStatus, ValidateConfigResult } from "@roubo/plugin-sdk";
-import type { AuditEntry, IsolationTier } from "@roubo/shared";
+import type { AuditEntry, BrokerContext, IsolationTier } from "@roubo/shared";
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
+import { registerBrokerHandlers } from "./component-broker.js";
 import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
@@ -117,17 +118,91 @@ function isComponentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "component";
 }
 
-// PluginIsolationSandbox runtime wiring (F2.3, #620).
+// HostComponentBroker runtime wiring (F2.1, #677).
 //
-// The v2 broker (registerBrokerHandlers + AuditLog) is not yet runtime-wired
-// into spawnPlugin (that is F2.1's scope); spawnPlugin still registers the v1
-// host handlers. So there is no live broker AuditLog at the spawn point. To
-// satisfy AC5 (record an OS-attributed blocked attempt where the backend can
-// attribute the syscall to the plugin) without over-reaching into F2.1's
-// runtime-wiring, the sandbox keeps its own minimal, in-process AuditLog and
-// records sandbox-sourced denials into it. It is queryable via __test for the
-// unit tests; when the broker is fully wired by a later slice these entries can
-// fold into the shared log unchanged (same AuditEntry shape, source:"sandbox").
+// A component plugin is spawned ONCE per plugin and multiplexes benches over the
+// single shared connection (architecture.md 'Components'), but a BrokerContext is
+// per-(pluginId, benchId): it carries that bench's ports, permission check, and
+// the recordAudit sink wired to its per-bench AuditLog. We reconcile the two
+// lifetimes with a per-(pluginId, benchId) registry: spawnPlugin registers the
+// broker handlers ONCE on a component plugin's connection, backed by a resolver
+// that reads this registry; bench-manager registers a per-bench BrokerContext
+// when a bench provisions a plugin-bound component and drops it on teardown.
+//
+// The broker contract carries no benchId in its params, and adding one is an
+// SDK/contract change out of scope here (#677). A connection therefore cannot
+// route a call to a specific bench from its params, so the resolver returns the
+// most-recently-registered active context for the plugin (the realistic minimal
+// behaviour: the common case is one bench bound to a plugin, and the goal is that
+// privileged calls accumulate audit entries into a running bench's log).
+// KNOWN LIMITATION: when two or more benches concurrently share one plugin
+// connection, a call from a non-newest bench mis-resolves to the newest bench
+// (wrong ports, wrong audit attribution). The proper fix (a benchId routing key
+// in the broker params) is tracked in #685.
+const brokerContexts = new Map<string, BrokerContext>();
+
+function brokerContextKey(pluginId: string, benchId: number): string {
+  return `${pluginId}:${benchId}`;
+}
+
+// The order contexts were registered in, newest last, per plugin. The broker
+// resolver reads the tail so it resolves to the most-recently-bound bench when a
+// plugin backs more than one (see the note above on the no-benchId-in-params
+// constraint).
+const brokerContextOrder = new Map<string, number[]>();
+
+/**
+ * Register the per-bench BrokerContext a component plugin's broker handlers
+ * service for `benchId`. Called by bench-manager when a bench provisions a
+ * plugin-bound component. The broker handlers themselves are registered once on
+ * the plugin's connection at spawn; this only supplies the context they resolve
+ * against, so privileged broker calls accumulate AuditEntry rows into the right
+ * per-bench AuditLog (#677).
+ */
+export function registerBrokerContext(pluginId: string, benchId: number, ctx: BrokerContext): void {
+  brokerContexts.set(brokerContextKey(pluginId, benchId), ctx);
+  const order = brokerContextOrder.get(pluginId) ?? [];
+  const next = order.filter((b) => b !== benchId);
+  next.push(benchId);
+  brokerContextOrder.set(pluginId, next);
+}
+
+/**
+ * Drop the per-bench BrokerContext for `(pluginId, benchId)`. Called by
+ * bench-manager on bench teardown alongside clearAuditLog, so a torn-down bench's
+ * context does not leak into a later bench that reuses the same id.
+ */
+export function unregisterBrokerContext(pluginId: string, benchId: number): void {
+  brokerContexts.delete(brokerContextKey(pluginId, benchId));
+  const order = brokerContextOrder.get(pluginId);
+  if (!order) return;
+  const next = order.filter((b) => b !== benchId);
+  if (next.length === 0) brokerContextOrder.delete(pluginId);
+  else brokerContextOrder.set(pluginId, next);
+}
+
+/**
+ * Resolve the active BrokerContext for a plugin's connection: the
+ * most-recently-registered, still-registered bench context, or `null` when no
+ * bench is currently bound. The broker handlers call this per request (see
+ * BrokerContextResolver in component-broker.ts).
+ */
+function resolveBrokerContext(pluginId: string): BrokerContext | null {
+  const order = brokerContextOrder.get(pluginId);
+  if (!order) return null;
+  for (let i = order.length - 1; i >= 0; i--) {
+    const ctx = brokerContexts.get(brokerContextKey(pluginId, order[i]));
+    if (ctx) return ctx;
+  }
+  return null;
+}
+
+// AC5 (#620): record an OS-attributed blocked attempt where the backend can
+// attribute the syscall to the plugin. The PluginIsolationSandbox keeps its own
+// minimal, in-process AuditLog and records sandbox-sourced denials into it
+// (source:"sandbox"), queryable via __test. This is distinct from the per-bench
+// broker AuditLog (owned by bench-manager): the sandbox tier may deny below the
+// broker, where there is no bench context to route the entry through.
 const sandboxAuditLog = new AuditLog();
 
 // Isolation probes (NFR-005: query each runtime, never assume). The real
@@ -769,6 +844,21 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     await registerHostHandlers(entry.connection, entry.record, (level, text) => {
       writeLog(entry, "host", text, level).catch(() => {});
     });
+    // HostComponentBroker wiring (F2.1, #677). Register the broker's privileged
+    // host.process.* / host.docker.* / host.ports.* / host.component.* handlers
+    // ONCE on a component plugin's connection. They resolve their per-bench
+    // BrokerContext through the registry above, which bench-manager populates as
+    // benches provision plugin-bound components, so privileged calls accumulate
+    // AuditEntry rows into the right per-bench AuditLog. Integration plugins never
+    // expose the broker surface, so they keep the v1 host handlers only.
+    if (isComponentPlugin(entry)) {
+      const pluginId = entry.record.id;
+      registerBrokerHandlers(entry.connection, () => resolveBrokerContext(pluginId), {
+        log: (level, text) => {
+          writeLog(entry, "host", text, level).catch(() => {});
+        },
+      });
+    }
   } catch (err) {
     entry.record.status = "errored";
     entry.record.lastError = {
@@ -1688,6 +1778,13 @@ export const __test = {
     e2eConnectionStateLogTap.length = 0;
     setIsolationProbes(null);
     sandboxAuditLog.clear();
+    brokerContexts.clear();
+    brokerContextOrder.clear();
+  },
+  // #677: the per-call resolver the broker handlers read, exposed so tests can
+  // assert which bench context a multiplexed connection resolves to.
+  resolveBrokerContext(pluginId: string): BrokerContext | null {
+    return resolveBrokerContext(pluginId);
   },
   setIsolationProbes(probes: IsolationProbes | null): void {
     setIsolationProbes(probes);

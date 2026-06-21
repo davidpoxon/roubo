@@ -4,6 +4,8 @@ import type {
   AuditEntry,
   Bench,
   BenchStatus,
+  BrokerContext,
+  BrokerPermissionCategory,
   ComponentLogLine,
   ComponentStatus,
   ComponentConfig,
@@ -13,7 +15,8 @@ import type {
   RegisteredProject,
   RouboConfig,
 } from "@roubo/shared";
-import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
+import { COMPONENT_STEP_PREFIX, declaredCategories } from "@roubo/shared";
+import type { PermissionCategory } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
 import * as dockerService from "./docker.js";
@@ -1138,8 +1141,11 @@ async function runTeardownBackground(
     clearLedgerForBench(benchId);
 
     // Drop this bench's in-memory audit log (#671) so a cleared bench's recorded
-    // broker calls do not leak into a later bench that reuses the same id.
+    // broker calls do not leak into a later bench that reuses the same id, and
+    // drop the per-bench BrokerContext(s) the plugin connection resolved against
+    // (#677) for the same reason.
     clearAuditLog(projectId, benchId);
+    unregisterBrokerContextsForBench(projectId, benchId);
 
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
@@ -1674,6 +1680,15 @@ async function provisionComponent(
     );
   }
 
+  // Wire the per-bench BrokerContext onto the plugin's live connection (#677).
+  // The broker handlers are registered once per component-plugin connection in
+  // plugin-manager; here we supply the context they resolve against so a
+  // privileged broker call this component's plugin makes accumulates an
+  // AuditEntry into THIS bench's AuditLog (via recordAuditEntry). Registered
+  // before runDescriptor runs so the broker is live for the launch, and dropped
+  // on bench teardown alongside clearAuditLog.
+  registerBrokerContextForBench(projectId, benchId, componentName, binding.pluginId, tplCtx.ports);
+
   const lifecycleCtx: LifecycleContext = {
     pluginId: binding.pluginId,
     projectId,
@@ -2013,6 +2028,82 @@ export function buildReportLog(
   return (line: ComponentLogLine) => {
     componentLogStore.appendComponentLog(projectId, benchId, componentName, line);
   };
+}
+
+// Maps a broker permission category to the manifest's consent-category name.
+// The broker speaks "process" (singular); the manifest / consent ledger speaks
+// "processes". "docker" and "ports" line up one-to-one.
+const BROKER_TO_CONSENT_CATEGORY: Record<BrokerPermissionCategory, PermissionCategory> = {
+  process: "processes",
+  docker: "docker",
+  ports: "ports",
+};
+
+/**
+ * Build and register the per-bench BrokerContext a component plugin's broker
+ * handlers service for this bench (#677). The context carries this bench's ports,
+ * the recordAudit sink wired to recordAuditEntry(projectId, benchId, entry), the
+ * push sinks for host.component.report*, and a hasPermission check derived from
+ * the plugin manifest's declared broker categories. Registered through
+ * plugin-manager so the broker handlers (registered once on the plugin's shared
+ * connection) resolve against it. Dropped on bench teardown via
+ * unregisterBrokerContextsForBench.
+ */
+function registerBrokerContextForBench(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+  pluginId: string,
+  ports: Record<string, number>,
+): void {
+  // Derive the categories the plugin declared from its manifest, so a broker
+  // call outside the declared set is denied (and recorded "denied") rather than
+  // delegated. An absent record / manifest declares nothing, so every privileged
+  // call is denied: the safe default.
+  const record = pluginManager.getRecord(pluginId);
+  const declared = record?.manifest
+    ? new Set(declaredCategories(record.manifest.permissions))
+    : null;
+
+  const ctx: BrokerContext = {
+    pluginId,
+    benchId,
+    ports,
+    reportStatus: buildReportStatus(projectId, benchId),
+    // The registry keys a BrokerContext by (pluginId, benchId) only, so when two
+    // components in one bench share a plugin the later provision overwrites this
+    // ctx. reportStatus carries params.name and self-corrects, but reportLog binds
+    // a single componentName here (the RPC carries no component name), so its
+    // output routes to the last-provisioned component. Precise per-component
+    // routing is tracked in #685.
+    reportLog: buildReportLog(projectId, benchId, componentName),
+    hasPermission: (category: BrokerPermissionCategory) =>
+      declared !== null && declared.has(BROKER_TO_CONSENT_CATEGORY[category]),
+    recordAudit: (entry: AuditEntry) => recordAuditEntry(projectId, benchId, entry),
+    // assignContainer (the ResourceOwnershipLedger sink) stays out of this v1
+    // wiring: the broker handler guards it with `?.`, and container-assignment
+    // routing is not in scope for the audit wiring (#677).
+  };
+  pluginManager.registerBrokerContext(pluginId, benchId, ctx);
+}
+
+/**
+ * Drop every per-bench BrokerContext this bench registered (#677), one per
+ * distinct plugin backing one of the bench's components. Called on bench teardown
+ * alongside clearAuditLog so a torn-down bench's broker context does not leak into
+ * a later bench that reuses the same id.
+ */
+function unregisterBrokerContextsForBench(projectId: string, benchId: number): void {
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) return;
+  const pluginIds = new Set<string>();
+  for (const name of Object.keys(project.config.components)) {
+    const binding = resolveBinding(projectId, name);
+    if (!isNotBound(binding)) pluginIds.add(binding.pluginId);
+  }
+  for (const pluginId of pluginIds) {
+    pluginManager.unregisterBrokerContext(pluginId, benchId);
+  }
 }
 
 export async function refreshComponentStatuses() {

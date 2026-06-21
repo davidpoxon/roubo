@@ -203,7 +203,10 @@ vi.mock("./services/plugin-manager.js", () => ({
     return { schemaVersion: 1, kind: "process", command: "node server.js" };
   }),
   getConnection: vi.fn(() => ({})),
+  getRecord: vi.fn(() => undefined),
   registerComponentPluginHooks: vi.fn(),
+  registerBrokerContext: vi.fn(),
+  unregisterBrokerContext: vi.fn(),
 }));
 
 let benchManager: typeof import("./services/bench-manager.js");

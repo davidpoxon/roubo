@@ -80,6 +80,26 @@ export interface CreateBrokerOptions {
   log?: BrokerLogger;
 }
 
+/**
+ * How a registered set of broker handlers obtains the BrokerContext to service a
+ * call. A component plugin is spawned ONCE per plugin and multiplexes benches
+ * over the single shared connection (architecture.md 'Components'), but a
+ * BrokerContext is per-(pluginId, benchId): it carries that bench's ports,
+ * permission check, and audit sink. The broker contract carries no benchId in
+ * its params (host.process.* / host.docker.* / host.ports.*), and adding one is
+ * an SDK/contract change out of scope here (#677), so a connection cannot route
+ * a call to a bench from its params. We therefore resolve the context per call
+ * through this function rather than binding a single context at registration
+ * time: a host that owns the per-plugin connection registers the handlers once
+ * and hands back the active bench's context here, so privileged calls accumulate
+ * audit entries into the right per-bench AuditLog. A plain BrokerContext (the
+ * unit-test shape) is accepted too and is wrapped into a constant resolver.
+ *
+ * Returning `null` (no bench currently bound to this plugin) makes a privileged
+ * call fail with an internal-error rather than crashing the host.
+ */
+export type BrokerContextResolver = () => BrokerContext | null;
+
 function invalidParams(method: string, message: string): never {
   throw new ResponseError(INVALID_PARAMS_CODE, `${method}: ${message}`, {
     code: "invalid-params",
@@ -212,12 +232,32 @@ interface ComposeBaseParams {
  */
 export function registerBrokerHandlers(
   connection: JsonRpcConnection,
-  ctx: BrokerContext,
+  ctx: BrokerContext | BrokerContextResolver,
   options: CreateBrokerOptions = {},
 ): void {
   const pm: ProcessManagerLike = options.processManager ?? processManager;
   const docker: DockerLike = options.docker ?? dockerService;
   const log: BrokerLogger = options.log ?? (() => {});
+
+  // Accept either a fixed BrokerContext (the unit-test / single-bench shape) or
+  // a resolver the host calls per request to obtain the active bench's context
+  // (the multiplexed live-connection shape). Both collapse to one resolver so the
+  // handlers below never branch on which form was passed.
+  const resolve: BrokerContextResolver = typeof ctx === "function" ? ctx : () => ctx;
+
+  // Resolve the per-bench context for a privileged call, or throw an
+  // internal-error when no bench is currently bound to this connection's plugin
+  // (resolver returned null). A privileged call with no context cannot be
+  // audited or permission-checked, so it must not reach the host delegate.
+  const requireCtx = (method: string): BrokerContext => {
+    const resolved = resolve();
+    if (!resolved) {
+      throw new ResponseError(INTERNAL_ERROR_CODE, `${method}: no active bench context`, {
+        code: "no-broker-context",
+      });
+    }
+    return resolved;
+  };
 
   // --- host.process.* (delegate to process-manager) -------------------------
 
@@ -225,7 +265,7 @@ export function registerBrokerHandlers(
     "host.process.start",
     async (params) => {
       const method = "host.process.start";
-      enforcePermission(ctx, method, "process", params, log);
+      enforcePermission(requireCtx(method), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -243,7 +283,7 @@ export function registerBrokerHandlers(
     "host.process.run",
     async (params) => {
       const method = "host.process.run";
-      enforcePermission(ctx, method, "process", params, log);
+      enforcePermission(requireCtx(method), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -261,7 +301,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, null>("host.process.stop", async (params) => {
     const method = "host.process.stop";
-    enforcePermission(ctx, method, "process", params, log);
+    enforcePermission(requireCtx(method), method, "process", params, log);
     const id = requireString(method, "id", params?.id);
     try {
       await pm.stopProcess(id);
@@ -275,7 +315,7 @@ export function registerBrokerHandlers(
     "host.process.status",
     (params) => {
       const method = "host.process.status";
-      enforcePermission(ctx, method, "process", params, log);
+      enforcePermission(requireCtx(method), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       try {
         const status = pm.getProcessStatus(id);
@@ -290,7 +330,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, string[]>("host.process.logs", (params) => {
     const method = "host.process.logs";
-    enforcePermission(ctx, method, "process", params, log);
+    enforcePermission(requireCtx(method), method, "process", params, log);
     const id = requireString(method, "id", params?.id);
     try {
       return pm.getProcessLogs(id);
@@ -306,7 +346,7 @@ export function registerBrokerHandlers(
     { containerId: string }
   >("host.docker.composeUp", async (params) => {
     const method = "host.docker.composeUp";
-    enforcePermission(ctx, method, "docker", params, log);
+    enforcePermission(requireCtx(method), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -349,7 +389,7 @@ export function registerBrokerHandlers(
     { healthy: boolean }
   >("host.docker.waitForHealthy", async (params) => {
     const method = "host.docker.waitForHealthy";
-    enforcePermission(ctx, method, "docker", params, log);
+    enforcePermission(requireCtx(method), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const service = requireString(method, "service", params?.service);
     const timeoutMs =
@@ -368,7 +408,7 @@ export function registerBrokerHandlers(
     "host.docker.composeRunInit",
     async (params) => {
       const method = "host.docker.composeRunInit";
-      enforcePermission(ctx, method, "docker", params, log);
+      enforcePermission(requireCtx(method), method, "docker", params, log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -398,7 +438,7 @@ export function registerBrokerHandlers(
     "host.docker.composeStop",
     async (params) => {
       const method = "host.docker.composeStop";
-      enforcePermission(ctx, method, "docker", params, log);
+      enforcePermission(requireCtx(method), method, "docker", params, log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -418,7 +458,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<ComposeBaseParams, null>("host.docker.composeDown", async (params) => {
     const method = "host.docker.composeDown";
-    enforcePermission(ctx, method, "docker", params, log);
+    enforcePermission(requireCtx(method), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -435,13 +475,14 @@ export function registerBrokerHandlers(
     (params) => {
       const method = "host.docker.assignContainer";
       // assignContainer is gated on the docker permission category (SPK-3 AC3).
-      enforcePermission(ctx, method, "docker", params, log);
+      const c = requireCtx(method);
+      enforcePermission(c, method, "docker", params, log);
       const componentName = requireString(method, "componentName", params?.componentName);
       const containerId = requireString(method, "containerId", params?.containerId);
       try {
         // The ResourceOwnershipLedger is out of scope (T1.6); v1 records the
         // assignment through the injected sink only.
-        ctx.assignContainer?.(componentName, containerId);
+        c.assignContainer?.(componentName, containerId);
         return null;
       } catch (err) {
         wrapInternal(method, log, err);
@@ -453,9 +494,10 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ componentName?: unknown }, number>("host.ports.get", (params) => {
     const method = "host.ports.get";
-    enforcePermission(ctx, method, "ports", params, log);
+    const c = requireCtx(method);
+    enforcePermission(c, method, "ports", params, log);
     const componentName = requireString(method, "componentName", params?.componentName);
-    const port = ctx.ports[componentName];
+    const port = c.ports[componentName];
     if (typeof port !== "number") {
       invalidParams(method, `no host-allocated port for component "${componentName}"`);
     }
@@ -472,7 +514,7 @@ export function registerBrokerHandlers(
     requireString(method, "name", params.name);
     requireString(method, "status", params.status);
     try {
-      ctx.reportStatus(params);
+      requireCtx(method).reportStatus(params);
       return null;
     } catch (err) {
       wrapInternal(method, log, err);
@@ -491,7 +533,7 @@ export function registerBrokerHandlers(
         : invalidParams(method, "text must be a string");
     const ts = requireString(method, "ts", params?.ts);
     try {
-      ctx.reportLog({ source, text, ts });
+      requireCtx(method).reportLog({ source, text, ts });
       return null;
     } catch (err) {
       wrapInternal(method, log, err);
