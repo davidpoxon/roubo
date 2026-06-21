@@ -118,7 +118,7 @@ function isComponentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "component";
 }
 
-// HostComponentBroker runtime wiring (F2.1, #677).
+// HostComponentBroker runtime wiring (F2.1, #677; precise routing #685).
 //
 // A component plugin is spawned ONCE per plugin and multiplexes benches over the
 // single shared connection (architecture.md 'Components'), but a BrokerContext is
@@ -129,27 +129,18 @@ function isComponentPlugin(entry: PluginEntry): boolean {
 // that reads this registry; bench-manager registers a per-bench BrokerContext
 // when a bench provisions a plugin-bound component and drops it on teardown.
 //
-// The broker contract carries no benchId in its params, and adding one is an
-// SDK/contract change out of scope here (#677). A connection therefore cannot
-// route a call to a specific bench from its params, so the resolver returns the
-// most-recently-registered active context for the plugin (the realistic minimal
-// behaviour: the common case is one bench bound to a plugin, and the goal is that
-// privileged calls accumulate audit entries into a running bench's log).
-// KNOWN LIMITATION: when two or more benches concurrently share one plugin
-// connection, a call from a non-newest bench mis-resolves to the newest bench
-// (wrong ports, wrong audit attribution). The proper fix (a benchId routing key
-// in the broker params) is tracked in #685.
+// Every broker call carries the `benchId` it acts for in its params (#685): the
+// SDK stamps it from the in-flight lifecycle call, so the resolver looks the
+// context up by the exact (pluginId, benchId) key. A call from any bench
+// resolves to that bench's own context (correct ports, correct audit
+// attribution), even when several benches concurrently share one plugin
+// connection. A call naming a benchId with no bound context returns null, which
+// the broker surfaces as a no-broker-context internal error.
 const brokerContexts = new Map<string, BrokerContext>();
 
 function brokerContextKey(pluginId: string, benchId: number): string {
   return `${pluginId}:${benchId}`;
 }
-
-// The order contexts were registered in, newest last, per plugin. The broker
-// resolver reads the tail so it resolves to the most-recently-bound bench when a
-// plugin backs more than one (see the note above on the no-benchId-in-params
-// constraint).
-const brokerContextOrder = new Map<string, number[]>();
 
 /**
  * Register the per-bench BrokerContext a component plugin's broker handlers
@@ -161,10 +152,6 @@ const brokerContextOrder = new Map<string, number[]>();
  */
 export function registerBrokerContext(pluginId: string, benchId: number, ctx: BrokerContext): void {
   brokerContexts.set(brokerContextKey(pluginId, benchId), ctx);
-  const order = brokerContextOrder.get(pluginId) ?? [];
-  const next = order.filter((b) => b !== benchId);
-  next.push(benchId);
-  brokerContextOrder.set(pluginId, next);
 }
 
 /**
@@ -174,27 +161,16 @@ export function registerBrokerContext(pluginId: string, benchId: number, ctx: Br
  */
 export function unregisterBrokerContext(pluginId: string, benchId: number): void {
   brokerContexts.delete(brokerContextKey(pluginId, benchId));
-  const order = brokerContextOrder.get(pluginId);
-  if (!order) return;
-  const next = order.filter((b) => b !== benchId);
-  if (next.length === 0) brokerContextOrder.delete(pluginId);
-  else brokerContextOrder.set(pluginId, next);
 }
 
 /**
- * Resolve the active BrokerContext for a plugin's connection: the
- * most-recently-registered, still-registered bench context, or `null` when no
- * bench is currently bound. The broker handlers call this per request (see
- * BrokerContextResolver in component-broker.ts).
+ * Resolve the BrokerContext for a plugin's connection by the `benchId` the call
+ * named in its params: an exact (pluginId, benchId) lookup, or `null` when no
+ * bench with that id is currently bound. The broker handlers call this per
+ * request (see BrokerContextResolver in component-broker.ts).
  */
-function resolveBrokerContext(pluginId: string): BrokerContext | null {
-  const order = brokerContextOrder.get(pluginId);
-  if (!order) return null;
-  for (let i = order.length - 1; i >= 0; i--) {
-    const ctx = brokerContexts.get(brokerContextKey(pluginId, order[i]));
-    if (ctx) return ctx;
-  }
-  return null;
+function resolveBrokerContext(pluginId: string, benchId: number): BrokerContext | null {
+  return brokerContexts.get(brokerContextKey(pluginId, benchId)) ?? null;
 }
 
 // AC5 (#620): record an OS-attributed blocked attempt where the backend can
@@ -853,11 +829,15 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // expose the broker surface, so they keep the v1 host handlers only.
     if (isComponentPlugin(entry)) {
       const pluginId = entry.record.id;
-      registerBrokerHandlers(entry.connection, () => resolveBrokerContext(pluginId), {
-        log: (level, text) => {
-          writeLog(entry, "host", text, level).catch(() => {});
+      registerBrokerHandlers(
+        entry.connection,
+        (benchId) => resolveBrokerContext(pluginId, benchId),
+        {
+          log: (level, text) => {
+            writeLog(entry, "host", text, level).catch(() => {});
+          },
         },
-      });
+      );
     }
   } catch (err) {
     entry.record.status = "errored";
@@ -1779,12 +1759,12 @@ export const __test = {
     setIsolationProbes(null);
     sandboxAuditLog.clear();
     brokerContexts.clear();
-    brokerContextOrder.clear();
   },
-  // #677: the per-call resolver the broker handlers read, exposed so tests can
-  // assert which bench context a multiplexed connection resolves to.
-  resolveBrokerContext(pluginId: string): BrokerContext | null {
-    return resolveBrokerContext(pluginId);
+  // #677 / #685: the per-call resolver the broker handlers read, exposed so tests
+  // can assert which bench context a multiplexed connection resolves the named
+  // benchId to.
+  resolveBrokerContext(pluginId: string, benchId: number): BrokerContext | null {
+    return resolveBrokerContext(pluginId, benchId);
   },
   setIsolationProbes(probes: IsolationProbes | null): void {
     setIsolationProbes(probes);

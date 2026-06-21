@@ -480,14 +480,18 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
       TC033_STEPS.dbLogs,
       "the database logs include migration initService lines and docker compose startup lines",
       () => {
-        const reportDbLog = benchManager.buildReportLog(
-          RESPONDA_PROJECT_ID,
-          RESPONDA_BENCH_ID,
-          RESPONDA_DB,
-        );
-        reportDbLog({ source: "stdout", text: DB_COMPOSE_STDOUT, ts: "2026-06-21T00:00:00.000Z" });
-        reportDbLog({ source: "stdout", text: DB_INIT_STDOUT, ts: "2026-06-21T00:00:01.000Z" });
-        reportDbLog({
+        const reportDbLog = benchManager.buildReportLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID);
+        reportDbLog(RESPONDA_DB, {
+          source: "stdout",
+          text: DB_COMPOSE_STDOUT,
+          ts: "2026-06-21T00:00:00.000Z",
+        });
+        reportDbLog(RESPONDA_DB, {
+          source: "stdout",
+          text: DB_INIT_STDOUT,
+          ts: "2026-06-21T00:00:01.000Z",
+        });
+        reportDbLog(RESPONDA_DB, {
           source: "stdout",
           text: DB_MIGRATION_STDOUT,
           ts: "2026-06-21T00:00:02.000Z",
@@ -509,13 +513,17 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
       TC033_STEPS.processLogs,
       "the api process component's logs include stdout/stderr lines from its command",
       () => {
-        const reportApiLog = benchManager.buildReportLog(
-          RESPONDA_PROJECT_ID,
-          RESPONDA_BENCH_ID,
-          RESPONDA_API,
-        );
-        reportApiLog({ source: "stdout", text: API_STDOUT, ts: "2026-06-21T00:00:03.000Z" });
-        reportApiLog({ source: "stderr", text: API_STDERR, ts: "2026-06-21T00:00:04.000Z" });
+        const reportApiLog = benchManager.buildReportLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID);
+        reportApiLog(RESPONDA_API, {
+          source: "stdout",
+          text: API_STDOUT,
+          ts: "2026-06-21T00:00:03.000Z",
+        });
+        reportApiLog(RESPONDA_API, {
+          source: "stderr",
+          text: API_STDERR,
+          ts: "2026-06-21T00:00:04.000Z",
+        });
         const lines = benchManager.getComponentLogs(
           RESPONDA_PROJECT_ID,
           RESPONDA_BENCH_ID,

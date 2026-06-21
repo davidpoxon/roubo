@@ -85,20 +85,19 @@ export interface CreateBrokerOptions {
  * call. A component plugin is spawned ONCE per plugin and multiplexes benches
  * over the single shared connection (architecture.md 'Components'), but a
  * BrokerContext is per-(pluginId, benchId): it carries that bench's ports,
- * permission check, and audit sink. The broker contract carries no benchId in
- * its params (host.process.* / host.docker.* / host.ports.*), and adding one is
- * an SDK/contract change out of scope here (#677), so a connection cannot route
- * a call to a bench from its params. We therefore resolve the context per call
- * through this function rather than binding a single context at registration
- * time: a host that owns the per-plugin connection registers the handlers once
- * and hands back the active bench's context here, so privileged calls accumulate
- * audit entries into the right per-bench AuditLog. A plain BrokerContext (the
- * unit-test shape) is accepted too and is wrapped into a constant resolver.
+ * permission check, and audit sink. Every broker call now carries the `benchId`
+ * it acts for in its params (the SDK stamps it from the in-flight lifecycle
+ * call, #685), so the resolver routes the call to the exact bench by that key
+ * rather than guessing. A host that owns the per-plugin connection registers the
+ * handlers once and supplies this resolver; privileged calls then accumulate
+ * audit entries into the originating bench's AuditLog. A plain BrokerContext (the
+ * unit-test shape) is accepted too and is wrapped into a constant resolver that
+ * ignores the benchId.
  *
- * Returning `null` (no bench currently bound to this plugin) makes a privileged
- * call fail with an internal-error rather than crashing the host.
+ * Returning `null` (no bench bound to this plugin for the given benchId) makes a
+ * privileged call fail with an internal-error rather than crashing the host.
  */
-export type BrokerContextResolver = () => BrokerContext | null;
+export type BrokerContextResolver = (benchId: number) => BrokerContext | null;
 
 function invalidParams(method: string, message: string): never {
   throw new ResponseError(INVALID_PARAMS_CODE, `${method}: ${message}`, {
@@ -240,17 +239,20 @@ export function registerBrokerHandlers(
   const log: BrokerLogger = options.log ?? (() => {});
 
   // Accept either a fixed BrokerContext (the unit-test / single-bench shape) or
-  // a resolver the host calls per request to obtain the active bench's context
+  // a resolver the host calls per request to obtain the call's bench context
   // (the multiplexed live-connection shape). Both collapse to one resolver so the
-  // handlers below never branch on which form was passed.
+  // handlers below never branch on which form was passed; the constant form
+  // ignores the benchId.
   const resolve: BrokerContextResolver = typeof ctx === "function" ? ctx : () => ctx;
 
-  // Resolve the per-bench context for a privileged call, or throw an
-  // internal-error when no bench is currently bound to this connection's plugin
-  // (resolver returned null). A privileged call with no context cannot be
-  // audited or permission-checked, so it must not reach the host delegate.
-  const requireCtx = (method: string): BrokerContext => {
-    const resolved = resolve();
+  // Resolve the per-bench context for a privileged call by the `benchId` the
+  // call carries in its params, or throw an internal-error when no bench is bound
+  // to this connection's plugin for that id (resolver returned null). A
+  // privileged call with no context cannot be audited or permission-checked, so
+  // it must not reach the host delegate.
+  const requireCtx = (method: string, params: unknown): BrokerContext => {
+    const benchId = requireNumber(method, "benchId", (params as { benchId?: unknown })?.benchId);
+    const resolved = resolve(benchId);
     if (!resolved) {
       throw new ResponseError(INTERNAL_ERROR_CODE, `${method}: no active bench context`, {
         code: "no-broker-context",
@@ -265,7 +267,7 @@ export function registerBrokerHandlers(
     "host.process.start",
     async (params) => {
       const method = "host.process.start";
-      enforcePermission(requireCtx(method), method, "process", params, log);
+      enforcePermission(requireCtx(method, params), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -283,7 +285,7 @@ export function registerBrokerHandlers(
     "host.process.run",
     async (params) => {
       const method = "host.process.run";
-      enforcePermission(requireCtx(method), method, "process", params, log);
+      enforcePermission(requireCtx(method, params), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -301,7 +303,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, null>("host.process.stop", async (params) => {
     const method = "host.process.stop";
-    enforcePermission(requireCtx(method), method, "process", params, log);
+    enforcePermission(requireCtx(method, params), method, "process", params, log);
     const id = requireString(method, "id", params?.id);
     try {
       await pm.stopProcess(id);
@@ -315,7 +317,7 @@ export function registerBrokerHandlers(
     "host.process.status",
     (params) => {
       const method = "host.process.status";
-      enforcePermission(requireCtx(method), method, "process", params, log);
+      enforcePermission(requireCtx(method, params), method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       try {
         const status = pm.getProcessStatus(id);
@@ -330,7 +332,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ id?: unknown }, string[]>("host.process.logs", (params) => {
     const method = "host.process.logs";
-    enforcePermission(requireCtx(method), method, "process", params, log);
+    enforcePermission(requireCtx(method, params), method, "process", params, log);
     const id = requireString(method, "id", params?.id);
     try {
       return pm.getProcessLogs(id);
@@ -346,7 +348,7 @@ export function registerBrokerHandlers(
     { containerId: string }
   >("host.docker.composeUp", async (params) => {
     const method = "host.docker.composeUp";
-    enforcePermission(requireCtx(method), method, "docker", params, log);
+    enforcePermission(requireCtx(method, params), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -389,7 +391,7 @@ export function registerBrokerHandlers(
     { healthy: boolean }
   >("host.docker.waitForHealthy", async (params) => {
     const method = "host.docker.waitForHealthy";
-    enforcePermission(requireCtx(method), method, "docker", params, log);
+    enforcePermission(requireCtx(method, params), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const service = requireString(method, "service", params?.service);
     const timeoutMs =
@@ -408,7 +410,7 @@ export function registerBrokerHandlers(
     "host.docker.composeRunInit",
     async (params) => {
       const method = "host.docker.composeRunInit";
-      enforcePermission(requireCtx(method), method, "docker", params, log);
+      enforcePermission(requireCtx(method, params), method, "docker", params, log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -438,7 +440,7 @@ export function registerBrokerHandlers(
     "host.docker.composeStop",
     async (params) => {
       const method = "host.docker.composeStop";
-      enforcePermission(requireCtx(method), method, "docker", params, log);
+      enforcePermission(requireCtx(method, params), method, "docker", params, log);
       const projectName = requireString(method, "projectName", params?.projectName);
       const composeFile = requireString(method, "composeFile", params?.composeFile);
       const cwd = requireString(method, "cwd", params?.cwd);
@@ -458,7 +460,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<ComposeBaseParams, null>("host.docker.composeDown", async (params) => {
     const method = "host.docker.composeDown";
-    enforcePermission(requireCtx(method), method, "docker", params, log);
+    enforcePermission(requireCtx(method, params), method, "docker", params, log);
     const projectName = requireString(method, "projectName", params?.projectName);
     const composeFile = requireString(method, "composeFile", params?.composeFile);
     const cwd = requireString(method, "cwd", params?.cwd);
@@ -475,7 +477,7 @@ export function registerBrokerHandlers(
     (params) => {
       const method = "host.docker.assignContainer";
       // assignContainer is gated on the docker permission category (SPK-3 AC3).
-      const c = requireCtx(method);
+      const c = requireCtx(method, params);
       enforcePermission(c, method, "docker", params, log);
       const componentName = requireString(method, "componentName", params?.componentName);
       const containerId = requireString(method, "containerId", params?.containerId);
@@ -494,7 +496,7 @@ export function registerBrokerHandlers(
 
   connection.onRequest<{ componentName?: unknown }, number>("host.ports.get", (params) => {
     const method = "host.ports.get";
-    const c = requireCtx(method);
+    const c = requireCtx(method, params);
     enforcePermission(c, method, "ports", params, log);
     const componentName = requireString(method, "componentName", params?.componentName);
     const port = c.ports[componentName];
@@ -514,31 +516,38 @@ export function registerBrokerHandlers(
     requireString(method, "name", params.name);
     requireString(method, "status", params.status);
     try {
-      requireCtx(method).reportStatus(params);
+      requireCtx(method, params).reportStatus(params);
       return null;
     } catch (err) {
       wrapInternal(method, log, err);
     }
   });
 
-  connection.onRequest<Partial<ComponentLogLine>, null>("host.component.reportLog", (params) => {
-    const method = "host.component.reportLog";
-    const source = params?.source;
-    if (source !== "stdout" && source !== "stderr") {
-      invalidParams(method, 'source must be "stdout" or "stderr"');
-    }
-    const text =
-      typeof params?.text === "string"
-        ? params.text
-        : invalidParams(method, "text must be a string");
-    const ts = requireString(method, "ts", params?.ts);
-    try {
-      requireCtx(method).reportLog({ source, text, ts });
-      return null;
-    } catch (err) {
-      wrapInternal(method, log, err);
-    }
-  });
+  connection.onRequest<Partial<ComponentLogLine> & { componentName?: unknown }, null>(
+    "host.component.reportLog",
+    (params) => {
+      const method = "host.component.reportLog";
+      const source = params?.source;
+      if (source !== "stdout" && source !== "stderr") {
+        invalidParams(method, 'source must be "stdout" or "stderr"');
+      }
+      const text =
+        typeof params?.text === "string"
+          ? params.text
+          : invalidParams(method, "text must be a string");
+      const ts = requireString(method, "ts", params?.ts);
+      // Route to the component the call named, so two components sharing one
+      // bench each get their own log instead of overwriting whichever
+      // provisioned last (#685).
+      const componentName = requireString(method, "componentName", params?.componentName);
+      try {
+        requireCtx(method, params).reportLog(componentName, { source, text, ts });
+        return null;
+      } catch (err) {
+        wrapInternal(method, log, err);
+      }
+    },
+  );
 
   // --- host.capability.query (version gate; never errors, FR-017) -----------
 

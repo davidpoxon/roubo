@@ -112,8 +112,17 @@ function setup(
   // Wrap in an async function so a handler's synchronous throw (validation
   // errors on the sync handlers) surfaces as a rejected promise, exactly as
   // vscode-jsonrpc converts a thrown ResponseError into a JSON-RPC error reply.
-  const call = async (method: string, params?: unknown) =>
-    need(connection.handlers.get(method), method)(params);
+  // Every broker call carries the benchId it acts for in its params (#685); the
+  // production SDK stamps it from the in-flight lifecycle call, so the harness
+  // stamps the ctx's benchId here for object params unless the test already set
+  // one (so a test can pass an explicit/invalid benchId to exercise routing).
+  const call = async (method: string, params?: unknown) => {
+    const withBenchId =
+      params && typeof params === "object" && !Array.isArray(params) && !("benchId" in params)
+        ? { benchId: ctx.benchId, ...params }
+        : params;
+    return need(connection.handlers.get(method), method)(withBenchId);
+  };
   return {
     connection,
     pm,
@@ -410,7 +419,9 @@ describe("host.component.report* push (no polling)", () => {
       setupComplete: true,
     };
     const result = await h.call("host.component.reportStatus", status);
-    expect(h.reportStatus).toHaveBeenCalledWith(status);
+    // The handler forwards the raw params, which now also carry the routing
+    // benchId the SDK stamps (#685); the status fields are preserved.
+    expect(h.reportStatus).toHaveBeenCalledWith(expect.objectContaining(status));
     expect(result).toBeNull();
   });
 
@@ -421,18 +432,36 @@ describe("host.component.report* push (no polling)", () => {
     });
   });
 
-  it("reportLog pushes a {source,text,ts} line into the injected sink", async () => {
+  it("reportLog routes a {source,text,ts} line to the named component's sink (#685)", async () => {
     const h = setup();
     const line = { source: "stdout" as const, text: "hello", ts: "2026-06-21T00:00:00Z" };
-    const result = await h.call("host.component.reportLog", line);
-    expect(h.reportLog).toHaveBeenCalledWith(line);
+    const result = await h.call("host.component.reportLog", { ...line, componentName: "web" });
+    // The sink receives the component the call named plus the log line, so a
+    // bench with two plugin-bound components routes each to its own log.
+    expect(h.reportLog).toHaveBeenCalledWith("web", line);
     expect(result).toBeNull();
+  });
+
+  it("reportLog rejects a missing componentName", async () => {
+    const h = setup();
+    await expect(
+      h.call("host.component.reportLog", {
+        source: "stdout",
+        text: "x",
+        ts: "2026-06-21T00:00:00Z",
+      }),
+    ).rejects.toMatchObject({ code: -32602 });
   });
 
   it("reportLog rejects an invalid source", async () => {
     const h = setup();
     await expect(
-      h.call("host.component.reportLog", { source: "stdin", text: "x", ts: "t" }),
+      h.call("host.component.reportLog", {
+        source: "stdin",
+        text: "x",
+        ts: "t",
+        componentName: "web",
+      }),
     ).rejects.toMatchObject({ code: -32602 });
   });
 });
@@ -666,6 +695,7 @@ describe("audit recording of privileged calls (CP-TC-070/093)", () => {
       source: "stdout",
       text: "hi",
       ts: "2026-06-21T00:00:00Z",
+      componentName: "web",
     });
     await h.call("host.capability.query", { method: "host.docker.composeUp" });
     expect(h.audit).toHaveLength(0);
@@ -673,29 +703,45 @@ describe("audit recording of privileged calls (CP-TC-070/093)", () => {
   });
 });
 
-describe("per-call BrokerContext resolver (#677, multiplexed connection)", () => {
+describe("per-call BrokerContext resolver (#677; precise routing #685, multiplexed connection)", () => {
   // Build a BrokerContext that records its own audit entries, so we can assert a
-  // privileged call routed to the context the resolver returned at call time.
-  function makeCtx(benchId: number): BrokerContext & { audit: AuditEntry[] } {
+  // privileged call routed to the context the resolver returned for the call's
+  // benchId. reportLog records (componentName, line) pairs so we can assert
+  // per-component routing within one bench.
+  function makeCtx(
+    benchId: number,
+  ): BrokerContext & { audit: AuditEntry[]; logs: Array<{ componentName: string; text: string }> } {
     const audit: AuditEntry[] = [];
+    const logs: Array<{ componentName: string; text: string }> = [];
     return {
       pluginId: "plugin-under-test",
       benchId,
       ports: { web: 3000 + benchId },
       reportStatus: vi.fn(),
-      reportLog: vi.fn(),
+      reportLog: (componentName, line) => logs.push({ componentName, text: line.text }),
       hasPermission: () => true,
       recordAudit: (entry: AuditEntry) => audit.push(entry),
       audit,
+      logs,
     };
   }
 
-  it("resolves the context per call, so a privileged call audits against the active bench", async () => {
+  // A registry keyed by benchId, exactly mirroring plugin-manager's exact-key
+  // resolver: the broker call carries its benchId in params and routes to that
+  // bench's context, with no most-recent-wins fallback (#685).
+  function makeRegistryResolver(contexts: Map<number, BrokerContext>) {
+    return (benchId: number) => contexts.get(benchId) ?? null;
+  }
+
+  it("routes each call to its own bench by the param benchId, so audit attributes to the originating bench (#685 defect 1)", async () => {
     const connection = makeConnection();
     const ctxA = makeCtx(1);
     const ctxB = makeCtx(2);
-    let active: BrokerContext = ctxA;
-    registerBrokerHandlers(connection, () => active, {
+    const contexts = new Map<number, BrokerContext>([
+      [1, ctxA],
+      [2, ctxB],
+    ]);
+    registerBrokerHandlers(connection, makeRegistryResolver(contexts), {
       processManager: makeProcessManager(),
       docker: makeDocker(),
       log: vi.fn(),
@@ -703,11 +749,17 @@ describe("per-call BrokerContext resolver (#677, multiplexed connection)", () =>
     const call = (method: string, params?: unknown) =>
       need(connection.handlers.get(method), method)(params);
 
-    await call("host.process.start", { id: "x", command: "node", args: [], env: {}, cwd: "/w" });
-    // Switch the active bench between calls: the resolver is read per request, so
-    // the next privileged call accumulates into ctxB's log, not ctxA's.
-    active = ctxB;
-    await call("host.process.stop", { id: "x" });
+    // Two benches share the connection. A call naming bench 1 audits to bench 1,
+    // a call naming bench 2 audits to bench 2, regardless of registration order.
+    await call("host.process.start", {
+      benchId: 1,
+      id: "x",
+      command: "node",
+      args: [],
+      env: {},
+      cwd: "/w",
+    });
+    await call("host.process.stop", { benchId: 2, id: "x" });
 
     expect(ctxA.audit.map((e) => e.method)).toEqual(["host.process.start"]);
     expect(ctxA.audit[0].benchId).toBe(1);
@@ -715,10 +767,13 @@ describe("per-call BrokerContext resolver (#677, multiplexed connection)", () =>
     expect(ctxB.audit[0].benchId).toBe(2);
   });
 
-  it("reads ports from the resolved context", async () => {
+  it("reads ports from the bench the call names, not the newest", async () => {
     const connection = makeConnection();
-    const ctx = makeCtx(5);
-    registerBrokerHandlers(connection, () => ctx, {
+    const contexts = new Map<number, BrokerContext>([
+      [1, makeCtx(1)],
+      [5, makeCtx(5)],
+    ]);
+    registerBrokerHandlers(connection, makeRegistryResolver(contexts), {
       processManager: makeProcessManager(),
       docker: makeDocker(),
       log: vi.fn(),
@@ -727,14 +782,52 @@ describe("per-call BrokerContext resolver (#677, multiplexed connection)", () =>
       connection.handlers.get("host.ports.get"),
       "host.ports.get",
     )({
+      benchId: 5,
       componentName: "web",
     });
     expect(port).toBe(3005);
   });
 
-  it("fails a privileged call with an internal-error when no bench context is bound", async () => {
+  it("routes reportLog within one bench to the named component (#685 defect 2)", async () => {
     const connection = makeConnection();
-    registerBrokerHandlers(connection, () => null, {
+    const ctx = makeCtx(1);
+    const contexts = new Map<number, BrokerContext>([[1, ctx]]);
+    registerBrokerHandlers(connection, makeRegistryResolver(contexts), {
+      processManager: makeProcessManager(),
+      docker: makeDocker(),
+      log: vi.fn(),
+    });
+    const call = (params: unknown) =>
+      need(connection.handlers.get("host.component.reportLog"), "host.component.reportLog")(params);
+
+    // Two components in the SAME bench (one shared plugin/connection). Each log
+    // routes to its own component sink instead of overwriting the other.
+    await call({
+      benchId: 1,
+      componentName: "web",
+      source: "stdout",
+      text: "from-web",
+      ts: "2026-06-21T00:00:00Z",
+    });
+    await call({
+      benchId: 1,
+      componentName: "db",
+      source: "stderr",
+      text: "from-db",
+      ts: "2026-06-21T00:00:01Z",
+    });
+
+    expect(ctx.logs).toEqual([
+      { componentName: "web", text: "from-web" },
+      { componentName: "db", text: "from-db" },
+    ]);
+  });
+
+  it("fails a privileged call with an internal-error when no bench context is bound for the named benchId", async () => {
+    const connection = makeConnection();
+    // Only bench 1 is bound; a call naming bench 9 resolves null, no fallback.
+    const contexts = new Map<number, BrokerContext>([[1, makeCtx(1)]]);
+    registerBrokerHandlers(connection, makeRegistryResolver(contexts), {
       processManager: makeProcessManager(),
       docker: makeDocker(),
       log: vi.fn(),
@@ -744,6 +837,7 @@ describe("per-call BrokerContext resolver (#677, multiplexed connection)", () =>
         connection.handlers.get("host.process.start"),
         "host.process.start",
       )({
+        benchId: 9,
         id: "x",
         command: "node",
         args: [],
