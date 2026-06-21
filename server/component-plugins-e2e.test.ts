@@ -71,6 +71,8 @@ import * as projectRegistry from "./services/project-registry.js";
 import * as consentState from "./services/plugin-consent-state.js";
 import * as ledger from "./services/resource-ownership-ledger.js";
 import * as componentRegistry from "./services/component-plugin-registry.js";
+import * as dockerService from "./services/docker.js";
+import * as benchManager from "./services/bench-manager.js";
 
 // The slices this journey integrates, from #623's blocked_by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
@@ -612,29 +614,42 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
       },
     );
 
-    // S011: teardown. The component transitions to stopped, no roubo-* compose
-    // project survives (the orphan-reap invariant), and the ledger entry is
-    // cleared (#613, #607).
+    // S011: teardown. Drive the REAL orphan-reap seam rather than asserting
+    // hand-set values: sweepOrphanedComposeProjects() (#613) replays the ledger,
+    // downs every roubo-* compose project it still records, and clears the
+    // entry. Spying composeDownByProject lets the real down path run (and remove
+    // the project from our live set) without a Docker daemon, so "no roubo-*
+    // remains" (S011-O02) and "the ledger entry is cleared" (S011-O03) are
+    // proved by production code, not by the test setting them itself (#613, #607).
+    // The stopping -> stopped ComponentStatus transition (S011-O01) is the #616
+    // status-surface slice's own contract and is asserted in its unit tests; the
+    // plugin lifecycle exposes no hermetic stop seam here, so this integration
+    // guard does not re-fabricate that transition (a hand-pushed status would be
+    // tautological).
     await track(
       TC027_STEPS.teardown,
-      "cache transitions to stopped, no roubo-* compose project remains, and the ledger entry is cleared",
-      () => {
-        // Stop the bench: bring the compose project down (modelled by the docker
-        // teardown reaping every project recorded in the ledger) and report the
-        // stopped status, then clear the ledger entry.
-        const entry = ledger.getEntry(PLUGIN_ID, BENCH_ID);
-        for (const project of entry?.composeProjects ?? []) {
-          liveComposeProjects.delete(project);
-        }
-        statuses.push({ name: COMPONENT_NAME, status: "stopping", setupComplete: true });
-        statuses.push({ name: COMPONENT_NAME, status: "stopped", setupComplete: true });
-        ledger.clearEntry(PLUGIN_ID, BENCH_ID);
+      "no roubo-* compose project remains after the real orphan sweep and the ledger entry is cleared",
+      async () => {
+        // Precondition: the bench's compose project is live and ledger-recorded
+        // (set up by S009 through real engine + ledger code).
+        expect(liveComposeProjects.has(COMPOSE_PROJECT)).toBe(true);
+        expect(ledger.getEntry(PLUGIN_ID, BENCH_ID)?.composeProjects).toContain(COMPOSE_PROJECT);
 
-        expect(statuses.at(-1)?.status).toBe("stopped");
-        // No roubo-* compose project remains after teardown (NFR-003).
-        expect([...liveComposeProjects].filter((p) => p.startsWith("roubo-"))).toEqual([]);
-        // The ledger entry for this bench is gone.
-        expect(ledger.getEntry(PLUGIN_ID, BENCH_ID)).toBeUndefined();
+        const downSpy = vi
+          .spyOn(dockerService, "composeDownByProject")
+          .mockImplementation(async (projectName: string) => {
+            liveComposeProjects.delete(projectName);
+          });
+        try {
+          await benchManager.sweepOrphanedComposeProjects();
+          // The real sweep downed this bench's compose project (S011-O02)...
+          expect(downSpy).toHaveBeenCalledWith(COMPOSE_PROJECT);
+          expect([...liveComposeProjects].filter((p) => p.startsWith("roubo-"))).toEqual([]);
+          // ...and cleared the ledger entry as part of the same sweep (S011-O03).
+          expect(ledger.getEntry(PLUGIN_ID, BENCH_ID)).toBeUndefined();
+        } finally {
+          downSpy.mockRestore();
+        }
       },
     );
 
