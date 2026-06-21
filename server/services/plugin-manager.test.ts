@@ -1925,3 +1925,90 @@ describe("e2e config argv propagation (WU-063)", () => {
     expect(mgr.__test.getE2EConfig()).toEqual({ scenario: null, now: null });
   });
 });
+
+// PluginIsolationSandbox runtime wiring (F2.3, #620). These exercise the
+// plugin-manager-side seam (tier resolution via injected probes and the
+// OS-attributed sandbox audit log) without a live daemon, so they are
+// deterministic. The pure sandbox model (egress derivation, spawn shape, tier
+// degradation) is covered in plugin-isolation-sandbox.test.ts.
+describe("PluginIsolationSandbox wiring (#620)", () => {
+  beforeEach(() => {
+    pluginManager.__test.reset();
+  });
+  afterEach(() => {
+    pluginManager.__test.reset();
+  });
+
+  it("resolves the broker-only floor when no isolation runtime is available", async () => {
+    pluginManager.setIsolationProbes({
+      vzVm: () => false,
+      appleContainer: () => false,
+      docker: () => false,
+    });
+    expect(await pluginManager.__test.resolveIsolationTier()).toBe("broker-only");
+  });
+
+  it("selects the highest available rung (docker over the floor; vz-vm over all)", async () => {
+    pluginManager.setIsolationProbes({
+      vzVm: () => false,
+      appleContainer: () => false,
+      docker: () => true,
+    });
+    expect(await pluginManager.__test.resolveIsolationTier()).toBe("docker");
+    pluginManager.setIsolationProbes({
+      vzVm: () => true,
+      appleContainer: () => true,
+      docker: () => true,
+    });
+    expect(await pluginManager.__test.resolveIsolationTier()).toBe("vz-vm");
+  });
+
+  it("treats a throwing probe as not-available and degrades a rung (NFR-005)", async () => {
+    pluginManager.setIsolationProbes({
+      vzVm: () => {
+        throw new Error("vz unavailable");
+      },
+      appleContainer: () => false,
+      docker: () => true,
+    });
+    expect(await pluginManager.__test.resolveIsolationTier()).toBe("docker");
+  });
+
+  it("records an OS-attributed blocked attempt in the sandbox audit log (AC5/CP-TC-094)", () => {
+    pluginManager.recordSandboxDenial({
+      pluginId: "demo",
+      benchId: 1,
+      method: "os.network.connect",
+      params: { host: "evil.example.com", port: 443 },
+    });
+    const entries = pluginManager.querySandboxAudit({ pluginId: "demo" });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      pluginId: "demo",
+      benchId: 1,
+      method: "os.network.connect",
+      outcome: "denied",
+      source: "sandbox",
+    });
+  });
+
+  it("keeps the audit log queryable per plugin while a sibling stays unaffected (CP-TC-099)", () => {
+    pluginManager.recordSandboxDenial({
+      pluginId: "noisy",
+      benchId: 2,
+      method: "os.network.connect",
+      params: {},
+    });
+    pluginManager.recordSandboxDenial({
+      pluginId: "noisy",
+      benchId: 2,
+      method: "os.process.exec",
+      params: {},
+    });
+    // The sibling made no blocked attempt; its query is empty, and the noisy
+    // plugin's denials are still recorded and queryable.
+    expect(pluginManager.querySandboxAudit({ pluginId: "sibling" })).toEqual([]);
+    expect(pluginManager.querySandboxAudit({ pluginId: "noisy" })).toHaveLength(2);
+    expect(pluginManager.querySandboxAudit({ benchId: 2 })).toHaveLength(2);
+  });
+});

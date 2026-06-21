@@ -598,6 +598,72 @@ export interface AuditEntry {
   params: unknown;
   /** Whether the plugin held the required permission category. */
   outcome: "allowed" | "denied";
+  /**
+   * Where the entry was attributed (F2.3, #620). Omitted (or "broker") for the
+   * always-on broker choke-point; "sandbox" for an OS-layer denial the
+   * PluginIsolationSandbox could attribute to the plugin (e.g. an undeclared
+   * outbound connection blocked at the container/VM boundary). The broker and
+   * the OS tier share one audit shape so a query returns both in one stream.
+   */
+  source?: "broker" | "sandbox";
+}
+
+/**
+ * The OS-isolation tiers the PluginIsolationSandbox can place a component plugin
+ * process inside (F2.3, #620; backend chosen by SPK-2 / spike #599). Ordered
+ * highest-isolation-first: `vz-vm` (Virtualization.framework per-plugin VM) is
+ * the strongest, then `apple-container` (the macOS 15+ Apple container
+ * framework), then `docker` (container-per-plugin where a Docker engine is
+ * already present), degrading to the `broker-only` floor where no isolation
+ * runtime is available. The floor carries no isolation-attributable overhead and
+ * is always selectable, so enforcement never depends on Docker (FR-018).
+ */
+export type IsolationTier = "vz-vm" | "apple-container" | "docker" | "broker-only";
+
+/**
+ * Which OS-isolation runtimes the host can actually drive (F2.3, #620). Probed
+ * at runtime via the NFR-005 host-capability gate, never assumed: a host without
+ * any runtime degrades to the `broker-only` floor. Each flag is true only when
+ * the runtime is present AND usable (e.g. the Docker daemon is reachable, not
+ * merely installed).
+ */
+export interface IsolationCapabilities {
+  /** Virtualization.framework is present and a per-plugin VM can be driven. */
+  vzVm: boolean;
+  /** The Apple `container` framework (macOS 15+, Apple silicon) is present. */
+  appleContainer: boolean;
+  /** A Docker engine is installed and the daemon is reachable. */
+  docker: boolean;
+}
+
+/**
+ * The egress policy the sandbox applies to a plugin process, derived from the
+ * manifest's `permissions.network` declaration (F2.3, #620). When the plugin
+ * declares no network hosts, the sandbox denies all egress (`mode: "deny-all"`)
+ * so an undeclared outbound connection is blocked at the OS layer: there is no
+ * `host.network.*` broker method, so undeclared egress can only be stopped
+ * below the broker. When hosts are declared, the policy carries that allowlist
+ * for the runtime to apply.
+ */
+export interface SandboxEgressPolicy {
+  mode: "deny-all" | "allow-listed";
+  /** Declared network hosts (empty when `mode` is "deny-all"). */
+  allowedHosts: string[];
+}
+
+/**
+ * The concrete spawn the host should perform to run a plugin under a non-floor
+ * isolation tier (F2.3, #620). `command` + `args` replace the direct
+ * `spawn(process.execPath, [entry])`: for the `docker` tier this is
+ * `docker run --network none … <execPath> <entry>`. `env` is merged over the
+ * base spawn env. `egress` is the derived network policy. The `broker-only`
+ * floor produces no SandboxedSpawn; the host spawns the plugin directly.
+ */
+export interface SandboxedSpawn {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  egress: SandboxEgressPolicy;
 }
 
 /**

@@ -18,9 +18,17 @@ import {
   type RestartEvent,
 } from "@roubo/shared";
 import type { ConnectionStatus, ValidateConfigResult } from "@roubo/plugin-sdk";
+import type { AuditEntry, IsolationTier } from "@roubo/shared";
 import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
+import { AuditLog } from "./audit-log.js";
+import {
+  buildSandboxedSpawn,
+  detectIsolationCapabilities,
+  selectTier,
+  type IsolationProbes,
+} from "./plugin-isolation-sandbox.js";
 import { redactSecrets } from "./log-redaction.js";
 import * as projectRegistry from "./project-registry.js";
 import { resolveActivePlugin } from "./active-plugin.js";
@@ -106,6 +114,44 @@ export function registerComponentPluginHooks(hooks: ComponentPluginHooks | null)
 
 function isComponentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "component";
+}
+
+// PluginIsolationSandbox runtime wiring (F2.3, #620).
+//
+// The v2 broker (registerBrokerHandlers + AuditLog) is not yet runtime-wired
+// into spawnPlugin (that is F2.1's scope); spawnPlugin still registers the v1
+// host handlers. So there is no live broker AuditLog at the spawn point. To
+// satisfy AC5 (record an OS-attributed blocked attempt where the backend can
+// attribute the syscall to the plugin) without over-reaching into F2.1's
+// runtime-wiring, the sandbox keeps its own minimal, in-process AuditLog and
+// records sandbox-sourced denials into it. It is queryable via __test for the
+// unit tests; when the broker is fully wired by a later slice these entries can
+// fold into the shared log unchanged (same AuditEntry shape, source:"sandbox").
+const sandboxAuditLog = new AuditLog();
+
+// Default isolation probes (NFR-005: query each runtime, never assume). These
+// are conservative no-ops by default: detecting a usable Virtualization.framework
+// / Apple container / Docker daemon is host-environment work, and a probe that
+// throws or returns false degrades the host one rung. The real probes are
+// injected here as F2.3's runtime detection lands; tests swap them via
+// __test.setIsolationProbes to exercise tier selection deterministically. With
+// all probes false, selectTier returns the broker-only floor and spawnPlugin's
+// behaviour is byte-for-byte identical to today.
+let isolationProbes: IsolationProbes = {
+  vzVm: () => false,
+  appleContainer: () => false,
+  docker: () => false,
+};
+
+/**
+ * Resolve the isolation tier for a plugin: detect host capabilities (injected
+ * probes) and select the highest available rung, degrading to the broker-only
+ * floor. Pure floor selection means a host with no isolation runtime keeps the
+ * exact direct-spawn path it has today.
+ */
+async function resolveIsolationTier(): Promise<IsolationTier> {
+  const capabilities = await detectIsolationCapabilities(isolationProbes);
+  return selectTier(capabilities);
 }
 
 interface CachedConnectionStatus {
@@ -639,19 +685,41 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     if (e2eNow !== null) spawnArgs.push(`--now=${e2eNow}`);
   }
 
+  const spawnEnv: Record<string, string> = {
+    ...cleanEnv(),
+    // Under Electron, process.execPath is the Electron binary. Without this flag it would
+    // launch as a new GUI app and exit code 0 within seconds. With the flag, Electron runs
+    // the entry as Node. Plain Node ignores the variable, so this is safe in dev too.
+    ELECTRON_RUN_AS_NODE: "1",
+    ROUBO_PLUGIN_ID: manifest.id,
+    ROUBO_HOST_API_VERSION: HOST_API_VERSION,
+  };
+
+  // PluginIsolationSandbox tier selection (F2.3, #620). Select the highest
+  // OS-isolation rung the host supports; degrade to the broker-only floor when
+  // none is present. The floor path below is byte-for-byte the direct spawn
+  // Roubo has always used; a non-floor tier wraps that node invocation in the
+  // sandbox runtime (e.g. `docker run --network none …`) so an undeclared
+  // outbound connection is blocked at the OS layer (AC2). A failed sandbox
+  // spawn follows the same errored/restart path as a direct spawn, so a blocked
+  // out-of-band attempt never crashes the host or its siblings (AC3).
+  const tier = await resolveIsolationTier();
+  const sandboxed =
+    tier === "broker-only"
+      ? null
+      : buildSandboxedSpawn(manifest, tier, {
+          execPath: process.execPath,
+          entryPath,
+          baseEnv: spawnEnv,
+        });
+  const spawnCommand = sandboxed ? sandboxed.command : process.execPath;
+  const finalArgs = sandboxed ? [...sandboxed.args, ...spawnArgs.slice(1)] : spawnArgs;
+
   let proc: ChildProcess;
   try {
-    proc = spawn(process.execPath, spawnArgs, {
+    proc = spawn(spawnCommand, finalArgs, {
       cwd: entry.record.pluginDir,
-      env: {
-        ...cleanEnv(),
-        // Under Electron, process.execPath is the Electron binary. Without this flag it would
-        // launch as a new GUI app and exit code 0 within seconds. With the flag, Electron runs
-        // the entry as Node. Plain Node ignores the variable, so this is safe in dev too.
-        ELECTRON_RUN_AS_NODE: "1",
-        ROUBO_PLUGIN_ID: manifest.id,
-        ROUBO_HOST_API_VERSION: HOST_API_VERSION,
-      },
+      env: spawnEnv,
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
     });
@@ -1189,6 +1257,58 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   };
 }
 
+/**
+ * Record an OS-attributed blocked attempt against a plugin (AC5, #620), e.g. an
+ * undeclared outbound connection blocked at the sandbox boundary. Lands in the
+ * sandbox audit log with outcome "denied" and source "sandbox". Exposed so the
+ * sandbox-attribution path (and tests) can record a denial; where the OS layer
+ * cannot attribute a syscall to the plugin, callers log at the OS layer only
+ * and skip this (CP-TC-094 S002 is conditional).
+ */
+export function recordSandboxDenial(args: {
+  pluginId: string;
+  benchId: number;
+  method: string;
+  params: unknown;
+}): void {
+  const entry: AuditEntry = {
+    ts: nowIso(),
+    pluginId: args.pluginId,
+    benchId: args.benchId,
+    method: args.method,
+    params: args.params,
+    outcome: "denied",
+    source: "sandbox",
+  };
+  sandboxAuditLog.record(entry);
+}
+
+/**
+ * Query the sandbox audit log (F2.3, #620), optionally filtered by plugin
+ * and/or bench. Returns OS-attributed denials in chronological order so a
+ * blocked out-of-band attempt is auditable even though the v2 broker AuditLog is
+ * not yet runtime-wired into spawnPlugin.
+ */
+export function querySandboxAudit(
+  filter: { pluginId?: string; benchId?: number } = {},
+): AuditEntry[] {
+  return sandboxAuditLog.query(filter);
+}
+
+/**
+ * Inject the host's OS-isolation capability probes (NFR-005). Called once at
+ * boot as the real Virtualization.framework / Apple container / Docker detection
+ * lands; defaults are conservative no-ops so the host runs on the broker-only
+ * floor until real probes are supplied. Passing `null` restores the defaults.
+ */
+export function setIsolationProbes(probes: IsolationProbes | null): void {
+  isolationProbes = probes ?? {
+    vzVm: () => false,
+    appleContainer: () => false,
+    docker: () => false,
+  };
+}
+
 export async function invoke<T = unknown>(
   pluginId: string,
   method: string,
@@ -1535,6 +1655,14 @@ export const __test = {
     e2eScenario = null;
     e2eNow = null;
     e2eConnectionStateLogTap.length = 0;
+    setIsolationProbes(null);
+    sandboxAuditLog.clear();
+  },
+  setIsolationProbes(probes: IsolationProbes | null): void {
+    setIsolationProbes(probes);
+  },
+  resolveIsolationTier(): Promise<IsolationTier> {
+    return resolveIsolationTier();
   },
   setE2EConfig(config: { scenario: string | null; now: string | null }): void {
     e2eScenario = config.scenario;
