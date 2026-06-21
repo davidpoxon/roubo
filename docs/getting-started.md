@@ -31,19 +31,23 @@ layout:
 
 components:
   server:
-    type: process
-    command: npx tsx watch server/index.ts
-    env:
-      PORT: "{{ports.server}}"
+    plugin:
+      id: process
+    config:
+      command: npx tsx watch server/index.ts
+      env:
+        PORT: "{{ports.server}}"
   client:
-    type: process
-    command: npm run dev
-    directory: client
+    plugin:
+      id: process
+    config:
+      command: npm run dev
+      directory: client
+      env:
+        DEV_PORT: "{{ports.client}}"
+        DEV_API_PORT: "{{ports.server}}"
     dependsOn:
       - server
-    env:
-      DEV_PORT: "{{ports.client}}"
-      DEV_API_PORT: "{{ports.server}}"
 
 ports:
   server:
