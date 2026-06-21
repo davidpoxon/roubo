@@ -34,4 +34,10 @@ export class AuditLog {
       return true;
     });
   }
+
+  /** Drop every recorded entry. The store is in-process, so this is used to
+   * reset between test runs and on host shutdown. */
+  clear(): void {
+    this.entries.length = 0;
+  }
 }

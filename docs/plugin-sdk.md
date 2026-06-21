@@ -589,3 +589,15 @@ What this means in practice:
 - The user vets the source. Bundled plugins are part of Roubo's release; third-party plugins are something the user chose to install from a URL they recognised.
 
 When you build a plugin, treat the manifest as the documented surface area. Anything you do via the SDK is what the user accepted; anything you do behind the SDK's back is on you.
+
+## Isolation threat model (component plugins)
+
+Component plugins run under a two-tier model: an always-on broker floor plus an opt-in, capability-gated OS-isolation tier. The delivered guarantee is scoped deliberately, so state it precisely rather than over-claim.
+
+- **The broker floor is unconditional.** Every privileged operation (process spawn, compose up/down, port allocation) funnels through the single host broker, which denies any call outside the plugin's declared permission categories and audit-logs it. This contains accidental damage, honest-but-buggy plugins, and casual abuse on every host, with no container engine, VM, or OS sandbox required. It is the floor: it is always present.
+- **The broker floor does not resist a determined attacker.** A plugin that ignores the SDK and reaches for native Node APIs (raw sockets, `child_process`, `fs`) directly inside its process bypasses the broker. There is no `host.network.*` broker method, so an undeclared outbound connection cannot be stopped at the broker at all. Closing that gap is the job of the OS-isolation tier, not the floor.
+- **The OS-isolation tier is opt-in and capability-gated.** Where the host supports it, the plugin process runs inside the highest-isolation runtime available, highest-first: a Virtualization.framework per-plugin VM, then the Apple `container` framework, then a Docker container-per-plugin, degrading to the broker-only floor where none is present. The runtimes are probed at runtime, never assumed; a host with none keeps the broker floor. Docker is one rung among several, never a requirement.
+- **Undeclared egress is blocked at the OS layer.** When a plugin declares no `permissions.network.hosts`, the sandbox denies all outbound traffic at the OS boundary (for the Docker rung, `docker run --network none`), so a direct outbound connection the plugin never declared cannot leave the boundary. When hosts are declared, the runtime carries that allowlist forward.
+- **Blocked attempts are audited where attributable.** When the OS layer can attribute a blocked syscall (e.g. an undeclared outbound connection) to the plugin, it is recorded in the audit log as a `denied` outcome with `source: "sandbox"`, alongside the broker's own denials. Where the OS layer cannot attribute the syscall to a specific plugin, it is logged at the OS layer only.
+
+In one line: **accidental damage, honest plugins, and casual abuse are contained unconditionally at the broker; resistance to a determined attacker is delivered only by the opt-in OS-isolation tier where the host supports it, and is never claimed for the broker-only floor.**
