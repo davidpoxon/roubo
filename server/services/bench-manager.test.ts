@@ -6522,3 +6522,57 @@ describe("teardown clears the ledger (issue #613)", () => {
     expect(ledgerService.clearEntry).not.toHaveBeenCalledWith("process", 2);
   });
 });
+
+describe("per-bench audit log registry (#671)", () => {
+  const entry = (overrides: Partial<import("@roubo/shared").AuditEntry> = {}) => ({
+    ts: "2026-06-21T00:00:00.000Z",
+    pluginId: "github-com",
+    benchId: 1,
+    method: "host.process.start",
+    params: {},
+    outcome: "allowed" as const,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    benchManager._resetAuditLogsForTest();
+  });
+
+  it("returns an empty array for a bench with no recorded calls", () => {
+    expect(benchManager.queryAuditLog("test-project", 1)).toEqual([]);
+  });
+
+  it("records and queries entries per (projectId, benchId) in chronological order", () => {
+    const first = entry({ ts: "2026-06-21T00:00:00.000Z", method: "host.process.start" });
+    const second = entry({ ts: "2026-06-21T00:00:01.000Z", method: "host.process.stop" });
+    benchManager.recordAuditEntry("test-project", 1, first);
+    benchManager.recordAuditEntry("test-project", 1, second);
+
+    expect(benchManager.queryAuditLog("test-project", 1)).toEqual([first, second]);
+  });
+
+  it("scopes entries to their bench: a different bench's log is unaffected", () => {
+    benchManager.recordAuditEntry("test-project", 1, entry({ benchId: 1 }));
+    benchManager.recordAuditEntry("test-project", 2, entry({ benchId: 2 }));
+
+    expect(benchManager.queryAuditLog("test-project", 1)).toHaveLength(1);
+    expect(benchManager.queryAuditLog("test-project", 2)).toHaveLength(1);
+    expect(benchManager.queryAuditLog("test-project", 1)[0].benchId).toBe(1);
+  });
+
+  it("filters by pluginId when supplied", () => {
+    benchManager.recordAuditEntry("test-project", 1, entry({ pluginId: "github-com" }));
+    benchManager.recordAuditEntry("test-project", 1, entry({ pluginId: "jira-com" }));
+
+    const filtered = benchManager.queryAuditLog("test-project", 1, "jira-com");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].pluginId).toBe("jira-com");
+  });
+
+  it("clearAuditLog drops a bench's accumulated entries", () => {
+    benchManager.recordAuditEntry("test-project", 1, entry());
+    benchManager.clearAuditLog("test-project", 1);
+
+    expect(benchManager.queryAuditLog("test-project", 1)).toEqual([]);
+  });
+});

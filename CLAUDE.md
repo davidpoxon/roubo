@@ -103,6 +103,7 @@ POST   /api/projects/:projectId/benches/:id/stop   Stop all components
 POST   /api/projects/:projectId/benches/:id/components/:name/start
 POST   /api/projects/:projectId/benches/:id/components/:name/stop
 GET    /api/projects/:projectId/benches/:id/components/:name/logs
+GET    /api/projects/:projectId/benches/:id/audit-log   Query recorded privileged broker calls (optional ?pluginId=), chronological AuditEntry[]
 GET    /api/projects/:projectId/benches/:id/inspection   Get inspection results
 POST   /api/projects/:projectId/benches/:id/inspection   Start inspection run
 DELETE /api/projects/:projectId/benches/:id/inspection   Abort inspection run

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
+  AuditEntry,
   Bench,
   BenchStatus,
   ComponentLogLine,
@@ -24,6 +25,7 @@ import { resolveBinding, isNotBound, type NotBound } from "./component-plugin-re
 import { runDescriptor, type LifecycleContext } from "./lifecycle-engine.js";
 import type { ProvisionDescriptor } from "@roubo/shared/provision-descriptor-schema";
 import * as componentLogStore from "./component-log-store.js";
+import { AuditLog } from "./audit-log.js";
 import * as terminalService from "./terminal.js";
 import * as notificationService from "./notification.js";
 import * as sseService from "./sse.js";
@@ -1135,6 +1137,10 @@ async function runTeardownBackground(
     // every owning plugin.
     clearLedgerForBench(benchId);
 
+    // Drop this bench's in-memory audit log (#671) so a cleared bench's recorded
+    // broker calls do not leak into a later bench that reuses the same id.
+    clearAuditLog(projectId, benchId);
+
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
     extractWorkspacePermissions(bench.projectId, bench.workspacePath);
@@ -1913,6 +1919,58 @@ export function getComponentLogs(
     ? processId(projectId, benchId, componentName)
     : `${binding.pluginId}:${benchId}:${componentName}`;
   return processManager.getProcessLogLines(pid, tail);
+}
+
+// Per-bench AuditLog registry (FR-019, #671). One in-memory AuditLog accumulates
+// the privileged HostComponentBroker calls for a single (projectId, benchId), keyed
+// the same way as the component-log store. The log is created lazily on first record
+// and dropped when the bench is torn down. This is an in-process store only: nothing
+// is persisted to state.json, so a bench's audit log is empty after a server restart.
+const auditLogs = new Map<string, AuditLog>();
+
+function auditLogKey(projectId: string, benchId: number): string {
+  return `${projectId}:${benchId}`;
+}
+
+/**
+ * Record one privileged broker call into the per-bench AuditLog (FR-019). This is
+ * the audit sink future broker-per-bench wiring attaches to BrokerContext.recordAudit:
+ * the broker stamps pluginId, benchId, method, params, and outcome, and the host
+ * appends the entry here in call order. The bench's log is created on first record.
+ */
+export function recordAuditEntry(projectId: string, benchId: number, entry: AuditEntry): void {
+  const k = auditLogKey(projectId, benchId);
+  let log = auditLogs.get(k);
+  if (!log) {
+    log = new AuditLog();
+    auditLogs.set(k, log);
+  }
+  log.record(entry);
+}
+
+/**
+ * Query a bench's recorded privileged broker calls in chronological order, optionally
+ * filtered by pluginId, for the GET .../audit-log surface (#671). A bench with no
+ * recorded calls (or one that has been torn down) yields an empty array.
+ */
+export function queryAuditLog(projectId: string, benchId: number, pluginId?: string): AuditEntry[] {
+  const log = auditLogs.get(auditLogKey(projectId, benchId));
+  if (!log) return [];
+  return log.query({ pluginId });
+}
+
+/**
+ * Drop a bench's accumulated AuditLog. Called on bench teardown, alongside the
+ * other per-bench in-memory state, so a cleared bench's audit history does not
+ * leak into a later bench that reuses the same id.
+ */
+export function clearAuditLog(projectId: string, benchId: number): void {
+  auditLogs.delete(auditLogKey(projectId, benchId));
+}
+
+/** Test-only reset of the whole per-bench AuditLog registry. */
+export function _resetAuditLogsForTest(): void {
+  auditLogs.clear();
 }
 
 /**

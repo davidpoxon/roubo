@@ -52,6 +52,7 @@ import type {
   ConsentRecord,
   ConnectionStatus,
   ComponentLogLine,
+  AuditEntry,
   LogLine,
   InstallPreview,
   InstallSource,
@@ -290,6 +291,15 @@ export function fetchComponentLogs(
   return request(
     `/projects/${projectId}/benches/${benchId}/components/${component}/logs?tail=${tail}`,
   );
+}
+
+export function fetchAuditLog(
+  projectId: string,
+  benchId: number,
+  pluginId?: string,
+): Promise<AuditEntry[]> {
+  const query = pluginId ? `?pluginId=${encodeURIComponent(pluginId)}` : "";
+  return request<AuditEntry[]>(`/projects/${projectId}/benches/${benchId}/audit-log${query}`);
 }
 
 // Filesystem

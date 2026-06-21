@@ -364,6 +364,19 @@ router.get("/:projectId/benches/:id/components/:name/logs", (req, res) => {
   }
 });
 
+// Recorded privileged broker calls for this bench (#671). Returns AuditEntry[] in
+// chronological order, optionally filtered to a single plugin via ?pluginId=.
+router.get("/:projectId/benches/:id/audit-log", (req, res) => {
+  try {
+    const benchId = parseIntParam(req.params.id, "bench id");
+    const pluginId = typeof req.query.pluginId === "string" ? req.query.pluginId : undefined;
+    const entries = benchManager.queryAuditLog(req.params.projectId, benchId, pluginId);
+    res.json(entries);
+  } catch (err) {
+    handleBenchError(res, err);
+  }
+});
+
 // ── Tool routes ──
 
 router.get("/:projectId/benches/:id/tools", (req, res) => {
