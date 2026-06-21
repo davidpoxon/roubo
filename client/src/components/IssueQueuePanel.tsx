@@ -289,22 +289,57 @@ export default function IssueQueuePanel({
     return formatLastUpdated(dataUpdatedAt);
   }, [isRefetching, stale, snapshotCapturedAt, dataUpdatedAt]);
 
+  // Track whether a warm disk snapshot has ever backed the current query shape
+  // (#653). A force-refresh re-persists the snapshot so the cache stays warm, but
+  // the server reports that bypassing fetch as `cacheStatus: "miss"` (it skipped
+  // the disk read). Without remembering the prior warm serve, a settled
+  // force-refresh would drop the badge to null, contradicting CLI-TC-001/TC-017
+  // which require the badge to return to "warm" after a refresh. Flip this true
+  // once a warm serve is observed and reset it when the query shape
+  // (project/cursor/sort) changes, so a genuine first cold load on a new shape
+  // stays badge-less. State (not a ref) so the badge re-derives reactively and we
+  // never read a ref during render.
+  const queryShapeKey = `${projectId}|${activeCursor ?? ""}|${sortSelection?.sortBy ?? ""}|${
+    sortSelection?.sortDir ?? ""
+  }`;
+  // Derive `warmServeSeen` during render (the React "adjust state on prop change"
+  // pattern) rather than in an effect: a new query shape resets it to cold, and a
+  // warm serve (`cacheStatus === "revalidating"`) latches it true. setState
+  // during render is React-sanctioned here because each branch is guarded by a
+  // change check, so it converges in one pass without an extra commit.
+  const [warmServeState, setWarmServeState] = useState({ key: queryShapeKey, seen: false });
+  const shapeChanged = warmServeState.key !== queryShapeKey;
+  // True once a warm serve has been observed for the current query shape. On a
+  // shape change it is cold (false) for this render; a warm serve latches it.
+  const warmServeSeen = shapeChanged
+    ? false
+    : warmServeState.seen || cacheStatus === "revalidating";
+  if (shapeChanged) {
+    setWarmServeState({ key: queryShapeKey, seen: false });
+  } else if (warmServeSeen && !warmServeState.seen) {
+    setWarmServeState({ key: queryShapeKey, seen: true });
+  }
+
   // Stale-while-revalidate cache-state badge (CLI-FR-002 / CLI-TC-001). Distinct
   // from the FR-014 stale-snapshot banner below: this is the inline warm /
   // revalidating / stale chip. Precedence: the FR-014 stale serve (plugin
   // unavailable) wins; then a background revalidation in flight (React Query's
   // isRefetching) reads `revalidating`; then a warm snapshot served by the
-  // server (`cacheStatus === 'revalidating'`) reads `warm`. A genuinely fresh
-  // live load (`cacheStatus === 'miss'`) shows no chip (null) so the badge never
-  // competes with the steady state. Per CLI-TC-001 the warm open shows `warm`
-  // first, transitions to `revalidating` while the client refetches, then back
-  // to `warm` once fresh data lands.
+  // server (`cacheStatus === 'revalidating'`) reads `warm`. A force-refresh
+  // settles to `cacheStatus === 'miss'` but leaves the disk snapshot warm, so it
+  // also reads `warm` once a warm serve has been seen for this query shape. A
+  // genuinely fresh first cold load (`cacheStatus === 'miss'` with no prior warm
+  // serve) shows no chip (null) so the badge never competes with the steady
+  // state. Per CLI-TC-001 the warm open shows `warm` first, transitions to
+  // `revalidating` while the client refetches, then back to `warm` once fresh
+  // data lands.
   const cacheState: "warm" | "revalidating" | "stale" | null = useMemo(() => {
     if (stale) return "stale";
     if (isRefetching) return "revalidating";
     if (cacheStatus === "revalidating") return "warm";
+    if (cacheStatus === "miss" && warmServeSeen) return "warm";
     return null;
-  }, [stale, isRefetching, cacheStatus]);
+  }, [stale, isRefetching, cacheStatus, warmServeSeen]);
 
   // Polite live-region announcement for refresh start/completion (NFR-007 /
   // AC4). Announce "Refreshing cut list" when a refetch begins, then on

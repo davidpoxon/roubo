@@ -362,6 +362,52 @@ describe("IssueQueuePanel", () => {
       );
       expect(screen.queryByTestId("cut-list-cache-state")).toBeNull();
     });
+
+    it("keeps the badge 'warm' after a force-refresh settles to cacheStatus 'miss' (#653)", () => {
+      // A force-refresh re-persists the disk snapshot but the server reports the
+      // bypassing fetch as `miss`. Once a warm serve has been observed for this
+      // query shape, that settled `miss` must still read "warm" so the badge does
+      // not disappear after the refresh (CLI-TC-001/TC-017 S004-O03).
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [makeIssue("1")],
+          cacheStatus: "revalidating",
+          isRefetching: false,
+        }),
+      );
+      const { rerender } = renderWithProviders(
+        <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+      );
+      expect(screen.getByTestId("cut-list-cache-state")).toHaveAttribute("data-state", "warm");
+
+      // Force-refresh in flight: badge reads "revalidating".
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [makeIssue("1")],
+          cacheStatus: "revalidating",
+          isRefetching: true,
+        }),
+      );
+      rerender(<IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />);
+      expect(screen.getByTestId("cut-list-cache-state")).toHaveAttribute(
+        "data-state",
+        "revalidating",
+      );
+
+      // Force-refresh settles to `miss`: the badge must return to "warm", not
+      // unmount.
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [makeIssue("1")],
+          cacheStatus: "miss",
+          isRefetching: false,
+        }),
+      );
+      rerender(<IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />);
+      const badge = screen.getByTestId("cut-list-cache-state");
+      expect(badge).toHaveAttribute("data-state", "warm");
+      expect(badge).toHaveTextContent("warm");
+    });
   });
 
   it("renders the filter bar in loaded state", () => {
