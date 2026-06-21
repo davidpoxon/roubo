@@ -4374,6 +4374,69 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(bench.components.backend.status).toBe("stopped");
     expect(bench.components.frontend.status).toBe("stopped");
   });
+
+  // Closes the CP-TC-033 S008 / CP-TC-034 S005 gap (#668) the hermetic responda
+  // e2e guard could not assert: that guard drives the startup orphan-reap
+  // (sweepOrphanedComposeProjects) instead of the integrated stop path, so it
+  // never proves that the recorded PIDs are terminated. stopAllComponents calls
+  // processManager.stopProcess once per engine-recorded id
+  // (`<pluginId>:<benchId>:<name>`) and once for the legacy host id
+  // (processId(projectId, benchId, name)) of every component, alongside
+  // transitioning each component to stopped.
+  it("calls stopProcess for each engine-recorded id while stopping every component", async () => {
+    const config = makeConfig({
+      components: {
+        frontend: {
+          type: "process",
+          command: "npm run dev",
+          directory: "client",
+        },
+        backend: {
+          type: "process",
+          command: "dotnet run --project src/Api/Api.csproj",
+        },
+        db: {
+          type: "database",
+          docker: { composeFile: "docker-compose.yml", service: "db" },
+        },
+      },
+      ports: {
+        frontend: { base: 3000 },
+        backend: { base: 5000 },
+        db: { base: 5432 },
+      },
+    });
+    setupExistingBench({
+      config,
+      ports: { frontend: 3000, backend: 5000, db: 5432 },
+    });
+    setupProcessMocks();
+    setupDockerServiceMocks();
+
+    await benchManager.stopAllComponents("test-project", 1);
+
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    // Every component reached stopped (S008 / S005 'all components stopped').
+    expect(bench.components.db.status).toBe("stopped");
+    expect(bench.components.backend.status).toBe("stopped");
+    expect(bench.components.frontend.status).toBe("stopped");
+
+    // The recorded PIDs are terminated: stopProcess is invoked once per
+    // engine-recorded id (`<pluginId>:<benchId>:<name>`, the binding the
+    // resolver returns: database for db, process for the rest) and once for the
+    // legacy host id (`<projectId>-bench-<benchId>-<name>`) of each component.
+    for (const [pluginId, name] of [
+      ["process", "frontend"],
+      ["process", "backend"],
+      ["database", "db"],
+    ] as const) {
+      expect(processManager.stopProcess).toHaveBeenCalledWith(`${pluginId}:1:${name}`);
+      expect(processManager.stopProcess).toHaveBeenCalledWith(`test-project-bench-1-${name}`);
+    }
+    // One engine id + one legacy id per component (3 components) and no extras.
+    expect(processManager.stopProcess).toHaveBeenCalledTimes(6);
+  });
 });
 
 describe("getBench / getBenches", () => {
@@ -4525,6 +4588,44 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
       { source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" },
       { source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" },
     ]);
+  });
+
+  // Closes the CP-TC-033 S005-O03 gap (#668) that the hermetic responda e2e
+  // guard could not assert through the integrated surface: in the real journey
+  // the broker resolves a database component's containerId via
+  // dockerService.getContainerId(projectName, service) and the plugin surfaces
+  // it on a host.component.reportStatus push. This asserts that a containerId on
+  // a pushed ComponentStatus lands on the merged bench.components[db] entry,
+  // which needs buildReportStatus + a registered bench (out of scope for the
+  // hermetic guard).
+  it("populates containerId on the merged ComponentStatus from a broker-resolved push", async () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    // Resolve the containerId through the same docker seam the broker uses, then
+    // surface it on the running status push (component-broker.ts resolves via
+    // dockerService.getContainerId(projectName, service)).
+    const resolvedContainerId = await dockerService.getContainerId(
+      "roubo-test-project-bench-1",
+      "db",
+    );
+    expect(dockerService.getContainerId).toHaveBeenCalledWith("roubo-test-project-bench-1", "db");
+    expect(resolvedContainerId).toBeTruthy();
+
+    report({
+      name: "db",
+      status: "running",
+      startedAt: "2026-06-21T00:00:00.000Z",
+      containerId: resolvedContainerId ?? undefined,
+      setupComplete: true,
+    });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.db).toMatchObject({
+      name: "db",
+      status: "running",
+      containerId: resolvedContainerId,
+    });
   });
 });
 
