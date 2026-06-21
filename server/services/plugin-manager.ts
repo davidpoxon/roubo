@@ -866,6 +866,23 @@ export function getRecord(pluginId: string): PluginRecord | undefined {
   };
 }
 
+/**
+ * The live JSON-RPC connection for a running plugin, or `null` when the plugin
+ * is unknown or not currently running (disabled, invalid, incompatible, errored,
+ * or mid-restart). Component plugins are spawned once per plugin and multiplex
+ * benches via `BenchContext.benchId`, so the ComponentPluginRegistry hands this
+ * single shared connection to every bench that binds to the plugin (issue #608,
+ * architecture.md 'Components'). The supervision (discovery, semver validation,
+ * spawn, the restart budget, enable-state) is the same kind-agnostic path
+ * integration plugins use; nothing here is component-specific.
+ */
+export function getConnection(pluginId: string): JsonRpcConnection | null {
+  const entry = plugins.get(pluginId);
+  if (!entry) return null;
+  if (!entry.process) return null;
+  return entry.connection;
+}
+
 // TC-154 (NFR-024): how long enable() waits after spawnPlugin returns before
 // declaring the child "alive enough." Short enough that the happy-path UI
 // click stays snappy, long enough to catch entry scripts that crash on

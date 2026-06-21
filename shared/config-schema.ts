@@ -60,9 +60,29 @@ export const ConnectionConfigSchema = z
   .strict();
 export type ConnectionConfig = z.infer<typeof ConnectionConfigSchema>;
 
+// Minimal component-to-plugin binding (issue #608, FR-010). A component may
+// bind to a `component`-kind plugin instead of (or alongside) the legacy
+// `type`. The host's ComponentPluginRegistry reads `plugin.id` to resolve the
+// live JSON-RPC connection. This is the minimal binding shape the registry
+// needs; the full roubo.yaml component redesign (the opaque per-plugin `config`
+// block and the removal of the legacy `type` + inline docker/migration fields)
+// is deferred to T1.8 and is out of scope here.
+export const ComponentBindingSchema = z
+  .object({
+    id: z.string().min(1, "Required"),
+    source: z.string().min(1).optional(),
+  })
+  .strict();
+export type ComponentBinding = z.infer<typeof ComponentBindingSchema>;
+
 export const ComponentConfigSchema = z
   .object({
-    type: z.enum(["database", "process"]),
+    // `type` is the legacy built-in discriminator. It is optional once a
+    // component binds to a plugin (a plugin-bound component carries `plugin`
+    // instead); a component with neither `type` nor `plugin` is rejected.
+    type: z.enum(["database", "process"]).optional(),
+    // Component-to-plugin binding the ComponentPluginRegistry resolves (#608).
+    plugin: ComponentBindingSchema.optional(),
     dependsOn: z.array(z.string()).optional(),
     command: z.string().optional(),
     setup: z.string().optional(),
@@ -77,6 +97,13 @@ export const ComponentConfigSchema = z
   })
   .strict()
   .superRefine((val, ctx) => {
+    if (!val.type && !val.plugin) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["type"],
+        message: "A component must declare either a `type` or a `plugin` binding",
+      });
+    }
     if (val.type === "process" && !val.command) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

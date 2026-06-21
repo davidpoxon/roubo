@@ -1,0 +1,16 @@
+id: component-incompatible
+name: Incompatible Component Fixture
+version: 0.0.0
+description: A component-kind manifest requiring a future host API version
+kind: component
+roubo: ^2.0.0
+entry: ./index.cjs
+contractVersion: 1
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

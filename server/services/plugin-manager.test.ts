@@ -221,6 +221,101 @@ describe("discovery", () => {
   });
 });
 
+// Issue #608 (CP-FR-010, CP-FR-003): a component-kind plugin is discovered,
+// validated against HOST_API_VERSION, spawned, and supervised exactly as an
+// integration plugin. The supervision path is kind-agnostic; these tests pin
+// that a `kind: component` manifest rides the same discovery/spawn/restart
+// machinery, and that the live connection is reachable for the registry.
+describe("component plugins (issue #608)", () => {
+  it("discovers, validates, and spawns a component plugin like an integration plugin", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "component-echo");
+    expect(rec.manifest?.kind).toBe("component");
+    expect(rec.status).toBe("enabled");
+    expect(typeof rec.pid).toBe("number");
+    const pid = need(rec.pid, "pid");
+    expect(() => process.kill(pid, 0)).not.toThrow();
+  });
+
+  it("round-trips a JSON-RPC request to a component plugin via invoke", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const result = await mgr.invoke<string>("component-echo", "ping", undefined);
+    expect(result).toBe("pong");
+  });
+
+  it("exposes the live connection for a running component plugin via getConnection", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const connection = mgr.getConnection("component-echo");
+    expect(connection).not.toBeNull();
+    // The shared, spawn-once-per-plugin connection is stable across calls so
+    // benches multiplexing the same plugin observe the same object.
+    expect(mgr.getConnection("component-echo")).toBe(connection);
+  });
+
+  it("returns null from getConnection for an unknown or stopped plugin", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(mgr.getConnection("does-not-exist")).toBeNull();
+    await mgr.disable("component-echo");
+    expect(mgr.getConnection("component-echo")).toBeNull();
+  });
+
+  it("records an incompatible component manifest as 'incompatible' and never spawns it", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-incompatible"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const installed = mgr.listInstalled();
+    expect(installed).toHaveLength(1);
+    const rec = installed[0];
+    expect(rec.manifest?.kind).toBe("component");
+    expect(rec.status).toBe("incompatible");
+    expect(rec.lastError?.code).toBe("incompatible-host");
+    expect(rec.pid).toBeNull();
+    expect(mgr.getConnection("component-incompatible")).toBeNull();
+  });
+
+  it("records an invalid component manifest as 'invalid' and never spawns it", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo", "invalid-manifest"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const installed = mgr.listInstalled();
+    const invalid = findRecord(installed, "invalid-manifest");
+    expect(invalid.status).toBe("invalid");
+    expect(invalid.pid).toBeNull();
+    // The valid component sibling still boots: one bad manifest doesn't stop
+    // the rest (existing integration discovery is unaffected).
+    const good = findRecord(installed, "component-echo");
+    expect(good.status).toBe("enabled");
+  });
+
+  it("supervises a crashing component plugin under the same restart budget", async () => {
+    // component-incompatible never spawns; reuse the integration `crashy`
+    // fixture alongside a component plugin to prove the supervision path is
+    // shared and the component sibling keeps running (graceful degradation).
+    sandbox = await makeSandbox({ bundled: ["component-echo", "crashy"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    await waitFor(() => {
+      const rec = getManager()
+        .listInstalled()
+        .find((p) => p.id === "crashy");
+      return !!rec && rec.status === "errored";
+    }, 15_000);
+    const crashy = findRecord(mgr.listInstalled(), "crashy");
+    expect(crashy.lastError?.code).toBe("restart-budget-exhausted");
+    // The component plugin is unaffected by its sibling exhausting its budget.
+    const component = findRecord(mgr.listInstalled(), "component-echo");
+    expect(component.status).toBe("enabled");
+  }, 30_000);
+});
+
 describe("lifecycle", () => {
   it("spawns an isolated child Node process per enabled plugin (TC-001, TC-004)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
