@@ -316,6 +316,94 @@ describe("component plugins (issue #608)", () => {
   }, 30_000);
 });
 
+describe("component-plugin crash hooks (issue #613)", () => {
+  afterEach(() => {
+    // Hook registration is module-level state that __test.reset does not clear,
+    // so restore a clean slate between tests.
+    pluginManager.registerComponentPluginHooks(null);
+  });
+
+  it("fires onComponentPluginPreRestart with the plugin id when a component plugin crashes (AC2)", async () => {
+    const preRestart = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({ onComponentPluginPreRestart: preRestart });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-echo");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+
+    const rec = findRecord(mgr.listInstalled(), "component-echo");
+    const pid = need(rec.pid, "pid");
+    process.kill(pid, "SIGKILL");
+
+    await waitFor(() => preRestart.mock.calls.length > 0, 8_000);
+    expect(preRestart).toHaveBeenCalledWith("component-echo");
+  }, 30_000);
+
+  it("fires onComponentPluginRestarted after the component plugin respawns (AC4)", async () => {
+    const restarted = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({ onComponentPluginRestarted: restarted });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-echo");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+
+    const rec = findRecord(mgr.listInstalled(), "component-echo");
+    process.kill(need(rec.pid, "pid"), "SIGKILL");
+
+    await waitFor(() => restarted.mock.calls.length > 0, 10_000);
+    expect(restarted).toHaveBeenCalledWith("component-echo");
+    // The plugin is back up: auto-recovery within the restart budget.
+    const recovered = findRecord(getManager().listInstalled(), "component-echo");
+    expect(recovered.status).toBe("enabled");
+    expect(recovered.pid).not.toBeNull();
+  }, 30_000);
+
+  it("does not fire the hooks for a crashing integration plugin", async () => {
+    const preRestart = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["crashy"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({ onComponentPluginPreRestart: preRestart });
+    await mgr.initialize();
+    // crashy is an integration plugin: it exhausts its budget and errors, but
+    // the component-only hook must never fire for it.
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "crashy");
+      return !!r && r.status === "errored";
+    }, 15_000);
+    expect(preRestart).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("still errors with restart-budget-exhausted after fired pre-restart hooks (AC4)", async () => {
+    const preRestart = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-crashy"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({ onComponentPluginPreRestart: preRestart });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-crashy");
+      return !!r && r.status === "errored";
+    }, 15_000);
+    const rec = findRecord(mgr.listInstalled(), "component-crashy");
+    expect(rec.lastError?.code).toBe("restart-budget-exhausted");
+    // The cleanup hook fired on the way down (once per unexpected exit).
+    expect(preRestart).toHaveBeenCalledWith("component-crashy");
+  }, 30_000);
+});
+
 describe("lifecycle", () => {
   it("spawns an isolated child Node process per enabled plugin (TC-001, TC-004)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });

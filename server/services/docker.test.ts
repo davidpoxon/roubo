@@ -20,6 +20,7 @@ import {
   composeRunInit,
   composeStop,
   composeDown,
+  composeDownByProject,
   getContainerStatus,
   getContainerStatuses,
   getContainerStatusById,
@@ -136,6 +137,20 @@ describe("composeDown", () => {
       "docker",
       ["compose", "-f", "docker-compose.yml", "-p", "roubo-project-bench-1", "down", "-v"],
       "/repo",
+    );
+  });
+});
+
+describe("composeDownByProject", () => {
+  it("downs by project name alone, without a -f compose file (issue #613)", async () => {
+    mockRunCommand.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    await composeDownByProject("roubo-project-bench-2");
+
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "docker",
+      ["compose", "-p", "roubo-project-bench-2", "down", "-v"],
+      process.cwd(),
     );
   });
 });

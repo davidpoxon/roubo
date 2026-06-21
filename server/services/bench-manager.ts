@@ -17,6 +17,7 @@ import * as stateService from "./state.js";
 import * as dockerService from "./docker.js";
 import type { ContainerStatus } from "./docker.js";
 import * as processManager from "./process-manager.js";
+import * as ledger from "./resource-ownership-ledger.js";
 import * as terminalService from "./terminal.js";
 import * as notificationService from "./notification.js";
 import * as sseService from "./sse.js";
@@ -1113,6 +1114,12 @@ async function runTeardownBackground(
       updateStep(bench.teardownSteps, "docker-down", "done");
     }
 
+    // After the bench's processes and compose projects are stopped, drop its
+    // ledger entries (issue #613): the resources are gone, so the startup orphan
+    // sweep must not later try to reap them. Scoped to this bench's id across
+    // every owning plugin.
+    clearLedgerForBench(benchId);
+
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
     extractWorkspacePermissions(bench.projectId, bench.workspacePath);
@@ -1194,6 +1201,129 @@ async function runTeardownBackground(
     bench.error = `Teardown failed: ${(err as Error).message}`;
     bench.status = "error";
     notificationService.createNotification(bench, "bench-error");
+  }
+}
+
+/**
+ * Clears every resource-ownership ledger entry for `benchId`, across all owning
+ * plugins (issue #613). The ledger keys on (pluginId, benchId), so a single
+ * bench may have entries under several plugins; teardown removes them all once
+ * the bench's resources are stopped, so the startup sweep never re-reaps them.
+ */
+function clearLedgerForBench(benchId: number): void {
+  for (const entry of ledger.getAllEntries()) {
+    if (entry.benchId === benchId) {
+      ledger.clearEntry(entry.pluginId, entry.benchId);
+    }
+  }
+}
+
+/**
+ * Pre-restart crash cleanup for a component plugin (issue #613, FR-015).
+ *
+ * Registered with plugin-manager via `registerComponentPluginHooks` and fired
+ * the instant the supervisor sees a `component` plugin exit unexpectedly,
+ * before it restarts the plugin (or errors out on an exhausted budget). Reads
+ * the ledger for the crashed plugin and stops every process and compose project
+ * it owned, then clears those ledger entries so nothing is orphaned and the
+ * restart cannot bring up a duplicate container.
+ *
+ * Scoped strictly to the crashed plugin's own entries: sibling components,
+ * supervised by other plugins, are never touched (graceful degradation). Every
+ * stop is best-effort; a single failure is logged and the rest still run.
+ */
+export async function handleComponentPluginPreRestart(pluginId: string): Promise<void> {
+  const entries = ledger.getAllEntries().filter((e) => e.pluginId === pluginId);
+  for (const entry of entries) {
+    for (const processId of entry.processIds) {
+      await processManager.stopProcess(processId).catch((err) => {
+        console.warn(
+          `[bench-manager] pre-restart cleanup: stopProcess(${processId}) failed for ` +
+            `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
+        );
+      });
+    }
+    for (const composeProject of entry.composeProjects) {
+      await dockerService.composeDownByProject(composeProject).catch((err) => {
+        console.warn(
+          `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) failed for ` +
+            `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
+        );
+      });
+    }
+    ledger.clearEntry(entry.pluginId, entry.benchId);
+  }
+}
+
+/**
+ * Post-restart re-provision for a component plugin (issue #613, FR-016).
+ *
+ * Registered with plugin-manager and fired once the crashed `component` plugin
+ * has been respawned. Re-provisions every bench whose components the plugin was
+ * supervising, so the crashed component auto-recovers to running while sibling
+ * components keep their existing state. A bench that is no longer present (torn
+ * down during the crash window) is skipped.
+ */
+export async function handleComponentPluginRestarted(pluginId: string): Promise<void> {
+  // The pre-restart hook clears the ledger, so re-provision is driven from the
+  // live bench model. Auto-recovery (AC4) is scoped per component: re-launch only
+  // a component bound to this plugin whose last observed status was `running` or
+  // `starting`, so components the user had stopped (or never started) are left
+  // untouched. The scope is deliberately per-component, not per-bench: in a
+  // degraded bench (a crashed component still `running` alongside a `stopped` or
+  // one-shot `completed` sibling) the bench status is `idle`, not `active`, yet
+  // the running component must still recover (AC3 graceful degradation). Only
+  // `clearing` / `preparing` benches are skipped wholesale, since launching into
+  // a teardown or a half-built bench is never right. The pre-restart cleanup
+  // stops processes directly (not via the status-setting stop path), so a
+  // crashed-but-running component still reads `running` here.
+  for (const bench of benches.values()) {
+    if (bench.status === "clearing" || bench.status === "preparing") continue;
+    const project = projectRegistry.getProject(bench.projectId);
+    if (!project?.config) continue;
+    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+      if (componentConfig.plugin?.id !== pluginId) continue;
+      const priorStatus = bench.components[name]?.status;
+      if (priorStatus !== "running" && priorStatus !== "starting") continue;
+      await launchComponent(bench.projectId, bench.id, name).catch((err) => {
+        console.warn(
+          `[bench-manager] post-restart re-provision: launchComponent(${name}) failed for ` +
+            `plugin '${pluginId}' bench ${bench.id}: ${err}`,
+        );
+      });
+    }
+  }
+}
+
+/**
+ * Startup orphan sweep (issue #613, FR-015 / NFR-003).
+ *
+ * Run once at boot, before reconcile. Replays the ledger and tears down every
+ * compose project it still records: after a hard host kill the host's treeKill
+ * never reaped daemonised containers, so the ledger is the authoritative list
+ * of what escaped. Each project name matches the `roubo-<projectId>-bench-<N>`
+ * convention, so this leaves any non-Roubo compose project on the machine
+ * untouched. Ledger-recorded processes are not swept here: their pids died with
+ * the host, and process-manager rebuilds its map from a clean slate on restart.
+ * After downing a project its ledger entry is cleared so a second boot is a
+ * no-op.
+ */
+export async function sweepOrphanedComposeProjects(): Promise<void> {
+  const ROUBO_PROJECT_PREFIX = "roubo-";
+  for (const entry of ledger.getAllEntries()) {
+    for (const composeProject of entry.composeProjects) {
+      // Defence in depth: only ever down a project that matches our own naming
+      // convention, so a corrupt or hand-edited ledger entry can never reap an
+      // unrelated compose project.
+      if (!composeProject.startsWith(ROUBO_PROJECT_PREFIX)) continue;
+      await dockerService.composeDownByProject(composeProject).catch((err) => {
+        console.warn(
+          `[bench-manager] startup sweep: composeDown(${composeProject}) failed for ` +
+            `plugin '${entry.pluginId}' bench ${entry.benchId}: ${err}`,
+        );
+      });
+    }
+    ledger.clearEntry(entry.pluginId, entry.benchId);
   }
 }
 

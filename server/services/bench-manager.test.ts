@@ -35,11 +35,20 @@ vi.mock("./docker.js", () => ({
   composeRunInit: vi.fn(),
   composeStop: vi.fn(),
   composeDown: vi.fn(),
+  composeDownByProject: vi.fn(),
   waitForHealthy: vi.fn(),
   getContainerStatus: vi.fn(),
   getContainerStatuses: vi.fn(),
   getComposeProjectName: vi.fn(),
   listDatabaseContainers: vi.fn(),
+}));
+
+vi.mock("./resource-ownership-ledger.js", () => ({
+  getAllEntries: vi.fn(() => []),
+  getEntry: vi.fn(),
+  clearEntry: vi.fn(),
+  recordProcess: vi.fn(),
+  recordComposeProject: vi.fn(),
 }));
 
 vi.mock("./process-manager.js", () => ({
@@ -136,6 +145,7 @@ let projectRegistry: typeof import("./project-registry.js");
 let stateService: typeof import("./state.js");
 let dockerService: typeof import("./docker.js");
 let processManager: typeof import("./process-manager.js");
+let ledgerService: typeof import("./resource-ownership-ledger.js");
 let portAllocator: typeof import("./port-allocator.js");
 let configParser: typeof import("./config-parser.js");
 let execModule: typeof import("./exec.js");
@@ -162,6 +172,7 @@ beforeEach(async () => {
   stateService = await import("./state.js");
   dockerService = await import("./docker.js");
   processManager = await import("./process-manager.js");
+  ledgerService = await import("./resource-ownership-ledger.js");
   portAllocator = await import("./port-allocator.js");
   configParser = await import("./config-parser.js");
   execModule = await import("./exec.js");
@@ -5891,5 +5902,231 @@ describe("createBench global cap", () => {
     const all = benchManager.getBenches();
     expect(all).toHaveLength(5);
     expect(all.some((b) => b.status === "error")).toBe(false);
+  });
+});
+
+// Crash cleanup, graceful degradation, auto-recovery, startup sweep (issue #613,
+// FR-015 / FR-016 / NFR-003). These exercise the ledger-driven hooks the
+// supervisor fires when a component plugin crashes, the ledger clearing on
+// teardown, and the boot-time orphan sweep.
+describe("handleComponentPluginPreRestart", () => {
+  it("stops every owned process and compose project, then clears the ledger entry (AC1, AC2)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["test-project-bench-1-backend"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.stopProcess).mockResolvedValue(undefined);
+    vi.mocked(dockerService.composeDownByProject).mockResolvedValue(undefined);
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
+    expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
+
+  it("touches only the crashed plugin's entries, leaving a sibling plugin's resources alone (AC3)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["test-project-bench-1-backend"],
+        composeProjects: [],
+      },
+      {
+        pluginId: "database",
+        benchId: 1,
+        processIds: ["test-project-bench-1-db"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.stopProcess).mockResolvedValue(undefined);
+    vi.mocked(dockerService.composeDownByProject).mockResolvedValue(undefined);
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    expect(processManager.stopProcess).toHaveBeenCalledWith("test-project-bench-1-backend");
+    expect(processManager.stopProcess).not.toHaveBeenCalledWith("test-project-bench-1-db");
+    expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+    expect(ledgerService.clearEntry).not.toHaveBeenCalledWith("database", 1);
+  });
+
+  it("clears the ledger entry even when a stop fails (best-effort)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["test-project-bench-1-backend"],
+        composeProjects: [],
+      },
+    ]);
+    vi.mocked(processManager.stopProcess).mockRejectedValue(new Error("already dead"));
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
+});
+
+describe("handleComponentPluginRestarted", () => {
+  it("re-provisions a running component bound to the restarted plugin (AC4)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // Recovery is scoped to components that were actually up: an active bench
+    // whose backend was running when the plugin crashed.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running" };
+
+    await benchManager.handleComponentPluginRestarted("process");
+
+    // The default fixture binds `backend` to plugin `process`, so re-provision
+    // drives the process launch path.
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "test-project-bench-1-backend",
+      "dotnet",
+      ["run", "--project", "src/Api/Api.csproj"],
+      expect.any(Object),
+      expect.any(String),
+    );
+  });
+
+  it("does not re-launch a stopped component the user never started (AC4 scope)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // Active bench, but the backend was stopped (or never started): recovery
+    // must not spin it up on an unrelated plugin restart.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "stopped" };
+
+    await benchManager.handleComponentPluginRestarted("process");
+
+    expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+
+  it("re-launches a running component in a degraded (non-active) bench (AC3/AC4)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // Degraded bench: the crashed plugin's backend was running, but a sibling is
+    // stopped, so the bench is `idle` (active requires every component running).
+    // The running backend must still auto-recover; recovery is per-component, not
+    // gated on the whole bench being active.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "idle";
+    bench.components.backend = { name: "backend", status: "running" };
+    bench.components.worker = { name: "worker", status: "stopped" };
+
+    await benchManager.handleComponentPluginRestarted("process");
+
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "test-project-bench-1-backend",
+      "dotnet",
+      ["run", "--project", "src/Api/Api.csproj"],
+      expect.any(Object),
+      expect.any(String),
+    );
+  });
+
+  it("skips components bound to a different plugin (graceful degradation, AC3)", async () => {
+    const config = makeConfig({
+      components: {
+        backend: {
+          plugin: { id: "process" },
+          config: { command: "dotnet run --project src/Api/Api.csproj" },
+          type: "process",
+          command: "dotnet run --project src/Api/Api.csproj",
+        },
+      },
+    });
+    setupExistingBench({ config });
+    setupProcessMocks();
+    // Active bench with a running backend: the only reason not to re-launch is
+    // that the restarted plugin does not own this component.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running" };
+
+    // A different plugin restarted: this bench's process component must not be
+    // re-launched.
+    await benchManager.handleComponentPluginRestarted("some-other-plugin");
+
+    expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+});
+
+describe("sweepOrphanedComposeProjects", () => {
+  it("downs every ledger-recorded roubo-* project and clears the entries (AC5)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "database",
+        benchId: 2,
+        processIds: ["test-project-bench-2-db"],
+        composeProjects: ["roubo-test-project-bench-2"],
+      },
+    ]);
+    vi.mocked(dockerService.composeDownByProject).mockResolvedValue(undefined);
+
+    await benchManager.sweepOrphanedComposeProjects();
+
+    expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-2");
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("database", 2);
+  });
+
+  it("leaves a non-roubo compose project untouched (AC5)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "rogue",
+        benchId: 3,
+        processIds: [],
+        composeProjects: ["someone-elses-stack"],
+      },
+    ]);
+    vi.mocked(dockerService.composeDownByProject).mockResolvedValue(undefined);
+
+    await benchManager.sweepOrphanedComposeProjects();
+
+    expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
+    // The entry is still cleared so the corrupt record does not persist.
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("rogue", 3);
+  });
+
+  it("is a no-op when the ledger is empty", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
+
+    await benchManager.sweepOrphanedComposeProjects();
+
+    expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
+    expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+  });
+});
+
+describe("teardown clears the ledger (issue #613)", () => {
+  const flushBackground = () => new Promise((r) => setTimeout(r, 0));
+
+  it("clears every ledger entry for the torn-down bench after resources stop (AC1)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      { pluginId: "process", benchId: 1, processIds: [], composeProjects: [] },
+      // A different bench's entry must be left alone.
+      { pluginId: "process", benchId: 2, processIds: [], composeProjects: [] },
+    ]);
+
+    benchManager.teardownBench("test-project", 1, false);
+    await flushBackground();
+
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+    expect(ledgerService.clearEntry).not.toHaveBeenCalledWith("process", 2);
   });
 });

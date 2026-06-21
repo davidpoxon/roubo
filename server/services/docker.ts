@@ -67,6 +67,20 @@ export async function composeDown(
   );
 }
 
+/**
+ * Tears a compose project down by project name alone, without a compose file
+ * (issue #613). `docker compose -p <name> down -v` resolves the project from the
+ * `com.docker.compose.project` label Docker stamped on every container at
+ * `composeUp`, so the original compose file is not needed. This is what the
+ * startup orphan sweep uses to reap an escaped `roubo-<projectId>-bench-<N>`
+ * project after a hard host kill, where the host no longer holds the compose
+ * file path the regular `composeDown` requires. Runs from `process.cwd()`: the
+ * directory is irrelevant when the project is selected by name.
+ */
+export async function composeDownByProject(projectName: string): Promise<void> {
+  await runCommand("docker", ["compose", "-p", projectName, "down", "-v"], process.cwd());
+}
+
 export async function composeRunInit(opts: {
   composeFile: string;
   initService: string;
