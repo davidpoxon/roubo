@@ -3615,7 +3615,7 @@
     },
     {
       "id": "CP-TC-076",
-      "title": "Install plugin: consent dialog enumerates every declared permission category before run (e2e)",
+      "title": "Permission consent: consent dialog enumerates every declared permission category before run (e2e)",
       "area": "permissions-trust",
       "level": 1,
       "type": "e2e_flow",
@@ -3700,7 +3700,7 @@
               "expected": "grantConsent is called with the acknowledged categories (ports, docker)"
             },
             {
-              "id": "S006-O04",
+              "id": "S006-O03",
               "expected": "A ConsentRecord is persisted for pluginId 'redis' recording the acknowledged categories and consentedAt timestamp (on-disk persistence is covered by server/component-plugins-e2e.test.ts)"
             }
           ]
