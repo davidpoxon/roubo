@@ -1265,19 +1265,26 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
  * down during the crash window) is skipped.
  */
 export async function handleComponentPluginRestarted(pluginId: string): Promise<void> {
-  // The benches the plugin was supervising are the ones with (now-cleared)
-  // ledger entries plus any live bench that binds a component to this plugin.
   // The pre-restart hook clears the ledger, so re-provision is driven from the
-  // live bench model: re-launch every operable bench's components, which the
-  // launch path resolves back to this plugin. We touch only benches that are
-  // meant to be running, leaving idle and torn-down benches alone.
+  // live bench model. Auto-recovery (AC4) is scoped per component: re-launch only
+  // a component bound to this plugin whose last observed status was `running` or
+  // `starting`, so components the user had stopped (or never started) are left
+  // untouched. The scope is deliberately per-component, not per-bench: in a
+  // degraded bench (a crashed component still `running` alongside a `stopped` or
+  // one-shot `completed` sibling) the bench status is `idle`, not `active`, yet
+  // the running component must still recover (AC3 graceful degradation). Only
+  // `clearing` / `preparing` benches are skipped wholesale, since launching into
+  // a teardown or a half-built bench is never right. The pre-restart cleanup
+  // stops processes directly (not via the status-setting stop path), so a
+  // crashed-but-running component still reads `running` here.
   for (const bench of benches.values()) {
-    if (!isBenchOperable(bench)) continue;
     if (bench.status === "clearing" || bench.status === "preparing") continue;
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
     for (const [name, componentConfig] of Object.entries(project.config.components)) {
       if (componentConfig.plugin?.id !== pluginId) continue;
+      const priorStatus = bench.components[name]?.status;
+      if (priorStatus !== "running" && priorStatus !== "starting") continue;
       await launchComponent(bench.projectId, bench.id, name).catch((err) => {
         console.warn(
           `[bench-manager] post-restart re-provision: launchComponent(${name}) failed for ` +

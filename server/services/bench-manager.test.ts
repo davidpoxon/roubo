@@ -5974,14 +5974,59 @@ describe("handleComponentPluginPreRestart", () => {
 });
 
 describe("handleComponentPluginRestarted", () => {
-  it("re-provisions a bench's components bound to the restarted plugin (AC4)", async () => {
+  it("re-provisions a running component bound to the restarted plugin (AC4)", async () => {
     setupExistingBench();
     setupProcessMocks();
+    // Recovery is scoped to components that were actually up: an active bench
+    // whose backend was running when the plugin crashed.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running" };
 
     await benchManager.handleComponentPluginRestarted("process");
 
     // The default fixture binds `backend` to plugin `process`, so re-provision
     // drives the process launch path.
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "test-project-bench-1-backend",
+      "dotnet",
+      ["run", "--project", "src/Api/Api.csproj"],
+      expect.any(Object),
+      expect.any(String),
+    );
+  });
+
+  it("does not re-launch a stopped component the user never started (AC4 scope)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // Active bench, but the backend was stopped (or never started): recovery
+    // must not spin it up on an unrelated plugin restart.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "stopped" };
+
+    await benchManager.handleComponentPluginRestarted("process");
+
+    expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+
+  it("re-launches a running component in a degraded (non-active) bench (AC3/AC4)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // Degraded bench: the crashed plugin's backend was running, but a sibling is
+    // stopped, so the bench is `idle` (active requires every component running).
+    // The running backend must still auto-recover; recovery is per-component, not
+    // gated on the whole bench being active.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "idle";
+    bench.components.backend = { name: "backend", status: "running" };
+    bench.components.worker = { name: "worker", status: "stopped" };
+
+    await benchManager.handleComponentPluginRestarted("process");
+
     expect(processManager.startProcess).toHaveBeenCalledWith(
       "test-project-bench-1-backend",
       "dotnet",
@@ -6004,6 +6049,12 @@ describe("handleComponentPluginRestarted", () => {
     });
     setupExistingBench({ config });
     setupProcessMocks();
+    // Active bench with a running backend: the only reason not to re-launch is
+    // that the restarted plugin does not own this component.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running" };
 
     // A different plugin restarted: this bench's process component must not be
     // re-launched.
