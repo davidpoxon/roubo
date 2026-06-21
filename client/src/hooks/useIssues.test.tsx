@@ -74,6 +74,7 @@ describe("useIssues", () => {
       search: undefined,
       sortBy: undefined,
       sortDir: undefined,
+      refresh: false,
     });
   });
 
@@ -88,6 +89,7 @@ describe("useIssues", () => {
       search: undefined,
       sortBy: undefined,
       sortDir: undefined,
+      refresh: false,
     });
   });
 
@@ -104,6 +106,7 @@ describe("useIssues", () => {
       search: undefined,
       sortBy: "created",
       sortDir: "desc",
+      refresh: false,
     });
   });
 
@@ -252,6 +255,43 @@ describe("useIssues", () => {
       search: "login",
       sortBy: undefined,
       sortDir: undefined,
+      refresh: false,
+    });
+  });
+
+  describe("force-refresh wiring (#653)", () => {
+    it("normal loads pass refresh=false", async () => {
+      mockedFetch.mockResolvedValueOnce({ items: [], nextCursor: null } as PaginatedIssues);
+      renderHookWithProviders(() => useIssues("p1"));
+      await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
+      expect(mockedFetch.mock.calls[0][1]).toMatchObject({ refresh: false });
+    });
+
+    it("refresh() triggers exactly one force fetch (refresh=true), then reverts to false", async () => {
+      mockedFetch.mockResolvedValue({
+        items: [makeIssue("1")],
+        nextCursor: null,
+      } as PaginatedIssues);
+
+      const { result } = renderHookWithProviders(() => useIssues("p1"));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      // Initial load is a normal (non-force) fetch.
+      expect(mockedFetch.mock.calls[0][1]).toMatchObject({ refresh: false });
+
+      // The force-refresh callback sets the one-shot flag, then refetches.
+      await result.current.refresh();
+      await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(2));
+      // Exactly the refresh-triggered fetch carries refresh=true.
+      expect(mockedFetch.mock.calls[1][1]).toMatchObject({ refresh: true });
+    });
+
+    it("exposes a stable refresh callback across renders", async () => {
+      mockedFetch.mockResolvedValue({ items: [], nextCursor: null } as PaginatedIssues);
+      const { result, rerender } = renderHookWithProviders(() => useIssues("p1"));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const first = result.current.refresh;
+      rerender();
+      expect(result.current.refresh).toBe(first);
     });
   });
 });

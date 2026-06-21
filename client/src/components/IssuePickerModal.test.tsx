@@ -23,6 +23,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     isRefetching: false,
     dataUpdatedAt: 0,
     cacheStatus: null,
+    refresh: vi.fn(),
     ...overrides,
   };
 }

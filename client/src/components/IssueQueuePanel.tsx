@@ -4,7 +4,7 @@ import { RefreshCw, X, ChevronDown, ChevronRight, ChevronLeft, PanelLeftClose } 
 import type { Bench, RouboConfig } from "@roubo/shared";
 import DraggableIssueCard from "./DraggableIssueCard";
 import Spinner from "./Spinner";
-import { useIssues, useRefreshIssues } from "../hooks/useIssues";
+import { useIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import { useFilterFacets, usePrefetchFacetOptions, useSortFields } from "../hooks/useCutListFacets";
@@ -17,6 +17,7 @@ import CutListSortControl from "./CutListSortControl";
 import type { SortSelection } from "./CutListSortControl";
 import { groupItems, createEmptyGrouping, isGroupingActive } from "../lib/cut-list-groups";
 import type { GroupingState } from "../lib/cut-list-groups";
+import { partitionUnblockedFirst } from "../lib/cut-list-order";
 import { formatLastUpdated, formatSnapshotAge } from "../lib/last-updated";
 import GitHubErrorState from "./GitHubErrorState";
 import PluginConfigureDialog from "./PluginConfigureDialog";
@@ -71,11 +72,13 @@ export default function IssueQueuePanel({
     isRefetching,
     dataUpdatedAt,
     cacheStatus,
+    refresh: refreshItems,
   } = useIssues(projectId, {}, undefined, activeCursor, sortSelection ?? {});
-  const refreshItems = useRefreshIssues();
   // Guard the refresh control while a refetch is already in flight: disabling
   // the Button is what prevents a second concurrent refresh (FR-005 / AC5),
-  // not React Query's request dedupe alone.
+  // not React Query's request dedupe alone. `refreshItems` is the force-refresh
+  // path (#653): it bypasses the server's warm snapshot so closed/now-unblocked
+  // items update on the first click instead of re-serving stale data.
   const handleRefresh = useCallback(() => {
     if (isRefetching) return;
     void refreshItems();
@@ -225,14 +228,21 @@ export default function IssueQueuePanel({
 
   const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
 
+  // Unblocked-first ordering (#653). Regardless of the requested sort, place all
+  // unblocked items ahead of all blocked items, preserving the requested sort
+  // within each partition. Feed this ordered list to both the flat render and
+  // `groupItems` (which buckets in input order) so the order holds within groups
+  // too. `filteredItems` is still used for the length-only count and pager.
+  const orderedItems = useMemo(() => partitionUnblockedFirst(filteredItems), [filteredItems]);
+
   const groups = useMemo(() => {
     if (!isGroupingActive(grouping)) return [];
     // Resolve the facet backing the active dimension. If it's no longer exposed
     // (e.g. plugin switched), skip grouping rather than render a dangling group.
     const groupFacet = facets.find((f) => f.id === grouping.groupBy);
     if (!groupFacet) return [];
-    return groupItems(filteredItems, grouping.groupBy, groupFacet.label);
-  }, [filteredItems, grouping, facets]);
+    return groupItems(orderedItems, grouping.groupBy, groupFacet.label);
+  }, [orderedItems, grouping, facets]);
 
   // Prev/Next paging (FR-007/FR-008). Next pushes the current page's nextCursor
   // onto the stack and advances; Prev steps back to a retained cursor that React
@@ -529,7 +539,7 @@ export default function IssueQueuePanel({
                   );
                 })
               ) : (
-                filteredItems.map((issue) => (
+                orderedItems.map((issue) => (
                   <DraggableIssueCard
                     key={issue.externalId}
                     issue={issue}

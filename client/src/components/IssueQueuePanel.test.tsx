@@ -10,7 +10,6 @@ import type { Bench, NormalizedIssue, RouboConfig } from "@roubo/shared";
 
 vi.mock("../hooks/useIssues", () => ({
   useIssues: vi.fn(),
-  useRefreshIssues: vi.fn(() => vi.fn()),
 }));
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
@@ -87,13 +86,12 @@ vi.mock("./CutListSortControl", () => ({
     ),
 }));
 
-import { useIssues, useRefreshIssues } from "../hooks/useIssues";
+import { useIssues } from "../hooks/useIssues";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { usePlugins, useOpportunisticRecheckOnMount } from "../hooks/usePlugins";
 import { usePrefetchFacetOptions, useSortFields } from "../hooks/useCutListFacets";
 const mockedUseIssues = vi.mocked(useIssues);
 const mockedUseSortFields = vi.mocked(useSortFields);
-const mockedUseRefreshIssues = vi.mocked(useRefreshIssues);
 const mockedUseProjectIntegration = vi.mocked(useProjectIntegration);
 const mockedUsePlugins = vi.mocked(usePlugins);
 const mockedRecheck = vi.mocked(useOpportunisticRecheckOnMount);
@@ -112,6 +110,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     isRefetching: false,
     dataUpdatedAt: 0,
     cacheStatus: null,
+    refresh: vi.fn(),
     ...overrides,
   };
 }
@@ -169,7 +168,6 @@ const noBenches: Bench[] = [];
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mockedUseRefreshIssues.mockReturnValue(vi.fn());
   mockedUseIssues.mockReturnValue(defaultResult());
   mockedUseProjectIntegration.mockReturnValue({
     data: undefined,
@@ -1001,7 +999,7 @@ describe("IssueQueuePanel", () => {
     it("keeps the refresh control keyboard-operable and labelled (CLI-TC-020)", async () => {
       const user = userEvent.setup();
       const refreshFn = vi.fn();
-      mockedUseRefreshIssues.mockReturnValue(refreshFn);
+      mockedUseIssues.mockReturnValue(defaultResult({ refresh: refreshFn }));
       renderPanel();
 
       const button = screen.getByRole("button", { name: "Refresh cut list" });
@@ -1018,14 +1016,78 @@ describe("IssueQueuePanel", () => {
     it("does not start a second refresh while one is in progress (CLI-TC-019)", async () => {
       const user = userEvent.setup();
       const refreshFn = vi.fn();
-      mockedUseRefreshIssues.mockReturnValue(refreshFn);
-      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true }));
+      mockedUseIssues.mockReturnValue(defaultResult({ isRefetching: true, refresh: refreshFn }));
       renderPanel();
 
       const button = screen.getByRole("button", { name: "Refresh cut list" });
       expect(button).toBeDisabled();
       await user.click(button);
       expect(refreshFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("issue #653: force-refresh wiring and unblocked-first ordering", () => {
+    function renderPanel() {
+      return renderWithProviders(
+        <MemoryRouter>
+          <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />
+        </MemoryRouter>,
+      );
+    }
+
+    it("invokes the force-refresh path from the refresh control", async () => {
+      const user = userEvent.setup();
+      const refreshFn = vi.fn();
+      mockedUseIssues.mockReturnValue(defaultResult({ refresh: refreshFn }));
+      renderPanel();
+
+      await user.click(screen.getByRole("button", { name: "Refresh cut list" }));
+      expect(refreshFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("orders unblocked items before blocked items in the flat list, preserving input order within each", () => {
+      // Interleaved input order: blocked, unblocked, blocked, unblocked. The
+      // partition must surface both unblocked items first (in their input order)
+      // then both blocked items (in their input order).
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [
+            makeIssue("b1", { blockedBy: ["x"] }),
+            makeIssue("u1", { blockedBy: [] }),
+            makeIssue("b2", { blockedBy: ["y"] }),
+            makeIssue("u2", { blockedBy: [] }),
+          ],
+        }),
+      );
+      renderPanel();
+
+      const rendered = screen.getAllByTestId("issue-card").map((el) => el.textContent);
+      expect(rendered).toEqual(["u1", "u2", "b1", "b2"]);
+    });
+
+    it("orders unblocked items first within each group", async () => {
+      const user = userEvent.setup();
+      // Two issues per type bucket, each bucket holding one blocked + one
+      // unblocked item, given in blocked-first input order.
+      mockedUseIssues.mockReturnValue(
+        defaultResult({
+          issues: [
+            makeIssue("bug-blocked", { issueType: "Bug", blockedBy: ["x"] }),
+            makeIssue("bug-free", { issueType: "Bug", blockedBy: [] }),
+          ],
+        }),
+      );
+      mockedUseSortFields.mockReturnValue({ data: [] } as unknown as ReturnType<
+        typeof useSortFields
+      >);
+      renderPanel();
+
+      // Activate grouping by type so the items render inside a group.
+      await user.click(screen.getByRole("button", { name: "Group by type" }));
+
+      const rendered = screen.getAllByTestId("issue-card").map((el) => el.textContent);
+      // Within the Bug group the unblocked item leads despite blocked-first input.
+      expect(rendered).toEqual(["bug-free", "bug-blocked"]);
     });
   });
 });

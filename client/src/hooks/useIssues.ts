@@ -1,4 +1,5 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useCallback, useRef } from "react";
 import type { NormalizedIssue, PaginatedIssues } from "@roubo/shared";
 import * as api from "../lib/api";
 
@@ -59,6 +60,14 @@ export interface UseIssuesResult {
    * React Query's `isRefetching` it drives the warm / revalidating indicator.
    */
   cacheStatus: "hit" | "miss" | "revalidating" | null;
+  /**
+   * Force a fresh, cache-bypassing refetch of the current page (#653). Unlike a
+   * plain refetch (which the server can answer from its warm disk snapshot),
+   * this sets a one-shot flag so the next fetch passes `refresh=true`, making
+   * the server skip the warm-serve and pull current data: closed items drop and
+   * newly-unblocked items appear without a second click. Stable across renders.
+   */
+  refresh: () => Promise<unknown>;
 }
 
 /**
@@ -80,6 +89,11 @@ export function useIssues(
 ): UseIssuesResult {
   const sortBy = sort.sortBy;
   const sortDir = sort.sortDir;
+  // One-shot force-refresh flag (#653). The `refresh()` callback sets it true,
+  // then triggers a refetch; `queryFn` reads-and-clears it so exactly the next
+  // fetch carries `refresh=true` and subsequent (e.g. background revalidation)
+  // fetches stay on the normal stale-while-revalidate path.
+  const forceNextFetchRef = useRef(false);
   const query = useQuery<PaginatedIssues, Error>({
     // The sort selection is part of the key: a sort change is a distinct query
     // (a different first page, CLI-FR-003) and must refetch rather than serve
@@ -95,15 +109,19 @@ export function useIssues(
       sortDir ?? null,
     ],
     enabled: !!projectId,
-    queryFn: () =>
-      api.fetchIssuesPage(projectId as string, {
+    queryFn: () => {
+      const refresh = forceNextFetchRef.current;
+      forceNextFetchRef.current = false;
+      return api.fetchIssuesPage(projectId as string, {
         cursor,
         pageSize,
         labels: filters.labels,
         search: filters.search,
         sortBy,
         sortDir,
-      }),
+        refresh,
+      });
+    },
     staleTime: 30_000,
     retry: false,
     // Paint the previously-loaded page instantly on a key change (revisit or
@@ -124,6 +142,15 @@ export function useIssues(
   const excludedCount = page?.excludedCount ?? 0;
   const cacheStatus = page?.cacheStatus ?? null;
 
+  // Force-refresh callback (#653). Set the one-shot flag, then refetch: the
+  // next fetch carries `refresh=true` so the server bypasses its warm snapshot.
+  // Stable across renders (refetch is stable from React Query).
+  const { refetch } = query;
+  const refresh = useCallback(() => {
+    forceNextFetchRef.current = true;
+    return refetch();
+  }, [refetch]);
+
   return {
     issues,
     isLoading: query.isLoading,
@@ -136,10 +163,6 @@ export function useIssues(
     isRefetching: query.isRefetching,
     dataUpdatedAt: query.dataUpdatedAt,
     cacheStatus,
+    refresh,
   };
-}
-
-export function useRefreshIssues() {
-  const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["issues"] });
 }
