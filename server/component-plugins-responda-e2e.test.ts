@@ -28,13 +28,23 @@
 //     ComponentStatus transitions (push-based, never polled, NFR-002).
 //   - dependsOn ordering -> the host starts the components in dependency order;
 //     the recorded start order is asserted against the declared dependsOn graph.
-//   - migration / compose / process logs -> component-log-store, the same parity
-//     buffer the logs route reads.
-//   - the database containerId -> docker.getContainerId, the same seam the
-//     status surface reads.
+//   - migration / compose / process logs -> the REAL bench-manager.buildReportLog
+//     sink (the host.component.reportLog wiring a plugin reports over the broker),
+//     read back through the REAL bench-manager.getComponentLogs route (the same
+//     read path GET /components/:name/logs uses), so the production reportLog ->
+//     store -> logs-route path is exercised with representative run-shaped lines,
+//     not by poking the store primitive directly.
+//   - the database containerId -> docker.getContainerId(projectName, service), the
+//     same resolution seam the broker uses after composeUp (component-broker.ts).
+//     Asserting the resolved id lands on the integrated ComponentStatus surface
+//     (via buildReportStatus + a registered bench) is out of this hermetic guard's
+//     reach and is tracked in #668.
 //   - teardown -> the REAL bench-manager.sweepOrphanedComposeProjects orphan-reap
 //     seam, which downs every roubo-* compose project the ledger still records and
 //     clears the ledger entry (the zero-orphan invariant, NFR-003 / #612 cleanup).
+//     The integrated normal-stop path (stopComponent/stopAllComponents: status ->
+//     stopped + stopProcess for each recorded PID) needs the integrated bench
+//     registry, out of this hermetic guard's reach; it is tracked in #668.
 //
 // State isolation: ROUBO_PRODUCTION + a mocked os.homedir pin the ~/.roubo state
 // dir (state.json) into a throwaway dir before any state-touching module resolves
@@ -57,11 +67,7 @@ import {
   type ProcessManagerLike,
   type LifecycleContext,
 } from "./services/lifecycle-engine.js";
-import {
-  appendComponentLog,
-  getComponentLogLines,
-  _resetForTest as resetComponentLogStore,
-} from "./services/component-log-store.js";
+import { _resetForTest as resetComponentLogStore } from "./services/component-log-store.js";
 import * as dockerService from "./services/docker.js";
 import * as ledger from "./services/resource-ownership-ledger.js";
 import * as benchManager from "./services/bench-manager.js";
@@ -168,26 +174,43 @@ function processDescriptor(command: string, dependsOn: string[]): ProcessProvisi
   };
 }
 
+// ── Representative run-shaped log lines, shared by the fakes and the log steps ──
+//
+// Representative stdout lines a database/process plugin reports for the compose-up,
+// init, migration, and process steps. The compose-up/init lines are also what the
+// fake docker returns from composeUp/composeRunInit, for shape parity; the engine
+// does not propagate that stdout (it checks only `.success`), and the migration
+// line is synthetic (the migration runs via runProcess, which returns no stdout).
+// The log steps (S006/S007) feed these lines through the REAL reportLog sink and
+// read them back through the REAL logs route, so what is exercised is the
+// production reportLog -> store -> getComponentLogs path, not the store primitive.
+const DB_COMPOSE_STDOUT = "Creating postgres ... done";
+const DB_INIT_STDOUT = "db-init: schema bootstrap complete";
+const DB_MIGRATION_STDOUT = "migrate: applied 3 migrations";
+const API_STDOUT = "api listening on 7100";
+const API_STDERR = "api: deprecation warning";
+const DB_CONTAINER_ID = "postgres-container-abc123";
+
 // ── Fakes: a DockerLike and ProcessManagerLike with no real daemon/children ──
 //
 // composeUp/waitForHealthy/composeRunInit succeed; getComposeProjectName follows
 // the roubo-<projectId>-bench-<N> convention; getContainerId returns a stable id
-// so S005-O03 (the database containerId) can be asserted. liveComposeProjects
+// from the same resolution seam the broker uses after composeUp. liveComposeProjects
 // tracks brought-up compose projects so the teardown step proves none survive
 // (the zero-orphan invariant, NFR-003 / #612).
 function makeFakeDocker(liveComposeProjects: Set<string>): DockerLike {
   return {
     composeUp: vi.fn(async ({ projectName }: { projectName: string }) => {
       liveComposeProjects.add(projectName);
-      return { success: true, stdout: "Creating postgres ... done", stderr: "" };
+      return { success: true, stdout: DB_COMPOSE_STDOUT, stderr: "" };
     }),
     waitForHealthy: vi.fn(async () => true),
     composeRunInit: vi.fn(async () => ({
       success: true,
-      stdout: "db-init: schema bootstrap complete",
+      stdout: DB_INIT_STDOUT,
       stderr: "",
     })),
-    getContainerId: vi.fn(async () => "postgres-container-abc123"),
+    getContainerId: vi.fn(async () => DB_CONTAINER_ID),
     getContainerStatusById: vi.fn(async () => "running" as const),
     getComposeProjectName: vi.fn(
       (projectId: string, benchId: number) => `roubo-${projectId}-bench-${benchId}`,
@@ -275,7 +298,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
       "S006 the database logs include migration initService lines and docker compose startup lines",
     processLogs: "S007 the first process component's logs include stdout/stderr lines",
     teardown:
-      "S008 stop the bench: all components reach stopped, no roubo-* compose project survives, and the ledger entry is cleared",
+      "S008 teardown: the run recorded the process ids, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition + PID kill is tracked in #668)",
   } as const;
   const TC033_SEQUENCE = [
     TC033_STEPS.createBench,
@@ -377,8 +400,13 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
           RESPONDA_COMPOSE,
         );
-        // The containerId surfaces from the same docker seam the status uses.
-        dbContainerId = await docker.getContainerId(RESPONDA_COMPOSE, dbDescriptor.service);
+        // The containerId is resolved through the same seam the broker uses after
+        // composeUp: getContainerId(projectName, service), where projectName comes
+        // from the journey's getComposeProjectName. Asserting that the resolved id
+        // lands on the integrated ComponentStatus surface (via buildReportStatus +
+        // a registered bench) is out of this hermetic guard's reach: tracked in #668.
+        const dbProjectName = docker.getComposeProjectName(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID);
+        dbContainerId = await docker.getContainerId(dbProjectName, dbDescriptor.service);
       },
     );
 
@@ -417,10 +445,12 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
 
     // S005: final bench state. All three running; the database has a connection
     // string resolved with the allocated port (not a placeholder) and a
-    // containerId (#605 connection templating, #617 status surface).
+    // containerId resolved via the broker's getContainerId(projectName, service)
+    // seam (#605 connection templating, #617 status surface). Asserting the id on
+    // the integrated ComponentStatus surface is tracked in #668.
     await track(
       TC033_STEPS.finalState,
-      "all three components are running; the database connection string is port-resolved and a containerId is present",
+      "all three components are running; the database connection string is port-resolved and a containerId is resolved via the journey's seam",
       () => {
         expect(results).toEqual({
           [RESPONDA_DB]: "running",
@@ -429,76 +459,105 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         });
         expect(dbConnection).toBe(`postgres://localhost:${RESPONDA_PORTS.db}/app`);
         expect(dbConnection).not.toContain("{{");
-        expect(dbContainerId).toBe("postgres-container-abc123");
+        // The containerId was resolved through the journey's seam with the journey's
+        // args (the derived compose project name + the descriptor's service), and is
+        // a non-empty id, rather than asserting a literal off a direct fake call.
+        expect(docker.getContainerId).toHaveBeenCalledWith(RESPONDA_COMPOSE, dbDescriptor.service);
+        expect(typeof dbContainerId).toBe("string");
+        expect(dbContainerId).toBeTruthy();
       },
     );
 
-    // S006: the database logs include both the migration/init lines and the
-    // docker compose startup lines (the component-log-store parity buffer the
-    // logs route reads, #617). The host appends what the plugin reports over
-    // host.component.reportLog; we replay the lines composeUp/composeRunInit
-    // emitted plus a migration line.
+    // S006: the database logs include both the migration/init lines and the docker
+    // compose startup lines. In the integrated journey the database plugin reports
+    // these over host.component.reportLog; here we drive the REAL sink that wiring
+    // attaches (bench-manager.buildReportLog) with representative run-shaped lines,
+    // then read them back through the REAL logs route (bench-manager.getComponentLogs,
+    // the read path GET /components/:name/logs uses). This proves the production
+    // reportLog -> store -> logs-route path carries the reported lines (#617
+    // status/logs parity), rather than poking the store primitive directly.
     await track(
       TC033_STEPS.dbLogs,
       "the database logs include migration initService lines and docker compose startup lines",
       () => {
-        appendComponentLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_DB, {
+        const reportDbLog = benchManager.buildReportLog(
+          RESPONDA_PROJECT_ID,
+          RESPONDA_BENCH_ID,
+          RESPONDA_DB,
+        );
+        reportDbLog({ source: "stdout", text: DB_COMPOSE_STDOUT, ts: "2026-06-21T00:00:00.000Z" });
+        reportDbLog({ source: "stdout", text: DB_INIT_STDOUT, ts: "2026-06-21T00:00:01.000Z" });
+        reportDbLog({
           source: "stdout",
-          text: "Creating postgres ... done",
-          ts: "2026-06-21T00:00:00.000Z",
-        });
-        appendComponentLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_DB, {
-          source: "stdout",
-          text: "db-init: schema bootstrap complete",
-          ts: "2026-06-21T00:00:01.000Z",
-        });
-        appendComponentLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_DB, {
-          source: "stdout",
-          text: "migrate: applied 3 migrations",
+          text: DB_MIGRATION_STDOUT,
           ts: "2026-06-21T00:00:02.000Z",
         });
-        const texts = getComponentLogLines(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_DB).map(
-          (l) => l.text,
-        );
-        expect(texts.some((t) => t.includes("migrate") || t.includes("db-init"))).toBe(true);
+        const texts = benchManager
+          .getComponentLogs(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_DB)
+          .map((l) => l.text);
+        // AND, matching the step label: both the migration line and the init line
+        // must be present, so dropping either is caught (not satisfied by one alone).
+        expect(texts.some((t) => t.includes("migrate"))).toBe(true);
+        expect(texts.some((t) => t.includes("db-init"))).toBe(true);
         expect(texts.some((t) => t.includes("Creating postgres"))).toBe(true);
       },
     );
 
-    // S007: the first process component's logs include stdout/stderr lines.
+    // S007: the first process component's logs include stdout/stderr lines, driven
+    // through the same real reportLog sink and read through the same real logs route.
     await track(
       TC033_STEPS.processLogs,
       "the api process component's logs include stdout/stderr lines from its command",
       () => {
-        appendComponentLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_API, {
-          source: "stdout",
-          text: "api listening on 7100",
-          ts: "2026-06-21T00:00:03.000Z",
-        });
-        appendComponentLog(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_API, {
-          source: "stderr",
-          text: "api: deprecation warning",
-          ts: "2026-06-21T00:00:04.000Z",
-        });
-        const lines = getComponentLogLines(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID, RESPONDA_API);
+        const reportApiLog = benchManager.buildReportLog(
+          RESPONDA_PROJECT_ID,
+          RESPONDA_BENCH_ID,
+          RESPONDA_API,
+        );
+        reportApiLog({ source: "stdout", text: API_STDOUT, ts: "2026-06-21T00:00:03.000Z" });
+        reportApiLog({ source: "stderr", text: API_STDERR, ts: "2026-06-21T00:00:04.000Z" });
+        const lines = benchManager.getComponentLogs(
+          RESPONDA_PROJECT_ID,
+          RESPONDA_BENCH_ID,
+          RESPONDA_API,
+        );
         expect(lines.some((l) => l.source === "stdout")).toBe(true);
         expect(lines.some((l) => l.source === "stderr")).toBe(true);
       },
     );
 
-    // S008: teardown. Drive the REAL orphan-reap seam: sweepOrphanedComposeProjects
+    // S008: teardown via the REAL orphan-reap seam: sweepOrphanedComposeProjects
     // (#612 cleanup) replays the ledger, downs every roubo-* compose project it
     // still records, and clears the entry. Spying composeDownByProject lets the
     // real down path run (and remove the project from our live set) without a
     // Docker daemon, so "no roubo-* remains" and "the ledger entry is cleared"
     // are proved by production code, not by the test setting them itself.
+    //
+    // Scope note: this hermetic guard drives the engine's pure seams, so it asserts
+    // the orphan-reap zero-orphan invariant and that the recorded process ids the
+    // reap tracks were genuinely recorded by the run. It does NOT assert the
+    // integrated normal-stop path (stopComponent/stopAllComponents: each component
+    // status -> stopped + stopProcess for each recorded PID), which needs the
+    // integrated bench registry; that assertion is tracked in #668.
     await track(
       TC033_STEPS.teardown,
-      "no roubo-* compose project remains after the real orphan sweep and the ledger entry is cleared",
+      "the run recorded the process ids; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",
       async () => {
         expect(liveComposeProjects.has(RESPONDA_COMPOSE)).toBe(true);
         expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
           RESPONDA_COMPOSE,
+        );
+        // The run recorded the process ids the reap must account for: the migration
+        // under the database plugin, and each process component under the process
+        // plugin (the PIDs an integrated stop, #668, would terminate).
+        expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.processIds).toContain(
+          `${DB_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_DB}:migration`,
+        );
+        expect(ledger.getEntry(PROCESS_PLUGIN_ID, RESPONDA_BENCH_ID)?.processIds).toEqual(
+          expect.arrayContaining([
+            `${PROCESS_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_API}`,
+            `${PROCESS_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_WEB}`,
+          ]),
         );
         const downSpy = vi
           .spyOn(dockerService, "composeDownByProject")
@@ -531,7 +590,8 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
       "S003 all components reach running; dependsOn ordering: the database is running before the dependent process starts",
     connectionTemplated:
       "S004 the database connection string contains the allocated port, not a placeholder",
-    teardown: "S005 stop the bench: all components stopped, no roubo-* containers remain",
+    teardown:
+      "S005 teardown: the run recorded the process id, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition is tracked in #668)",
   } as const;
   const TC034_SEQUENCE = [
     TC034_STEPS.createBench,
@@ -630,11 +690,16 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
     );
 
     // S005: teardown via the real orphan sweep; no roubo-* compose project remains.
+    // As in CP-TC-033, the integrated stopped-transition + PID kill is tracked in
+    // #668; here we assert the run recorded the process id the reap accounts for.
     await track(
       TC034_STEPS.teardown,
-      "no roubo-* compose project remains after the real orphan sweep and the ledger entry is cleared",
+      "the run recorded the process id; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",
       async () => {
         expect(liveComposeProjects.has(ROUBO_COMPOSE)).toBe(true);
+        expect(ledger.getEntry(PROCESS_PLUGIN_ID, ROUBO_BENCH_ID)?.processIds).toContain(
+          `${PROCESS_PLUGIN_ID}:${ROUBO_BENCH_ID}:${ROUBO_SERVER}`,
+        );
         const downSpy = vi
           .spyOn(dockerService, "composeDownByProject")
           .mockImplementation(async (projectName: string) => {
