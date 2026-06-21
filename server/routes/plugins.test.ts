@@ -39,6 +39,11 @@ vi.mock("../services/plugin-activation.js", () => ({
   forgetPluginActivation: vi.fn(),
 }));
 
+vi.mock("../services/plugin-consent-state.js", () => ({
+  getConsent: vi.fn(),
+  upsertConsent: vi.fn(),
+}));
+
 vi.mock("../services/plugin-installer.js", async () => {
   class InstallError extends Error {
     code: string;
@@ -63,6 +68,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import * as integrationTest from "../services/integration-test.js";
+import * as pluginConsentState from "../services/plugin-consent-state.js";
 
 const app = express();
 app.use(express.json());
@@ -751,5 +757,100 @@ describe("GET /:id/connection-status (WU-050)", () => {
     expect(res.status).toBe(200);
     expect(res.body.state).toBe("errored");
     expect(res.body.detail).toBe("RPC timeout");
+  });
+});
+
+describe("GET /:id/consent (issue #615, CP-FR-011)", () => {
+  it("returns 400 for an invalid plugin id", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).get("/INVALID/consent");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the plugin is not installed", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).get("/missing/consent");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when the plugin has no valid manifest", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ manifest: null })]);
+    const res = await request(app).get("/github-com/consent");
+    expect(res.status).toBe(409);
+  });
+
+  it("returns declared permissions, firstParty=true for a bundled plugin, no consentedAt when unconsented", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ source: "bundled", manifest: stubManifest() }),
+    ]);
+    vi.mocked(pluginConsentState.getConsent).mockReturnValue(null);
+    const res = await request(app).get("/github-com/consent");
+    expect(res.status).toBe(200);
+    expect(res.body.firstParty).toBe(true);
+    expect(res.body.declared).toMatchObject({ network: { hosts: [] } });
+    expect(res.body.consentedAt).toBeUndefined();
+  });
+
+  it("labels a non-bundled plugin firstParty=false and surfaces consentedAt when consented", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ source: "user", manifest: stubManifest() }),
+    ]);
+    vi.mocked(pluginConsentState.getConsent).mockReturnValue({
+      pluginId: "github-com",
+      acknowledgedCategories: [],
+      consentedAt: "2026-06-21T00:00:00.000Z",
+    });
+    const res = await request(app).get("/github-com/consent");
+    expect(res.status).toBe(200);
+    expect(res.body.firstParty).toBe(false);
+    expect(res.body.consentedAt).toBe("2026-06-21T00:00:00.000Z");
+  });
+});
+
+describe("POST /:id/consent (issue #615, CP-FR-012, AC4)", () => {
+  function manifestWithDocker() {
+    const m = stubManifest();
+    return { ...m, permissions: { ...m.permissions, docker: {} } };
+  }
+
+  it("returns 404 when the plugin is not installed", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).post("/missing/consent").send({ acknowledgedCategories: [] });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 on a malformed body", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record({ manifest: stubManifest() })]);
+    const res = await request(app).post("/github-com/consent").send({ wrong: true });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when a declared category is omitted", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ manifest: manifestWithDocker() }),
+    ]);
+    const res = await request(app).post("/github-com/consent").send({ acknowledgedCategories: [] });
+    expect(res.status).toBe(400);
+    expect(res.body.declared).toContain("docker");
+    expect(vi.mocked(pluginConsentState.upsertConsent)).not.toHaveBeenCalled();
+  });
+
+  it("persists a ConsentRecord and returns 200 on success", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ manifest: manifestWithDocker() }),
+    ]);
+    vi.mocked(pluginConsentState.upsertConsent).mockReturnValue({
+      pluginId: "github-com",
+      acknowledgedCategories: ["docker"],
+      consentedAt: "2026-06-21T00:00:00.000Z",
+    });
+    const res = await request(app)
+      .post("/github-com/consent")
+      .send({ acknowledgedCategories: ["docker"] });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(pluginConsentState.upsertConsent)).toHaveBeenCalledWith("github-com", [
+      "docker",
+    ]);
+    expect(res.body.pluginId).toBe("github-com");
   });
 });

@@ -12,6 +12,13 @@ const projectRegistryMocks = vi.hoisted(() => ({
 }));
 vi.mock("./project-registry.js", () => projectRegistryMocks);
 
+// Default to "consented" so the pre-existing resolution tests exercise the
+// binding/connection path; the not-consented gate has its own test below.
+const consentMocks = vi.hoisted(() => ({
+  hasConsent: vi.fn<(id: string) => boolean>(() => true),
+}));
+vi.mock("./plugin-consent-state.js", () => consentMocks);
+
 import { resolveBinding, isNotBound } from "./component-plugin-registry.js";
 
 // A throwaway object standing in for the live JSON-RPC connection. Identity is
@@ -43,6 +50,7 @@ function makeProject(
 beforeEach(() => {
   pluginManagerMocks.getConnection.mockReset().mockReturnValue(null);
   projectRegistryMocks.getProject.mockReset().mockReturnValue(undefined);
+  consentMocks.hasConsent.mockReset().mockReturnValue(true);
 });
 
 describe("resolveBinding", () => {
@@ -115,6 +123,22 @@ describe("resolveBinding", () => {
     pluginManagerMocks.getConnection.mockReturnValue(null);
     const result = resolveBinding("proj", "db");
     expect(result).toEqual({ reason: "plugin-unavailable", pluginId: "db-plugin" });
+  });
+
+  it("refuses to resolve when the bound plugin has no ConsentRecord (issue #615, AC5)", () => {
+    projectRegistryMocks.getProject.mockReturnValue(
+      makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
+    );
+    consentMocks.hasConsent.mockReturnValue(false);
+    // A running connection is irrelevant: the consent gate is checked first, so
+    // nothing is spawned for an unconsented plugin.
+    pluginManagerMocks.getConnection.mockReturnValue(fakeConnection);
+
+    const result = resolveBinding("proj", "db");
+    expect(result).toEqual({ reason: "not-consented", pluginId: "db-plugin" });
+    expect(consentMocks.hasConsent).toHaveBeenCalledWith("db-plugin");
+    // The consent gate short-circuits before getConnection is consulted.
+    expect(pluginManagerMocks.getConnection).not.toHaveBeenCalled();
   });
 
   it("does not resolve a prototype-pollution component name", () => {

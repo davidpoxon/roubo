@@ -6,8 +6,9 @@ import type {
   IntegrationOverride,
   InstallErrorCode,
 } from "@roubo/shared";
-import { IntegrationConfigSchema } from "@roubo/shared";
+import { IntegrationConfigSchema, declaredCategories, isFullyAcknowledged } from "@roubo/shared";
 import { z } from "zod";
+import { getConsent, upsertConsent } from "../services/plugin-consent-state.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import {
@@ -228,6 +229,80 @@ router.get("/:id/logs", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+// --- Permission consent (issue #615, CP-FR-011 / CP-FR-012 / CP-NFR-001) -----
+//
+// v1's declare-then-enforce model: the consumer is shown every permission
+// category the plugin's manifest declares and must acknowledge them before the
+// plugin runs. GET returns the declared permissions plus whether the plugin is
+// first-party (bundled); a non-first-party plugin is labeled unsandboxed in the
+// UI. POST persists a ConsentRecord, rejecting (400) a body that omits any
+// declared category. The consent gate at the component-start seam
+// (component-plugin-registry) reads the persisted record.
+
+const ConsentBodySchema = z
+  .object({
+    acknowledgedCategories: z.array(z.string().min(1)),
+  })
+  .strict();
+
+router.get("/:id/consent", (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  const record = pluginManager.listInstalled().find((r) => r.id === id);
+  if (!record) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  if (!record.manifest) {
+    res.status(409).json({ error: `Plugin ${id} has no valid manifest` });
+    return;
+  }
+  const consent = getConsent(id);
+  res.json({
+    declared: record.manifest.permissions,
+    firstParty: record.source === "bundled",
+    ...(consent ? { consentedAt: consent.consentedAt } : {}),
+  });
+});
+
+router.post("/:id/consent", (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  const record = pluginManager.listInstalled().find((r) => r.id === id);
+  if (!record) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  if (!record.manifest) {
+    res.status(409).json({ error: `Plugin ${id} has no valid manifest` });
+    return;
+  }
+
+  const parsed = ConsentBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body: { acknowledgedCategories: string[] } required" });
+    return;
+  }
+
+  const permissions = record.manifest.permissions;
+  if (!isFullyAcknowledged(permissions, parsed.data.acknowledgedCategories)) {
+    res.status(400).json({
+      error: "All declared permission categories must be acknowledged",
+      declared: declaredCategories(permissions),
+    });
+    return;
+  }
+
+  const saved = upsertConsent(id, parsed.data.acknowledgedCategories);
+  res.status(200).json(saved);
 });
 
 // --- Global integration config (Plugins settings page) -----------------

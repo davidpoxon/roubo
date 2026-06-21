@@ -15,6 +15,8 @@ vi.mock("../lib/api", async () => {
     uninstallPlugin: vi.fn(),
     fetchPluginLogs: vi.fn(),
     fetchConnectionStatus: vi.fn(),
+    fetchPluginConsent: vi.fn(),
+    grantPluginConsent: vi.fn(),
   };
 });
 vi.mock("./useToast");
@@ -31,6 +33,8 @@ import {
   useConnectionStatus,
   useOpportunisticRecheckOnMount,
   connectionStatusQueryKey,
+  useConsentStatus,
+  useGrantConsent,
 } from "./usePlugins";
 
 const mockedApi = vi.mocked(api);
@@ -220,5 +224,57 @@ describe("usePluginLogs", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.fetchPluginLogs).toHaveBeenCalledWith("github-com", "previous");
     expect(result.current.data?.lines).toHaveLength(1);
+  });
+});
+
+describe("useConsentStatus (issue #615)", () => {
+  it("fetches the consent status for a plugin", async () => {
+    mockedApi.fetchPluginConsent.mockResolvedValue({
+      declared: {
+        network: { hosts: [] },
+        credentials: { slots: [] },
+        filesystem: { paths: [] },
+        processes: false,
+      },
+      firstParty: true,
+    });
+    const { result } = renderHookWithProviders(() => useConsentStatus("db-plugin"));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.fetchPluginConsent).toHaveBeenCalledWith("db-plugin");
+    expect(result.current.data?.firstParty).toBe(true);
+  });
+
+  it("does not fetch while disabled", () => {
+    renderHookWithProviders(() => useConsentStatus("db-plugin", false));
+    expect(mockedApi.fetchPluginConsent).not.toHaveBeenCalled();
+  });
+});
+
+describe("useGrantConsent (issue #615)", () => {
+  it("posts the acknowledged categories", async () => {
+    mockedApi.grantPluginConsent.mockResolvedValue({
+      pluginId: "db-plugin",
+      acknowledgedCategories: ["docker"],
+      consentedAt: "2026-06-21T00:00:00.000Z",
+    });
+    const { result } = renderHookWithProviders(() => useGrantConsent());
+    await act(async () => {
+      await result.current.mutateAsync({
+        pluginId: "db-plugin",
+        acknowledgedCategories: ["docker"],
+      });
+    });
+    expect(mockedApi.grantPluginConsent).toHaveBeenCalledWith("db-plugin", ["docker"]);
+  });
+
+  it("surfaces a toast on failure", async () => {
+    mockedApi.grantPluginConsent.mockRejectedValue(new ApiError("nope", 500));
+    const { result } = renderHookWithProviders(() => useGrantConsent());
+    await act(async () => {
+      await result.current
+        .mutateAsync({ pluginId: "db-plugin", acknowledgedCategories: [] })
+        .catch(() => {});
+    });
+    await waitFor(() => expect(addToast).toHaveBeenCalledWith("nope"));
   });
 });
