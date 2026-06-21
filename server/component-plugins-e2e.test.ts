@@ -329,6 +329,7 @@ function makeFakeDocker(liveComposeProjects: Set<string>): DockerLike {
     waitForHealthy: vi.fn(async () => true),
     composeRunInit: vi.fn(async () => ({ success: true, stdout: "", stderr: "" })),
     getContainerId: vi.fn(async () => "redis-container-abc"),
+    getContainerStatusById: vi.fn(async () => "running" as const),
     getComposeProjectName: vi.fn(
       (projectId: string, benchId: number) => `roubo-${projectId}-bench-${benchId}`,
     ),
