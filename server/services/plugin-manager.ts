@@ -960,7 +960,17 @@ export async function initialize(): Promise<void> {
   // (matching the existing test-env guard above) so the unit suite never probes
   // a live Docker daemon at boot; tier-selection tests inject deterministic
   // fakes via __test.setIsolationProbes instead.
-  if (process.env.NODE_ENV !== "test") {
+  //
+  // The e2e harness (ROUBO_E2E=1) is held on the floor for the same reason: its
+  // fixture plugins are local Node stub scripts launched by the direct spawn,
+  // not container images. On a CI runner (or any dev box) with a reachable
+  // Docker daemon the docker rung would otherwise wrap every spawn in
+  // `docker run node:lts <entry>`, which cannot reach the host-side stub and
+  // sends each plugin to `errored`. Container-mount wiring that would let the
+  // sandbox launch a real plugin inside the container is the full-F2.3 runtime
+  // work tracked under F2.1; until it lands the harness must launch stubs
+  // directly. This mirrors the other ROUBO_E2E guards in this file.
+  if (process.env.NODE_ENV !== "test" && process.env.ROUBO_E2E !== "1") {
     isolationProbes = defaultIsolationProbes();
   }
 

@@ -2026,6 +2026,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
 
   describe("boot-time real-probe install (#675)", () => {
     const prevNodeEnv = process.env.NODE_ENV;
+    const prevRouboE2e = process.env.ROUBO_E2E;
     beforeEach(() => {
       // Pin platform/arch so the appleContainer probe is deterministically off
       // regardless of the host running the suite, isolating the docker rung.
@@ -2036,6 +2037,8 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       vi.restoreAllMocks();
       if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = prevNodeEnv;
+      if (prevRouboE2e === undefined) delete process.env.ROUBO_E2E;
+      else process.env.ROUBO_E2E = prevRouboE2e;
       dockerPingMock = () => Promise.reject(new Error("no daemon"));
     });
 
@@ -2053,10 +2056,25 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
     it("installs the real probes outside test env so a reachable daemon engages the docker rung (AC2)", async () => {
       dockerPingMock = () => Promise.resolve("OK");
       process.env.NODE_ENV = "production";
+      delete process.env.ROUBO_E2E;
       sandbox = await makeSandbox({ bundled: [] });
       mgr = await loadManager();
       await mgr.initialize();
       expect(await mgr.__test.resolveIsolationTier()).toBe("docker");
+    });
+
+    it("keeps the broker-only floor under ROUBO_E2E=1 even when a daemon is reachable", async () => {
+      // The e2e harness launches local stub plugins via the direct spawn, not as
+      // container images. A reachable Docker daemon on the runner must NOT engage
+      // the docker rung there, or every fixture plugin would be wrapped in
+      // `docker run` and fail to start. The ROUBO_E2E guard holds the floor.
+      dockerPingMock = () => Promise.resolve("OK");
+      process.env.NODE_ENV = "production";
+      process.env.ROUBO_E2E = "1";
+      sandbox = await makeSandbox({ bundled: [] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(await mgr.__test.resolveIsolationTier()).toBe("broker-only");
     });
 
     it("degrades to the broker-only floor outside test env when the daemon is unreachable (NFR-005)", async () => {
