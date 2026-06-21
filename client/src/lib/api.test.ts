@@ -57,6 +57,8 @@ import {
   fetchSourceOptions,
   fetchTestbenchPlan,
   reconcileTestbench,
+  fetchPluginConsent,
+  grantPluginConsent,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -972,5 +974,40 @@ describe("reconcileTestbench", () => {
         body: JSON.stringify({ confirm: true, purgeOrphans: true }),
       }),
     );
+  });
+});
+
+describe("fetchPluginConsent (issue #615)", () => {
+  it("GETs the consent endpoint and returns the parsed status", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ declared: { network: { hosts: [] } }, firstParty: true }),
+    );
+    const result = await fetchPluginConsent("db-plugin");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/plugins/db-plugin/consent",
+      expect.objectContaining({}),
+    );
+    expect(result.firstParty).toBe(true);
+  });
+});
+
+describe("grantPluginConsent (issue #615)", () => {
+  it("POSTs the acknowledged categories", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        pluginId: "db-plugin",
+        acknowledgedCategories: ["docker"],
+        consentedAt: "2026-06-21T00:00:00.000Z",
+      }),
+    );
+    const result = await grantPluginConsent("db-plugin", ["docker"]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/plugins/db-plugin/consent",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ acknowledgedCategories: ["docker"] }),
+      }),
+    );
+    expect(result.pluginId).toBe("db-plugin");
   });
 });

@@ -48,6 +48,8 @@ import type {
   InstalledPluginSummary,
   DirtyReason,
   PluginRecord,
+  PluginPermissions,
+  ConsentRecord,
   ConnectionStatus,
   LogLine,
   InstallPreview,
@@ -1029,6 +1031,27 @@ export function uninstallPlugin(pluginId: string): Promise<void> {
 
 export function fetchConnectionStatus(pluginId: string): Promise<ConnectionStatus> {
   return request(`/plugins/${encodeURIComponent(pluginId)}/connection-status`);
+}
+
+// Permission consent (issue #615, CP-FR-011 / CP-FR-012)
+export interface PluginConsentStatus {
+  declared: PluginPermissions;
+  firstParty: boolean;
+  consentedAt?: string;
+}
+
+export function fetchPluginConsent(pluginId: string): Promise<PluginConsentStatus> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/consent`);
+}
+
+export function grantPluginConsent(
+  pluginId: string,
+  acknowledgedCategories: string[],
+): Promise<ConsentRecord> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/consent`, {
+    method: "POST",
+    body: JSON.stringify({ acknowledgedCategories }),
+  });
 }
 
 export function fetchPluginLogs(

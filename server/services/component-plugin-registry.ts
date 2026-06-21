@@ -1,6 +1,7 @@
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { getConnection } from "./plugin-manager.js";
 import { getProject } from "./project-registry.js";
+import { hasConsent } from "./plugin-consent-state.js";
 
 // ComponentPluginRegistry (issue #608, FR-010, architecture.md 'Components').
 //
@@ -25,12 +26,18 @@ import { getProject } from "./project-registry.js";
  * - `plugin-unavailable`: the bound plugin is not currently running (unknown,
  *   disabled, invalid, incompatible, errored, or mid-restart), so there is no
  *   live connection yet.
+ * - `not-consented`: the bound plugin has no persisted ConsentRecord, so the
+ *   consumer has not acknowledged its declared permissions. The server refuses
+ *   to start the component, spawning no process or container (issue #615,
+ *   CP-FR-012, advisory v1 gate). Checked before the connection so a plugin that
+ *   happens to be running still cannot back an unconsented component.
  */
 export type NotBound =
   | { reason: "unknown-project" }
   | { reason: "invalid-config" }
   | { reason: "unknown-component" }
   | { reason: "not-bound" }
+  | { reason: "not-consented"; pluginId: string }
   | { reason: "plugin-unavailable"; pluginId: string };
 
 export interface ResolvedBinding {
@@ -74,6 +81,13 @@ export function resolveBinding(
   if (!binding) return { reason: "not-bound" };
 
   const pluginId = binding.id;
+  // Consent gate (issue #615, CP-FR-012, AC5): refuse to resolve a binding whose
+  // plugin has no ConsentRecord. Checked before getConnection so nothing is
+  // spawned and no process/container is started without acknowledged permissions.
+  if (!hasConsent(pluginId)) {
+    return { reason: "not-consented", pluginId };
+  }
+
   // The plugin must be a discovered, running plugin. getConnection returns null
   // unless the plugin is spawned and connected (unknown, disabled, invalid,
   // incompatible, errored, and mid-restart all surface the same way), so a

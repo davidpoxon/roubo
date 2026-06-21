@@ -118,6 +118,44 @@ export function useInstallPluginCancel() {
   });
 }
 
+// Issue #615 (CP-FR-011 / CP-FR-012): read the consent status for a plugin
+// (declared permissions, first-party flag, and whether consent has been
+// granted). The PermissionConsentModal consumes this before allowing first run.
+const CONSENT_KEY_PREFIX = "plugin-consent";
+
+export function consentQueryKey(pluginId: string): readonly [string, string] {
+  return [CONSENT_KEY_PREFIX, pluginId];
+}
+
+export function useConsentStatus(pluginId: string, enabled = true) {
+  return useQuery({
+    queryKey: consentQueryKey(pluginId),
+    queryFn: () => api.fetchPluginConsent(pluginId),
+    enabled,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useGrantConsent() {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: ({
+      pluginId,
+      acknowledgedCategories,
+    }: {
+      pluginId: string;
+      acknowledgedCategories: string[];
+    }) => api.grantPluginConsent(pluginId, acknowledgedCategories),
+    onSuccess: (_data, { pluginId }) => {
+      void queryClient.invalidateQueries({ queryKey: consentQueryKey(pluginId) });
+    },
+    onError: (err) => {
+      addToast(asErrorMessage(err, "Failed to record consent."));
+    },
+  });
+}
+
 // WU-050: read the cached connection-status for a plugin. Renders the cached
 // value synchronously and never fires its own background poll: re-fetches
 // only when an opportunistic trigger (PluginsTab / Configure modal / cut list

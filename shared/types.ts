@@ -100,6 +100,20 @@ export type {
   BundledPluginId,
 } from "./plugin-enable-state-schema.js";
 
+export {
+  PLUGIN_CONSENT_STATE_SCHEMA_VERSION,
+  PERMISSION_CATEGORIES,
+  ConsentRecordSchema,
+  PluginConsentStateSchema,
+  declaredCategories,
+  isFullyAcknowledged,
+} from "./plugin-consent-schema.js";
+export type {
+  PermissionCategory,
+  ConsentRecord,
+  PluginConsentState,
+} from "./plugin-consent-schema.js";
+
 export type {
   SourceCandidateIcon,
   SourceCandidateItem,
