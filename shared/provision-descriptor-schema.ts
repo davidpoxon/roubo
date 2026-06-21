@@ -43,6 +43,12 @@ export const DockerProvisionDescriptorSchema = z
     migration: DockerMigrationSchema.optional(),
     connection: DockerConnectionSchema.optional(),
     assignedContainerId: z.string().min(1).optional(),
+    // Component-level env injected into the compose interpolation environment
+    // (and the migration process env), merged alongside the allocated port. This
+    // mirrors the built-in database path, which folds `componentConfig.env` into
+    // the compose `portOverrides` (see bench-manager `startDockerComponent`), so a
+    // plugin-backed database reaches env parity (CP-FR-004, CP-FR-007).
+    env: z.record(z.string(), z.string()).optional(),
     healthcheck: z.boolean().optional(),
   })
   .strict();
