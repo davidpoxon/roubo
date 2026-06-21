@@ -6,6 +6,7 @@ const colorMap: Record<ComponentStatusValue, string> = {
   stopping: "bg-amber-500",
   error: "bg-red-500",
   stopped: "bg-stone-300 dark:bg-stone-600",
+  completed: "bg-green-500",
 };
 
 export default function ComponentStatusDot({

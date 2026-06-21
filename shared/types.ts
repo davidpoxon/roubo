@@ -476,7 +476,13 @@ export interface RegisteredProject {
 // ── Bench types ──
 
 export type BenchStatus = "idle" | "preparing" | "active" | "error" | "clearing";
-export type ComponentStatusValue = "stopped" | "starting" | "running" | "error" | "stopping";
+export type ComponentStatusValue =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "error"
+  | "stopping"
+  | "completed";
 
 export type ProvisioningStepStatus = "pending" | "running" | "done" | "error" | "cancelled";
 
@@ -495,6 +501,14 @@ export interface ComponentPhase {
   status: ComponentPhaseStatus;
 }
 
+/**
+ * A component's observable lifecycle state, pushed by the host (never polled,
+ * NFR-002). Most components rest in `running` or `stopped`; `completed` is the
+ * one-shot terminal state (FR-014 / FR-022): a run-to-completion descriptor that
+ * exits 0 is neither `stopped` (idle, never started) nor `error` (failed), so it
+ * lands in its own distinct terminal state. A non-zero exit or a `timeoutMs`
+ * breach drives `error` instead.
+ */
 export interface ComponentStatus {
   name: string;
   status: ComponentStatusValue;
