@@ -26,6 +26,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run lint:em-dash
+      # CP-NFR-006: fail the build if a component-type literal or a core
+      # docker/compose field branch reappears in core (server/ + shared/).
+      - run: npm run lint:component-guard
 
   format:
     runs-on: ubuntu-latest

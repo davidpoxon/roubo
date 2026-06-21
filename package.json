@@ -49,6 +49,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
     "lint:em-dash": "node scripts/check-em-dashes.mjs",
+    "lint:component-guard": "node scripts/component-type-knowledge-guard.mjs",
     "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
     "generate:schema": "tsx scripts/generate-schema.ts",
     "format": "prettier --write .",
