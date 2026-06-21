@@ -5,7 +5,6 @@ import type {
   ProjectConfig,
   LayoutConfig,
   ComponentConfig,
-  ComponentBinding,
   PortConfig,
   ToolConfig,
   InspectionConfig,
@@ -16,20 +15,21 @@ import type {
 } from "@roubo/shared";
 
 /**
- * Boundary narrowing for the setup wizard (#609 transition).
+ * Boundary helper for the setup wizard (#609 transition).
  *
- * `RouboConfig.components` is now typed `Record<string, ComponentBinding>`
- * (plugin binding + optional legacy inline descriptor fields). The setup-wizard
- * editors still operate on the legacy `ComponentConfig` shape: migrating them to
- * edit plugin bindings is the live-config migration in #614 (F1.13), out of
- * scope for #609. Until then the wizard creates and edits legacy-shaped
- * component values at runtime, so narrowing the binding map back to
- * `ComponentConfig` at the editor boundary is sound for the pre-migration draft.
+ * `RouboConfig.components` is typed `Record<string, ComponentConfig>`, where
+ * `ComponentConfig` is the binding entry (`plugin` + opaque `config` +
+ * `dependsOn`) widened with the optional legacy inline-descriptor shim
+ * (`type` / `docker` / `command` / ...). The setup-wizard editors still create
+ * and edit legacy-shaped component values: migrating them to edit plugin
+ * bindings is the live-config migration in #614 (F1.13), out of scope for #609.
+ * This helper coalesces the (possibly undefined) map for the editor boundary;
+ * the legacy fields it reads ride on the same `ComponentConfig` shim.
  */
 export function legacyComponents(
-  components: Record<string, ComponentBinding> | undefined,
+  components: Record<string, ComponentConfig> | undefined,
 ): Record<string, ComponentConfig> {
-  return (components ?? {}) as Record<string, ComponentConfig>;
+  return components ?? {};
 }
 
 export function nextAvailablePort(
