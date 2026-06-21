@@ -1,13 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import treeKill from "tree-kill";
+import type { ComponentLogLine } from "@roubo/shared";
 import { cleanEnv } from "./env.js";
 
-const MAX_LOG_LINES = 5000;
+export const MAX_LOG_LINES = 5000;
 
 interface ManagedProcess {
   id: string;
   process?: ChildProcess;
-  logs: string[];
+  /**
+   * Structured per-line log buffer. Each entry carries its source (stdout vs
+   * stderr) and a capture timestamp so the component logs surface can emit the
+   * same { source, text, ts } shape for built-in components that plugin-backed
+   * components push via host.component.reportLog (FR-014, NFR-004 parity).
+   */
+  logs: ComponentLogLine[];
   alive: boolean;
   exitCode: number | null;
 }
@@ -41,20 +48,10 @@ export async function startProcess(
     exitCode: null,
   };
 
-  const pushLog = (data: Buffer) => {
-    const lines = data.toString().split("\n");
-    for (const line of lines) {
-      if (line.length > 0) {
-        managed.logs.push(line);
-        if (managed.logs.length > MAX_LOG_LINES) {
-          managed.logs.shift();
-        }
-      }
-    }
-  };
+  const pushLog = appendLines(managed);
 
-  proc.stdout?.on("data", pushLog);
-  proc.stderr?.on("data", pushLog);
+  proc.stdout?.on("data", (data: Buffer) => pushLog("stdout", data));
+  proc.stderr?.on("data", (data: Buffer) => pushLog("stderr", data));
 
   proc.on("close", (code) => {
     managed.alive = false;
@@ -63,7 +60,7 @@ export async function startProcess(
 
   proc.on("error", (err) => {
     managed.alive = false;
-    managed.logs.push(`[process error] ${err.message}`);
+    pushLog("stderr", `[process error] ${err.message}`);
   });
 
   processes.set(id, managed);
@@ -109,20 +106,10 @@ export function runProcess(
     };
     processes.set(id, managed);
 
-    const pushLog = (data: Buffer) => {
-      const lines = data.toString().split("\n");
-      for (const line of lines) {
-        if (line.length > 0) {
-          managed.logs.push(line);
-          if (managed.logs.length > MAX_LOG_LINES) {
-            managed.logs.shift();
-          }
-        }
-      }
-    };
+    const pushLog = appendLines(managed);
 
-    proc.stdout?.on("data", pushLog);
-    proc.stderr?.on("data", pushLog);
+    proc.stdout?.on("data", (data: Buffer) => pushLog("stdout", data));
+    proc.stderr?.on("data", (data: Buffer) => pushLog("stderr", data));
 
     let settled = false;
     let timer: NodeJS.Timeout | undefined;
@@ -153,10 +140,28 @@ export function runProcess(
 
     proc.on("error", (err) => {
       managed.alive = false;
-      managed.logs.push(`[process error] ${err.message}`);
+      appendLines(managed)("stderr", `[process error] ${err.message}`);
       finish(() => reject(err));
     });
   });
+}
+
+/**
+ * Build the per-process line appender. Splits a chunk (Buffer or string) on
+ * newlines, drops empties, stamps each surviving line with its source and a
+ * monotonic-per-call ISO timestamp, and rolls the ring buffer at MAX_LOG_LINES.
+ * Shared by startProcess / runProcess so both capture the same structured shape.
+ */
+function appendLines(managed: ManagedProcess) {
+  return (source: "stdout" | "stderr", data: Buffer | string): void => {
+    const text = typeof data === "string" ? data : data.toString();
+    const ts = new Date().toISOString();
+    for (const line of text.split("\n")) {
+      if (line.length === 0) continue;
+      managed.logs.push({ source, text: line, ts });
+      if (managed.logs.length > MAX_LOG_LINES) managed.logs.shift();
+    }
+  };
 }
 
 export function stopProcess(id: string): Promise<void> {
@@ -201,10 +206,26 @@ export function getProcessStatus(id: string): { alive: boolean; exitCode: number
   return { alive: managed.alive, exitCode: managed.exitCode };
 }
 
+/**
+ * Plain-text tail of a managed process's logs. This is the flattened shape the
+ * broker's host.process.logs returns to a plugin; the structured component logs
+ * surface uses {@link getProcessLogLines} instead.
+ */
 export function getProcessLogs(id: string, tail = 200): string[] {
   const managed = processes.get(id);
   if (!managed) return [];
-  return managed.logs.slice(-tail);
+  return managed.logs.slice(-tail).map((line) => line.text);
+}
+
+/**
+ * Structured tail of a managed process's logs as ComponentLogLine[]. Backs the
+ * built-in side of GET /components/:name/logs so built-in and plugin-backed
+ * components return the identical { source, text, ts } shape (FR-014 parity).
+ */
+export function getProcessLogLines(id: string, tail = 200): ComponentLogLine[] {
+  const managed = processes.get(id);
+  if (!managed) return [];
+  return managed.logs.slice(-tail).map((line) => ({ ...line }));
 }
 
 export function getProcessPid(id: string): number | undefined {
@@ -216,12 +237,13 @@ export function clearProcessLogs(id: string): void {
 }
 
 export function storeCommandLogs(id: string, stdout: string, stderr: string): void {
-  const lines: string[] = [];
+  const ts = new Date().toISOString();
+  const lines: ComponentLogLine[] = [];
   for (const line of stdout.split("\n")) {
-    if (line.length > 0) lines.push(line);
+    if (line.length > 0) lines.push({ source: "stdout", text: line, ts });
   }
   for (const line of stderr.split("\n")) {
-    if (line.length > 0) lines.push(line);
+    if (line.length > 0) lines.push({ source: "stderr", text: line, ts });
   }
   if (lines.length === 0) return;
 

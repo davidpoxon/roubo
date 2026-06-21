@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
+import type { ComponentLogLine } from "@roubo/shared";
 import LogStream from "./LogStream";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
 
 const mockedApi = vi.mocked(api);
+
+let tsCounter = 0;
+function line(text: string, source: "stdout" | "stderr" = "stdout"): ComponentLogLine {
+  return { source, text, ts: new Date(tsCounter++).toISOString() };
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -26,14 +32,16 @@ describe("LogStream", () => {
   });
 
   it("renders log lines when fetched", async () => {
-    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: ["line one", "line two"] } as never);
+    mockedApi.fetchComponentLogs.mockResolvedValue({
+      logs: [line("line one"), line("line two", "stderr")],
+    });
     render(<LogStream projectId="p1" benchId={1} component="backend" />);
     await waitFor(() => expect(screen.getByText("line one")).toBeInTheDocument());
     expect(screen.getByText("line two")).toBeInTheDocument();
   });
 
   it("renders the copy and clear buttons", async () => {
-    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: ["log"] } as never);
+    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: [line("log")] });
     const { container } = render(<LogStream projectId="p1" benchId={1} component="backend" />);
     await waitFor(() => expect(screen.getByText("log")).toBeInTheDocument());
     const buttons = container.querySelectorAll("button");
@@ -41,7 +49,7 @@ describe("LogStream", () => {
   });
 
   it("clears logs when the clear button is pressed", async () => {
-    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: ["some log"] } as never);
+    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: [line("some log")] });
     const { container } = render(<LogStream projectId="p1" benchId={1} component="backend" />);
     await waitFor(() => expect(screen.getByText("some log")).toBeInTheDocument());
 
@@ -62,13 +70,14 @@ describe("LogStream", () => {
   });
 
   it("calls clipboard.writeText when copy button is pressed", async () => {
-    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: ["a", "b"] } as never);
+    mockedApi.fetchComponentLogs.mockResolvedValue({ logs: [line("a"), line("b")] });
     const { container } = render(<LogStream projectId="p1" benchId={1} component="backend" />);
     await waitFor(() => expect(screen.getByText("a")).toBeInTheDocument());
     const buttons = container.querySelectorAll("button");
     act(() => {
       buttons[0].click();
     });
+    // Copy flattens to text only, preserving the existing plain-text clipboard shape.
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("a\nb");
   });
 });

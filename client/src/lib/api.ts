@@ -51,6 +51,7 @@ import type {
   PluginPermissions,
   ConsentRecord,
   ConnectionStatus,
+  ComponentLogLine,
   LogLine,
   InstallPreview,
   InstallSource,
@@ -285,7 +286,7 @@ export function fetchComponentLogs(
   benchId: number,
   component: string,
   tail = 200,
-): Promise<{ logs: string[] }> {
+): Promise<{ logs: ComponentLogLine[] }> {
   return request(
     `/projects/${projectId}/benches/${benchId}/components/${component}/logs?tail=${tail}`,
   );

@@ -3,6 +3,7 @@ import path from "node:path";
 import type {
   Bench,
   BenchStatus,
+  ComponentLogLine,
   ComponentStatus,
   ComponentConfig,
   ComponentPhase,
@@ -18,6 +19,7 @@ import * as dockerService from "./docker.js";
 import type { ContainerStatus } from "./docker.js";
 import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
+import * as componentLogStore from "./component-log-store.js";
 import * as terminalService from "./terminal.js";
 import * as notificationService from "./notification.js";
 import * as sseService from "./sse.js";
@@ -1850,13 +1852,69 @@ export function getBenches(projectId?: string): Bench[] {
   return all;
 }
 
+/**
+ * Structured component logs for the GET /components/:name/logs surface. Returns
+ * ComponentLogLine[] ({ source, text, ts }) so a plugin-backed component and a
+ * built-in component yield the identical field shape (FR-014, NFR-004 parity).
+ *
+ * A plugin-backed component pushes logs into the structured store via
+ * host.component.reportLog (see {@link buildReportLog}); a built-in component's
+ * logs come from the process-manager buffer, now also structured. When a
+ * plugin-backed store exists for this component it wins; otherwise the built-in
+ * process buffer is read.
+ */
 export function getComponentLogs(
   projectId: string,
   benchId: number,
   componentName: string,
   tail?: number,
-): string[] {
-  return processManager.getProcessLogs(processId(projectId, benchId, componentName), tail);
+): ComponentLogLine[] {
+  if (componentLogStore.hasComponentLogs(projectId, benchId, componentName)) {
+    return componentLogStore.getComponentLogLines(projectId, benchId, componentName, tail);
+  }
+  return processManager.getProcessLogLines(processId(projectId, benchId, componentName), tail);
+}
+
+/**
+ * Build the host.component.reportStatus sink for a plugin-backed component on a
+ * given bench. Merging the pushed ComponentStatus into bench.components[name] and
+ * broadcasting through the SAME sseService.broadcastBenchStatus path the built-in
+ * Start/Stop flow uses is what gives the SSE stream parity: identical event shape
+ * and identical dedup, with no duplicate or missing events (FR-014, NFR-004).
+ *
+ * This sink is the host-side wiring F1.11's plugin dispatch attaches to
+ * BrokerContext.reportStatus / LifecycleContext.reportStatus at plugin
+ * activation; it does not itself start any plugin.
+ */
+export function buildReportStatus(
+  projectId: string,
+  benchId: number,
+): (status: ComponentStatus) => void {
+  return (status: ComponentStatus) => {
+    const bench = getBench(projectId, benchId);
+    if (!bench) return;
+    const existing = bench.components[status.name];
+    // Merge over any existing entry so a partial push (e.g. a phase update that
+    // omits pid) never drops a field the previous status carried.
+    bench.components[status.name] = { ...existing, ...status };
+    updateBenchStatus(bench);
+    sseService.broadcastBenchStatus(bench);
+  };
+}
+
+/**
+ * Build the host.component.reportLog sink for a plugin-backed component on a given
+ * bench. Appends to the restart-safe structured log store keyed by
+ * (projectId, benchId, componentName), the read side of getComponentLogs.
+ */
+export function buildReportLog(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+): (line: ComponentLogLine) => void {
+  return (line: ComponentLogLine) => {
+    componentLogStore.appendComponentLog(projectId, benchId, componentName, line);
+  };
 }
 
 export async function refreshComponentStatuses() {
