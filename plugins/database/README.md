@@ -20,21 +20,26 @@ its behalf; the plugin starts no container).
 The component's opaque `config` block (validated host-side against the manifest
 `configSchema`) accepts:
 
-| Key                   | Required | Maps to descriptor    | Notes                                                                                               |
-| --------------------- | -------- | --------------------- | --------------------------------------------------------------------------------------------------- |
-| `composeFile`         | yes      | `composeFile`         | Workspace-relative docker-compose file. A missing or empty value is rejected (a clear error).       |
-| `service`             | yes      | `service`             | The compose service brought up. A missing or empty value is rejected (a clear error).               |
-| `initService`         | no       | `initService`         | Compose service run once (`compose run --rm`) before the database is ready (e.g. a seed/init step). |
-| `portEnvVar`          | no       | `portEnvVar`          | Env var the allocated host port is interpolated into for compose. Defaults to `HOST_PORT`.          |
-| `migration`           | no       | `migration`           | `{ command, args? }` run once the service is healthy (and after the init service, when present).    |
-| `connection`          | no       | `connection`          | `{ template }`; the engine fills `{{port}}` / `{{ports.<component>}}` with the allocated host port. |
-| `env`                 | no       | `env`                 | Variables merged into the compose interpolation env (and the migration env) alongside the port.     |
-| `assignedContainerId` | no       | `assignedContainerId` | When set, the engine skips compose and only verifies the external container is running.             |
+| Key           | Required | Maps to descriptor | Notes                                                                                               |
+| ------------- | -------- | ------------------ | --------------------------------------------------------------------------------------------------- |
+| `composeFile` | yes      | `composeFile`      | Workspace-relative docker-compose file. A missing or empty value is rejected (a clear error).       |
+| `service`     | yes      | `service`          | The compose service brought up. A missing or empty value is rejected (a clear error).               |
+| `initService` | no       | `initService`      | Compose service run once (`compose run --rm`) before the database is ready (e.g. a seed/init step). |
+| `portEnvVar`  | no       | `portEnvVar`       | Env var the allocated host port is interpolated into for compose. Defaults to `HOST_PORT`.          |
+| `migration`   | no       | `migration`        | `{ command, args? }` run once the service is healthy (and after the init service, when present).    |
+| `connection`  | no       | `connection`       | `{ template }`; the engine fills `{{port}}` / `{{ports.<component>}}` with the allocated host port. |
+| `env`         | no       | `env`              | Variables merged into the compose interpolation env (and the migration env) alongside the port.     |
 
 `dependsOn` is **not** a `config` key. It is declared at the component entry
 level (a sibling of `plugin` and `config`, see the example below), where core
 validates it and drives start/stop ordering, so it never reaches this plugin's
 opaque `config`.
+
+`assignedContainerId` is likewise **not** a user-authored `config` key (the
+manifest `configSchema` intentionally omits it). Core injects it from the
+bench's external-container assignment (`bench.assignedContainers`), and
+`translate` forwards it onto the descriptor: when present, the engine skips
+compose and only verifies the external container is running.
 
 ## Example
 
