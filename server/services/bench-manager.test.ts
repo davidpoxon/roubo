@@ -52,10 +52,12 @@ vi.mock("./resource-ownership-ledger.js", () => ({
 }));
 
 vi.mock("./process-manager.js", () => ({
+  MAX_LOG_LINES: 5000,
   startProcess: vi.fn(),
   stopProcess: vi.fn(),
   getProcessStatus: vi.fn(() => ({ alive: false, exitCode: null })),
   getProcessLogs: vi.fn(() => []),
+  getProcessLogLines: vi.fn(() => []),
   getProcessPid: vi.fn(),
   stopAllProcesses: vi.fn(),
   storeCommandLogs: vi.fn(),
@@ -146,6 +148,7 @@ let stateService: typeof import("./state.js");
 let dockerService: typeof import("./docker.js");
 let processManager: typeof import("./process-manager.js");
 let ledgerService: typeof import("./resource-ownership-ledger.js");
+let componentLogStore: typeof import("./component-log-store.js");
 let portAllocator: typeof import("./port-allocator.js");
 let configParser: typeof import("./config-parser.js");
 let execModule: typeof import("./exec.js");
@@ -173,6 +176,7 @@ beforeEach(async () => {
   dockerService = await import("./docker.js");
   processManager = await import("./process-manager.js");
   ledgerService = await import("./resource-ownership-ledger.js");
+  componentLogStore = await import("./component-log-store.js");
   portAllocator = await import("./port-allocator.js");
   configParser = await import("./config-parser.js");
   execModule = await import("./exec.js");
@@ -4245,16 +4249,132 @@ describe("getBench / getBenches", () => {
 });
 
 describe("getComponentLogs", () => {
-  it("delegates to processManager.getProcessLogs with correct process id", () => {
-    vi.mocked(processManager.getProcessLogs).mockReturnValue(["log line 1", "log line 2"]);
+  afterEach(() => {
+    componentLogStore._resetForTest();
+  });
+
+  it("delegates to processManager.getProcessLogLines for a built-in component", () => {
+    const lines = [
+      { source: "stdout" as const, text: "log line 1", ts: "2026-06-21T00:00:00.000Z" },
+      { source: "stderr" as const, text: "log line 2", ts: "2026-06-21T00:00:01.000Z" },
+    ];
+    vi.mocked(processManager.getProcessLogLines).mockReturnValue(lines);
 
     const logs = benchManager.getComponentLogs("test-project", 1, "backend");
 
-    expect(processManager.getProcessLogs).toHaveBeenCalledWith(
+    expect(processManager.getProcessLogLines).toHaveBeenCalledWith(
       "test-project-bench-1-backend",
       undefined,
     );
-    expect(logs).toEqual(["log line 1", "log line 2"]);
+    expect(logs).toEqual(lines);
+  });
+
+  it("reads the structured store for a plugin-backed component", () => {
+    componentLogStore.appendComponentLog("test-project", 1, "db", {
+      source: "stdout",
+      text: "compose up",
+      ts: "2026-06-21T00:00:00.000Z",
+    });
+
+    const logs = benchManager.getComponentLogs("test-project", 1, "db");
+
+    expect(logs).toEqual([
+      { source: "stdout", text: "compose up", ts: "2026-06-21T00:00:00.000Z" },
+    ]);
+    // Plugin-backed read does not fall through to the process buffer.
+    expect(processManager.getProcessLogLines).not.toHaveBeenCalledWith(
+      "test-project-bench-1-db",
+      undefined,
+    );
+  });
+});
+
+describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () => {
+  afterEach(() => {
+    componentLogStore._resetForTest();
+  });
+
+  function seedBench() {
+    const config = makeConfig();
+    const project = makeProject({ config });
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: [makePersistedBench({ ports: { backend: 5000 } })],
+    });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    benchManager.initialize();
+  }
+
+  it("merges a pushed ComponentStatus into the bench and broadcasts via the built-in SSE path", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "running",
+      pid: 4242,
+      startedAt: "2026-06-21T00:00:00.000Z",
+      statusDetail: "Starting process",
+      phases: [{ label: "Starting process", status: "done" }],
+      setupComplete: true,
+    });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend).toMatchObject({
+      name: "backend",
+      status: "running",
+      pid: 4242,
+      startedAt: "2026-06-21T00:00:00.000Z",
+      statusDetail: "Starting process",
+      setupComplete: true,
+    });
+    expect(bench?.components.backend.phases).toEqual([
+      { label: "Starting process", status: "done" },
+    ]);
+    // Same broadcast path the built-in Start flow uses (FR-014, NFR-004): one
+    // event per push, same shape, no separate plugin SSE channel.
+    expect(sseService.broadcastBenchStatus).toHaveBeenCalledWith(bench);
+  });
+
+  it("merges partial pushes without dropping previously-set fields", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "running", pid: 99, setupComplete: true });
+    report({ name: "backend", status: "stopping", setupComplete: true });
+
+    const bench = benchManager.getBench("test-project", 1);
+    // pid from the first push survives the second partial push.
+    expect(bench?.components.backend).toMatchObject({ status: "stopping", pid: 99 });
+  });
+
+  it("emits exactly one broadcast per status push (no duplicates)", () => {
+    seedBench();
+    vi.mocked(sseService.broadcastBenchStatus).mockClear();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "starting", setupComplete: true });
+    report({ name: "backend", status: "running", setupComplete: true });
+
+    expect(sseService.broadcastBenchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a status push for a bench that no longer exists", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 999);
+    expect(() => report({ name: "backend", status: "running", setupComplete: true })).not.toThrow();
+  });
+
+  it("appends pushed logs into the structured store read by getComponentLogs", () => {
+    seedBench();
+    const log = benchManager.buildReportLog("test-project", 1, "backend");
+
+    log({ source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" });
+    log({ source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" });
+
+    expect(benchManager.getComponentLogs("test-project", 1, "backend")).toEqual([
+      { source: "stdout", text: "listening on 5000", ts: "2026-06-21T00:00:00.000Z" },
+      { source: "stderr", text: "warn: slow", ts: "2026-06-21T00:00:01.000Z" },
+    ]);
   });
 });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "react-aria-components";
 import { Copy, Eraser } from "lucide-react";
+import type { ComponentLogLine } from "@roubo/shared";
 import { fetchComponentLogs } from "../lib/api";
 
 export default function LogStream({
@@ -12,9 +13,9 @@ export default function LogStream({
   benchId: number;
   component: string;
 }) {
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<ComponentLogLine[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastLogsRef = useRef<string[]>([]);
+  const lastLogsRef = useRef<ComponentLogLine[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -23,9 +24,12 @@ export default function LogStream({
         const res = await fetchComponentLogs(projectId, benchId, component);
         if (active) {
           const prev = lastLogsRef.current;
+          const lastNew = res.logs[res.logs.length - 1];
+          const lastPrev = prev[prev.length - 1];
           if (
             res.logs.length !== prev.length ||
-            res.logs[res.logs.length - 1] !== prev[prev.length - 1]
+            lastNew?.text !== lastPrev?.text ||
+            lastNew?.ts !== lastPrev?.ts
           ) {
             lastLogsRef.current = res.logs;
             setLogs(res.logs);
@@ -49,7 +53,7 @@ export default function LogStream({
   }, [logs]);
 
   const copy = useCallback(() => {
-    navigator.clipboard.writeText(logs.join("\n"));
+    navigator.clipboard.writeText(logs.map((line) => line.text).join("\n"));
   }, [logs]);
 
   return (
@@ -76,8 +80,13 @@ export default function LogStream({
           <span className="text-stone-600 italic">Waiting for output...</span>
         ) : (
           logs.map((line, i) => (
-            <div key={i} className="whitespace-pre-wrap break-all hover:bg-white/[0.02]">
-              {line}
+            <div
+              key={i}
+              className={`whitespace-pre-wrap break-all hover:bg-white/[0.02] ${
+                line.source === "stderr" ? "text-red-400/70" : ""
+              }`}
+            >
+              {line.text}
             </div>
           ))
         )}

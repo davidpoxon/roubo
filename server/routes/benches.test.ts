@@ -730,24 +730,36 @@ describe("POST /:projectId/benches/:id/components/:name/stop", () => {
 });
 
 describe("GET /:projectId/benches/:id/components/:name/logs", () => {
-  it("returns logs with default tail of 200", async () => {
-    const logs = Array.from({ length: 200 }, (_, i) => `line ${i + 51}`);
+  it("returns structured logs with default tail of 200", async () => {
+    const logs = Array.from({ length: 200 }, (_, i) => ({
+      source: "stdout" as const,
+      text: `line ${i + 51}`,
+      ts: new Date(i).toISOString(),
+    }));
     vi.mocked(benchManager.getComponentLogs).mockReturnValue(logs);
 
     const res = await request(app).get("/my-project/benches/1/components/backend/logs");
     expect(res.status).toBe(200);
     expect(res.body.logs).toHaveLength(200);
-    expect(res.body.logs[0]).toBe("line 51");
+    // Each element is a { source, text, ts } object (FR-014 parity shape).
+    expect(res.body.logs[0]).toEqual({
+      source: "stdout",
+      text: "line 51",
+      ts: new Date(0).toISOString(),
+    });
     expect(benchManager.getComponentLogs).toHaveBeenCalledWith("my-project", 1, "backend", 200);
   });
 
   it("returns logs with custom tail query param", async () => {
-    const logs = ["line 4", "line 5"];
+    const logs = [
+      { source: "stdout" as const, text: "line 4", ts: "2026-06-21T00:00:00.000Z" },
+      { source: "stderr" as const, text: "line 5", ts: "2026-06-21T00:00:01.000Z" },
+    ];
     vi.mocked(benchManager.getComponentLogs).mockReturnValue(logs);
 
     const res = await request(app).get("/my-project/benches/1/components/backend/logs?tail=2");
     expect(res.status).toBe(200);
-    expect(res.body.logs).toEqual(["line 4", "line 5"]);
+    expect(res.body.logs).toEqual(logs);
     expect(benchManager.getComponentLogs).toHaveBeenCalledWith("my-project", 1, "backend", 2);
   });
 });

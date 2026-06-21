@@ -185,6 +185,27 @@ describe("log capture", () => {
     expect(logs).toEqual(["stdout line 1", "stdout line 2", "stderr line 1"]);
   });
 
+  it("exposes structured lines with source and ts via getProcessLogLines", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { startProcess, getProcessLogLines } = await loadModule();
+
+    startProcess("structured-test", "node", ["app.js"], {}, "/cwd");
+
+    child.stdout?.emit("data", Buffer.from("out\n"));
+    child.stderr?.emit("data", Buffer.from("err\n"));
+
+    const lines = getProcessLogLines("structured-test");
+    expect(lines.map((l) => ({ source: l.source, text: l.text }))).toEqual([
+      { source: "stdout", text: "out" },
+      { source: "stderr", text: "err" },
+    ]);
+    // Every line carries a parseable ISO timestamp.
+    for (const line of lines) {
+      expect(Number.isNaN(Date.parse(line.ts))).toBe(false);
+    }
+  });
+
   it("rotates logs at MAX_LOG_LINES (5000)", async () => {
     const child = createMockChild();
     mockSpawn.mockReturnValue(child);
