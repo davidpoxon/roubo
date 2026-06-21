@@ -121,6 +121,7 @@ function writeFixtureRouboYaml(
   projectId: string,
   repo?: string,
   portBase: number = FIXTURE_DEFAULT_PORT_BASE,
+  componentPlugin: string | null = null,
 ): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
@@ -129,6 +130,17 @@ function writeFixtureRouboYaml(
   // non-empty repo set and the Configure modal's derived-sources preview renders
   // its success state instead of the "could not see this repository" fallback.
   const repoLine = repo ? `\n  repo: ${repo}` : "";
+  // CP-TC-028 (#626): bind a `deploy` component to the requested imperative
+  // component plugin (e.g. `clasp-deploy-stub`). The component carries no
+  // config (the stub's start hook needs none); the binding alone makes the
+  // bench's `deploy` component resolve to the plugin via the component registry.
+  const deployComponent = componentPlugin
+    ? `
+  deploy:
+    plugin:
+      id: ${componentPlugin}
+    config: {}`
+    : "";
   const yaml = `project:
   name: ${projectId}
   displayName: Roubo E2E Fixture
@@ -140,7 +152,7 @@ components:
     plugin:
       id: process
     config:
-      command: "true"
+      command: "true"${deployComponent}
 ports:
   app:
     base: ${portBase}
@@ -515,6 +527,11 @@ interface RegisterFixtureBody {
   // branchFromDefault/pullLatest both false) so it does not require an `origin`
   // remote the throwaway repo does not have.
   gitInit?: unknown;
+  // CP-TC-028 (#626): optional id of a component plugin to bind a `deploy`
+  // component to in the fixture roubo.yaml (in addition to the default `app`
+  // process component). Lets the component-deploy e2e drive a bench whose
+  // `deploy` component resolves to the imperative `clasp-deploy-stub` plugin.
+  componentPlugin?: unknown;
 }
 
 interface SeedBenchInput {
@@ -538,6 +555,9 @@ interface ParsedRegisterFixture {
   seedBenches: SeedBenchInput[];
   seedSpecs: SeedSpecInput[];
   gitInit: boolean;
+  // CP-TC-028 (#626): id of the component plugin bound to a `deploy` component,
+  // or null when the fixture project keeps only the default `app` component.
+  componentPlugin: string | null;
 }
 
 // TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
@@ -674,6 +694,16 @@ function parseRegisterFixtureBody(
     if (typeof body.gitInit !== "boolean") return "gitInit must be a boolean when provided";
     gitInit = body.gitInit;
   }
+  let componentPlugin: string | null = null;
+  if (body?.componentPlugin !== undefined) {
+    if (
+      typeof body.componentPlugin !== "string" ||
+      !FIXTURE_PROJECT_ID_RE.test(body.componentPlugin)
+    ) {
+      return "componentPlugin must be a kebab-case string matching /^[a-z][a-z0-9-]*$/ when provided";
+    }
+    componentPlugin = body.componentPlugin;
+  }
   return {
     projectId: projectIdRaw,
     plugin,
@@ -683,6 +713,7 @@ function parseRegisterFixtureBody(
     seedBenches,
     seedSpecs,
     gitInit,
+    componentPlugin,
   };
 }
 
@@ -735,6 +766,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     seedBenches,
     seedSpecs,
     gitInit,
+    componentPlugin,
   } = parsed;
 
   if (fixtureProjects.has(projectId)) {
@@ -751,7 +783,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
 
   const seededWorkspacePaths: string[] = [];
   try {
-    writeFixtureRouboYaml(repoPath, projectId, projectRepo, portBase);
+    writeFixtureRouboYaml(repoPath, projectId, projectRepo, portBase, componentPlugin);
     // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both
     // to spec discovery (which reads the repo root) and to the provisioned

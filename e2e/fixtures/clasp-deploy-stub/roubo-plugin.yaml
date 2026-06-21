@@ -1,0 +1,29 @@
+id: clasp-deploy-stub
+name: Clasp Deploy Stub
+version: 0.1.0
+description: Deterministic imperative component plugin used by the Roubo E2E harness to drive the CP-TC-028 deploy journey end to end. Not for production.
+kind: component
+roubo: ^1.0.0
+entry: ./dist/index.js
+contractVersion: 1
+descriptorSchemaVersion: 1
+configSchema:
+  type: object
+  properties: {}
+# CP-TC-028 declares `permissions: { processes: true, network: true }`. The
+# manifest schema models each category as an object (a category counts as
+# "declared" only when it requests something), so `processes` and `network`
+# are declared in the object form the schema validates. The two declared
+# categories drive the consent gate: the e2e spec POSTs
+# `acknowledgedCategories: ["network", "processes"]` (CP-FR-011 / CP-FR-012).
+permissions:
+  network:
+    hosts:
+      - "*"
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes:
+    executables:
+      - echo

@@ -85,8 +85,16 @@ test("third-party plugins grid wraps through 1/2/3/4 columns and Settings wrappe
   await expect(grid).toBeVisible();
   // Anchor on the rendered card count so we only assert layout once the five
   // stub cards have hydrated; otherwise an empty grid at 600px would still
-  // report a single column for the wrong reason.
-  await expect(grid.locator("> *")).toHaveCount(STUB_PLUGIN_IDS.length);
+  // report a single column for the wrong reason. Scope the anchor to the five
+  // stub cards by `data-plugin-id` rather than the raw child count: other
+  // user-dir fixtures discovered under ROUBO_USER_PLUGINS_DIR (e.g. the
+  // CP-TC-028 `clasp-deploy-stub` component plugin) also render in this grid,
+  // so counting `> *` would over-count. The CSS-Grid wrap math below reads the
+  // computed `grid-template-columns` and is independent of the card count.
+  const stubCards = grid.locator(
+    STUB_PLUGIN_IDS.map((id) => `[data-plugin-id="${id}"]`).join(", "),
+  );
+  await expect(stubCards).toHaveCount(STUB_PLUGIN_IDS.length);
 
   const settingsWrapper = page.locator("main > div.p-8.w-full").first();
   await expect(settingsWrapper).toBeVisible();

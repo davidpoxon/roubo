@@ -40,6 +40,12 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 //     pins the stubbed plugin to a dedicated scenario + frozen-now.
 //   - e2e-alerts: same built-app surface, holds the per-category
 //     test-connection spec (TC-167 alerts scope-missing result strip).
+//   - component-plugins: same built-app surface, holds the CP-TC-028 (#626)
+//     component-plugin deploy-journey drift guard. Relies on the
+//     `clasp-deploy-stub` imperative component plugin fixture being present
+//     and built under e2e/fixtures/ so plugin-manager discovers it via
+//     ROUBO_USER_PLUGINS_DIR, and on `/test/__register-fixture-project`'s
+//     `componentPlugin` option to bind a `deploy` component to it.
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
@@ -109,6 +115,11 @@ export default defineConfig({
     {
       name: "plugin-lifecycle",
       testMatch: ["plugin-lifecycle/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "component-plugins",
+      testMatch: ["component-plugins/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],

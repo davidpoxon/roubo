@@ -41,6 +41,7 @@ export default defineConfig({
       "plugin-sdk/src/**/*.test.ts",
       "plugins/**/src/**/*.test.ts",
       "e2e/fixtures/stubbed-plugin/src/**/*.test.ts",
+      "e2e/fixtures/clasp-deploy-stub/src/**/*.test.ts",
     ],
     environmentMatchGlobs: [["client/src/**", "jsdom"]],
     setupFiles: ["./client/src/test/setup.ts"],

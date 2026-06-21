@@ -739,6 +739,52 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
+  // CP-TC-028 (#626): an optional `componentPlugin` binds a `deploy` component
+  // to the named component plugin in the generated roubo.yaml, alongside the
+  // default `app` process component. The component-plugin e2e drift guard uses
+  // this to register a project whose `deploy` component resolves to the
+  // imperative `clasp-deploy-stub` plugin.
+  it("binds a deploy component to the componentPlugin in the fixture roubo.yaml", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-deploy", componentPlugin: "clasp-deploy-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^\s{2}deploy:$/m);
+    expect(yaml).toMatch(/^\s{6}id: clasp-deploy-stub$/m);
+  });
+
+  it("omits the deploy component when componentPlugin is not provided", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-no-deploy", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).not.toMatch(/^\s{2}deploy:$/m);
+  });
+
+  it("returns 400 when componentPlugin is not kebab-case", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-bad-component", componentPlugin: "Bad_Id" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/componentPlugin/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
   // CLI-TC-062 (#573): an optional `portBase` lets a spec that registers two
   // fixture projects at once give each a non-overlapping port range so the
   // allocator does not reject the second one.
