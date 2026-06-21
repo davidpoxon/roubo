@@ -27,8 +27,10 @@ layout:
   type: single-repo
 components:
   app:
-    type: process
-    command: "echo noop"
+    plugin:
+      id: process
+    config:
+      command: "echo noop"
 ports:
   app:
     base: 4910
@@ -53,8 +55,10 @@ layout:
   type: single-repo
 components:
   app:
-    type: process
-    command: "echo noop"
+    plugin:
+      id: process
+    config:
+      command: "echo noop"
 ports:
   app:
     base: 4910

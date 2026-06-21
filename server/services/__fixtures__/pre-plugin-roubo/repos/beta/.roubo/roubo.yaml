@@ -7,8 +7,10 @@ layout:
   type: single-repo
 components:
   api:
-    type: process
-    command: npm run server
+    plugin:
+      id: process
+    config:
+      command: npm run server
 ports:
   api:
     base: 5000

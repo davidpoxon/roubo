@@ -680,7 +680,7 @@ describe("RouboConfigSchema non-regression", () => {
         repo: "org/test-project",
       },
       layout: { type: "single-repo" },
-      components: { backend: { type: "process", command: "dotnet run" } },
+      components: { backend: { plugin: { id: "process" }, config: { command: "dotnet run" } } },
       ports: { backend: { base: 5000 } },
       benches: { max: 5 },
     });

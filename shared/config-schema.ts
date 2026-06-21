@@ -60,13 +60,12 @@ export const ConnectionConfigSchema = z
   .strict();
 export type ConnectionConfig = z.infer<typeof ConnectionConfigSchema>;
 
-// Minimal component-to-plugin binding (issue #608, FR-010). A component may
-// bind to a `component`-kind plugin instead of (or alongside) the legacy
-// `type`. The host's ComponentPluginRegistry reads `plugin.id` to resolve the
-// live JSON-RPC connection. This is the minimal binding shape the registry
-// needs; the full roubo.yaml component redesign (the opaque per-plugin `config`
-// block and the removal of the legacy `type` + inline docker/migration fields)
-// is deferred to T1.8 and is out of scope here.
+// Component-to-plugin binding reference (issue #608, FR-010). This is the
+// plugin REFERENCE: a component points at a `component`-kind plugin by `id`
+// (with an optional `source`). The host's ComponentPluginRegistry reads
+// `plugin.id` off the parsed component to resolve the live JSON-RPC connection.
+// This is the reference shape; the full components-map ENTRY (the opaque
+// per-plugin `config` block + `dependsOn`) is `ComponentConfigSchema` below.
 export const ComponentBindingSchema = z
   .object({
     id: z.string().min(1, "Required"),
@@ -75,45 +74,74 @@ export const ComponentBindingSchema = z
   .strict();
 export type ComponentBinding = z.infer<typeof ComponentBindingSchema>;
 
+// ── Components-map entry (FR-003 / #609): the canonical component binding ──
+//
+// A component binds to a component plugin (`plugin: { id, source? }`) plus an
+// opaque `config` block the plugin's own manifest `configSchema` validates
+// (host-side, see `validateComponentBindings`). `config` is opaque to core,
+// exactly like the integration `advanced` block above. `dependsOn` stays at the
+// entry level so start/stop ordering (FR-003) is preserved without reaching
+// into the plugin-owned config. The two-value `type: database|process` enum and
+// the inline docker/process fields are intentionally gone from this schema
+// (NFR-005: no config back-compat). The legacy inline fields survive only on
+// the TS `ComponentConfig` type as a transition shim (see below): core
+// consumers (bench-manager, config-parser) and the setup wizard still read
+// `.type` / `.docker` / `.command` etc. off a parsed component until that
+// behavioural dispatch moves onto the plugin contract in #612 (F1.11) and the
+// live-config migration of #614 (F1.13); both are out of scope for #609. Do NOT
+// grow new behaviour onto this shim: new component behaviour rides the plugin
+// contract.
 export const ComponentConfigSchema = z
   .object({
-    // `type` is the legacy built-in discriminator. It is optional once a
-    // component binds to a plugin (a plugin-bound component carries `plugin`
-    // instead); a component with neither `type` nor `plugin` is rejected.
-    type: z.enum(["database", "process"]).optional(),
-    // Component-to-plugin binding the ComponentPluginRegistry resolves (#608).
-    plugin: ComponentBindingSchema.optional(),
+    plugin: ComponentBindingSchema,
+    // Opaque to roubo-core; validated against the bound plugin's configSchema
+    // by `validateComponentBindings` once the component plugin manifests load.
+    config: z.record(z.string(), z.unknown()).default({}),
     dependsOn: z.array(z.string()).optional(),
-    command: z.string().optional(),
-    setup: z.string().optional(),
-    docker: DockerComponentConfigSchema.optional(),
-    migration: MigrationConfigSchema.optional(),
-    connection: ConnectionConfigSchema.optional(),
-    env: z.record(z.string(), z.string()).optional(),
-    directory: z.string().optional(),
-    envFile: z.string().optional(),
-    envVars: z.record(z.string(), z.string()).optional(),
-    image: z.string().optional(),
   })
-  .strict()
-  .superRefine((val, ctx) => {
-    if (!val.type && !val.plugin) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["type"],
-        message: "A component must declare either a `type` or a `plugin` binding",
-      });
-    }
-    if (val.type === "process" && !val.command) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["command"],
-        message: "Required for process components",
-      });
-    }
-  });
+  .strict();
+
+// The legacy two-value component discriminator. The `type` enum is GONE from
+// the zod schema (#609); this type is retained ONLY for the transition shim so
+// the setup wizard and repo-scanner keep type-checking while their legacy
+// inline-component editing/scanning is ported to the plugin contract (#612 /
+// #614, out of scope here).
 export type ComponentType = "database" | "process";
-export type ComponentConfig = z.infer<typeof ComponentConfigSchema>;
+
+// The optional legacy inline component descriptor. These fields are NOT in the
+// zod schema (it is `.strict()` to the new binding shape) and are never
+// populated at parse time once configs migrate; they exist purely as a TS
+// transition shim for core consumers (bench-manager, config-parser) and the
+// setup wizard, which still read `.type` / `.docker` / `.command` etc. off a
+// parsed component until #612 (F1.11) moves that dispatch onto the plugin
+// contract and #614 (F1.13) migrates the live configs.
+export interface LegacyComponentInline {
+  type?: ComponentType;
+  command?: string;
+  setup?: string;
+  docker?: DockerComponentConfig;
+  migration?: MigrationConfig;
+  connection?: ConnectionConfig;
+  env?: Record<string, string>;
+  directory?: string;
+  envFile?: string;
+  envVars?: Record<string, string>;
+  image?: string;
+}
+
+// The components-map entry TS type. `plugin` + `config` + `dependsOn` are the
+// canonical binding fields the zod `ComponentConfigSchema` validates; they are
+// typed loosely here (plugin/config optional) so the #609-deferred consumers
+// and the live-config migration (#614, F1.13) keep type-checking against
+// pre-migration fixtures and in-progress wizard drafts during the transition.
+// The legacy inline fields ride alongside as the transition shim described
+// above. The zod schema never populates the legacy keys, so they are
+// `undefined` at runtime once configs migrate.
+export type ComponentConfig = {
+  plugin?: ComponentBinding;
+  config?: Record<string, unknown>;
+  dependsOn?: string[];
+} & LegacyComponentInline;
 
 export const PortConfigSchema = z
   .object({
@@ -369,9 +397,13 @@ export const RouboConfigSchema = z
       });
     }
   });
-// Use the flat ToolConfig type for the tools field so callers don't need to narrow the discriminated union.
-export type RouboConfig = Omit<z.infer<typeof RouboConfigSchema>, "tools"> & {
+// Use the flat ToolConfig type for the tools field so callers don't need to
+// narrow the discriminated union. `components` is widened to `ComponentConfig`
+// (the binding fields + the legacy inline-descriptor shim) so #609-deferred
+// consumers (#612 / #614) keep type-checking against `.docker` / `.type` etc.
+export type RouboConfig = Omit<z.infer<typeof RouboConfigSchema>, "tools" | "components"> & {
   tools?: ToolConfig[];
+  components: Record<string, ComponentConfig>;
 };
 
 // ── Helpers ──

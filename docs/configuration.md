@@ -78,66 +78,54 @@ The processes and containers that make up a bench. Each key is the component nam
 ```yaml
 components:
   database:
-    type: database
-    docker:
+    plugin:
+      id: database
+    config:
       composeFile: docker/db.yml
       service: mssql
       portEnvVar: MSSQL_PORT
-    connection:
-      template: "Server=localhost,{{ports.database}};Database=app;User=sa;Password=..."
-    migration:
-      command: dotnet ef database update --project src/Migrations
+      connection:
+        template: "Server=localhost,{{ports.database}};Database=app;User=sa;Password=..."
+      migration:
+        command: dotnet ef database update --project src/Migrations
   backend:
-    type: process
-    command: dotnet run --project src/Api/Api.csproj
+    plugin:
+      id: process
+    config:
+      command: dotnet run --project src/Api/Api.csproj
+      setup: dotnet restore
+      env:
+        ASPNETCORE_URLS: "http://localhost:{{ports.backend}}"
+        ConnectionStrings__Default: "{{connection.database}}"
     dependsOn: [database]
-    setup: dotnet restore
-    env:
-      ASPNETCORE_URLS: "http://localhost:{{ports.backend}}"
-      ConnectionStrings__Default: "{{connection.database}}"
   frontend:
-    type: process
-    command: npm run dev
-    directory: client
+    plugin:
+      id: process
+    config:
+      command: npm run dev
+      directory: client
+      env:
+        VITE_PORT: "{{ports.frontend}}"
+        VITE_API_URL: "http://localhost:{{ports.backend}}"
     dependsOn: [backend]
-    env:
-      VITE_PORT: "{{ports.frontend}}"
-      VITE_API_URL: "http://localhost:{{ports.backend}}"
 ```
 
-### Fields common to both component types
+### Component binding fields
 
-| Field       | Type   | Notes                                                                    |
-| ----------- | ------ | ------------------------------------------------------------------------ |
-| `type`      | enum   | **Required.** `process` or `database`.                                   |
-| `dependsOn` | array  | Component names that must be running before this one starts.             |
-| `setup`     | string | Command run once before the component starts (e.g. `npm ci`).            |
-| `env`       | object | Environment variables. Values support template substitution (see below). |
-| `directory` | string | Working directory, relative to the workspace.                            |
-| `envFile`   | string | Path to a file to load additional env from.                              |
+Each component binds to a component plugin and hands it an opaque config block.
 
-### `type: process` fields
+| Field           | Required | Notes                                                                                                                                                                                  |
+| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plugin.id`     | yes      | The component plugin's manifest id (for example `process` or `database`).                                                                                                              |
+| `plugin.source` | no       | Where the plugin is loaded from (a git URL or path). Omit to use a bundled or already-installed plugin.                                                                                |
+| `config`        | no       | A plugin-owned config block. Its shape is defined and validated by the bound plugin's own `configSchema`; Roubo treats it as opaque and passes it through unchanged. Defaults to `{}`. |
+| `dependsOn`     | no       | Component names that must be running before this one starts. It lives on the binding, not inside `config`, so start and stop ordering is independent of the plugin.                    |
 
-| Field     | Required | Notes                                        |
-| --------- | -------- | -------------------------------------------- |
-| `command` | yes      | The command Roubo runs to start the process. |
-
-### `type: database` fields
-
-| Field                 | Required | Notes                                                                                                                         |
-| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `docker.composeFile`  | yes      | Path to a `docker-compose.yaml` in the repo.                                                                                  |
-| `docker.service`      | yes      | The service key inside the compose file Roubo should run.                                                                     |
-| `docker.initService`  | no       | An init/migration sidecar service to run before the main service.                                                             |
-| `docker.portEnvVar`   | no       | The env var name the compose file reads for the host port (so Roubo can override it per bench).                               |
-| `migration.command`   | no       | Migration command Roubo runs once the container reports healthy.                                                              |
-| `migration.args`      | no       | Optional argument array.                                                                                                      |
-| `connection.template` | no       | Connection string template (resolved with `{{ports.x}}`, etc.) made available to other components as `{{connection.<name>}}`. |
-| `image`               | no       | Pinned image override.                                                                                                        |
+The contents of `config` depend entirely on the bound plugin: a `process` plugin reads `command` / `setup` / `env` / `directory`, a `database` plugin reads `composeFile` / `service` / `migration` / `connection`, and so on. Roubo validates that `plugin.id` resolves to a loaded component plugin and that `config` satisfies that plugin's `configSchema`. A binding to an unknown plugin, or a `config` block the plugin rejects, fails validation with a clear, path-keyed error.
 
 ### Template substitution
 
-Any string value in `env`, `command`, `connection.template`, and tool URLs may reference:
+Any string value inside a component's `config` block, and in tool URLs, may reference:
 
 - `{{ports.<componentName>}}`: the resolved port for a component on the current bench.
 - `{{connection.<componentName>}}`: the resolved connection string for a database component.
@@ -334,19 +322,23 @@ layout:
   type: single-repo
 components:
   server:
-    type: process
-    command: npx tsx watch server/index.ts
-    env:
-      ROUBO_PORT: "{{ports.server}}"
+    plugin:
+      id: process
+    config:
+      command: npx tsx watch server/index.ts
+      env:
+        ROUBO_PORT: "{{ports.server}}"
   client:
-    type: process
-    command: npm run dev
-    directory: client
+    plugin:
+      id: process
+    config:
+      command: npm run dev
+      directory: client
+      env:
+        DEV_PORT: "{{ports.client}}"
+        DEV_API_PORT: "{{ports.server}}"
     dependsOn:
       - server
-    env:
-      DEV_PORT: "{{ports.client}}"
-      DEV_API_PORT: "{{ports.server}}"
 ports:
   server:
     base: 4100

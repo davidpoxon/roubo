@@ -197,21 +197,11 @@ function coerceEnvValues(raw: unknown): void {
   if (typeof raw !== "object" || raw === null) return;
   const config = raw as Record<string, unknown>;
 
-  if (config.components && typeof config.components === "object") {
-    for (const component of Object.values(
-      config.components as Record<string, Record<string, unknown>>,
-    )) {
-      for (const field of ["env", "envVars"] as const) {
-        if (component[field] && typeof component[field] === "object") {
-          const map = component[field] as Record<string, unknown>;
-          for (const k of Object.keys(map)) {
-            if (typeof map[k] !== "string") map[k] = String(map[k]);
-          }
-        }
-      }
-    }
-  }
-
+  // Component env vars used to live in inline `env` / `envVars` blocks that core
+  // coerced YAML scalars on. Those fields are gone from the components schema
+  // (#609): a component's env now lives inside its opaque, plugin-validated
+  // `config` block, so any scalar coercion there is the plugin's concern, not
+  // core's. Only `inspection.env` remains a core-owned string map.
   if (config.inspection && typeof config.inspection === "object") {
     const inspection = config.inspection as Record<string, unknown>;
     if (inspection.env && typeof inspection.env === "object") {

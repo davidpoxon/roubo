@@ -137,8 +137,10 @@ layout:
   type: single-repo
 components:
   app:
-    type: process
-    command: "true"
+    plugin:
+      id: process
+    config:
+      command: "true"
 ports:
   app:
     base: ${portBase}

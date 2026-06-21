@@ -123,9 +123,16 @@ describe("buildTemplateContext", () => {
     const config = makeConfig({
       ports: { backend: { base: 5000 }, frontend: { base: 3000 } },
       components: {
-        backend: { type: "process", command: "dotnet run --project src/Api/Api.csproj" },
+        backend: {
+          plugin: { id: "process" },
+          config: {},
+          command: "dotnet run --project src/Api/Api.csproj",
+        },
+        // `connection` is read off the binding via the #609 transition shim
+        // (#612 / F1.11 moves connection templating onto the plugin contract).
         db: {
-          type: "database",
+          plugin: { id: "database" },
+          config: {},
           connection: { template: "Server=localhost,{{ports.backend}}" },
         },
       },
@@ -313,8 +320,10 @@ describe("parseConfig", () => {
       "  type: single-repo",
       "components:",
       "  backend:",
-      "    type: process",
-      "    command: npm run dev",
+      "    plugin:",
+      "      id: process",
+      "    config:",
+      "      command: npm run dev",
       "ports:",
       "  backend:",
       "    base: 5000",
@@ -330,8 +339,10 @@ describe("parseConfig", () => {
     expect(result.config.project).not.toHaveProperty("type");
   });
 
-  it("coerces numeric env values to strings", () => {
-    // yaml.load parses unquoted 1433 as a number: coercion must fix this before validation
+  it("parses a component binding and leaves its opaque config block untouched", () => {
+    // The components map is now a plugin binding (#609). The `config` block is
+    // opaque to roubo-core: roubo does not coerce or reshape its values (YAML
+    // scalar handling inside it is the plugin's concern), it round-trips as-is.
     const yamlContent = [
       "project:",
       "  name: test-project",
@@ -342,10 +353,11 @@ describe("parseConfig", () => {
       "  type: single-repo",
       "components:",
       "  db:",
-      "    type: database",
-      "    env:",
-      "      MSSQL_PORT: 1433",
-      "      SA_PASSWORD: secret",
+      "    plugin:",
+      "      id: database",
+      "    config:",
+      "      port: 1433",
+      "      tls: true",
       "ports:",
       "  db:",
       "    base: 5000",
@@ -357,29 +369,29 @@ describe("parseConfig", () => {
     const result = parseConfig("/some/repo");
     expect(result.valid).toBe(true);
     if (!result.config) throw new Error("expected config");
-    expect(result.config.components.db.env?.MSSQL_PORT).toBe("1433");
-    expect(result.config.components.db.env?.SA_PASSWORD).toBe("secret");
+    expect(result.config.components.db.plugin?.id).toBe("database");
+    // Opaque: numeric / boolean YAML scalars survive untouched (no coercion).
+    expect(result.config.components.db.config).toEqual({ port: 1433, tls: true });
   });
 
-  it("coerces boolean env values to strings", () => {
-    // yaml.load parses bare true/false as booleans: coercion must fix this before validation
+  it("parses a binding that carries a plugin source", () => {
     const yamlContent = [
       "project:",
       "  name: test-project",
       "  displayName: Test Project",
-      "  type: web",
       "  repo: org/test-project",
       "layout:",
       "  type: single-repo",
       "components:",
-      "  backend:",
-      "    type: process",
-      "    command: npm run dev",
-      "    envVars:",
-      "      DEBUG: true",
-      "      VERBOSE: false",
+      "  api:",
+      "    plugin:",
+      "      id: process",
+      "      source: git@github.com:acme/roubo-process-plugin.git",
+      "    config:",
+      "      command: npm run dev",
+      "    dependsOn: [db]",
       "ports:",
-      "  backend:",
+      "  api:",
       "    base: 5000",
       "benches:",
       "  max: 5",
@@ -389,8 +401,10 @@ describe("parseConfig", () => {
     const result = parseConfig("/some/repo");
     expect(result.valid).toBe(true);
     if (!result.config) throw new Error("expected config");
-    expect(result.config.components.backend.envVars?.DEBUG).toBe("true");
-    expect(result.config.components.backend.envVars?.VERBOSE).toBe("false");
+    expect(result.config.components.api.plugin?.source).toBe(
+      "git@github.com:acme/roubo-process-plugin.git",
+    );
+    expect(result.config.components.api.dependsOn).toEqual(["db"]);
   });
 
   it("coerces testing.env numeric values to strings", () => {
@@ -404,8 +418,10 @@ describe("parseConfig", () => {
       "  type: single-repo",
       "components:",
       "  backend:",
-      "    type: process",
-      "    command: npm run dev",
+      "    plugin:",
+      "      id: process",
+      "    config:",
+      "      command: npm run dev",
       "ports:",
       "  backend:",
       "    base: 5000",
@@ -439,8 +455,10 @@ describe("parseConfig", () => {
       "  type: single-repo",
       "components:",
       "  backend:",
-      "    type: process",
-      "    command: npm run dev",
+      "    plugin:",
+      "      id: process",
+      "    config:",
+      "      command: npm run dev",
       "ports:",
       "  backend:",
       "    base: 5000",
@@ -479,8 +497,10 @@ describe("parseConfig", () => {
       "  type: single-repo",
       "components:",
       "  backend:",
-      "    type: process",
-      "    command: npm run dev",
+      "    plugin:",
+      "      id: process",
+      "    config:",
+      "      command: npm run dev",
       "ports:",
       "  backend:",
       "    base: 5000",

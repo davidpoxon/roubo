@@ -37,59 +37,40 @@
     },
     "components": {
       "type": "object",
+      "description": "Each component binds to a component plugin plus an opaque config block the plugin's own configSchema validates (FR-003).",
       "additionalProperties": {
         "type": "object",
-        "required": ["type"],
-        "if": { "properties": { "type": { "const": "process" } }, "required": ["type"] },
-        "then": { "required": ["command"] },
+        "required": ["plugin"],
+        "additionalProperties": false,
         "properties": {
-          "type": { "type": "string", "enum": ["database", "process"] },
+          "plugin": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "description": "Reference to the component plugin this component binds to.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The component plugin's manifest id."
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional source (e.g. git URL or path) the plugin is loaded from."
+              }
+            }
+          },
+          "config": {
+            "type": "object",
+            "description": "Plugin-defined, opaque-to-roubo config block, validated against the bound plugin's manifest configSchema.",
+            "additionalProperties": true
+          },
           "dependsOn": {
             "type": "array",
             "items": { "type": "string" },
             "description": "Names of components that must be started before this one"
-          },
-          "command": {
-            "type": "string",
-            "description": "Command to run for process components (e.g. dotnet run --project src/Api/Api.csproj)"
-          },
-          "setup": {
-            "type": "string",
-            "description": "Command to run before starting the component (e.g. npm ci, dotnet restore)"
-          },
-          "docker": {
-            "type": "object",
-            "required": ["composeFile", "service"],
-            "additionalProperties": false,
-            "properties": {
-              "composeFile": { "type": "string" },
-              "service": { "type": "string" },
-              "initService": { "type": "string" },
-              "portEnvVar": { "type": "string" }
-            }
-          },
-          "migration": {
-            "type": "object",
-            "required": ["command"],
-            "additionalProperties": false,
-            "properties": {
-              "command": { "type": "string" },
-              "args": { "type": "array", "items": { "type": "string" } }
-            }
-          },
-          "connection": {
-            "type": "object",
-            "required": ["template"],
-            "additionalProperties": false,
-            "properties": {
-              "template": { "type": "string" }
-            }
-          },
-          "env": { "type": "object", "additionalProperties": { "type": "string" } },
-          "directory": { "type": "string" },
-          "envFile": { "type": "string" },
-          "envVars": { "type": "object", "additionalProperties": { "type": "string" } },
-          "image": { "type": "string" }
+          }
         }
       }
     },

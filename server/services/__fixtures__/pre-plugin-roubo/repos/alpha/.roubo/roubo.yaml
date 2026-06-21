@@ -9,8 +9,10 @@ layout:
   type: single-repo
 components:
   app:
-    type: process
-    command: npm start
+    plugin:
+      id: process
+    config:
+      command: npm start
 ports:
   app:
     base: 4000

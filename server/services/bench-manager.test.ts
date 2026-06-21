@@ -263,7 +263,23 @@ function setupExistingBench(overrides?: {
   config?: ReturnType<typeof makeConfig>;
   ports?: Record<string, number>;
 }) {
-  const config = overrides?.config ?? makeConfig();
+  // bench-manager still dispatches component start/stop off the legacy inline
+  // fields (`type` / `command` / `docker`); moving that onto the plugin contract
+  // is #612 (F1.11). Until then these behavioural tests need a backend that
+  // carries those fields, so the default carries them via the #609
+  // `ComponentBinding` transition shim alongside the canonical plugin binding.
+  const config =
+    overrides?.config ??
+    makeConfig({
+      components: {
+        backend: {
+          plugin: { id: "process" },
+          config: { command: "dotnet run --project src/Api/Api.csproj" },
+          type: "process",
+          command: "dotnet run --project src/Api/Api.csproj",
+        },
+      },
+    });
   const project = makeProject({ config });
   const ports = overrides?.ports ?? { backend: 5001 };
   vi.mocked(stateService.loadState).mockReturnValue({
