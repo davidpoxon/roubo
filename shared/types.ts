@@ -576,12 +576,41 @@ export interface BrokerPermissionDeniedData {
 }
 
 /**
+ * One record of a privileged HostComponentBroker call (FR-019, v2 audit). The
+ * AuditLog appends one entry per gated method invocation (host.process.*,
+ * host.docker.*, host.ports.get): `outcome` is "allowed" when the plugin held
+ * the permission category, "denied" when it did not. `params` captures the raw
+ * incoming arguments (recorded before per-param validation, so a denied or
+ * early-rejected call still has its params logged). The ungated
+ * host.component.report* and host.capability.query methods are not privileged
+ * and produce no entry.
+ */
+export interface AuditEntry {
+  /** ISO-8601 timestamp of when the call was recorded. */
+  ts: string;
+  /** The plugin that made the call. */
+  pluginId: string;
+  /** The bench the call was scoped to. */
+  benchId: number;
+  /** The broker method name (e.g. "host.process.start"). */
+  method: string;
+  /** The raw incoming params, captured before validation. */
+  params: unknown;
+  /** Whether the plugin held the required permission category. */
+  outcome: "allowed" | "denied";
+}
+
+/**
  * Per-bench data the HostComponentBroker needs to service a component plugin's
  * privileged calls. Injected at broker construction so handlers never reach into
  * globals: ports are pre-resolved host-side, status and log reporting are
  * push-based sinks, and the enforced permission check is supplied by the caller.
  */
 export interface BrokerContext {
+  /** The plugin this broker serves; stamped onto every audit entry. */
+  pluginId: string;
+  /** The bench this broker is scoped to; stamped onto every audit entry. */
+  benchId: number;
   /** Host-allocated ports for this bench, keyed by component name. */
   ports: Record<string, number>;
   /** Push sink invoked by `host.component.reportStatus`. */
@@ -594,6 +623,11 @@ export interface BrokerContext {
    * permission-denied error, before delegating to the host (F2.1, #618).
    */
   hasPermission: (category: BrokerPermissionCategory) => boolean;
+  /**
+   * Audit sink invoked for every privileged broker call (FR-019). Records the
+   * call's outcome (allowed or denied) into the AuditLog.
+   */
+  recordAudit: (entry: AuditEntry) => void;
   /** Records an externally-assigned container against a component. */
   assignContainer?: (componentName: string, containerId: string) => void;
 }

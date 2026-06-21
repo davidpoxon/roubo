@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ResponseError } from "vscode-jsonrpc/node.js";
-import type { BrokerContext, BrokerPermissionCategory, ComponentStatus } from "@roubo/shared";
+import type {
+  AuditEntry,
+  BrokerContext,
+  BrokerPermissionCategory,
+  ComponentStatus,
+} from "@roubo/shared";
 import {
   registerBrokerHandlers,
   BROKER_API_VERSION,
@@ -63,6 +68,8 @@ interface Harness {
   reportLog: ReturnType<typeof vi.fn>;
   assignContainer: ReturnType<typeof vi.fn>;
   hasPermission: ReturnType<typeof vi.fn>;
+  recordAudit: ReturnType<typeof vi.fn>;
+  audit: AuditEntry[];
   log: ReturnType<typeof vi.fn>;
   call: (method: string, params?: unknown) => Promise<unknown>;
 }
@@ -86,13 +93,20 @@ function setup(
   const hasPermission = vi.fn((category: BrokerPermissionCategory) =>
     opts.deny ? !denied.has(category) : (opts.allow ?? true),
   );
+  const audit: AuditEntry[] = [];
+  const recordAudit = vi.fn((entry: AuditEntry) => {
+    audit.push(entry);
+  });
   const log = vi.fn();
   const ctx: BrokerContext = {
+    pluginId: "plugin-under-test",
+    benchId: 7,
     ports: opts.ports ?? { web: 3001, db: 5433 },
     reportStatus,
     reportLog,
     assignContainer,
     hasPermission,
+    recordAudit,
   };
   registerBrokerHandlers(connection, ctx, { processManager: pm, docker, log });
   // Wrap in an async function so a handler's synchronous throw (validation
@@ -109,6 +123,8 @@ function setup(
     reportLog,
     assignContainer,
     hasPermission,
+    recordAudit,
+    audit,
     log,
     call,
   };
@@ -550,14 +566,110 @@ describe("default services binding", () => {
   it("uses the real process-manager / docker modules when no overrides are supplied", () => {
     const connection = makeConnection();
     const ctx: BrokerContext = {
+      pluginId: "p",
+      benchId: 1,
       ports: {},
       reportStatus: vi.fn(),
       reportLog: vi.fn(),
       hasPermission: () => true,
+      recordAudit: vi.fn(),
     };
     // Should register all handlers without throwing, binding default modules.
     expect(() => registerBrokerHandlers(connection, ctx)).not.toThrow();
     expect(connection.handlers.size).toBe(15);
+  });
+});
+
+describe("audit recording of privileged calls (CP-TC-070/093)", () => {
+  it("records an allowed entry for a gated process call with the raw params", async () => {
+    const h = setup({ allow: true });
+    const params = { id: "web", command: "node", args: ["server.js"], env: {}, cwd: "/work" };
+    await h.call("host.process.start", params);
+    expect(h.audit).toHaveLength(1);
+    expect(h.audit[0]).toMatchObject({
+      pluginId: "plugin-under-test",
+      benchId: 7,
+      method: "host.process.start",
+      params,
+      outcome: "allowed",
+    });
+    expect(typeof h.audit[0].ts).toBe("string");
+    expect(Number.isNaN(Date.parse(h.audit[0].ts))).toBe(false);
+  });
+
+  it("records a denied entry when the plugin lacks the permission category", async () => {
+    const h = setup({ allow: false });
+    // Enforcement (F2.1) throws permission-denied for a category the plugin did
+    // not declare; the audit entry is recorded BEFORE that throw, so the denied
+    // call still appears in the log with outcome "denied".
+    await expect(
+      h.call("host.docker.composeDown", {
+        projectName: "p",
+        composeFile: "c.yml",
+        cwd: "/work",
+      }),
+    ).rejects.toMatchObject({ code: -32001 });
+    expect(h.audit).toHaveLength(1);
+    expect(h.audit[0]).toMatchObject({
+      method: "host.docker.composeDown",
+      outcome: "denied",
+    });
+  });
+
+  it("captures the raw params on a denied call, recorded before validation runs", async () => {
+    const h = setup({ allow: false });
+    // The gate records the audit entry with the raw, unvalidated params and then
+    // throws permission-denied, before per-param validation. So even a call with
+    // missing params (no id) is logged with its raw params and outcome "denied".
+    await expect(h.call("host.process.stop", {})).rejects.toMatchObject({ code: -32001 });
+    expect(h.audit).toHaveLength(1);
+    expect(h.audit[0]).toMatchObject({
+      method: "host.process.stop",
+      params: {},
+      outcome: "denied",
+    });
+  });
+
+  it("records one entry per gated call across the process / docker / ports families", async () => {
+    const h = setup({ allow: true });
+    await h.call("host.process.run", {
+      id: "x",
+      command: "echo",
+      args: [],
+      env: {},
+      cwd: "/w",
+    });
+    await h.call("host.docker.composeUp", {
+      projectName: "p",
+      composeFile: "c.yml",
+      cwd: "/w",
+      service: "web",
+      env: {},
+    });
+    await h.call("host.ports.get", { componentName: "web" });
+    expect(h.audit.map((e) => e.method)).toEqual([
+      "host.process.run",
+      "host.docker.composeUp",
+      "host.ports.get",
+    ]);
+    expect(h.audit.every((e) => e.outcome === "allowed")).toBe(true);
+  });
+
+  it("does NOT record the ungated component.report* and capability.query methods", async () => {
+    const h = setup({ allow: true });
+    await h.call("host.component.reportStatus", {
+      name: "db",
+      status: "running",
+      setupComplete: true,
+    });
+    await h.call("host.component.reportLog", {
+      source: "stdout",
+      text: "hi",
+      ts: "2026-06-21T00:00:00Z",
+    });
+    await h.call("host.capability.query", { method: "host.docker.composeUp" });
+    expect(h.audit).toHaveLength(0);
+    expect(h.recordAudit).not.toHaveBeenCalled();
   });
 });
 
