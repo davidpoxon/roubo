@@ -156,6 +156,7 @@ describe("GET /:projectId/issues", () => {
         filters: { labels: ["bug", "feature"], search: "login" },
         sortBy: undefined,
         sortDir: undefined,
+        refresh: false,
       },
       // No live sort, so the route resolves the persisted sort once and threads
       // it in (a single getSortFields RPC serves both this and the snapshot key).
@@ -179,6 +180,7 @@ describe("GET /:projectId/issues", () => {
         filters: {},
         sortBy: undefined,
         sortDir: undefined,
+        refresh: false,
       },
       // No live sort: the route's resolved persisted sort is threaded through.
       { sortBy: undefined, sortDir: undefined },
@@ -201,6 +203,7 @@ describe("GET /:projectId/issues", () => {
         filters: {},
         sortBy: "created",
         sortDir: "asc",
+        refresh: false,
       },
       // A live sort wins, so the route passes no resolved persisted sort.
       undefined,
@@ -223,10 +226,41 @@ describe("GET /:projectId/issues", () => {
         filters: {},
         sortBy: "created",
         sortDir: undefined,
+        refresh: false,
       },
       // A live sortBy is present (only the direction was unrecognised), so the
       // route passes no resolved persisted sort.
       undefined,
+    );
+  });
+
+  it("parses refresh=true and folds it into the query input (#653)", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "miss",
+    });
+    await request(app).get("/p1/issues?refresh=true");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.anything(),
+      expect.objectContaining({ refresh: true }),
+      { sortBy: undefined, sortDir: undefined },
+    );
+  });
+
+  it("treats any non-'true' refresh value as false (#653)", async () => {
+    vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      cacheStatus: "miss",
+    });
+    await request(app).get("/p1/issues?refresh=1");
+    expect(cutListQueryService.queryFirstOrPage).toHaveBeenCalledWith(
+      "p1",
+      expect.anything(),
+      expect.objectContaining({ refresh: false }),
+      { sortBy: undefined, sortDir: undefined },
     );
   });
 

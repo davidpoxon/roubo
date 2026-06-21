@@ -529,6 +529,9 @@ export function fetchIssuesPage(
     search?: string;
     sortBy?: string;
     sortDir?: "asc" | "desc";
+    // One-shot force-refresh (#653): bypass the server's warm snapshot and pull
+    // current data. Set by the cut-list refresh control, not normal loads.
+    refresh?: boolean;
   },
 ): Promise<PaginatedIssues> {
   const params = new URLSearchParams();
@@ -540,6 +543,7 @@ export function fetchIssuesPage(
     params.set("sortBy", opts.sortBy);
     if (opts.sortDir) params.set("sortDir", opts.sortDir);
   }
+  if (opts.refresh) params.set("refresh", "true");
   const qs = params.toString();
   return request(`/projects/${projectId}/issues${qs ? `?${qs}` : ""}`);
 }

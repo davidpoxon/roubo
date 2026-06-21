@@ -26,7 +26,6 @@ import type { NormalizedIssue, RouboConfig } from "@roubo/shared";
 
 vi.mock("../hooks/useIssues", () => ({
   useIssues: vi.fn(),
-  useRefreshIssues: vi.fn(() => vi.fn()),
 }));
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
@@ -101,6 +100,7 @@ function warmResult(items: NormalizedIssue[]): ReturnType<typeof useIssues> {
     isRefetching: false,
     dataUpdatedAt: Date.now(),
     cacheStatus: "revalidating",
+    refresh: vi.fn(),
   } as ReturnType<typeof useIssues>;
 }
 

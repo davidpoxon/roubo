@@ -59,8 +59,14 @@ router.get("/:projectId/issues", async (req, res) => {
   const sortDir: "asc" | "desc" | undefined =
     req.query.sortDir === "desc" ? "desc" : req.query.sortDir === "asc" ? "asc" : undefined;
 
+  // One-shot force-refresh flag from the cut-list refresh control (#653). When
+  // true on a first-page request the query service bypasses the warm disk
+  // snapshot, fetches live, and persists the fresh result. The in-memory
+  // snapshot recording and errored/disabled fallback paths below are unchanged.
+  const refresh = req.query.refresh === "true";
+
   const isFirstPage = cursor === null;
-  const queryInput = { cursor, pageSize, filters, sortBy, sortDir };
+  const queryInput = { cursor, pageSize, filters, sortBy, sortDir, refresh };
 
   // Resolve the plugin-validated persisted sort once for the in-memory
   // fallback's `buildListParams` cache-key derivations below, so they match the

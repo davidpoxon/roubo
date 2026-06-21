@@ -376,6 +376,74 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
   });
 });
 
+// #653: an explicit refresh is a request for current data, so on a first-page
+// request it must bypass the warm disk-serve, run the live RPC synchronously,
+// persist the fresh result (keeping the cache warm with current data), and
+// report `miss`. Normal loads keep stale-while-revalidate.
+describe("queryFirstOrPage force-refresh (#653)", () => {
+  it("on a warm snapshot, refresh=true skips the warm-serve, fetches live, and reports miss", async () => {
+    const input = { cursor: null, pageSize: 50, filters: {} };
+    // First call populates the disk snapshot with the stale item.
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "stale" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    // The live RPC now returns fresher data (the stale item is gone).
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "fresh" })],
+      nextCursor: null,
+    });
+
+    const refreshed = await service.queryFirstOrPage("p1", active, { ...input, refresh: true });
+    // It ran the live RPC synchronously rather than serving the warm snapshot.
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+    expect(refreshed.cacheStatus).toBe("miss");
+    expect(refreshed.items.map((i) => i.externalId)).toEqual(["fresh"]);
+    // The warm-serve `revalidating` event must not fire on the force path.
+    expect(observed.some((e) => e.kind === "cache" && e.status === "revalidating")).toBe(false);
+    expect(observed.some((e) => e.kind === "cache" && e.status === "miss")).toBe(true);
+  });
+
+  it("persists the fresh result so a subsequent normal load warm-serves the fresh data", async () => {
+    const input = { cursor: null, pageSize: 50, filters: {} };
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "stale" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "fresh" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, { ...input, refresh: true });
+
+    // A following normal (non-refresh) load warm-serves the just-persisted fresh
+    // snapshot rather than the original stale one.
+    const next = await service.queryFirstOrPage("p1", active, input);
+    expect(next.cacheStatus).toBe("revalidating");
+    expect(next.items.map((i) => i.externalId)).toEqual(["fresh"]);
+  });
+
+  it("a normal load (refresh falsy) keeps stale-while-revalidate on a warm snapshot", async () => {
+    const input = { cursor: null, pageSize: 50, filters: {} };
+    vi.mocked(pluginManager.invoke).mockResolvedValue({
+      items: [makeIssue({ externalId: "cached" })],
+      nextCursor: null,
+    });
+    await service.queryFirstOrPage("p1", active, input);
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(1);
+
+    // Without the flag the warm snapshot is served synchronously (revalidating).
+    const second = await service.queryFirstOrPage("p1", active, { ...input, refresh: false });
+    expect(second.cacheStatus).toBe("revalidating");
+    expect(second.items.map((i) => i.externalId)).toEqual(["cached"]);
+  });
+});
+
 // #568: the runtime bypass toggle the ROUBO_E2E-gated
 // `/test/__set-cut-list-disk-cache` route drives so the warm-snapshot journey
 // (CLI-TC-017) can reach the disk path the harness bypasses by default, and the

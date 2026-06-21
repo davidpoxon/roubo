@@ -38,6 +38,17 @@ export interface QueryFirstOrPageInput {
    */
   sortBy?: string;
   sortDir?: "asc" | "desc";
+  /**
+   * A one-shot force-refresh request from the cut-list refresh control (#653).
+   * When true on a first-page request the warm disk snapshot is NOT served:
+   * the live `listIssues` RPC runs synchronously, its fresh result is persisted
+   * back to the disk snapshot (keeping the cache warm with current data), and
+   * the response reports `cacheStatus: "miss"`. This is what makes an explicit
+   * refresh actually pull current data (closed items drop, newly-unblocked
+   * items appear) instead of re-serving the stale warm snapshot. Normal
+   * (non-refresh) loads keep the stale-while-revalidate behaviour unchanged.
+   */
+  refresh?: boolean;
 }
 
 /** A resolved sort selection (field id + direction), or natural order when both are undefined. */
@@ -296,6 +307,17 @@ export class CutListQueryService {
 
     if (isFirstPage && healthy && !this.bypassDisk) {
       const key = this.buildKey(projectId, active.pluginId, params);
+      // Force-refresh (#653): an explicit refresh is a request for current
+      // data, so skip the warm-serve entirely. Run the live RPC synchronously,
+      // persist the fresh result so the cache stays warm with current data, and
+      // report a `miss`. The disk snapshot is never read on this path, so a
+      // stale snapshot can never shadow the fresh fetch.
+      if (input.refresh) {
+        const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
+        this.disk.put(key, this.toPersistable(result));
+        this.observe({ kind: "cache", status: "miss", pluginId: active.pluginId, projectId });
+        return { ...result, cacheStatus: "miss" };
+      }
       const cached = this.disk.get(key);
       if (cached) {
         // Stale-while-revalidate (FR-002): serve the warm snapshot immediately
