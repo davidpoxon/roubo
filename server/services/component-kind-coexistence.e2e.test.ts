@@ -15,8 +15,12 @@
  *         integration plugin's standard RPC flow with no component-kind error.
  *   S003  POST /api/plugins/github-com/oauth/{authorize,exchange} respond
  *         correctly with no component-kind-introduced errors.
- *   S004  the integration plugin's registered JSON-RPC method list excludes
- *         component.translate, component.start, and every host.docker.* method.
+ *   S004  no component-kind broker surface is injected into the integration
+ *         plugin's RPC namespace, asserted against the real wiring: the host
+ *         calls component.translate / component.start on the plugin (its true
+ *         served registry) and the plugin probes host.docker.* / host.process.*
+ *         back to the host (the real broker injection path); both yield
+ *         MethodNotFound, with positive controls proving the probe is live.
  *
  * FR-020 failure-output contract: every assertion runs through `expectStep`,
  * which on failure surfaces (1) the diverged e2e_flow step id, (2) the
@@ -429,11 +433,18 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
   });
 
   // --- S004 ----------------------------------------------------------------
-  it("S004: the integration plugin's registered JSON-RPC method list excludes component.* and host.docker.* broker methods", async () => {
+  it("S004: no component-kind broker methods are injected into the integration plugin's RPC namespace", async () => {
     sandbox = await makeSandbox(["github-com-e2e"]);
     const pluginManager = await import("./plugin-manager.js");
     pluginManager.__test.reset();
     await pluginManager.initialize();
+
+    // JSON-RPC "method not found" (the response when no handler is registered
+    // for a method on a connection). invoke() maps the numeric -32601 to the
+    // string "MethodNotFound" for host->plugin calls; the __probeHost helper
+    // reports the raw numeric code for plugin->host calls.
+    const METHOD_NOT_FOUND_CODE = -32601;
+    const METHOD_NOT_FOUND_STR = "MethodNotFound";
 
     try {
       await waitFor(() => {
@@ -441,37 +452,87 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
         return !!r && r.status === "enabled" && r.pid !== null;
       });
 
-      // Read the plugin's own registered method list over the live JSON-RPC
-      // connection. An integration plugin registers integration methods only;
-      // the component broker (component.*, host.docker.*) is wired by
-      // bench-manager onto component-kind connections, never onto an
-      // integration plugin's namespace.
-      const methods = await pluginManager.invoke<string[]>("github-com", "__methods", undefined);
+      // The S004 concern (AC-4) is that no component-kind broker surface leaks
+      // into an integration plugin's RPC namespace. That surface has two halves,
+      // each asserted against the REAL wiring (not a self-reported method list,
+      // which the plugin author controls and so cannot detect a host-side leak):
+      //
+      //   1. component.* are PLUGIN-served methods (a component plugin implements
+      //      component.translate / component.start for the host to call). An
+      //      integration plugin must not serve them, so the host actually calls
+      //      each over the live connection and asserts MethodNotFound: this hits
+      //      the plugin process's true onRequest registry.
+      //   2. host.docker.* / host.process.* are HOST-served broker methods (the
+      //      host registers them so the PLUGIN can call them). They are wired by
+      //      bench-manager onto component-kind connections only. The plugin's own
+      //      method list could never contain them, so we probe the real injection
+      //      path: the plugin calls each broker method back to the host via
+      //      __probeHost and asserts the host did NOT register it (MethodNotFound).
 
-      const FORBIDDEN = ["component.translate", "component.start"];
-      for (const forbidden of FORBIDDEN) {
+      // (1) Component-kind plugin-served methods are not served by this plugin.
+      const FORBIDDEN_PLUGIN_METHODS = ["component.translate", "component.start"];
+      for (const method of FORBIDDEN_PLUGIN_METHODS) {
+        let code: string | null = null;
+        try {
+          await pluginManager.invoke("github-com", method, undefined);
+        } catch (err) {
+          code = (err as { code?: string }).code ?? null;
+        }
         expectStep(
           "S004",
-          `the integration plugin's method list excludes ${forbidden}`,
+          `the integration plugin does not serve the component-kind method ${method}`,
           () => {
-            expect(methods).not.toContain(forbidden);
+            expect(code).toBe(METHOD_NOT_FOUND_STR);
           },
-          { expected: `no ${forbidden}`, actual: methods },
+          { expected: METHOD_NOT_FOUND_STR, actual: code },
         );
       }
 
-      const dockerMethods = methods.filter((m) => m.startsWith("host.docker."));
+      // (2) Host-served broker methods are not registered on this integration
+      // connection. The plugin probes each back to the host; MethodNotFound
+      // proves the broker was not wired here.
+      const FORBIDDEN_BROKER_METHODS = [
+        "host.docker.composeUp",
+        "host.docker.waitForHealthy",
+        "host.docker.composeDown",
+        "host.process.start",
+      ];
+      for (const method of FORBIDDEN_BROKER_METHODS) {
+        const probe = await pluginManager.invoke<{ code: number | null }>(
+          "github-com",
+          "__probeHost",
+          method,
+        );
+        expectStep(
+          "S004",
+          `the host did not inject the broker method ${method} onto the integration connection`,
+          () => {
+            expect(probe.code).toBe(METHOD_NOT_FOUND_CODE);
+          },
+          { expected: { code: METHOD_NOT_FOUND_CODE }, actual: probe },
+        );
+      }
+
+      // Positive control A: the probe genuinely reaches the host, so the
+      // broker-absence above is meaningful and not just a dead connection. A
+      // host method that registerHostHandlers DOES register on every plugin
+      // connection (host.credentials.get) is reachable: probing it returns a
+      // real error (missing-slot / permission), NOT MethodNotFound.
+      const liveProbe = await pluginManager.invoke<{ code: number | null }>(
+        "github-com",
+        "__probeHost",
+        "host.credentials.get",
+      );
       expectStep(
         "S004",
-        "the integration plugin's method list excludes every host.docker.* broker method",
+        "an integration host method (host.credentials.get) IS reachable, so the probe is live",
         () => {
-          expect(dockerMethods).toEqual([]);
+          expect(liveProbe.code).not.toBe(METHOD_NOT_FOUND_CODE);
         },
-        { expected: "no host.docker.* methods", actual: dockerMethods },
+        { expected: `code !== ${METHOD_NOT_FOUND_CODE}`, actual: liveProbe },
       );
 
-      // Confirm the integration surface is intact (positive control): the
-      // plugin still answers its own integration RPC.
+      // Positive control B: the integration plugin's own RPC surface is intact.
       const integrationRpc = await pluginManager.invoke<string>("github-com", "ping", undefined);
       expectStep(
         "S004",
