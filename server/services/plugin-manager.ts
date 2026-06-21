@@ -135,6 +135,10 @@ function isComponentPlugin(entry: PluginEntry): boolean {
 // most-recently-registered active context for the plugin (the realistic minimal
 // behaviour: the common case is one bench bound to a plugin, and the goal is that
 // privileged calls accumulate audit entries into a running bench's log).
+// KNOWN LIMITATION: when two or more benches concurrently share one plugin
+// connection, a call from a non-newest bench mis-resolves to the newest bench
+// (wrong ports, wrong audit attribution). The proper fix (a benchId routing key
+// in the broker params) is tracked in #685.
 const brokerContexts = new Map<string, BrokerContext>();
 
 function brokerContextKey(pluginId: string, benchId: number): string {

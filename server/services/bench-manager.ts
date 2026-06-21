@@ -2070,6 +2070,12 @@ function registerBrokerContextForBench(
     benchId,
     ports,
     reportStatus: buildReportStatus(projectId, benchId),
+    // The registry keys a BrokerContext by (pluginId, benchId) only, so when two
+    // components in one bench share a plugin the later provision overwrites this
+    // ctx. reportStatus carries params.name and self-corrects, but reportLog binds
+    // a single componentName here (the RPC carries no component name), so its
+    // output routes to the last-provisioned component. Precise per-component
+    // routing is tracked in #685.
     reportLog: buildReportLog(projectId, benchId, componentName),
     hasPermission: (category: BrokerPermissionCategory) =>
       declared !== null && declared.has(BROKER_TO_CONSENT_CATEGORY[category]),
