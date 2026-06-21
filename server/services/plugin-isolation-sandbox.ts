@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import os from "node:os";
 import type {
   IsolationCapabilities,
   IsolationTier,
@@ -36,6 +38,76 @@ export interface IsolationProbes {
   appleContainer: IsolationProbe;
   /** Docker engine installed and the daemon reachable. */
   docker: IsolationProbe;
+}
+
+/**
+ * Probe whether an executable is resolvable on the host's PATH, returning false
+ * on any error (missing binary, spawn failure, timeout). Used by the
+ * apple-container probe to confirm the `container` CLI is actually present, not
+ * merely that the platform could host it. Exception-safe so a probe never
+ * crashes capability detection (NFR-005).
+ */
+function isExecutableOnPath(binary: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    // `command -v` is a POSIX shell builtin; the apple-container rung is
+    // macOS-only so a Unix lookup is sufficient. Resolve false on any failure.
+    let settled = false;
+    const done = (value: boolean): void => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    try {
+      const child = spawn("/bin/sh", ["-c", `command -v ${binary}`], {
+        stdio: "ignore",
+        timeout: 2000,
+      });
+      child.on("error", () => done(false));
+      child.on("exit", (code) => done(code === 0));
+    } catch {
+      done(false);
+    }
+  });
+}
+
+/**
+ * The host's real OS-isolation capability probes (NFR-005: query each runtime,
+ * never assume). Each probe is self-contained and exception-safe: a thrown or
+ * rejected probe is treated as "not available" by detectIsolationCapabilities,
+ * degrading the host one rung rather than crashing detection. The host installs
+ * these at boot (plugin-manager.initialize); tests inject fakes to drive tier
+ * selection deterministically without a live daemon.
+ *
+ * - `docker`: the Docker daemon is reachable, probed via dockerode's `ping()`
+ *   (mirroring docker.ts), so a host with the CLI installed but the daemon down
+ *   reports false rather than selecting a rung it cannot drive.
+ * - `appleContainer`: the macOS 15+ / Apple-silicon `container` framework is
+ *   present, gated on platform + arch and confirmed by the `container` CLI being
+ *   resolvable on PATH.
+ * - `vzVm`: conservatively false. Virtualization.framework may be present, but
+ *   no per-plugin VM backend ships in this slice (buildSandboxedSpawn returns
+ *   null for that rung), so reporting it usable would select a tier the host
+ *   cannot actually drive. It stays false until a VM backend exists.
+ */
+export function defaultIsolationProbes(): IsolationProbes {
+  return {
+    vzVm: () => false,
+    appleContainer: async () => {
+      if (os.platform() !== "darwin") return false;
+      if (os.arch() !== "arm64") return false;
+      return isExecutableOnPath("container");
+    },
+    docker: async () => {
+      // Lazy-import dockerode so capability detection has no module-load cost on
+      // hosts that never reach this probe, and a load failure degrades the rung
+      // rather than crashing. `ping()` confirms the daemon is reachable, not
+      // merely that the CLI is installed.
+      const { default: Dockerode } = await import("dockerode");
+      const docker = new Dockerode();
+      await docker.ping();
+      return true;
+    },
+  };
 }
 
 /**
