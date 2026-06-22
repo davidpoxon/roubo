@@ -1,0 +1,80 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "start-gate-blocks-then-allows stub",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#40",
+      "externalUrl": "https://stub.example/acme/widgets/issues/40",
+      "title": "WU-040 Phase 2 gate tracker",
+      "body": "Upstream verify-gate tracker issue. Closes when the Phase 2 batch is verified.",
+      "currentState": "Open",
+      "allowedTransitions": ["Closed"],
+      "assignees": [],
+      "labels": ["gate-tracker"],
+      "issueType": "Task",
+      "blocks": ["acme/widgets#51"],
+      "blockedBy": [],
+      "updatedAt": "2026-06-01T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#51",
+      "externalUrl": "https://stub.example/acme/widgets/issues/51",
+      "title": "WU-051 Phase 3 unit gated on WU-040",
+      "body": "Phase 3 unit. Cannot start until WU-040's upstream gate has passed.",
+      "currentState": "Open",
+      "allowedTransitions": ["Closed", "In progress"],
+      "assignees": [],
+      "labels": ["enhancement"],
+      "issueType": "Feature",
+      "blocks": [],
+      "blockedBy": ["acme/widgets#40"],
+      "updatedAt": "2026-06-02T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "status": "Open" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [
+    { "id": "Feature", "name": "Feature" },
+    { "id": "Task", "name": "Task" }
+  ],
+  "labels": ["enhancement", "gate-tracker"],
+  "facets": [
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "enum",
+      "options": [
+        { "value": "Open", "label": "Open" },
+        { "value": "In progress", "label": "In progress" },
+        { "value": "Closed", "label": "Closed" }
+      ]
+    }
+  ],
+  "facetOptions": {
+    "assignee": [{ "value": "alice", "label": "Alice Stub" }]
+  }
+}

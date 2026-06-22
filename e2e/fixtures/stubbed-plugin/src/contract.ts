@@ -31,6 +31,16 @@ interface BuildContractDeps {
   journal: Journal;
 }
 
+// TC-032 (#708): the host's hard start-gate refuses a unit while its
+// `blockedBy` is non-empty. The real GitHub plugin only ever lists *open*
+// blockers (a closed/resolved blocker drops out of the graph), so a blocker
+// whose tracker issue has closed no longer gates the dependent. We mirror that
+// here: a scenario blocker whose journal transition has moved it into a
+// done/closed state is filtered out of the projected `blockedBy`. This lets a
+// single scenario model the "WU-040's gate transitions to passed (its tracker
+// issue closes), so WU-051 unblocks" journey without restarting the stub.
+const DONE_TRANSITION_NAMES = new Set(["closed", "done", "archived", "cancelled"]);
+
 function projectIssue(issue: ScenarioIssue, journal: Journal): NormalizedIssue {
   const { added, removed } = journal.assigneesFor(issue.externalId);
   const transition = journal.transitionFor(issue.externalId);
@@ -42,9 +52,20 @@ function projectIssue(issue: ScenarioIssue, journal: Journal): NormalizedIssue {
       .map((id) => ({ externalId: id, displayName: id })),
   ].sort((a, b) => a.externalId.localeCompare(b.externalId));
 
+  // Drop any blocker that the journal has since resolved (transitioned into a
+  // done/closed state), so the host's start-gate sees an unblocked unit once
+  // its upstream gate tracker closes.
+  const blockedBy = issue.blockedBy.filter((blockerId) => {
+    const blockerTransition = journal.transitionFor(blockerId);
+    return !(
+      blockerTransition !== undefined && DONE_TRANSITION_NAMES.has(blockerTransition.toLowerCase())
+    );
+  });
+
   const projected: ScenarioIssue = {
     ...issue,
     assignees,
+    blockedBy,
     currentState: transition ?? issue.currentState,
   };
   // Strip the fixture-only category so the returned issue matches the real

@@ -122,6 +122,7 @@ function writeFixtureRouboYaml(
   repo?: string,
   portBase: number = FIXTURE_DEFAULT_PORT_BASE,
   componentPlugin: string | null = null,
+  enforceIssueDependencies = false,
 ): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
@@ -157,7 +158,7 @@ ports:
   app:
     base: ${portBase}
 benches:
-  max: 5
+  max: 5${enforceIssueDependencies ? "\n  enforceIssueDependencies: true" : ""}
 `;
   fs.writeFileSync(path.join(dotRoubo, "roubo.yaml"), yaml, "utf-8");
 }
@@ -532,6 +533,13 @@ interface RegisterFixtureBody {
   // process component). Lets the component-deploy e2e drive a bench whose
   // `deploy` component resolves to the imperative `clasp-deploy-stub` plugin.
   componentPlugin?: unknown;
+  // TC-032 (#708): when true, the fixture roubo.yaml sets
+  // `benches.enforceIssueDependencies: true` so the project-level config turns
+  // the host's hard start-gate ON (resolveEnforceIssueDependencies reads
+  // `project.config.benches.enforceIssueDependencies` first). The start-gate
+  // e2e drives the blocked -> allowed journey against this, with no reliance on
+  // the global setting default.
+  enforceIssueDependencies?: unknown;
 }
 
 interface SeedBenchInput {
@@ -558,6 +566,9 @@ interface ParsedRegisterFixture {
   // CP-TC-028 (#626): id of the component plugin bound to a `deploy` component,
   // or null when the fixture project keeps only the default `app` component.
   componentPlugin: string | null;
+  // TC-032 (#708): when true, the fixture roubo.yaml sets
+  // `benches.enforceIssueDependencies: true`, turning the host start-gate ON.
+  enforceIssueDependencies: boolean;
 }
 
 // TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
@@ -704,6 +715,13 @@ function parseRegisterFixtureBody(
     }
     componentPlugin = body.componentPlugin;
   }
+  let enforceIssueDependencies = false;
+  if (body?.enforceIssueDependencies !== undefined) {
+    if (typeof body.enforceIssueDependencies !== "boolean") {
+      return "enforceIssueDependencies must be a boolean when provided";
+    }
+    enforceIssueDependencies = body.enforceIssueDependencies;
+  }
   return {
     projectId: projectIdRaw,
     plugin,
@@ -714,6 +732,7 @@ function parseRegisterFixtureBody(
     seedSpecs,
     gitInit,
     componentPlugin,
+    enforceIssueDependencies,
   };
 }
 
@@ -767,6 +786,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     seedSpecs,
     gitInit,
     componentPlugin,
+    enforceIssueDependencies,
   } = parsed;
 
   if (fixtureProjects.has(projectId)) {
@@ -783,7 +803,14 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
 
   const seededWorkspacePaths: string[] = [];
   try {
-    writeFixtureRouboYaml(repoPath, projectId, projectRepo, portBase, componentPlugin);
+    writeFixtureRouboYaml(
+      repoPath,
+      projectId,
+      projectRepo,
+      portBase,
+      componentPlugin,
+      enforceIssueDependencies,
+    );
     // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both
     // to spec discovery (which reads the repo root) and to the provisioned
