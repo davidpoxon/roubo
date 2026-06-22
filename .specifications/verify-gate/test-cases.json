@@ -1,0 +1,1821 @@
+{
+  "$schema": "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json",
+  "schemaVersion": "1.1.0",
+  "specSlug": "verify-gate",
+  "cases": [
+    {
+      "id": "TC-001",
+      "title": "Valid work-units.json with a kind:verify unit passes the validator",
+      "area": "work-units-schema",
+      "level": 1,
+      "type": "structural",
+      "preconditions": [
+        "schema/work-units.schema.json exists and is committed",
+        "A validateWorkUnits export and ajv 8.20.0 are available"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Construct a well-formed envelope { $schema, schemaVersion: \"1.0.0\", specSlug: \"testbench\", units: [ a feature unit WU-003 with implements, and a kind:\"verify\" unit WU-009 with depends_on:[WU-003], covers:[WU-003], implements.test_case_ids:[TC-050, TC-051] ] }",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Call validateWorkUnits(envelope)",
+          "observations": [
+            { "id": "S002-O01", "expected": "Result is { ok: true } with no errors" },
+            { "id": "S002-O02", "expected": "Parsed units contains exactly WU-003 and WU-009" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "validator", "happy-path"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-002",
+      "title": "E2E: load a spec's work-units.json, validator accepts the valid file and rejects an invalid copy",
+      "area": "work-units-schema",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "schema/work-units.schema.json is committed; validateWorkUnits is exported",
+        "A fixture .specifications/testbench/work-units.json (valid) and a malformed copy exist"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Read the valid work-units.json and JSON.parse it",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Pass the parsed object to validateWorkUnits()",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: true, data }; data.specSlug is \"testbench\"; data.units is a non-empty array"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Read the malformed copy (schemaVersion removed) and pass it to validateWorkUnits()",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Returns { ok: false, errors } referencing the missing schemaVersion field"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "No exception is thrown; a discriminated result object is returned"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "e2e", "validate-on-load"],
+      "linked_requirement_ids": ["FR-003", "NFR-006"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-003",
+      "title": "Envelope missing schemaVersion is rejected with a field-named error",
+      "area": "work-units-schema",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["validateWorkUnits is available"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Construct a valid envelope but omit the schemaVersion key entirely",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Call validateWorkUnits(envelope)",
+          "observations": [
+            { "id": "S002-O01", "expected": "Returns { ok: false } with a non-empty errors array" },
+            {
+              "id": "S002-O02",
+              "expected": "At least one error message contains \"schemaVersion\""
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "envelope-validation"],
+      "linked_requirement_ids": ["FR-003", "NFR-006"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-004",
+      "title": "kind:verify unit missing implements.test_case_ids is rejected",
+      "area": "work-units-schema",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["validateWorkUnits is available"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Construct an envelope with a kind:\"verify\" unit whose implements object omits test_case_ids",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Call validateWorkUnits(envelope)",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: false }; an error identifies implements.test_case_ids or the path to the missing field"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "verify-unit"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-005",
+      "title": "Unit with an unrecognised extra field is rejected (strict mode)",
+      "area": "work-units-schema",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "validateWorkUnits is available",
+        "The schema rejects additionalProperties"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Construct a valid unit and add an extra key \"owner\":\"alice\" not in the schema",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Call validateWorkUnits(envelope containing this unit)",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: false }; errors mention the unexpected key"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "strict-mode"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-006",
+      "title": "Regenerating the schema produces bytes identical to the committed schema/work-units.schema.json",
+      "area": "work-units-schema",
+      "level": 2,
+      "type": "structural",
+      "preconditions": [
+        "schema/work-units.schema.json is committed",
+        "The generate-schema renderer is importable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Render the schema from the source for the work-units artifact to a string",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Read the committed schema/work-units.schema.json and compare to the rendered string",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The two strings are byte-for-byte identical (no drift)"
+            }
+          ]
+        }
+      ],
+      "tags": ["structural", "drift-guard", "regression"],
+      "linked_requirement_ids": ["NFR-006"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-007",
+      "title": "CI pr-check fails when schema/work-units.schema.json diverges from its source",
+      "area": "work-units-schema",
+      "level": 2,
+      "type": "integration",
+      "preconditions": ["pr-check runs generate:schema followed by git diff --exit-code schema/"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Manually edit schema/work-units.schema.json (e.g. change a property type) without regenerating",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Run npm run generate:schema then git diff --exit-code schema/",
+          "observations": [
+            { "id": "S002-O01", "expected": "Exit code is non-zero (drift detected)" },
+            { "id": "S002-O02", "expected": "The diff references schema/work-units.schema.json" }
+          ]
+        }
+      ],
+      "tags": ["integration", "ci", "drift-guard"],
+      "linked_requirement_ids": ["NFR-006"],
+      "linked_user_story_ids": ["US-008"]
+    },
+    {
+      "id": "TC-008",
+      "title": "A unit with a Jira tracker reference validates (tracker-agnostic envelope)",
+      "area": "work-units-schema",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "validateWorkUnits is available",
+        "tracker.system accepts github | ghe | jira"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Construct a unit with tracker { system:\"jira\", ref:\"ROUBO-42\", url:\"https://jira.example.com/browse/ROUBO-42\", blocked_by_refs:[] }",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Call validateWorkUnits(envelope)",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: true }; the Jira system value is accepted"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "tracker-agnostic", "jira"],
+      "linked_requirement_ids": ["FR-003"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-009",
+      "title": "Gate state is PASSED when every gating case result is passed",
+      "area": "gate-evaluation",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019 (L1), TC-020 (L2), TC-024 (L1, e2e_flow)",
+        "test-results.json planHash matches the current planHash",
+        "All three gating cases have derivedStatus: passed with no statusOverride"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 against results where TC-019, TC-020, TC-024 are all passed",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate state evaluates to PASSED" },
+            { "id": "S001-O02", "expected": "The unresolved cases list is empty" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "truth-table", "happy-path"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-010",
+      "title": "Gate state is FAILED when one gating case result is failed",
+      "area": "gate-evaluation",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024; planHash matches",
+        "TC-019 derivedStatus is failed; TC-020 and TC-024 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 where TC-019 is failed",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate state evaluates to FAILED" },
+            { "id": "S001-O02", "expected": "TC-019 appears in the unresolved cases list" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "truth-table"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-011",
+      "title": "Gate state is PENDING when one gating case is not_started",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024; planHash matches",
+        "TC-020 derivedStatus is not_started; TC-019 and TC-024 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 where TC-020 is not_started",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate state evaluates to PENDING" },
+            { "id": "S001-O02", "expected": "TC-020 appears in the unresolved cases list" }
+          ]
+        }
+      ],
+      "tags": ["truth-table"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-012",
+      "title": "Gate state is PENDING when a gating case is absent from caseResults",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024; planHash matches",
+        "TC-024 has no entry in caseResults; TC-019 and TC-020 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 against results that contain no entry for TC-024",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate state evaluates to PENDING (not PASSED)" },
+            { "id": "S001-O02", "expected": "TC-024 appears in the unresolved list as absent" }
+          ]
+        }
+      ],
+      "tags": ["truth-table", "absent-case"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-013",
+      "title": "Gate state is PENDING when a gating case is marked orphaned (never reads as passed)",
+      "area": "gate-evaluation",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024; planHash matches",
+        "TC-024 derivedStatus is passed but is flagged orphaned; TC-019 and TC-020 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 where TC-024 is flagged orphaned",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Gate state evaluates to PENDING (orphaned never reads as passed)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "TC-024 appears in the unresolved list with an orphaned indicator"
+            }
+          ]
+        }
+      ],
+      "tags": ["truth-table", "orphaned-case"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-014",
+      "title": "Gate state is STALE when results planHash does not match the current plan hash",
+      "area": "gate-evaluation",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024, all with derivedStatus passed",
+        "results planHash is 'abc123'; the current test-cases.json planHash is 'def456'"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 with results planHash 'abc123' against a plan whose current hash is 'def456'",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate state evaluates to STALE (not PASSED)" },
+            {
+              "id": "S001-O02",
+              "expected": "The stale signal is surfaced in the gate-state payload"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "truth-table", "stale"],
+      "linked_requirement_ids": ["FR-004", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-015",
+      "title": "Gate evaluation uses effective status: statusOverride blocked overrides derivedStatus passed",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019, TC-020, TC-024; planHash matches",
+        "TC-019 derivedStatus is passed but statusOverride is blocked; TC-020 and TC-024 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate gate WU-040 where TC-019 derivedStatus is passed and statusOverride is blocked",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Gate state evaluates to FAILED (statusOverride takes precedence)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "TC-019 effective status is blocked and it appears in the unresolved list"
+            }
+          ]
+        }
+      ],
+      "tags": ["truth-table", "effective-status", "override"],
+      "linked_requirement_ids": ["FR-005", "NFR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-016",
+      "title": "Gating set includes L1, L2, and e2e_flow cases; L3 and L4 cases are excluded",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "A gate with no explicit implements.test_case_ids override",
+        "The batch contains TC-019 (L1), TC-020 (L2), TC-024 (L1, e2e_flow), TC-031 (L3), TC-042 (L4)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Inspect the derived gating set for the gate",
+          "observations": [
+            { "id": "S001-O01", "expected": "TC-019, TC-020, and TC-024 are in the gating set" },
+            {
+              "id": "S001-O02",
+              "expected": "TC-031 (L3) and TC-042 (L4) are not in the gating set"
+            }
+          ]
+        }
+      ],
+      "tags": ["gating-set-selection"],
+      "linked_requirement_ids": ["FR-005"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-017",
+      "title": "Non-passed gate payload lists unresolved TC ids and their covering slice units",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "Gate WU-040 covers WU-031, WU-032, WU-033",
+        "Gating cases: TC-019 (covers WU-031), TC-020 (covers WU-032), TC-024 (covers WU-033)",
+        "planHash matches; TC-019 is failed; TC-020 and TC-024 are passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Request the gate-state payload for gate WU-040",
+          "observations": [
+            { "id": "S001-O01", "expected": "Response includes state FAILED" },
+            {
+              "id": "S001-O02",
+              "expected": "Response includes an unresolvedCases array containing TC-019"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The TC-019 entry includes coveringUnits referencing WU-031"
+            }
+          ]
+        }
+      ],
+      "tags": ["observability", "nfr"],
+      "linked_requirement_ids": ["FR-012", "NFR-004"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-018",
+      "title": "Gate evaluation is deterministic: identical inputs produce an identical GateState",
+      "area": "gate-evaluation",
+      "level": 2,
+      "type": "reliability",
+      "preconditions": [
+        "Gate WU-040 gating set is TC-019 (not_started), TC-020 (passed), TC-024 (passed); planHash matches"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Evaluate the gate once with the fixed results and record the GateState",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Evaluate the gate a second time with the identical results and no intervening writes",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The returned GateState is byte-for-byte identical to the first call"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No side-effects (no writes, no differing logs) occur between the two calls"
+            }
+          ]
+        }
+      ],
+      "tags": ["determinism", "pure-function", "nfr"],
+      "linked_requirement_ids": ["NFR-007"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-019",
+      "title": "E2E: marking all gating cases passed transitions the gate from PENDING to PASSED",
+      "area": "gate-evaluation",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Gate WU-040 covers WU-031, WU-032, WU-033; gating set TC-019, TC-020, TC-024",
+        "planHash matches; all three gating cases are not_started; the Verify-a-batch screen is open"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the batch detail and locate the gate-state panel for WU-040",
+          "observations": [
+            { "id": "S001-O01", "expected": "Gate badge shows PENDING" },
+            {
+              "id": "S001-O02",
+              "expected": "Unresolved list shows the three gating cases, each linked to its covering unit"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Mark the first gating case passed",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "It is removed from the unresolved list; the badge stays PENDING (two remain)"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Mark the second gating case passed",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "It is removed from the unresolved list; the badge stays PENDING (one remains)"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Mark the final gating case passed",
+          "observations": [
+            { "id": "S004-O01", "expected": "The unresolved list is empty" },
+            { "id": "S004-O02", "expected": "The gate badge transitions to PASSED" },
+            { "id": "S004-O03", "expected": "No stale banner is shown (planHash already matched)" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "e2e", "happy-path"],
+      "linked_requirement_ids": ["FR-004", "FR-005", "FR-012"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-020",
+      "title": "Batches overview lists one gate per phase derived from milestone",
+      "area": "batch-surface",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A project with three phases; each work unit has a milestone matching its phase",
+        "Phase 1 gate closed (#420); Phase 2 verifying (WU-040 gates WU-031/032/033); Phase 3 blocked"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Navigate to the verify-gate batches overview",
+          "observations": [
+            { "id": "S001-O01", "expected": "Exactly three gate cards render, one per phase" },
+            { "id": "S001-O02", "expected": "Each card title matches its phase" }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the Phase 2 card",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Card lists WU-040 gating WU-031, WU-032, WU-033 and shows '3 gating cases'"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect the Phase 3 card",
+          "observations": [
+            { "id": "S003-O01", "expected": "Card shows status blocked with blocked_by WU-040" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-021",
+      "title": "Opening a gate in TestBench shows only the gate's gating subset, not the whole spec",
+      "area": "batch-surface",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Phase 2 gate implements.test_case_ids is [TC-019, TC-020, TC-024]",
+        "The full spec test-cases.json contains many more cases (e.g. TC-001..TC-018)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "From the batches overview, open the Phase 2 gate in TestBench",
+          "observations": [
+            { "id": "S001-O01", "expected": "The verify-a-batch screen opens scoped to Phase 2" }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Count and read the cases shown",
+          "observations": [
+            { "id": "S002-O01", "expected": "Exactly 3 cases are shown: TC-019, TC-020, TC-024" },
+            {
+              "id": "S002-O02",
+              "expected": "Cases outside the gating subset (e.g. TC-001, TC-010) do not appear"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "regression"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-022",
+      "title": "Operator merges two phase batches into one gate",
+      "area": "batch-surface",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Phase 2 gate covers WU-031/032/033 (cases TC-019, TC-020, TC-024)",
+        "Phase 3 gate covers WU-050, WU-051 (cases TC-030, TC-031); both pending"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the merge control for Phase 2 and select Phase 3 as the merge target, then confirm",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A single combined gate card replaces the Phase 2 and Phase 3 cards"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The combined gate's gating set is the 5 cases TC-019, TC-020, TC-024, TC-030, TC-031"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the merged gate in TestBench",
+          "observations": [
+            { "id": "S002-O01", "expected": "All 5 gating cases are shown with no duplicates" }
+          ]
+        }
+      ],
+      "tags": ["happy-path"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-007"]
+    },
+    {
+      "id": "TC-023",
+      "title": "Operator splits a large phase batch into two gates",
+      "area": "batch-surface",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Phase 2 gate covers WU-031..WU-034 (cases TC-019, TC-020, TC-024, TC-025); pending"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the split control on the Phase 2 card; assign WU-031/032 to split A and WU-033/034 to split B; confirm",
+          "observations": [
+            { "id": "S001-O01", "expected": "Two gate cards replace the original Phase 2 card" },
+            {
+              "id": "S001-O02",
+              "expected": "Split A covers WU-031/032 (TC-019, TC-020); split B covers WU-033/034 (TC-024, TC-025)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Verify the total gating case count across both new cards",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Total is 4, matching the pre-split count, with no loss or duplication"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-007"]
+    },
+    {
+      "id": "TC-024",
+      "title": "E2E: verifier opens the batches overview, picks Phase 2, verifies the subset, and signs off",
+      "area": "batch-surface",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Three phases with milestone-aligned units; Phase 1 closed (#420)",
+        "Phase 2 gate verifying with implements.test_case_ids [TC-019, TC-020, TC-024]; Phase 3 blocked by WU-040"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Navigate to the batches overview",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Three gate cards are shown: Phase 1 passed, Phase 2 verifying, Phase 3 blocked"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Click the Phase 2 gate card",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "TestBench opens scoped to Phase 2 with exactly TC-019, TC-020, TC-024"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Execute and mark TC-019, then TC-020, then TC-024 as passed",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "All three gating cases show passed; the sign-off action becomes active"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Sign off the Phase 2 batch",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Sign-off is recorded; the overview shows Phase 2 as passed/closed"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "Phase 3's blocked state resolves now that its upstream gate has passed"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "e2e", "happy-path"],
+      "linked_requirement_ids": ["FR-001", "FR-008"],
+      "linked_user_story_ids": ["US-001", "US-003"]
+    },
+    {
+      "id": "TC-025",
+      "title": "E2E: operator merges two batches then verifies and signs off the combined gate",
+      "area": "batch-surface",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Phase 2 gate (TC-019, TC-020, TC-024) and Phase 3 gate (TC-030) exist, both pending",
+        "Operator has merge/split permissions"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the batches overview and merge the Phase 2 and Phase 3 gates; confirm",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "One combined gate card replaces the two; gating set is TC-019, TC-020, TC-024, TC-030"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the combined gate in TestBench and mark all 4 cases passed",
+          "observations": [{ "id": "S002-O01", "expected": "All 4 gating cases show passed" }]
+        },
+        {
+          "id": "S003",
+          "instruction": "Sign off the combined batch",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Sign-off succeeds; the combined gate shows passed/closed"
+            },
+            { "id": "S003-O02", "expected": "No separate Phase 2 or Phase 3 gate cards remain" }
+          ]
+        }
+      ],
+      "tags": ["e2e", "regression"],
+      "linked_requirement_ids": ["FR-002", "FR-008"],
+      "linked_user_story_ids": ["US-007", "US-003"]
+    },
+    {
+      "id": "TC-026",
+      "title": "A phase with no L1/L2/e2e gating cases yields an empty or clearly-elided batch",
+      "area": "batch-surface",
+      "level": 3,
+      "type": "edge_case",
+      "preconditions": [
+        "A phase contains only L3/L4 work with no cases eligible for the gating set"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the batches overview and check whether the phase appears",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The phase is either absent or shown as a card labelled 'no gating cases', never an unlabelled empty card"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "If a card is shown, open it in TestBench",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "TestBench displays a clear 'no gating cases in scope' message, not cases from other phases"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge-case"],
+      "linked_requirement_ids": ["FR-001", "FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-027",
+      "title": "Blocked gate card reflects its blocking work unit and clears when the blocker passes",
+      "area": "batch-surface",
+      "level": 2,
+      "type": "functional",
+      "preconditions": ["Phase 3 gate is blocked because WU-040 (Phase 2) has not been signed off"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Inspect the Phase 3 gate card on the overview",
+          "observations": [
+            { "id": "S001-O01", "expected": "Card status is blocked, showing blocked_by WU-040" }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Sign off the Phase 2 gate, then return to the overview",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The Phase 3 card transitions from blocked to pending/ready"
+            },
+            { "id": "S002-O02", "expected": "The blocked_by WU-040 annotation is removed" }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "regression"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-028",
+      "title": "Signing off a batch with at least one failing gating case is rejected",
+      "area": "batch-surface",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["Phase 2 gate cases: TC-019 and TC-020 passed; TC-024 marked failed"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Phase 2 gate in TestBench and attempt to sign off the batch",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Sign-off is unavailable or returns an error citing TC-024's failing result"
+            },
+            { "id": "S001-O02", "expected": "The Phase 2 gate does not become passed" }
+          ]
+        }
+      ],
+      "tags": ["negative", "regression"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-029",
+      "title": "Refuse bench start when enforcement is ON and the upstream verify gate has not passed",
+      "area": "enforcement",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "WU-051 (Phase 3) declares WU-040 (Phase 2) as its upstream verify gate",
+        "enforceIssueDependencies is ON; WU-040's gate has not passed; an active integration plugin is reachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
+          "observations": [
+            { "id": "S001-O01", "expected": "HTTP 409 is returned with errorCode GATE_BLOCKED" },
+            {
+              "id": "S001-O02",
+              "expected": "The reason identifies WU-040 as the blocking upstream gate"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "No bench workspace is created and no process is started"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path", "gate-blocked"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-030",
+      "title": "Allow bench start when enforcement is ON and the upstream verify gate has passed",
+      "area": "enforcement",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "WU-040's gate has PASSED; an active integration plugin is reachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
+          "observations": [
+            { "id": "S001-O01", "expected": "HTTP 201 is returned with the new bench record" },
+            {
+              "id": "S001-O02",
+              "expected": "The bench workspace is created; no GATE_BLOCKED/GATE_INDETERMINATE error is present"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path", "gate-passed"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-031",
+      "title": "Allow bench start when enforcement is OFF regardless of upstream gate status",
+      "area": "enforcement",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is OFF",
+        "WU-040's gate has not passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "HTTP 201 is returned; the bench is created and started"
+            },
+            { "id": "S001-O02", "expected": "No gate-related error is present in the response" }
+          ]
+        }
+      ],
+      "tags": ["regression", "enforcement-off"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-032",
+      "title": "E2E: verify the Phase 2 gate, it passes, then the previously-blocked Phase 3 unit can start",
+      "area": "enforcement",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "WU-040's gate has not yet passed; an active integration plugin returns live gate state"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Attempt to start a bench for WU-051 before the Phase 2 gate has passed",
+          "observations": [
+            { "id": "S001-O01", "expected": "HTTP 409 GATE_BLOCKED referencing WU-040" }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Verify the Phase 2 batch so WU-040's gate transitions to passed (its tracker issue closes)",
+          "observations": [
+            { "id": "S002-O01", "expected": "WU-040's gate status becomes passed/closed" }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Retry starting a bench for WU-051",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "HTTP 201; the bench is created and running, with no gate-blocking error"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "e2e", "gate-lifecycle"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-033",
+      "title": "Fail closed when enforcement is ON and no integration plugin is active",
+      "area": "enforcement",
+      "level": 1,
+      "type": "reliability",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "No integration plugin is active or connected"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
+          "observations": [
+            { "id": "S001-O01", "expected": "HTTP 409 with errorCode GATE_INDETERMINATE" },
+            {
+              "id": "S001-O02",
+              "expected": "The reason indicates the gate state could not be determined (no active plugin)"
+            },
+            { "id": "S001-O03", "expected": "No bench is created; the start is refused entirely" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path", "fail-closed"],
+      "linked_requirement_ids": ["NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-034",
+      "title": "Fail closed when enforcement is ON and the plugin blocking-read RPC times out",
+      "area": "enforcement",
+      "level": 2,
+      "type": "reliability",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "The integration plugin RPC is stubbed to hang and never respond"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' } and observe the timing",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The server responds within approximately the 3s RPC timeout bound"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "HTTP 409 with errorCode GATE_INDETERMINATE; no bench is created"
+            }
+          ]
+        }
+      ],
+      "tags": ["fail-closed", "timeout", "reliability"],
+      "linked_requirement_ids": ["NFR-003", "NFR-002"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-035",
+      "title": "Start path issues at most one blocking-read RPC bounded by a 3-second timeout",
+      "area": "enforcement",
+      "level": 2,
+      "type": "performance",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "The integration plugin is instrumented to count outbound RPC calls; WU-040's gate has not passed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Reset the RPC counter and any cached gate state, then POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Exactly one outbound blocking-read RPC is recorded for this start request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The RPC carries a 3s timeout bound (observable via the stub or plugin logs)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the RPC log for any additional gate-read RPCs during the same request",
+          "observations": [
+            { "id": "S002-O01", "expected": "RPC count is exactly 1 for this start request" }
+          ]
+        }
+      ],
+      "tags": ["performance", "rpc-count"],
+      "linked_requirement_ids": ["NFR-002"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-036",
+      "title": "Gate evaluation completes under 200ms p95 for a results file of several hundred cases",
+      "area": "enforcement",
+      "level": 3,
+      "type": "performance",
+      "preconditions": [
+        "A test-results.json with ~300 case results (mixed pass/fail) is prepared",
+        "The gate evaluator runs in-process (no external I/O during evaluation); a benchmark harness captures p95 over 100 runs"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Load the 300-case results into memory and run the gate evaluator 100 times, recording each duration",
+          "observations": [
+            { "id": "S001-O01", "expected": "All 100 evaluations complete without error" }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Compute the p95 latency over the 100 runs",
+          "observations": [{ "id": "S002-O01", "expected": "p95 latency is below 200ms" }]
+        }
+      ],
+      "tags": ["performance", "in-memory"],
+      "linked_requirement_ids": ["NFR-002"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-037",
+      "title": "The direct assign path is also gated (not only bench-create)",
+      "area": "enforcement",
+      "level": 2,
+      "type": "negative",
+      "preconditions": [
+        "WU-051 declares WU-040 as its upstream gate; enforceIssueDependencies is ON",
+        "WU-040's gate has not passed; an existing unassigned bench is present"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "POST /api/projects/:projectId/issues/WU-051/assign to assign WU-051 to the existing bench",
+          "observations": [
+            { "id": "S001-O01", "expected": "HTTP 409 with errorCode GATE_BLOCKED" },
+            {
+              "id": "S001-O02",
+              "expected": "The assignment is not applied; the bench remains unassigned"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "assign-path"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-038",
+      "title": "Gate transitions to passed and enables the close action when all gating cases pass",
+      "area": "gate-lifecycle",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A verify gate exists for WU-040 / issue #451 with all-but-one gating case passing",
+        "The active integration plugin can perform transitions; the gate's allowedTransitions exposes a done/close transition"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "On the Verify-a-batch screen, observe the gate state and the 'Close gate & unblock Phase 3' button before the last case passes",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The close button is disabled because at least one gating case has not passed"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Mark the final gating case passed",
+          "observations": [
+            { "id": "S002-O01", "expected": "The gate state is shown as passed" },
+            {
+              "id": "S002-O02",
+              "expected": "The 'Close gate & unblock Phase 3' button becomes enabled"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-039",
+      "title": "Closing a passed gate closes its tracker issue via the integration plugin",
+      "area": "gate-lifecycle",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 is passed; issue #451 is open; the plugin exposes a done/close transition; the close button is enabled"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'Close gate & unblock Phase 3'",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The button enters a loading state and is temporarily disabled"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "After completion, inspect issue #451 via the integration plugin",
+          "observations": [
+            { "id": "S002-O01", "expected": "Issue #451 is now closed/done in the tracker" },
+            { "id": "S002-O02", "expected": "The gate state in Roubo reads closed" }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-040",
+      "title": "E2E: last gating case passes, gate closes #451, Phase 3 unblocks, a Phase 3 bench can start",
+      "area": "gate-lifecycle",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Gate WU-040 / #451 exists; Phase 3 units list WU-040 in depends_on and show Blocked",
+        "All gating cases except the final one have passed; the plugin allowedTransitions includes a close/done transition"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Verify-a-batch screen and mark the final remaining gating case passed",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The gate state changes to passed and the close button becomes enabled"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Click 'Close gate & unblock Phase 3' and wait for completion",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The audit log records a close/transition entry referencing #451 and the plugin"
+            },
+            { "id": "S002-O02", "expected": "The gate state reads closed" }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Navigate to the batches overview and inspect the Phase 3 card",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The Phase 3 card now shows Unblocked and no longer lists WU-040 as a blocker"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Start a new bench in Phase 3",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The Phase 3 bench starts with no blocked-by error referencing the gate"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "e2e", "critical-path"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-041",
+      "title": "Gate close is routed through the plugin's applyTransition and audit-logged",
+      "area": "gate-lifecycle",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "Gate WU-040 is passed with #451 open; the plugin exposes applyTransition and a done/close transition; the audit log is accessible"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Trigger gate closure via the close action",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the bench audit log after completion",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "An audit entry records a privileged applyTransition broker call on issue #451 attributed to the active plugin"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The recorded transition target corresponds to the done/close state from allowedTransitions"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Verify #451 directly in the tracker",
+          "observations": [
+            { "id": "S003-O01", "expected": "Issue #451 is in the closed/done state" }
+          ]
+        }
+      ],
+      "tags": ["integration", "audit", "regression"],
+      "linked_requirement_ids": ["FR-007", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-042",
+      "title": "Closing an already-closed gate is an idempotent no-op",
+      "area": "gate-lifecycle",
+      "level": 3,
+      "type": "reliability",
+      "preconditions": [
+        "Gate WU-040 has already been closed; #451 is done; the Roubo gate state is closed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Replay the gate-close request (re-POST the close endpoint)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Roubo returns a success or graceful 'already closed' response with no UI error"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Issue #451 remains closed; no duplicate transition is applied"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "No second close entry is added to the audit log (idempotency preserved)"
+            }
+          ]
+        }
+      ],
+      "tags": ["idempotency", "reliability", "edge-case"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-043",
+      "title": "When the plugin rejects the close transition, the error is surfaced and the gate is not left half-closed",
+      "area": "gate-lifecycle",
+      "level": 3,
+      "type": "reliability",
+      "preconditions": [
+        "Gate WU-040 is passed with #451 open; the plugin is configured to reject the close transition (e.g. permission error)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'Close gate & unblock Phase 3'",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the result after the plugin rejects the transition",
+          "observations": [
+            { "id": "S002-O01", "expected": "A clear error is surfaced (no raw stack trace)" },
+            {
+              "id": "S002-O02",
+              "expected": "The gate state remains passed (not partially advanced to closed)"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Issue #451 remains open and Phase 3 remains Blocked (no premature unblock)"
+            }
+          ]
+        }
+      ],
+      "tags": ["reliability", "error-handling"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-044",
+      "title": "A failed or pending gate is NOT closed and does not unblock the next batch",
+      "area": "gate-lifecycle",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Gate WU-040 is in a failed state (a gating case failed); #451 is open; Phase 3 is Blocked"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Observe the close button while the gate is failed",
+          "observations": [{ "id": "S001-O01", "expected": "The close button is disabled" }]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt to call the gate-close API directly while the gate is not passed",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The API rejects with a 4xx (e.g. 409/422) indicating the gate is not in a closeable state"
+            },
+            { "id": "S002-O02", "expected": "Issue #451 remains open and Phase 3 remains Blocked" }
+          ]
+        }
+      ],
+      "tags": ["negative", "guard-rail"],
+      "linked_requirement_ids": ["FR-007"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-045",
+      "title": "E2E: mark a gating case failed, capture notes, file a fix issue that blocks the gate, gate stays not-passable until resolved",
+      "area": "fix-issue-filing",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Gate WU-040 / #451 exists in a project on the github-com plugin; gating case TC-024 is not yet verified",
+        "The github-com 'create-issue' and 'add-blocking-link' capabilities are declared and consented"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Mark TC-024 failed",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "TC-024 transitions to failed and a panel opens with a Notes field and a 'File fix issue & block gate' action"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Enter notes describing the failure and click 'File fix issue & block gate'",
+          "observations": [
+            { "id": "S002-O01", "expected": "A fix issue WU-041 / #452 is created in the tracker" },
+            {
+              "id": "S002-O02",
+              "expected": "The panel confirms 'WU-041 (#452) blocks WU-040 (#451)'"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Open the bench audit log",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Two chronological entries are present: create-issue (WU-041/#452) and add-blocking-link, both attributed to github-com"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Attempt to pass the gate",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The gate cannot pass; it is blocked by the open fix issue WU-041 (#452)"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Resolve (close) #452 in the tracker and re-verify TC-024 as passed",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "TC-024 becomes passed, the blocker clears, and the gate can now pass"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "happy-path", "e2e"],
+      "linked_requirement_ids": ["FR-009", "FR-010", "NFR-001"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-046",
+      "title": "Filing a fix issue creates the tracker issue and records it as a gate blocker",
+      "area": "fix-issue-filing",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "Gate WU-040 / #451 is open; TC-024 is failed with notes entered; the github-com plugin has the required consented capabilities"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'File fix issue & block gate'",
+          "observations": [
+            { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created in the tracker" },
+            {
+              "id": "S001-O02",
+              "expected": "WU-041 is registered as a blocker on WU-040 and the relationship persists on refresh"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The gate reads 'blocked by 1 open fix issue' and cannot pass"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "happy-path"],
+      "linked_requirement_ids": ["FR-009", "FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-047",
+      "title": "Privileged create-issue and add-blocking-link calls are audit-logged with no secrets",
+      "area": "fix-issue-filing",
+      "level": 1,
+      "type": "security",
+      "preconditions": [
+        "TC-024 is failed with notes; github-com 'create-issue' and 'add-blocking-link' are declared and consented",
+        "The bench audit log is accessible"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "File a fix issue for TC-024",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Fetch GET /api/projects/:projectId/benches/:id/audit-log?pluginId=github-com",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Exactly two entries are returned (create-issue and add-blocking-link), both attributed to github-com, in chronological order"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Neither entry contains a token, OAuth secret, or any credential substring"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Each entry records plugin id, capability, timestamp, and the resulting issue reference"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect the server log output for the filing request",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "No token or secret value appears in any log line for the create-issue or add-blocking-link operations"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "audit", "smoke"],
+      "linked_requirement_ids": ["NFR-001"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-048",
+      "title": "An undeclared (unconsented) capability call is blocked by the privileged-broker guard",
+      "area": "fix-issue-filing",
+      "level": 1,
+      "type": "security",
+      "preconditions": [
+        "A plugin is configured whose manifest does NOT declare the create-issue capability",
+        "TC-024 is failed; a request attempts fix-issue filing programmatically"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Attempt to invoke the create-issue broker call through the unconsented plugin (bypassing the UI consent check)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The privileged-broker guard rejects the call with a clear error (e.g. 403 / 'capability not declared')"
+            },
+            { "id": "S001-O02", "expected": "No issue is created in the tracker" },
+            {
+              "id": "S001-O03",
+              "expected": "The rejection is recorded as a blocked attempt, not a successful action"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "guard", "smoke"],
+      "linked_requirement_ids": ["NFR-001", "FR-011"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-049",
+      "title": "Evidence writes are scoped to the bench workspace; a path-escaping write is rejected",
+      "area": "fix-issue-filing",
+      "level": 2,
+      "type": "security",
+      "preconditions": [
+        "TC-024 is failed with notes; the bench workspace root is known",
+        "A crafted evidence path attempts directory traversal outside the workspace"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Submit the filing payload with an evidence path of '../../outside-workspace/secrets.txt'",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The resolveWithin barrier rejects the write with a path-escape error"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No file is created at or outside the workspace boundary"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Resubmit with a valid in-workspace evidence path",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The write succeeds within the workspace at the specified path"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "path-traversal"],
+      "linked_requirement_ids": ["NFR-001"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-050",
+      "title": "Filing succeeds on a tracker that supports create-issue and add-blocking-link (GitHub)",
+      "area": "fix-issue-filing",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "The github-com plugin has both create-issue and add-blocking-link declared and consented; TC-024 is failed with notes"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'File fix issue & block gate'",
+          "observations": [
+            { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created in GitHub" },
+            { "id": "S001-O02", "expected": "A blocking link from #452 to #451 is registered" },
+            {
+              "id": "S001-O03",
+              "expected": "The UI confirms both the issue reference and the blocking-link"
+            }
+          ]
+        }
+      ],
+      "tags": ["integration", "github", "happy-path"],
+      "linked_requirement_ids": ["FR-011", "NFR-005"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-051",
+      "title": "Filing degrades with a clear message when the tracker lacks the blocking-link capability",
+      "area": "fix-issue-filing",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "The active tracker plugin declares create-issue but NOT add-blocking-link; TC-024 is failed with notes"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'File fix issue & block gate'",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The fix issue is created (create-issue is available)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "A clear non-silent message states the tracker does not support automatic blocking links and to add it manually (not a silent no-op)"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The gate is held in a safe state and cannot pass until the fix is manually resolved and the case re-verified"
+            }
+          ]
+        }
+      ],
+      "tags": ["integration", "compatibility", "degraded-path"],
+      "linked_requirement_ids": ["FR-011", "NFR-005"],
+      "linked_user_story_ids": []
+    },
+    {
+      "id": "TC-052",
+      "title": "Create succeeds but add-blocking-link fails: partial state surfaced, gate not falsely passable, link-only retry succeeds",
+      "area": "fix-issue-filing",
+      "level": 2,
+      "type": "reliability",
+      "preconditions": [
+        "TC-024 is failed with notes; the github-com plugin is active",
+        "The add-blocking-link step is configured to fail transiently"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click 'File fix issue & block gate' while the link step is set to fail",
+          "observations": [
+            { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created successfully" },
+            {
+              "id": "S001-O02",
+              "expected": "A 'Link step failed' warning is shown, distinct from a full success"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "A 'Retry link only' action is presented and the gate is NOT passable (known partial-failure state)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Restore normal conditions and click 'Retry link only'",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The blocking link completes; WU-041 (#452) now blocks WU-040 (#451)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The warning clears and a new audit entry records the successful link retry"
+            }
+          ]
+        }
+      ],
+      "tags": ["reliability", "partial-failure", "retry"],
+      "linked_requirement_ids": ["FR-010", "NFR-003"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-053",
+      "title": "Filing a fix issue with empty notes is rejected with a validation message",
+      "area": "fix-issue-filing",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "TC-024 is marked failed; the fix-issue panel is open with the Notes field empty"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Leave Notes blank and click 'File fix issue & block gate'",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Submission is blocked with an inline validation message that notes are required"
+            },
+            { "id": "S001-O02", "expected": "No tracker call is made and no issue is created" },
+            { "id": "S001-O03", "expected": "The gate state is unchanged" }
+          ]
+        }
+      ],
+      "tags": ["negative", "validation"],
+      "linked_requirement_ids": ["FR-009"],
+      "linked_user_story_ids": ["US-006"]
+    }
+  ]
+}
