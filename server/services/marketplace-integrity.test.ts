@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canonicalize,
   computePackageDigest,
@@ -137,5 +138,45 @@ describe("computePackageDigest / verifyPackageIntegrity", () => {
     await writeFile(path.join(dir, "a.txt"), "alpha");
     expect(await verifyPackageIntegrity(dir, null)).toBe(false);
     expect(await verifyPackageIntegrity(dir, "")).toBe(false);
+  });
+});
+
+describe("checked-in catalog digest validates against a real package (issue #689)", () => {
+  // End-to-end guard: at least one checked-in catalog `integrity` digest must be
+  // a real content digest of an actual package, validated through the same
+  // verifyPackageIntegrity path the installer uses. This is what catches a
+  // wrong/placeholder digest in the committed catalog at CI time. The `database`
+  // entry is bound to a frozen, deterministic fixture package under
+  // __fixtures__/marketplace/database; the rest remain placeholders pending real
+  // per-plugin sources (issue #621). No network: the fixture is read from disk.
+  const fixtureDir = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "__fixtures__",
+    "marketplace",
+    "database",
+  );
+
+  async function databaseIntegrity(): Promise<string> {
+    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
+      .default as { payload: { entries: { id: string; integrity: string }[] } };
+    const entry = catalog.payload.entries.find((e) => e.id === "database");
+    if (!entry) throw new Error("expected a `database` catalog entry");
+    return entry.integrity;
+  }
+
+  it("verifies the database entry's catalog digest against the frozen fixture package", async () => {
+    const integrity = await databaseIntegrity();
+    // The catalog digest must be a real sha256 hex, not a placeholder.
+    expect(integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
+    expect(await verifyPackageIntegrity(fixtureDir, integrity)).toBe(true);
+  });
+
+  it("rejects a wrong/placeholder digest against the same fixture package", async () => {
+    // A placeholder or otherwise incorrect catalog digest must fail closed, which
+    // is exactly the regression this end-to-end test exists to catch.
+    expect(await verifyPackageIntegrity(fixtureDir, "sha256-database-0.1.0-PLACEHOLDER")).toBe(
+      false,
+    );
+    expect(await verifyPackageIntegrity(fixtureDir, `sha256-${"0".repeat(64)}`)).toBe(false);
   });
 });

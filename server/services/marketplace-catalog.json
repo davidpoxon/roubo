@@ -1,5 +1,5 @@
 {
-  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry carries an `integrity` content digest (sha256-<hex> over the staged package), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The current `integrity` values are placeholders pending real per-plugin package sources (sources point at the monorepo root, which has no per-plugin manifest at the clone root); computing real digests and adding an end-to-end test is tracked by #689. `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
+  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry carries an `integrity` content digest (sha256-<hex> over the staged package), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The `database` entry's `integrity` is a real `sha256-<hex>` digest of a frozen checked-in test fixture (server/services/__fixtures__/marketplace/database), validated end-to-end through the actual verifyPackageIntegrity path by a no-network CI test (server/services/marketplace-integrity.test.ts, issue #689); the remaining entries keep placeholder digests pending real per-plugin package sources (sources point at the monorepo root, which has no per-plugin manifest at the clone root), tracked by #621. `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
   "payload": {
     "entries": [
       {
@@ -13,7 +13,7 @@
           "url": "https://github.com/davidpoxon/roubo.git"
         },
         "provenance": "roubo/plugins@database",
-        "integrity": "sha256-database-0.1.0-PLACEHOLDER",
+        "integrity": "sha256-3923912556604b0579fc73a5177a7878d0092be7566f60db832e2ef60e5f5c89",
         "verified": true
       },
       {
@@ -103,5 +103,5 @@
       }
     ]
   },
-  "signature": "assxlMBtf3RGklCPpnA78RnPEEccQxAlb+PthkbnD9Xj8fgGLsNj67dPSMrtBYhBIRuIR2yWS2Y3v+6zVGTdCQ=="
+  "signature": "x0qaO1jUhqUQQ5b5YlYqYbfqoU85iQapFixg4pncEbKu3P+1LAdxi2kColEL3hca7qC31XVJOB0p0V5j/5pEDw=="
 }
