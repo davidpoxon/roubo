@@ -828,6 +828,52 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
+  // TC-032 (#708): an optional `enforceIssueDependencies` turns the host's hard
+  // start-gate ON at the project level by writing
+  // `benches.enforceIssueDependencies: true` into the fixture roubo.yaml. The
+  // start-gate e2e drives the blocked -> allowed journey against it.
+  it("writes enforceIssueDependencies: true under benches when the option is true", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-enforce", plugin: "e2e-stub", enforceIssueDependencies: true });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^\s{2}enforceIssueDependencies: true$/m);
+  });
+
+  it("omits enforceIssueDependencies from the fixture roubo.yaml when not provided", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-no-enforce", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).not.toMatch(/enforceIssueDependencies/);
+  });
+
+  it("returns 400 when enforceIssueDependencies is not a boolean", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__register-fixture-project").send({
+      projectId: "fixture-bad-enforce",
+      plugin: "e2e-stub",
+      enforceIssueDependencies: "yes",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/enforceIssueDependencies/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
   it("merges optional integrationConfig into the saved override alongside plugin", async () => {
     process.env.ROUBO_E2E = "1";
 
