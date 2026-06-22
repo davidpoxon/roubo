@@ -32,18 +32,16 @@ async function main(): Promise<void> {
     throw new Error("Set ROUBO_CATALOG_PRIVATE_KEY to the ed25519 private-key PEM path.");
   }
   // The key path comes from the environment. This script is maintainer-only, but
-  // treat the value as untrusted: normalize it (collapsing any `..` segments),
-  // require it to resolve under an allowlisted root (the maintainer's home
-  // directory or the repo working tree, which covers where ed25519 keys are
-  // realistically kept), and confirm it is a regular file before reading. This
-  // contains the path rather than passing the raw environment value straight
-  // into a filesystem read.
-  const keyPath = path.normalize(path.resolve(keyPathRaw));
-  const allowedRoots = [path.resolve(os.homedir()), path.resolve(process.cwd())];
-  const contained = allowedRoots.some(
-    (root) => keyPath === root || keyPath.startsWith(root + path.sep),
-  );
-  if (!contained) {
+  // treat the value as untrusted: resolve it to an absolute, normalized path and
+  // require it to sit under an allowlisted root (the maintainer's home directory
+  // or the repo working tree, which covers where ed25519 keys are realistically
+  // kept). The direct `startsWith` containment guards below bound the resolved
+  // path before it reaches any filesystem read, rather than passing the raw
+  // environment value straight into one.
+  const homeRoot = path.resolve(os.homedir()) + path.sep;
+  const repoRoot = path.resolve(process.cwd()) + path.sep;
+  const keyPath = path.resolve(keyPathRaw);
+  if (!keyPath.startsWith(homeRoot) && !keyPath.startsWith(repoRoot)) {
     throw new Error(
       `ROUBO_CATALOG_PRIVATE_KEY must point at a file under your home directory or the repo: ${keyPath}`,
     );
