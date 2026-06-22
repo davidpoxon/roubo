@@ -1,0 +1,20 @@
+{
+  "$schema": "https://roubo.dev/schema/work-units/v1.0.0.json",
+  "schemaVersion": "1.0.0",
+  "specSlug": "testbench",
+  "units": [
+    {
+      "id": "WU-001",
+      "title": "A plain delivery slice in the testbench spec",
+      "type": "feature",
+      "description": "A plain unit (no kind) used by the validate-on-load e2e fixture.",
+      "acceptance_criteria": ["The slice does the thing"],
+      "depends_on": [],
+      "implements": {
+        "requirement_ids": ["FR-003"],
+        "user_story_ids": ["US-008"],
+        "test_case_ids": ["TC-002"]
+      }
+    }
+  ]
+}
