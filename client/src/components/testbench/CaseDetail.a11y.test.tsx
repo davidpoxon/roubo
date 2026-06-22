@@ -114,13 +114,16 @@ describe("CaseDetail observation mark control (TC-021/TC-031)", () => {
     const firstGroup = screen.getAllByRole("radiogroup")[0];
     await user.click(within(firstGroup).getByRole("radio", { name: "Pass" }));
 
-    expect(mutate).toHaveBeenCalledWith({
-      projectId: "p1",
-      benchId: 3,
-      caseId: "TC-001",
-      observationId: "o1",
-      result: "pass",
-    });
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        projectId: "p1",
+        benchId: 3,
+        caseId: "TC-001",
+        observationId: "o1",
+        result: "pass",
+      },
+      expect.objectContaining({ onSettled: expect.any(Function) }),
+    );
   });
 
   it("clears the mark when the already-selected segment is re-pressed (toggle-to-unset, #522)", async () => {
@@ -140,13 +143,16 @@ describe("CaseDetail observation mark control (TC-021/TC-031)", () => {
     // The Pass segment is already selected; pressing it again clears the mark.
     await user.click(within(firstGroup).getByRole("radio", { name: "Pass" }));
 
-    expect(mutate).toHaveBeenCalledWith({
-      projectId: "p1",
-      benchId: 3,
-      caseId: "TC-001",
-      observationId: "o1",
-      result: null,
-    });
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        projectId: "p1",
+        benchId: 3,
+        caseId: "TC-001",
+        observationId: "o1",
+        result: null,
+      },
+      expect.objectContaining({ onSettled: expect.any(Function) }),
+    );
   });
 
   it("reflects a recorded mark as the selected segment", () => {
