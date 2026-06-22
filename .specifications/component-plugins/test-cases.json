@@ -4892,11 +4892,11 @@
             },
             {
               "id": "S003-O02",
-              "expected": "The dialog shows plugin id 'roubo/redis', kind 'component plugin', and the target version"
+              "expected": "The dialog shows plugin id 'redis', kind 'component plugin', and the target version"
             },
             {
               "id": "S003-O03",
-              "expected": "A trust banner reads 'Verified, first-party' with a shield-check icon"
+              "expected": "A trust banner reads 'Verified, first-party' with a ShieldAlert icon"
             },
             {
               "id": "S003-O04",
@@ -4928,7 +4928,7 @@
             },
             {
               "id": "S005-O02",
-              "expected": "A success toast appears reading 'Installed Redis \u00b7 roubo/redis'"
+              "expected": "A success toast appears reading 'Installed Redis.'"
             },
             {
               "id": "S005-O03",
@@ -4974,7 +4974,7 @@
             },
             {
               "id": "S008-O02",
-              "expected": "A toast reads 'Updated Redis \u00b7 roubo/redis'"
+              "expected": "A toast reads 'Updated Redis.'"
             },
             {
               "id": "S008-O03",
