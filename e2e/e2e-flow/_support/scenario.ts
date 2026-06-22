@@ -168,6 +168,11 @@ export async function registerFixtureProject(
     // repo and pins its worktree source to the local HEAD, so a real TestBench
     // worktree can be provisioned without an `origin` remote.
     gitInit?: boolean;
+    // TC-032 (#708): when true, the fixture roubo.yaml sets
+    // `benches.enforceIssueDependencies: true`, turning the host's hard
+    // start-gate ON at the project level (no reliance on the global default).
+    // The start-gate e2e drives the blocked -> allowed journey against it.
+    enforceIssueDependencies?: boolean;
   },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });
