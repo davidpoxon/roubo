@@ -22,7 +22,8 @@
     "./provision-descriptor-schema": "./provision-descriptor-schema.ts",
     "./testbench-contracts": "./testbench-contracts.ts",
     "./testbench-canonicalize": "./testbench-canonicalize.ts",
-    "./testbench-domain": "./testbench-domain.ts"
+    "./testbench-domain": "./testbench-domain.ts",
+    "./work-units-contract": "./work-units-contract.ts"
   },
   "dependencies": {
     "yaml": "2.9.0",
