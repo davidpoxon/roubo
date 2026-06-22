@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MarketplaceListing } from "@roubo/shared";
+import { ApiError } from "../../lib/api";
 
 vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
@@ -37,6 +38,8 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     version: "1.3.0",
     summary: "A Redis cache component.",
     source: { type: "git", url: "https://example.com/r.git" },
+    provenance: "roubo/plugins@redis",
+    integrity: "sha256-redis",
     verified: true,
     installed: false,
     installedVersion: null,
@@ -83,6 +86,14 @@ function setCatalog(listings: MarketplaceListing[]) {
     data: { curated: true, listings },
     isLoading: false,
     error: null,
+  } as unknown as ReturnType<typeof _useCatalog>);
+}
+
+function setCatalogError(error: unknown) {
+  mockedCatalog.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    error,
   } as unknown as ReturnType<typeof _useCatalog>);
 }
 
@@ -190,6 +201,61 @@ describe("Marketplace catalog", () => {
     setCatalog([]);
     render(<Marketplace />);
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
+  });
+
+  // CP-TC-118 / AC-3: an unverified catalog renders a dedicated error and zero
+  // plugin cards / Install buttons.
+  it("renders the catalog-unverified error and no plugin cards when the catalog is unverified", () => {
+    setCatalogError(
+      new ApiError("The plugin catalog could not be verified.", 502, "catalog-unverified"),
+    );
+    render(<Marketplace />);
+    expect(screen.getByTestId("marketplace-unverified")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-card-install")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
+  });
+
+  // CP-TC-106: a registry-unavailable / transport failure renders a generic
+  // graceful error (distinct from the unverified-catalog error) and no cards.
+  it("renders a generic graceful error when the registry is unavailable", () => {
+    setCatalogError(new ApiError("Network error", 503, "internal"));
+    render(<Marketplace />);
+    expect(screen.getByTestId("marketplace-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-unverified")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-card")).not.toBeInTheDocument();
+  });
+
+  // CP-TC-107: an integrity failure during the install preview surfaces an error
+  // to the user (via the toast) and the card stays uninstalled (no consent
+  // modal opens because staging itself failed).
+  it("surfaces an integrity failure from the install preview as a toast", async () => {
+    const mutate = vi.fn((_id: string, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(new ApiError("integrity verification failure", 422, "integrity-failed"));
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog([CATALOG[0]]); // redis, not installed
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-install"));
+    // No consent modal opens (staging failed); the card remains uninstalled.
+    expect(screen.queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-card-install")).toBeInTheDocument();
+  });
+
+  it("shows integrity, provenance, and sandbox rows in the detail drawer (CP-TC-104)", async () => {
+    const user = userEvent.setup();
+    setCatalog([CATALOG[0]]);
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-detail"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketplace-drawer")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("marketplace-drawer-integrity")).toHaveTextContent("signed by Roubo");
+    expect(screen.getByTestId("marketplace-drawer-provenance")).toHaveTextContent(
+      "roubo/plugins@redis",
+    );
+    expect(screen.getByTestId("marketplace-drawer-sandbox")).toHaveTextContent("Unsandboxed");
   });
 
   it("has no third-party submission affordance anywhere", () => {

@@ -49,6 +49,8 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     version: "1.3.0",
     summary: "A Redis cache component.",
     source: { type: "git", url: "https://example.com/r.git" },
+    provenance: "roubo/plugins@redis",
+    integrity: "sha256-redis",
     verified: true,
     installed: false,
     installedVersion: null,

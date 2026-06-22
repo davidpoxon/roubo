@@ -12,6 +12,7 @@ import {
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { verifyPackageIntegrity } from "./marketplace-integrity.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const STAGING_DIR_NAME = ".staging";
@@ -103,6 +104,29 @@ function assertCompatible(manifest: PluginManifest): void {
   }
 }
 
+/**
+ * Verify the staged package's content digest against the expected digest from
+ * the signed catalog entry (CP-FR-021, issue #622). Called after the manifest is
+ * read and compatibility is asserted, but before the staging entry is recorded,
+ * so a mismatch throws `integrity-failed` and the caller's catch removes the
+ * staging directory (no partial files; the existing version, if any, is left
+ * untouched). A null/undefined `expected` skips the check: the non-marketplace
+ * install paths (raw git URL, local directory) carry no catalog digest.
+ */
+async function assertPackageIntegrity(
+  stagingDir: string,
+  expected: string | null | undefined,
+): Promise<void> {
+  if (expected === null || expected === undefined) return;
+  const ok = await verifyPackageIntegrity(stagingDir, expected);
+  if (!ok) {
+    throw new InstallError(
+      "integrity-failed",
+      "Plugin package failed integrity verification: its content digest does not match the signed catalog entry.",
+    );
+  }
+}
+
 function assertNotDuplicate(manifestId: string): void {
   const existing = pluginManager.listInstalled().find((r) => r.id === manifestId);
   if (existing) {
@@ -186,7 +210,10 @@ function validateLocalPath(absPath: string): string {
   return normalized;
 }
 
-export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
+export async function previewFromGitUrl(
+  url: string,
+  expectedIntegrity?: string | null,
+): Promise<InstallPreview> {
   const safeUrl = validateGitUrl(url);
   await ensureStagingRoot();
   const token = randomUUID();
@@ -229,6 +256,7 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
   try {
     const manifest = await readStagingManifest(stagingDir);
     assertCompatible(manifest);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity);
     assertNotDuplicate(manifest.id);
     const source: InstallSource = { type: "git", url: safeUrl };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
@@ -251,6 +279,7 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
 export async function previewUpdateFromGitUrl(
   url: string,
   expectedId: string,
+  expectedIntegrity?: string | null,
 ): Promise<InstallPreview> {
   const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
   if (!existing) {
@@ -310,6 +339,7 @@ export async function previewUpdateFromGitUrl(
         `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
       );
     }
+    await assertPackageIntegrity(stagingDir, expectedIntegrity);
     const source: InstallSource = { type: "git", url: safeUrl };
     staged.set(token, {
       stagingDir,
