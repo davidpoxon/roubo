@@ -1,6 +1,5 @@
 #!/usr/bin/env tsx
-import { readFile, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
@@ -14,46 +13,38 @@ import {
 // entry, bumping a version, revoking a plugin, or updating an integrity digest),
 // re-sign the payload so the server's load-time signature check passes again.
 //
-// Usage:
-//   ROUBO_CATALOG_PRIVATE_KEY=/path/to/ed25519-priv.pem \
-//     npx tsx server/scripts/sign-marketplace-catalog.ts
+// Usage (the ed25519 PKCS8 PEM private key is piped in on stdin, never passed as
+// a filesystem path, so no external value reaches a filesystem read):
+//   npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem
+//   # equivalently: cat /path/to/ed25519-priv.pem | npx tsx server/scripts/sign-marketplace-catalog.ts
 //
-// The private key (ed25519, PKCS8 PEM) is held out of band and is never
-// committed. The matching public key is bundled in marketplace-integrity.ts;
-// this script verifies the produced signature against it before writing, so a
-// key mismatch fails loudly rather than committing an unverifiable catalog.
+// The private key is held out of band and is never committed. The matching
+// public key is bundled in marketplace-integrity.ts; this script verifies the
+// produced signature against it before writing, so a key mismatch fails loudly
+// rather than committing an unverifiable catalog. Reading the key from stdin
+// (rather than from an environment-supplied path) keeps any external value out
+// of a filesystem read sink.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogPath = path.resolve(here, "..", "services", "marketplace-catalog.json");
 
-async function main(): Promise<void> {
-  const keyPathRaw = process.env.ROUBO_CATALOG_PRIVATE_KEY;
-  if (!keyPathRaw) {
-    throw new Error("Set ROUBO_CATALOG_PRIVATE_KEY to the ed25519 private-key PEM path.");
+/** Read the private-key PEM from stdin. */
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer);
   }
-  // The key path comes from the environment. This script is maintainer-only, but
-  // treat the value as untrusted: resolve it to an absolute, normalized path and
-  // require it to sit under an allowlisted root (the maintainer's home directory
-  // or the repo working tree, which covers where ed25519 keys are realistically
-  // kept). Containment is checked with `path.relative`: a path inside a root
-  // yields a relative result that is neither absolute nor escapes upward via
-  // `..`, so this bounds the resolved path before it reaches any filesystem read
-  // rather than passing the raw environment value straight into one.
-  const isInside = (root: string, target: string): boolean => {
-    const rel = path.relative(root, target);
-    return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
-  };
-  const keyPath = path.resolve(keyPathRaw);
-  if (!isInside(os.homedir(), keyPath) && !isInside(process.cwd(), keyPath)) {
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function main(): Promise<void> {
+  const pem = (await readStdin()).trim();
+  if (!pem) {
     throw new Error(
-      `ROUBO_CATALOG_PRIVATE_KEY must point at a file under your home directory or the repo: ${keyPath}`,
+      "No private key on stdin. Pipe the ed25519 PKCS8 PEM in, e.g. `npx tsx server/scripts/sign-marketplace-catalog.ts < ed25519-priv.pem`.",
     );
   }
-  const keyStat = await stat(keyPath);
-  if (!keyStat.isFile()) {
-    throw new Error(`ROUBO_CATALOG_PRIVATE_KEY does not point at a regular file: ${keyPath}`);
-  }
-  const privateKey = createPrivateKey(await readFile(keyPath, "utf8"));
+  const privateKey = createPrivateKey(pem);
 
   const raw = JSON.parse(await readFile(catalogPath, "utf8")) as {
     $comment?: string;
