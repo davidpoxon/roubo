@@ -35,13 +35,16 @@ async function main(): Promise<void> {
   // treat the value as untrusted: resolve it to an absolute, normalized path and
   // require it to sit under an allowlisted root (the maintainer's home directory
   // or the repo working tree, which covers where ed25519 keys are realistically
-  // kept). The direct `startsWith` containment guards below bound the resolved
-  // path before it reaches any filesystem read, rather than passing the raw
-  // environment value straight into one.
-  const homeRoot = path.resolve(os.homedir()) + path.sep;
-  const repoRoot = path.resolve(process.cwd()) + path.sep;
+  // kept). Containment is checked with `path.relative`: a path inside a root
+  // yields a relative result that is neither absolute nor escapes upward via
+  // `..`, so this bounds the resolved path before it reaches any filesystem read
+  // rather than passing the raw environment value straight into one.
+  const isInside = (root: string, target: string): boolean => {
+    const rel = path.relative(root, target);
+    return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  };
   const keyPath = path.resolve(keyPathRaw);
-  if (!keyPath.startsWith(homeRoot) && !keyPath.startsWith(repoRoot)) {
+  if (!isInside(os.homedir(), keyPath) && !isInside(process.cwd(), keyPath)) {
     throw new Error(
       `ROUBO_CATALOG_PRIVATE_KEY must point at a file under your home directory or the repo: ${keyPath}`,
     );
