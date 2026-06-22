@@ -1,5 +1,6 @@
 #!/usr/bin/env tsx
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
@@ -26,9 +27,30 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogPath = path.resolve(here, "..", "services", "marketplace-catalog.json");
 
 async function main(): Promise<void> {
-  const keyPath = process.env.ROUBO_CATALOG_PRIVATE_KEY;
-  if (!keyPath) {
+  const keyPathRaw = process.env.ROUBO_CATALOG_PRIVATE_KEY;
+  if (!keyPathRaw) {
     throw new Error("Set ROUBO_CATALOG_PRIVATE_KEY to the ed25519 private-key PEM path.");
+  }
+  // The key path comes from the environment. This script is maintainer-only, but
+  // treat the value as untrusted: normalize it (collapsing any `..` segments),
+  // require it to resolve under an allowlisted root (the maintainer's home
+  // directory or the repo working tree, which covers where ed25519 keys are
+  // realistically kept), and confirm it is a regular file before reading. This
+  // contains the path rather than passing the raw environment value straight
+  // into a filesystem read.
+  const keyPath = path.normalize(path.resolve(keyPathRaw));
+  const allowedRoots = [path.resolve(os.homedir()), path.resolve(process.cwd())];
+  const contained = allowedRoots.some(
+    (root) => keyPath === root || keyPath.startsWith(root + path.sep),
+  );
+  if (!contained) {
+    throw new Error(
+      `ROUBO_CATALOG_PRIVATE_KEY must point at a file under your home directory or the repo: ${keyPath}`,
+    );
+  }
+  const keyStat = await stat(keyPath);
+  if (!keyStat.isFile()) {
+    throw new Error(`ROUBO_CATALOG_PRIVATE_KEY does not point at a regular file: ${keyPath}`);
   }
   const privateKey = createPrivateKey(await readFile(keyPath, "utf8"));
 
