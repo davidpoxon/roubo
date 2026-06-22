@@ -710,6 +710,37 @@ export interface AuditEntry {
 }
 
 /**
+ * One record of a privileged gate-lifecycle plugin call (FR-007, NFR-001). The
+ * broker `AuditEntry` above is bench-scoped (it carries a `benchId` and a
+ * `host.*` broker `method`), but a gate close is project- and gate-scoped: it
+ * has no bench, and it routes through the integration plugin's
+ * `applyTransition` RPC rather than the HostComponentBroker. Rather than overload
+ * the bench-scoped shape, the GateLifecycleCoordinator records this dedicated
+ * entry: which gate's tracker issue was transitioned, via which plugin and
+ * transition, and whether the privileged call was applied or skipped (the
+ * already-done idempotent no-op).
+ */
+export interface GateAuditEntry {
+  /** ISO-8601 timestamp of when the call was recorded. */
+  ts: string;
+  /** The project the gate belongs to. */
+  projectId: string;
+  /** The integration plugin the transition was routed through. */
+  pluginId: string;
+  /** The verify unit (gate) whose tracker issue was acted on. */
+  gateId: string;
+  /** The gate's tracker issue ref (issue number / key) that was transitioned. */
+  trackerRef: string;
+  /** The plugin transition name applied (e.g. "close"); omitted when skipped. */
+  transitionName?: string;
+  /**
+   * "closed" when a done-bound transition was applied; "already-done" when the
+   * issue was already in a done state and the close was an idempotent no-op.
+   */
+  outcome: "closed" | "already-done";
+}
+
+/**
  * The OS-isolation tiers the PluginIsolationSandbox can place a component plugin
  * process inside (F2.3, #620; backend chosen by SPK-2 / spike #599). Ordered
  * highest-isolation-first: `vz-vm` (Virtualization.framework per-plugin VM) is
