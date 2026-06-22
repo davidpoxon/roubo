@@ -21,7 +21,7 @@ Play CDN.
   including the create-then-link partial-failure recovery (NFR-003).
 - **Hard start-gate** (FR-006, NFR-003, US-002): a bench start refused with
   `409 GATE_BLOCKED` when the upstream gate is unpassed, and `409
-  GATE_INDETERMINATE` (fail-closed) when blocking state cannot be determined.
+GATE_INDETERMINATE` (fail-closed) when blocking state cannot be determined.
 
 ## Demo levers
 

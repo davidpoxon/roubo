@@ -55,39 +55,39 @@ transition, reusing the existing notification stream for live UI (FR-012).
 
 ## Components
 
-| Name | Kind | New / existing / extended | Responsibility |
-|------|------|---------------------------|----------------|
-| VerifyGate module | module | new | The bounded server domain that owns all gate logic; existing services call into its narrow entry points. |
-| WorkUnitsSchema (source) | library | new | The schema source for the `work-units.json` envelope + `WorkUnit` (incl. `kind:"verify"`), feeding generated `schema/work-units.schema.json` with a CI drift guard (FR-003, NFR-006). |
-| WorkUnitLoader | module | new | Validates and loads `work-units.json` for a slug via the validator; resolves a unit's upstream verify gate; fail-open to a fixture when absent (FR-003). |
-| GateEvaluator | module | new | **Pure** function over (gate, results, planHash) applying the deterministic results-to-passed rule using effective case status (FR-004, FR-005, NFR-007). |
-| StartGate | module | new | The hard start-gate: one bounded blocking read, refuses (409) when blocked, fails closed when indeterminate and enforcement is ON (FR-006, NFR-002, NFR-003). |
-| GateLifecycleCoordinator | module | new | On a transition to passed, closes the gate's tracker issue and audit-logs it; no-ops if already closed (FR-007, NFR-001). |
-| TrackerActionGateway | module | new | The sole wrapper for the three new privileged tracker ops (create-issue, add-block-link, close-gate); enforces capability flags + consent and records each in the audit log (FR-011, NFR-001, NFR-005). |
-| FixIssueFiler | module | new | Files a fix issue then registers the block-link; surfaces partial state and offers a link-only retry on a post-create failure (FR-009, FR-010, NFR-003). |
-| Gate API routes | module | new | `GET /gates`, `GET /gates/:gateId` (state + unresolved cases + covering units), `POST /gates/:gateId/fix-issues` (FR-008, FR-012, NFR-004). |
-| TestBench surface | client + module | extended | A batch-subset view (the gate's `implements.test_case_ids`), a gate-state panel, and a failed-case notes + file-fix-issue form (FR-008, FR-012, FR-009). |
-| benches route | module | extended | Calls `StartGate.assertGateOpen` before bench creation; replaces today's informational blocking read with the hard gate when ON (FR-006). |
-| issue-assignment service | module | extended | The assign flow delegates the same `assertGateOpen` check before checkout, so direct-assign paths are gated too (FR-006). |
-| TestBench sign-off path | module | extended | After a mark write, invokes `evaluateGate` and, on passed, `onGatePassed` (FR-004, FR-007). |
-| pluginManager | service | existing | Sandboxed plugin RPC bus; `TrackerActionGateway` routes all privileged tracker ops through its consent-gated `invoke`. |
-| project-registry | module | existing | `resolveEnforceIssueDependencies(projectId)` decides hard vs no-gate mode (FR-006). |
-| privileged-broker audit log | data-store | existing | Records every create-issue / add-block-link / close-gate call (NFR-001). |
-| notification SSE stream | module | existing | Optional best-effort push of gate-state-changed for live UI (FR-012). |
+| Name                        | Kind            | New / existing / extended | Responsibility                                                                                                                                                                                          |
+| --------------------------- | --------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VerifyGate module           | module          | new                       | The bounded server domain that owns all gate logic; existing services call into its narrow entry points.                                                                                                |
+| WorkUnitsSchema (source)    | library         | new                       | The schema source for the `work-units.json` envelope + `WorkUnit` (incl. `kind:"verify"`), feeding generated `schema/work-units.schema.json` with a CI drift guard (FR-003, NFR-006).                   |
+| WorkUnitLoader              | module          | new                       | Validates and loads `work-units.json` for a slug via the validator; resolves a unit's upstream verify gate; fail-open to a fixture when absent (FR-003).                                                |
+| GateEvaluator               | module          | new                       | **Pure** function over (gate, results, planHash) applying the deterministic results-to-passed rule using effective case status (FR-004, FR-005, NFR-007).                                               |
+| StartGate                   | module          | new                       | The hard start-gate: one bounded blocking read, refuses (409) when blocked, fails closed when indeterminate and enforcement is ON (FR-006, NFR-002, NFR-003).                                           |
+| GateLifecycleCoordinator    | module          | new                       | On a transition to passed, closes the gate's tracker issue and audit-logs it; no-ops if already closed (FR-007, NFR-001).                                                                               |
+| TrackerActionGateway        | module          | new                       | The sole wrapper for the three new privileged tracker ops (create-issue, add-block-link, close-gate); enforces capability flags + consent and records each in the audit log (FR-011, NFR-001, NFR-005). |
+| FixIssueFiler               | module          | new                       | Files a fix issue then registers the block-link; surfaces partial state and offers a link-only retry on a post-create failure (FR-009, FR-010, NFR-003).                                                |
+| Gate API routes             | module          | new                       | `GET /gates`, `GET /gates/:gateId` (state + unresolved cases + covering units), `POST /gates/:gateId/fix-issues` (FR-008, FR-012, NFR-004).                                                             |
+| TestBench surface           | client + module | extended                  | A batch-subset view (the gate's `implements.test_case_ids`), a gate-state panel, and a failed-case notes + file-fix-issue form (FR-008, FR-012, FR-009).                                                |
+| benches route               | module          | extended                  | Calls `StartGate.assertGateOpen` before bench creation; replaces today's informational blocking read with the hard gate when ON (FR-006).                                                               |
+| issue-assignment service    | module          | extended                  | The assign flow delegates the same `assertGateOpen` check before checkout, so direct-assign paths are gated too (FR-006).                                                                               |
+| TestBench sign-off path     | module          | extended                  | After a mark write, invokes `evaluateGate` and, on passed, `onGatePassed` (FR-004, FR-007).                                                                                                             |
+| pluginManager               | service         | existing                  | Sandboxed plugin RPC bus; `TrackerActionGateway` routes all privileged tracker ops through its consent-gated `invoke`.                                                                                  |
+| project-registry            | module          | existing                  | `resolveEnforceIssueDependencies(projectId)` decides hard vs no-gate mode (FR-006).                                                                                                                     |
+| privileged-broker audit log | data-store      | existing                  | Records every create-issue / add-block-link / close-gate call (NFR-001).                                                                                                                                |
+| notification SSE stream     | module          | existing                  | Optional best-effort push of gate-state-changed for live UI (FR-012).                                                                                                                                   |
 
 ## Data model
 
 Shapes adopted verbatim from `docs/work-unit-model.md`; Roubo only validates and
 reads `work-units.json` (it is written by the external `breakdown`).
 
-| Entity | Owner | Shape |
-|--------|-------|-------|
-| WorkUnitsEnvelope | WorkUnitLoader | `$schema: string, schemaVersion: string, specSlug: string, units: WorkUnit[]` |
-| WorkUnit | WorkUnitsSchema | `id: string, title: string, type: 'feature'|'task'|'spike'|'bug', kind?: 'e2e'|'doc'|'verify', milestone?: string, depends_on: string[], covers?: string[], implements: { requirement_ids: string[], user_story_ids: string[], test_case_ids: string[] }, tracker?: TrackerRef` |
-| VerifyUnit | WorkUnitsSchema | `WorkUnit & { kind: 'verify', covers: string[], implements.test_case_ids: string[] (the gating set), tracker: TrackerRef }` |
-| TrackerRef | WorkUnitsSchema | `system: 'github'|'ghe'|'jira', ref: string, url: string, node_id?: string, db_id?: number, blocked_by_refs: string[]` |
-| GateState | GateEvaluator | `gateId: string, status: 'passed'|'failed'|'pending'|'stale', unresolvedCaseIds: string[], coveringUnitIds: string[], evaluatedAt: string` (computed projection, never persisted) |
-| FixIssueRecord | FixIssueFiler | `fixIssueRef: string, gateRef: string, failedCaseId: string, linkStatus: 'complete'|'link_pending', createdAt: string` (per-request; partial state surfaced for retry, NFR-003) |
+| Entity            | Owner           | Shape                                                                                                                       |
+| ----------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| WorkUnitsEnvelope | WorkUnitLoader  | `$schema: string, schemaVersion: string, specSlug: string, units: WorkUnit[]`                                               |
+| WorkUnit          | WorkUnitsSchema | `id: string, title: string, type: 'feature'                                                                                 | 'task'                                                                                      | 'spike'                                                                                        | 'bug', kind?: 'e2e'                                                                                                          | 'doc' | 'verify', milestone?: string, depends_on: string[], covers?: string[], implements: { requirement_ids: string[], user_story_ids: string[], test_case_ids: string[] }, tracker?: TrackerRef` |
+| VerifyUnit        | WorkUnitsSchema | `WorkUnit & { kind: 'verify', covers: string[], implements.test_case_ids: string[] (the gating set), tracker: TrackerRef }` |
+| TrackerRef        | WorkUnitsSchema | `system: 'github'                                                                                                           | 'ghe'                                                                                       | 'jira', ref: string, url: string, node_id?: string, db_id?: number, blocked_by_refs: string[]` |
+| GateState         | GateEvaluator   | `gateId: string, status: 'passed'                                                                                           | 'failed'                                                                                    | 'pending'                                                                                      | 'stale', unresolvedCaseIds: string[], coveringUnitIds: string[], evaluatedAt: string` (computed projection, never persisted) |
+| FixIssueRecord    | FixIssueFiler   | `fixIssueRef: string, gateRef: string, failedCaseId: string, linkStatus: 'complete'                                         | 'link_pending', createdAt: string` (per-request; partial state surfaced for retry, NFR-003) |
 
 Invariants carried from the PRD / contracts: the gating set defaults to L1/L2 +
 `e2e_flow` (FR-005); evaluation uses effective status `statusOverride.status ??
@@ -102,22 +102,22 @@ tracker, never from the file.
 ### Module entry points (function-call)
 
 - **StartGate → callers:** `assertGateOpen(projectId, externalId, pluginId,
-  opts?: { enforce?: boolean, timeoutMs?: 3000, prefetchedIssue?: NormalizedIssue
-  }): Promise<void>`. Resolves enforcement via `resolveEnforceIssueDependencies`
+opts?: { enforce?: boolean, timeoutMs?: 3000, prefetchedIssue?: NormalizedIssue
+}): Promise<void>`. Resolves enforcement via `resolveEnforceIssueDependencies`
   when `enforce` is not passed. When ON: reads the issue's `blockedBy` with one
   3s-bounded `getIssue` RPC (or reuses `prefetchedIssue` to avoid a second fetch,
   NFR-002); throws `409 GATE_BLOCKED` if any blocker is unresolved; throws
   `409 GATE_INDETERMINATE` on no active plugin / RPC error / timeout (fail-closed,
   NFR-003). When OFF: returns immediately (FR-006).
 - **GateEvaluator:** `evaluateGate(gate: VerifyUnit, results: BenchResults,
-  currentPlanHash: string): GateState`. Pure, synchronous, in-memory (NFR-002,
+currentPlanHash: string): GateState`. Pure, synchronous, in-memory (NFR-002,
   NFR-007).
 - **GateLifecycleCoordinator:** `onGatePassed(projectId, gate: VerifyUnit,
-  pluginId): Promise<void>`. No-ops if the gate's tracker issue is already in a
+pluginId): Promise<void>`. No-ops if the gate's tracker issue is already in a
   done state; else calls `TrackerActionGateway.closeGate` and audit-logs (FR-007,
   NFR-001).
 - **FixIssueFiler:** `fileFixIssueAndBlock(projectId, pluginId, gateRef,
-  failedCaseId, notes, evidence?): Promise<FixIssueRecord>`. Calls
+failedCaseId, notes, evidence?): Promise<FixIssueRecord>`. Calls
   `createFixIssue` then `addBlockingLink`; on link failure returns
   `linkStatus: 'link_pending'` with the created ref for a link-only retry
   (NFR-003).
@@ -142,7 +142,7 @@ returns a legible degrade, never a silent no-op.
   `unresolvedCaseIds`, `coveringUnitIds`) / `404` (FR-012, NFR-004)
 - `POST /api/projects/:projectId/gates/:gateId/fix-issues`
   Request: `{ failedCaseId: string, notes: string, evidence?: string,
-  existingFixRef?: string }` (the optional `existingFixRef` drives the link-only
+existingFixRef?: string }` (the optional `existingFixRef` drives the link-only
   retry). Response: `201 FixIssueRecord` (full) / `207 FixIssueRecord`
   (`link_pending`, partial) / `422` (capability absent, NFR-005) / `409`.
 - TestBench batch subset: the existing plan endpoint gains an optional
@@ -250,9 +250,9 @@ None. The chosen architecture honours every PRD `FR-`/`NFR-` as written.
 Mirrors the PRD's DE-RISK delivery phasing (pieces 1-5 first, fix-issue filing
 last, GitHub-first).
 
-| Phase | Components delivered | Interfaces live |
-|-------|----------------------|-----------------|
-| Phase 1: model + evaluation | WorkUnitsSchema + validator, WorkUnitLoader, GateEvaluator | `evaluateGate`; schema CI drift guard (FR-003, FR-004, FR-005, NFR-006, NFR-007) |
-| Phase 2: enforcement + lifecycle | StartGate, GateLifecycleCoordinator (+ benches / issue-assignment extensions) | `assertGateOpen`; `onGatePassed` → `closeGate` (FR-006, FR-007, NFR-002, NFR-003) |
-| Phase 3: TestBench batch surface | Gate API routes, TestBench batch + gate-state view | `GET /gates`, `GET /gates/:gateId`, `?gateIds=` filter, optional SSE (FR-008, FR-012, NFR-004) |
-| Phase 4: failed-case filing (after the cross-tracker spike, GitHub-first) | TrackerActionGateway, FixIssueFiler, new plugin RPC + capability flags | `createIssue`, `addBlockedBy`, `POST /gates/:gateId/fix-issues` (FR-009, FR-010, FR-011, NFR-001, NFR-005) |
+| Phase                                                                     | Components delivered                                                          | Interfaces live                                                                                            |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Phase 1: model + evaluation                                               | WorkUnitsSchema + validator, WorkUnitLoader, GateEvaluator                    | `evaluateGate`; schema CI drift guard (FR-003, FR-004, FR-005, NFR-006, NFR-007)                           |
+| Phase 2: enforcement + lifecycle                                          | StartGate, GateLifecycleCoordinator (+ benches / issue-assignment extensions) | `assertGateOpen`; `onGatePassed` → `closeGate` (FR-006, FR-007, NFR-002, NFR-003)                          |
+| Phase 3: TestBench batch surface                                          | Gate API routes, TestBench batch + gate-state view                            | `GET /gates`, `GET /gates/:gateId`, `?gateIds=` filter, optional SSE (FR-008, FR-012, NFR-004)             |
+| Phase 4: failed-case filing (after the cross-tracker spike, GitHub-first) | TrackerActionGateway, FixIssueFiler, new plugin RPC + capability flags        | `createIssue`, `addBlockedBy`, `POST /gates/:gateId/fix-issues` (FR-009, FR-010, FR-011, NFR-001, NFR-005) |

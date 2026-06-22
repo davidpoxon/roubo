@@ -52,15 +52,24 @@
           "id": "S002",
           "instruction": "Pass the parsed object to validateWorkUnits()",
           "observations": [
-            { "id": "S002-O01", "expected": "Returns { ok: true, data }; data.specSlug is \"testbench\"; data.units is a non-empty array" }
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: true, data }; data.specSlug is \"testbench\"; data.units is a non-empty array"
+            }
           ]
         },
         {
           "id": "S003",
           "instruction": "Read the malformed copy (schemaVersion removed) and pass it to validateWorkUnits()",
           "observations": [
-            { "id": "S003-O01", "expected": "Returns { ok: false, errors } referencing the missing schemaVersion field" },
-            { "id": "S003-O02", "expected": "No exception is thrown; a discriminated result object is returned" }
+            {
+              "id": "S003-O01",
+              "expected": "Returns { ok: false, errors } referencing the missing schemaVersion field"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "No exception is thrown; a discriminated result object is returned"
+            }
           ]
         }
       ],
@@ -86,7 +95,10 @@
           "instruction": "Call validateWorkUnits(envelope)",
           "observations": [
             { "id": "S002-O01", "expected": "Returns { ok: false } with a non-empty errors array" },
-            { "id": "S002-O02", "expected": "At least one error message contains \"schemaVersion\"" }
+            {
+              "id": "S002-O02",
+              "expected": "At least one error message contains \"schemaVersion\""
+            }
           ]
         }
       ],
@@ -111,7 +123,10 @@
           "id": "S002",
           "instruction": "Call validateWorkUnits(envelope)",
           "observations": [
-            { "id": "S002-O01", "expected": "Returns { ok: false }; an error identifies implements.test_case_ids or the path to the missing field" }
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: false }; an error identifies implements.test_case_ids or the path to the missing field"
+            }
           ]
         }
       ],
@@ -139,7 +154,10 @@
           "id": "S002",
           "instruction": "Call validateWorkUnits(envelope containing this unit)",
           "observations": [
-            { "id": "S002-O01", "expected": "Returns { ok: false }; errors mention the unexpected key" }
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: false }; errors mention the unexpected key"
+            }
           ]
         }
       ],
@@ -167,7 +185,10 @@
           "id": "S002",
           "instruction": "Read the committed schema/work-units.schema.json and compare to the rendered string",
           "observations": [
-            { "id": "S002-O01", "expected": "The two strings are byte-for-byte identical (no drift)" }
+            {
+              "id": "S002-O01",
+              "expected": "The two strings are byte-for-byte identical (no drift)"
+            }
           ]
         }
       ],
@@ -181,9 +202,7 @@
       "area": "work-units-schema",
       "level": 2,
       "type": "integration",
-      "preconditions": [
-        "pr-check runs generate:schema followed by git diff --exit-code schema/"
-      ],
+      "preconditions": ["pr-check runs generate:schema followed by git diff --exit-code schema/"],
       "steps": [
         {
           "id": "S001",
@@ -223,7 +242,10 @@
           "id": "S002",
           "instruction": "Call validateWorkUnits(envelope)",
           "observations": [
-            { "id": "S002-O01", "expected": "Returns { ok: true }; the Jira system value is accepted" }
+            {
+              "id": "S002-O01",
+              "expected": "Returns { ok: true }; the Jira system value is accepted"
+            }
           ]
         }
       ],
@@ -343,8 +365,14 @@
           "id": "S001",
           "instruction": "Evaluate gate WU-040 where TC-024 is flagged orphaned",
           "observations": [
-            { "id": "S001-O01", "expected": "Gate state evaluates to PENDING (orphaned never reads as passed)" },
-            { "id": "S001-O02", "expected": "TC-024 appears in the unresolved list with an orphaned indicator" }
+            {
+              "id": "S001-O01",
+              "expected": "Gate state evaluates to PENDING (orphaned never reads as passed)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "TC-024 appears in the unresolved list with an orphaned indicator"
+            }
           ]
         }
       ],
@@ -368,7 +396,10 @@
           "instruction": "Evaluate gate WU-040 with results planHash 'abc123' against a plan whose current hash is 'def456'",
           "observations": [
             { "id": "S001-O01", "expected": "Gate state evaluates to STALE (not PASSED)" },
-            { "id": "S001-O02", "expected": "The stale signal is surfaced in the gate-state payload" }
+            {
+              "id": "S001-O02",
+              "expected": "The stale signal is surfaced in the gate-state payload"
+            }
           ]
         }
       ],
@@ -391,8 +422,14 @@
           "id": "S001",
           "instruction": "Evaluate gate WU-040 where TC-019 derivedStatus is passed and statusOverride is blocked",
           "observations": [
-            { "id": "S001-O01", "expected": "Gate state evaluates to FAILED (statusOverride takes precedence)" },
-            { "id": "S001-O02", "expected": "TC-019 effective status is blocked and it appears in the unresolved list" }
+            {
+              "id": "S001-O01",
+              "expected": "Gate state evaluates to FAILED (statusOverride takes precedence)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "TC-019 effective status is blocked and it appears in the unresolved list"
+            }
           ]
         }
       ],
@@ -416,7 +453,10 @@
           "instruction": "Inspect the derived gating set for the gate",
           "observations": [
             { "id": "S001-O01", "expected": "TC-019, TC-020, and TC-024 are in the gating set" },
-            { "id": "S001-O02", "expected": "TC-031 (L3) and TC-042 (L4) are not in the gating set" }
+            {
+              "id": "S001-O02",
+              "expected": "TC-031 (L3) and TC-042 (L4) are not in the gating set"
+            }
           ]
         }
       ],
@@ -441,8 +481,14 @@
           "instruction": "Request the gate-state payload for gate WU-040",
           "observations": [
             { "id": "S001-O01", "expected": "Response includes state FAILED" },
-            { "id": "S001-O02", "expected": "Response includes an unresolvedCases array containing TC-019" },
-            { "id": "S001-O03", "expected": "The TC-019 entry includes coveringUnits referencing WU-031" }
+            {
+              "id": "S001-O02",
+              "expected": "Response includes an unresolvedCases array containing TC-019"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The TC-019 entry includes coveringUnits referencing WU-031"
+            }
           ]
         }
       ],
@@ -469,8 +515,14 @@
           "id": "S002",
           "instruction": "Evaluate the gate a second time with the identical results and no intervening writes",
           "observations": [
-            { "id": "S002-O01", "expected": "The returned GateState is byte-for-byte identical to the first call" },
-            { "id": "S002-O02", "expected": "No side-effects (no writes, no differing logs) occur between the two calls" }
+            {
+              "id": "S002-O01",
+              "expected": "The returned GateState is byte-for-byte identical to the first call"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No side-effects (no writes, no differing logs) occur between the two calls"
+            }
           ]
         }
       ],
@@ -494,21 +546,30 @@
           "instruction": "Open the batch detail and locate the gate-state panel for WU-040",
           "observations": [
             { "id": "S001-O01", "expected": "Gate badge shows PENDING" },
-            { "id": "S001-O02", "expected": "Unresolved list shows the three gating cases, each linked to its covering unit" }
+            {
+              "id": "S001-O02",
+              "expected": "Unresolved list shows the three gating cases, each linked to its covering unit"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Mark the first gating case passed",
           "observations": [
-            { "id": "S002-O01", "expected": "It is removed from the unresolved list; the badge stays PENDING (two remain)" }
+            {
+              "id": "S002-O01",
+              "expected": "It is removed from the unresolved list; the badge stays PENDING (two remain)"
+            }
           ]
         },
         {
           "id": "S003",
           "instruction": "Mark the second gating case passed",
           "observations": [
-            { "id": "S003-O01", "expected": "It is removed from the unresolved list; the badge stays PENDING (one remains)" }
+            {
+              "id": "S003-O01",
+              "expected": "It is removed from the unresolved list; the badge stays PENDING (one remains)"
+            }
           ]
         },
         {
@@ -548,7 +609,10 @@
           "id": "S002",
           "instruction": "Inspect the Phase 2 card",
           "observations": [
-            { "id": "S002-O01", "expected": "Card lists WU-040 gating WU-031, WU-032, WU-033 and shows '3 gating cases'" }
+            {
+              "id": "S002-O01",
+              "expected": "Card lists WU-040 gating WU-031, WU-032, WU-033 and shows '3 gating cases'"
+            }
           ]
         },
         {
@@ -586,7 +650,10 @@
           "instruction": "Count and read the cases shown",
           "observations": [
             { "id": "S002-O01", "expected": "Exactly 3 cases are shown: TC-019, TC-020, TC-024" },
-            { "id": "S002-O02", "expected": "Cases outside the gating subset (e.g. TC-001, TC-010) do not appear" }
+            {
+              "id": "S002-O02",
+              "expected": "Cases outside the gating subset (e.g. TC-001, TC-010) do not appear"
+            }
           ]
         }
       ],
@@ -609,8 +676,14 @@
           "id": "S001",
           "instruction": "Open the merge control for Phase 2 and select Phase 3 as the merge target, then confirm",
           "observations": [
-            { "id": "S001-O01", "expected": "A single combined gate card replaces the Phase 2 and Phase 3 cards" },
-            { "id": "S001-O02", "expected": "The combined gate's gating set is the 5 cases TC-019, TC-020, TC-024, TC-030, TC-031" }
+            {
+              "id": "S001-O01",
+              "expected": "A single combined gate card replaces the Phase 2 and Phase 3 cards"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The combined gate's gating set is the 5 cases TC-019, TC-020, TC-024, TC-030, TC-031"
+            }
           ]
         },
         {
@@ -640,14 +713,20 @@
           "instruction": "Open the split control on the Phase 2 card; assign WU-031/032 to split A and WU-033/034 to split B; confirm",
           "observations": [
             { "id": "S001-O01", "expected": "Two gate cards replace the original Phase 2 card" },
-            { "id": "S001-O02", "expected": "Split A covers WU-031/032 (TC-019, TC-020); split B covers WU-033/034 (TC-024, TC-025)" }
+            {
+              "id": "S001-O02",
+              "expected": "Split A covers WU-031/032 (TC-019, TC-020); split B covers WU-033/034 (TC-024, TC-025)"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Verify the total gating case count across both new cards",
           "observations": [
-            { "id": "S002-O01", "expected": "Total is 4, matching the pre-split count, with no loss or duplication" }
+            {
+              "id": "S002-O01",
+              "expected": "Total is 4, matching the pre-split count, with no loss or duplication"
+            }
           ]
         }
       ],
@@ -670,29 +749,44 @@
           "id": "S001",
           "instruction": "Navigate to the batches overview",
           "observations": [
-            { "id": "S001-O01", "expected": "Three gate cards are shown: Phase 1 passed, Phase 2 verifying, Phase 3 blocked" }
+            {
+              "id": "S001-O01",
+              "expected": "Three gate cards are shown: Phase 1 passed, Phase 2 verifying, Phase 3 blocked"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Click the Phase 2 gate card",
           "observations": [
-            { "id": "S002-O01", "expected": "TestBench opens scoped to Phase 2 with exactly TC-019, TC-020, TC-024" }
+            {
+              "id": "S002-O01",
+              "expected": "TestBench opens scoped to Phase 2 with exactly TC-019, TC-020, TC-024"
+            }
           ]
         },
         {
           "id": "S003",
           "instruction": "Execute and mark TC-019, then TC-020, then TC-024 as passed",
           "observations": [
-            { "id": "S003-O01", "expected": "All three gating cases show passed; the sign-off action becomes active" }
+            {
+              "id": "S003-O01",
+              "expected": "All three gating cases show passed; the sign-off action becomes active"
+            }
           ]
         },
         {
           "id": "S004",
           "instruction": "Sign off the Phase 2 batch",
           "observations": [
-            { "id": "S004-O01", "expected": "Sign-off is recorded; the overview shows Phase 2 as passed/closed" },
-            { "id": "S004-O02", "expected": "Phase 3's blocked state resolves now that its upstream gate has passed" }
+            {
+              "id": "S004-O01",
+              "expected": "Sign-off is recorded; the overview shows Phase 2 as passed/closed"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "Phase 3's blocked state resolves now that its upstream gate has passed"
+            }
           ]
         }
       ],
@@ -715,21 +809,25 @@
           "id": "S001",
           "instruction": "Open the batches overview and merge the Phase 2 and Phase 3 gates; confirm",
           "observations": [
-            { "id": "S001-O01", "expected": "One combined gate card replaces the two; gating set is TC-019, TC-020, TC-024, TC-030" }
+            {
+              "id": "S001-O01",
+              "expected": "One combined gate card replaces the two; gating set is TC-019, TC-020, TC-024, TC-030"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Open the combined gate in TestBench and mark all 4 cases passed",
-          "observations": [
-            { "id": "S002-O01", "expected": "All 4 gating cases show passed" }
-          ]
+          "observations": [{ "id": "S002-O01", "expected": "All 4 gating cases show passed" }]
         },
         {
           "id": "S003",
           "instruction": "Sign off the combined batch",
           "observations": [
-            { "id": "S003-O01", "expected": "Sign-off succeeds; the combined gate shows passed/closed" },
+            {
+              "id": "S003-O01",
+              "expected": "Sign-off succeeds; the combined gate shows passed/closed"
+            },
             { "id": "S003-O02", "expected": "No separate Phase 2 or Phase 3 gate cards remain" }
           ]
         }
@@ -752,14 +850,20 @@
           "id": "S001",
           "instruction": "Open the batches overview and check whether the phase appears",
           "observations": [
-            { "id": "S001-O01", "expected": "The phase is either absent or shown as a card labelled 'no gating cases', never an unlabelled empty card" }
+            {
+              "id": "S001-O01",
+              "expected": "The phase is either absent or shown as a card labelled 'no gating cases', never an unlabelled empty card"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "If a card is shown, open it in TestBench",
           "observations": [
-            { "id": "S002-O01", "expected": "TestBench displays a clear 'no gating cases in scope' message, not cases from other phases" }
+            {
+              "id": "S002-O01",
+              "expected": "TestBench displays a clear 'no gating cases in scope' message, not cases from other phases"
+            }
           ]
         }
       ],
@@ -773,9 +877,7 @@
       "area": "batch-surface",
       "level": 2,
       "type": "functional",
-      "preconditions": [
-        "Phase 3 gate is blocked because WU-040 (Phase 2) has not been signed off"
-      ],
+      "preconditions": ["Phase 3 gate is blocked because WU-040 (Phase 2) has not been signed off"],
       "steps": [
         {
           "id": "S001",
@@ -788,7 +890,10 @@
           "id": "S002",
           "instruction": "Sign off the Phase 2 gate, then return to the overview",
           "observations": [
-            { "id": "S002-O01", "expected": "The Phase 3 card transitions from blocked to pending/ready" },
+            {
+              "id": "S002-O01",
+              "expected": "The Phase 3 card transitions from blocked to pending/ready"
+            },
             { "id": "S002-O02", "expected": "The blocked_by WU-040 annotation is removed" }
           ]
         }
@@ -803,15 +908,16 @@
       "area": "batch-surface",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "Phase 2 gate cases: TC-019 and TC-020 passed; TC-024 marked failed"
-      ],
+      "preconditions": ["Phase 2 gate cases: TC-019 and TC-020 passed; TC-024 marked failed"],
       "steps": [
         {
           "id": "S001",
           "instruction": "Open the Phase 2 gate in TestBench and attempt to sign off the batch",
           "observations": [
-            { "id": "S001-O01", "expected": "Sign-off is unavailable or returns an error citing TC-024's failing result" },
+            {
+              "id": "S001-O01",
+              "expected": "Sign-off is unavailable or returns an error citing TC-024's failing result"
+            },
             { "id": "S001-O02", "expected": "The Phase 2 gate does not become passed" }
           ]
         }
@@ -836,8 +942,14 @@
           "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
           "observations": [
             { "id": "S001-O01", "expected": "HTTP 409 is returned with errorCode GATE_BLOCKED" },
-            { "id": "S001-O02", "expected": "The reason identifies WU-040 as the blocking upstream gate" },
-            { "id": "S001-O03", "expected": "No bench workspace is created and no process is started" }
+            {
+              "id": "S001-O02",
+              "expected": "The reason identifies WU-040 as the blocking upstream gate"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "No bench workspace is created and no process is started"
+            }
           ]
         }
       ],
@@ -861,7 +973,10 @@
           "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
           "observations": [
             { "id": "S001-O01", "expected": "HTTP 201 is returned with the new bench record" },
-            { "id": "S001-O02", "expected": "The bench workspace is created; no GATE_BLOCKED/GATE_INDETERMINATE error is present" }
+            {
+              "id": "S001-O02",
+              "expected": "The bench workspace is created; no GATE_BLOCKED/GATE_INDETERMINATE error is present"
+            }
           ]
         }
       ],
@@ -884,7 +999,10 @@
           "id": "S001",
           "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
           "observations": [
-            { "id": "S001-O01", "expected": "HTTP 201 is returned; the bench is created and started" },
+            {
+              "id": "S001-O01",
+              "expected": "HTTP 201 is returned; the bench is created and started"
+            },
             { "id": "S001-O02", "expected": "No gate-related error is present in the response" }
           ]
         }
@@ -922,7 +1040,10 @@
           "id": "S003",
           "instruction": "Retry starting a bench for WU-051",
           "observations": [
-            { "id": "S003-O01", "expected": "HTTP 201; the bench is created and running, with no gate-blocking error" }
+            {
+              "id": "S003-O01",
+              "expected": "HTTP 201; the bench is created and running, with no gate-blocking error"
+            }
           ]
         }
       ],
@@ -946,7 +1067,10 @@
           "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
           "observations": [
             { "id": "S001-O01", "expected": "HTTP 409 with errorCode GATE_INDETERMINATE" },
-            { "id": "S001-O02", "expected": "The reason indicates the gate state could not be determined (no active plugin)" },
+            {
+              "id": "S001-O02",
+              "expected": "The reason indicates the gate state could not be determined (no active plugin)"
+            },
             { "id": "S001-O03", "expected": "No bench is created; the start is refused entirely" }
           ]
         }
@@ -970,8 +1094,14 @@
           "id": "S001",
           "instruction": "POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' } and observe the timing",
           "observations": [
-            { "id": "S001-O01", "expected": "The server responds within approximately the 3s RPC timeout bound" },
-            { "id": "S001-O02", "expected": "HTTP 409 with errorCode GATE_INDETERMINATE; no bench is created" }
+            {
+              "id": "S001-O01",
+              "expected": "The server responds within approximately the 3s RPC timeout bound"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "HTTP 409 with errorCode GATE_INDETERMINATE; no bench is created"
+            }
           ]
         }
       ],
@@ -994,8 +1124,14 @@
           "id": "S001",
           "instruction": "Reset the RPC counter and any cached gate state, then POST /api/projects/:projectId/benches with { workUnitId: 'WU-051' }",
           "observations": [
-            { "id": "S001-O01", "expected": "Exactly one outbound blocking-read RPC is recorded for this start request" },
-            { "id": "S001-O02", "expected": "The RPC carries a 3s timeout bound (observable via the stub or plugin logs)" }
+            {
+              "id": "S001-O01",
+              "expected": "Exactly one outbound blocking-read RPC is recorded for this start request"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The RPC carries a 3s timeout bound (observable via the stub or plugin logs)"
+            }
           ]
         },
         {
@@ -1031,9 +1167,7 @@
         {
           "id": "S002",
           "instruction": "Compute the p95 latency over the 100 runs",
-          "observations": [
-            { "id": "S002-O01", "expected": "p95 latency is below 200ms" }
-          ]
+          "observations": [{ "id": "S002-O01", "expected": "p95 latency is below 200ms" }]
         }
       ],
       "tags": ["performance", "in-memory"],
@@ -1056,7 +1190,10 @@
           "instruction": "POST /api/projects/:projectId/issues/WU-051/assign to assign WU-051 to the existing bench",
           "observations": [
             { "id": "S001-O01", "expected": "HTTP 409 with errorCode GATE_BLOCKED" },
-            { "id": "S001-O02", "expected": "The assignment is not applied; the bench remains unassigned" }
+            {
+              "id": "S001-O02",
+              "expected": "The assignment is not applied; the bench remains unassigned"
+            }
           ]
         }
       ],
@@ -1079,7 +1216,10 @@
           "id": "S001",
           "instruction": "On the Verify-a-batch screen, observe the gate state and the 'Close gate & unblock Phase 3' button before the last case passes",
           "observations": [
-            { "id": "S001-O01", "expected": "The close button is disabled because at least one gating case has not passed" }
+            {
+              "id": "S001-O01",
+              "expected": "The close button is disabled because at least one gating case has not passed"
+            }
           ]
         },
         {
@@ -1087,7 +1227,10 @@
           "instruction": "Mark the final gating case passed",
           "observations": [
             { "id": "S002-O01", "expected": "The gate state is shown as passed" },
-            { "id": "S002-O02", "expected": "The 'Close gate & unblock Phase 3' button becomes enabled" }
+            {
+              "id": "S002-O02",
+              "expected": "The 'Close gate & unblock Phase 3' button becomes enabled"
+            }
           ]
         }
       ],
@@ -1109,7 +1252,10 @@
           "id": "S001",
           "instruction": "Click 'Close gate & unblock Phase 3'",
           "observations": [
-            { "id": "S001-O01", "expected": "The button enters a loading state and is temporarily disabled" }
+            {
+              "id": "S001-O01",
+              "expected": "The button enters a loading state and is temporarily disabled"
+            }
           ]
         },
         {
@@ -1140,14 +1286,20 @@
           "id": "S001",
           "instruction": "Open the Verify-a-batch screen and mark the final remaining gating case passed",
           "observations": [
-            { "id": "S001-O01", "expected": "The gate state changes to passed and the close button becomes enabled" }
+            {
+              "id": "S001-O01",
+              "expected": "The gate state changes to passed and the close button becomes enabled"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Click 'Close gate & unblock Phase 3' and wait for completion",
           "observations": [
-            { "id": "S002-O01", "expected": "The audit log records a close/transition entry referencing #451 and the plugin" },
+            {
+              "id": "S002-O01",
+              "expected": "The audit log records a close/transition entry referencing #451 and the plugin"
+            },
             { "id": "S002-O02", "expected": "The gate state reads closed" }
           ]
         },
@@ -1155,14 +1307,20 @@
           "id": "S003",
           "instruction": "Navigate to the batches overview and inspect the Phase 3 card",
           "observations": [
-            { "id": "S003-O01", "expected": "The Phase 3 card now shows Unblocked and no longer lists WU-040 as a blocker" }
+            {
+              "id": "S003-O01",
+              "expected": "The Phase 3 card now shows Unblocked and no longer lists WU-040 as a blocker"
+            }
           ]
         },
         {
           "id": "S004",
           "instruction": "Start a new bench in Phase 3",
           "observations": [
-            { "id": "S004-O01", "expected": "The Phase 3 bench starts with no blocked-by error referencing the gate" }
+            {
+              "id": "S004-O01",
+              "expected": "The Phase 3 bench starts with no blocked-by error referencing the gate"
+            }
           ]
         }
       ],
@@ -1189,8 +1347,14 @@
           "id": "S002",
           "instruction": "Inspect the bench audit log after completion",
           "observations": [
-            { "id": "S002-O01", "expected": "An audit entry records a privileged applyTransition broker call on issue #451 attributed to the active plugin" },
-            { "id": "S002-O02", "expected": "The recorded transition target corresponds to the done/close state from allowedTransitions" }
+            {
+              "id": "S002-O01",
+              "expected": "An audit entry records a privileged applyTransition broker call on issue #451 attributed to the active plugin"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The recorded transition target corresponds to the done/close state from allowedTransitions"
+            }
           ]
         },
         {
@@ -1219,9 +1383,18 @@
           "id": "S001",
           "instruction": "Replay the gate-close request (re-POST the close endpoint)",
           "observations": [
-            { "id": "S001-O01", "expected": "Roubo returns a success or graceful 'already closed' response with no UI error" },
-            { "id": "S001-O02", "expected": "Issue #451 remains closed; no duplicate transition is applied" },
-            { "id": "S001-O03", "expected": "No second close entry is added to the audit log (idempotency preserved)" }
+            {
+              "id": "S001-O01",
+              "expected": "Roubo returns a success or graceful 'already closed' response with no UI error"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Issue #451 remains closed; no duplicate transition is applied"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "No second close entry is added to the audit log (idempotency preserved)"
+            }
           ]
         }
       ],
@@ -1249,8 +1422,14 @@
           "instruction": "Observe the result after the plugin rejects the transition",
           "observations": [
             { "id": "S002-O01", "expected": "A clear error is surfaced (no raw stack trace)" },
-            { "id": "S002-O02", "expected": "The gate state remains passed (not partially advanced to closed)" },
-            { "id": "S002-O03", "expected": "Issue #451 remains open and Phase 3 remains Blocked (no premature unblock)" }
+            {
+              "id": "S002-O02",
+              "expected": "The gate state remains passed (not partially advanced to closed)"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Issue #451 remains open and Phase 3 remains Blocked (no premature unblock)"
+            }
           ]
         }
       ],
@@ -1271,15 +1450,16 @@
         {
           "id": "S001",
           "instruction": "Observe the close button while the gate is failed",
-          "observations": [
-            { "id": "S001-O01", "expected": "The close button is disabled" }
-          ]
+          "observations": [{ "id": "S001-O01", "expected": "The close button is disabled" }]
         },
         {
           "id": "S002",
           "instruction": "Attempt to call the gate-close API directly while the gate is not passed",
           "observations": [
-            { "id": "S002-O01", "expected": "The API rejects with a 4xx (e.g. 409/422) indicating the gate is not in a closeable state" },
+            {
+              "id": "S002-O01",
+              "expected": "The API rejects with a 4xx (e.g. 409/422) indicating the gate is not in a closeable state"
+            },
             { "id": "S002-O02", "expected": "Issue #451 remains open and Phase 3 remains Blocked" }
           ]
         }
@@ -1303,7 +1483,10 @@
           "id": "S001",
           "instruction": "Mark TC-024 failed",
           "observations": [
-            { "id": "S001-O01", "expected": "TC-024 transitions to failed and a panel opens with a Notes field and a 'File fix issue & block gate' action" }
+            {
+              "id": "S001-O01",
+              "expected": "TC-024 transitions to failed and a panel opens with a Notes field and a 'File fix issue & block gate' action"
+            }
           ]
         },
         {
@@ -1311,28 +1494,40 @@
           "instruction": "Enter notes describing the failure and click 'File fix issue & block gate'",
           "observations": [
             { "id": "S002-O01", "expected": "A fix issue WU-041 / #452 is created in the tracker" },
-            { "id": "S002-O02", "expected": "The panel confirms 'WU-041 (#452) blocks WU-040 (#451)'" }
+            {
+              "id": "S002-O02",
+              "expected": "The panel confirms 'WU-041 (#452) blocks WU-040 (#451)'"
+            }
           ]
         },
         {
           "id": "S003",
           "instruction": "Open the bench audit log",
           "observations": [
-            { "id": "S003-O01", "expected": "Two chronological entries are present: create-issue (WU-041/#452) and add-blocking-link, both attributed to github-com" }
+            {
+              "id": "S003-O01",
+              "expected": "Two chronological entries are present: create-issue (WU-041/#452) and add-blocking-link, both attributed to github-com"
+            }
           ]
         },
         {
           "id": "S004",
           "instruction": "Attempt to pass the gate",
           "observations": [
-            { "id": "S004-O01", "expected": "The gate cannot pass; it is blocked by the open fix issue WU-041 (#452)" }
+            {
+              "id": "S004-O01",
+              "expected": "The gate cannot pass; it is blocked by the open fix issue WU-041 (#452)"
+            }
           ]
         },
         {
           "id": "S005",
           "instruction": "Resolve (close) #452 in the tracker and re-verify TC-024 as passed",
           "observations": [
-            { "id": "S005-O01", "expected": "TC-024 becomes passed, the blocker clears, and the gate can now pass" }
+            {
+              "id": "S005-O01",
+              "expected": "TC-024 becomes passed, the blocker clears, and the gate can now pass"
+            }
           ]
         }
       ],
@@ -1355,8 +1550,14 @@
           "instruction": "Click 'File fix issue & block gate'",
           "observations": [
             { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created in the tracker" },
-            { "id": "S001-O02", "expected": "WU-041 is registered as a blocker on WU-040 and the relationship persists on refresh" },
-            { "id": "S001-O03", "expected": "The gate reads 'blocked by 1 open fix issue' and cannot pass" }
+            {
+              "id": "S001-O02",
+              "expected": "WU-041 is registered as a blocker on WU-040 and the relationship persists on refresh"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The gate reads 'blocked by 1 open fix issue' and cannot pass"
+            }
           ]
         }
       ],
@@ -1384,16 +1585,28 @@
           "id": "S002",
           "instruction": "Fetch GET /api/projects/:projectId/benches/:id/audit-log?pluginId=github-com",
           "observations": [
-            { "id": "S002-O01", "expected": "Exactly two entries are returned (create-issue and add-blocking-link), both attributed to github-com, in chronological order" },
-            { "id": "S002-O02", "expected": "Neither entry contains a token, OAuth secret, or any credential substring" },
-            { "id": "S002-O03", "expected": "Each entry records plugin id, capability, timestamp, and the resulting issue reference" }
+            {
+              "id": "S002-O01",
+              "expected": "Exactly two entries are returned (create-issue and add-blocking-link), both attributed to github-com, in chronological order"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Neither entry contains a token, OAuth secret, or any credential substring"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Each entry records plugin id, capability, timestamp, and the resulting issue reference"
+            }
           ]
         },
         {
           "id": "S003",
           "instruction": "Inspect the server log output for the filing request",
           "observations": [
-            { "id": "S003-O01", "expected": "No token or secret value appears in any log line for the create-issue or add-blocking-link operations" }
+            {
+              "id": "S003-O01",
+              "expected": "No token or secret value appears in any log line for the create-issue or add-blocking-link operations"
+            }
           ]
         }
       ],
@@ -1416,9 +1629,15 @@
           "id": "S001",
           "instruction": "Attempt to invoke the create-issue broker call through the unconsented plugin (bypassing the UI consent check)",
           "observations": [
-            { "id": "S001-O01", "expected": "The privileged-broker guard rejects the call with a clear error (e.g. 403 / 'capability not declared')" },
+            {
+              "id": "S001-O01",
+              "expected": "The privileged-broker guard rejects the call with a clear error (e.g. 403 / 'capability not declared')"
+            },
             { "id": "S001-O02", "expected": "No issue is created in the tracker" },
-            { "id": "S001-O03", "expected": "The rejection is recorded as a blocked attempt, not a successful action" }
+            {
+              "id": "S001-O03",
+              "expected": "The rejection is recorded as a blocked attempt, not a successful action"
+            }
           ]
         }
       ],
@@ -1441,15 +1660,24 @@
           "id": "S001",
           "instruction": "Submit the filing payload with an evidence path of '../../outside-workspace/secrets.txt'",
           "observations": [
-            { "id": "S001-O01", "expected": "The resolveWithin barrier rejects the write with a path-escape error" },
-            { "id": "S001-O02", "expected": "No file is created at or outside the workspace boundary" }
+            {
+              "id": "S001-O01",
+              "expected": "The resolveWithin barrier rejects the write with a path-escape error"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No file is created at or outside the workspace boundary"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Resubmit with a valid in-workspace evidence path",
           "observations": [
-            { "id": "S002-O01", "expected": "The write succeeds within the workspace at the specified path" }
+            {
+              "id": "S002-O01",
+              "expected": "The write succeeds within the workspace at the specified path"
+            }
           ]
         }
       ],
@@ -1473,7 +1701,10 @@
           "observations": [
             { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created in GitHub" },
             { "id": "S001-O02", "expected": "A blocking link from #452 to #451 is registered" },
-            { "id": "S001-O03", "expected": "The UI confirms both the issue reference and the blocking-link" }
+            {
+              "id": "S001-O03",
+              "expected": "The UI confirms both the issue reference and the blocking-link"
+            }
           ]
         }
       ],
@@ -1495,9 +1726,18 @@
           "id": "S001",
           "instruction": "Click 'File fix issue & block gate'",
           "observations": [
-            { "id": "S001-O01", "expected": "The fix issue is created (create-issue is available)" },
-            { "id": "S001-O02", "expected": "A clear non-silent message states the tracker does not support automatic blocking links and to add it manually (not a silent no-op)" },
-            { "id": "S001-O03", "expected": "The gate is held in a safe state and cannot pass until the fix is manually resolved and the case re-verified" }
+            {
+              "id": "S001-O01",
+              "expected": "The fix issue is created (create-issue is available)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "A clear non-silent message states the tracker does not support automatic blocking links and to add it manually (not a silent no-op)"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The gate is held in a safe state and cannot pass until the fix is manually resolved and the case re-verified"
+            }
           ]
         }
       ],
@@ -1521,16 +1761,28 @@
           "instruction": "Click 'File fix issue & block gate' while the link step is set to fail",
           "observations": [
             { "id": "S001-O01", "expected": "Fix issue WU-041 / #452 is created successfully" },
-            { "id": "S001-O02", "expected": "A 'Link step failed' warning is shown, distinct from a full success" },
-            { "id": "S001-O03", "expected": "A 'Retry link only' action is presented and the gate is NOT passable (known partial-failure state)" }
+            {
+              "id": "S001-O02",
+              "expected": "A 'Link step failed' warning is shown, distinct from a full success"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "A 'Retry link only' action is presented and the gate is NOT passable (known partial-failure state)"
+            }
           ]
         },
         {
           "id": "S002",
           "instruction": "Restore normal conditions and click 'Retry link only'",
           "observations": [
-            { "id": "S002-O01", "expected": "The blocking link completes; WU-041 (#452) now blocks WU-040 (#451)" },
-            { "id": "S002-O02", "expected": "The warning clears and a new audit entry records the successful link retry" }
+            {
+              "id": "S002-O01",
+              "expected": "The blocking link completes; WU-041 (#452) now blocks WU-040 (#451)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The warning clears and a new audit entry records the successful link retry"
+            }
           ]
         }
       ],
@@ -1552,7 +1804,10 @@
           "id": "S001",
           "instruction": "Leave Notes blank and click 'File fix issue & block gate'",
           "observations": [
-            { "id": "S001-O01", "expected": "Submission is blocked with an inline validation message that notes are required" },
+            {
+              "id": "S001-O01",
+              "expected": "Submission is blocked with an inline validation message that notes are required"
+            },
             { "id": "S001-O02", "expected": "No tracker call is made and no issue is created" },
             { "id": "S001-O03", "expected": "The gate state is unchanged" }
           ]

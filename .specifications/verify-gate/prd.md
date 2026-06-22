@@ -1,10 +1,10 @@
 # PRD: Verify gate
 
-| | |
-|---|---|
-| **Slug** | verify-gate |
-| **Status** | draft |
-| **Brief** | ./brief.md |
+|                 |                  |
+| --------------- | ---------------- |
+| **Slug**        | verify-gate      |
+| **Status**      | draft            |
+| **Brief**       | ./brief.md       |
 | **Feasibility** | ./feasibility.md |
 
 ## Problem statement
@@ -98,9 +98,9 @@ starting until the current batch has been verified to pass.
 - **FR-004** Roubo evaluates a gate's state by reading `test-results.json` and
   applying the deterministic results-to-passed rule over the gate's
   `implements.test_case_ids`: passed only if every gating case is passed; failed
-  if any is failed or blocked; pending if any is not_started / in_progress or
+  if any is failed or blocked; pending if any is not*started / in_progress or
   absent / orphaned; stale if the results `planHash` does not match the current
-  `test-cases.json` plan hash. _(serves US-004; P0)_
+  `test-cases.json` plan hash. *(serves US-004; P0)\_
 - **FR-005** The gating test set defaults to the batch's L1 / L2 plus `e2e_flow`
   cases (per `verify-gate.md`), and the evaluation uses each case's effective
   status (`statusOverride` if present, else `derivedStatus`). _(serves US-004; P0)_
@@ -191,18 +191,18 @@ Each NFR has a measurable target and a verification method.
 
 ### Leading
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Per-phase verification completion (% of milestones whose gate is signed off before the next milestone's first bench starts) | 0 (no gates today) | > 90% | gate state + bench start timestamps | US-001, US-002 |
-| Hard-gate refusals (count of bench-start/assign attempts correctly refused by an unpassed gate when ON) | n/a (informational only today) | > 0 and matching unpassed gates | start-gate refusal records / audit log | US-002, FR-006 |
-| Failed-case to fix-issue conversion (% of failed gating cases that become a filed, gate-blocking fix issue) | 0 | > 80% | failed-case + fix-issue records | US-006 |
+| Indicator                                                                                                                   | Baseline                       | Target                          | Source                                 | Validates      |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------- | -------------------------------------- | -------------- |
+| Per-phase verification completion (% of milestones whose gate is signed off before the next milestone's first bench starts) | 0 (no gates today)             | > 90%                           | gate state + bench start timestamps    | US-001, US-002 |
+| Hard-gate refusals (count of bench-start/assign attempts correctly refused by an unpassed gate when ON)                     | n/a (informational only today) | > 0 and matching unpassed gates | start-gate refusal records / audit log | US-002, FR-006 |
+| Failed-case to fix-issue conversion (% of failed gating cases that become a filed, gate-blocking fix issue)                 | 0                              | > 80%                           | failed-case + fix-issue records        | US-006         |
 
 ### Lagging
 
-| Indicator | Baseline | Target | Source | Validates |
-|-----------|----------|--------|--------|-----------|
-| Deferred / skipped verification batches | high (current pain) | trends to ~0 | gates left pending past their milestone | the feature |
-| Milestones advancing on unverified work when ON | unknown / unguarded today | 0 instances | gate state vs next-batch bench start | US-002 |
+| Indicator                                       | Baseline                  | Target       | Source                                  | Validates   |
+| ----------------------------------------------- | ------------------------- | ------------ | --------------------------------------- | ----------- |
+| Deferred / skipped verification batches         | high (current pain)       | trends to ~0 | gates left pending past their milestone | the feature |
+| Milestones advancing on unverified work when ON | unknown / unguarded today | 0 instances  | gate state vs next-batch bench start    | US-002      |
 
 ## Dependencies & assumptions
 

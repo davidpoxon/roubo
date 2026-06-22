@@ -6,19 +6,11 @@
     "title": "Work-units schema, validator, and CI drift guard",
     "type": "feature",
     "milestone": "Verify gate: Phase 1 (model + evaluation)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
+    "labels": ["feature", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-003",
-        "NFR-006"
-      ],
-      "user_story_ids": [
-        "US-008"
-      ],
+      "requirement_ids": ["FR-003", "NFR-006"],
+      "user_story_ids": ["US-008"],
       "test_case_ids": [
         "TC-001",
         "TC-002",
@@ -38,22 +30,11 @@
     "title": "Deterministic gate evaluator",
     "type": "feature",
     "milestone": "Verify gate: Phase 1 (model + evaluation)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      697
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [697],
     "implements": {
-      "requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "NFR-007"
-      ],
-      "user_story_ids": [
-        "US-004"
-      ],
+      "requirement_ids": ["FR-004", "FR-005", "NFR-007"],
+      "user_story_ids": ["US-004"],
       "test_case_ids": [
         "TC-009",
         "TC-010",
@@ -75,22 +56,11 @@
     "title": "Hard start-gate (fail-closed) keyed to enforceIssueDependencies",
     "type": "feature",
     "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      698
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [698],
     "implements": {
-      "requirement_ids": [
-        "FR-006",
-        "NFR-002",
-        "NFR-003"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
+      "requirement_ids": ["FR-006", "NFR-002", "NFR-003"],
+      "user_story_ids": ["US-002"],
       "test_case_ids": [
         "TC-029",
         "TC-030",
@@ -110,28 +80,12 @@
     "title": "Gate lifecycle: close on pass and unblock the next batch",
     "type": "feature",
     "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      698
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [698],
     "implements": {
-      "requirement_ids": [
-        "FR-007"
-      ],
-      "user_story_ids": [
-        "US-005"
-      ],
-      "test_case_ids": [
-        "TC-038",
-        "TC-039",
-        "TC-041",
-        "TC-042",
-        "TC-043",
-        "TC-044"
-      ]
+      "requirement_ids": ["FR-007"],
+      "user_story_ids": ["US-005"],
+      "test_case_ids": ["TC-038", "TC-039", "TC-041", "TC-042", "TC-043", "TC-044"]
     }
   },
   {
@@ -141,27 +95,12 @@
     "title": "Gate API routes and batch-subset (server)",
     "type": "feature",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      698
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [698],
     "implements": {
-      "requirement_ids": [
-        "FR-008",
-        "FR-012",
-        "NFR-004"
-      ],
-      "user_story_ids": [
-        "US-003"
-      ],
-      "test_case_ids": [
-        "TC-016",
-        "TC-017",
-        "TC-021"
-      ]
+      "requirement_ids": ["FR-008", "FR-012", "NFR-004"],
+      "user_story_ids": ["US-003"],
+      "test_case_ids": ["TC-016", "TC-017", "TC-021"]
     }
   },
   {
@@ -171,29 +110,12 @@
     "title": "TestBench batch UI (overview, batch view, gate-state panel)",
     "type": "feature",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      701
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [701],
     "implements": {
-      "requirement_ids": [
-        "FR-001",
-        "FR-008",
-        "FR-012"
-      ],
-      "user_story_ids": [
-        "US-001",
-        "US-003"
-      ],
-      "test_case_ids": [
-        "TC-020",
-        "TC-026",
-        "TC-027",
-        "TC-028"
-      ]
+      "requirement_ids": ["FR-001", "FR-008", "FR-012"],
+      "user_story_ids": ["US-001", "US-003"],
+      "test_case_ids": ["TC-020", "TC-026", "TC-027", "TC-028"]
     }
   },
   {
@@ -203,24 +125,12 @@
     "title": "Batch merge and split (operator override)",
     "type": "feature",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "feature",
-      "P1"
-    ],
-    "blocked_by": [
-      702
-    ],
+    "labels": ["feature", "P1"],
+    "blocked_by": [702],
     "implements": {
-      "requirement_ids": [
-        "FR-002"
-      ],
-      "user_story_ids": [
-        "US-007"
-      ],
-      "test_case_ids": [
-        "TC-022",
-        "TC-023"
-      ]
+      "requirement_ids": ["FR-002"],
+      "user_story_ids": ["US-007"],
+      "test_case_ids": ["TC-022", "TC-023"]
     }
   },
   {
@@ -231,17 +141,10 @@
     "type": "spike",
     "kind": "spike",
     "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-    "labels": [
-      "spike",
-      "P0"
-    ],
+    "labels": ["spike", "P0"],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": [
-        "FR-010",
-        "FR-011",
-        "NFR-005"
-      ],
+      "requirement_ids": ["FR-010", "FR-011", "NFR-005"],
       "user_story_ids": [],
       "test_case_ids": []
     }
@@ -253,28 +156,12 @@
     "title": "Tracker-action gateway (create-issue, add-blocking-link, close; capability flags, consent, audit)",
     "type": "feature",
     "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      704
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [704],
     "implements": {
-      "requirement_ids": [
-        "FR-011",
-        "NFR-001",
-        "NFR-005"
-      ],
-      "user_story_ids": [
-        "US-006"
-      ],
-      "test_case_ids": [
-        "TC-047",
-        "TC-048",
-        "TC-050",
-        "TC-051"
-      ]
+      "requirement_ids": ["FR-011", "NFR-001", "NFR-005"],
+      "user_story_ids": ["US-006"],
+      "test_case_ids": ["TC-047", "TC-048", "TC-050", "TC-051"]
     }
   },
   {
@@ -284,30 +171,12 @@
     "title": "Failed-case capture and fix-issue filer (notes + create-then-link recovery)",
     "type": "feature",
     "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-    "labels": [
-      "feature",
-      "P0"
-    ],
-    "blocked_by": [
-      705,
-      700
-    ],
+    "labels": ["feature", "P0"],
+    "blocked_by": [705, 700],
     "implements": {
-      "requirement_ids": [
-        "FR-009",
-        "FR-010",
-        "NFR-003"
-      ],
-      "user_story_ids": [
-        "US-006"
-      ],
-      "test_case_ids": [
-        "TC-045",
-        "TC-046",
-        "TC-049",
-        "TC-052",
-        "TC-053"
-      ]
+      "requirement_ids": ["FR-009", "FR-010", "NFR-003"],
+      "user_story_ids": ["US-006"],
+      "test_case_ids": ["TC-045", "TC-046", "TC-049", "TC-052", "TC-053"]
     }
   },
   {
@@ -318,33 +187,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      701,
-      702
-    ],
-    "covers": [
-      701,
-      702
-    ],
-    "verified_by": [
-      "TC-024"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [701, 702],
+    "covers": [701, 702],
+    "verified_by": ["TC-024"],
     "implements": {
-      "requirement_ids": [
-        "FR-001",
-        "FR-008"
-      ],
-      "user_story_ids": [
-        "US-001",
-        "US-003"
-      ],
-      "test_case_ids": [
-        "TC-024"
-      ]
+      "requirement_ids": ["FR-001", "FR-008"],
+      "user_story_ids": ["US-001", "US-003"],
+      "test_case_ids": ["TC-024"]
     }
   },
   {
@@ -355,29 +205,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      699
-    ],
-    "covers": [
-      699
-    ],
-    "verified_by": [
-      "TC-032"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [699],
+    "covers": [699],
+    "verified_by": ["TC-032"],
     "implements": {
-      "requirement_ids": [
-        "FR-006"
-      ],
-      "user_story_ids": [
-        "US-002"
-      ],
-      "test_case_ids": [
-        "TC-032"
-      ]
+      "requirement_ids": ["FR-006"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": ["TC-032"]
     }
   },
   {
@@ -388,35 +223,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      701,
-      702,
-      703
-    ],
-    "covers": [
-      701,
-      702,
-      703
-    ],
-    "verified_by": [
-      "TC-025"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [701, 702, 703],
+    "covers": [701, 702, 703],
+    "verified_by": ["TC-025"],
     "implements": {
-      "requirement_ids": [
-        "FR-002",
-        "FR-008"
-      ],
-      "user_story_ids": [
-        "US-003",
-        "US-007"
-      ],
-      "test_case_ids": [
-        "TC-025"
-      ]
+      "requirement_ids": ["FR-002", "FR-008"],
+      "user_story_ids": ["US-003", "US-007"],
+      "test_case_ids": ["TC-025"]
     }
   },
   {
@@ -427,35 +241,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      698,
-      701,
-      702
-    ],
-    "covers": [
-      698,
-      701,
-      702
-    ],
-    "verified_by": [
-      "TC-019"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [698, 701, 702],
+    "covers": [698, 701, 702],
+    "verified_by": ["TC-019"],
     "implements": {
-      "requirement_ids": [
-        "FR-004",
-        "FR-005",
-        "FR-012"
-      ],
-      "user_story_ids": [
-        "US-004"
-      ],
-      "test_case_ids": [
-        "TC-019"
-      ]
+      "requirement_ids": ["FR-004", "FR-005", "FR-012"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-019"]
     }
   },
   {
@@ -466,29 +259,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      700
-    ],
-    "covers": [
-      700
-    ],
-    "verified_by": [
-      "TC-040"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [700],
+    "covers": [700],
+    "verified_by": ["TC-040"],
     "implements": {
-      "requirement_ids": [
-        "FR-007"
-      ],
-      "user_story_ids": [
-        "US-005"
-      ],
-      "test_case_ids": [
-        "TC-040"
-      ]
+      "requirement_ids": ["FR-007"],
+      "user_story_ids": ["US-005"],
+      "test_case_ids": ["TC-040"]
     }
   },
   {
@@ -499,35 +277,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      704,
-      705,
-      706
-    ],
-    "covers": [
-      704,
-      705,
-      706
-    ],
-    "verified_by": [
-      "TC-045"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [704, 705, 706],
+    "covers": [704, 705, 706],
+    "verified_by": ["TC-045"],
     "implements": {
-      "requirement_ids": [
-        "FR-009",
-        "FR-010",
-        "NFR-001"
-      ],
-      "user_story_ids": [
-        "US-006"
-      ],
-      "test_case_ids": [
-        "TC-045"
-      ]
+      "requirement_ids": ["FR-009", "FR-010", "NFR-001"],
+      "user_story_ids": ["US-006"],
+      "test_case_ids": ["TC-045"]
     }
   },
   {
@@ -538,30 +295,14 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Verify gate: Phase 1 (model + evaluation)",
-    "labels": [
-      "task",
-      "e2e"
-    ],
-    "blocked_by": [
-      697
-    ],
-    "covers": [
-      697
-    ],
-    "verified_by": [
-      "TC-002"
-    ],
+    "labels": ["task", "e2e"],
+    "blocked_by": [697],
+    "covers": [697],
+    "verified_by": ["TC-002"],
     "implements": {
-      "requirement_ids": [
-        "FR-003",
-        "NFR-006"
-      ],
-      "user_story_ids": [
-        "US-008"
-      ],
-      "test_case_ids": [
-        "TC-002"
-      ]
+      "requirement_ids": ["FR-003", "NFR-006"],
+      "user_story_ids": ["US-008"],
+      "test_case_ids": ["TC-002"]
     }
   }
 ]

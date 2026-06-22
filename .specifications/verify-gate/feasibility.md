@@ -6,11 +6,11 @@
 
 ## Per-dimension summary
 
-| Dimension | Verdict | Confidence | Top risk | Mitigation |
-|-----------|---------|------------|----------|------------|
-| Technical | feasible-with-conditions | medium | No issue-create path exists; `createIssue` + `addBlockedBy` across GitHub/GHE/Jira is unproven (write side, GHE, Jira) | Phase failed-case capture: notes-only v1a, GitHub-first; defer GHE/Jira and screenshots |
-| Effort / delivery | feasible-with-conditions | medium | External dep "breakdown emits gates" must land before end-to-end exercise; piece 6 is a large cross-tracker long pole | Build a fixture `work-units.json`; ship pieces 1-5 as a milestone, phase piece 6 |
-| Operational / robustness | feasible-with-conditions | high | Hard gate defaults fail-open today; must invert to fail-closed when enforcement is ON. Fix-issue filing has a create-then-link atomicity gap | Fail-closed when ON + blocking data unavailable; capability flags + retry UI for the link step |
+| Dimension                | Verdict                  | Confidence | Top risk                                                                                                                                     | Mitigation                                                                                     |
+| ------------------------ | ------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Technical                | feasible-with-conditions | medium     | No issue-create path exists; `createIssue` + `addBlockedBy` across GitHub/GHE/Jira is unproven (write side, GHE, Jira)                       | Phase failed-case capture: notes-only v1a, GitHub-first; defer GHE/Jira and screenshots        |
+| Effort / delivery        | feasible-with-conditions | medium     | External dep "breakdown emits gates" must land before end-to-end exercise; piece 6 is a large cross-tracker long pole                        | Build a fixture `work-units.json`; ship pieces 1-5 as a milestone, phase piece 6               |
+| Operational / robustness | feasible-with-conditions | high       | Hard gate defaults fail-open today; must invert to fail-closed when enforcement is ON. Fix-issue filing has a create-then-link atomicity gap | Fail-closed when ON + blocking data unavailable; capability flags + retry UI for the link step |
 
 ## Dimension detail
 
@@ -19,6 +19,7 @@
 **Summary:** Five of the six sub-problems are low-to-medium risk on well-precedented primitives: the work-units schema + ajv validator, the deterministic results-to-passed rule, the hard start-gate upgrade, the TestBench batch-subset surface, and gate close-on-pass. The one high-risk item is failed-case fix-issue creation: Roubo has no issue-create path, and registering a blocking relationship back to the gate is unproven for GHE and Jira. Verdict feasible-with-conditions, medium confidence.
 
 Key findings (evidence):
+
 - `schema/test-results.schema.json` and `schema/test-cases.schema.json` prove the envelope pattern a new `schema/work-units.schema.json` must follow; `ajv 8.20.0` is already a dependency (`server/package.json`). A validator mirroring the existing test-cases/test-results validators is low-effort.
 - `schema/test-results.schema.json:59-62` already defines `derivedStatus` enum `{not_started,in_progress,passed,failed,blocked}` and the `orphaned` marker; `planHash` staleness is a first-class `stale` boolean at `server/lib/testbench-store.ts:243-251,296`. The results-to-passed rule consumes only fields that already exist and are validated.
 - The hard start-gate is a behavior change at two callsites: `POST /benches` (`server/routes/benches.ts:71-177`) and the assign path (`server/services/issue-assignment.ts:381-508`). Today's blocking read at `server/routes/benches.ts:188-212` is explicitly "Best-effort and informational" and never refuses a start. No new data plumbing, a single-service behavior change.
@@ -32,6 +33,7 @@ Key findings (evidence):
 **Summary:** Medium-large for a solo developer, decomposing into five small-to-medium pieces plus one large long pole (failed-case capture + cross-tracker fix-issue filing). The critical external dependency on "breakdown emits gates" means the runtime cannot be exercised end-to-end until that upstream lands. Verdict feasible-with-conditions, medium confidence.
 
 Key findings:
+
 - Piece 1 (work-units schema + validator): SMALL. The schema pipeline already exists (`scripts/generate-schema.ts`, two shipped schemas).
 - Piece 2 (results-to-passed evaluation): SMALL-MEDIUM. Pure logic over data already modeled; `planHash` staleness already computed.
 - Piece 3 (gate lifecycle, close on pass): MEDIUM. Needs a new sandboxed close/transition RPC implemented across the three plugins.
@@ -45,6 +47,7 @@ Key findings:
 **Summary:** The deterministic rule plus the existing `planHash` staleness signal give a trustworthy gate core, and the local-tool context removes hosting/scaling concerns. Two fail-safety conditions must be resolved: the fail-open-vs-fail-closed default for the hard gate (today's code is fail-open, the wrong default when enforcement is ON), and the create-then-link atomicity gap in fix-issue filing. Verdict feasible-with-conditions, high confidence.
 
 Key findings:
+
 - `derivedStatus` is deterministic (`shared/testbench-domain.ts:37-74`); `blocked` is reachable only via explicit `statusOverride`. The gate must evaluate the **effective** status (`statusOverride.status ?? derivedStatus`), not raw `derivedStatus`.
 - `planHash` staleness is live (`server/lib/testbench-store.ts:296`): a mid-batch `test-cases.json` change sets `stale=true` on next read, so the gate cannot spuriously pass after a plan change.
 - The results sidecar load is fail-open by design (`server/lib/testbench-store.ts:119-171`): a missing/corrupt/invalid file maps gating cases to absent, which the rule treats as **pending**, never passed. Safe default for evaluation.
