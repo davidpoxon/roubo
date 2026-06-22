@@ -32,6 +32,7 @@ import {
 } from "../lib/testbench-spec-discovery.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
+import * as workUnitLoader from "../services/work-unit-loader.js";
 
 const router = Router();
 
@@ -117,6 +118,12 @@ function handleError(res: import("express").Response, err: unknown): void {
     res.status(400).json({ error: err.message });
     return;
   }
+  // A present-but-broken work-units.json in the ?gateIds= subset path is a
+  // bad-request-shaped misconfiguration, not a 500.
+  if (err instanceof workUnitLoader.WorkUnitsValidationError) {
+    res.status(400).json({ error: err.message, errors: err.errors });
+    return;
+  }
   res.status(500).json({ error: (err as Error).message });
 }
 
@@ -153,14 +160,70 @@ router.post("/:projectId/testbench/specs/validate", (req, res) => {
   }
 });
 
+// Parse a comma-separated ?gateIds= query value into a de-duplicated, non-empty
+// list of gate ids, preserving first-seen order. Returns undefined when the
+// param is absent (the full-plan path); returns [] when present but empty (an
+// explicit empty filter, which narrows the plan to no cases). A repeated query
+// param (?gateIds=a&gateIds=b) arrives as an array; both forms are flattened.
+function parseGateIdsParam(raw: unknown): string[] | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const values = Array.isArray(raw) ? raw : [raw];
+  const ids: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string") {
+      continue;
+    }
+    for (const part of value.split(",")) {
+      const trimmed = part.trim();
+      if (trimmed.length > 0 && !ids.includes(trimmed)) {
+        ids.push(trimmed);
+      }
+    }
+  }
+  return ids;
+}
+
 // 4. Load plan + results (fail-open: never 500 for a corrupt/missing results
 // sidecar, which testbench-store surfaces as a recovery payload).
+//
+// Optional ?gateIds= subset filter (FR-008, AC2): when present, the plan's cases
+// are narrowed to the union of the named gates' implements.test_case_ids (the raw
+// declared gating set, not the L3/L4-narrowed set: the gate evaluator owns that
+// narrowing), and a `filteredToGateIds` marker is added to the response so an
+// existing no-param caller gets the unchanged full-plan shape. An unknown gate id
+// in the filter contributes nothing (no error): the union of known gates wins.
 router.get("/:projectId/benches/:id/testbench/plan", (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
     const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
     const result = testbenchStore.readPlanAndResults(rootPath, slug);
-    res.json(result);
+
+    const gateIds = parseGateIdsParam(req.query.gateIds);
+    if (gateIds === undefined) {
+      // No filter: unchanged full-plan response.
+      res.json(result);
+      return;
+    }
+
+    // Resolve the named gates from this spec's work-units and union their
+    // declared gating sets. Gates live alongside the plan under the bench's own
+    // worktree, so load from the same rootPath + slug the plan was read from.
+    const gates = workUnitLoader.loadVerifyUnits(rootPath, slug);
+    const selected = gates.filter((g) => gateIds.includes(g.unit.id));
+    const subsetCaseIds = new Set<string>();
+    for (const g of selected) {
+      for (const caseId of g.unit.implements.test_case_ids) {
+        subsetCaseIds.add(caseId);
+      }
+    }
+
+    const filteredPlan = {
+      ...result.plan,
+      cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
+    };
+    res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds });
   } catch (err) {
     handleError(res, err);
   }
