@@ -7,6 +7,7 @@ import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { assertGateOpen } from "../services/start-gate.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import {
   getActivePluginOrRespond,
@@ -130,6 +131,16 @@ router.post("/:projectId/benches", async (req, res) => {
     const comments = await fetchPluginComments(active.pluginId, externalId);
 
     try {
+      // Hard start-gate (#699): when enforceIssueDependencies is ON, refuse to
+      // create-and-assign a unit whose upstream verify gate has not passed. The
+      // freshly fetched issue is reused so no second getIssue RPC is needed
+      // (NFR-002). A blocked or indeterminate gate throws a 409 ServiceError
+      // (GATE_BLOCKED / GATE_INDETERMINATE) routed through handleCreateBenchError,
+      // so no bench is created.
+      await assertGateOpen(req.params.projectId, externalId, active.pluginId, {
+        prefetchedIssue: issue,
+      });
+
       const result = await issueAssignment.createBenchAndAssignFromIssue(
         req.params.projectId,
         issue,

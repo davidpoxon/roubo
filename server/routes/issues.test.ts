@@ -48,7 +48,12 @@ vi.mock("../services/issue-assignment.js", () => ({
   unassignIssue: vi.fn(),
 }));
 
+vi.mock("../services/start-gate.js", () => ({
+  assertGateOpen: vi.fn(),
+}));
+
 import router from "./issues.js";
+import { assertGateOpen } from "../services/start-gate.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
@@ -908,6 +913,99 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
       .post("/p1/benches/1/assign-issue")
       .send({ externalId: "ROUBO-1" });
     expect(res.status).toBe(404);
+  });
+
+  // Hard start-gate (#699): the same enforcement as create-and-assign applies on
+  // the direct assign path (AC6). The gate runs after getIssue, reusing the
+  // fetched issue, and before issueAssignment.assignIssue.
+  describe("hard start-gate (#699)", () => {
+    beforeEach(() => {
+      vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
+        method === "getComments"
+          ? Promise.resolve([])
+          : Promise.resolve(makeIssue({ externalId: "ROUBO-42" }))) as never);
+    });
+
+    it("ON + blocked: returns 409 GATE_BLOCKED and never assigns", async () => {
+      vi.mocked(assertGateOpen).mockRejectedValue(
+        new ServiceError(
+          409,
+          "Issue ROUBO-42 is blocked by an unresolved upstream gate: ROUBO-10",
+          {
+            code: "GATE_BLOCKED",
+            blockedBy: ["ROUBO-10"],
+          },
+        ),
+      );
+
+      const res = await request(app)
+        .post("/p1/benches/1/assign-issue")
+        .send({ externalId: "ROUBO-42" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("GATE_BLOCKED");
+      expect(res.body.error).toContain("ROUBO-10");
+      expect(assertGateOpen).toHaveBeenCalledWith(
+        "p1",
+        "ROUBO-42",
+        "github-com",
+        expect.objectContaining({
+          prefetchedIssue: expect.objectContaining({ externalId: "ROUBO-42" }),
+        }),
+      );
+      expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
+    });
+
+    it("ON + passed: gate resolves and the assignment proceeds (200)", async () => {
+      vi.mocked(assertGateOpen).mockResolvedValue(undefined);
+      vi.mocked(issueAssignment.assignIssue).mockResolvedValue({
+        bench: { id: 1 },
+        terminalSessionId: "term-1",
+      } as never);
+
+      const res = await request(app)
+        .post("/p1/benches/1/assign-issue")
+        .send({ externalId: "ROUBO-42" });
+
+      expect(res.status).toBe(200);
+      expect(assertGateOpen).toHaveBeenCalledOnce();
+      expect(issueAssignment.assignIssue).toHaveBeenCalled();
+    });
+
+    it("OFF: gate is a no-op (resolves) and the assignment proceeds (200)", async () => {
+      vi.mocked(assertGateOpen).mockResolvedValue(undefined);
+      vi.mocked(issueAssignment.assignIssue).mockResolvedValue({
+        bench: { id: 1 },
+        terminalSessionId: "term-1",
+      } as never);
+
+      const res = await request(app)
+        .post("/p1/benches/1/assign-issue")
+        .send({ externalId: "ROUBO-42" });
+
+      expect(res.status).toBe(200);
+      expect(issueAssignment.assignIssue).toHaveBeenCalled();
+    });
+
+    it("ON + indeterminate: fails closed with 409 GATE_INDETERMINATE and never assigns", async () => {
+      vi.mocked(assertGateOpen).mockRejectedValue(
+        new ServiceError(
+          409,
+          "Cannot determine the gate state for issue ROUBO-42 (blocking-read failed); refusing to start (fail-closed)",
+          {
+            code: "GATE_INDETERMINATE",
+          },
+        ),
+      );
+
+      const res = await request(app)
+        .post("/p1/benches/1/assign-issue")
+        .send({ externalId: "ROUBO-42" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("GATE_INDETERMINATE");
+      expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
+    });
   });
 });
 
