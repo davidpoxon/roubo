@@ -1,0 +1,59 @@
+{
+  "$schema": "https://roubo.dev/schema/work-units/v1.0.0.json",
+  "schemaVersion": "1.0.0",
+  "specSlug": "verify-gate",
+  "units": [
+    {
+      "id": "WU-003",
+      "title": "Results store: safe-path write of test-results.json",
+      "type": "feature",
+      "description": "Persist per-observation marks to test-results.json behind the resolveWithin barrier.",
+      "acceptance_criteria": [
+        "Writes land at .specifications/<slug>/test-results.json only",
+        "A path escaping the repo is rejected before any fs call"
+      ],
+      "milestone": "Phase 1: results plumbing",
+      "labels": ["P0"],
+      "estimate": 3,
+      "depends_on": [],
+      "implements": {
+        "requirement_ids": ["NFR-001", "NFR-003"],
+        "user_story_ids": ["US-008"],
+        "test_case_ids": ["TC-050", "TC-051"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "406",
+        "url": "https://github.com/davidpoxon/roubo/issues/406",
+        "node_id": "I_kwDOExample406",
+        "blocked_by_refs": []
+      }
+    },
+    {
+      "id": "WU-009",
+      "title": "Verify gate: Phase 1 manual verification",
+      "type": "task",
+      "kind": "verify",
+      "description": "Human sign-off that the Phase 1 batch passes in TestBench before Phase 2 starts.",
+      "acceptance_criteria": [
+        "Every gating test case has a passing derivedStatus in test-results.json",
+        "No gating case is failed or blocked"
+      ],
+      "milestone": "Phase 1: results plumbing",
+      "labels": ["P0", "verify"],
+      "depends_on": ["WU-003"],
+      "implements": {
+        "requirement_ids": ["NFR-001"],
+        "user_story_ids": ["US-008"],
+        "test_case_ids": ["TC-050", "TC-051"]
+      },
+      "covers": ["WU-003"],
+      "tracker": {
+        "system": "github",
+        "ref": "420",
+        "url": "https://github.com/davidpoxon/roubo/issues/420",
+        "blocked_by_refs": ["406"]
+      }
+    }
+  ]
+}

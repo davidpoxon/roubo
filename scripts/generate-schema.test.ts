@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, it, expect, vi } from "vitest";
 import { TEST_CASES_SCHEMA_ID, TEST_RESULTS_SCHEMA_ID } from "../shared/testbench-contracts.js";
 import { TESTBENCH_TARGETING_SCHEMA_ID } from "../shared/testbench-targeting-schema.js";
+import { WORK_UNITS_SCHEMA_ID } from "../shared/work-units-contract.js";
 import { artifacts, renderSchema, generate } from "./generate-schema.js";
 
 // The generated artifacts and their expected versioned $id. Each entry's
@@ -10,6 +11,7 @@ const expected = [
   { name: "test-cases.schema.json", id: TEST_CASES_SCHEMA_ID },
   { name: "test-results.schema.json", id: TEST_RESULTS_SCHEMA_ID },
   { name: "testbench-targeting.spike.schema.json", id: TESTBENCH_TARGETING_SCHEMA_ID },
+  { name: "work-units.schema.json", id: WORK_UNITS_SCHEMA_ID },
 ];
 
 describe("generate-schema artifacts list", () => {

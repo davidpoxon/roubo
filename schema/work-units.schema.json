@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://roubo.dev/schema/work-units/v1.0.0.json"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "specSlug": {
+      "type": "string"
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["feature", "task", "spike", "bug"]
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["e2e", "doc", "verify"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimate": {
+            "type": "number"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "implements": {
+            "type": "object",
+            "properties": {
+              "requirement_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "user_story_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "test_case_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["requirement_ids", "user_story_ids", "test_case_ids"],
+            "additionalProperties": false
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_path": {
+            "type": "string"
+          },
+          "trigger_reason": {
+            "type": "string"
+          },
+          "tracker": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "enum": ["github", "ghe", "jira"]
+              },
+              "ref": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "node_id": {
+                "type": "string"
+              },
+              "db_id": {
+                "type": "number"
+              },
+              "blocked_by_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["system", "ref", "url", "blocked_by_refs"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "type",
+          "description",
+          "acceptance_criteria",
+          "depends_on",
+          "implements"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["$schema", "schemaVersion", "specSlug", "units"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/work-units/v1.0.0.json"
+}
