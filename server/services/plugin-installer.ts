@@ -24,6 +24,11 @@ interface StagedInstall {
   source: InstallSource;
   manifest: PluginManifest;
   createdAt: number;
+  // When set, `commit` replaces the already-installed plugin with this id
+  // (the marketplace update flow) rather than rejecting it as a duplicate.
+  // The id must equal `manifest.id`; the installer uninstalls the existing
+  // copy before moving the staged copy into place.
+  replaceId?: string;
 }
 
 const staged = new Map<string, StagedInstall>();
@@ -234,6 +239,92 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
   }
 }
 
+/**
+ * Stage an update for an already-installed plugin from a Git URL (the
+ * marketplace update flow, issue #621). Identical to `previewFromGitUrl`
+ * except it expects the cloned plugin's id to match an installed plugin and
+ * skips the duplicate-id rejection: the staged copy will replace the existing
+ * one at `commit` time. Throws `update-target-missing` if no plugin with
+ * `expectedId` is installed, or `invalid-input` if the cloned manifest id does
+ * not match `expectedId` (the catalog and the source must agree on the id).
+ */
+export async function previewUpdateFromGitUrl(
+  url: string,
+  expectedId: string,
+): Promise<InstallPreview> {
+  const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
+  if (!existing) {
+    throw new InstallError(
+      "update-target-missing",
+      `No installed plugin with id "${expectedId}" to update`,
+    );
+  }
+  if (existing.source === "bundled") {
+    throw new InstallError(
+      "update-target-missing",
+      `Bundled plugin "${expectedId}" cannot be updated in place`,
+    );
+  }
+
+  const safeUrl = validateGitUrl(url);
+  await ensureStagingRoot();
+  const token = randomUUID();
+  assertSafeIdentifier(token, UUID_RE, "stagingToken");
+  const stagingDir = resolveWithin(stagingRoot(), token);
+
+  try {
+    const result = await runCommand(
+      "git",
+      [
+        "-c",
+        "protocol.allow=user",
+        "-c",
+        "protocol.file.allow=never",
+        "clone",
+        "--depth",
+        "1",
+        "--",
+        safeUrl,
+        stagingDir,
+      ],
+      stagingRoot(),
+      undefined,
+      GIT_CLONE_TIMEOUT_MS,
+    );
+    if (result.code !== 0) {
+      await rmStaging(stagingDir);
+      throw gitCloneError(result.code, result.stderr);
+    }
+  } catch (err) {
+    if (err instanceof InstallError) throw err;
+    await rmStaging(stagingDir);
+    throw new InstallError("clone-failed", (err as Error).message);
+  }
+
+  try {
+    const manifest = await readStagingManifest(stagingDir);
+    assertCompatible(manifest);
+    if (manifest.id !== expectedId) {
+      throw new InstallError(
+        "invalid-input",
+        `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
+      );
+    }
+    const source: InstallSource = { type: "git", url: safeUrl };
+    staged.set(token, {
+      stagingDir,
+      source,
+      manifest,
+      createdAt: Date.now(),
+      replaceId: expectedId,
+    });
+    return { stagingToken: token, manifest, source };
+  } catch (err) {
+    await rmStaging(stagingDir);
+    throw err;
+  }
+}
+
 export async function previewFromLocalPath(absPath: string): Promise<InstallPreview> {
   // `safePath` is the normalized, validated absolute path. Every downstream
   // filesystem call uses `safePath` rather than the raw `absPath` argument
@@ -305,6 +396,14 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     throw new InstallError("unknown-token", `Unknown staging token: ${stagingToken}`);
   }
 
+  // Update flow (issue #621) is handled separately: it must preserve the
+  // existing copy until the new one is in place (no data loss) and must not go
+  // through the active-integration guard `uninstall` enforces. The install path
+  // below is unchanged.
+  if (entry.replaceId !== undefined) {
+    return commitUpdate(stagingToken, entry, entry.replaceId);
+  }
+
   // Re-check duplicate id at commit time: another install could have raced
   // through preview → commit in the meantime.
   if (pluginManager.listInstalled().some((r) => r.id === entry.manifest.id)) {
@@ -350,6 +449,118 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     throw new InstallError("internal", (err as Error).message);
   }
 
+  staged.delete(stagingToken);
+  return record;
+}
+
+/**
+ * Best-effort restore of the pre-update plugin after a failed update (issue
+ * #621), so the consumer is never left with a working plugin destroyed. Clears
+ * any partial new copy at `target`, moves the backup back into place, and
+ * re-registers it. Errors here are swallowed: we are already on a failure path,
+ * the directory is what matters for recovery, and the original InstallError must
+ * be the one that surfaces.
+ */
+async function restoreUpdateBackup(backupDir: string, target: string): Promise<void> {
+  try {
+    await stat(target);
+    // A partial/broken new copy may occupy the target; clear it first.
+    await rmStaging(target);
+  } catch {
+    // ENOENT (target absent) is the normal case; nothing to clear.
+  }
+  try {
+    await rename(backupDir, target);
+  } catch {
+    return;
+  }
+  try {
+    await pluginManager.registerInstalled(target);
+  } catch {
+    // Registry restore failed (e.g. the prior entry was never torn down); the
+    // directory is back on disk, so a later host restart re-discovers it.
+  }
+}
+
+/**
+ * Commit an UPDATE of an already-installed plugin (issue #621). Unlike the
+ * install path, this must not lose the existing plugin: it moves the current
+ * directory aside as a backup, tears down the old runtime WITHOUT the
+ * active-integration guard (`uninstallForUpdate`), swaps the staged copy into
+ * place, and registers it. Any failure after the backup restores the previous
+ * plugin so the consumer keeps a working install. The id was pinned to the
+ * installed plugin at preview time, so `manifest.id === replaceId`.
+ */
+async function commitUpdate(
+  stagingToken: string,
+  entry: StagedInstall,
+  replaceId: string,
+): Promise<PluginRecord> {
+  // Re-check the target still exists: another flow could have removed it
+  // between preview and commit.
+  if (!pluginManager.listInstalled().some((r) => r.id === replaceId)) {
+    await rmStaging(entry.stagingDir);
+    staged.delete(stagingToken);
+    throw new InstallError(
+      "update-target-missing",
+      `No installed plugin with id "${replaceId}" to update`,
+    );
+  }
+
+  assertSafeIdentifier(entry.manifest.id, PLUGIN_ID_RE, "pluginId");
+  const target = resolveWithin(pluginManager.getUserPluginsRoot(), entry.manifest.id);
+  const backupDir = resolveWithin(stagingRoot(), `${stagingToken}-prev`);
+
+  // 1. Preserve the existing copy by moving it aside (same filesystem as the
+  //    staged copy, so this is the same atomic rename the install path relies
+  //    on). After this the original is recoverable from `backupDir`.
+  try {
+    await rename(target, backupDir);
+  } catch (err) {
+    await rmStaging(entry.stagingDir);
+    staged.delete(stagingToken);
+    throw new InstallError(
+      "internal",
+      `Failed to back up existing plugin: ${(err as Error).message}`,
+    );
+  }
+
+  // 2. Tear down the old runtime/registry without deleting the directory
+  //    (already backed up) and without the active-integration guard (the id is
+  //    unchanged, so project bindings stay valid).
+  try {
+    await pluginManager.uninstallForUpdate(replaceId);
+  } catch (err) {
+    await restoreUpdateBackup(backupDir, target);
+    await rmStaging(entry.stagingDir);
+    staged.delete(stagingToken);
+    throw new InstallError("internal", (err as Error).message);
+  }
+
+  // 3. Move the staged copy into place.
+  try {
+    await rename(entry.stagingDir, target);
+  } catch (err) {
+    await restoreUpdateBackup(backupDir, target);
+    await rmStaging(entry.stagingDir);
+    staged.delete(stagingToken);
+    throw new InstallError("internal", `Failed to install plugin: ${(err as Error).message}`);
+  }
+
+  // 4. Register the new copy.
+  let record: PluginRecord;
+  try {
+    record = await pluginManager.registerInstalled(target);
+  } catch (err) {
+    // The new copy is broken: discard it and restore the backup.
+    await rmStaging(target);
+    await restoreUpdateBackup(backupDir, target);
+    staged.delete(stagingToken);
+    throw new InstallError("internal", (err as Error).message);
+  }
+
+  // 5. Success: drop the backup and the staging entry.
+  await rmStaging(backupDir);
   staged.delete(stagingToken);
   return record;
 }

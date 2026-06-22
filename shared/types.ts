@@ -175,11 +175,63 @@ export type InstallErrorCode =
   | "incompatible-host"
   | "duplicate-id"
   | "unknown-token"
+  | "update-target-missing"
   | "internal";
 
 export interface InstallErrorBody {
   error: string;
   code: InstallErrorCode;
+}
+
+// --- Marketplace catalog (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621) ----
+//
+// The marketplace serves a first-party-curated catalog of plugins (both
+// `component` and `integration` kinds). The catalog is a static, checked-in
+// manifest read server-side; each entry is cross-referenced against the
+// installed plugin set to annotate its install / update state. The `verified`
+// flag is a display-only curation marker (first-party), NOT a cryptographic
+// signature check: integrity verification and revocation are out of scope here
+// (covered separately). There is no third-party submission path.
+
+/**
+ * Plugin kinds surfaced by the marketplace. Mirrors the host's plugin-manifest
+ * `kind` discriminator; restated here so `shared` consumers don't reach into
+ * the manifest schema for the marketplace UI.
+ */
+export type MarketplaceKind = "component" | "integration";
+
+/**
+ * One curated catalog entry as authored in the static manifest. The `source`
+ * is the git URL the install/update flow clones from; `verified` is the
+ * display-only first-party curation flag.
+ */
+export interface MarketplaceCatalogEntry {
+  id: string;
+  name: string;
+  kind: MarketplaceKind;
+  version: string;
+  summary: string;
+  source: { type: "git"; url: string };
+  verified: boolean;
+}
+
+/**
+ * A catalog entry annotated with the consumer's local install state. Returned
+ * by `GET /api/marketplace/plugins`. `installed` reflects whether a plugin with
+ * this id is present in `listInstalled()`; `installedVersion` is its on-disk
+ * manifest version (null when the manifest is unreadable); `updateAvailable` is
+ * true when the catalog version is strictly newer than the installed version.
+ */
+export interface MarketplaceListing extends MarketplaceCatalogEntry {
+  installed: boolean;
+  installedVersion: string | null;
+  updateAvailable: boolean;
+}
+
+/** Response shape for `GET /api/marketplace/plugins`. */
+export interface MarketplaceCatalogResponse {
+  curated: true;
+  listings: MarketplaceListing[];
 }
 
 /**

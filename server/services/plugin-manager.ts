@@ -1329,6 +1329,51 @@ export async function uninstall(pluginId: string): Promise<void> {
 }
 
 /**
+ * Tear down the running plugin's in-memory state for an in-place UPDATE of the
+ * same id (the marketplace update flow, issue #621), without deleting the
+ * plugin directory and without the active-integration guard `uninstall`
+ * enforces.
+ *
+ * The two differences from `uninstall` are deliberate and exactly what the
+ * update flow needs:
+ *  - **No directory removal.** The installer owns the on-disk swap: it moves the
+ *    existing directory aside as a backup before calling this, so destroying it
+ *    here would defeat the rollback. The caller is responsible for the backup
+ *    and for either landing the new copy or restoring the old one.
+ *  - **No active-integration guard.** Re-installing the SAME id keeps every
+ *    project's integration binding valid (the binding is by id, which does not
+ *    change across an update), so refusing to update an in-use integration the
+ *    way `uninstall` refuses to remove one would block a primary update flow
+ *    (CP-FR-020) for no benefit.
+ *
+ * Bookkeeping otherwise mirrors `uninstall`: stop the process, close the log
+ * stream, drop the registry entry, and clear the enable bit and issue caches so
+ * the freshly-registered copy starts clean (an updated id is a new deployment,
+ * FR-014). Throws when the plugin is unknown or bundled (bundled plugins are
+ * not updatable in place; the installer guards this too).
+ */
+export async function uninstallForUpdate(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  if (entry.record.source === "bundled") {
+    throw new Error(`Bundled plugins cannot be updated in place: ${pluginId}`);
+  }
+
+  await stopPluginProcess(entry);
+
+  if (entry.logStream) {
+    const stream = entry.logStream;
+    entry.logStream = null;
+    await new Promise<void>((resolve) => stream.end(resolve));
+  }
+
+  plugins.delete(pluginId);
+  pluginEnableState.removePlugin(pluginId);
+  issueSnapshotCache.clearSnapshot(pluginId);
+  cutListQueryService.evictPlugin(pluginId);
+}
+
+/**
  * Add a freshly-installed plugin directory to the in-memory state and start
  * it. Called by the plugin-installer after it has moved a validated staging
  * directory into `~/.roubo/plugins/<id>/`. The caller is responsible for

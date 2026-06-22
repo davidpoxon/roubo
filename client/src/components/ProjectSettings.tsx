@@ -37,6 +37,7 @@ import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
+import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
 
 const THEME_OPTIONS: {
@@ -687,6 +688,7 @@ const HASH_TAB_IDS = new Set([
   "appearance",
   "jigs",
   "plugins",
+  "marketplace",
   "claude-code",
 ]);
 
@@ -710,27 +712,35 @@ export default function ProjectSettings() {
           aria-label="Settings sections"
           className="flex gap-0 border-b border-stone-200 dark:border-stone-800 mb-8"
         >
-          {(["benches", "testbench", "appearance", "jigs", "plugins", "claude-code"] as const).map(
-            (id) => (
-              <Tab
-                key={id}
-                id={id}
-                className={({ isSelected, isFocusVisible }) =>
-                  [
-                    "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
-                    isSelected
-                      ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                      : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
-                    isFocusVisible
-                      ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
-                      : "",
-                  ].join(" ")
-                }
-              >
-                {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
-              </Tab>
-            ),
-          )}
+          {(
+            [
+              "benches",
+              "testbench",
+              "appearance",
+              "jigs",
+              "plugins",
+              "marketplace",
+              "claude-code",
+            ] as const
+          ).map((id) => (
+            <Tab
+              key={id}
+              id={id}
+              className={({ isSelected, isFocusVisible }) =>
+                [
+                  "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
+                  isSelected
+                    ? "text-stone-900 dark:text-stone-100 border-amber-500"
+                    : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                  isFocusVisible
+                    ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
+                    : "",
+                ].join(" ")
+              }
+            >
+              {TAB_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1)}
+            </Tab>
+          ))}
         </TabList>
 
         <TabPanel id="benches" className="outline-none">
@@ -751,6 +761,10 @@ export default function ProjectSettings() {
 
         <TabPanel id="plugins" className="outline-none">
           <PluginsTab />
+        </TabPanel>
+
+        <TabPanel id="marketplace" className="outline-none">
+          <Marketplace />
         </TabPanel>
 
         <TabPanel id="claude-code" className="outline-none">

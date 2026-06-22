@@ -1,0 +1,59 @@
+{
+  "$comment": "First-party curated marketplace catalog (CP-FR-020, issue #621). Each entry is a first-party plugin; `verified` is a display-only curation flag, not a signature check. `version` is the latest curated/published version; the server cross-references the installed set to derive install/update state. There is no third-party submission path: entries are added here by maintainers only.",
+  "entries": [
+    {
+      "id": "database",
+      "name": "Database",
+      "kind": "component",
+      "version": "0.1.0",
+      "summary": "Docker-backed databases via compose, with migrations and connection-string templating.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    },
+    {
+      "id": "process",
+      "name": "Process",
+      "kind": "component",
+      "version": "0.1.0",
+      "summary": "Long-running commands: dev servers, watchers, and workers, with setup and env handling.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "kind": "component",
+      "version": "1.3.0",
+      "summary": "A Redis cache component: brings up a Redis container and exposes its connection string.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    },
+    {
+      "id": "github-com",
+      "name": "GitHub.com",
+      "kind": "integration",
+      "version": "0.2.0",
+      "summary": "Connect GitHub issues, projects, and code-scanning alerts to your benches.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    },
+    {
+      "id": "ghe",
+      "name": "GitHub Enterprise",
+      "kind": "integration",
+      "version": "0.1.0",
+      "summary": "Integration for self-hosted GitHub Enterprise Server: PAT plus instance URL auth with optional self-signed TLS opt-in.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    },
+    {
+      "id": "jira-self-hosted",
+      "name": "Self-hosted Jira",
+      "kind": "integration",
+      "version": "0.1.0",
+      "summary": "Integration for self-hosted Atlassian Jira (Data Center 8.14+) with PAT auth and configurable link-type mapping.",
+      "source": { "type": "git", "url": "https://github.com/davidpoxon/roubo.git" },
+      "verified": true
+    }
+  ]
+}
