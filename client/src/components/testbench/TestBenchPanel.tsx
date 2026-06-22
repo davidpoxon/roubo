@@ -18,6 +18,8 @@ import SpecPickerModal from "./SpecPickerModal";
 import StalenessBanner from "./StalenessBanner";
 import ReconcileDialog from "./ReconcileDialog";
 import ArchivedCases from "./ArchivedCases";
+import GatesOverview from "./GatesOverview";
+import BatchView from "./BatchView";
 import Spinner from "../Spinner";
 
 // Render the focused-spec identity from its test-cases.json path: the slug is the
@@ -70,6 +72,15 @@ export default function TestBenchPanel({
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const setFocus = useSetTestbenchFocus();
+
+  // View mode (#702): the existing whole-spec case review ("cases") or the
+  // verify-gate batch surface ("batches"). The batches surface lists one gate per
+  // phase (GatesOverview); opening a gate switches to its BatchView, scoped to the
+  // gate's gating subset. `openGateId` tracks the open batch within the batches
+  // mode (null = the overview list). Gates are project-level, so the batches
+  // surface does not depend on this bench's plan query.
+  const [viewMode, setViewMode] = useState<"cases" | "batches">("cases");
+  const [openGateId, setOpenGateId] = useState<string | null>(null);
 
   // Case-list collapse (#524). Collapsing the list hands its width to the
   // case-detail pane, which (combined with the sidebar collapse) is what lets the
@@ -200,15 +211,62 @@ export default function TestBenchPanel({
     />
   ) : null;
 
+  // Cases / Batches mode toggle (#702). A two-segment switch above the body that
+  // flips between the whole-spec case review and the verify-gate batch surface.
+  // Switching back to the overview clears any open batch.
+  const modeToggle = (
+    <div
+      aria-label="TestBench view"
+      className="inline-flex self-start rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 p-0.5"
+    >
+      {(["cases", "batches"] as const).map((mode) => (
+        <Button
+          key={mode}
+          aria-pressed={viewMode === mode}
+          onPress={() => {
+            setViewMode(mode);
+            if (mode === "cases") setOpenGateId(null);
+          }}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+            viewMode === mode
+              ? "bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm"
+              : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+          }`}
+        >
+          {mode === "cases" ? "Cases" : "Batches"}
+        </Button>
+      ))}
+    </div>
+  );
+
   // Wrap every render branch so the header action stays available regardless of
   // the plan's load / empty / error state.
   const frame = (body: React.ReactNode) => (
     <div className="flex flex-col flex-1 min-h-0 gap-4">
       {header}
+      {modeToggle}
       {body}
       {picker}
     </div>
   );
+
+  // Batches mode (#702): the verify-gate surface. Gates are project-level, so
+  // this renders independently of the bench's plan query (load / error / empty).
+  // It is short-circuited before the plan branches below.
+  if (viewMode === "batches") {
+    return frame(
+      openGateId ? (
+        <BatchView
+          projectId={projectId}
+          benchId={benchId}
+          gateId={openGateId}
+          onBack={() => setOpenGateId(null)}
+        />
+      ) : (
+        <GatesOverview projectId={projectId} onOpenGate={setOpenGateId} />
+      ),
+    );
+  }
 
   // While the worktree is still provisioning the plan query is disabled (#500), so
   // there is no data and no error yet. Render an explicit "preparing" placeholder

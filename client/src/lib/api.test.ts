@@ -56,6 +56,8 @@ import {
   startGithubPluginOauth,
   fetchSourceOptions,
   fetchTestbenchPlan,
+  fetchGates,
+  fetchGate,
   reconcileTestbench,
   fetchPluginConsent,
   grantPluginConsent,
@@ -926,6 +928,52 @@ describe("fetchTestbenchPlan", () => {
       expect.objectContaining({}),
     );
     expect(result).toEqual(response);
+  });
+
+  it("appends a ?gateIds= filter when gate ids are supplied (#702)", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        plan: { $schema: "x", schemaVersion: "1.0.0", specSlug: "demo", cases: [] },
+        results: null,
+        stale: false,
+        planHash: "h",
+        recovered: false,
+        filteredToGateIds: ["WU-099"],
+      }),
+    );
+    await fetchTestbenchPlan("p1", 3, ["WU-099", "WU-100"]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/3/testbench/plan?gateIds=WU-099%2CWU-100",
+      expect.objectContaining({}),
+    );
+  });
+});
+
+describe("fetchGates / fetchGate (#702)", () => {
+  it("GETs the project's gates", async () => {
+    const gates = [
+      {
+        gateId: "WU-099",
+        status: "pending",
+        unresolvedCaseIds: ["TC-1"],
+        coveringUnitIds: ["WU-1"],
+      },
+    ];
+    mockFetch.mockResolvedValue(jsonResponse(gates));
+    const result = await fetchGates("p1");
+    expect(mockFetch).toHaveBeenCalledWith("/api/projects/p1/gates", expect.objectContaining({}));
+    expect(result).toEqual(gates);
+  });
+
+  it("GETs one gate by id, url-encoding the id", async () => {
+    const gate = { gateId: "WU-099", status: "passed", unresolvedCaseIds: [], coveringUnitIds: [] };
+    mockFetch.mockResolvedValue(jsonResponse(gate));
+    const result = await fetchGate("p1", "WU-099");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/gates/WU-099",
+      expect.objectContaining({}),
+    );
+    expect(result).toEqual(gate);
   });
 });
 

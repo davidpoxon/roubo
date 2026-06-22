@@ -59,6 +59,11 @@ interface CaseDetailProps {
   // Invoked to advance to the next case; only offered when the case is passed
   // and a next case exists (#508).
   onNext?: () => void;
+  // Invoked after a mark or status-override write settles (#702, AC2). The batch
+  // view uses this to invalidate the open gate's state so the gate-state panel
+  // live-updates (pending / failed / passed / stale) as cases are marked. The
+  // plain TestBench panel omits it, so existing behaviour is unchanged.
+  onMarked?: () => void;
 }
 
 const SECTION_LABEL =
@@ -71,6 +76,7 @@ export default function CaseDetail({
   result,
   onBack,
   onNext,
+  onMarked,
 }: CaseDetailProps) {
   const markObservation = useMarkObservation();
   const setStatusOverride = useSetStatusOverride();
@@ -165,12 +171,15 @@ export default function CaseDetail({
                 override={override}
                 isDisabled={setStatusOverride.isPending}
                 onChange={(next) =>
-                  setStatusOverride.mutate({
-                    projectId,
-                    benchId,
-                    caseId: testCase.id,
-                    override: next,
-                  })
+                  setStatusOverride.mutate(
+                    {
+                      projectId,
+                      benchId,
+                      caseId: testCase.id,
+                      override: next,
+                    },
+                    { onSettled: () => onMarked?.() },
+                  )
                 }
               />
             </div>
@@ -235,13 +244,16 @@ export default function CaseDetail({
                           value={mark?.result}
                           isDisabled={markObservation.isPending}
                           onMark={(res) =>
-                            markObservation.mutate({
-                              projectId,
-                              benchId,
-                              caseId: testCase.id,
-                              observationId: observation.id,
-                              result: res,
-                            })
+                            markObservation.mutate(
+                              {
+                                projectId,
+                                benchId,
+                                caseId: testCase.id,
+                                observationId: observation.id,
+                                result: res,
+                              },
+                              { onSettled: () => onMarked?.() },
+                            )
                           }
                         />
                       </li>

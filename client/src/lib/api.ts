@@ -480,7 +480,31 @@ export interface TestbenchPlanResponse {
   stale: boolean;
   planHash: string;
   recovered: boolean;
+  // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
+  // FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
+  filteredToGateIds?: string[];
 }
+
+// The evaluated state of one verify gate (#702, FR-012). Mirrors the server's
+// `GateStateResponse` projection from the pure evaluator: the gate's id plus its
+// computed status, the unresolved gating case ids, and the covering slice unit
+// ids those cases trace to (the gate's `covers`). For a passed gate both id
+// arrays are empty; per NFR-007 the server never reports a stale/unverified gate
+// as passed.
+export type GateStatus = "passed" | "failed" | "pending" | "stale";
+
+export interface GateState {
+  gateId: string;
+  status: GateStatus;
+  unresolvedCaseIds: string[];
+  coveringUnitIds: string[];
+}
+
+// The list endpoint returns one GateState per verify unit; the single endpoint
+// returns one GateState (or 404 for an unknown gate id). Both reuse the same
+// projection shape, so GateStateResponse is an alias kept for symmetry with the
+// server's named type and the issue's requested vocabulary (#702).
+export type GateStateResponse = GateState;
 
 // The reconcile endpoint classifies cases (added/unchanged/changed/removed) and
 // reports whether the reconciled, orphan-not-delete results were persisted
@@ -490,11 +514,31 @@ export interface ReconcileResponse {
   applied: boolean;
 }
 
+// Fetch the bench's plan + results. With `gateIds` the server narrows the plan's
+// cases to the union of those gates' declared gating sets (the ?gateIds= subset
+// filter, #702 FR-008) and stamps `filteredToGateIds` on the response; without
+// it the full-plan shape is returned unchanged. An empty `gateIds` array still
+// sends the param (narrowing to no cases), so callers that want the full plan
+// must omit the argument entirely.
 export function fetchTestbenchPlan(
   projectId: string,
   benchId: number,
+  gateIds?: string[],
 ): Promise<TestbenchPlanResponse> {
-  return request(`/projects/${projectId}/benches/${benchId}/testbench/plan`);
+  const query = gateIds !== undefined ? `?gateIds=${encodeURIComponent(gateIds.join(","))}` : "";
+  return request(`/projects/${projectId}/benches/${benchId}/testbench/plan${query}`);
+}
+
+// Gate state (#702, FR-012). Gates are PROJECT-level, so both endpoints are keyed
+// by projectId, not by bench: `fetchGates` lists one GateState per verify unit
+// across the project's specs; `fetchGate` returns one (or rejects with a 404
+// ApiError for an unknown gate id).
+export function fetchGates(projectId: string): Promise<GateState[]> {
+  return request(`/projects/${projectId}/gates`);
+}
+
+export function fetchGate(projectId: string, gateId: string): Promise<GateState> {
+  return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}`);
 }
 
 // PUT /testbench/focus: re-point an active TestBench to a different focused spec
