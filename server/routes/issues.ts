@@ -10,6 +10,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { resolveSources } from "../services/plugin-activation.js";
 import * as issueAssignment from "../services/issue-assignment.js";
+import { assertGateOpen } from "../services/start-gate.js";
 import { getSnapshot, recordSnapshot } from "../services/issue-snapshot-cache.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
 import { getPluginSortFields } from "../services/plugin-sort-fields.js";
@@ -315,6 +316,16 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
   const comments = await fetchPluginComments(active.pluginId, externalId);
 
   try {
+    // Hard start-gate (#699): same enforcement as create-and-assign. When
+    // enforceIssueDependencies is ON, refuse to assign a unit whose upstream
+    // verify gate has not passed, reusing the freshly fetched issue so no second
+    // getIssue RPC is needed (NFR-002). A blocked or indeterminate gate throws a
+    // 409 ServiceError (GATE_BLOCKED / GATE_INDETERMINATE) before the git
+    // checkout, so the branch is never created.
+    await assertGateOpen(req.params.projectId, externalId, active.pluginId, {
+      prefetchedIssue: issue,
+    });
+
     const result = await issueAssignment.assignIssue(
       req.params.projectId,
       benchId,

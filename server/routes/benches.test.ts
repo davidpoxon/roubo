@@ -41,6 +41,10 @@ vi.mock("../services/plugin-manager.js", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("../services/start-gate.js", () => ({
+  assertGateOpen: vi.fn(),
+}));
+
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
   resolveEnforceIssueDependencies: vi.fn(),
@@ -75,6 +79,8 @@ import {
   fetchPluginComments,
   resolveActivePluginQuiet,
 } from "./plugin-route-helpers.js";
+import { assertGateOpen } from "../services/start-gate.js";
+import { ServiceError } from "../services/service-error.js";
 
 const app = express();
 app.use(express.json());
@@ -355,6 +361,106 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       .post("/my-project/benches")
       .send({ externalId: "PLNRPTGOOG-3782" });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () => {
+  const issue = {
+    integrationId: "github-com",
+    externalId: "owner/repo#42",
+    title: "Gated unit",
+    blockedBy: ["owner/repo#10"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getActivePluginOrRespond).mockResolvedValue({
+      pluginId: "github-com",
+      pageSize: 50,
+    } as any);
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
+    vi.mocked(pluginManager.invoke).mockResolvedValue(issue as any);
+  });
+
+  it("ON + blocked: returns 409 GATE_BLOCKED naming the gate and creates no bench", async () => {
+    vi.mocked(assertGateOpen).mockRejectedValue(
+      new ServiceError(
+        409,
+        "Issue owner/repo#42 is blocked by an unresolved upstream gate: owner/repo#10",
+        {
+          code: "GATE_BLOCKED",
+          blockedBy: ["owner/repo#10"],
+        },
+      ),
+    );
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GATE_BLOCKED");
+    expect(res.body.error).toContain("owner/repo#10");
+    expect(assertGateOpen).toHaveBeenCalledWith("my-project", "owner/repo#42", "github-com", {
+      prefetchedIssue: issue,
+    });
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("ON + passed: gate resolves and the bench is created (201)", async () => {
+    vi.mocked(assertGateOpen).mockResolvedValue(undefined);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue({
+      status: "success",
+      bench: { id: 9 },
+      terminalSessionId: "t",
+    } as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(201);
+    expect(assertGateOpen).toHaveBeenCalledOnce();
+    expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalled();
+  });
+
+  it("OFF: gate is a no-op (resolves) and the bench is created (201)", async () => {
+    // With enforcement OFF the gate resolves without consulting blockedBy.
+    vi.mocked(assertGateOpen).mockResolvedValue(undefined);
+    vi.mocked(issueAssignment.createBenchAndAssignFromIssue).mockResolvedValue({
+      status: "success",
+      bench: { id: 9 },
+      terminalSessionId: "t",
+    } as any);
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(201);
+    expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalled();
+  });
+
+  it("ON + indeterminate: fails closed with 409 GATE_INDETERMINATE and creates no bench", async () => {
+    vi.mocked(assertGateOpen).mockRejectedValue(
+      new ServiceError(
+        409,
+        "Cannot determine the gate state for issue owner/repo#42 (blocking-read failed); refusing to start (fail-closed)",
+        {
+          code: "GATE_INDETERMINATE",
+        },
+      ),
+    );
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GATE_INDETERMINATE");
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
+    expect(benchManager.createBench).not.toHaveBeenCalled();
   });
 });
 
