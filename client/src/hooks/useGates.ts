@@ -1,5 +1,6 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
+import type { GateSplitPart } from "../lib/api";
 
 // React Query hooks for the verify-gate state (#702, FR-012). Gates are
 // PROJECT-level (their plan + results are read from the registered project's
@@ -59,4 +60,44 @@ export function useInvalidateGates() {
       queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
     },
   };
+}
+
+// Operator merge (#703, FR-002, AC1). On success the combined gate replaces its
+// sources, so the gates list is invalidated to re-render the overview. The
+// server rejects a signed-off (passed) gate with a 409 ApiError (AC3), which the
+// caller surfaces.
+export function useMergeGates(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gateIds: string[]) => api.mergeGates(projectId, gateIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
+}
+
+// Operator split (#703, FR-002, AC2). On success two or more parts replace the
+// source gate; the gates list is invalidated. The server rejects a signed-off
+// gate (409) and a non-partitioning assignment (400).
+export function useSplitGate(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { gateId: string; parts: GateSplitPart[] }) =>
+      api.splitGate(projectId, vars.gateId, vars.parts),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
+}
+
+// Reset all operator regroupings (#703); the effective gates revert to the
+// externally-authored work-units.json gates.
+export function useResetGateOverrides(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.resetGateOverrides(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
 }

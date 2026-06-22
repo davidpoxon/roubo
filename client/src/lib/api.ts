@@ -541,6 +541,46 @@ export function fetchGate(projectId: string, gateId: string): Promise<GateState>
   return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}`);
 }
 
+// One part of a split: a short label plus the source gate's covers WU- ids
+// assigned to that part (#703, FR-002). The part's gating set is computed
+// server-side from the WU- -> test_case_ids map.
+export interface GateSplitPart {
+  label: string;
+  coversWorkUnitIds: string[];
+}
+
+// Operator merge (#703, FR-002, AC1). Records a merge of two or more gates and
+// returns the recomputed effective gate list (the combined gate replaces its
+// sources). A 409 ApiError means an involved gate is signed off (passed); a 400
+// means an unknown gate id or a cross-spec merge.
+export function mergeGates(projectId: string, gateIds: string[]): Promise<GateState[]> {
+  return request(`/projects/${projectId}/gates/merge`, {
+    method: "POST",
+    body: JSON.stringify({ gateIds }),
+  });
+}
+
+// Operator split (#703, FR-002, AC2). Records a split of one gate into parts and
+// returns the recomputed effective gate list. A 409 ApiError means the gate is
+// signed off (passed); a 400 means an unknown gate id or a non-partitioning
+// assignment (loss or overlap of the source's covers).
+export function splitGate(
+  projectId: string,
+  gateId: string,
+  parts: GateSplitPart[],
+): Promise<GateState[]> {
+  return request(`/projects/${projectId}/gates/split`, {
+    method: "POST",
+    body: JSON.stringify({ gateId, parts }),
+  });
+}
+
+// Reset all operator regroupings (#703). The effective gates revert to the
+// externally-authored work-units.json gates.
+export function resetGateOverrides(projectId: string): Promise<void> {
+  return requestVoid(`/projects/${projectId}/gates/overrides`, { method: "DELETE" });
+}
+
 // PUT /testbench/focus: re-point an active TestBench to a different focused spec
 // (#423, FR-024). The re-point is explicit: the server preserves the prior spec's
 // results untouched and re-evaluates staleness on the next plan load. Returns the

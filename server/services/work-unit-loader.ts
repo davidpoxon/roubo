@@ -28,6 +28,7 @@
 import fs from "node:fs";
 import { assertSafeIdentifier, resolveWithin, SPEC_SLUG_RE } from "../lib/safe-path.js";
 import { validateWorkUnits } from "@roubo/shared/work-units-contract";
+import type { Unit } from "@roubo/shared/work-units-contract";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
 
 // Raised when a `work-units.json` file is present but fails JSON parse or
@@ -87,6 +88,55 @@ function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
   // implements.test_case_ids is the gating set (the validator already guarantees
   // it is non-empty for verify units).
   return validation.data.units.filter((unit): unit is VerifyUnit => unit.kind === "verify");
+}
+
+// Read + validate the `work-units.json` for a single slug, returning ALL its
+// units (verify and non-verify). Returns [] when the file is absent (fail-open),
+// and throws WorkUnitsValidationError when the file exists but is invalid (same
+// contract as loadVerifyUnitsForSlug). Used to build the WU- -> test_case_ids
+// map a split needs from the non-verify units.
+function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
+  assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
+  const target = resolveWithin(repoPath, ".specifications", slug, "work-units.json");
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(target, "utf8");
+  } catch {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new WorkUnitsValidationError(slug, ["work-units.json is not valid JSON"]);
+  }
+
+  const validation = validateWorkUnits(parsed);
+  if (!validation.ok) {
+    throw new WorkUnitsValidationError(slug, validation.errors);
+  }
+  return validation.data.units;
+}
+
+// Build the WU- id -> test_case_ids map for a single spec slug, drawn from the
+// spec's NON-verify units (a delivery slice's `implements.test_case_ids` is the
+// set of cases that slice delivers). A split assigns the source gate's `covers`
+// WU- ids to parts; this map resolves each part's gating set (#703, TC-023).
+//
+// Last-write-wins on a duplicate WU- id (the validator does not enforce id
+// uniqueness); a verify unit's own entry is excluded since its test_case_ids is
+// a gating set, not a delivery set.
+export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const unit of loadAllUnitsForSlug(repoPath, slug)) {
+    if (unit.kind === "verify") {
+      continue;
+    }
+    map.set(unit.id, [...unit.implements.test_case_ids]);
+  }
+  return map;
 }
 
 // Load the verify units (gates) for a registered project's repoPath, each paired

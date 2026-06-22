@@ -7,7 +7,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
-import { useGates, useGate, useInvalidateGates, gatesQueryKey, gateQueryKey } from "./useGates";
+import { act } from "@testing-library/react";
+import {
+  useGates,
+  useGate,
+  useInvalidateGates,
+  useMergeGates,
+  useSplitGate,
+  useResetGateOverrides,
+  gatesQueryKey,
+  gateQueryKey,
+} from "./useGates";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
@@ -80,6 +90,52 @@ describe("useInvalidateGates", () => {
     const { result } = renderHookWithProviders(() => useInvalidateGates(), { queryClient });
     result.current.invalidateGate("p1", "WU-099");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gate", "p1", "WU-099"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+describe("useMergeGates", () => {
+  it("calls the merge endpoint and invalidates the gates query on success", async () => {
+    mockedApi.mergeGates.mockResolvedValue([] as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useMergeGates("p1"), { queryClient });
+    await act(async () => {
+      await result.current.mutateAsync(["WU-001", "WU-002"]);
+    });
+    expect(mockedApi.mergeGates).toHaveBeenCalledWith("p1", ["WU-001", "WU-002"]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+describe("useSplitGate", () => {
+  it("calls the split endpoint and invalidates the gates query on success", async () => {
+    mockedApi.splitGate.mockResolvedValue([] as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useSplitGate("p1"), { queryClient });
+    const parts = [
+      { label: "A", coversWorkUnitIds: ["WU-031"] },
+      { label: "B", coversWorkUnitIds: ["WU-032"] },
+    ];
+    await act(async () => {
+      await result.current.mutateAsync({ gateId: "WU-100", parts });
+    });
+    expect(mockedApi.splitGate).toHaveBeenCalledWith("p1", "WU-100", parts);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+describe("useResetGateOverrides", () => {
+  it("calls the reset endpoint and invalidates the gates query on success", async () => {
+    mockedApi.resetGateOverrides.mockResolvedValue(undefined as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useResetGateOverrides("p1"), { queryClient });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+    expect(mockedApi.resetGateOverrides).toHaveBeenCalledWith("p1");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
   });
 });
