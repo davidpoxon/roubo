@@ -14,6 +14,7 @@ vi.mock("./plugin-manager.js", () => ({
   listInstalled: vi.fn(() => []),
   registerInstalled: vi.fn(),
   uninstall: vi.fn(),
+  uninstallForUpdate: vi.fn(),
 }));
 
 import * as pluginInstaller from "./plugin-installer.js";
@@ -69,6 +70,8 @@ beforeEach(async () => {
   vi.mocked(pluginManager.registerInstalled).mockReset();
   vi.mocked(pluginManager.uninstall).mockReset();
   vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
+  vi.mocked(pluginManager.uninstallForUpdate).mockReset();
+  vi.mocked(pluginManager.uninstallForUpdate).mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -318,7 +321,13 @@ describe("previewUpdateFromGitUrl (issue #621)", () => {
     expect(await listStaging()).toEqual([]);
   });
 
-  it("commit uninstalls the existing plugin then installs the staged copy", async () => {
+  it("commit swaps in the staged copy via uninstallForUpdate, leaving no backup", async () => {
+    // The installed copy must exist on disk: commit moves it aside as a backup
+    // before swapping in the staged copy (no data loss).
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
     fakeClone(ECHO_MANIFEST);
     vi.mocked(pluginManager.listInstalled).mockReturnValue([
       mockRecord({ id: "echo", source: "user" }),
@@ -332,10 +341,45 @@ describe("previewUpdateFromGitUrl (issue #621)", () => {
     );
 
     const record = await pluginInstaller.commit(preview.stagingToken);
-    expect(pluginManager.uninstall).toHaveBeenCalledWith("echo");
+    // The update tears down via uninstallForUpdate (no active-integration guard,
+    // no directory delete), never the plain uninstall.
+    expect(pluginManager.uninstallForUpdate).toHaveBeenCalledWith("echo");
+    expect(pluginManager.uninstall).not.toHaveBeenCalled();
     expect(record.id).toBe("echo");
+    // The staged copy is now at the target (its manifest replaced the OLD copy).
+    expect((await stat(path.join(target, "roubo-plugin.yaml"))).isFile()).toBe(true);
+    // No backup or staging directory is left behind on success.
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("restores the existing plugin if registering the staged copy fails (no data loss)", async () => {
+    // A pre-existing installed copy with a sentinel file we can check survives.
     const target = path.join(pluginsRoot, "echo");
-    expect((await stat(target)).isDirectory()).toBe(true);
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromGitUrl(
+      "https://github.com/example/echo.git",
+      "echo",
+    );
+    // First registerInstalled (the new copy) fails; the second (the restore of
+    // the backed-up old copy) succeeds.
+    vi.mocked(pluginManager.registerInstalled)
+      .mockRejectedValueOnce(new Error("register boom"))
+      .mockResolvedValue(mockRecord({ id: "echo", status: "enabled" }));
+
+    await expect(pluginInstaller.commit(preview.stagingToken)).rejects.toMatchObject({
+      code: "internal",
+    });
+
+    // The previously-installed copy is restored at the target (the sentinel is
+    // back), and nothing is left in staging.
+    expect((await stat(path.join(target, "OLD"))).isFile()).toBe(true);
+    expect(await listStaging()).toEqual([]);
   });
 });
 

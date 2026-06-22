@@ -1261,6 +1261,94 @@ permissions:
   });
 });
 
+describe("uninstallForUpdate (issue #621)", () => {
+  async function makeRealUserPluginDir(parent: string, id: string): Promise<string> {
+    const dir = path.join(parent, id);
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: ${id}
+name: ${id}
+version: 0.0.0
+description: x
+kind: integration
+roubo: ^1.0.0
+entry: ./index.js
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    await writeFile(path.join(dir, "index.js"), "setInterval(()=>{}, 60000);\n");
+    return dir;
+  }
+
+  afterEach(() => {
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([]);
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
+  });
+
+  it("drops the registry entry and bookkeeping but leaves the directory on disk", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const dir = await makeRealUserPluginDir(sandbox.userDir, "to-update");
+    await mgr.registerInstalled(dir);
+    expect(findRecord(mgr.listInstalled(), "to-update").source).toBe("user");
+
+    await mgr.uninstallForUpdate("to-update");
+
+    // Registry entry and bookkeeping are cleared (the update re-registers a
+    // fresh deployment), but the directory is NOT removed: the installer owns
+    // the on-disk swap and backup.
+    expect(mgr.listInstalled().find((p) => p.id === "to-update")).toBeUndefined();
+    const dirStillThere = await stat(dir)
+      .then(() => true)
+      .catch(() => false);
+    expect(dirStillThere).toBe(true);
+    expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-update");
+    expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-update");
+  });
+
+  it("does NOT apply the active-integration guard (an in-use integration is updatable)", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const dir = await makeRealUserPluginDir(sandbox.userDir, "active-int");
+    await mgr.registerInstalled(dir);
+
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([{ id: "proj-a" }] as never);
+    vi.mocked(activePlugin.resolveActivePlugin).mockImplementation((projectId: string) =>
+      projectId === "proj-a"
+        ? { pluginId: "active-int", integrationId: "active-int", pageSize: 50 }
+        : null,
+    );
+
+    // uninstall would throw here; uninstallForUpdate must not (the id is
+    // unchanged across an update, so the project binding stays valid).
+    await expect(mgr.uninstallForUpdate("active-int")).resolves.toBeUndefined();
+    expect(mgr.listInstalled().find((p) => p.id === "active-int")).toBeUndefined();
+  });
+
+  it("refuses a bundled plugin and throws for an unknown id", async () => {
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    await expect(mgr.uninstallForUpdate("echo")).rejects.toThrow(
+      /bundled plugins cannot be updated in place/i,
+    );
+    await expect(mgr.uninstallForUpdate("nope")).rejects.toThrow(/unknown plugin/i);
+  });
+});
+
 describe("registerInstalled (WU-011)", () => {
   async function makeUserPluginDir(parent: string, id: string): Promise<string> {
     const dir = path.join(parent, id);
