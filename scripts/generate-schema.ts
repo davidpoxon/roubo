@@ -20,6 +20,7 @@ import prettier from "prettier";
 import { z } from "zod";
 import { TestbenchTargetingSpikeSchema } from "../shared/testbench-targeting-schema.ts";
 import { TestCasesPlanSchema, TestResultsFileSchema } from "../shared/testbench-contracts.ts";
+import { WorkUnitsFileSchema } from "../shared/work-units-contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..");
@@ -38,6 +39,10 @@ export const artifacts = [
   {
     schema: TestbenchTargetingSpikeSchema,
     outPath: resolve(repoRoot, "schema", "testbench-targeting.spike.schema.json"),
+  },
+  {
+    schema: WorkUnitsFileSchema,
+    outPath: resolve(repoRoot, "schema", "work-units.schema.json"),
   },
 ] as const;
 
