@@ -142,6 +142,21 @@ describe("listCatalog", () => {
     expect(annotated.installedVersion).toBeNull();
     expect(annotated.updateAvailable).toBe(false);
   });
+
+  // CP-TC-109: a revoked entry is removed from the catalog grid. The checked-in
+  // catalog includes a revoked `worker-queue` fixture.
+  it("filters out revoked entries (CP-TC-109)", () => {
+    expect(marketplace.listCatalog().some((l) => l.id === "worker-queue")).toBe(false);
+  });
+});
+
+describe("CATALOG_VERIFIED", () => {
+  it("verifies the checked-in signed catalog at load (AC-3)", () => {
+    // The catalog ships a valid first-party signature; the service must not be
+    // failing closed against the committed manifest.
+    expect(marketplace.CATALOG_VERIFIED).toBe(true);
+    expect(marketplace.listCatalog().length).toBeGreaterThan(0);
+  });
 });
 
 describe("resolveEntry", () => {
@@ -163,11 +178,18 @@ describe("install", () => {
       source: entry.source,
     } as Awaited<ReturnType<typeof pluginInstaller.previewFromGitUrl>>);
     await marketplace.install(entry.id);
-    expect(previewFromGitUrl).toHaveBeenCalledWith(entry.source.url);
+    expect(previewFromGitUrl).toHaveBeenCalledWith(entry.source.url, entry.integrity);
   });
 
   it("throws invalid-input for an unknown id", async () => {
     await expect(marketplace.install("nope")).rejects.toMatchObject({ code: "invalid-input" });
+    expect(previewFromGitUrl).not.toHaveBeenCalled();
+  });
+
+  // CP-TC-109: a revoked id is rejected with a specific `revoked` error and the
+  // installer is never invoked (no clone of a withdrawn plugin).
+  it("rejects a revoked id with a revoked error (CP-TC-109)", async () => {
+    await expect(marketplace.install("worker-queue")).rejects.toMatchObject({ code: "revoked" });
     expect(previewFromGitUrl).not.toHaveBeenCalled();
   });
 });
@@ -180,11 +202,21 @@ describe("update", () => {
       source: entry.source,
     } as Awaited<ReturnType<typeof pluginInstaller.previewUpdateFromGitUrl>>);
     await marketplace.update(entry.id);
-    expect(previewUpdateFromGitUrl).toHaveBeenCalledWith(entry.source.url, entry.id);
+    expect(previewUpdateFromGitUrl).toHaveBeenCalledWith(
+      entry.source.url,
+      entry.id,
+      entry.integrity,
+    );
   });
 
   it("throws invalid-input for an unknown id", async () => {
     await expect(marketplace.update("nope")).rejects.toMatchObject({ code: "invalid-input" });
+    expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
+  });
+
+  // CP-TC-109: a revoked id cannot be updated either.
+  it("rejects a revoked id with a revoked error (CP-TC-109)", async () => {
+    await expect(marketplace.update("worker-queue")).rejects.toMatchObject({ code: "revoked" });
     expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
   });
 });

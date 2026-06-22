@@ -189,6 +189,67 @@ describe("previewFromGitUrl", () => {
   });
 });
 
+describe("previewFromGitUrl integrity verification (issue #622)", () => {
+  it("rejects a package whose digest does not match the expected catalog digest (CP-TC-107/108)", async () => {
+    fakeClone(ECHO_MANIFEST);
+    await expect(
+      pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git", "sha256-wrong"),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    // No partial files: the staging directory is removed on the failure path.
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("accepts a package whose digest matches the expected catalog digest", async () => {
+    fakeClone(ECHO_MANIFEST);
+    // Stage once with no expected digest to learn the staged digest, then
+    // re-stage with that exact digest as the expectation.
+    const probe = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    const stagingDir = resolveWithin(pluginInstaller.__test.stagingRoot(), probe.stagingToken);
+    const { computePackageDigest } = await import("./marketplace-integrity.js");
+    const digest = await computePackageDigest(stagingDir);
+    await pluginInstaller.cancel(probe.stagingToken);
+
+    const preview = await pluginInstaller.previewFromGitUrl(
+      "https://github.com/example/echo.git",
+      digest,
+    );
+    expect(preview.manifest.id).toBe("echo");
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+
+  it("skips the integrity check when no expected digest is supplied (raw install path)", async () => {
+    fakeClone(ECHO_MANIFEST);
+    const preview = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    expect(preview.manifest.id).toBe("echo");
+  });
+});
+
+describe("previewUpdateFromGitUrl integrity verification (issue #622)", () => {
+  it("rejects a tampered update package and leaves the existing version intact (CP-TC-112)", async () => {
+    // The installed copy stays on disk: the update is rejected at the preview
+    // stage, before commit ever runs, so the existing version is never touched.
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    await expect(
+      pluginInstaller.previewUpdateFromGitUrl(
+        "https://github.com/example/echo.git",
+        "echo",
+        "sha256-wrong",
+      ),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+
+    // The existing copy and its sentinel survive; nothing is left in staging.
+    expect((await stat(path.join(target, "OLD"))).isFile()).toBe(true);
+    expect(await listStaging()).toEqual([]);
+  });
+});
+
 describe("previewFromLocalPath", () => {
   let sourceDir: string;
 

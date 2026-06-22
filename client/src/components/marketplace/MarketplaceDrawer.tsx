@@ -2,22 +2,28 @@ import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-compone
 import { Check, Download, Package, RefreshCw, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import type { MarketplaceListing } from "@roubo/shared";
 
-// Detail drawer for one catalog entry (CP-FR-020, issue #621). A right-side
-// modal panel mirroring the prototype: identity, summary, metadata (verified
-// curation flag, kind, version), and the same state-aware affordance as the
-// card (Update / Installed / Install). The verified row is a display-only
-// curation marker, NOT an integrity/signature claim (out of scope here).
+// Detail drawer for one catalog entry (CP-FR-020, issue #621; CP-FR-021, issue
+// #622). A right-side modal panel mirroring the prototype: identity, summary,
+// metadata (integrity, provenance, sandbox status, kind, version, curation), and
+// the same state-aware affordance as the card (Update / Installed / Install).
+// The Integrity row reflects the signed-catalog verification (the entry only
+// reaches this drawer when the catalog signature validated, so a verified entry
+// is "signed by Roubo"); the Provenance row shows the registry path; the Sandbox
+// row flags that enforced isolation is not yet active.
 
 const STRINGS = {
   title: "Plugin detail",
   close: "Close",
+  integrity: "Integrity",
+  integrityVerified: "Verified · signed by Roubo",
+  provenance: "Provenance",
   verified: "Verified · first-party curated",
   curatedOnly: "First-party curated. Listed by Roubo maintainers.",
   kind: "Kind",
   version: "Version",
   curation: "Curation",
   sandbox: "Sandbox",
-  unsandboxed: "Unsandboxed in this release",
+  unsandboxed: "Unsandboxed (v2)",
   install: "Install",
   update: "Update",
   installed: "Installed",
@@ -93,6 +99,19 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
             </p>
 
             <dl className="mt-5 space-y-2">
+              <MetaRow label={STRINGS.integrity}>
+                <span
+                  data-testid="marketplace-drawer-integrity"
+                  className="inline-flex items-center gap-1 text-green-700 dark:text-green-400"
+                >
+                  <ShieldCheck size={14} aria-hidden /> {STRINGS.integrityVerified}
+                </span>
+              </MetaRow>
+              <MetaRow label={STRINGS.provenance}>
+                <span data-testid="marketplace-drawer-provenance" className="font-mono">
+                  {listing.provenance}
+                </span>
+              </MetaRow>
               <MetaRow label={STRINGS.kind}>{listing.kind}</MetaRow>
               <MetaRow label={STRINGS.version}>
                 <span className="font-mono">v{listing.version}</span>
@@ -107,7 +126,10 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
                 )}
               </MetaRow>
               <MetaRow label={STRINGS.sandbox}>
-                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                <span
+                  data-testid="marketplace-drawer-sandbox"
+                  className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"
+                >
                   <ShieldAlert size={14} aria-hidden /> {STRINGS.unsandboxed}
                 </span>
               </MetaRow>

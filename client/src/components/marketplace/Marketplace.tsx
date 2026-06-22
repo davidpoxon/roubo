@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Input, Radio, RadioGroup, SearchField } from "react-aria-components";
-import { Loader2, Search, ShieldCheck } from "lucide-react";
+import { Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import type { InstallPreview, MarketplaceKind, MarketplaceListing } from "@roubo/shared";
 import { ApiError } from "../../lib/api";
 import {
@@ -31,6 +31,8 @@ const STRINGS = {
   filterLabel: "Filter by kind",
   loading: "Loading catalog…",
   loadFailedPrefix: "Failed to load catalog: ",
+  catalogUnverified:
+    "The plugin catalog could not be verified and was rejected. No plugins are shown to protect you from an unverified source.",
   empty: "No plugins match that search.",
   installedToast: (name: string) => `Installed ${name}.`,
   updatedToast: (name: string) => `Updated ${name}.`,
@@ -196,16 +198,26 @@ export default function Marketplace() {
           </div>
         )}
 
-        {error && (
-          <div
-            role="alert"
-            data-testid="marketplace-error"
-            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
-          >
-            {STRINGS.loadFailedPrefix}
-            {(error as Error).message}
-          </div>
-        )}
+        {error &&
+          (error instanceof ApiError && error.code === "catalog-unverified" ? (
+            <div
+              role="alert"
+              data-testid="marketplace-unverified"
+              className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300 flex items-start gap-2"
+            >
+              <ShieldAlert size={15} className="shrink-0 mt-0.5" aria-hidden />
+              <span>{STRINGS.catalogUnverified}</span>
+            </div>
+          ) : (
+            <div
+              role="alert"
+              data-testid="marketplace-error"
+              className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+            >
+              {STRINGS.loadFailedPrefix}
+              {(error as Error).message}
+            </div>
+          ))}
 
         {data && listings.length === 0 && (
           <p data-testid="marketplace-empty" className="py-16 text-center text-sm text-stone-400">

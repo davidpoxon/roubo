@@ -50,6 +50,15 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "unknown-token":
     case "update-target-missing":
       return 404;
+    // Marketplace channel-integrity codes (issue #622). They do not normally
+    // arise on the raw install path (it threads no catalog digest), but the
+    // switch must stay exhaustive over InstallErrorCode.
+    case "revoked":
+      return 410;
+    case "integrity-failed":
+      return 422;
+    case "catalog-unverified":
+      return 502;
     case "internal":
       return 500;
   }

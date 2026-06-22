@@ -176,6 +176,15 @@ export type InstallErrorCode =
   | "duplicate-id"
   | "unknown-token"
   | "update-target-missing"
+  // The staged package's content digest did not match the expected digest from
+  // the signed catalog entry (CP-FR-021): a tampered or substituted package.
+  | "integrity-failed"
+  // The catalog entry has been revoked / taken down (CP-FR-021): it cannot be
+  // installed or updated.
+  | "revoked"
+  // The static catalog failed signature verification (CP-FR-021): a tampered,
+  // missing, or unsigned catalog. The marketplace fails closed (zero listings).
+  | "catalog-unverified"
   | "internal";
 
 export interface InstallErrorBody {
@@ -188,10 +197,15 @@ export interface InstallErrorBody {
 // The marketplace serves a first-party-curated catalog of plugins (both
 // `component` and `integration` kinds). The catalog is a static, checked-in
 // manifest read server-side; each entry is cross-referenced against the
-// installed plugin set to annotate its install / update state. The `verified`
-// flag is a display-only curation marker (first-party), NOT a cryptographic
-// signature check: integrity verification and revocation are out of scope here
-// (covered separately). There is no third-party submission path.
+// installed plugin set to annotate its install / update state.
+//
+// Channel integrity (CP-FR-021, issue #622): the catalog is wrapped in a signed
+// envelope (a detached ed25519 signature over the canonical payload bytes,
+// verified against a bundled first-party public key) and every entry carries an
+// expected content `integrity` digest plus an optional `revoked` flag. The
+// `verified` flag is a display-only first-party curation marker, distinct from
+// the cryptographic signature: a card shows "Verified" when `verified` is true
+// AND the catalog signature validated. There is no third-party submission path.
 
 /**
  * Plugin kinds surfaced by the marketplace. Mirrors the host's plugin-manifest
@@ -204,6 +218,13 @@ export type MarketplaceKind = "component" | "integration";
  * One curated catalog entry as authored in the static manifest. The `source`
  * is the git URL the install/update flow clones from; `verified` is the
  * display-only first-party curation flag.
+ *
+ * `integrity` is the expected content digest of the staged package
+ * (`sha256-<hex>`); after staging and before commit, the installer recomputes
+ * the staged package digest and rejects a mismatch (CP-FR-021). `provenance` is
+ * the registry path shown in the detail drawer. `revoked` marks a withdrawn /
+ * taken-down entry: it is filtered out of `listCatalog` and rejected by
+ * install / update.
  */
 export interface MarketplaceCatalogEntry {
   id: string;
@@ -212,7 +233,22 @@ export interface MarketplaceCatalogEntry {
   version: string;
   summary: string;
   source: { type: "git"; url: string };
+  provenance: string;
+  integrity: string;
+  revoked?: boolean;
   verified: boolean;
+}
+
+/**
+ * The signed catalog envelope as authored in the static manifest. `signature`
+ * is a base64-encoded detached ed25519 signature over the canonical bytes of
+ * `payload` (see the server's marketplace-integrity service). The server
+ * verifies the signature at load and fails closed (zero listings) on any
+ * mismatch.
+ */
+export interface SignedMarketplaceCatalog {
+  payload: { entries: MarketplaceCatalogEntry[] };
+  signature: string;
 }
 
 /**
@@ -232,6 +268,19 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
 export interface MarketplaceCatalogResponse {
   curated: true;
   listings: MarketplaceListing[];
+}
+
+/**
+ * Error body returned by `GET /api/marketplace/plugins` when the static catalog
+ * fails signature verification (CP-FR-021). The server fails closed: it returns
+ * this typed error (HTTP 502) with zero listings rather than a silent empty
+ * success, so the client can render an unverified-catalog error and render no
+ * plugin cards (CP-TC-118). Distinct from a transport / registry-unavailable
+ * failure, which surfaces as a generic load error (CP-TC-106).
+ */
+export interface MarketplaceCatalogErrorBody {
+  error: string;
+  code: "catalog-unverified";
 }
 
 /**
