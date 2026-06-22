@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Roubo · Verify gate (prototype)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  [data-screen] { display: none; }
+  [data-screen].active { display: block; animation: fade .22s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .navlink.active { background: #FFFBEB; color: #92400E; box-shadow: inset 2px 0 0 #F59E0B; }
+  .seg:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #F59E0B; outline-offset: 2px; }
+  ::selection { background: #FDE68A; }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-700 antialiased">
+
+<!-- Top bar -->
+<header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-stone-200">
+  <div class="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-4">
+    <div class="flex items-center gap-2.5">
+      <div class="w-2.5 h-2.5 rounded-sm bg-amber-500"></div>
+      <span class="font-semibold tracking-tight text-stone-900">Roubo</span>
+      <span class="text-stone-300">/</span>
+      <span class="text-stone-500 text-sm">TestBench</span>
+    </div>
+    <div class="ml-auto flex items-center gap-3 text-sm">
+      <span class="mono text-xs text-stone-500">spec</span>
+      <span class="mono text-xs px-2 py-1 rounded-md bg-stone-100 text-stone-700">jira-sources-scale</span>
+      <span class="hidden sm:inline text-xs text-stone-400">enforceIssueDependencies</span>
+      <button id="enforceToggle" class="text-xs font-medium px-2 py-1 rounded-md bg-green-50 text-green-800 border border-green-500/40">ON</button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-[1200px] mx-auto px-6 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 py-8">
+
+  <!-- Left rail -->
+  <nav class="md:sticky md:top-20 self-start">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-400 px-3 mb-2">Verify gate</p>
+    <div class="flex flex-col gap-0.5">
+      <a href="#" data-nav="batches" class="navlink active rounded-md px-3 py-2 text-sm text-stone-600 hover:bg-stone-100 transition">Batches overview</a>
+      <a href="#" data-nav="verify" class="navlink rounded-md px-3 py-2 text-sm text-stone-600 hover:bg-stone-100 transition">Verify a batch</a>
+      <a href="#" data-nav="fix" class="navlink rounded-md px-3 py-2 text-sm text-stone-600 hover:bg-stone-100 transition">Failed case &rarr; fix issue</a>
+      <a href="#" data-nav="startgate" class="navlink rounded-md px-3 py-2 text-sm text-stone-600 hover:bg-stone-100 transition">Hard start-gate</a>
+    </div>
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-400 px-3 mt-6 mb-2">Demo levers</p>
+    <div class="px-3 flex flex-col gap-2">
+      <button id="staleToggle" class="text-left text-xs px-2.5 py-1.5 rounded-md border border-stone-200 text-stone-600 hover:border-stone-300 transition">Simulate plan change (stale)</button>
+      <button id="resetBtn" class="text-left text-xs px-2.5 py-1.5 rounded-md border border-stone-200 text-stone-600 hover:border-stone-300 transition">Reset marks</button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main>
+
+    <!-- ===================== SCREEN 1: Batches overview ===================== -->
+    <section data-screen="batches" class="active">
+      <div class="flex items-start justify-between gap-4 mb-1">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Verification batches</h1>
+          <p class="text-sm text-stone-500 mt-1">One verify gate per phase. A batch's slices block its gate; the gate blocks the next batch.</p>
+        </div>
+        <span class="mono text-[11px] text-stone-400 mt-2">FR-001 · US-001</span>
+      </div>
+
+      <div class="mt-6 flex flex-col gap-3">
+        <!-- Phase 1: passed -->
+        <article class="bg-white border border-stone-200 rounded-xl p-5 flex items-center gap-5">
+          <div class="flex items-center gap-2.5 w-44 shrink-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+            <span class="text-sm font-medium text-stone-800">Phase 1: plumbing</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-stone-600 truncate">Verify gate: Phase 1 manual verification</p>
+            <p class="mono text-[11px] text-stone-400 mt-0.5">WU-020 · gates WU-003, WU-004 · 6 cases</p>
+          </div>
+          <div class="text-right">
+            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-800">Passed</span>
+            <p class="mono text-[11px] text-stone-400 mt-1">closed #420</p>
+          </div>
+        </article>
+
+        <!-- Phase 2: verifying now -->
+        <a href="#" data-nav="verify" class="group bg-white border border-amber-500/50 ring-1 ring-amber-500/20 rounded-xl p-5 flex items-center gap-5 hover:border-amber-500 transition">
+          <div class="flex items-center gap-2.5 w-44 shrink-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <span class="text-sm font-medium text-stone-800">Phase 2: sources picker</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-stone-600 truncate">Verify gate: Phase 2 (sources picker) manual verification</p>
+            <p class="mono text-[11px] text-stone-400 mt-0.5">WU-040 · gates WU-031, WU-032, WU-033 · 3 gating cases</p>
+          </div>
+          <div class="text-right">
+            <span id="ovBadge" class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-800">Pending</span>
+            <p class="text-[11px] text-amber-700 mt-1 font-medium group-hover:underline">Verify now &rarr;</p>
+          </div>
+        </a>
+
+        <!-- Phase 3: blocked -->
+        <article class="bg-stone-50 border border-stone-200 rounded-xl p-5 flex items-center gap-5 opacity-90">
+          <div class="flex items-center gap-2.5 w-44 shrink-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-stone-300"></span>
+            <span class="text-sm font-medium text-stone-500">Phase 3: persistence</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-stone-500 truncate">Phase 3 slices (not started)</p>
+            <p class="mono text-[11px] text-stone-400 mt-0.5">WU-051, WU-052 · blocked_by WU-040</p>
+          </div>
+          <div class="text-right">
+            <span id="ovBlocked" class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+              Blocked
+            </span>
+            <p class="mono text-[11px] text-stone-400 mt-1">waiting on gate</p>
+          </div>
+        </article>
+      </div>
+
+      <p class="text-[11px] text-stone-400 mt-5">Default is one gate per phase. The operator can merge or split a batch <span class="mono">(FR-002, P1)</span>.</p>
+    </section>
+
+    <!-- ===================== SCREEN 2: Verify a batch ===================== -->
+    <section data-screen="verify">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Verify gate: Phase 2 (sources picker)</h1>
+          <p class="text-sm text-stone-500 mt-1">Sign off the gating subset of this spec's cases. The gate passes only when every gating case passes.</p>
+        </div>
+        <span class="mono text-[11px] text-stone-400 mt-2">FR-008 · FR-012 · US-003</span>
+      </div>
+
+      <!-- Stale banner -->
+      <div id="staleBanner" class="hidden mt-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.86l-8.4 14.55A2 2 0 0 0 3.6 21.4h16.8a2 2 0 0 0 1.7-3L13.7 3.86a2 2 0 0 0-3.4 0z"/></svg>
+        <p class="text-sm text-amber-800 flex-1">Test plan changed since these results were recorded <span class="mono text-xs">(planHash mismatch)</span>. The gate is <strong>stale</strong> and cannot pass until the batch is re-verified.</p>
+        <button id="reverifyBtn" class="text-xs font-medium px-2.5 py-1.5 rounded-md bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 transition">Re-verify</button>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+
+        <!-- Cases list -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-stone-700">Gating cases <span class="mono text-stone-400 font-normal">L1 / L2 + e2e_flow</span></h2>
+            <div id="progressLabel" class="mono text-xs text-stone-500 tabular">0 / 3 passed</div>
+          </div>
+          <!-- Progress bar -->
+          <div class="h-1.5 rounded-full bg-stone-200 overflow-hidden flex mb-4">
+            <div id="barPass" class="bg-green-500 transition-all" style="width:0%"></div>
+            <div id="barFail" class="bg-red-500 transition-all" style="width:0%"></div>
+            <div id="barProg" class="bg-amber-500 transition-all" style="width:0%"></div>
+          </div>
+
+          <div id="caseList" class="flex flex-col gap-2.5"></div>
+
+          <p class="text-[11px] text-stone-400 mt-4">L3 / L4 cases are tracked but not in the gating set. Evaluation uses the effective status <span class="mono">(statusOverride ?? derivedStatus)</span> <span class="mono">· NFR-007</span>.</p>
+        </div>
+
+        <!-- Gate-state panel -->
+        <aside class="lg:sticky lg:top-20 self-start">
+          <div class="bg-white border border-stone-200 rounded-xl p-5">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-400 mb-3">Gate state</p>
+            <div id="gateBadge" class="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800">
+              <span id="gateDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span id="gateLabel">Pending</span>
+            </div>
+            <p id="gateReason" class="text-sm text-stone-500 mt-3 leading-relaxed">3 gating cases not yet verified.</p>
+
+            <div class="mt-4 pt-4 border-t border-stone-100">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-400 mb-2">Unresolved</p>
+              <ul id="unresolvedList" class="flex flex-col gap-1.5 text-sm"></ul>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-stone-100">
+              <p class="mono text-[11px] text-stone-400">gate WU-040 &middot; tracker #451</p>
+              <p class="mono text-[11px] text-stone-400 mt-0.5">covers WU-031, WU-032, WU-033</p>
+            </div>
+
+            <button id="closeGateBtn" disabled class="mt-4 w-full text-sm font-medium px-3 py-2 rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400 active:bg-amber-600 transition disabled:opacity-30 disabled:cursor-not-allowed">Close gate &amp; unblock Phase 3</button>
+          </div>
+
+          <!-- Passed confirmation -->
+          <div id="passedNote" class="hidden mt-3 rounded-xl bg-green-50 border border-green-500/30 p-4">
+            <p class="text-sm font-medium text-green-800 flex items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+              Gate passed
+            </p>
+            <p class="text-xs text-green-800/80 mt-1.5 leading-relaxed">Tracker issue #451 closed (audit-logged). Phase 3 units are unblocked.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== SCREEN 3: Failed case -> fix issue ===================== -->
+    <section data-screen="fix">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Failed case &rarr; fix issue</h1>
+          <p class="text-sm text-stone-500 mt-1">Capture evidence on a failed case, then file a tracker issue wired to block the gate.</p>
+        </div>
+        <span class="mono text-[11px] text-stone-400 mt-2">FR-009 · FR-010 · US-006</span>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div class="bg-white border border-stone-200 rounded-xl p-5">
+          <div class="flex items-center gap-2.5 mb-1">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span class="mono text-xs text-stone-500">TC-024 · L1</span>
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700 ml-auto">Failed</span>
+          </div>
+          <h2 class="text-base font-medium text-stone-800">Selecting a source filters the picker results</h2>
+          <p class="text-sm text-stone-500 mt-1">Expected the result list to narrow to the chosen source; the selection is dropped on re-render.</p>
+
+          <label class="block mt-5 text-xs font-semibold text-stone-600 mb-1.5">Notes</label>
+          <textarea id="fixNotes" rows="3" class="w-full text-sm rounded-lg border border-stone-200 px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-y" placeholder="What failed, repro steps, expected vs actual...">Picker drops the selected source on re-render. Repro: pick "Acme/web", type to filter, selection clears. Expected: selection persists and narrows results.</textarea>
+
+          <label class="block mt-4 text-xs font-semibold text-stone-600 mb-1.5">Evidence <span class="font-normal text-stone-400">(notes-only in v1; attachments deferred)</span></label>
+          <div class="flex items-center gap-2">
+            <button id="attachBtn" class="text-sm px-3 py-2 rounded-lg border border-stone-200 text-stone-600 hover:border-stone-300 transition flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              Attach screenshot
+            </button>
+            <span id="attachName" class="mono text-xs text-stone-400"></span>
+          </div>
+
+          <div class="mt-5 flex items-center gap-3">
+            <button id="fileFixBtn" class="text-sm font-medium px-4 py-2 rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400 active:bg-amber-600 transition">File fix issue &amp; block gate</button>
+            <span class="mono text-[11px] text-stone-400">via active integration · github-com</span>
+          </div>
+        </div>
+
+        <!-- Result panel -->
+        <aside>
+          <div id="fixIdle" class="bg-stone-50 border border-dashed border-stone-300 rounded-xl p-5 text-sm text-stone-500">
+            On file, Roubo creates a tracker issue and registers it as a blocker on gate <span class="mono text-xs">WU-040 (#451)</span>. The gate cannot pass until the fix is resolved.
+          </div>
+
+          <div id="fixResult" class="hidden bg-white border border-stone-200 rounded-xl p-5">
+            <p class="text-sm font-medium text-stone-800 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-red-500"></span> Fix issue filed
+            </p>
+            <div class="mt-3 rounded-lg bg-stone-50 border border-stone-200 p-3">
+              <p class="mono text-xs text-stone-700">WU-041 &middot; #452</p>
+              <p class="text-sm text-stone-700 mt-1">Fix: sources picker drops selection on re-render</p>
+              <p class="mono text-[11px] text-stone-400 mt-1.5">blocks &rarr; WU-040 (#451)</p>
+            </div>
+            <ul class="mt-3 flex flex-col gap-1.5 text-xs text-stone-500">
+              <li class="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg> Issue created (audit-logged)</li>
+              <li id="linkStep" class="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg> Blocking link registered</li>
+            </ul>
+          </div>
+
+          <!-- Partial-failure / recovery variant -->
+          <div id="fixPartial" class="hidden mt-3 rounded-xl bg-amber-50 border border-amber-200 p-4">
+            <p class="text-sm font-medium text-amber-800">Link step failed</p>
+            <p class="text-xs text-amber-800/90 mt-1.5 leading-relaxed">The issue was created but the blocking link did not register. The gate is held in a known partial state, never falsely passable <span class="mono">(NFR-003)</span>.</p>
+            <button id="retryLinkBtn" class="mt-3 text-xs font-medium px-2.5 py-1.5 rounded-md bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 transition">Retry link only</button>
+            <button id="simPartialBtn" class="mt-3 ml-2 text-xs text-amber-700/70 underline">simulate failure</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== SCREEN 4: Hard start-gate ===================== -->
+    <section data-screen="startgate">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Hard start-gate</h1>
+          <p class="text-sm text-stone-500 mt-1">With enforcement ON, a bench cannot start a unit whose upstream verify gate has not passed.</p>
+        </div>
+        <span class="mono text-[11px] text-stone-400 mt-2">FR-006 · NFR-003 · US-002</span>
+      </div>
+
+      <div class="mt-6 max-w-xl">
+        <div class="bg-white border border-stone-200 rounded-xl p-5">
+          <p class="text-sm text-stone-600">Start a bench on <span class="mono text-xs text-stone-800">WU-051</span> (Phase 3), which is blocked by gate <span class="mono text-xs text-stone-800">WU-040</span>.</p>
+          <button id="startBenchBtn" class="mt-4 text-sm font-medium px-4 py-2 rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400 active:bg-amber-600 transition">Start bench &amp; assign WU-051</button>
+        </div>
+
+        <!-- Refusal: blocked -->
+        <div id="refusalBlocked" class="hidden mt-3 rounded-xl bg-red-50 border border-red-200 p-5">
+          <p class="text-sm font-semibold text-red-700 flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+            Refused <span class="mono text-xs font-normal text-red-600">409 GATE_BLOCKED</span>
+          </p>
+          <p class="text-sm text-red-700/90 mt-2 leading-relaxed">Cannot start: upstream verify gate <span class="mono text-xs">WU-040 (#451)</span> has not passed. Verify Phase 2 first.</p>
+        </div>
+
+        <!-- Refusal: fail-closed -->
+        <div id="refusalIndeterminate" class="hidden mt-3 rounded-xl bg-red-50 border border-red-200 p-5">
+          <p class="text-sm font-semibold text-red-700 flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            Refused <span class="mono text-xs font-normal text-red-600">409 GATE_INDETERMINATE</span>
+          </p>
+          <p class="text-sm text-red-700/90 mt-2 leading-relaxed">Blocking state could not be determined (no active plugin / RPC timeout). With enforcement ON, the gate <strong>fails closed</strong> rather than letting unverified work proceed <span class="mono text-xs">(NFR-003)</span>.</p>
+        </div>
+
+        <!-- Allowed -->
+        <div id="startAllowed" class="hidden mt-3 rounded-xl bg-green-50 border border-green-500/30 p-5">
+          <p class="text-sm font-semibold text-green-800 flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            Bench started
+          </p>
+          <p class="text-sm text-green-800/90 mt-2">Phase 2 gate passed, so WU-051 is unblocked. Bench created and WU-051 assigned.</p>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-stone-500">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="simIndeterminate" class="accent-amber-500" />
+            Simulate plugin unavailable (fail-closed)
+          </label>
+          <span class="text-stone-300">·</span>
+          <span>Start path adds &le;1 bounded RPC, 3s timeout <span class="mono">(NFR-002)</span></span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="max-w-[1200px] mx-auto px-6 py-8 text-[11px] text-stone-400 border-t border-stone-200 mt-6">
+  Static prototype of the <span class="mono">verify-gate</span> feature. Mock data only, no backend. Reproduces Roubo's <span class="mono">DESIGN.md</span> tokens (warm stone, amber-500 accent, JetBrains Mono technical values).
+</footer>
+
+<script>
+(function () {
+  // ---------- mock data ----------
+  var SEED = [
+    { id: 'TC-019', title: 'Sources picker lists connected sources', level: 'L1', status: 'not_started' },
+    { id: 'TC-020', title: 'Empty state shows when no sources are connected', level: 'L2', status: 'not_started' },
+    { id: 'TC-024', title: 'Selecting a source filters the picker results', level: 'L1', type: 'e2e_flow', status: 'not_started' },
+  ];
+  var cases = JSON.parse(JSON.stringify(SEED));
+  var stale = false;
+
+  // ---------- navigation ----------
+  function show(name) {
+    document.querySelectorAll('[data-screen]').forEach(function (s) { s.classList.toggle('active', s.getAttribute('data-screen') === name); });
+    document.querySelectorAll('.navlink').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-nav') === name); });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.querySelectorAll('[data-nav]').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); show(a.getAttribute('data-nav')); });
+  });
+
+  // ---------- gate evaluation (deterministic rule) ----------
+  function evaluate() {
+    if (stale) return { status: 'stale', unresolved: cases.slice() };
+    var anyFail = cases.some(function (c) { return c.status === 'failed' || c.status === 'blocked'; });
+    if (anyFail) return { status: 'failed', unresolved: cases.filter(function (c) { return c.status === 'failed' || c.status === 'blocked'; }) };
+    var pending = cases.filter(function (c) { return c.status === 'not_started' || c.status === 'in_progress'; });
+    if (pending.length) return { status: 'pending', unresolved: pending };
+    return { status: 'passed', unresolved: [] };
+  }
+
+  var DOT = { not_started: '#A8A29E', in_progress: '#F59E0B', passed: '#22C55E', failed: '#EF4444', blocked: '#44403C' };
+  var GATE = {
+    pending:  { label: 'Pending',  badge: 'bg-amber-50 text-amber-800',  dot: '#F59E0B' },
+    failed:   { label: 'Failed',   badge: 'bg-red-50 text-red-700',      dot: '#EF4444' },
+    passed:   { label: 'Passed',   badge: 'bg-green-50 text-green-800',  dot: '#22C55E' },
+    stale:    { label: 'Stale',    badge: 'bg-amber-50 text-amber-800',  dot: '#F59E0B' },
+  };
+  var COVERS = { 'TC-019': 'WU-031', 'TC-020': 'WU-032', 'TC-024': 'WU-033' };
+
+  // ---------- render the batch view ----------
+  function caseRow(c, i) {
+    var setP = "window.__mark(" + i + ",'passed')";
+    var setF = "window.__mark(" + i + ",'failed')";
+    var passSel = c.status === 'passed';
+    var failSel = c.status === 'failed';
+    return ''
+      + '<div class="bg-white border border-stone-200 rounded-xl p-4 flex items-center gap-4">'
+      +   '<span class="w-2 h-2 rounded-full shrink-0" style="background:' + DOT[c.status] + '"></span>'
+      +   '<div class="min-w-0 flex-1">'
+      +     '<div class="flex items-center gap-2"><span class="mono text-xs text-stone-500">' + c.id + '</span>'
+      +       '<span class="mono text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">' + c.level + '</span>'
+      +       (c.type ? '<span class="mono text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">e2e</span>' : '')
+      +     '</div>'
+      +     '<p class="text-sm text-stone-800 mt-0.5 truncate">' + c.title + '</p>'
+      +   '</div>'
+      +   '<div class="flex items-center rounded-lg border overflow-hidden ' + (passSel ? 'border-green-600' : failSel ? 'border-red-600' : 'border-stone-200') + '">'
+      +     '<button class="seg px-3 py-1.5 text-xs font-medium transition ' + (passSel ? 'bg-green-50 text-green-800' : 'text-stone-500 hover:bg-stone-100') + '" onclick="' + setP + '">Pass</button>'
+      +     '<span class="w-px self-stretch bg-stone-200"></span>'
+      +     '<button class="seg px-3 py-1.5 text-xs font-medium transition ' + (failSel ? 'bg-red-50 text-red-700' : 'text-stone-500 hover:bg-stone-100') + '" onclick="' + setF + '">Fail</button>'
+      +   '</div>'
+      + '</div>';
+  }
+
+  function render() {
+    var list = document.getElementById('caseList');
+    list.innerHTML = cases.map(caseRow).join('');
+
+    var passed = cases.filter(function (c) { return c.status === 'passed'; }).length;
+    var failed = cases.filter(function (c) { return c.status === 'failed'; }).length;
+    var prog = cases.filter(function (c) { return c.status === 'in_progress'; }).length;
+    var n = cases.length;
+    document.getElementById('barPass').style.width = (passed / n * 100) + '%';
+    document.getElementById('barFail').style.width = (failed / n * 100) + '%';
+    document.getElementById('barProg').style.width = (prog / n * 100) + '%';
+    document.getElementById('progressLabel').textContent = passed + ' / ' + n + ' passed';
+
+    var g = evaluate();
+    var meta = GATE[g.status];
+    document.getElementById('gateLabel').textContent = meta.label;
+    document.getElementById('gateDot').style.background = meta.dot;
+    document.getElementById('gateBadge').className = 'inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg ' + meta.badge;
+
+    var reason = {
+      pending: pending_msg(g),
+      failed: failed_msg(g),
+      passed: 'Every gating case passed. The gate can close and unblock the next batch.',
+      stale: 'Results no longer match the current test plan. Re-verify the batch.',
+    }[g.status];
+    document.getElementById('gateReason').textContent = reason;
+
+    var ul = document.getElementById('unresolvedList');
+    if (g.unresolved.length === 0) {
+      ul.innerHTML = '<li class="text-stone-400 text-sm">None &middot; all gating cases passed</li>';
+    } else {
+      ul.innerHTML = g.unresolved.map(function (c) {
+        return '<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full" style="background:' + DOT[c.status] + '"></span>'
+          + '<span class="mono text-xs text-stone-600">' + c.id + '</span>'
+          + '<span class="mono text-[10px] text-stone-400 ml-auto">' + COVERS[c.id] + '</span></li>';
+      }).join('');
+    }
+
+    document.getElementById('closeGateBtn').disabled = g.status !== 'passed';
+    document.getElementById('passedNote').classList.toggle('hidden', g.status !== 'passed');
+
+    // overview badge mirrors gate state
+    var ov = document.getElementById('ovBadge');
+    if (ov) { ov.textContent = meta.label; ov.className = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ' + meta.badge; }
+  }
+
+  function pending_msg(g) {
+    var k = g.unresolved.length;
+    return k + ' gating case' + (k === 1 ? '' : 's') + ' not yet verified.';
+  }
+  function failed_msg(g) {
+    return g.unresolved.map(function (c) { return c.id; }).join(', ') + ' failed. File a fix issue to block the gate until resolved.';
+  }
+
+  window.__mark = function (i, status) {
+    if (stale) return;
+    cases[i].status = (cases[i].status === status) ? 'not_started' : status;
+    render();
+  };
+
+  // ---------- demo levers ----------
+  document.getElementById('staleToggle').addEventListener('click', function () {
+    stale = !stale;
+    document.getElementById('staleBanner').classList.toggle('hidden', !stale);
+    this.classList.toggle('bg-amber-50', stale);
+    this.classList.toggle('text-amber-800', stale);
+    this.classList.toggle('border-amber-200', stale);
+    render();
+  });
+  document.getElementById('reverifyBtn').addEventListener('click', function () {
+    stale = false;
+    document.getElementById('staleBanner').classList.add('hidden');
+    var t = document.getElementById('staleToggle');
+    t.classList.remove('bg-amber-50', 'text-amber-800', 'border-amber-200');
+    render();
+  });
+  document.getElementById('resetBtn').addEventListener('click', function () {
+    cases = JSON.parse(JSON.stringify(SEED));
+    stale = false;
+    document.getElementById('staleBanner').classList.add('hidden');
+    render();
+  });
+  document.getElementById('closeGateBtn').addEventListener('click', function () {
+    var b = document.getElementById('ovBlocked');
+    if (b) { b.innerHTML = 'Unblocked'; b.className = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-800'; }
+  });
+
+  document.getElementById('enforceToggle').addEventListener('click', function () {
+    var on = this.textContent.trim() === 'ON';
+    this.textContent = on ? 'OFF' : 'ON';
+    this.className = on
+      ? 'text-xs font-medium px-2 py-1 rounded-md bg-stone-100 text-stone-500 border border-stone-200'
+      : 'text-xs font-medium px-2 py-1 rounded-md bg-green-50 text-green-800 border border-green-500/40';
+  });
+
+  // ---------- fix-issue screen ----------
+  var partialMode = false;
+  document.getElementById('attachBtn').addEventListener('click', function () {
+    document.getElementById('attachName').textContent = 'picker-drop.png · 142 KB';
+  });
+  document.getElementById('simPartialBtn') && document.getElementById('simPartialBtn').addEventListener('click', function () {
+    partialMode = !partialMode;
+    this.textContent = partialMode ? 'failure armed' : 'simulate failure';
+  });
+  document.getElementById('fileFixBtn').addEventListener('click', function () {
+    document.getElementById('fixIdle').classList.add('hidden');
+    document.getElementById('fixResult').classList.remove('hidden');
+    if (partialMode) {
+      document.getElementById('linkStep').innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2.5"><path d="M12 8v5M12 16h.01"/></svg> Blocking link pending';
+      document.getElementById('fixPartial').classList.remove('hidden');
+    } else {
+      document.getElementById('fixPartial').classList.add('hidden');
+    }
+  });
+  document.getElementById('retryLinkBtn') && document.getElementById('retryLinkBtn').addEventListener('click', function () {
+    document.getElementById('linkStep').innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg> Blocking link registered';
+    document.getElementById('fixPartial').classList.add('hidden');
+    partialMode = false;
+    document.getElementById('simPartialBtn').textContent = 'simulate failure';
+  });
+
+  // ---------- start-gate screen ----------
+  document.getElementById('startBenchBtn').addEventListener('click', function () {
+    var g = evaluate();
+    var ind = document.getElementById('simIndeterminate').checked;
+    document.getElementById('refusalBlocked').classList.add('hidden');
+    document.getElementById('refusalIndeterminate').classList.add('hidden');
+    document.getElementById('startAllowed').classList.add('hidden');
+    if (ind) { document.getElementById('refusalIndeterminate').classList.remove('hidden'); return; }
+    if (g.status === 'passed') { document.getElementById('startAllowed').classList.remove('hidden'); }
+    else { document.getElementById('refusalBlocked').classList.remove('hidden'); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
