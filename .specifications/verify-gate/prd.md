@@ -210,8 +210,8 @@ Each NFR has a measurable target and a verification method.
   `work-units.json` with `kind:"verify"` units carrying `tracker.ref`. Roubo's
   runtime consumes this; a hand-authored fixture stands in for local
   development / testing until the external "breakdown emits gates" effort lands.
-- **Settled contracts adopted as-is:** `docs/work-unit-model.md` and
-  `docs/verify-gate.md` (gate unit, gating policy, deterministic results-to-passed
+- **Settled contracts adopted as-is:** `work-unit-model.md` and
+  `verify-gate.md` (gate unit, gating policy, deterministic results-to-passed
   rule, dedup key, blocking topology).
 - **Gate pass-condition extension (confirmed allowed):** "results-to-passed rule
   over gating cases AND all gate blockers done (including spawned fix issues)" is a
