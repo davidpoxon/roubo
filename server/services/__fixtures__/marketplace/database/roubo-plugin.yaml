@@ -1,0 +1,15 @@
+# Frozen marketplace test fixture for the "database" catalog entry (issue #689).
+#
+# This is a minimal, deterministic, checked-in stand-in for the database plugin
+# package. Its content digest (computePackageDigest over this directory) is bound
+# to the catalog entry's `integrity` value so a wrong/placeholder catalog digest
+# fails CI end-to-end through the real verification path. Do NOT add generated or
+# non-deterministic files here (no build output, no node_modules): the digest
+# must stay stable. If you intentionally change these bytes, recompute the digest
+# and re-sign the catalog (see server/services/marketplace-integrity.test.ts and
+# server/scripts/sign-marketplace-catalog.ts).
+id: database
+name: Database
+kind: component
+version: 0.1.0
+summary: Docker-backed databases via compose, with migrations and connection-string templating.
