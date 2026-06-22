@@ -48,6 +48,7 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "duplicate-id":
       return 409;
     case "unknown-token":
+    case "update-target-missing":
       return 404;
     case "internal":
       return 500;

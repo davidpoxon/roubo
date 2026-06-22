@@ -56,6 +56,9 @@ import type {
   LogLine,
   InstallPreview,
   InstallSource,
+  MarketplaceCatalogResponse,
+  MarketplaceKind,
+  MarketplaceListing,
   MigrationRecord,
   SourceCandidatesResponse,
   StatusCategoriesResponse,
@@ -1106,6 +1109,35 @@ export function cancelInstallPlugin(stagingToken: string): Promise<void> {
 }
 
 export type { InstallPreview, InstallSource };
+
+// Marketplace catalog (CP-FR-020 / CP-US-010, issue #621). The catalog is
+// first-party curated; install/update reuse the existing two-stage plugin
+// install flow (they return a staging token, then confirmInstallPlugin /
+// cancelInstallPlugin drive the commit step through the consent UI).
+export function fetchMarketplaceCatalog(params?: {
+  q?: string;
+  kind?: MarketplaceKind;
+}): Promise<MarketplaceCatalogResponse> {
+  const search = new URLSearchParams();
+  if (params?.q) search.set("q", params.q);
+  if (params?.kind) search.set("kind", params.kind);
+  const qs = search.toString();
+  return request(`/marketplace/plugins${qs ? `?${qs}` : ""}`);
+}
+
+export function installFromMarketplace(id: string): Promise<InstallPreview> {
+  return request(`/marketplace/plugins/${encodeURIComponent(id)}/install`, {
+    method: "POST",
+  });
+}
+
+export function updateFromMarketplace(id: string): Promise<InstallPreview> {
+  return request(`/marketplace/plugins/${encodeURIComponent(id)}/update`, {
+    method: "POST",
+  });
+}
+
+export type { MarketplaceCatalogResponse, MarketplaceListing, MarketplaceKind };
 
 // Migration (WU-024 / issue #42)
 export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {

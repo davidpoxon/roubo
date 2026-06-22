@@ -24,6 +24,11 @@ interface StagedInstall {
   source: InstallSource;
   manifest: PluginManifest;
   createdAt: number;
+  // When set, `commit` replaces the already-installed plugin with this id
+  // (the marketplace update flow) rather than rejecting it as a duplicate.
+  // The id must equal `manifest.id`; the installer uninstalls the existing
+  // copy before moving the staged copy into place.
+  replaceId?: string;
 }
 
 const staged = new Map<string, StagedInstall>();
@@ -234,6 +239,92 @@ export async function previewFromGitUrl(url: string): Promise<InstallPreview> {
   }
 }
 
+/**
+ * Stage an update for an already-installed plugin from a Git URL (the
+ * marketplace update flow, issue #621). Identical to `previewFromGitUrl`
+ * except it expects the cloned plugin's id to match an installed plugin and
+ * skips the duplicate-id rejection: the staged copy will replace the existing
+ * one at `commit` time. Throws `update-target-missing` if no plugin with
+ * `expectedId` is installed, or `invalid-input` if the cloned manifest id does
+ * not match `expectedId` (the catalog and the source must agree on the id).
+ */
+export async function previewUpdateFromGitUrl(
+  url: string,
+  expectedId: string,
+): Promise<InstallPreview> {
+  const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
+  if (!existing) {
+    throw new InstallError(
+      "update-target-missing",
+      `No installed plugin with id "${expectedId}" to update`,
+    );
+  }
+  if (existing.source === "bundled") {
+    throw new InstallError(
+      "update-target-missing",
+      `Bundled plugin "${expectedId}" cannot be updated in place`,
+    );
+  }
+
+  const safeUrl = validateGitUrl(url);
+  await ensureStagingRoot();
+  const token = randomUUID();
+  assertSafeIdentifier(token, UUID_RE, "stagingToken");
+  const stagingDir = resolveWithin(stagingRoot(), token);
+
+  try {
+    const result = await runCommand(
+      "git",
+      [
+        "-c",
+        "protocol.allow=user",
+        "-c",
+        "protocol.file.allow=never",
+        "clone",
+        "--depth",
+        "1",
+        "--",
+        safeUrl,
+        stagingDir,
+      ],
+      stagingRoot(),
+      undefined,
+      GIT_CLONE_TIMEOUT_MS,
+    );
+    if (result.code !== 0) {
+      await rmStaging(stagingDir);
+      throw gitCloneError(result.code, result.stderr);
+    }
+  } catch (err) {
+    if (err instanceof InstallError) throw err;
+    await rmStaging(stagingDir);
+    throw new InstallError("clone-failed", (err as Error).message);
+  }
+
+  try {
+    const manifest = await readStagingManifest(stagingDir);
+    assertCompatible(manifest);
+    if (manifest.id !== expectedId) {
+      throw new InstallError(
+        "invalid-input",
+        `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
+      );
+    }
+    const source: InstallSource = { type: "git", url: safeUrl };
+    staged.set(token, {
+      stagingDir,
+      source,
+      manifest,
+      createdAt: Date.now(),
+      replaceId: expectedId,
+    });
+    return { stagingToken: token, manifest, source };
+  } catch (err) {
+    await rmStaging(stagingDir);
+    throw err;
+  }
+}
+
 export async function previewFromLocalPath(absPath: string): Promise<InstallPreview> {
   // `safePath` is the normalized, validated absolute path. Every downstream
   // filesystem call uses `safePath` rather than the raw `absPath` argument
@@ -305,15 +396,38 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     throw new InstallError("unknown-token", `Unknown staging token: ${stagingToken}`);
   }
 
-  // Re-check duplicate id at commit time: another install could have raced
-  // through preview → commit in the meantime.
-  if (pluginManager.listInstalled().some((r) => r.id === entry.manifest.id)) {
-    await rmStaging(entry.stagingDir);
-    staged.delete(stagingToken);
-    throw new InstallError(
-      "duplicate-id",
-      `A plugin with id "${entry.manifest.id}" is already installed`,
-    );
+  const isUpdate = entry.replaceId !== undefined;
+
+  if (isUpdate) {
+    // Update flow (issue #621): the staged plugin replaces the installed copy
+    // of the same id. Uninstall the existing one first so the rename below
+    // lands on a clean target. The id was pinned at preview time.
+    if (!pluginManager.listInstalled().some((r) => r.id === entry.replaceId)) {
+      await rmStaging(entry.stagingDir);
+      staged.delete(stagingToken);
+      throw new InstallError(
+        "update-target-missing",
+        `No installed plugin with id "${entry.replaceId}" to update`,
+      );
+    }
+    try {
+      await pluginManager.uninstall(entry.replaceId as string);
+    } catch (err) {
+      await rmStaging(entry.stagingDir);
+      staged.delete(stagingToken);
+      throw new InstallError("internal", (err as Error).message);
+    }
+  } else {
+    // Re-check duplicate id at commit time: another install could have raced
+    // through preview → commit in the meantime.
+    if (pluginManager.listInstalled().some((r) => r.id === entry.manifest.id)) {
+      await rmStaging(entry.stagingDir);
+      staged.delete(stagingToken);
+      throw new InstallError(
+        "duplicate-id",
+        `A plugin with id "${entry.manifest.id}" is already installed`,
+      );
+    }
   }
 
   assertSafeIdentifier(entry.manifest.id, PLUGIN_ID_RE, "pluginId");

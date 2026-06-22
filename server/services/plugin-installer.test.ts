@@ -13,6 +13,7 @@ vi.mock("./plugin-manager.js", () => ({
   getUserPluginsRoot: vi.fn(),
   listInstalled: vi.fn(() => []),
   registerInstalled: vi.fn(),
+  uninstall: vi.fn(),
 }));
 
 import * as pluginInstaller from "./plugin-installer.js";
@@ -66,6 +67,8 @@ beforeEach(async () => {
   vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
   vi.mocked(exec.runCommand).mockReset();
   vi.mocked(pluginManager.registerInstalled).mockReset();
+  vi.mocked(pluginManager.uninstall).mockReset();
+  vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -270,6 +273,69 @@ describe("commit", () => {
       code: "duplicate-id",
     });
     expect(await listStaging()).not.toContain(preview.stagingToken);
+  });
+});
+
+describe("previewUpdateFromGitUrl (issue #621)", () => {
+  it("clones and stages an update for an installed plugin without a duplicate error", async () => {
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromGitUrl(
+      "https://github.com/example/echo.git",
+      "echo",
+    );
+    expect(preview.manifest.id).toBe("echo");
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+
+  it("rejects update-target-missing when the plugin is not installed", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    await expect(
+      pluginInstaller.previewUpdateFromGitUrl("https://github.com/example/echo.git", "echo"),
+    ).rejects.toMatchObject({ code: "update-target-missing" });
+    expect(exec.runCommand).not.toHaveBeenCalled();
+  });
+
+  it("refuses to update a bundled plugin", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "bundled" }),
+    ]);
+    await expect(
+      pluginInstaller.previewUpdateFromGitUrl("https://github.com/example/echo.git", "echo"),
+    ).rejects.toMatchObject({ code: "update-target-missing" });
+  });
+
+  it("rejects a cloned manifest whose id differs from the catalog id", async () => {
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "other", source: "user" }),
+    ]);
+    await expect(
+      pluginInstaller.previewUpdateFromGitUrl("https://github.com/example/echo.git", "other"),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("commit uninstalls the existing plugin then installs the staged copy", async () => {
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromGitUrl(
+      "https://github.com/example/echo.git",
+      "echo",
+    );
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    const record = await pluginInstaller.commit(preview.stagingToken);
+    expect(pluginManager.uninstall).toHaveBeenCalledWith("echo");
+    expect(record.id).toBe("echo");
+    const target = path.join(pluginsRoot, "echo");
+    expect((await stat(target)).isDirectory()).toBe(true);
   });
 });
 
