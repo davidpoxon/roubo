@@ -221,3 +221,30 @@ describe("GET /:projectId/gates/:gateId", () => {
     expect(res.body.unresolvedCaseIds).toEqual(["TC-001", "TC-002"]);
   });
 });
+
+describe("rate limiting", () => {
+  beforeEach(() => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
+  });
+
+  it("attaches RateLimit response headers on the list route (limiter is mounted)", async () => {
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    // express-rate-limit (draft-7) sets these headers when the limiter runs.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
+
+  it("attaches RateLimit response headers on the detail route (limiter is mounted)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-001", 1)], { "TC-001": caseResult("passed") }) as never,
+    );
+    const res = await request(app).get("/p1/gates/WU-100");
+    expect(res.status).toBe(200);
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
+});

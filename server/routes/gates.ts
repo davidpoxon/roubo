@@ -17,7 +17,8 @@
 // the gate reads as `stale`, never `passed` (NFR-007 fail-closed): an unverified
 // gate must never look passable.
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import { WorkUnitsValidationError } from "../services/work-unit-loader.js";
@@ -29,6 +30,17 @@ import type { GateState } from "../lib/gate-evaluator.js";
 import { RouteError } from "./helpers.js";
 
 const router = Router();
+
+// Both gate handlers resolve a project (authorization) and then read plan/results
+// files from disk per gate, so they are rate-limited to mitigate denial-of-service
+// (CodeQL js/missing-rate-limiting, alerts 186/187). Mirrors the limiter used by the sibling
+// routers (benches-settings.ts, projects.ts).
+const gateReadRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 // The API-facing gate projection: the pure evaluator's GateState plus the gate's
 // own id, so a list caller can tell the entries apart. The evaluator deliberately
@@ -114,31 +126,39 @@ function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateSta
 
 // GET /:projectId/gates -> 200 GateState[] (one per verify unit across the
 // project's specs). An empty array is a valid, normal response (no gates yet).
-router.get("/:projectId/gates", (req, res) => {
-  try {
-    const repoPath = resolveRepoPath(req.params.projectId);
-    const gates = workUnitLoader.loadVerifyUnits(repoPath);
-    res.json(gates.map((loaded) => evaluateLoadedGate(repoPath, loaded)));
-  } catch (err) {
-    handleError(res, err);
-  }
-});
+router.get(
+  "/:projectId/gates",
+  gateReadRateLimiter,
+  (req: Request<{ projectId: string }>, res: Response) => {
+    try {
+      const repoPath = resolveRepoPath(req.params.projectId);
+      const gates = workUnitLoader.loadVerifyUnits(repoPath);
+      res.json(gates.map((loaded) => evaluateLoadedGate(repoPath, loaded)));
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
 
 // GET /:projectId/gates/:gateId -> 200 GateState / 404 when no verify unit has
 // that id. For a non-passed gate the payload carries the unresolved TC- ids and
 // the covering slice unit ids (FR-012, NFR-004).
-router.get("/:projectId/gates/:gateId", (req, res) => {
-  try {
-    const repoPath = resolveRepoPath(req.params.projectId);
-    const gates = workUnitLoader.loadVerifyUnits(repoPath);
-    const loaded = gates.find((g) => g.unit.id === req.params.gateId);
-    if (loaded === undefined) {
-      throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
+router.get(
+  "/:projectId/gates/:gateId",
+  gateReadRateLimiter,
+  (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
+    try {
+      const repoPath = resolveRepoPath(req.params.projectId);
+      const gates = workUnitLoader.loadVerifyUnits(repoPath);
+      const loaded = gates.find((g) => g.unit.id === req.params.gateId);
+      if (loaded === undefined) {
+        throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
+      }
+      res.json(evaluateLoadedGate(repoPath, loaded));
+    } catch (err) {
+      handleError(res, err);
     }
-    res.json(evaluateLoadedGate(repoPath, loaded));
-  } catch (err) {
-    handleError(res, err);
-  }
-});
+  },
+);
 
 export default router;
