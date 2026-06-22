@@ -40,11 +40,22 @@ vi.mock("../lib/testbench-spec-discovery.js", () => ({
   resolveFocusedSpec: vi.fn(),
 }));
 
+vi.mock("../services/work-unit-loader.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/work-unit-loader.js")>(
+    "../services/work-unit-loader.js",
+  );
+  return {
+    WorkUnitsValidationError: actual.WorkUnitsValidationError,
+    loadVerifyUnits: vi.fn(),
+  };
+});
+
 import router from "./testbench.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import * as discovery from "../lib/testbench-spec-discovery.js";
+import * as workUnitLoader from "../services/work-unit-loader.js";
 
 const app = express();
 app.use(express.json());
@@ -183,6 +194,99 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     });
     const res = await request(app).get("/p1/benches/1/testbench/plan");
     expect(res.status).toBe(404);
+  });
+
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      plan: { cases: [] } as never,
+      results: null,
+      stale: false,
+      planHash: "abc",
+      recovered: true,
+    });
+    const res = await request(app).get("/p1/benches/1/testbench/plan");
+    expect(res.status).toBe(200);
+    // express-rate-limit (draft-7) sets these headers when the limiter runs.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
+});
+
+describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
+  const fullPlan = {
+    plan: {
+      cases: [{ id: "TC-001" }, { id: "TC-002" }, { id: "TC-003" }, { id: "TC-004" }],
+    },
+    results: null,
+    stale: false,
+    planHash: "abc",
+    recovered: false,
+  };
+
+  function gate(id: string, testCaseIds: string[]) {
+    return {
+      slug: "testbench",
+      unit: {
+        id,
+        title: id,
+        type: "task",
+        kind: "verify",
+        description: "",
+        acceptance_criteria: [],
+        depends_on: [],
+        implements: { requirement_ids: [], user_story_ids: [], test_case_ids: testCaseIds },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(fullPlan as never);
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      gate("WU-100", ["TC-001", "TC-002"]),
+      gate("WU-200", ["TC-003"]),
+    ] as never);
+  });
+
+  it("returns the unchanged full plan with no marker when ?gateIds is absent", async () => {
+    const res = await request(app).get("/p1/benches/1/testbench/plan");
+    expect(res.status).toBe(200);
+    expect(res.body.plan.cases).toHaveLength(4);
+    expect(res.body.filteredToGateIds).toBeUndefined();
+    expect(workUnitLoader.loadVerifyUnits).not.toHaveBeenCalled();
+  });
+
+  it("narrows the plan to the union of the named gates' test_case_ids and adds the marker", async () => {
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100,WU-200");
+    expect(res.status).toBe(200);
+    expect(res.body.plan.cases.map((c: { id: string }) => c.id)).toEqual([
+      "TC-001",
+      "TC-002",
+      "TC-003",
+    ]);
+    expect(res.body.filteredToGateIds).toEqual(["WU-100", "WU-200"]);
+    expect(workUnitLoader.loadVerifyUnits).toHaveBeenCalledWith(WORKTREE, "testbench");
+  });
+
+  it("filters to a single gate's cases", async () => {
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+    expect(res.status).toBe(200);
+    expect(res.body.plan.cases.map((c: { id: string }) => c.id)).toEqual(["TC-001", "TC-002"]);
+    expect(res.body.filteredToGateIds).toEqual(["WU-100"]);
+  });
+
+  it("treats an unknown gate id as contributing nothing", async () => {
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-999");
+    expect(res.status).toBe(200);
+    expect(res.body.plan.cases).toHaveLength(0);
+    expect(res.body.filteredToGateIds).toEqual(["WU-999"]);
+  });
+
+  it("400 for a present-but-invalid work-units.json in the filter path", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation(() => {
+      throw new workUnitLoader.WorkUnitsValidationError("testbench", ["bad"]);
+    });
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+    expect(res.status).toBe(400);
   });
 });
 
