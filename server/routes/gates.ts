@@ -81,11 +81,18 @@ function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateSta
 
   let state: GateState;
   try {
-    const { plan, results, planHash } = testbenchStore.readPlanAndResults(repoPath, slug);
-    // Thread the file's own planHash onto the results so the evaluator can decide
-    // staleness itself (its GateResults shape). A null results view models "no
-    // results recorded yet" and reads as stale.
-    const gateResults = results === null ? null : { ...results, planHash };
+    const { plan, results, planHash, stale } = testbenchStore.readPlanAndResults(repoPath, slug);
+    // `readPlanAndResults` strips the stored planHash from `results`, exposing the
+    // freshness comparison as its `stale` flag instead. The evaluator decides
+    // staleness from `results.planHash !== currentPlanHash`, so thread a planHash
+    // that reflects the store's verdict: the live hash when fresh, a
+    // guaranteed-mismatching sentinel when stale. Passing the live hash on both
+    // sides would leave the staleness rung unreachable for a results-present gate,
+    // letting stale (plan-changed) all-passed results read as `passed`, a
+    // fail-closed regression (NFR-007). A null results view models "no results
+    // recorded yet" and reads as stale.
+    const gateResults =
+      results === null ? null : { ...results, planHash: stale ? `${planHash}::stale` : planHash };
     state = evaluateGate(unit, gateResults, planHash, plan);
   } catch (err) {
     if (err instanceof MissingPlanError) {

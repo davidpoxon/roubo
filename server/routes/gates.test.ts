@@ -201,4 +201,23 @@ describe("GET /:projectId/gates/:gateId", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("stale");
   });
+
+  it("reads as stale (never passed) when recorded results are stale (plan changed since verification)", async () => {
+    // Every gating case is passed in the recorded results, but the stored plan
+    // hash no longer matches the live plan, so the store flags it stale. The gate
+    // must read stale, not passed: a batch verified against an out-of-date plan
+    // is unverified against the current one (NFR-007 fail-closed, never a
+    // false-pass). This is the regression the route's planHash handling guards.
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      ...planAndResults([planCase("TC-001", 1), planCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("passed"),
+      }),
+      stale: true,
+    } as never);
+    const res = await request(app).get("/p1/gates/WU-100");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("stale");
+    expect(res.body.unresolvedCaseIds).toEqual(["TC-001", "TC-002"]);
+  });
 });
