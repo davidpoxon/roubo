@@ -18,7 +18,8 @@
 // The TestBench create endpoint (POST /:projectId/benches { variant }) lives in
 // benches.ts: it is the normal bench-manager create path.
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
@@ -35,6 +36,18 @@ import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 
 const router = Router();
+
+// The plan endpoint resolves a project/bench (authorization) and then reads the
+// plan + results from disk, and on a ?gateIds= filter also loads the bench's
+// work-units, so it is rate-limited to mitigate denial-of-service (CodeQL
+// js/missing-rate-limiting, alert 188). Mirrors the limiter used by the sibling
+// routers (gates.ts, benches-settings.ts, projects.ts).
+const planReadRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 // Request-body schemas (testbench-contracts-aligned). Each is strict so an
 // unexpected key is a 400 rather than silently ignored.
@@ -194,40 +207,44 @@ function parseGateIdsParam(raw: unknown): string[] | undefined {
 // narrowing), and a `filteredToGateIds` marker is added to the response so an
 // existing no-param caller gets the unchanged full-plan shape. An unknown gate id
 // in the filter contributes nothing (no error): the union of known gates wins.
-router.get("/:projectId/benches/:id/testbench/plan", (req, res) => {
-  try {
-    const benchId = parseIntParam(req.params.id, "bench id");
-    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
-    const result = testbenchStore.readPlanAndResults(rootPath, slug);
+router.get(
+  "/:projectId/benches/:id/testbench/plan",
+  planReadRateLimiter,
+  (req: Request<{ projectId: string; id: string }>, res: Response) => {
+    try {
+      const benchId = parseIntParam(req.params.id, "bench id");
+      const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
+      const result = testbenchStore.readPlanAndResults(rootPath, slug);
 
-    const gateIds = parseGateIdsParam(req.query.gateIds);
-    if (gateIds === undefined) {
-      // No filter: unchanged full-plan response.
-      res.json(result);
-      return;
-    }
-
-    // Resolve the named gates from this spec's work-units and union their
-    // declared gating sets. Gates live alongside the plan under the bench's own
-    // worktree, so load from the same rootPath + slug the plan was read from.
-    const gates = workUnitLoader.loadVerifyUnits(rootPath, slug);
-    const selected = gates.filter((g) => gateIds.includes(g.unit.id));
-    const subsetCaseIds = new Set<string>();
-    for (const g of selected) {
-      for (const caseId of g.unit.implements.test_case_ids) {
-        subsetCaseIds.add(caseId);
+      const gateIds = parseGateIdsParam(req.query.gateIds);
+      if (gateIds === undefined) {
+        // No filter: unchanged full-plan response.
+        res.json(result);
+        return;
       }
-    }
 
-    const filteredPlan = {
-      ...result.plan,
-      cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
-    };
-    res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds });
-  } catch (err) {
-    handleError(res, err);
-  }
-});
+      // Resolve the named gates from this spec's work-units and union their
+      // declared gating sets. Gates live alongside the plan under the bench's own
+      // worktree, so load from the same rootPath + slug the plan was read from.
+      const gates = workUnitLoader.loadVerifyUnits(rootPath, slug);
+      const selected = gates.filter((g) => gateIds.includes(g.unit.id));
+      const subsetCaseIds = new Set<string>();
+      for (const g of selected) {
+        for (const caseId of g.unit.implements.test_case_ids) {
+          subsetCaseIds.add(caseId);
+        }
+      }
+
+      const filteredPlan = {
+        ...result.plan,
+        cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
+      };
+      res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds });
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
 
 // 5. Mark an observation (PUT) -> 200 CaseResult.
 router.put(

@@ -195,6 +195,21 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     const res = await request(app).get("/p1/benches/1/testbench/plan");
     expect(res.status).toBe(404);
   });
+
+  it("attaches RateLimit response headers (limiter is mounted)", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      plan: { cases: [] } as never,
+      results: null,
+      stale: false,
+      planHash: "abc",
+      recovered: true,
+    });
+    const res = await request(app).get("/p1/benches/1/testbench/plan");
+    expect(res.status).toBe(200);
+    // express-rate-limit (draft-7) sets these headers when the limiter runs.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect(res.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
 
 describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
