@@ -15,7 +15,7 @@ indeterminate (NFR-003), must add at most **one bounded RPC** to the start path
 audit-logged, tracker-agnostic** privileged capability (FR-011, NFR-001,
 NFR-005) that Roubo does not have today (it can read blocking and assign, but it
 cannot create an issue or register a block-link). This feature **adopts** the
-settled `docs/work-unit-model.md` and `docs/verify-gate.md` contracts as fixed
+settled `work-unit-model.md` and `verify-gate.md` contracts as fixed
 inputs and builds on them; it does not re-open the work-unit model, the gate
 unit shape, the results-to-passed rule, the dedup key, or the blocking topology.
 
@@ -77,7 +77,7 @@ transition, reusing the existing notification stream for live UI (FR-012).
 
 ## Data model
 
-Shapes adopted verbatim from `docs/work-unit-model.md`; Roubo only validates and
+Shapes adopted verbatim from `work-unit-model.md`; Roubo only validates and
 reads `work-units.json` (it is written by the external `breakdown`).
 
 | Entity            | Owner           | Shape                                                                                                                       |

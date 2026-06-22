@@ -89,8 +89,8 @@ informationally, so nothing actually stops unverified work from advancing.
   Tailwind client. New schema follows the `schema/test-cases.schema.json` /
   `schema/test-results.schema.json` pattern with a Roubo-side validator.
 - **Settled cross-tool contracts (adopt, do not re-derive):**
-  [`work-unit-model.md`](../../docs/work-unit-model.md) (the canonical work-unit
-  artifact) and [`verify-gate.md`](../../docs/verify-gate.md) (the gate unit, the
+  [`work-unit-model.md`](./work-unit-model.md) (the canonical work-unit
+  artifact) and [`verify-gate.md`](./verify-gate.md) (the gate unit, the
   gating policy, the deterministic results-to-passed rule, the dedup key, the
   blocking topology). The architecture stage must adopt and record these, not
   re-open them.
@@ -145,9 +145,8 @@ batch passed" means.
 
 ## Source notes
 
-- Raw input: `docs/verify-gate-brief.md`, with the settled contracts
-  `docs/work-unit-model.md` and `docs/verify-gate.md` as fixed architecture inputs,
-  and `docs/verify-gate-handoff.md` for operator mechanics.
+- Fixed architecture inputs: the settled contracts `work-unit-model.md` and
+  `verify-gate.md` (now in this spec folder).
 - Interview changelog (2026-06-22):
   - Batch granularity: phase-aligned default, operator can merge / split a batch.
   - Enforcement: hard block, no override, keyed to the existing
