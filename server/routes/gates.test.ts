@@ -37,6 +37,17 @@ vi.mock("../lib/testbench-store.js", async () => {
     MissingPlanError: actual.MissingPlanError,
     UnsafePathError: actual.UnsafePathError,
     readPlanAndResults: vi.fn(),
+    appendNote: vi.fn(async () => ({ id: "n1" })),
+  };
+});
+
+vi.mock("../services/fix-issue-filer.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/fix-issue-filer.js")>(
+    "../services/fix-issue-filer.js",
+  );
+  return {
+    EmptyNotesError: actual.EmptyNotesError,
+    fileFixIssueAndBlock: vi.fn(),
   };
 });
 
@@ -48,9 +59,12 @@ import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { MissingPlanError } from "../lib/testbench-store.js";
+import * as fixIssueFiler from "../services/fix-issue-filer.js";
+import { TrackerActionError } from "../services/tracker-action-gateway.js";
 import type { LoadedVerifyUnit } from "../services/work-unit-loader.js";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
+import type { Tracker } from "@roubo/shared/work-units-contract";
 
 const app = express();
 app.use(express.json());
@@ -75,6 +89,13 @@ function gate(id: string, testCaseIds: string[], covers: string[] = []): VerifyU
 
 function loaded(slug: string, unit: VerifyUnit): LoadedVerifyUnit {
   return { slug, unit };
+}
+
+// A gate carrying a GitHub tracker ref, so it can be a block target for a fix
+// issue (the fix-issues route derives repoFullName from the gate's tracker.ref).
+function gateWithTracker(id: string, ref: string, testCaseIds: string[] = ["TC-024"]): VerifyUnit {
+  const tracker: Tracker = { system: "github", ref, url: "https://x", blocked_by_refs: [] };
+  return { ...gate(id, testCaseIds), tracker };
 }
 
 function planCase(id: string, level: number, type = "functional"): Case {
@@ -448,6 +469,159 @@ describe("DELETE /:projectId/gates/overrides", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined as never);
     const res = await request(app).delete("/p1/gates/overrides");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /:projectId/gates/:gateId/fix-issues", () => {
+  beforeEach(() => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gateWithTracker("WU-040", "o/r#451")),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1)], { "TC-024": caseResult("failed") }) as never,
+    );
+  });
+
+  it("201 with a complete record on full success, recording the note (TC-045, TC-046)", async () => {
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#452",
+      gateRef: "o/r#451",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ fixIssueRef: "o/r#452", linkStatus: "complete" });
+    // The verifier's notes are appended to the gate's spec results (path-confined).
+    expect(testbenchStore.appendNote).toHaveBeenCalledWith(
+      REPO,
+      "alpha",
+      "TC-024",
+      "Login button is inert.",
+    );
+    // The filer is handed the gate ref and the repo derived from it.
+    expect(fixIssueFiler.fileFixIssueAndBlock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ repoFullName: "o/r", gateRef: "o/r#451", failedCaseId: "TC-024" }),
+    );
+  });
+
+  it("207 with link_pending when the link step failed after create (TC-052)", async () => {
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#452",
+      gateRef: "o/r#451",
+      failedCaseId: "TC-024",
+      linkStatus: "link_pending",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(207);
+    expect(res.body).toMatchObject({ fixIssueRef: "o/r#452", linkStatus: "link_pending" });
+  });
+
+  it("a link-only retry (existingFixRef) skips the note append and returns 201 (TC-052)", async () => {
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#452",
+      gateRef: "o/r#451",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert.", existingFixRef: "o/r#452" });
+
+    expect(res.status).toBe(201);
+    expect(testbenchStore.appendNote).not.toHaveBeenCalled();
+    expect(fixIssueFiler.fileFixIssueAndBlock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ existingFixRef: "o/r#452" }),
+    );
+  });
+
+  it("422 and no tracker call when notes are empty (TC-053)", async () => {
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "   " });
+
+    expect(res.status).toBe(422);
+    expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
+    expect(testbenchStore.appendNote).not.toHaveBeenCalled();
+  });
+
+  it("rejects a path-escaping evidence write before any tracker call (TC-049)", async () => {
+    const res = await request(app).post("/p1/gates/WU-040/fix-issues").send({
+      failedCaseId: "TC-024",
+      notes: "Login button is inert.",
+      evidence: "../../outside-workspace/secrets.txt",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/escapes/i);
+    // No issue is filed for a rejected write.
+    expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
+  });
+
+  it("422 when the active integration plugin lacks the capability (TC-049 degrade)", async () => {
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockRejectedValue(
+      new TrackerActionError("no supportsBlockingLinks", "capability-absent"),
+    );
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("capability-absent");
+  });
+
+  it("409 when no active integration is configured", async () => {
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockRejectedValue(
+      new TrackerActionError("no integration", "no-active-integration"),
+    );
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("404 for an unknown gate id", async () => {
+    const res = await request(app)
+      .post("/p1/gates/WU-999/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "x" });
+    expect(res.status).toBe(404);
+  });
+
+  it("409 when the gate has no tracker issue to block, and 400 for a missing failedCaseId", async () => {
+    // No-tracker gate: a fix issue cannot be wired to a gate with no block target.
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-040", ["TC-024"])),
+    ]);
+    const noTracker = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "x" });
+    expect(noTracker.status).toBe(409);
+    expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
+
+    // Missing failedCaseId: a 400 input validation failure (re-mount a tracked
+    // gate so the request reaches the body validation).
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gateWithTracker("WU-040", "o/r#451")),
+    ]);
+    const missingId = await request(app).post("/p1/gates/WU-040/fix-issues").send({ notes: "x" });
+    expect(missingId.status).toBe(400);
   });
 });
 
