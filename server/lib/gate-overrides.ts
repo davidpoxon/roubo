@@ -195,11 +195,36 @@ export function applyGateOverrides(
       dropped.push({ op, reason: partitionError });
       continue;
     }
+    // Build each part's synthetic unit, then verify the parts' GATING SETS (the
+    // TC- ids, not just the covers) partition the source gate's declared gating
+    // set with no loss or duplication (AC2). The covers partition above is
+    // necessary but not sufficient: the WU- -> TC- map can be many-to-many, so
+    // two covers in different parts can implement the same TC- id (cross-part
+    // duplication), and the union of the covers' mapped cases may not equal the
+    // source gate's own `implements.test_case_ids` (loss or addition relative to
+    // the original). Both would violate AC2, so a split that does not partition
+    // the gating set exactly is dropped rather than emitting wrong gates.
+    const partUnits = op.parts.map((part) => ({
+      part,
+      unit: buildSplitUnit(
+        mintSplitGateId(op.gateId, part.label),
+        part.label,
+        op.gateId,
+        part.coversWorkUnitIds,
+        caseMap,
+      ),
+    }));
+    const gatingError = validateGatingSetPartition(
+      source.unit.implements.test_case_ids,
+      partUnits.map((p) => p.unit.implements.test_case_ids),
+    );
+    if (gatingError !== null) {
+      dropped.push({ op, reason: gatingError });
+      continue;
+    }
     byId.delete(op.gateId);
-    for (const part of op.parts) {
-      const id = mintSplitGateId(op.gateId, part.label);
-      const unit = buildSplitUnit(id, part.label, op.gateId, part.coversWorkUnitIds, caseMap);
-      byId.set(id, { slug: source.slug, unit });
+    for (const { unit } of partUnits) {
+      byId.set(unit.id, { slug: source.slug, unit });
     }
   }
 
@@ -234,6 +259,40 @@ export function validateCoversPartition(
   const unassigned = sourceCovers.filter((wu) => !assigned.has(wu));
   if (unassigned.length > 0) {
     return `WU- id(s) not assigned to any part: ${dedupe(unassigned).join(", ")}`;
+  }
+  return null;
+}
+
+// Validate that the parts' gating sets (their resolved test_case_ids) partition
+// the source gate's declared gating set exactly (AC2: "gating sets partition the
+// original with no loss or duplication"). Returns null when the partition is
+// valid, else a human-readable reason. Two checks:
+//   - no duplication: a TC- id may appear in at most one part (a TC delivered by
+//     two covers assigned to different parts would otherwise gate twice);
+//   - no loss / no addition: the union of the parts' gating sets must equal the
+//     source gate's `implements.test_case_ids` as a set, so no original gating
+//     case vanishes (fail-closed) and no foreign case is introduced.
+export function validateGatingSetPartition(
+  sourceGatingSet: readonly string[],
+  partsTestCaseIds: readonly (readonly string[])[],
+): string | null {
+  const assigned = new Set<string>();
+  for (const part of partsTestCaseIds) {
+    for (const tc of part) {
+      if (assigned.has(tc)) {
+        return `gating case "${tc}" appears in more than one split part (duplication)`;
+      }
+      assigned.add(tc);
+    }
+  }
+  const source = new Set(sourceGatingSet);
+  const lost = [...source].filter((tc) => !assigned.has(tc));
+  if (lost.length > 0) {
+    return `split would lose gating case(s) from the original gate: ${dedupe(lost).join(", ")}`;
+  }
+  const added = [...assigned].filter((tc) => !source.has(tc));
+  if (added.length > 0) {
+    return `split would introduce gating case(s) not in the original gate: ${dedupe(added).join(", ")}`;
   }
   return null;
 }

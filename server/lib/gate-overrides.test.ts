@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyGateOverrides,
   validateCoversPartition,
+  validateGatingSetPartition,
   mintMergeGateId,
   mintSplitGateId,
   type WorkUnitCaseMap,
@@ -232,6 +233,78 @@ describe("applyGateOverrides - split (AC2, TC-023)", () => {
 
   it("mints deterministic split gate ids", () => {
     expect(mintSplitGateId("PHASE-2", "A")).toBe("SPLIT:PHASE-2:A");
+  });
+
+  it("drops a split whose covers partition but whose gating sets duplicate a case (AC2)", () => {
+    // Two covers in different parts implement the SAME TC- id, so the gating
+    // case would appear in both split gates: a covers-only partition does not
+    // guarantee the gating-set partition AC2 requires.
+    const dupMap: WorkUnitCaseMap = new Map([
+      ["WU-031", ["TC-019"]],
+      ["WU-032", ["TC-019"]],
+    ]);
+    const loaded = [gate("PHASE-2", ["TC-019"], ["WU-031", "WU-032"])];
+    const result = applyGateOverrides(
+      loaded,
+      doc([
+        {
+          op: "split",
+          gateId: "PHASE-2",
+          parts: [
+            { label: "A", coversWorkUnitIds: ["WU-031"] },
+            { label: "B", coversWorkUnitIds: ["WU-032"] },
+          ],
+        },
+      ]),
+      dupMap,
+    );
+    expect(result.gates.map((g) => g.unit.id)).toEqual(["PHASE-2"]);
+    expect(result.dropped).toHaveLength(1);
+    expect(result.dropped[0].reason).toContain("more than one split part");
+  });
+
+  it("drops a split whose covers partition but loses a declared gating case (AC2)", () => {
+    // The source gate declares TC-099, but no covering unit's case map yields it,
+    // so the union of the parts' gating sets would lose it: a fail-closed gap.
+    const loaded = [gate("PHASE-2", ["TC-019", "TC-020", "TC-099"], ["WU-031", "WU-032"])];
+    const result = applyGateOverrides(
+      loaded,
+      doc([
+        {
+          op: "split",
+          gateId: "PHASE-2",
+          parts: [
+            { label: "A", coversWorkUnitIds: ["WU-031"] },
+            { label: "B", coversWorkUnitIds: ["WU-032"] },
+          ],
+        },
+      ]),
+      caseMap,
+    );
+    expect(result.gates.map((g) => g.unit.id)).toEqual(["PHASE-2"]);
+    expect(result.dropped).toHaveLength(1);
+    expect(result.dropped[0].reason).toContain("TC-099");
+  });
+});
+
+describe("validateGatingSetPartition", () => {
+  it("accepts an exact partition of the source gating set", () => {
+    expect(
+      validateGatingSetPartition(["TC-1", "TC-2", "TC-3"], [["TC-1"], ["TC-2", "TC-3"]]),
+    ).toBeNull();
+  });
+  it("rejects a gating case in more than one part (duplication)", () => {
+    expect(validateGatingSetPartition(["TC-1", "TC-2"], [["TC-1"], ["TC-1", "TC-2"]])).toContain(
+      "more than one split part",
+    );
+  });
+  it("rejects loss of a declared gating case", () => {
+    expect(validateGatingSetPartition(["TC-1", "TC-2", "TC-3"], [["TC-1"], ["TC-2"]])).toContain(
+      "lose gating case",
+    );
+  });
+  it("rejects a part introducing a case not in the source gating set", () => {
+    expect(validateGatingSetPartition(["TC-1"], [["TC-1"], ["TC-9"]])).toContain("introduce");
   });
 });
 

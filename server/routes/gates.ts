@@ -157,10 +157,16 @@ function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateSta
 }
 
 // Build the WU- -> test_case_ids map a split needs, for every spec the loaded
-// gates span. Each spec's map is keyed independently; the union is safe because
-// WU- ids are spec-scoped in practice and a cross-spec collision only ever adds
-// extra candidate cases, never drops a real one. Validation errors from any spec
-// surface (a broken work-units.json is not silently dropped).
+// gates span. WU- ids are numbered per spec, so they are spec-scoped in
+// practice and cross-spec collisions are not expected. This flat union is
+// last-write-wins: if two specs did define the same WU- id, the later spec's
+// case set overwrites (replaces, not unions) the earlier one's. That is
+// acceptable because a split is always validated against its source gate's own
+// covers and declared gating set in applyGateOverrides (validateCoversPartition
+// + validateGatingSetPartition), so a wrong-spec case set for a colliding id
+// would make the split fail the partition check and be dropped, never silently
+// mis-resolved. Validation errors from any spec surface (a broken
+// work-units.json is not silently dropped).
 function buildCaseMap(repoPath: string, loaded: readonly LoadedVerifyUnit[]): WorkUnitCaseMap {
   const merged = new Map<string, string[]>();
   const seenSlugs = new Set<string>();
