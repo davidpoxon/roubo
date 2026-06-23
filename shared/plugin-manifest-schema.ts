@@ -69,7 +69,24 @@ export const PluginPermissionsSchema = z
   .passthrough();
 export type PluginPermissions = z.infer<typeof PluginPermissionsSchema>;
 
-export const PluginCapabilitiesSchema = z.object({}).strict();
+// Per-capability flags a tracker plugin declares for the privileged tracker-action
+// ops the TrackerActionGateway gates (verify-gate FR-011, NFR-005; spike #704).
+// A flag is true only when the plugin implements the op for the connected
+// instance. The gateway reads these up front and degrades with a legible error
+// (never a silent no-op) when a flag is absent or false. close-gate is not a new
+// flag: it reuses the existing applyTransition capability (architecture.md:133-134).
+export const PluginCapabilitiesSchema = z
+  .object({
+    /** The plugin implements `createIssue` for the connected instance (FR-011). */
+    supportsCreateIssue: z.boolean().optional(),
+    /**
+     * The plugin implements `addBlockedBy` AND the connected instance exposes the
+     * blocking-link write (the GitHub GA / GHE version / Jira link-type condition
+     * from spike #704). May be resolved at runtime, not just statically.
+     */
+    supportsBlockingLinks: z.boolean().optional(),
+  })
+  .strict();
 export type PluginCapabilities = z.infer<typeof PluginCapabilitiesSchema>;
 
 // Plugin-global defaults seeded into the three-layer effective-config merge

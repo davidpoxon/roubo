@@ -110,6 +110,27 @@ describe("PluginManifestSchema: TC-006 happy paths", () => {
     expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
   });
 
+  it("accepts the tracker-action capability flags (#705)", () => {
+    const manifest = makeManifest({
+      capabilities: { supportsCreateIssue: true, supportsBlockingLinks: false },
+    });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.capabilities).toEqual({
+        supportsCreateIssue: true,
+        supportsBlockingLinks: false,
+      });
+    }
+  });
+
+  it("rejects an unknown key on capabilities (strict)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ capabilities: { supportsTimeTravel: true } as never }),
+    );
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an empty icon string", () => {
     const result = PluginManifestSchema.safeParse(makeManifest({ icon: "" }));
     expectFieldError(result, "icon");
@@ -657,6 +678,18 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       maxLength: 16384,
     });
     expect((jsonSchema.required as string[]).includes("icon")).toBe(false);
+  });
+
+  it("capabilities declares the tracker-action flags as optional booleans (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const capabilities = properties.capabilities as Record<string, unknown>;
+    expect(capabilities.additionalProperties).toBe(false);
+    const capProps = capabilities.properties as Record<string, { type: string }>;
+    expect(Object.keys(capProps).sort()).toEqual(["supportsBlockingLinks", "supportsCreateIssue"]);
+    expect(capProps.supportsCreateIssue.type).toBe("boolean");
+    expect(capProps.supportsBlockingLinks.type).toBe("boolean");
+    // capabilities itself stays optional.
+    expect((jsonSchema.required as string[]).includes("capabilities")).toBe(false);
   });
 
   it("defaultIntegrationConfig declares both excludedStatuses and excludedStatusCategories (lockstep with zod)", () => {

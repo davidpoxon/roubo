@@ -1,7 +1,9 @@
 import { definePlugin, host } from "@roubo/plugin-sdk";
 import { bindHost } from "./host-binding.js";
+import { addBlockedBy } from "./methods/add-blocked-by.js";
 import { applyTransition } from "./methods/apply-transition.js";
 import { assignIssue } from "./methods/assign-issue.js";
+import { createIssue } from "./methods/create-issue.js";
 import { filterFacets } from "./methods/filter-facets.js";
 import { getAvailableTransitions } from "./methods/get-available-transitions.js";
 import { getComments } from "./methods/get-comments.js";
@@ -30,6 +32,8 @@ definePlugin({
   getCurrentUser,
   validateConfig,
   applyTransition,
+  createIssue,
+  addBlockedBy,
   assignIssue,
   unassignIssue,
   getAvailableTransitions,

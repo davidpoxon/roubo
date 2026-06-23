@@ -345,6 +345,19 @@ export interface IssueTypeOption {
 }
 
 /**
+ * Result of the privileged `createIssue` op (verify-gate FR-011, spike #704).
+ * `ref` is the created issue's external id in the plugin's own form
+ * (`owner/repo#number` for GitHub) so the host can immediately use it (e.g. as
+ * `blockerRef` in `addBlockedBy`). `nodeId` is the provider's GraphQL node id
+ * when the tracker exposes one, omitted otherwise.
+ */
+export interface CreateIssueResult {
+  ref: string;
+  url: string;
+  nodeId?: string;
+}
+
+/**
  * Stable identifier for an alert category probed by `probeAlertCategories`.
  * The host's Test Connection result strip surfaces one row per probe result.
  */
@@ -429,6 +442,30 @@ export interface PluginContract {
     config: Record<string, unknown>;
   }) => Promise<SetActiveConfigResult> | SetActiveConfigResult;
   applyTransition?: (params: { externalId: string; transition: string }) => Promise<void> | void;
+  /**
+   * Create a tracker issue (verify-gate FR-011, spike #704). Privileged write
+   * routed only through the host's TrackerActionGateway, which gates it on the
+   * `supportsCreateIssue` manifest capability and the plugin's consent. Returns
+   * the created issue's external ref (the same `owner/repo#number` form the
+   * other issue-scoped methods accept), its URL, and the provider node id when
+   * the tracker exposes one (GitHub's GraphQL node id, used to wire blocking
+   * links without a second lookup).
+   */
+  createIssue?: (params: {
+    repoFullName: string;
+    title: string;
+    body?: string;
+    labels?: string[];
+  }) => Promise<CreateIssueResult> | CreateIssueResult;
+  /**
+   * Register an "is blocked by" relationship: `blockedRef` is blocked by
+   * `blockerRef` (verify-gate FR-010/FR-011, spike #704). Privileged write
+   * routed only through the host's TrackerActionGateway, which gates it on the
+   * `supportsBlockingLinks` manifest capability and the plugin's consent. Both
+   * refs are external ids in the plugin's own form (`owner/repo#number` for
+   * GitHub).
+   */
+  addBlockedBy?: (params: { blockedRef: string; blockerRef: string }) => Promise<void> | void;
   assignIssue?: (params: {
     externalId: string;
     assigneeExternalId: string;
