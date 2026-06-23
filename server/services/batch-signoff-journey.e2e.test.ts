@@ -327,7 +327,10 @@ function cardStatus(routeStatus: string): string {
 // Read the live overview cards through the real gates route.
 async function readOverview(): Promise<Record<string, { status: string; card: string }>> {
   const res = await request(app).get(`/${PROJECT_ID}/gates`);
-  expect(res.status).toBe(200);
+  expect(
+    res.status,
+    `TC-024 overview read diverged (serves S001 and S004): expected GET /${PROJECT_ID}/gates to return 200, got ${res.status}. Owning slice: #701 (gate API routes).`,
+  ).toBe(200);
   const byId: Record<string, { status: string; card: string }> = {};
   for (const entry of res.body as { gateId: string; status: string }[]) {
     byId[entry.gateId] = { status: entry.status, card: cardStatus(entry.status) };
@@ -392,12 +395,20 @@ describe("TC-024: verifier opens the overview, picks Phase 2, verifies the subse
 
   it("S002: click the Phase 2 gate card -> TestBench opens scoped to exactly TC-019, TC-020, TC-024 (S002-O01)", () => {
     // S002-O01: the batch view scopes to the Phase 2 gate's pre-resolved gating
-    // set, its implements.test_case_ids.
-    const scope = phase2Gate.implements.test_case_ids;
+    // set. Resolve that set through the REAL evaluateGate (#698) rather than
+    // re-reading the fixture's own implements input: with every gating case still
+    // not_started, the gate reads verifying (pending) and its unresolvedCaseIds IS
+    // the full gating subset the batch view scopes to. So the scope the verifier
+    // opens is produced by production code, not asserted against a constant.
+    const scoped = evaluateGate(phase2Gate, phase2Results({}), PLAN_HASH);
     expect(
-      scope,
-      `TC-024 step S002 (S002-O01) diverged: expected the Phase 2 batch scope to be exactly [TC-019, TC-020, TC-024], got ${JSON.stringify(
-        scope,
+      scoped.status,
+      `TC-024 step S002 (S002-O01) diverged: expected the Phase 2 gate to read verifying (pending) when its batch is opened, got "${scoped.status}". Owning slice: ${SLICE_S002}.`,
+    ).toBe("pending");
+    expect(
+      [...scoped.unresolvedCaseIds].sort(),
+      `TC-024 step S002 (S002-O01) diverged: expected the Phase 2 batch to scope to exactly [TC-019, TC-020, TC-024], got ${JSON.stringify(
+        scoped.unresolvedCaseIds,
       )}. Owning slice: ${SLICE_S002}.`,
     ).toEqual(["TC-019", "TC-020", "TC-024"]);
   });
