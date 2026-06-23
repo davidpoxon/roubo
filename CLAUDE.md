@@ -132,6 +132,7 @@ GET    /api/projects/:projectId/gates   List effective verify gates (one GateSta
 GET    /api/projects/:projectId/gates/:gateId   Get one effective gate's GateState (404 unknown id)
 POST   /api/projects/:projectId/gates/merge   Record an operator merge { gateIds } (409 if a gate is signed off, 400 unknown id / cross-spec)
 POST   /api/projects/:projectId/gates/split   Record an operator split { gateId, parts } (409 if signed off, 400 unknown id / non-partition)
+POST   /api/projects/:projectId/gates/:gateId/fix-issues   File a fix issue for a failed gating case and block the gate { failedCaseId, notes, evidence?, existingFixRef? } (201 complete / 207 link_pending / 422 empty notes or capability absent / 409 no tracker ref or no integration / 400 path-escaping evidence)
 DELETE /api/projects/:projectId/gates/overrides   Reset all operator gate regroupings (204)
 GET    /api/jigs   List global jigs
 GET    /api/containers   List database containers

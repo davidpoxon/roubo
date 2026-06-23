@@ -24,6 +24,8 @@
 // the gate reads as `stale`, never `passed` (NFR-007 fail-closed): an unverified
 // gate must never look passable.
 
+import fs from "node:fs";
+import path from "node:path";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
@@ -36,6 +38,7 @@ import { applyGateOverrides } from "../lib/gate-overrides.js";
 import type { WorkUnitCaseMap } from "../lib/gate-overrides.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { MissingPlanError, UnsafePathError } from "../lib/testbench-store.js";
+import { resolveWithin, assertSafeIdentifier, SPEC_SLUG_RE } from "../lib/safe-path.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
 import type { GateState } from "../lib/gate-evaluator.js";
 import {
@@ -43,6 +46,8 @@ import {
   type GateOverrideOp,
   type GateOverridesFile,
 } from "@roubo/shared/gate-overrides-contract";
+import { EmptyNotesError, fileFixIssueAndBlock } from "../services/fix-issue-filer.js";
+import { TrackerActionError } from "../services/tracker-action-gateway.js";
 import { RouteError } from "./helpers.js";
 
 const router = Router();
@@ -58,8 +63,9 @@ const gateReadRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Write handlers (merge / split / reset) persist to disk and re-evaluate, so
-// they are rate-limited too, on the same window with a tighter cap.
+// Write handlers (merge / split / reset / fix-issue filing) persist to disk and
+// re-evaluate, so they are rate-limited too, on the same window with a tighter
+// cap.
 const gateWriteRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 20,
@@ -107,6 +113,23 @@ function handleError(res: Response, err: unknown): void {
   }
   if (err instanceof UnsafePathError) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+  // Filing a fix issue with empty notes is a validation failure (FR-009): 422
+  // Unprocessable Entity, mirroring the capability-absent mapping below.
+  if (err instanceof EmptyNotesError) {
+    res.status(422).json({ error: err.message });
+    return;
+  }
+  // A privileged tracker op was refused before it reached the plugin. The
+  // architecture maps capability-absent to 422 (the gate cannot be wired through
+  // this tracker); no-active-integration / not-consented are a 409 conflict (the
+  // project is not in a state where the action can run).
+  if (err instanceof TrackerActionError) {
+    res.status(err.code === "capability-absent" ? 422 : 409).json({
+      error: err.message,
+      code: err.code,
+    });
     return;
   }
   res.status(500).json({ error: (err as Error).message });
@@ -323,6 +346,125 @@ router.post(
       const effective = effectiveGates(repoPath, req.params.projectId);
       assertNoneSignedOff(repoPath, effective, [gateId]);
       recordOp(repoPath, req.params.projectId, { op: "split", gateId, parts }, res);
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
+
+// Parse the "owner/repo" prefix from a GitHub-style tracker ref ("owner/repo#N").
+// The created fix issue is filed in the same repo as the gate it blocks; the
+// gateway's createIssue takes a repoFullName, so derive it from the gate's ref.
+// Returns null when the ref is not in the owner/repo#number shape.
+function repoFullNameFromRef(ref: string): string | null {
+  const match = /^([^#\s]+\/[^#\s]+)#\d+$/.exec(ref);
+  return match ? match[1] : null;
+}
+
+// Write the verifier's optional evidence artifact, path-confined to the gate's
+// spec folder (NFR-001, TC-049). The evidence value is a caller-supplied relative
+// path. The spec folder `.specifications/<slug>/` is resolved as the fixed
+// confinement root FIRST (slug re-validated through SPEC_SLUG_RE), then the
+// evidence path is joined under it with a SECOND resolveWithin so any traversal
+// (e.g. "../../outside-workspace/secrets.txt") escapes the slug folder and throws
+// UnsafePathError before any fs call. Confining to the slug folder (not the repo
+// root) is the tighter boundary: a couple of `../` segments must not let an
+// evidence write land elsewhere in the repo, let alone outside it.
+function writeEvidence(repoPath: string, slug: string, evidence: string, notes: string): void {
+  assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
+  const specDir = resolveWithin(repoPath, ".specifications", slug);
+  const target = resolveWithin(specDir, evidence);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, notes, "utf8");
+}
+
+// POST /:projectId/gates/:gateId/fix-issues -> file a fix issue for a failed
+// gating case and wire it to block the gate (FR-009, FR-010, NFR-003; #706).
+//
+// Body: { failedCaseId, notes, evidence?, existingFixRef? }. Empty notes -> 422.
+// An evidence path that escapes the workspace -> 400 (UnsafePathError). On
+// success the verifier's notes are appended to the gate's recorded results
+// (path-confined via testbench-store), then the filer creates the issue and
+// registers the block-link. Status mapping mirrors the architecture:
+//   201 complete / 207 link_pending / 422 capability-absent (or empty notes) /
+//   409 (no active integration / not consented).
+router.post(
+  "/:projectId/gates/:gateId/fix-issues",
+  gateWriteRateLimiter,
+  async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
+    try {
+      const repoPath = resolveRepoPath(req.params.projectId);
+      const gates = effectiveGates(repoPath, req.params.projectId);
+      const loaded = gates.find((g) => g.unit.id === req.params.gateId);
+      if (loaded === undefined) {
+        throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
+      }
+
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const { failedCaseId, notes, evidence, existingFixRef } = body;
+      if (typeof failedCaseId !== "string" || failedCaseId.length === 0) {
+        throw new RouteError(400, "fix-issue filing requires a non-empty failedCaseId");
+      }
+      if (typeof notes !== "string") {
+        throw new RouteError(400, "fix-issue filing requires a notes string");
+      }
+      if (evidence !== undefined && typeof evidence !== "string") {
+        throw new RouteError(400, "evidence must be a string path when present");
+      }
+      if (existingFixRef !== undefined && typeof existingFixRef !== "string") {
+        throw new RouteError(400, "existingFixRef must be a string when present");
+      }
+
+      // The gate must carry a tracker ref to be blockable: a gate with no filed
+      // tracker issue has no block target, so degrade loudly (FR-011) rather than
+      // a silent no-op.
+      const gateRef = loaded.unit.tracker?.ref;
+      if (!gateRef) {
+        throw new RouteError(
+          409,
+          `Gate '${req.params.gateId}' has no tracker issue, so a fix issue cannot be wired to block it.`,
+        );
+      }
+      const repoFullName = repoFullNameFromRef(gateRef);
+      if (repoFullName === null) {
+        throw new RouteError(
+          409,
+          `Gate '${req.params.gateId}' tracker ref '${gateRef}' is not a 'owner/repo#number' GitHub ref, so a fix issue cannot be filed for it.`,
+        );
+      }
+
+      // Reject empty notes BEFORE any write or tracker call (TC-053). The filer
+      // also guards this; checking here keeps the path-confined write below from
+      // running for an empty-notes request.
+      if (notes.trim().length === 0) {
+        throw new EmptyNotesError(
+          "Fix issue notes must not be empty: enter a description of the failure before filing.",
+        );
+      }
+
+      // Persist the verifier's notes, path-confined to the gate's spec folder
+      // (NFR-001). The optional evidence artifact is written through the
+      // resolveWithin barrier (TC-049): a path-escaping value throws here, before
+      // any tracker call, so no issue is created for a rejected write. On a
+      // link-only retry (existingFixRef set) the notes were already captured on
+      // the first attempt, so skip the append: the retry runs only the link step.
+      const isLinkOnlyRetry = typeof existingFixRef === "string" && existingFixRef.length > 0;
+      if (!isLinkOnlyRetry) {
+        if (evidence !== undefined && evidence.length > 0) {
+          writeEvidence(repoPath, loaded.slug, evidence, notes);
+        }
+        await testbenchStore.appendNote(repoPath, loaded.slug, failedCaseId, notes);
+      }
+
+      const record = await fileFixIssueAndBlock(req.params.projectId, {
+        repoFullName,
+        failedCaseId,
+        gateRef,
+        notes,
+        ...(existingFixRef ? { existingFixRef } : {}),
+      });
+
+      res.status(record.linkStatus === "complete" ? 201 : 207).json(record);
     } catch (err) {
       handleError(res, err);
     }

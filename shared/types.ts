@@ -789,6 +789,64 @@ export interface TrackerActionAuditEntry {
 }
 
 /**
+ * Whether the fix-issue filer completed both of its steps. `complete` means the
+ * fix issue was created AND registered as a blocker on the gate. `link_pending`
+ * means the issue was created but the block-link step failed afterwards, so the
+ * partial state is surfaced for a link-only retry (verify-gate FR-009, FR-010,
+ * NFR-003; #706). The gate is never falsely passable in either state: the failed
+ * gating case keeps it non-passable regardless of the link's outcome.
+ */
+export type FixIssueLinkStatus = "complete" | "link_pending";
+
+/**
+ * The per-request outcome of filing a fix issue for a failed gating case and
+ * wiring it to block the gate (verify-gate FR-009, FR-010, NFR-003; #706).
+ *
+ * The filer is create-then-link: it creates the tracker issue, then registers it
+ * as a blocker on the gate. When the link step fails after the issue is created,
+ * the record returns `linkStatus: 'link_pending'` carrying the created
+ * `fixIssueRef`, so a link-only retry (driven by `existingFixRef` on the request)
+ * covers only the outstanding link step rather than creating a duplicate issue.
+ * This record is per-request and never persisted: the durable blocking state
+ * lives in the tracker (`tracker.blocked_by_refs` is its derived projection), and
+ * the gate's passability is decided by the pure evaluator over the recorded case
+ * results, not by this record.
+ */
+export interface FixIssueRecord {
+  /** The created fix issue's external tracker ref (e.g. "owner/repo#452"). */
+  fixIssueRef: string;
+  /** The gate's tracker ref the fix issue was wired to block (e.g. "owner/repo#451"). */
+  gateRef: string;
+  /** The failed gating case id the fix issue was filed for (e.g. "TC-024"). */
+  failedCaseId: string;
+  /** Whether both steps completed, or the link step is still pending a retry. */
+  linkStatus: FixIssueLinkStatus;
+  /** ISO-8601 timestamp of when the record was produced. */
+  createdAt: string;
+}
+
+/**
+ * Request body for `POST /api/projects/:projectId/gates/:gateId/fix-issues`
+ * (verify-gate FR-009, FR-010, NFR-001, NFR-003; #706). `notes` is required and
+ * must be non-empty (empty notes are rejected with a 422). `evidence` is an
+ * optional in-workspace relative path for a notes artifact, confined by the
+ * `resolveWithin` safe-path barrier (a path-escaping value is rejected). The
+ * optional `existingFixRef` drives the link-only retry: when set, the filer skips
+ * the create step and runs only the block-link step against that already-created
+ * ref (NFR-003).
+ */
+export interface FileFixIssueRequest {
+  /** The failed gating case the fix issue is filed for. */
+  failedCaseId: string;
+  /** The verifier's failure notes. Required and non-empty. */
+  notes: string;
+  /** Optional in-workspace relative path for a notes artifact (safe-path confined). */
+  evidence?: string;
+  /** Optional already-created fix issue ref, to run only the link step (NFR-003). */
+  existingFixRef?: string;
+}
+
+/**
  * The OS-isolation tiers the PluginIsolationSandbox can place a component plugin
  * process inside (F2.3, #620; backend chosen by SPK-2 / spike #599). Ordered
  * highest-isolation-first: `vz-vm` (Virtualization.framework per-plugin VM) is
