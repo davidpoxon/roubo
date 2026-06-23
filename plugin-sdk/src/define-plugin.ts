@@ -19,6 +19,8 @@ const CONTRACT_METHODS: readonly ContractMethodName[] = [
   "validateConfig",
   "setActiveConfig",
   "applyTransition",
+  "createIssue",
+  "addBlockedBy",
   "assignIssue",
   "unassignIssue",
   "getAvailableTransitions",

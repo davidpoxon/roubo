@@ -53,7 +53,17 @@
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {}
+      "description": "Per-capability flags for the privileged tracker-action ops the TrackerActionGateway gates (verify-gate FR-011, NFR-005). A flag is true only when the plugin implements the op for the connected instance; an absent or false flag degrades with a legible error, never a silent no-op.",
+      "properties": {
+        "supportsCreateIssue": {
+          "type": "boolean",
+          "description": "The plugin implements createIssue for the connected instance."
+        },
+        "supportsBlockingLinks": {
+          "type": "boolean",
+          "description": "The plugin implements addBlockedBy AND the connected instance exposes the blocking-link write (GitHub GA / GHE version / Jira link-type condition)."
+        }
+      }
     },
     "defaultIntegrationConfig": {
       "type": "object",

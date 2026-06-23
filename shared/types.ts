@@ -741,6 +741,54 @@ export interface GateAuditEntry {
 }
 
 /**
+ * One record of a privileged tracker-action plugin call routed through the
+ * TrackerActionGateway (verify-gate FR-011, NFR-001, NFR-005; #705). These ops
+ * (create-issue, add-blocking-link, close-gate) are project-scoped, not
+ * bench-scoped, so they do not fit the bench-scoped broker `AuditEntry` (which
+ * carries a `benchId` and a `host.*` method); and unlike the gate-close-only
+ * `GateAuditEntry` they cover create / link too and must record the
+ * capability-refused attempt. The gateway records one entry per attempt: an
+ * "applied" outcome for a performed op (including a close-on-pass whose
+ * underlying issue was already done, since `onGatePassed` returns void and the
+ * gateway cannot observe that idempotent no-op; the already-done nuance is
+ * captured at gate granularity by `GateAuditEntry`), a "skipped" outcome when
+ * there is nothing to do (a close-gate for a gate with no filed tracker issue),
+ * and a "refused" outcome when a missing capability or absent consent blocked
+ * the call before it reached the plugin. No tracker tokens or secrets are ever
+ * placed on this entry (NFR-001).
+ */
+export interface TrackerActionAuditEntry {
+  /** ISO-8601 timestamp of when the call was recorded. */
+  ts: string;
+  /** The project the action was scoped to. */
+  projectId: string;
+  /** The integration plugin the action was routed through. */
+  pluginId: string;
+  /** The privileged op attempted. */
+  action: "createIssue" | "addBlockedBy" | "closeGate";
+  /**
+   * Whether the privileged op was performed ("applied"; for close-gate this also
+   * covers the case where `onGatePassed` found the issue already done, an
+   * idempotent no-op the void-returning call cannot distinguish here), there was
+   * nothing to do ("skipped", e.g. a close-gate for a gate with no filed tracker
+   * issue), or it was blocked before the plugin call by a missing capability or
+   * absent consent ("refused").
+   */
+  outcome: "applied" | "skipped" | "refused";
+  /**
+   * Present on a "refused" outcome: the legible reason the op was blocked (e.g.
+   * "capability supportsCreateIssue not declared" or "plugin not consented").
+   * Never carries a token or secret.
+   */
+  reason?: string;
+  /**
+   * Non-secret op identifiers for traceability (issue refs, gate id). The
+   * gateway only ever populates this with public refs, never credentials.
+   */
+  refs?: Record<string, string>;
+}
+
+/**
  * The OS-isolation tiers the PluginIsolationSandbox can place a component plugin
  * process inside (F2.3, #620; backend chosen by SPK-2 / spike #599). Ordered
  * highest-isolation-first: `vz-vm` (Virtualization.framework per-plugin VM) is

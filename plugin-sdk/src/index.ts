@@ -23,6 +23,7 @@ export type {
   ProvisionDescriptor,
   ConnectionStatus,
   ContractMethodName,
+  CreateIssueResult,
   CurrentUser,
   DefinePluginOptions,
   FetchInit,
