@@ -281,8 +281,13 @@ export async function addBlockedBy(
  * Close a passed gate's tracker issue (FR-007/FR-011). Gated on consent (close
  * reuses the existing `applyTransition` capability, so there is no create/link
  * flag); audit-logged through the tracker-action log around the shipped
- * close-on-pass path (`onGatePassed`). An already-done gate is an idempotent
- * no-op recorded as "skipped".
+ * close-on-pass path (`onGatePassed`). The tracker-action ledger records
+ * "skipped" only when there is nothing to close (a gate with no filed tracker
+ * issue); a gate that does have a filed issue records "applied" once
+ * `onGatePassed` runs. `onGatePassed` returns void, so the gateway cannot
+ * observe its already-done idempotent no-op here; that nuance is captured at the
+ * gate-close granularity by `onGatePassed`'s own `GateAuditLog` entry
+ * (`outcome: "already-done"`), not duplicated in this unified ledger.
  *
  * Hand this ONLY a gate the caller has confirmed is `passed`; like
  * `onGatePassed`, the gateway does not re-evaluate gate state.

@@ -748,10 +748,14 @@ export interface GateAuditEntry {
  * carries a `benchId` and a `host.*` method); and unlike the gate-close-only
  * `GateAuditEntry` they cover create / link too and must record the
  * capability-refused attempt. The gateway records one entry per attempt: an
- * "applied" outcome for a performed op, a "skipped" outcome for an idempotent
- * no-op (e.g. an already-closed gate), and a "refused" outcome when a missing
- * capability or absent consent blocked the call before it reached the plugin.
- * No tracker tokens or secrets are ever placed on this entry (NFR-001).
+ * "applied" outcome for a performed op (including a close-on-pass whose
+ * underlying issue was already done, since `onGatePassed` returns void and the
+ * gateway cannot observe that idempotent no-op; the already-done nuance is
+ * captured at gate granularity by `GateAuditEntry`), a "skipped" outcome when
+ * there is nothing to do (a close-gate for a gate with no filed tracker issue),
+ * and a "refused" outcome when a missing capability or absent consent blocked
+ * the call before it reached the plugin. No tracker tokens or secrets are ever
+ * placed on this entry (NFR-001).
  */
 export interface TrackerActionAuditEntry {
   /** ISO-8601 timestamp of when the call was recorded. */
@@ -763,9 +767,12 @@ export interface TrackerActionAuditEntry {
   /** The privileged op attempted. */
   action: "createIssue" | "addBlockedBy" | "closeGate";
   /**
-   * Whether the privileged op was performed ("applied"), an idempotent no-op
-   * ("skipped", e.g. an already-closed gate), or blocked before the plugin call
-   * by a missing capability or absent consent ("refused").
+   * Whether the privileged op was performed ("applied"; for close-gate this also
+   * covers the case where `onGatePassed` found the issue already done, an
+   * idempotent no-op the void-returning call cannot distinguish here), there was
+   * nothing to do ("skipped", e.g. a close-gate for a gate with no filed tracker
+   * issue), or it was blocked before the plugin call by a missing capability or
+   * absent consent ("refused").
    */
   outcome: "applied" | "skipped" | "refused";
   /**
