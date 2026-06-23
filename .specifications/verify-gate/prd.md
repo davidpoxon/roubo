@@ -231,9 +231,13 @@ Each NFR has a measurable target and a verification method.
 
 ## Open questions
 
-- [ ] **Spike:** does the GitHub/GHE plugin support the `addBlockedBy` write path,
+- [x] **Spike:** does the GitHub/GHE plugin support the `addBlockedBy` write path,
       and does Jira support an equivalent "is blocked by" link type? (resolves
-      FR-010, FR-011, NFR-005)
+      FR-010, FR-011, NFR-005) **Resolved by Spike 704 (#704, adopt):** create +
+      blocking-link are feasible on all three trackers (GitHub-first), with two
+      explicit capability flags `supportsCreateIssue` / `supportsBlockingLinks` and a
+      loud degrade, never a silent no-op. See
+      spikes/spike-704-cross-tracker-issue-create-and-blocking-link.md.
 - [ ] **Decision:** screenshot / evidence storage, tracker attachment upload vs a
       sidecar alongside `test-results.json` vs both (default: notes-only for v1).
       (affects FR-009)
@@ -244,6 +248,9 @@ Each NFR has a measurable target and a verification method.
 - [ ] **Open:** re-verification after a fix that also edits `test-cases.json` and
       its interaction with spec-level `planHash` staleness granularity. (affects
       FR-004)
-- [ ] **Open:** is the operator batch merge/split (US-007 / FR-002) in v1 scope or
+- [x] **Open:** is the operator batch merge/split (US-007 / FR-002) in v1 scope or
       deferred behind read-only batch presentation, and how it reconciles with
-      gates already filed by the external `breakdown`.
+      gates already filed by the external `breakdown`. **Resolved:** in v1 scope
+      (P1), delivered as issue #703; the operator merge/split overrides regroup the
+      default phase-aligned gates without rewriting the units filed by the external
+      `breakdown`.
