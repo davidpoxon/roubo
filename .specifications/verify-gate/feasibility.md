@@ -66,7 +66,7 @@ Key findings:
 
 ## De-risking plan (resolve before/early in the build)
 
-- [ ] **Spike: cross-tracker issue-create + blocking-link.** Confirm `createIssue` and a block-link (`addBlockedBy` for GitHub, the Jira "is blocked by" link type) across GitHub, GHE, and Jira; define `supportsCreateIssue` / `supportsBlockingLinks` capability flags. Resolves risks 1 and the capability open questions.
+- [x] **Spike: cross-tracker issue-create + blocking-link.** Confirm `createIssue` and a block-link (`addBlockedBy` for GitHub, the Jira "is blocked by" link type) across GitHub, GHE, and Jira; define `supportsCreateIssue` / `supportsBlockingLinks` capability flags. Resolves risks 1 and the capability open questions. **Resolved by Spike 704 (#704, adopt).**
 - [ ] **Decision: hard-gate fail-closed.** Specify that when `enforceIssueDependencies` is ON and blocking/results data cannot be fetched, the start/assign path refuses with a clear 4xx (fail-closed), while the informational bench-detail read keeps its fail-open behavior. Resolves risk 2.
 - [ ] **Decision: fix-issue filing atomicity + recovery.** Specify partial-failure handling: on block-link failure after create, surface an explicit error, record the partial state on the gate, and offer a retry that covers only the link step. Resolves risk 3.
 - [ ] **Decision: screenshot/attachment storage.** Pick sidecar-vs-tracker-upload (default: defer to notes-only for v1, add a follow-on for evidence attachment). Resolves risk 5.
@@ -90,7 +90,7 @@ _(These become `spike` issues when `breakdown` runs.)_
 
 ## Open questions
 
-- [ ] Does the GitHub/GHE plugin support the `addBlockedBy` write path, and does the Jira plugin support an equivalent block-link type?
+- [x] Does the GitHub/GHE plugin support the `addBlockedBy` write path, and does the Jira plugin support an equivalent block-link type? **Resolved by Spike 704 (#704, adopt):** feasible on all three (GitHub-first); GitHub blocking-link GA is runtime-probed, GHE is write-unwired and version-gated, Jira uses the configured blocks-family link type.
 - [ ] Where do screenshots live: tracker attachment upload (new plugin method), sidecar alongside `test-results.json` (new write primitive), or both?
 - [ ] Does the batch-subset filter live server-side (a new query param on the plan endpoint) or client-side (filter by the gate's `test_case_ids`)?
 - [ ] Exact timeout / unavailable-data handling at each callsite for the fail-closed hard gate.

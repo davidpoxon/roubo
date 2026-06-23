@@ -220,9 +220,12 @@ None. The chosen architecture honours every PRD `FR-`/`NFR-` as written.
 
 ## Open questions
 
-- [ ] Spike: does GitHub/GHE support the `addBlockedBy` write path, and Jira an
+- [x] Spike: does GitHub/GHE support the `addBlockedBy` write path, and Jira an
       "is blocked by" link type? Resolves FR-010, FR-011, NFR-005 and gates the
-      `TrackerActionGateway` build.
+      `TrackerActionGateway` build. **Resolved by Spike 704 (#704 closed, adopt):**
+      feasible on all three trackers GitHub-first, with two capability flags
+      `supportsCreateIssue` / `supportsBlockingLinks` and a loud degrade. See
+      spikes/spike-704-cross-tracker-issue-create-and-blocking-link.md.
 - [ ] Evidence storage for FR-009: tracker attachment upload vs a workspace
       sidecar vs both (default notes-only v1).
 - [ ] Batch-subset filter location: the `?gateIds=` plan param vs a dedicated
@@ -242,17 +245,15 @@ None. The chosen architecture honours every PRD `FR-`/`NFR-` as written.
 - `align`'s results-aware drift pass.
 - Test-volume reduction / level-tiering.
 - Team separation-of-duties routing.
-- Operator batch merge/split (FR-002 / US-007) is P1; v1 is read-only on batch
-  definition (one gate per milestone as filed).
 
 ## Phase mapping
 
 Mirrors the PRD's DE-RISK delivery phasing (pieces 1-5 first, fix-issue filing
 last, GitHub-first).
 
-| Phase                                                                     | Components delivered                                                          | Interfaces live                                                                                            |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Phase 1: model + evaluation                                               | WorkUnitsSchema + validator, WorkUnitLoader, GateEvaluator                    | `evaluateGate`; schema CI drift guard (FR-003, FR-004, FR-005, NFR-006, NFR-007)                           |
-| Phase 2: enforcement + lifecycle                                          | StartGate, GateLifecycleCoordinator (+ benches / issue-assignment extensions) | `assertGateOpen`; `onGatePassed` → `closeGate` (FR-006, FR-007, NFR-002, NFR-003)                          |
-| Phase 3: TestBench batch surface                                          | Gate API routes, TestBench batch + gate-state view                            | `GET /gates`, `GET /gates/:gateId`, `?gateIds=` filter, optional SSE (FR-008, FR-012, NFR-004)             |
-| Phase 4: failed-case filing (after the cross-tracker spike, GitHub-first) | TrackerActionGateway, FixIssueFiler, new plugin RPC + capability flags        | `createIssue`, `addBlockedBy`, `POST /gates/:gateId/fix-issues` (FR-009, FR-010, FR-011, NFR-001, NFR-005) |
+| Phase                                                                     | Components delivered                                                                                                | Interfaces live                                                                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Phase 1: model + evaluation                                               | WorkUnitsSchema + validator, WorkUnitLoader, GateEvaluator                                                          | `evaluateGate`; schema CI drift guard (FR-003, FR-004, FR-005, NFR-006, NFR-007)                                                                 |
+| Phase 2: enforcement + lifecycle                                          | StartGate, GateLifecycleCoordinator (+ benches / issue-assignment extensions)                                       | `assertGateOpen`; `onGatePassed` → `closeGate` (FR-006, FR-007, NFR-002, NFR-003)                                                                |
+| Phase 3: TestBench batch surface                                          | Gate API routes, TestBench batch + gate-state view, operator batch merge/split (FR-002 / US-007, delivered as #703) | `GET /gates`, `GET /gates/:gateId`, `?gateIds=` filter, `POST /gates/merge`, `POST /gates/split` (FR-008, FR-012, FR-002, NFR-004); optional SSE |
+| Phase 4: failed-case filing (after the cross-tracker spike, GitHub-first) | TrackerActionGateway, FixIssueFiler, new plugin RPC + capability flags                                              | `createIssue`, `addBlockedBy`, `POST /gates/:gateId/fix-issues` (FR-009, FR-010, FR-011, NFR-001, NFR-005)                                       |
