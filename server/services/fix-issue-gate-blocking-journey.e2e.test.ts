@@ -8,14 +8,14 @@
 //     with the gating case TC-024 marked failed, the gate reads "failed" (the
 //     server-observable equivalent of "panel opens, case failed"; the UI panel is
 //     out of scope for a server e2e).
-//   - S002 exercises the real `fileFixIssueAndBlock` (#735,
+//   - S002 exercises the real `fileFixIssueAndBlock` (#706,
 //     server/services/fix-issue-filer.ts) wired on top of the REAL tracker-action
-//     gateway `createIssue` + `addBlockedBy` (#734,
+//     gateway `createIssue` + `addBlockedBy` (#705,
 //     server/services/tracker-action-gateway.ts) with its real capability / consent
 //     / audit gating. Only the external plugin RPC (`invoke`) is faked. The filer's
 //     create-then-link produces the fix issue #452 and links it as a blocker on the
 //     gate #451.
-//   - S003 re-reads the REAL `TrackerActionAuditLog` (#734): the journey recorded a
+//   - S003 re-reads the REAL `TrackerActionAuditLog` (#705): the journey recorded a
 //     createIssue then an addBlockedBy entry, both attributed to github-com.
 //   - S004 re-exercises the real `evaluateGate` (#698): with TC-024 still failed (the
 //     open fix issue #452 still blocking), the gate cannot pass.
@@ -40,8 +40,8 @@
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
 // message naming the owning slice issue from this unit's blocked-by set, so a red
 // run localizes the integration drift to one attributable slice:
-//   S001 -> #698 (evaluateGate), S002 -> #735 (fix-issue filer) over #734 (gateway),
-//   S003 -> #734 (tracker-action audit log), S004 -> #698 (gate stays failed),
+//   S001 -> #698 (evaluateGate), S002 -> #706 (fix-issue filer) over #705 (gateway),
+//   S003 -> #705 (tracker-action audit log), S004 -> #698 (gate stays failed),
 //   S005 -> #698 (gate passes once the case is re-verified passed).
 
 import { describe, it, expect } from "vitest";
@@ -61,8 +61,8 @@ import type { BenchResults, CaseResult, CaseStatus } from "@roubo/shared/testben
 // ── Owning slices (this e2e unit's blocked-by set, per the milestone critical
 // path spike -> gateway -> filer) ──
 const SLICE_S001 = "#698 (deterministic gate evaluator)";
-const SLICE_S002 = "#735 (failed-case fix-issue filer) over #734 (tracker-action gateway)";
-const SLICE_S003 = "#734 (tracker-action audit log)";
+const SLICE_S002 = "#706 (failed-case fix-issue filer) over #705 (tracker-action gateway)";
+const SLICE_S003 = "#705 (tracker-action audit log)";
 const SLICE_S004 = "#698 (gate stays failed while the fix issue is open)";
 const SLICE_S005 = "#698 (gate passes once the case is re-verified passed)";
 
@@ -168,7 +168,7 @@ const gatewayDeps: TrackerActionGatewayDeps = {
 };
 
 // Filer deps: createIssue / addBlockedBy bind the REAL gateway functions to
-// gatewayDeps, so BOTH the filer (#735) and the gateway (#734) run for real.
+// gatewayDeps, so BOTH the filer (#706) and the gateway (#705) run for real.
 const filerDeps: FixIssueFilerDeps = {
   resolveActivePlugin: () => ({ pluginId: PLUGIN_ID, integrationId: PLUGIN_ID, pageSize: 50 }),
   getCapabilities: () => ({ supportsCreateIssue: true, supportsBlockingLinks: true }),
@@ -201,7 +201,7 @@ describe("TC-045: mark TC-024 failed, file fix issue #452 that blocks gate #451,
 
   it("S002: file fix issue & block gate -> #452 created and blocks gate #451 (S002-O01, S002-O02)", async () => {
     // S002: enter notes and click 'File fix issue & block gate'. Drive the REAL
-    // fileFixIssueAndBlock (#735) over the REAL gateway (#734), faking only the
+    // fileFixIssueAndBlock (#706) over the REAL gateway (#705), faking only the
     // plugin RPC. createIssue mints #452, then addBlockedBy links it as a blocker on
     // the gate's tracker #451.
     const record = await fileFixIssueAndBlock(
@@ -246,7 +246,7 @@ describe("TC-045: mark TC-024 failed, file fix issue #452 that blocks gate #451,
 
   it("S003: open the bench audit log -> two chronological entries createIssue then addBlockedBy, both github-com (S003-O01)", () => {
     // S003: open the bench audit log. Re-read the LOCAL TrackerActionAuditLog the
-    // journey recorded into (#734).
+    // journey recorded into (#705).
     const entries = audit.query();
 
     // S003-O01: exactly two chronological entries are present: create-issue
