@@ -128,6 +128,11 @@ PUT    /api/projects/:projectId/jigs/:id   Update project-level jig
 DELETE /api/projects/:projectId/jigs/:id   Delete project-level jig (204, 409 if referenced)
 GET    /api/projects/:projectId/benches/overrides   Get bench overrides { enforceIssueDependencies }
 PUT    /api/projects/:projectId/benches/overrides   Set bench overrides (partial body, null removes key)
+GET    /api/projects/:projectId/gates   List effective verify gates (one GateState per gate, operator merge/split overrides applied)
+GET    /api/projects/:projectId/gates/:gateId   Get one effective gate's GateState (404 unknown id)
+POST   /api/projects/:projectId/gates/merge   Record an operator merge { gateIds } (409 if a gate is signed off, 400 unknown id / cross-spec)
+POST   /api/projects/:projectId/gates/split   Record an operator split { gateId, parts } (409 if signed off, 400 unknown id / non-partition)
+DELETE /api/projects/:projectId/gates/overrides   Reset all operator gate regroupings (204)
 GET    /api/jigs   List global jigs
 GET    /api/containers   List database containers
 GET    /api/plugins/:pluginId/integration   Get per-plugin global default + manifest snippet

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://roubo.dev/schema/gate-overrides/v1.0.0.json"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "merge"
+              },
+              "gateIds": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["op", "gateIds"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "split"
+              },
+              "gateId": {
+                "type": "string"
+              },
+              "parts": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "coversWorkUnitIds": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["label", "coversWorkUnitIds"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["op", "gateId", "parts"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": ["$schema", "schemaVersion", "ops"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/gate-overrides/v1.0.0.json"
+}

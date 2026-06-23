@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadVerifyUnits, WorkUnitsValidationError } from "./work-unit-loader.js";
+import {
+  loadVerifyUnits,
+  buildWorkUnitCaseMap,
+  WorkUnitsValidationError,
+} from "./work-unit-loader.js";
 import {
   WORK_UNITS_SCHEMA_ID,
   WORK_UNITS_SCHEMA_VERSION,
@@ -30,7 +34,7 @@ function verifyUnit(id: string, testCaseIds: string[], covers: string[] = []): U
   };
 }
 
-function deliveryUnit(id: string): Unit {
+function deliveryUnit(id: string, testCaseIds: string[] = []): Unit {
   return {
     id,
     title: `Slice ${id}`,
@@ -41,7 +45,7 @@ function deliveryUnit(id: string): Unit {
     implements: {
       requirement_ids: [],
       user_story_ids: [],
-      test_case_ids: [],
+      test_case_ids: testCaseIds,
     },
   };
 }
@@ -153,5 +157,35 @@ describe("loadVerifyUnits", () => {
   it("throws when a verify unit has an empty test_case_ids (R4)", () => {
     writeWorkUnits("alpha", JSON.stringify(envelope("alpha", [verifyUnit("WU-100", [])])));
     expect(() => loadVerifyUnits(repoPath, "alpha")).toThrow(WorkUnitsValidationError);
+  });
+});
+
+describe("buildWorkUnitCaseMap", () => {
+  it("maps each non-verify unit's id to the cases it implements", () => {
+    writeWorkUnits(
+      "alpha",
+      JSON.stringify(
+        envelope("alpha", [
+          deliveryUnit("WU-031", ["TC-019"]),
+          deliveryUnit("WU-032", ["TC-020", "TC-021"]),
+          verifyUnit("WU-100", ["TC-019", "TC-020"], ["WU-031", "WU-032"]),
+        ]),
+      ),
+    );
+
+    const map = buildWorkUnitCaseMap(repoPath, "alpha");
+    expect(map.get("WU-031")).toEqual(["TC-019"]);
+    expect(map.get("WU-032")).toEqual(["TC-020", "TC-021"]);
+    // The verify unit's own id is excluded (its test_case_ids is a gating set).
+    expect(map.has("WU-100")).toBe(false);
+  });
+
+  it("returns an empty map when the spec has no work-units.json (fail-open)", () => {
+    expect(buildWorkUnitCaseMap(repoPath, "alpha").size).toBe(0);
+  });
+
+  it("throws WorkUnitsValidationError for an invalid file", () => {
+    writeWorkUnits("alpha", "{ not json");
+    expect(() => buildWorkUnitCaseMap(repoPath, "alpha")).toThrow(WorkUnitsValidationError);
   });
 });

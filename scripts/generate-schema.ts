@@ -21,6 +21,7 @@ import { z } from "zod";
 import { TestbenchTargetingSpikeSchema } from "../shared/testbench-targeting-schema.ts";
 import { TestCasesPlanSchema, TestResultsFileSchema } from "../shared/testbench-contracts.ts";
 import { WorkUnitsFileSchema } from "../shared/work-units-contract.ts";
+import { GateOverridesFileSchema } from "../shared/gate-overrides-contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..");
@@ -43,6 +44,10 @@ export const artifacts = [
   {
     schema: WorkUnitsFileSchema,
     outPath: resolve(repoRoot, "schema", "work-units.schema.json"),
+  },
+  {
+    schema: GateOverridesFileSchema,
+    outPath: resolve(repoRoot, "schema", "gate-overrides.schema.json"),
   },
 ] as const;
 

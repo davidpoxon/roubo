@@ -23,7 +23,8 @@
     "./testbench-contracts": "./testbench-contracts.ts",
     "./testbench-canonicalize": "./testbench-canonicalize.ts",
     "./testbench-domain": "./testbench-domain.ts",
-    "./work-units-contract": "./work-units-contract.ts"
+    "./work-units-contract": "./work-units-contract.ts",
+    "./gate-overrides-contract": "./gate-overrides-contract.ts"
   },
   "dependencies": {
     "yaml": "2.9.0",
