@@ -101,13 +101,21 @@ jobs:
           if ! openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$CSC_KEY_PASSWORD" 2>"$P12ERR"; then
             if grep -qE 'Mac verify error|mac verify failure|invalid password' "$P12ERR"; then
               echo "::error::CSC_KEY_PASSWORD does not match the .p12 in CSC_LINK — re-export the cert and re-set both secrets (see RELEASING.md)"
+              exit 1
+            fi
+            # OpenSSL 3 disables the legacy provider by default, so a Keychain-exported
+            # .p12 (RC2-40-CBC / 3DES) fails the modern verification above with a non-password
+            # error. Retry with -legacy, which Apple's own security import reads natively anyway.
+            if openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$CSC_KEY_PASSWORD" -legacy 2>"$P12ERR"; then
+              echo "Preflight OK: decoded .p12 is valid (legacy provider)."
             else
               echo "::error::Decoded CSC_LINK is not a valid PKCS#12 bundle:"
               cat "$P12ERR"
+              exit 1
             fi
-            exit 1
+          else
+            echo "Preflight OK: decoded .p12 is valid and password matches."
           fi
-          echo "Preflight OK: decoded .p12 is valid and password matches."
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
