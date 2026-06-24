@@ -72,6 +72,27 @@ vi.mock("dockerode", () => ({
   },
 }));
 
+// child_process.spawn is the real seam plugin-manager uses to launch plugins.
+// Mock it so individual tests can make a specific spawn attempt fail (e.g. the
+// docker invocation) while every other test delegates to the real spawn and is
+// unaffected. `override` is null by default, so the file-wide behaviour is the
+// real spawn; a test sets `override` to intercept and resets it in afterEach.
+// #740: exercises the sandbox-fallback retry-on-floor branch.
+type SpawnFn = (typeof import("node:child_process"))["spawn"];
+const childProcessControl = vi.hoisted(() => ({
+  override: null as SpawnFn | null,
+  real: null as SpawnFn | null,
+}));
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  childProcessControl.real = actual.spawn;
+  return {
+    ...actual,
+    spawn: ((...args: Parameters<SpawnFn>) =>
+      (childProcessControl.override ?? actual.spawn)(...args)) as SpawnFn,
+  };
+});
+
 beforeEach(() => {
   enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
   enableStateMocks.saveEnableState.mockReset();
@@ -83,6 +104,7 @@ beforeEach(() => {
   enableStateMocks.removePlugin.mockReset();
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
+  childProcessControl.override = null;
 });
 
 import * as pluginManager from "./plugin-manager.js";
@@ -2322,30 +2344,44 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       expect(typeof rec.pid).toBe("number");
     });
 
-    it("records a sandbox-fallback restart event when the sandboxed spawn is retried on the floor (#740)", async () => {
-      // This test exercises the code path where the sandboxed spawn (docker run)
-      // itself fails after ensureImage succeeds, triggering the single floor
-      // retry. We cannot easily make `spawn("docker", [...])` throw in a unit
-      // test without mocking child_process, so we instead verify the floor path
-      // by observing that ensureImage failure causes a floor-only start with no
-      // sandbox-fallback event in restartHistory (the fallback is only recorded
-      // when the spawn itself fails, not when ensureImage fails). This is a
-      // coverage checkpoint for the restart-history shape.
-      //
-      // Ensure the plugin starts successfully on the floor after ensureImage fails.
+    it("retries once on the floor and records a sandbox-fallback event when the docker spawn fails (#740)", async () => {
+      // The docker tier is selected and ensureImage succeeds, but the `docker`
+      // spawn itself fails (e.g. the docker CLI is absent, or the bind-mount
+      // path is not shared on macOS Docker Desktop). The host must retry ONCE on
+      // the broker-only floor, record a `sandbox-fallback` restart event, and
+      // start the plugin: the #740 crash-loop must not occur.
       dockerPingMock = () => Promise.resolve("OK");
-      dockerInspectMock = () =>
-        Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
-      dockerPullMock = (_image, cb) => cb(new Error("pull failed"), null);
+      // Image present, so ensureImage resolves and the docker spawn is attempted.
+      dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
       process.env.NODE_ENV = "production";
       delete process.env.ROUBO_E2E;
+
+      // Fail the `docker` invocation exactly once; delegate the floor retry (and
+      // every other spawn) to the real spawn so the echo fixture actually starts.
+      const realSpawn = childProcessControl.real as (
+        ...a: Parameters<SpawnFn>
+      ) => ReturnType<SpawnFn>;
+      let dockerSpawnFailed = false;
+      childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+        if (args[0] === "docker" && !dockerSpawnFailed) {
+          dockerSpawnFailed = true;
+          throw new Error("spawn docker ENOENT");
+        }
+        return realSpawn(...args);
+      }) as SpawnFn;
+
       sandbox = await makeSandbox({ bundled: ["echo"] });
       mgr = await loadManager();
       await mgr.initialize();
+
+      // The docker spawn was attempted and failed, then the floor retry started.
+      expect(dockerSpawnFailed).toBe(true);
       const rec = findRecord(mgr.listInstalled(), "echo");
-      // After a floor-only start (ensureImage failed before the sandbox spawn),
-      // restartHistory is empty (no sandbox-fallback events).
-      expect(rec.restartHistory).toEqual([]);
+      expect(rec.status).toBe("enabled");
+      expect(typeof rec.pid).toBe("number");
+      // The fallback is observable as exactly one sandbox-fallback restart event.
+      const fallbackEvents = rec.restartHistory.filter((e) => e.reason === "sandbox-fallback");
+      expect(fallbackEvents).toHaveLength(1);
     });
   });
 });
