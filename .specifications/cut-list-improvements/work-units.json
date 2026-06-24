@@ -10,23 +10,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 0 De-risk & prerequisites",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-003",
-          "CLI-FR-004",
-          "CLI-NFR-001"
-        ],
+        "requirement_ids": ["CLI-FR-003", "CLI-FR-004", "CLI-NFR-001"],
         "user_story_ids": [],
-        "test_case_ids": [
-          "CLI-TC-003",
-          "CLI-TC-005",
-          "CLI-TC-008"
-        ]
+        "test_case_ids": ["CLI-TC-003", "CLI-TC-005", "CLI-TC-008"]
       },
       "tracker": {
         "system": "github",
@@ -43,23 +32,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 0 De-risk & prerequisites",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-009",
-          "CLI-FR-014"
-        ],
+        "requirement_ids": ["CLI-FR-009", "CLI-FR-014"],
         "user_story_ids": [],
-        "test_case_ids": [
-          "CLI-TC-034",
-          "CLI-TC-043",
-          "CLI-TC-048",
-          "CLI-TC-052"
-        ]
+        "test_case_ids": ["CLI-TC-034", "CLI-TC-043", "CLI-TC-048", "CLI-TC-052"]
       },
       "tracker": {
         "system": "github",
@@ -76,22 +54,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 0 De-risk & prerequisites",
-      "labels": [
-        "feature",
-        "P0"
-      ],
+      "labels": ["feature", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-016"
-        ],
-        "user_story_ids": [
-          "CLI-US-006"
-        ],
-        "test_case_ids": [
-          "CLI-TC-060",
-          "CLI-TC-068"
-        ]
+        "requirement_ids": ["CLI-FR-016"],
+        "user_story_ids": ["CLI-US-006"],
+        "test_case_ids": ["CLI-TC-060", "CLI-TC-068"]
       },
       "tracker": {
         "system": "github",
@@ -108,21 +76,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 1 Pagination, refresh & only-to-do",
-      "labels": [
-        "feature",
-        "P0"
-      ],
+      "labels": ["feature", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-007",
-          "CLI-FR-008",
-          "CLI-NFR-004",
-          "CLI-NFR-007"
-        ],
-        "user_story_ids": [
-          "CLI-US-003"
-        ],
+        "requirement_ids": ["CLI-FR-007", "CLI-FR-008", "CLI-NFR-004", "CLI-NFR-007"],
+        "user_story_ids": ["CLI-US-003"],
         "test_case_ids": [
           "CLI-TC-022",
           "CLI-TC-023",
@@ -152,20 +110,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 1 Pagination, refresh & only-to-do",
-      "labels": [
-        "feature",
-        "P1"
-      ],
+      "labels": ["feature", "P1"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-005",
-          "CLI-FR-006",
-          "CLI-NFR-007"
-        ],
-        "user_story_ids": [
-          "CLI-US-002"
-        ],
+        "requirement_ids": ["CLI-FR-005", "CLI-FR-006", "CLI-NFR-007"],
+        "user_story_ids": ["CLI-US-002"],
         "test_case_ids": [
           "CLI-TC-015",
           "CLI-TC-016",
@@ -191,25 +140,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 1 Pagination, refresh & only-to-do",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-012",
-          "CLI-FR-013",
-          "CLI-FR-014",
-          "CLI-FR-018",
-          "CLI-NFR-007"
-        ],
-        "user_story_ids": [
-          "CLI-US-005",
-          "CLI-US-008"
-        ],
+        "requirement_ids": ["CLI-FR-012", "CLI-FR-013", "CLI-FR-014", "CLI-FR-018", "CLI-NFR-007"],
+        "user_story_ids": ["CLI-US-005", "CLI-US-008"],
         "test_case_ids": [
           "CLI-TC-045",
           "CLI-TC-046",
@@ -230,9 +165,7 @@
         "ref": "558",
         "url": "https://github.com/davidpoxon/roubo/issues/558",
         "node_id": "I_kwDOSiX_888AAAABGCnKKA",
-        "blocked_by_refs": [
-          "554"
-        ]
+        "blocked_by_refs": ["554"]
       }
     },
     {
@@ -242,22 +175,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 2 Persistent warm cache",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-001"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-001",
-          "CLI-FR-003",
-          "CLI-NFR-001"
-        ],
-        "user_story_ids": [
-          "CLI-US-001"
-        ],
+        "requirement_ids": ["CLI-FR-001", "CLI-FR-003", "CLI-NFR-001"],
+        "user_story_ids": ["CLI-US-001"],
         "test_case_ids": [
           "CLI-TC-001",
           "CLI-TC-002",
@@ -272,9 +194,7 @@
         "ref": "559",
         "url": "https://github.com/davidpoxon/roubo/issues/559",
         "node_id": "I_kwDOSiX_888AAAABGCnK-Q",
-        "blocked_by_refs": [
-          "553"
-        ]
+        "blocked_by_refs": ["553"]
       }
     },
     {
@@ -284,40 +204,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 2 Persistent warm cache",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-007",
-        "WU-005"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-007", "WU-005"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-002",
-          "CLI-NFR-002",
-          "CLI-NFR-003"
-        ],
-        "user_story_ids": [
-          "CLI-US-001"
-        ],
-        "test_case_ids": [
-          "CLI-TC-001",
-          "CLI-TC-009",
-          "CLI-TC-011",
-          "CLI-TC-012",
-          "CLI-TC-014"
-        ]
+        "requirement_ids": ["CLI-FR-002", "CLI-NFR-002", "CLI-NFR-003"],
+        "user_story_ids": ["CLI-US-001"],
+        "test_case_ids": ["CLI-TC-001", "CLI-TC-009", "CLI-TC-011", "CLI-TC-012", "CLI-TC-014"]
       },
       "tracker": {
         "system": "github",
         "ref": "560",
         "url": "https://github.com/davidpoxon/roubo/issues/560",
         "node_id": "I_kwDOSiX_888AAAABGCnL4Q",
-        "blocked_by_refs": [
-          "559",
-          "557"
-        ]
+        "blocked_by_refs": ["559", "557"]
       }
     },
     {
@@ -327,20 +226,10 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 2 Persistent warm cache",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-007"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-007"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-004",
-          "CLI-NFR-001",
-          "CLI-NFR-006",
-          "CLI-NFR-009"
-        ],
+        "requirement_ids": ["CLI-FR-004", "CLI-NFR-001", "CLI-NFR-006", "CLI-NFR-009"],
         "user_story_ids": [],
         "test_case_ids": [
           "CLI-TC-004",
@@ -357,9 +246,7 @@
         "ref": "561",
         "url": "https://github.com/davidpoxon/roubo/issues/561",
         "node_id": "I_kwDOSiX_888AAAABGCnMwQ",
-        "blocked_by_refs": [
-          "559"
-        ]
+        "blocked_by_refs": ["559"]
       }
     },
     {
@@ -369,36 +256,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-009",
-          "CLI-FR-011",
-          "CLI-NFR-008"
-        ],
-        "user_story_ids": [
-          "CLI-US-004"
-        ],
-        "test_case_ids": [
-          "CLI-TC-036",
-          "CLI-TC-038",
-          "CLI-TC-039"
-        ]
+        "requirement_ids": ["CLI-FR-009", "CLI-FR-011", "CLI-NFR-008"],
+        "user_story_ids": ["CLI-US-004"],
+        "test_case_ids": ["CLI-TC-036", "CLI-TC-038", "CLI-TC-039"]
       },
       "tracker": {
         "system": "github",
         "ref": "562",
         "url": "https://github.com/davidpoxon/roubo/issues/562",
         "node_id": "I_kwDOSiX_888AAAABGCnORA",
-        "blocked_by_refs": [
-          "554"
-        ]
+        "blocked_by_refs": ["554"]
       }
     },
     {
@@ -408,23 +278,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-004"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-010", "WU-004"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-009",
-          "CLI-FR-010",
-          "CLI-NFR-007"
-        ],
-        "user_story_ids": [
-          "CLI-US-004"
-        ],
+        "requirement_ids": ["CLI-FR-009", "CLI-FR-010", "CLI-NFR-007"],
+        "user_story_ids": ["CLI-US-004"],
         "test_case_ids": [
           "CLI-TC-033",
           "CLI-TC-034",
@@ -441,10 +299,7 @@
         "ref": "563",
         "url": "https://github.com/davidpoxon/roubo/issues/563",
         "node_id": "I_kwDOSiX_888AAAABGCnPMQ",
-        "blocked_by_refs": [
-          "562",
-          "556"
-        ]
+        "blocked_by_refs": ["562", "556"]
       }
     },
     {
@@ -454,37 +309,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-003"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-010", "WU-003"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-009",
-          "CLI-FR-010",
-          "CLI-FR-014"
-        ],
-        "user_story_ids": [
-          "CLI-US-004"
-        ],
-        "test_case_ids": [
-          "CLI-TC-034",
-          "CLI-TC-043"
-        ]
+        "requirement_ids": ["CLI-FR-009", "CLI-FR-010", "CLI-FR-014"],
+        "user_story_ids": ["CLI-US-004"],
+        "test_case_ids": ["CLI-TC-034", "CLI-TC-043"]
       },
       "tracker": {
         "system": "github",
         "ref": "564",
         "url": "https://github.com/davidpoxon/roubo/issues/564",
         "node_id": "I_kwDOSiX_888AAAABGCnQLw",
-        "blocked_by_refs": [
-          "562",
-          "555"
-        ]
+        "blocked_by_refs": ["562", "555"]
       }
     },
     {
@@ -494,21 +331,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "feature",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-003"
-      ],
+      "labels": ["feature", "P1"],
+      "depends_on": ["WU-003"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-015",
-          "CLI-NFR-005"
-        ],
-        "user_story_ids": [
-          "CLI-US-006"
-        ],
+        "requirement_ids": ["CLI-FR-015", "CLI-NFR-005"],
+        "user_story_ids": ["CLI-US-006"],
         "test_case_ids": [
           "CLI-TC-057",
           "CLI-TC-058",
@@ -523,9 +350,7 @@
         "ref": "565",
         "url": "https://github.com/davidpoxon/roubo/issues/565",
         "node_id": "I_kwDOSiX_888AAAABGCnRAg",
-        "blocked_by_refs": [
-          "555"
-        ]
+        "blocked_by_refs": ["555"]
       }
     },
     {
@@ -535,21 +360,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "feature",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-006"
-      ],
+      "labels": ["feature", "P1"],
+      "depends_on": ["WU-010", "WU-006"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-017"
-        ],
-        "user_story_ids": [
-          "CLI-US-007"
-        ],
+        "requirement_ids": ["CLI-FR-017"],
+        "user_story_ids": ["CLI-US-007"],
         "test_case_ids": [
           "CLI-TC-044",
           "CLI-TC-049",
@@ -565,10 +380,7 @@
         "ref": "566",
         "url": "https://github.com/davidpoxon/roubo/issues/566",
         "node_id": "I_kwDOSiX_888AAAABGCnSXA",
-        "blocked_by_refs": [
-          "562",
-          "558"
-        ]
+        "blocked_by_refs": ["562", "558"]
       }
     },
     {
@@ -579,47 +391,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 2 Persistent warm cache",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-007",
-        "WU-008",
-        "WU-009"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-001", "WU-007", "WU-008", "WU-009"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-001",
-          "CLI-FR-002",
-          "CLI-NFR-001",
-          "CLI-NFR-002"
-        ],
-        "user_story_ids": [
-          "CLI-US-001"
-        ],
-        "test_case_ids": [
-          "CLI-TC-001"
-        ]
+        "requirement_ids": ["CLI-FR-001", "CLI-FR-002", "CLI-NFR-001", "CLI-NFR-002"],
+        "user_story_ids": ["CLI-US-001"],
+        "test_case_ids": ["CLI-TC-001"]
       },
-      "covers": [
-        "WU-001",
-        "WU-007",
-        "WU-008",
-        "WU-009"
-      ],
+      "covers": ["WU-001", "WU-007", "WU-008", "WU-009"],
       "tracker": {
         "system": "github",
         "ref": "567",
         "url": "https://github.com/davidpoxon/roubo/issues/567",
         "node_id": "I_kwDOSiX_888AAAABGCoFSQ",
-        "blocked_by_refs": [
-          "553",
-          "559",
-          "560",
-          "561"
-        ]
+        "blocked_by_refs": ["553", "559", "560", "561"]
       }
     },
     {
@@ -630,40 +415,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 2 Persistent warm cache",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-008"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-005", "WU-008"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-002",
-          "CLI-FR-005",
-          "CLI-FR-006"
-        ],
-        "user_story_ids": [
-          "CLI-US-002"
-        ],
-        "test_case_ids": [
-          "CLI-TC-017"
-        ]
+        "requirement_ids": ["CLI-FR-002", "CLI-FR-005", "CLI-FR-006"],
+        "user_story_ids": ["CLI-US-002"],
+        "test_case_ids": ["CLI-TC-017"]
       },
-      "covers": [
-        "WU-005",
-        "WU-008"
-      ],
+      "covers": ["WU-005", "WU-008"],
       "tracker": {
         "system": "github",
         "ref": "568",
         "url": "https://github.com/davidpoxon/roubo/issues/568",
         "node_id": "I_kwDOSiX_888AAAABGCoHWQ",
-        "blocked_by_refs": [
-          "557",
-          "560"
-        ]
+        "blocked_by_refs": ["557", "560"]
       }
     },
     {
@@ -674,36 +439,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 1 Pagination, refresh & only-to-do",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-004"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-004"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-007",
-          "CLI-FR-008"
-        ],
-        "user_story_ids": [
-          "CLI-US-003"
-        ],
-        "test_case_ids": [
-          "CLI-TC-032"
-        ]
+        "requirement_ids": ["CLI-FR-007", "CLI-FR-008"],
+        "user_story_ids": ["CLI-US-003"],
+        "test_case_ids": ["CLI-TC-032"]
       },
-      "covers": [
-        "WU-004"
-      ],
+      "covers": ["WU-004"],
       "tracker": {
         "system": "github",
         "ref": "569",
         "url": "https://github.com/davidpoxon/roubo/issues/569",
         "node_id": "I_kwDOSiX_888AAAABGCoI5g",
-        "blocked_by_refs": [
-          "556"
-        ]
+        "blocked_by_refs": ["556"]
       }
     },
     {
@@ -714,49 +463,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-004",
-        "WU-010",
-        "WU-011",
-        "WU-012"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-002", "WU-004", "WU-010", "WU-011", "WU-012"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-008",
-          "CLI-FR-009",
-          "CLI-FR-010"
-        ],
-        "user_story_ids": [
-          "CLI-US-004"
-        ],
-        "test_case_ids": [
-          "CLI-TC-035"
-        ]
+        "requirement_ids": ["CLI-FR-008", "CLI-FR-009", "CLI-FR-010"],
+        "user_story_ids": ["CLI-US-004"],
+        "test_case_ids": ["CLI-TC-035"]
       },
-      "covers": [
-        "WU-002",
-        "WU-004",
-        "WU-010",
-        "WU-011",
-        "WU-012"
-      ],
+      "covers": ["WU-002", "WU-004", "WU-010", "WU-011", "WU-012"],
       "tracker": {
         "system": "github",
         "ref": "570",
         "url": "https://github.com/davidpoxon/roubo/issues/570",
         "node_id": "I_kwDOSiX_888AAAABGCoJ3w",
-        "blocked_by_refs": [
-          "554",
-          "556",
-          "562",
-          "563",
-          "564"
-        ]
+        "blocked_by_refs": ["554", "556", "562", "563", "564"]
       }
     },
     {
@@ -767,41 +487,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-014"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-006", "WU-014"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-012",
-          "CLI-FR-013",
-          "CLI-FR-017"
-        ],
-        "user_story_ids": [
-          "CLI-US-005",
-          "CLI-US-007"
-        ],
-        "test_case_ids": [
-          "CLI-TC-046"
-        ]
+        "requirement_ids": ["CLI-FR-012", "CLI-FR-013", "CLI-FR-017"],
+        "user_story_ids": ["CLI-US-005", "CLI-US-007"],
+        "test_case_ids": ["CLI-TC-046"]
       },
-      "covers": [
-        "WU-006",
-        "WU-014"
-      ],
+      "covers": ["WU-006", "WU-014"],
       "tracker": {
         "system": "github",
         "ref": "571",
         "url": "https://github.com/davidpoxon/roubo/issues/571",
         "node_id": "I_kwDOSiX_888AAAABGCoMcg",
-        "blocked_by_refs": [
-          "558",
-          "566"
-        ]
+        "blocked_by_refs": ["558", "566"]
       }
     },
     {
@@ -812,42 +511,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-003",
-        "WU-004",
-        "WU-013"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-003", "WU-004", "WU-013"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-008",
-          "CLI-FR-015"
-        ],
-        "user_story_ids": [
-          "CLI-US-006"
-        ],
-        "test_case_ids": [
-          "CLI-TC-059"
-        ]
+        "requirement_ids": ["CLI-FR-008", "CLI-FR-015"],
+        "user_story_ids": ["CLI-US-006"],
+        "test_case_ids": ["CLI-TC-059"]
       },
-      "covers": [
-        "WU-003",
-        "WU-004",
-        "WU-013"
-      ],
+      "covers": ["WU-003", "WU-004", "WU-013"],
       "tracker": {
         "system": "github",
         "ref": "572",
         "url": "https://github.com/davidpoxon/roubo/issues/572",
         "node_id": "I_kwDOSiX_888AAAABGCoN2A",
-        "blocked_by_refs": [
-          "555",
-          "556",
-          "565"
-        ]
+        "blocked_by_refs": ["555", "556", "565"]
       }
     },
     {
@@ -858,39 +535,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 3 Ordering & facet hygiene",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-014"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-006", "WU-014"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-013",
-          "CLI-FR-017"
-        ],
-        "user_story_ids": [
-          "CLI-US-007"
-        ],
-        "test_case_ids": [
-          "CLI-TC-062"
-        ]
+        "requirement_ids": ["CLI-FR-013", "CLI-FR-017"],
+        "user_story_ids": ["CLI-US-007"],
+        "test_case_ids": ["CLI-TC-062"]
       },
-      "covers": [
-        "WU-006",
-        "WU-014"
-      ],
+      "covers": ["WU-006", "WU-014"],
       "tracker": {
         "system": "github",
         "ref": "573",
         "url": "https://github.com/davidpoxon/roubo/issues/573",
         "node_id": "I_kwDOSiX_888AAAABGCoPfA",
-        "blocked_by_refs": [
-          "558",
-          "566"
-        ]
+        "blocked_by_refs": ["558", "566"]
       }
     },
     {
@@ -901,36 +559,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Cut list: Phase 1 Pagination, refresh & only-to-do",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-006"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-006"],
       "implements": {
-        "requirement_ids": [
-          "CLI-FR-013",
-          "CLI-FR-018"
-        ],
-        "user_story_ids": [
-          "CLI-US-008"
-        ],
-        "test_case_ids": [
-          "CLI-TC-047"
-        ]
+        "requirement_ids": ["CLI-FR-013", "CLI-FR-018"],
+        "user_story_ids": ["CLI-US-008"],
+        "test_case_ids": ["CLI-TC-047"]
       },
-      "covers": [
-        "WU-006"
-      ],
+      "covers": ["WU-006"],
       "tracker": {
         "system": "github",
         "ref": "574",
         "url": "https://github.com/davidpoxon/roubo/issues/574",
         "node_id": "I_kwDOSiX_888AAAABGCoRZw",
-        "blocked_by_refs": [
-          "558"
-        ]
+        "blocked_by_refs": ["558"]
       }
     }
   ]

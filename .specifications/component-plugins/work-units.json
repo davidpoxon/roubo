@@ -10,21 +10,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 0 De-risk spikes",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-008",
-          "CP-FR-006",
-          "CP-FR-009"
-        ],
-        "user_story_ids": [
-          "CP-US-007",
-          "CP-US-008"
-        ],
+        "requirement_ids": ["CP-FR-008", "CP-FR-006", "CP-FR-009"],
+        "user_story_ids": ["CP-US-007", "CP-US-008"],
         "test_case_ids": []
       },
       "tracker": {
@@ -42,19 +32,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 0 De-risk spikes",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-018",
-          "CP-NFR-001"
-        ],
-        "user_story_ids": [
-          "CP-US-009"
-        ],
+        "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+        "user_story_ids": ["CP-US-009"],
         "test_case_ids": []
       },
       "tracker": {
@@ -72,17 +54,10 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 0 De-risk spikes",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-008",
-          "CP-FR-017",
-          "CP-NFR-005"
-        ],
+        "requirement_ids": ["CP-FR-008", "CP-FR-017", "CP-NFR-005"],
         "user_story_ids": [],
         "test_case_ids": []
       },
@@ -101,19 +76,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 0 De-risk spikes",
-      "labels": [
-        "task",
-        "P0"
-      ],
+      "labels": ["task", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-007",
-          "CP-NFR-002"
-        ],
-        "user_story_ids": [
-          "CP-US-002"
-        ],
+        "requirement_ids": ["CP-FR-007", "CP-NFR-002"],
+        "user_story_ids": ["CP-US-002"],
         "test_case_ids": [
           "CP-TC-021",
           "CP-TC-032",
@@ -151,20 +118,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
+      "labels": ["task", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-001",
-          "CP-FR-011"
-        ],
-        "user_story_ids": [
-          "CP-US-001",
-          "CP-US-005"
-        ],
+        "requirement_ids": ["CP-FR-001", "CP-FR-011"],
+        "user_story_ids": ["CP-US-001", "CP-US-005"],
         "test_case_ids": [
           "CP-TC-001",
           "CP-TC-007",
@@ -197,20 +155,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
+      "labels": ["task", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-002",
-          "CP-FR-022"
-        ],
-        "user_story_ids": [
-          "CP-US-005",
-          "CP-US-012"
-        ],
+        "requirement_ids": ["CP-FR-002", "CP-FR-022"],
+        "user_story_ids": ["CP-US-005", "CP-US-012"],
         "test_case_ids": [
           "CP-TC-002",
           "CP-TC-003",
@@ -246,21 +195,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-006"
-      ],
+      "labels": ["task", "P0"],
+      "depends_on": ["WU-001", "WU-006"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-002"
-        ],
-        "user_story_ids": [
-          "CP-US-005"
-        ],
+        "requirement_ids": ["CP-FR-002"],
+        "user_story_ids": ["CP-US-005"],
         "test_case_ids": [
           "CP-TC-002",
           "CP-TC-003",
@@ -279,10 +218,7 @@
         "ref": "604",
         "url": "https://github.com/davidpoxon/roubo/issues/604",
         "node_id": "I_kwDOSiX_888AAAABGHmI8Q",
-        "blocked_by_refs": [
-          "598",
-          "603"
-        ]
+        "blocked_by_refs": ["598", "603"]
       }
     },
     {
@@ -292,24 +228,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-003"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-001", "WU-003"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-008",
-          "CP-FR-009",
-          "CP-FR-017"
-        ],
-        "user_story_ids": [
-          "CP-US-005",
-          "CP-US-008"
-        ],
+        "requirement_ids": ["CP-FR-008", "CP-FR-009", "CP-FR-017"],
+        "user_story_ids": ["CP-US-005", "CP-US-008"],
         "test_case_ids": [
           "CP-TC-008",
           "CP-TC-009",
@@ -337,10 +260,7 @@
         "ref": "605",
         "url": "https://github.com/davidpoxon/roubo/issues/605",
         "node_id": "I_kwDOSiX_888AAAABGHmJTg",
-        "blocked_by_refs": [
-          "598",
-          "600"
-        ]
+        "blocked_by_refs": ["598", "600"]
       }
     },
     {
@@ -350,23 +270,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-008"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-006", "WU-008"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-007",
-          "CP-FR-014",
-          "CP-FR-022"
-        ],
-        "user_story_ids": [
-          "CP-US-002"
-        ],
+        "requirement_ids": ["CP-FR-007", "CP-FR-014", "CP-FR-022"],
+        "user_story_ids": ["CP-US-002"],
         "test_case_ids": [
           "CP-TC-022",
           "CP-TC-027",
@@ -408,10 +316,7 @@
         "ref": "606",
         "url": "https://github.com/davidpoxon/roubo/issues/606",
         "node_id": "I_kwDOSiX_888AAAABGHmJpA",
-        "blocked_by_refs": [
-          "603",
-          "605"
-        ]
+        "blocked_by_refs": ["603", "605"]
       }
     },
     {
@@ -421,18 +326,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
+      "labels": ["task", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-015"
-        ],
-        "user_story_ids": [
-          "CP-US-008"
-        ],
+        "requirement_ids": ["CP-FR-015"],
+        "user_story_ids": ["CP-US-008"],
         "test_case_ids": [
           "CP-TC-019",
           "CP-TC-023",
@@ -464,22 +362,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-007"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-005", "WU-007"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-010",
-          "CP-FR-003"
-        ],
-        "user_story_ids": [
-          "CP-US-003"
-        ],
+        "requirement_ids": ["CP-FR-010", "CP-FR-003"],
+        "user_story_ids": ["CP-US-003"],
         "test_case_ids": [
           "CP-TC-004",
           "CP-TC-005",
@@ -498,10 +385,7 @@
         "ref": "608",
         "url": "https://github.com/davidpoxon/roubo/issues/608",
         "node_id": "I_kwDOSiX_888AAAABGHmKhw",
-        "blocked_by_refs": [
-          "602",
-          "604"
-        ]
+        "blocked_by_refs": ["602", "604"]
       }
     },
     {
@@ -511,22 +395,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-007"
-      ],
+      "labels": ["task", "P0"],
+      "depends_on": ["WU-005", "WU-007"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-003",
-          "CP-NFR-005"
-        ],
-        "user_story_ids": [
-          "CP-US-001"
-        ],
+        "requirement_ids": ["CP-FR-003", "CP-NFR-005"],
+        "user_story_ids": ["CP-US-001"],
         "test_case_ids": [
           "CP-TC-004",
           "CP-TC-005",
@@ -548,10 +421,7 @@
         "ref": "609",
         "url": "https://github.com/davidpoxon/roubo/issues/609",
         "node_id": "I_kwDOSiX_888AAAABGHmK0g",
-        "blocked_by_refs": [
-          "602",
-          "604"
-        ]
+        "blocked_by_refs": ["602", "604"]
       }
     },
     {
@@ -561,22 +431,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-007",
-        "WU-009"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-007", "WU-009"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-005",
-          "CP-FR-007"
-        ],
-        "user_story_ids": [
-          "CP-US-002"
-        ],
+        "requirement_ids": ["CP-FR-005", "CP-FR-007"],
+        "user_story_ids": ["CP-US-002"],
         "test_case_ids": [
           "CP-TC-032",
           "CP-TC-033",
@@ -604,10 +463,7 @@
         "ref": "610",
         "url": "https://github.com/davidpoxon/roubo/issues/610",
         "node_id": "I_kwDOSiX_888AAAABGHmLKQ",
-        "blocked_by_refs": [
-          "604",
-          "606"
-        ]
+        "blocked_by_refs": ["604", "606"]
       }
     },
     {
@@ -617,23 +473,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-007",
-        "WU-009",
-        "WU-010"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-007", "WU-009", "WU-010"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-004",
-          "CP-FR-007"
-        ],
-        "user_story_ids": [
-          "CP-US-002"
-        ],
+        "requirement_ids": ["CP-FR-004", "CP-FR-007"],
+        "user_story_ids": ["CP-US-002"],
         "test_case_ids": [
           "CP-TC-032",
           "CP-TC-033",
@@ -661,11 +505,7 @@
         "ref": "611",
         "url": "https://github.com/davidpoxon/roubo/issues/611",
         "node_id": "I_kwDOSiX_888AAAABGHmLjA",
-        "blocked_by_refs": [
-          "604",
-          "606",
-          "607"
-        ]
+        "blocked_by_refs": ["604", "606", "607"]
       }
     },
     {
@@ -675,25 +515,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-009",
-        "WU-011",
-        "WU-013",
-        "WU-014"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-009", "WU-011", "WU-013", "WU-014"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-006",
-          "CP-FR-009",
-          "CP-NFR-002"
-        ],
-        "user_story_ids": [
-          "CP-US-007"
-        ],
+        "requirement_ids": ["CP-FR-006", "CP-FR-009", "CP-NFR-002"],
+        "user_story_ids": ["CP-US-007"],
         "test_case_ids": [
           "CP-TC-021",
           "CP-TC-033",
@@ -710,12 +536,7 @@
         "ref": "612",
         "url": "https://github.com/davidpoxon/roubo/issues/612",
         "node_id": "I_kwDOSiX_888AAAABGHmL1w",
-        "blocked_by_refs": [
-          "606",
-          "608",
-          "610",
-          "611"
-        ]
+        "blocked_by_refs": ["606", "608", "610", "611"]
       }
     },
     {
@@ -725,24 +546,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-008",
-        "WU-010",
-        "WU-011"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-008", "WU-010", "WU-011"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-015",
-          "CP-FR-016",
-          "CP-NFR-003"
-        ],
-        "user_story_ids": [
-          "CP-US-008"
-        ],
+        "requirement_ids": ["CP-FR-015", "CP-FR-016", "CP-NFR-003"],
+        "user_story_ids": ["CP-US-008"],
         "test_case_ids": [
           "CP-TC-019",
           "CP-TC-020",
@@ -766,11 +574,7 @@
         "ref": "613",
         "url": "https://github.com/davidpoxon/roubo/issues/613",
         "node_id": "I_kwDOSiX_888AAAABGHmMJA",
-        "blocked_by_refs": [
-          "605",
-          "607",
-          "608"
-        ]
+        "blocked_by_refs": ["605", "607", "608"]
       }
     },
     {
@@ -780,43 +584,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-012",
-        "WU-013",
-        "WU-014",
-        "WU-015"
-      ],
+      "labels": ["task", "P0"],
+      "depends_on": ["WU-012", "WU-013", "WU-014", "WU-015"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-013"
-        ],
-        "user_story_ids": [
-          "CP-US-002",
-          "CP-US-007"
-        ],
-        "test_case_ids": [
-          "CP-TC-032",
-          "CP-TC-033",
-          "CP-TC-034",
-          "CP-TC-045",
-          "CP-TC-046"
-        ]
+        "requirement_ids": ["CP-FR-013"],
+        "user_story_ids": ["CP-US-002", "CP-US-007"],
+        "test_case_ids": ["CP-TC-032", "CP-TC-033", "CP-TC-034", "CP-TC-045", "CP-TC-046"]
       },
       "tracker": {
         "system": "github",
         "ref": "614",
         "url": "https://github.com/davidpoxon/roubo/issues/614",
         "node_id": "I_kwDOSiX_888AAAABGHmMgw",
-        "blocked_by_refs": [
-          "609",
-          "610",
-          "611",
-          "612"
-        ]
+        "blocked_by_refs": ["609", "610", "611", "612"]
       }
     },
     {
@@ -826,24 +606,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-011"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-005", "WU-011"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-011",
-          "CP-FR-012",
-          "CP-NFR-001",
-          "CP-NFR-007"
-        ],
-        "user_story_ids": [
-          "CP-US-004"
-        ],
+        "requirement_ids": ["CP-FR-011", "CP-FR-012", "CP-NFR-001", "CP-NFR-007"],
+        "user_story_ids": ["CP-US-004"],
         "test_case_ids": [
           "CP-TC-007",
           "CP-TC-013",
@@ -875,10 +642,7 @@
         "ref": "615",
         "url": "https://github.com/davidpoxon/roubo/issues/615",
         "node_id": "I_kwDOSiX_888AAAABGHmM4g",
-        "blocked_by_refs": [
-          "602",
-          "608"
-        ]
+        "blocked_by_refs": ["602", "608"]
       }
     },
     {
@@ -888,22 +652,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-008",
-        "WU-009"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-008", "WU-009"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-014",
-          "CP-NFR-004"
-        ],
-        "user_story_ids": [
-          "CP-US-006"
-        ],
+        "requirement_ids": ["CP-FR-014", "CP-NFR-004"],
+        "user_story_ids": ["CP-US-006"],
         "test_case_ids": [
           "CP-TC-022",
           "CP-TC-027",
@@ -921,10 +674,7 @@
         "ref": "616",
         "url": "https://github.com/davidpoxon/roubo/issues/616",
         "node_id": "I_kwDOSiX_888AAAABGHmNKg",
-        "blocked_by_refs": [
-          "605",
-          "606"
-        ]
+        "blocked_by_refs": ["605", "606"]
       }
     },
     {
@@ -934,35 +684,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-015"
-      ],
+      "labels": ["task", "P0"],
+      "depends_on": ["WU-015"],
       "implements": {
-        "requirement_ids": [
-          "CP-NFR-006"
-        ],
-        "user_story_ids": [
-          "CP-US-007"
-        ],
-        "test_case_ids": [
-          "CP-TC-040",
-          "CP-TC-041",
-          "CP-TC-042",
-          "CP-TC-129"
-        ]
+        "requirement_ids": ["CP-NFR-006"],
+        "user_story_ids": ["CP-US-007"],
+        "test_case_ids": ["CP-TC-040", "CP-TC-041", "CP-TC-042", "CP-TC-129"]
       },
       "tracker": {
         "system": "github",
         "ref": "617",
         "url": "https://github.com/davidpoxon/roubo/issues/617",
         "node_id": "I_kwDOSiX_888AAAABGHmNlA",
-        "blocked_by_refs": [
-          "612"
-        ]
+        "blocked_by_refs": ["612"]
       }
     },
     {
@@ -972,38 +706,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-008"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002", "WU-008"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-018",
-          "CP-NFR-001"
-        ],
-        "user_story_ids": [
-          "CP-US-009"
-        ],
-        "test_case_ids": [
-          "CP-TC-086",
-          "CP-TC-093",
-          "CP-TC-094",
-          "CP-TC-099"
-        ]
+        "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+        "user_story_ids": ["CP-US-009"],
+        "test_case_ids": ["CP-TC-086", "CP-TC-093", "CP-TC-094", "CP-TC-099"]
       },
       "tracker": {
         "system": "github",
         "ref": "618",
         "url": "https://github.com/davidpoxon/roubo/issues/618",
         "node_id": "I_kwDOSiX_888AAAABGHmN4Q",
-        "blocked_by_refs": [
-          "599",
-          "605"
-        ]
+        "blocked_by_refs": ["599", "605"]
       }
     },
     {
@@ -1013,37 +728,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-008"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-008"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-019",
-          "CP-NFR-004"
-        ],
-        "user_story_ids": [
-          "CP-US-009"
-        ],
-        "test_case_ids": [
-          "CP-TC-070",
-          "CP-TC-086",
-          "CP-TC-092",
-          "CP-TC-093",
-          "CP-TC-099"
-        ]
+        "requirement_ids": ["CP-FR-019", "CP-NFR-004"],
+        "user_story_ids": ["CP-US-009"],
+        "test_case_ids": ["CP-TC-070", "CP-TC-086", "CP-TC-092", "CP-TC-093", "CP-TC-099"]
       },
       "tracker": {
         "system": "github",
         "ref": "619",
         "url": "https://github.com/davidpoxon/roubo/issues/619",
         "node_id": "I_kwDOSiX_888AAAABGHmOVg",
-        "blocked_by_refs": [
-          "605"
-        ]
+        "blocked_by_refs": ["605"]
       }
     },
     {
@@ -1053,38 +750,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-021"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002", "WU-021"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-018",
-          "CP-NFR-001"
-        ],
-        "user_story_ids": [
-          "CP-US-009"
-        ],
-        "test_case_ids": [
-          "CP-TC-086",
-          "CP-TC-093",
-          "CP-TC-094",
-          "CP-TC-099"
-        ]
+        "requirement_ids": ["CP-FR-018", "CP-NFR-001"],
+        "user_story_ids": ["CP-US-009"],
+        "test_case_ids": ["CP-TC-086", "CP-TC-093", "CP-TC-094", "CP-TC-099"]
       },
       "tracker": {
         "system": "github",
         "ref": "620",
         "url": "https://github.com/davidpoxon/roubo/issues/620",
         "node_id": "I_kwDOSiX_888AAAABGHmOsg",
-        "blocked_by_refs": [
-          "599",
-          "618"
-        ]
+        "blocked_by_refs": ["599", "618"]
       }
     },
     {
@@ -1094,21 +772,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-      "labels": [
-        "feature",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-011"
-      ],
+      "labels": ["feature", "P1"],
+      "depends_on": ["WU-011"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-020",
-          "CP-NFR-007"
-        ],
-        "user_story_ids": [
-          "CP-US-010"
-        ],
+        "requirement_ids": ["CP-FR-020", "CP-NFR-007"],
+        "user_story_ids": ["CP-US-010"],
         "test_case_ids": [
           "CP-TC-100",
           "CP-TC-101",
@@ -1133,9 +801,7 @@
         "ref": "621",
         "url": "https://github.com/davidpoxon/roubo/issues/621",
         "node_id": "I_kwDOSiX_888AAAABGHmPDQ",
-        "blocked_by_refs": [
-          "608"
-        ]
+        "blocked_by_refs": ["608"]
       }
     },
     {
@@ -1145,21 +811,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-      "labels": [
-        "feature",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-024"
-      ],
+      "labels": ["feature", "P1"],
+      "depends_on": ["WU-024"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-021"
-        ],
-        "user_story_ids": [
-          "CP-US-010",
-          "CP-US-011"
-        ],
+        "requirement_ids": ["CP-FR-021"],
+        "user_story_ids": ["CP-US-010", "CP-US-011"],
         "test_case_ids": [
           "CP-TC-101",
           "CP-TC-104",
@@ -1179,9 +835,7 @@
         "ref": "622",
         "url": "https://github.com/davidpoxon/roubo/issues/622",
         "node_id": "I_kwDOSiX_888AAAABGHmPTw",
-        "blocked_by_refs": [
-          "621"
-        ]
+        "blocked_by_refs": ["621"]
       }
     },
     {
@@ -1192,10 +846,7 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
+      "labels": ["e2e", "P0"],
       "depends_on": [
         "WU-005",
         "WU-006",
@@ -1219,14 +870,8 @@
           "CP-FR-014",
           "CP-FR-015"
         ],
-        "user_story_ids": [
-          "CP-US-001",
-          "CP-US-003",
-          "CP-US-005"
-        ],
-        "test_case_ids": [
-          "CP-TC-027"
-        ]
+        "user_story_ids": ["CP-US-001", "CP-US-003", "CP-US-005"],
+        "test_case_ids": ["CP-TC-027"]
       },
       "covers": [
         "WU-005",
@@ -1269,10 +914,7 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
+      "labels": ["e2e", "P0"],
       "depends_on": [
         "WU-001",
         "WU-003",
@@ -1294,14 +936,8 @@
           "CP-FR-013",
           "CP-NFR-002"
         ],
-        "user_story_ids": [
-          "CP-US-002",
-          "CP-US-007"
-        ],
-        "test_case_ids": [
-          "CP-TC-033",
-          "CP-TC-034"
-        ]
+        "user_story_ids": ["CP-US-002", "CP-US-007"],
+        "test_case_ids": ["CP-TC-033", "CP-TC-034"]
       },
       "covers": [
         "WU-001",
@@ -1320,18 +956,7 @@
         "ref": "624",
         "url": "https://github.com/davidpoxon/roubo/issues/624",
         "node_id": "I_kwDOSiX_888AAAABGHmlhw",
-        "blocked_by_refs": [
-          "598",
-          "600",
-          "601",
-          "605",
-          "606",
-          "610",
-          "611",
-          "612",
-          "614",
-          "617"
-        ]
+        "blocked_by_refs": ["598", "600", "601", "605", "606", "610", "611", "612", "614", "617"]
       }
     },
     {
@@ -1342,49 +967,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-005",
-        "WU-018",
-        "WU-021",
-        "WU-023"
-      ],
+      "labels": ["e2e", "P0"],
+      "depends_on": ["WU-002", "WU-005", "WU-018", "WU-021", "WU-023"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-011",
-          "CP-FR-012",
-          "CP-NFR-001"
-        ],
-        "user_story_ids": [
-          "CP-US-004"
-        ],
-        "test_case_ids": [
-          "CP-TC-076"
-        ]
+        "requirement_ids": ["CP-FR-011", "CP-FR-012", "CP-NFR-001"],
+        "user_story_ids": ["CP-US-004"],
+        "test_case_ids": ["CP-TC-076"]
       },
-      "covers": [
-        "WU-002",
-        "WU-005",
-        "WU-018",
-        "WU-021",
-        "WU-023"
-      ],
+      "covers": ["WU-002", "WU-005", "WU-018", "WU-021", "WU-023"],
       "tracker": {
         "system": "github",
         "ref": "625",
         "url": "https://github.com/davidpoxon/roubo/issues/625",
         "node_id": "I_kwDOSiX_888AAAABGHmoPg",
-        "blocked_by_refs": [
-          "599",
-          "602",
-          "615",
-          "618",
-          "620"
-        ]
+        "blocked_by_refs": ["599", "602", "615", "618", "620"]
       }
     },
     {
@@ -1395,10 +991,7 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
+      "labels": ["e2e", "P0"],
       "depends_on": [
         "WU-001",
         "WU-003",
@@ -1410,44 +1003,17 @@
         "WU-016"
       ],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-002",
-          "CP-FR-015",
-          "CP-FR-017"
-        ],
-        "user_story_ids": [
-          "CP-US-005",
-          "CP-US-008"
-        ],
-        "test_case_ids": [
-          "CP-TC-028"
-        ]
+        "requirement_ids": ["CP-FR-002", "CP-FR-015", "CP-FR-017"],
+        "user_story_ids": ["CP-US-005", "CP-US-008"],
+        "test_case_ids": ["CP-TC-028"]
       },
-      "covers": [
-        "WU-001",
-        "WU-003",
-        "WU-005",
-        "WU-006",
-        "WU-007",
-        "WU-008",
-        "WU-010",
-        "WU-016"
-      ],
+      "covers": ["WU-001", "WU-003", "WU-005", "WU-006", "WU-007", "WU-008", "WU-010", "WU-016"],
       "tracker": {
         "system": "github",
         "ref": "626",
         "url": "https://github.com/davidpoxon/roubo/issues/626",
         "node_id": "I_kwDOSiX_888AAAABGHmpgQ",
-        "blocked_by_refs": [
-          "598",
-          "600",
-          "602",
-          "603",
-          "604",
-          "605",
-          "607",
-          "613"
-        ]
+        "blocked_by_refs": ["598", "600", "602", "603", "604", "605", "607", "613"]
       }
     },
     {
@@ -1458,58 +1024,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-008",
-        "WU-009",
-        "WU-010",
-        "WU-016",
-        "WU-019",
-        "WU-022"
-      ],
+      "labels": ["e2e", "P0"],
+      "depends_on": ["WU-001", "WU-008", "WU-009", "WU-010", "WU-016", "WU-019", "WU-022"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-014",
-          "CP-FR-015",
-          "CP-FR-016",
-          "CP-NFR-003",
-          "CP-NFR-004"
-        ],
-        "user_story_ids": [
-          "CP-US-006",
-          "CP-US-008"
-        ],
-        "test_case_ids": [
-          "CP-TC-061"
-        ]
+        "requirement_ids": ["CP-FR-014", "CP-FR-015", "CP-FR-016", "CP-NFR-003", "CP-NFR-004"],
+        "user_story_ids": ["CP-US-006", "CP-US-008"],
+        "test_case_ids": ["CP-TC-061"]
       },
-      "covers": [
-        "WU-001",
-        "WU-008",
-        "WU-009",
-        "WU-010",
-        "WU-016",
-        "WU-019",
-        "WU-022"
-      ],
+      "covers": ["WU-001", "WU-008", "WU-009", "WU-010", "WU-016", "WU-019", "WU-022"],
       "tracker": {
         "system": "github",
         "ref": "627",
         "url": "https://github.com/davidpoxon/roubo/issues/627",
         "node_id": "I_kwDOSiX_888AAAABGHmr4Q",
-        "blocked_by_refs": [
-          "598",
-          "605",
-          "606",
-          "607",
-          "613",
-          "616",
-          "619"
-        ]
+        "blocked_by_refs": ["598", "605", "606", "607", "613", "616", "619"]
       }
     },
     {
@@ -1520,49 +1048,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 2 Enforced sandboxing (v2)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-018",
-        "WU-021",
-        "WU-022",
-        "WU-023"
-      ],
+      "labels": ["e2e", "P0"],
+      "depends_on": ["WU-002", "WU-018", "WU-021", "WU-022", "WU-023"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-018",
-          "CP-FR-019",
-          "CP-NFR-001"
-        ],
-        "user_story_ids": [
-          "CP-US-009"
-        ],
-        "test_case_ids": [
-          "CP-TC-099"
-        ]
+        "requirement_ids": ["CP-FR-018", "CP-FR-019", "CP-NFR-001"],
+        "user_story_ids": ["CP-US-009"],
+        "test_case_ids": ["CP-TC-099"]
       },
-      "covers": [
-        "WU-002",
-        "WU-018",
-        "WU-021",
-        "WU-022",
-        "WU-023"
-      ],
+      "covers": ["WU-002", "WU-018", "WU-021", "WU-022", "WU-023"],
       "tracker": {
         "system": "github",
         "ref": "628",
         "url": "https://github.com/davidpoxon/roubo/issues/628",
         "node_id": "I_kwDOSiX_888AAAABGHmufQ",
-        "blocked_by_refs": [
-          "599",
-          "615",
-          "618",
-          "619",
-          "620"
-        ]
+        "blocked_by_refs": ["599", "615", "618", "619", "620"]
       }
     },
     {
@@ -1573,40 +1072,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 3 Marketplace (v3)",
-      "labels": [
-        "e2e",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-024",
-        "WU-025"
-      ],
+      "labels": ["e2e", "P1"],
+      "depends_on": ["WU-024", "WU-025"],
       "implements": {
-        "requirement_ids": [
-          "CP-FR-020",
-          "CP-FR-021"
-        ],
-        "user_story_ids": [
-          "CP-US-010",
-          "CP-US-011"
-        ],
-        "test_case_ids": [
-          "CP-TC-101"
-        ]
+        "requirement_ids": ["CP-FR-020", "CP-FR-021"],
+        "user_story_ids": ["CP-US-010", "CP-US-011"],
+        "test_case_ids": ["CP-TC-101"]
       },
-      "covers": [
-        "WU-024",
-        "WU-025"
-      ],
+      "covers": ["WU-024", "WU-025"],
       "tracker": {
         "system": "github",
         "ref": "629",
         "url": "https://github.com/davidpoxon/roubo/issues/629",
         "node_id": "I_kwDOSiX_888AAAABGHmvtQ",
-        "blocked_by_refs": [
-          "621",
-          "622"
-        ]
+        "blocked_by_refs": ["621", "622"]
       }
     },
     {
@@ -1617,36 +1096,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Component plugins: Phase 1 Foundation (v1)",
-      "labels": [
-        "e2e",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-003",
-        "WU-012"
-      ],
+      "labels": ["e2e", "P0"],
+      "depends_on": ["WU-003", "WU-012"],
       "implements": {
-        "requirement_ids": [
-          "CP-NFR-005"
-        ],
+        "requirement_ids": ["CP-NFR-005"],
         "user_story_ids": [],
-        "test_case_ids": [
-          "CP-TC-029"
-        ]
+        "test_case_ids": ["CP-TC-029"]
       },
-      "covers": [
-        "WU-003",
-        "WU-012"
-      ],
+      "covers": ["WU-003", "WU-012"],
       "tracker": {
         "system": "github",
         "ref": "630",
         "url": "https://github.com/davidpoxon/roubo/issues/630",
         "node_id": "I_kwDOSiX_888AAAABGHmwrw",
-        "blocked_by_refs": [
-          "600",
-          "609"
-        ]
+        "blocked_by_refs": ["600", "609"]
       }
     }
   ]

@@ -10,19 +10,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 1 (model + evaluation)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
+      "labels": ["feature", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-003",
-          "NFR-006"
-        ],
-        "user_story_ids": [
-          "US-008"
-        ],
+        "requirement_ids": ["FR-003", "NFR-006"],
+        "user_story_ids": ["US-008"],
         "test_case_ids": [
           "TC-001",
           "TC-002",
@@ -49,22 +41,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 1 (model + evaluation)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-001"],
       "implements": {
-        "requirement_ids": [
-          "FR-004",
-          "FR-005",
-          "NFR-007"
-        ],
-        "user_story_ids": [
-          "US-004"
-        ],
+        "requirement_ids": ["FR-004", "FR-005", "NFR-007"],
+        "user_story_ids": ["US-004"],
         "test_case_ids": [
           "TC-009",
           "TC-010",
@@ -83,9 +64,7 @@
         "ref": "698",
         "url": "https://github.com/davidpoxon/roubo/issues/698",
         "node_id": "I_kwDOSiX_888AAAABGPKsxw",
-        "blocked_by_refs": [
-          "697"
-        ]
+        "blocked_by_refs": ["697"]
       }
     },
     {
@@ -95,22 +74,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002"],
       "implements": {
-        "requirement_ids": [
-          "FR-006",
-          "NFR-002",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-002"
-        ],
+        "requirement_ids": ["FR-006", "NFR-002", "NFR-003"],
+        "user_story_ids": ["US-002"],
         "test_case_ids": [
           "TC-029",
           "TC-030",
@@ -127,9 +95,7 @@
         "ref": "699",
         "url": "https://github.com/davidpoxon/roubo/issues/699",
         "node_id": "I_kwDOSiX_888AAAABGPKtLw",
-        "blocked_by_refs": [
-          "698"
-        ]
+        "blocked_by_refs": ["698"]
       }
     },
     {
@@ -139,37 +105,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002"],
       "implements": {
-        "requirement_ids": [
-          "FR-007"
-        ],
-        "user_story_ids": [
-          "US-005"
-        ],
-        "test_case_ids": [
-          "TC-038",
-          "TC-039",
-          "TC-041",
-          "TC-042",
-          "TC-043",
-          "TC-044"
-        ]
+        "requirement_ids": ["FR-007"],
+        "user_story_ids": ["US-005"],
+        "test_case_ids": ["TC-038", "TC-039", "TC-041", "TC-042", "TC-043", "TC-044"]
       },
       "tracker": {
         "system": "github",
         "ref": "700",
         "url": "https://github.com/davidpoxon/roubo/issues/700",
         "node_id": "I_kwDOSiX_888AAAABGPKtjQ",
-        "blocked_by_refs": [
-          "698"
-        ]
+        "blocked_by_refs": ["698"]
       }
     },
     {
@@ -179,36 +127,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-002"],
       "implements": {
-        "requirement_ids": [
-          "FR-008",
-          "FR-012",
-          "NFR-004"
-        ],
-        "user_story_ids": [
-          "US-003"
-        ],
-        "test_case_ids": [
-          "TC-016",
-          "TC-017",
-          "TC-021"
-        ]
+        "requirement_ids": ["FR-008", "FR-012", "NFR-004"],
+        "user_story_ids": ["US-003"],
+        "test_case_ids": ["TC-016", "TC-017", "TC-021"]
       },
       "tracker": {
         "system": "github",
         "ref": "701",
         "url": "https://github.com/davidpoxon/roubo/issues/701",
         "node_id": "I_kwDOSiX_888AAAABGPK6Uw",
-        "blocked_by_refs": [
-          "698"
-        ]
+        "blocked_by_refs": ["698"]
       }
     },
     {
@@ -218,38 +149,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-005"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-005"],
       "implements": {
-        "requirement_ids": [
-          "FR-001",
-          "FR-008",
-          "FR-012"
-        ],
-        "user_story_ids": [
-          "US-001",
-          "US-003"
-        ],
-        "test_case_ids": [
-          "TC-020",
-          "TC-026",
-          "TC-027",
-          "TC-028"
-        ]
+        "requirement_ids": ["FR-001", "FR-008", "FR-012"],
+        "user_story_ids": ["US-001", "US-003"],
+        "test_case_ids": ["TC-020", "TC-026", "TC-027", "TC-028"]
       },
       "tracker": {
         "system": "github",
         "ref": "702",
         "url": "https://github.com/davidpoxon/roubo/issues/702",
         "node_id": "I_kwDOSiX_888AAAABGPK62Q",
-        "blocked_by_refs": [
-          "701"
-        ]
+        "blocked_by_refs": ["701"]
       }
     },
     {
@@ -259,33 +171,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "feature",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-006"
-      ],
+      "labels": ["feature", "P1"],
+      "depends_on": ["WU-006"],
       "implements": {
-        "requirement_ids": [
-          "FR-002"
-        ],
-        "user_story_ids": [
-          "US-007"
-        ],
-        "test_case_ids": [
-          "TC-022",
-          "TC-023"
-        ]
+        "requirement_ids": ["FR-002"],
+        "user_story_ids": ["US-007"],
+        "test_case_ids": ["TC-022", "TC-023"]
       },
       "tracker": {
         "system": "github",
         "ref": "703",
         "url": "https://github.com/davidpoxon/roubo/issues/703",
         "node_id": "I_kwDOSiX_888AAAABGPK7Rw",
-        "blocked_by_refs": [
-          "702"
-        ]
+        "blocked_by_refs": ["702"]
       }
     },
     {
@@ -295,17 +193,10 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-      "labels": [
-        "spike",
-        "P0"
-      ],
+      "labels": ["spike", "P0"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-010",
-          "FR-011",
-          "NFR-005"
-        ],
+        "requirement_ids": ["FR-010", "FR-011", "NFR-005"],
         "user_story_ids": [],
         "test_case_ids": []
       },
@@ -324,37 +215,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-008"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-008"],
       "implements": {
-        "requirement_ids": [
-          "FR-011",
-          "NFR-001",
-          "NFR-005"
-        ],
-        "user_story_ids": [
-          "US-006"
-        ],
-        "test_case_ids": [
-          "TC-047",
-          "TC-048",
-          "TC-050",
-          "TC-051"
-        ]
+        "requirement_ids": ["FR-011", "NFR-001", "NFR-005"],
+        "user_story_ids": ["US-006"],
+        "test_case_ids": ["TC-047", "TC-048", "TC-050", "TC-051"]
       },
       "tracker": {
         "system": "github",
         "ref": "705",
         "url": "https://github.com/davidpoxon/roubo/issues/705",
         "node_id": "I_kwDOSiX_888AAAABGPK8RA",
-        "blocked_by_refs": [
-          "704"
-        ]
+        "blocked_by_refs": ["704"]
       }
     },
     {
@@ -364,40 +237,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-      "labels": [
-        "feature",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-009",
-        "WU-004"
-      ],
+      "labels": ["feature", "P0"],
+      "depends_on": ["WU-009", "WU-004"],
       "implements": {
-        "requirement_ids": [
-          "FR-009",
-          "FR-010",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-006"
-        ],
-        "test_case_ids": [
-          "TC-045",
-          "TC-046",
-          "TC-049",
-          "TC-052",
-          "TC-053"
-        ]
+        "requirement_ids": ["FR-009", "FR-010", "NFR-003"],
+        "user_story_ids": ["US-006"],
+        "test_case_ids": ["TC-045", "TC-046", "TC-049", "TC-052", "TC-053"]
       },
       "tracker": {
         "system": "github",
         "ref": "706",
         "url": "https://github.com/davidpoxon/roubo/issues/706",
         "node_id": "I_kwDOSiX_888AAAABGPK8xA",
-        "blocked_by_refs": [
-          "705",
-          "700"
-        ]
+        "blocked_by_refs": ["705", "700"]
       }
     },
     {
@@ -408,40 +260,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-006"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-005", "WU-006"],
       "implements": {
-        "requirement_ids": [
-          "FR-001",
-          "FR-008"
-        ],
-        "user_story_ids": [
-          "US-001",
-          "US-003"
-        ],
-        "test_case_ids": [
-          "TC-024"
-        ]
+        "requirement_ids": ["FR-001", "FR-008"],
+        "user_story_ids": ["US-001", "US-003"],
+        "test_case_ids": ["TC-024"]
       },
-      "covers": [
-        "WU-005",
-        "WU-006"
-      ],
+      "covers": ["WU-005", "WU-006"],
       "tracker": {
         "system": "github",
         "ref": "707",
         "url": "https://github.com/davidpoxon/roubo/issues/707",
         "node_id": "I_kwDOSiX_888AAAABGPLmpg",
-        "blocked_by_refs": [
-          "701",
-          "702"
-        ]
+        "blocked_by_refs": ["701", "702"]
       }
     },
     {
@@ -452,35 +284,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-003"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-003"],
       "implements": {
-        "requirement_ids": [
-          "FR-006"
-        ],
-        "user_story_ids": [
-          "US-002"
-        ],
-        "test_case_ids": [
-          "TC-032"
-        ]
+        "requirement_ids": ["FR-006"],
+        "user_story_ids": ["US-002"],
+        "test_case_ids": ["TC-032"]
       },
-      "covers": [
-        "WU-003"
-      ],
+      "covers": ["WU-003"],
       "tracker": {
         "system": "github",
         "ref": "708",
         "url": "https://github.com/davidpoxon/roubo/issues/708",
         "node_id": "I_kwDOSiX_888AAAABGPLnWQ",
-        "blocked_by_refs": [
-          "699"
-        ]
+        "blocked_by_refs": ["699"]
       }
     },
     {
@@ -491,43 +308,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-006",
-        "WU-007"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-005", "WU-006", "WU-007"],
       "implements": {
-        "requirement_ids": [
-          "FR-002",
-          "FR-008"
-        ],
-        "user_story_ids": [
-          "US-003",
-          "US-007"
-        ],
-        "test_case_ids": [
-          "TC-025"
-        ]
+        "requirement_ids": ["FR-002", "FR-008"],
+        "user_story_ids": ["US-003", "US-007"],
+        "test_case_ids": ["TC-025"]
       },
-      "covers": [
-        "WU-005",
-        "WU-006",
-        "WU-007"
-      ],
+      "covers": ["WU-005", "WU-006", "WU-007"],
       "tracker": {
         "system": "github",
         "ref": "709",
         "url": "https://github.com/davidpoxon/roubo/issues/709",
         "node_id": "I_kwDOSiX_888AAAABGPLoYA",
-        "blocked_by_refs": [
-          "701",
-          "702",
-          "703"
-        ]
+        "blocked_by_refs": ["701", "702", "703"]
       }
     },
     {
@@ -538,43 +332,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 3 (TestBench batch surface)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-005",
-        "WU-006"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-002", "WU-005", "WU-006"],
       "implements": {
-        "requirement_ids": [
-          "FR-004",
-          "FR-005",
-          "FR-012"
-        ],
-        "user_story_ids": [
-          "US-004"
-        ],
-        "test_case_ids": [
-          "TC-019"
-        ]
+        "requirement_ids": ["FR-004", "FR-005", "FR-012"],
+        "user_story_ids": ["US-004"],
+        "test_case_ids": ["TC-019"]
       },
-      "covers": [
-        "WU-002",
-        "WU-005",
-        "WU-006"
-      ],
+      "covers": ["WU-002", "WU-005", "WU-006"],
       "tracker": {
         "system": "github",
         "ref": "710",
         "url": "https://github.com/davidpoxon/roubo/issues/710",
         "node_id": "I_kwDOSiX_888AAAABGPLo8Q",
-        "blocked_by_refs": [
-          "698",
-          "701",
-          "702"
-        ]
+        "blocked_by_refs": ["698", "701", "702"]
       }
     },
     {
@@ -585,35 +356,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 2 (enforcement + lifecycle)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-004"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-004"],
       "implements": {
-        "requirement_ids": [
-          "FR-007"
-        ],
-        "user_story_ids": [
-          "US-005"
-        ],
-        "test_case_ids": [
-          "TC-040"
-        ]
+        "requirement_ids": ["FR-007"],
+        "user_story_ids": ["US-005"],
+        "test_case_ids": ["TC-040"]
       },
-      "covers": [
-        "WU-004"
-      ],
+      "covers": ["WU-004"],
       "tracker": {
         "system": "github",
         "ref": "711",
         "url": "https://github.com/davidpoxon/roubo/issues/711",
         "node_id": "I_kwDOSiX_888AAAABGPLphA",
-        "blocked_by_refs": [
-          "700"
-        ]
+        "blocked_by_refs": ["700"]
       }
     },
     {
@@ -624,43 +380,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 4 (failed-case fix-issue filing)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-008",
-        "WU-009",
-        "WU-010"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-008", "WU-009", "WU-010"],
       "implements": {
-        "requirement_ids": [
-          "FR-009",
-          "FR-010",
-          "NFR-001"
-        ],
-        "user_story_ids": [
-          "US-006"
-        ],
-        "test_case_ids": [
-          "TC-045"
-        ]
+        "requirement_ids": ["FR-009", "FR-010", "NFR-001"],
+        "user_story_ids": ["US-006"],
+        "test_case_ids": ["TC-045"]
       },
-      "covers": [
-        "WU-008",
-        "WU-009",
-        "WU-010"
-      ],
+      "covers": ["WU-008", "WU-009", "WU-010"],
       "tracker": {
         "system": "github",
         "ref": "712",
         "url": "https://github.com/davidpoxon/roubo/issues/712",
         "node_id": "I_kwDOSiX_888AAAABGPLqBA",
-        "blocked_by_refs": [
-          "704",
-          "705",
-          "706"
-        ]
+        "blocked_by_refs": ["704", "705", "706"]
       }
     },
     {
@@ -671,36 +404,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "Verify gate: Phase 1 (model + evaluation)",
-      "labels": [
-        "task",
-        "e2e"
-      ],
-      "depends_on": [
-        "WU-001"
-      ],
+      "labels": ["task", "e2e"],
+      "depends_on": ["WU-001"],
       "implements": {
-        "requirement_ids": [
-          "FR-003",
-          "NFR-006"
-        ],
-        "user_story_ids": [
-          "US-008"
-        ],
-        "test_case_ids": [
-          "TC-002"
-        ]
+        "requirement_ids": ["FR-003", "NFR-006"],
+        "user_story_ids": ["US-008"],
+        "test_case_ids": ["TC-002"]
       },
-      "covers": [
-        "WU-001"
-      ],
+      "covers": ["WU-001"],
       "tracker": {
         "system": "github",
         "ref": "713",
         "url": "https://github.com/davidpoxon/roubo/issues/713",
         "node_id": "I_kwDOSiX_888AAAABGPLqiA",
-        "blocked_by_refs": [
-          "697"
-        ]
+        "blocked_by_refs": ["697"]
       }
     }
   ]

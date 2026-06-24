@@ -10,26 +10,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 0 De-risking spikes",
-      "labels": [
-        "P0",
-        "spike"
-      ],
+      "labels": ["P0", "spike"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-019",
-          "FR-020",
-          "NFR-005"
-        ],
-        "user_story_ids": [
-          "US-011"
-        ],
-        "test_case_ids": [
-          "TC-059",
-          "TC-060",
-          "TC-062",
-          "TC-063"
-        ]
+        "requirement_ids": ["FR-019", "FR-020", "NFR-005"],
+        "user_story_ids": ["US-011"],
+        "test_case_ids": ["TC-059", "TC-060", "TC-062", "TC-063"]
       },
       "tracker": {
         "system": "github",
@@ -46,24 +32,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 0 De-risking spikes",
-      "labels": [
-        "P0",
-        "spike"
-      ],
+      "labels": ["P0", "spike"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "NFR-001",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-008"
-        ],
-        "test_case_ids": [
-          "TC-050",
-          "TC-051",
-          "TC-052"
-        ]
+        "requirement_ids": ["NFR-001", "NFR-003"],
+        "user_story_ids": ["US-008"],
+        "test_case_ids": ["TC-050", "TC-051", "TC-052"]
       },
       "tracker": {
         "system": "github",
@@ -80,24 +54,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 0 De-risking spikes",
-      "labels": [
-        "P0",
-        "spike"
-      ],
+      "labels": ["P0", "spike"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-016",
-          "FR-017",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-009"
-        ],
-        "test_case_ids": [
-          "TC-045",
-          "TC-049"
-        ]
+        "requirement_ids": ["FR-016", "FR-017", "NFR-003"],
+        "user_story_ids": ["US-009"],
+        "test_case_ids": ["TC-045", "TC-049"]
       },
       "tracker": {
         "system": "github",
@@ -114,23 +76,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 0 De-risking spikes",
-      "labels": [
-        "P0",
-        "spike"
-      ],
+      "labels": ["P0", "spike"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-023",
-          "NFR-006"
-        ],
-        "user_story_ids": [
-          "US-011"
-        ],
-        "test_case_ids": [
-          "TC-056",
-          "TC-064"
-        ]
+        "requirement_ids": ["FR-023", "NFR-006"],
+        "user_story_ids": ["US-011"],
+        "test_case_ids": ["TC-056", "TC-064"]
       },
       "tracker": {
         "system": "github",
@@ -147,21 +98,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 0 De-risking spikes",
-      "labels": [
-        "P1",
-        "spike"
-      ],
+      "labels": ["P1", "spike"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-012"
-        ],
-        "user_story_ids": [
-          "US-006"
-        ],
-        "test_case_ids": [
-          "TC-033"
-        ]
+        "requirement_ids": ["FR-012"],
+        "user_story_ids": ["US-006"],
+        "test_case_ids": ["TC-033"]
       },
       "tracker": {
         "system": "github",
@@ -178,23 +120,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 1 Contracts & domain",
-      "labels": [
-        "P0",
-        "task"
-      ],
-      "depends_on": [
-        "WU-001"
-      ],
+      "labels": ["P0", "task"],
+      "depends_on": ["WU-001"],
       "implements": {
-        "requirement_ids": [
-          "FR-019",
-          "FR-020",
-          "FR-021",
-          "NFR-005"
-        ],
-        "user_story_ids": [
-          "US-011"
-        ],
+        "requirement_ids": ["FR-019", "FR-020", "FR-021", "NFR-005"],
+        "user_story_ids": ["US-011"],
         "test_case_ids": [
           "TC-054",
           "TC-055",
@@ -211,9 +141,7 @@
         "ref": "410",
         "url": "https://github.com/davidpoxon/roubo/issues/410",
         "node_id": "I_kwDOSiX_888AAAABEnwN9Q",
-        "blocked_by_refs": [
-          "405"
-        ]
+        "blocked_by_refs": ["405"]
       }
     },
     {
@@ -223,36 +151,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 1 Contracts & domain",
-      "labels": [
-        "P0",
-        "task"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-004"
-      ],
+      "labels": ["P0", "task"],
+      "depends_on": ["WU-006", "WU-004"],
       "implements": {
-        "requirement_ids": [
-          "FR-023",
-          "NFR-006"
-        ],
-        "user_story_ids": [
-          "US-011"
-        ],
-        "test_case_ids": [
-          "TC-056",
-          "TC-064"
-        ]
+        "requirement_ids": ["FR-023", "NFR-006"],
+        "user_story_ids": ["US-011"],
+        "test_case_ids": ["TC-056", "TC-064"]
       },
       "tracker": {
         "system": "github",
         "ref": "411",
         "url": "https://github.com/davidpoxon/roubo/issues/411",
         "node_id": "I_kwDOSiX_888AAAABEnwOQQ",
-        "blocked_by_refs": [
-          "410",
-          "408"
-        ]
+        "blocked_by_refs": ["410", "408"]
       }
     },
     {
@@ -262,40 +173,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 1 Contracts & domain",
-      "labels": [
-        "P0",
-        "task"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-003"
-      ],
+      "labels": ["P0", "task"],
+      "depends_on": ["WU-001", "WU-003"],
       "implements": {
-        "requirement_ids": [
-          "FR-009",
-          "FR-016"
-        ],
-        "user_story_ids": [
-          "US-005",
-          "US-009"
-        ],
-        "test_case_ids": [
-          "TC-023",
-          "TC-024",
-          "TC-025",
-          "TC-026",
-          "TC-045"
-        ]
+        "requirement_ids": ["FR-009", "FR-016"],
+        "user_story_ids": ["US-005", "US-009"],
+        "test_case_ids": ["TC-023", "TC-024", "TC-025", "TC-026", "TC-045"]
       },
       "tracker": {
         "system": "github",
         "ref": "412",
         "url": "https://github.com/davidpoxon/roubo/issues/412",
         "node_id": "I_kwDOSiX_888AAAABEnwOjw",
-        "blocked_by_refs": [
-          "405",
-          "407"
-        ]
+        "blocked_by_refs": ["405", "407"]
       }
     },
     {
@@ -305,35 +195,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 1 Contracts & domain",
-      "labels": [
-        "P0",
-        "task"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-003"
-      ],
+      "labels": ["P0", "task"],
+      "depends_on": ["WU-006", "WU-003"],
       "implements": {
-        "requirement_ids": [
-          "FR-017"
-        ],
-        "user_story_ids": [
-          "US-009"
-        ],
-        "test_case_ids": [
-          "TC-042",
-          "TC-049"
-        ]
+        "requirement_ids": ["FR-017"],
+        "user_story_ids": ["US-009"],
+        "test_case_ids": ["TC-042", "TC-049"]
       },
       "tracker": {
         "system": "github",
         "ref": "413",
         "url": "https://github.com/davidpoxon/roubo/issues/413",
         "node_id": "I_kwDOSiX_888AAAABEnwO4w",
-        "blocked_by_refs": [
-          "410",
-          "407"
-        ]
+        "blocked_by_refs": ["410", "407"]
       }
     },
     {
@@ -343,27 +217,12 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 2 Server",
-      "labels": [
-        "P0",
-        "task"
-      ],
+      "labels": ["P0", "task"],
       "depends_on": [],
       "implements": {
-        "requirement_ids": [
-          "FR-004",
-          "FR-005",
-          "FR-018"
-        ],
-        "user_story_ids": [
-          "US-001",
-          "US-002",
-          "US-010"
-        ],
-        "test_case_ids": [
-          "TC-005",
-          "TC-017",
-          "TC-066"
-        ]
+        "requirement_ids": ["FR-004", "FR-005", "FR-018"],
+        "user_story_ids": ["US-001", "US-002", "US-010"],
+        "test_case_ids": ["TC-005", "TC-017", "TC-066"]
       },
       "tracker": {
         "system": "github",
@@ -380,30 +239,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 2 Server",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-006",
-        "WU-008",
-        "WU-002",
-        "WU-005"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-006", "WU-008", "WU-002", "WU-005"],
       "implements": {
-        "requirement_ids": [
-          "FR-012",
-          "FR-014",
-          "FR-015",
-          "FR-016",
-          "NFR-001",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-006",
-          "US-008",
-          "US-009"
-        ],
+        "requirement_ids": ["FR-012", "FR-014", "FR-015", "FR-016", "NFR-001", "NFR-003"],
+        "user_story_ids": ["US-006", "US-008", "US-009"],
         "test_case_ids": [
           "TC-038",
           "TC-039",
@@ -422,12 +262,7 @@
         "ref": "415",
         "url": "https://github.com/davidpoxon/roubo/issues/415",
         "node_id": "I_kwDOSiX_888AAAABEnwQCA",
-        "blocked_by_refs": [
-          "410",
-          "412",
-          "406",
-          "409"
-        ]
+        "blocked_by_refs": ["410", "412", "406", "409"]
       }
     },
     {
@@ -437,15 +272,8 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 2 Server",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-011",
-        "WU-009"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-010", "WU-011", "WU-009"],
       "implements": {
         "requirement_ids": [
           "FR-001",
@@ -458,34 +286,15 @@
           "FR-022",
           "FR-024"
         ],
-        "user_story_ids": [
-          "US-001",
-          "US-004",
-          "US-005",
-          "US-006",
-          "US-009",
-          "US-012",
-          "US-013"
-        ],
-        "test_case_ids": [
-          "TC-012",
-          "TC-013",
-          "TC-014",
-          "TC-042",
-          "TC-044",
-          "TC-049"
-        ]
+        "user_story_ids": ["US-001", "US-004", "US-005", "US-006", "US-009", "US-012", "US-013"],
+        "test_case_ids": ["TC-012", "TC-013", "TC-014", "TC-042", "TC-044", "TC-049"]
       },
       "tracker": {
         "system": "github",
         "ref": "416",
         "url": "https://github.com/davidpoxon/roubo/issues/416",
         "node_id": "I_kwDOSiX_888AAAABEnwQXQ",
-        "blocked_by_refs": [
-          "414",
-          "415",
-          "413"
-        ]
+        "blocked_by_refs": ["414", "415", "413"]
       }
     },
     {
@@ -495,20 +304,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P1",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-010"
-      ],
+      "labels": ["P1", "feature"],
+      "depends_on": ["WU-010"],
       "implements": {
-        "requirement_ids": [
-          "FR-018"
-        ],
-        "user_story_ids": [
-          "US-010"
-        ],
+        "requirement_ids": ["FR-018"],
+        "user_story_ids": ["US-010"],
         "test_case_ids": [
           "TC-066",
           "TC-067",
@@ -525,9 +325,7 @@
         "ref": "417",
         "url": "https://github.com/davidpoxon/roubo/issues/417",
         "node_id": "I_kwDOSiX_888AAAABEnwQvA",
-        "blocked_by_refs": [
-          "414"
-        ]
+        "blocked_by_refs": ["414"]
       }
     },
     {
@@ -537,25 +335,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012",
-        "WU-013"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-012", "WU-013"],
       "implements": {
-        "requirement_ids": [
-          "FR-001",
-          "FR-002",
-          "FR-003",
-          "NFR-007"
-        ],
-        "user_story_ids": [
-          "US-001",
-          "US-012"
-        ],
+        "requirement_ids": ["FR-001", "FR-002", "FR-003", "NFR-007"],
+        "user_story_ids": ["US-001", "US-012"],
         "test_case_ids": [
           "TC-001",
           "TC-002",
@@ -574,10 +358,7 @@
         "ref": "418",
         "url": "https://github.com/davidpoxon/roubo/issues/418",
         "node_id": "I_kwDOSiX_888AAAABEnwRCw",
-        "blocked_by_refs": [
-          "416",
-          "417"
-        ]
+        "blocked_by_refs": ["416", "417"]
       }
     },
     {
@@ -587,46 +368,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012",
-        "WU-010"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-012", "WU-010"],
       "implements": {
-        "requirement_ids": [
-          "FR-005",
-          "FR-006",
-          "FR-013",
-          "NFR-002",
-          "NFR-004"
-        ],
-        "user_story_ids": [
-          "US-002",
-          "US-003",
-          "US-007"
-        ],
-        "test_case_ids": [
-          "TC-005",
-          "TC-018",
-          "TC-029",
-          "TC-030",
-          "TC-035",
-          "TC-037",
-          "TC-034"
-        ]
+        "requirement_ids": ["FR-005", "FR-006", "FR-013", "NFR-002", "NFR-004"],
+        "user_story_ids": ["US-002", "US-003", "US-007"],
+        "test_case_ids": ["TC-005", "TC-018", "TC-029", "TC-030", "TC-035", "TC-037", "TC-034"]
       },
       "tracker": {
         "system": "github",
         "ref": "419",
         "url": "https://github.com/davidpoxon/roubo/issues/419",
         "node_id": "I_kwDOSiX_888AAAABEnwR2Q",
-        "blocked_by_refs": [
-          "416",
-          "414"
-        ]
+        "blocked_by_refs": ["416", "414"]
       }
     },
     {
@@ -636,26 +390,11 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-012"],
       "implements": {
-        "requirement_ids": [
-          "FR-007",
-          "FR-008",
-          "FR-009",
-          "FR-010",
-          "NFR-004"
-        ],
-        "user_story_ids": [
-          "US-003",
-          "US-004",
-          "US-005"
-        ],
+        "requirement_ids": ["FR-007", "FR-008", "FR-009", "FR-010", "NFR-004"],
+        "user_story_ids": ["US-003", "US-004", "US-005"],
         "test_case_ids": [
           "TC-019",
           "TC-021",
@@ -674,9 +413,7 @@
         "ref": "420",
         "url": "https://github.com/davidpoxon/roubo/issues/420",
         "node_id": "I_kwDOSiX_888AAAABEnwSPw",
-        "blocked_by_refs": [
-          "416"
-        ]
+        "blocked_by_refs": ["416"]
       }
     },
     {
@@ -686,35 +423,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-012"],
       "implements": {
-        "requirement_ids": [
-          "FR-011",
-          "FR-012"
-        ],
-        "user_story_ids": [
-          "US-006"
-        ],
-        "test_case_ids": [
-          "TC-028",
-          "TC-032",
-          "TC-033"
-        ]
+        "requirement_ids": ["FR-011", "FR-012"],
+        "user_story_ids": ["US-006"],
+        "test_case_ids": ["TC-028", "TC-032", "TC-033"]
       },
       "tracker": {
         "system": "github",
         "ref": "421",
         "url": "https://github.com/davidpoxon/roubo/issues/421",
         "node_id": "I_kwDOSiX_888AAAABEnwShw",
-        "blocked_by_refs": [
-          "416"
-        ]
+        "blocked_by_refs": ["416"]
       }
     },
     {
@@ -724,39 +445,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P0",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012",
-        "WU-009"
-      ],
+      "labels": ["P0", "feature"],
+      "depends_on": ["WU-012", "WU-009"],
       "implements": {
-        "requirement_ids": [
-          "FR-016",
-          "FR-017",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-009"
-        ],
-        "test_case_ids": [
-          "TC-041",
-          "TC-042",
-          "TC-043",
-          "TC-044"
-        ]
+        "requirement_ids": ["FR-016", "FR-017", "NFR-003"],
+        "user_story_ids": ["US-009"],
+        "test_case_ids": ["TC-041", "TC-042", "TC-043", "TC-044"]
       },
       "tracker": {
         "system": "github",
         "ref": "422",
         "url": "https://github.com/davidpoxon/roubo/issues/422",
         "node_id": "I_kwDOSiX_888AAAABEnwS0A",
-        "blocked_by_refs": [
-          "416",
-          "413"
-        ]
+        "blocked_by_refs": ["416", "413"]
       }
     },
     {
@@ -766,38 +467,19 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "P1",
-        "feature"
-      ],
-      "depends_on": [
-        "WU-012",
-        "WU-014",
-        "WU-015"
-      ],
+      "labels": ["P1", "feature"],
+      "depends_on": ["WU-012", "WU-014", "WU-015"],
       "implements": {
-        "requirement_ids": [
-          "FR-024"
-        ],
-        "user_story_ids": [
-          "US-013"
-        ],
-        "test_case_ids": [
-          "TC-007",
-          "TC-011",
-          "TC-014"
-        ]
+        "requirement_ids": ["FR-024"],
+        "user_story_ids": ["US-013"],
+        "test_case_ids": ["TC-007", "TC-011", "TC-014"]
       },
       "tracker": {
         "system": "github",
         "ref": "423",
         "url": "https://github.com/davidpoxon/roubo/issues/423",
         "node_id": "I_kwDOSiX_888AAAABEnwTGw",
-        "blocked_by_refs": [
-          "416",
-          "418",
-          "419"
-        ]
+        "blocked_by_refs": ["416", "418", "419"]
       }
     },
     {
@@ -808,49 +490,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-012",
-        "WU-014",
-        "WU-015"
-      ],
+      "labels": ["e2e", "task", "P0"],
+      "depends_on": ["WU-010", "WU-012", "WU-014", "WU-015"],
       "implements": {
-        "requirement_ids": [
-          "FR-001",
-          "FR-002",
-          "FR-004",
-          "FR-005"
-        ],
-        "user_story_ids": [
-          "US-001",
-          "US-002"
-        ],
-        "test_case_ids": [
-          "TC-001"
-        ]
+        "requirement_ids": ["FR-001", "FR-002", "FR-004", "FR-005"],
+        "user_story_ids": ["US-001", "US-002"],
+        "test_case_ids": ["TC-001"]
       },
-      "covers": [
-        "WU-010",
-        "WU-012",
-        "WU-014",
-        "WU-015"
-      ],
+      "covers": ["WU-010", "WU-012", "WU-014", "WU-015"],
       "tracker": {
         "system": "github",
         "ref": "438",
         "url": "https://github.com/davidpoxon/roubo/issues/438",
         "node_id": "I_kwDOSiX_888AAAABErbWBw",
-        "blocked_by_refs": [
-          "414",
-          "416",
-          "418",
-          "419"
-        ]
+        "blocked_by_refs": ["414", "416", "418", "419"]
       }
     },
     {
@@ -861,64 +514,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-005",
-        "WU-008",
-        "WU-011",
-        "WU-012",
-        "WU-015",
-        "WU-016",
-        "WU-017"
-      ],
+      "labels": ["e2e", "task", "P0"],
+      "depends_on": ["WU-005", "WU-008", "WU-011", "WU-012", "WU-015", "WU-016", "WU-017"],
       "implements": {
-        "requirement_ids": [
-          "FR-006",
-          "FR-007",
-          "FR-008",
-          "FR-009",
-          "FR-011",
-          "FR-012",
-          "FR-013"
-        ],
-        "user_story_ids": [
-          "US-003",
-          "US-004",
-          "US-005",
-          "US-006",
-          "US-007"
-        ],
-        "test_case_ids": [
-          "TC-020"
-        ]
+        "requirement_ids": ["FR-006", "FR-007", "FR-008", "FR-009", "FR-011", "FR-012", "FR-013"],
+        "user_story_ids": ["US-003", "US-004", "US-005", "US-006", "US-007"],
+        "test_case_ids": ["TC-020"]
       },
-      "covers": [
-        "WU-005",
-        "WU-008",
-        "WU-011",
-        "WU-012",
-        "WU-015",
-        "WU-016",
-        "WU-017"
-      ],
+      "covers": ["WU-005", "WU-008", "WU-011", "WU-012", "WU-015", "WU-016", "WU-017"],
       "tracker": {
         "system": "github",
         "ref": "439",
         "url": "https://github.com/davidpoxon/roubo/issues/439",
         "node_id": "I_kwDOSiX_888AAAABErbcXA",
-        "blocked_by_refs": [
-          "409",
-          "412",
-          "415",
-          "416",
-          "419",
-          "420",
-          "421"
-        ]
+        "blocked_by_refs": ["409", "412", "415", "416", "419", "420", "421"]
       }
     },
     {
@@ -929,59 +538,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-002",
-        "WU-003",
-        "WU-008",
-        "WU-009",
-        "WU-011",
-        "WU-012",
-        "WU-018"
-      ],
+      "labels": ["e2e", "task", "P0"],
+      "depends_on": ["WU-002", "WU-003", "WU-008", "WU-009", "WU-011", "WU-012", "WU-018"],
       "implements": {
-        "requirement_ids": [
-          "FR-014",
-          "FR-015",
-          "FR-016",
-          "FR-017",
-          "NFR-003"
-        ],
-        "user_story_ids": [
-          "US-008",
-          "US-009"
-        ],
-        "test_case_ids": [
-          "TC-043"
-        ]
+        "requirement_ids": ["FR-014", "FR-015", "FR-016", "FR-017", "NFR-003"],
+        "user_story_ids": ["US-008", "US-009"],
+        "test_case_ids": ["TC-043"]
       },
-      "covers": [
-        "WU-002",
-        "WU-003",
-        "WU-008",
-        "WU-009",
-        "WU-011",
-        "WU-012",
-        "WU-018"
-      ],
+      "covers": ["WU-002", "WU-003", "WU-008", "WU-009", "WU-011", "WU-012", "WU-018"],
       "tracker": {
         "system": "github",
         "ref": "440",
         "url": "https://github.com/davidpoxon/roubo/issues/440",
         "node_id": "I_kwDOSiX_888AAAABErbcrw",
-        "blocked_by_refs": [
-          "406",
-          "407",
-          "412",
-          "413",
-          "415",
-          "416",
-          "422"
-        ]
+        "blocked_by_refs": ["406", "407", "412", "413", "415", "416", "422"]
       }
     },
     {
@@ -992,46 +562,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-012",
-        "WU-013",
-        "WU-014"
-      ],
+      "labels": ["e2e", "task", "P1"],
+      "depends_on": ["WU-010", "WU-012", "WU-013", "WU-014"],
       "implements": {
-        "requirement_ids": [
-          "FR-001",
-          "FR-018"
-        ],
-        "user_story_ids": [
-          "US-010"
-        ],
-        "test_case_ids": [
-          "TC-069"
-        ]
+        "requirement_ids": ["FR-001", "FR-018"],
+        "user_story_ids": ["US-010"],
+        "test_case_ids": ["TC-069"]
       },
-      "covers": [
-        "WU-010",
-        "WU-012",
-        "WU-013",
-        "WU-014"
-      ],
+      "covers": ["WU-010", "WU-012", "WU-013", "WU-014"],
       "tracker": {
         "system": "github",
         "ref": "441",
         "url": "https://github.com/davidpoxon/roubo/issues/441",
         "node_id": "I_kwDOSiX_888AAAABErbc-A",
-        "blocked_by_refs": [
-          "414",
-          "416",
-          "417",
-          "418"
-        ]
+        "blocked_by_refs": ["414", "416", "417", "418"]
       }
     },
     {
@@ -1042,49 +586,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 1 Contracts & domain",
-      "labels": [
-        "e2e",
-        "task",
-        "P0"
-      ],
-      "depends_on": [
-        "WU-001",
-        "WU-004",
-        "WU-006",
-        "WU-007"
-      ],
+      "labels": ["e2e", "task", "P0"],
+      "depends_on": ["WU-001", "WU-004", "WU-006", "WU-007"],
       "implements": {
-        "requirement_ids": [
-          "FR-019",
-          "FR-020",
-          "FR-021",
-          "FR-023",
-          "NFR-006"
-        ],
-        "user_story_ids": [
-          "US-011"
-        ],
-        "test_case_ids": [
-          "TC-056"
-        ]
+        "requirement_ids": ["FR-019", "FR-020", "FR-021", "FR-023", "NFR-006"],
+        "user_story_ids": ["US-011"],
+        "test_case_ids": ["TC-056"]
       },
-      "covers": [
-        "WU-001",
-        "WU-004",
-        "WU-006",
-        "WU-007"
-      ],
+      "covers": ["WU-001", "WU-004", "WU-006", "WU-007"],
       "tracker": {
         "system": "github",
         "ref": "442",
         "url": "https://github.com/davidpoxon/roubo/issues/442",
         "node_id": "I_kwDOSiX_888AAAABErbh7w",
-        "blocked_by_refs": [
-          "405",
-          "408",
-          "410",
-          "411"
-        ]
+        "blocked_by_refs": ["405", "408", "410", "411"]
       }
     },
     {
@@ -1095,43 +610,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-012",
-        "WU-014"
-      ],
+      "labels": ["e2e", "task", "P1"],
+      "depends_on": ["WU-010", "WU-012", "WU-014"],
       "implements": {
-        "requirement_ids": [
-          "FR-003",
-          "FR-004"
-        ],
-        "user_story_ids": [
-          "US-012"
-        ],
-        "test_case_ids": [
-          "TC-006"
-        ]
+        "requirement_ids": ["FR-003", "FR-004"],
+        "user_story_ids": ["US-012"],
+        "test_case_ids": ["TC-006"]
       },
-      "covers": [
-        "WU-010",
-        "WU-012",
-        "WU-014"
-      ],
+      "covers": ["WU-010", "WU-012", "WU-014"],
       "tracker": {
         "system": "github",
         "ref": "443",
         "url": "https://github.com/davidpoxon/roubo/issues/443",
         "node_id": "I_kwDOSiX_888AAAABErbiNQ",
-        "blocked_by_refs": [
-          "414",
-          "416",
-          "418"
-        ]
+        "blocked_by_refs": ["414", "416", "418"]
       }
     },
     {
@@ -1142,43 +634,20 @@
       "description": "",
       "acceptance_criteria": [],
       "milestone": "TestBench: Phase 3 Client surface",
-      "labels": [
-        "e2e",
-        "task",
-        "P1"
-      ],
-      "depends_on": [
-        "WU-010",
-        "WU-012",
-        "WU-019"
-      ],
+      "labels": ["e2e", "task", "P1"],
+      "depends_on": ["WU-010", "WU-012", "WU-019"],
       "implements": {
-        "requirement_ids": [
-          "FR-004",
-          "FR-024"
-        ],
-        "user_story_ids": [
-          "US-013"
-        ],
-        "test_case_ids": [
-          "TC-007"
-        ]
+        "requirement_ids": ["FR-004", "FR-024"],
+        "user_story_ids": ["US-013"],
+        "test_case_ids": ["TC-007"]
       },
-      "covers": [
-        "WU-010",
-        "WU-012",
-        "WU-019"
-      ],
+      "covers": ["WU-010", "WU-012", "WU-019"],
       "tracker": {
         "system": "github",
         "ref": "444",
         "url": "https://github.com/davidpoxon/roubo/issues/444",
         "node_id": "I_kwDOSiX_888AAAABErbidQ",
-        "blocked_by_refs": [
-          "414",
-          "416",
-          "423"
-        ]
+        "blocked_by_refs": ["414", "416", "423"]
       }
     }
   ]
