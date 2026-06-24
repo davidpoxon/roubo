@@ -6,7 +6,7 @@ export type PluginSource = "bundled" | "user";
 
 export interface RestartEvent {
   at: string;
-  reason: "unexpected-exit" | "spawn-failed";
+  reason: "unexpected-exit" | "spawn-failed" | "sandbox-fallback";
   exitCode: number | null;
 }
 

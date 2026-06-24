@@ -37,17 +37,61 @@ const enableStateMocks = vi.hoisted(() => {
 });
 vi.mock("./plugin-enable-state.js", () => enableStateMocks);
 
-// dockerode is lazy-imported by the real isolation probe (#675). Mock it so the
-// boot-install branch can be exercised without a live daemon: dockerPingMock is
-// reassigned per test to model a reachable / unreachable daemon.
+// dockerode is lazy-imported by the real isolation probe (#675) and by
+// ensureImage (#740). Mock it so the boot-install and image-pull branches can
+// be exercised without a live daemon. Individual mocks are reassigned per test.
 let dockerPingMock: () => Promise<unknown> = () => Promise.reject(new Error("no daemon"));
+// ensureImage mocks: inspect resolves when the image is present, rejects when absent.
+let dockerInspectMock: () => Promise<unknown> = () =>
+  Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+let dockerPullMock: (
+  image: string,
+  cb: (err: Error | null, stream: { pipe: () => void } | null) => void,
+) => void = (_image, cb) => cb(null, { pipe: () => {} });
+let dockerFollowProgressMock: (stream: unknown, cb: (err: Error | null) => void) => void = (
+  _stream,
+  cb,
+) => cb(null);
+
 vi.mock("dockerode", () => ({
   default: class {
     ping() {
       return dockerPingMock();
     }
+    getImage(_name: string) {
+      return { inspect: () => dockerInspectMock() };
+    }
+    pull(image: string, cb: (err: Error | null, stream: unknown) => void) {
+      return dockerPullMock(image, cb as Parameters<typeof dockerPullMock>[1]);
+    }
+    modem = {
+      followProgress: (stream: unknown, cb: (err: Error | null) => void) => {
+        return dockerFollowProgressMock(stream, cb);
+      },
+    };
   },
 }));
+
+// child_process.spawn is the real seam plugin-manager uses to launch plugins.
+// Mock it so individual tests can make a specific spawn attempt fail (e.g. the
+// docker invocation) while every other test delegates to the real spawn and is
+// unaffected. `override` is null by default, so the file-wide behaviour is the
+// real spawn; a test sets `override` to intercept and resets it in afterEach.
+// #740: exercises the sandbox-fallback retry-on-floor branch.
+type SpawnFn = (typeof import("node:child_process"))["spawn"];
+const childProcessControl = vi.hoisted(() => ({
+  override: null as SpawnFn | null,
+  real: null as SpawnFn | null,
+}));
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  childProcessControl.real = actual.spawn;
+  return {
+    ...actual,
+    spawn: ((...args: Parameters<SpawnFn>) =>
+      (childProcessControl.override ?? actual.spawn)(...args)) as SpawnFn,
+  };
+});
 
 beforeEach(() => {
   enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
@@ -60,6 +104,7 @@ beforeEach(() => {
   enableStateMocks.removePlugin.mockReset();
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
+  childProcessControl.override = null;
 });
 
 import * as pluginManager from "./plugin-manager.js";
@@ -2238,6 +2283,105 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       mgr = await loadManager();
       await mgr.initialize();
       expect(await mgr.__test.resolveIsolationTier()).toBe("broker-only");
+    });
+  });
+
+  describe("ensureImage gating and sandbox-fallback (#740)", () => {
+    // These tests exercise the docker tier spawn path inside plugin-manager:
+    // - When docker tier is selected and ensureImage succeeds, spawnPlugin
+    //   uses the sandboxed command.
+    // - When ensureImage fails, spawnPlugin falls back to the broker-only floor
+    //   and logs a warning (no crash, no MODULE_NOT_FOUND loop).
+    // - When the sandboxed spawn throws or returns no pid, the fallback retries
+    //   once on the floor and records a "sandbox-fallback" restart event.
+    //
+    // Tests use the `echo` fixture (a real plugin that starts successfully on
+    // the floor) under the docker tier selected via setIsolationProbes with
+    // docker: () => true and NODE_ENV=production so the real probes run. We
+    // then mock dockerode so the image inspect/pull path is deterministic.
+
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevRouboE2e = process.env.ROUBO_E2E;
+
+    beforeEach(() => {
+      vi.spyOn(os, "platform").mockReturnValue("linux");
+      vi.spyOn(os, "arch").mockReturnValue("x64");
+      // Default: image already present (no pull), ping succeeds.
+      dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+      dockerPullMock = (_image, cb) => cb(null, { pipe: () => {} });
+      dockerFollowProgressMock = (_stream, cb) => cb(null);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+      if (prevRouboE2e === undefined) delete process.env.ROUBO_E2E;
+      else process.env.ROUBO_E2E = prevRouboE2e;
+      dockerPingMock = () => Promise.reject(new Error("no daemon"));
+      dockerInspectMock = () =>
+        Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+      dockerPullMock = (_image, cb) => cb(null, { pipe: () => {} });
+      dockerFollowProgressMock = (_stream, cb) => cb(null);
+    });
+
+    it("falls back to the broker-only floor (plugin starts on floor) when ensureImage fails (#740)", async () => {
+      // Simulate: docker daemon reachable (tier = docker), but image pull fails.
+      // The plugin should still start on the broker-only floor without a crash-loop.
+      dockerPingMock = () => Promise.resolve("OK");
+      dockerInspectMock = () =>
+        Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+      dockerPullMock = (_image, cb) => cb(new Error("registry unreachable"), null);
+      process.env.NODE_ENV = "production";
+      delete process.env.ROUBO_E2E;
+      sandbox = await makeSandbox({ bundled: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      // The plugin should be enabled (started on the floor) despite the image
+      // pull failure. The crash-loop from #740 must not occur.
+      const rec = findRecord(mgr.listInstalled(), "echo");
+      expect(rec.status).toBe("enabled");
+      expect(typeof rec.pid).toBe("number");
+    });
+
+    it("retries once on the floor and records a sandbox-fallback event when the docker spawn fails (#740)", async () => {
+      // The docker tier is selected and ensureImage succeeds, but the `docker`
+      // spawn itself fails (e.g. the docker CLI is absent, or the bind-mount
+      // path is not shared on macOS Docker Desktop). The host must retry ONCE on
+      // the broker-only floor, record a `sandbox-fallback` restart event, and
+      // start the plugin: the #740 crash-loop must not occur.
+      dockerPingMock = () => Promise.resolve("OK");
+      // Image present, so ensureImage resolves and the docker spawn is attempted.
+      dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+      process.env.NODE_ENV = "production";
+      delete process.env.ROUBO_E2E;
+
+      // Fail the `docker` invocation exactly once; delegate the floor retry (and
+      // every other spawn) to the real spawn so the echo fixture actually starts.
+      const realSpawn = childProcessControl.real as (
+        ...a: Parameters<SpawnFn>
+      ) => ReturnType<SpawnFn>;
+      let dockerSpawnFailed = false;
+      childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+        if (args[0] === "docker" && !dockerSpawnFailed) {
+          dockerSpawnFailed = true;
+          throw new Error("spawn docker ENOENT");
+        }
+        return realSpawn(...args);
+      }) as SpawnFn;
+
+      sandbox = await makeSandbox({ bundled: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      // The docker spawn was attempted and failed, then the floor retry started.
+      expect(dockerSpawnFailed).toBe(true);
+      const rec = findRecord(mgr.listInstalled(), "echo");
+      expect(rec.status).toBe("enabled");
+      expect(typeof rec.pid).toBe("number");
+      // The fallback is observable as exactly one sandbox-fallback restart event.
+      const fallbackEvents = rec.restartHistory.filter((e) => e.reason === "sandbox-fallback");
+      expect(fallbackEvents).toHaveLength(1);
     });
   });
 });

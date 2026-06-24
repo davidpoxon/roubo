@@ -572,7 +572,7 @@ describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while
       const dockerTier = selectTier({ vzVm: false, appleContainer: false, docker: true });
       const spawn = manifest
         ? buildSandboxedSpawn(manifest, dockerTier, {
-            execPath: "/usr/bin/node",
+            pluginDir: "/plugin",
             entryPath: "/plugin/index.cjs",
           })
         : null;
