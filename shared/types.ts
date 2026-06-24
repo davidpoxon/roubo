@@ -893,9 +893,11 @@ export interface SandboxEgressPolicy {
  * The concrete spawn the host should perform to run a plugin under a non-floor
  * isolation tier (F2.3, #620). `command` + `args` replace the direct
  * `spawn(process.execPath, [entry])`: for the `docker` tier this is
- * `docker run --network none … <execPath> <entry>`. `env` is merged over the
- * base spawn env. `egress` is the derived network policy. The `broker-only`
- * floor produces no SandboxedSpawn; the host spawns the plugin directly.
+ * `docker run --rm -i [--network none] -v <pluginDir>:/roubo-plugin:ro
+ * -w /roubo-plugin node:24-slim node /roubo-plugin/<entryRel>`.
+ * `env` is merged over the base spawn env. `egress` is the derived network
+ * policy. The `broker-only` floor produces no SandboxedSpawn; the host spawns
+ * the plugin directly.
  */
 export interface SandboxedSpawn {
   command: string;

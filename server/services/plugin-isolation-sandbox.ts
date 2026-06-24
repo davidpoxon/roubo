@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import os from "node:os";
+import path from "node:path";
 import type {
   IsolationCapabilities,
   IsolationTier,
@@ -41,6 +42,22 @@ export interface IsolationProbes {
 }
 
 /**
+ * The path inside every docker container where the plugin directory is
+ * bind-mounted (read-only). Using a fixed, flat path keeps the docker run
+ * command shape deterministic and makes the unit tests simple to assert.
+ */
+export const DOCKER_CONTAINER_DIR = "/roubo-plugin";
+
+/**
+ * The docker image used to run plugins in the docker isolation tier. Pinned to
+ * the same Node.js major as the host runtime so the plugin's JS is always
+ * executed by a compatible engine. `node:24-slim` is a minimal Debian image
+ * that ships only the Node binary and the standard library, reducing the attack
+ * surface compared to the full or Alpine variants.
+ */
+export const DOCKER_IMAGE = "node:24-slim";
+
+/**
  * Probe whether an executable is resolvable on the host's PATH, returning false
  * on any error (missing binary, spawn failure, timeout). Used by the
  * apple-container probe to confirm the `container` CLI is actually present, not
@@ -74,9 +91,8 @@ function isExecutableOnPath(binary: string): Promise<boolean> {
  * The host's real OS-isolation capability probes (NFR-005: query each runtime,
  * never assume). Each probe is self-contained and exception-safe: a thrown or
  * rejected probe is treated as "not available" by detectIsolationCapabilities,
- * degrading the host one rung rather than crashing detection. The host installs
- * these at boot (plugin-manager.initialize); tests inject fakes to drive tier
- * selection deterministically without a live daemon.
+ * degrading the host one rung rather than crashing detection. The probes are
+ * injected so this is deterministic in tests without a live daemon.
  *
  * - `docker`: the Docker daemon is reachable, probed via dockerode's `ping()`
  *   (mirroring docker.ts), so a host with the CLI installed but the daemon down
@@ -165,24 +181,73 @@ export function deriveEgressPolicy(manifest: PluginManifest): SandboxEgressPolic
 }
 
 /**
+ * Pull the docker image if it is not already present on the host. Uses
+ * dockerode (lazy-imported, mirroring the docker probe) so that module load
+ * never incurs a cost on non-docker hosts and a load failure degrades gracefully.
+ *
+ * Called by plugin-manager before spawning the container; if the pull fails the
+ * caller falls back to the broker-only floor rather than attempting the container
+ * with a missing image.
+ */
+export async function ensureImage(image: string = DOCKER_IMAGE): Promise<void> {
+  const { default: Dockerode } = await import("dockerode");
+  const docker = new Dockerode();
+
+  // Check whether the image is already present to avoid a network round-trip on
+  // the common case. getImage().inspect() throws when the image is absent.
+  try {
+    await docker.getImage(image).inspect();
+    return; // already present
+  } catch {
+    // Not found locally; fall through to pull.
+  }
+
+  // Pull the image and wait for completion.
+  await new Promise<void>((resolve, reject) => {
+    docker.pull(image, (err: Error | null, stream: NodeJS.ReadableStream | null) => {
+      if (err || !stream) {
+        reject(err ?? new Error(`docker pull returned no stream for ${image}`));
+        return;
+      }
+      docker.modem.followProgress(stream, (followErr: Error | null) => {
+        if (followErr) {
+          reject(followErr);
+        } else {
+          resolve();
+        }
+      });
+    });
+  });
+}
+
+/**
  * Build the concrete sandboxed spawn for a non-floor tier. Returns `null` for
  * the `broker-only` floor: the host spawns the plugin directly, exactly as it
  * does today, so the floor path is byte-for-byte unchanged.
  *
- * For the `docker` tier (the concrete OS boundary Roubo already shells out to)
- * this wraps the plugin's node invocation in `docker run`, mapping a `deny-all`
- * egress policy to `--network none` so an undeclared outbound connection cannot
- * leave the container. The `vz-vm` and `apple-container` rungs are modelled and
- * selected-if-present, but a full VM backend is out of scope for this slice
- * (spike #599 keeps them opt-in/highest-first with a broker-only floor); when
- * their runtime is absent `selectTier` never returns them, and if a caller asks
- * to build one anyway we return `null` so the host degrades to the floor rather
- * than spawning into a backend that does not exist here.
+ * For the `docker` tier the plugin directory is bind-mounted read-only into the
+ * container at DOCKER_CONTAINER_DIR and the working directory is set to that
+ * mount. The entry script is resolved relative to the plugin directory so it is
+ * addressable inside the container. Transport is JSON-RPC over `docker run -i`
+ * raw stdio (no socket bridge). A `deny-all` egress policy maps to
+ * `--network none`. For `allow-listed` egress, per-host in-container filtering
+ * is deferred to #741.
+ *
+ * The `vz-vm` and `apple-container` rungs are modelled and selected-if-present,
+ * but a full VM backend is out of scope for this slice (spike #599 keeps them
+ * opt-in/highest-first with a broker-only floor); when their runtime is absent
+ * `selectTier` never returns them, and if a caller asks to build one anyway we
+ * return `null` so the host degrades to the floor rather than spawning into a
+ * backend that does not exist here.
  */
 export function buildSandboxedSpawn(
   manifest: PluginManifest,
   tier: IsolationTier,
-  options: { execPath: string; entryPath: string; baseEnv?: Record<string, string> },
+  options: {
+    pluginDir: string;
+    entryPath: string;
+    baseEnv?: Record<string, string>;
+  },
 ): SandboxedSpawn | null {
   if (tier === "broker-only") return null;
 
@@ -190,23 +255,29 @@ export function buildSandboxedSpawn(
   const baseEnv = options.baseEnv ?? {};
 
   if (tier === "docker") {
+    // Compute the entry path relative to the plugin directory so it is
+    // addressable at DOCKER_CONTAINER_DIR/<entryRel> inside the container.
+    const entryRel = path.relative(options.pluginDir, options.entryPath);
+
     const args: string[] = ["run", "--rm", "-i"];
     // Deny all egress when the plugin declared no network hosts (the gap this
-    // slice closes). An allow-listed policy still starts from the default
-    // bridge network; per-host egress filtering inside the container is a
-    // runtime concern the allowlist carries forward, but an undeclared plugin
-    // gets no network at all.
+    // slice closes). An allow-listed policy starts from the default bridge
+    // network; per-host egress filtering inside the container is deferred to
+    // #741.
     if (egress.mode === "deny-all") {
       args.push("--network", "none");
     }
     for (const [key, value] of Object.entries(baseEnv)) {
       args.push("-e", `${key}=${value}`);
     }
-    // The image must already provide the node runtime; the host mounts the
-    // plugin dir as part of full F2.3 runtime wiring (out of scope here, which
-    // models the boundary deterministically). The command shape is the
-    // load-bearing part the unit tests assert.
-    args.push("node:lts", options.execPath, options.entryPath);
+    // Bind-mount the plugin directory read-only and set it as the working
+    // directory so the plugin's relative imports resolve correctly.
+    args.push("-v", `${options.pluginDir}:${DOCKER_CONTAINER_DIR}:ro`);
+    args.push("-w", DOCKER_CONTAINER_DIR);
+    // Run `node <entryRel>` inside the container. The image already provides
+    // the node binary; the host execPath (the Electron binary) is never passed
+    // into the container because it does not exist there (#740).
+    args.push(DOCKER_IMAGE, "node", `${DOCKER_CONTAINER_DIR}/${entryRel}`);
     return { command: "docker", args, env: baseEnv, egress };
   }
 

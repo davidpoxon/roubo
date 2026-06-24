@@ -6,18 +6,46 @@ import {
   defaultIsolationProbes,
   detectIsolationCapabilities,
   deriveEgressPolicy,
+  ensureImage,
   selectTier,
+  DOCKER_CONTAINER_DIR,
+  DOCKER_IMAGE,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
 
-// dockerode is lazy-imported inside the docker probe; mock it so the probe can
-// be exercised without a live daemon. pingMock is reassigned per test.
+// dockerode is lazy-imported inside the docker probe and ensureImage; mock it so
+// the probe and image-pull helpers can be exercised without a live daemon.
+// inspectMock, pullMock, and pingMock are reassigned per test.
 let pingMock: () => Promise<unknown> = () => Promise.resolve("OK");
+let inspectMock: () => Promise<unknown> = () =>
+  Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+let pullMock: (
+  image: string,
+  cb: (err: Error | null, stream: { pipe: () => void } | null) => void,
+) => void = (_image, cb) => cb(null, { pipe: () => {} });
+let followProgressMock: (stream: unknown, cb: (err: Error | null) => void) => void = (
+  _stream,
+  cb,
+) => cb(null);
+
 vi.mock("dockerode", () => ({
   default: class {
     ping() {
       return pingMock();
     }
+    getImage(_name: string) {
+      return {
+        inspect: () => inspectMock(),
+      };
+    }
+    pull(image: string, cb: (err: Error | null, stream: unknown) => void) {
+      return pullMock(image, cb as Parameters<typeof pullMock>[1]);
+    }
+    modem = {
+      followProgress: (stream: unknown, cb: (err: Error | null) => void) => {
+        return followProgressMock(stream, cb);
+      },
+    };
   },
 }));
 
@@ -113,40 +141,145 @@ describe("plugin-isolation-sandbox: deriveEgressPolicy (CP-TC-094 policy derivat
 });
 
 describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
-  const opts = { execPath: "/usr/bin/node", entryPath: "/plugins/demo/index.js" };
+  const pluginDir = "/plugins/demo";
+  const entryPath = "/plugins/demo/index.js";
+  const opts = { pluginDir, entryPath };
 
   it("returns null for the broker-only floor (host spawns directly, unchanged path)", () => {
     expect(buildSandboxedSpawn(manifest([]), "broker-only", opts)).toBeNull();
   });
 
   it("wraps a deny-all plugin in `docker run --network none` (CP-TC-094: undeclared egress blocked)", () => {
-    const spawn = buildSandboxedSpawn(manifest([]), "docker", opts);
-    expect(spawn).not.toBeNull();
-    expect(spawn?.command).toBe("docker");
-    expect(spawn?.args.slice(0, 5)).toEqual(["run", "--rm", "-i", "--network", "none"]);
-    expect(spawn?.args).toContain(opts.execPath);
-    expect(spawn?.args).toContain(opts.entryPath);
-    expect(spawn?.egress).toEqual({ mode: "deny-all", allowedHosts: [] });
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result).not.toBeNull();
+    expect(result?.command).toBe("docker");
+    expect(result?.args.slice(0, 5)).toEqual(["run", "--rm", "-i", "--network", "none"]);
+    expect(result?.egress).toEqual({ mode: "deny-all", allowedHosts: [] });
   });
 
-  it("does NOT pass --network none when the plugin declared hosts (allow-listed)", () => {
-    const spawn = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
-    expect(spawn?.args).not.toContain("none");
-    expect(spawn?.egress).toEqual({ mode: "allow-listed", allowedHosts: ["api.example.com"] });
+  it("mounts the plugin directory into the container (bind-mount -v)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    // The -v arg binds <pluginDir>:<DOCKER_CONTAINER_DIR>:ro.
+    expect(result?.args).toContain("-v");
+    const vIdx = result?.args.indexOf("-v") ?? -1;
+    expect(result?.args[vIdx + 1]).toBe(`${pluginDir}:${DOCKER_CONTAINER_DIR}:ro`);
   });
 
-  it("forwards base env into the docker run command", () => {
-    const spawn = buildSandboxedSpawn(manifest([]), "docker", {
+  it("sets the container working directory to DOCKER_CONTAINER_DIR (-w)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result?.args).toContain("-w");
+    const wIdx = result?.args.indexOf("-w") ?? -1;
+    expect(result?.args[wIdx + 1]).toBe(DOCKER_CONTAINER_DIR);
+  });
+
+  it("runs `node <containerEntry>` inside the image, NOT the host execPath (#740)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    // Image, then node, then the container-relative entry path.
+    const imageIdx = result?.args.indexOf(DOCKER_IMAGE) ?? -1;
+    expect(imageIdx).toBeGreaterThan(0);
+    expect(result?.args[imageIdx + 1]).toBe("node");
+    expect(result?.args[imageIdx + 2]).toBe(`${DOCKER_CONTAINER_DIR}/index.js`);
+  });
+
+  it("does NOT include the host absolute entry path in the docker args (#740)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    // The absolute host entry path must never appear in the container command
+    // because it does not exist inside the container.
+    expect(result?.args).not.toContain(entryPath);
+  });
+
+  it("does NOT include a host node binary or Electron execPath in the docker args (#740)", () => {
+    // The host process.execPath (which may be the Electron binary) must not
+    // appear anywhere in the docker command.
+    const hostExecPath = process.execPath;
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result?.args).not.toContain(hostExecPath);
+  });
+
+  it("does NOT pass --network none when the plugin declared hosts (allow-listed egress, #741)", () => {
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    expect(result?.args).not.toContain("none");
+    expect(result?.egress).toEqual({ mode: "allow-listed", allowedHosts: ["api.example.com"] });
+  });
+
+  it("forwards base env into the docker run command as -e flags", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", {
       ...opts,
       baseEnv: { ROUBO_PLUGIN_ID: "demo" },
     });
-    expect(spawn?.args).toContain("ROUBO_PLUGIN_ID=demo");
-    expect(spawn?.env).toEqual({ ROUBO_PLUGIN_ID: "demo" });
+    expect(result?.args).toContain("-e");
+    expect(result?.args).toContain("ROUBO_PLUGIN_ID=demo");
+    expect(result?.env).toEqual({ ROUBO_PLUGIN_ID: "demo" });
+  });
+
+  it("resolves a nested entry relative to pluginDir for the container path", () => {
+    const nestedEntry = "/plugins/demo/dist/index.js";
+    const result = buildSandboxedSpawn(manifest([]), "docker", {
+      pluginDir,
+      entryPath: nestedEntry,
+    });
+    const imageIdx = result?.args.indexOf(DOCKER_IMAGE) ?? -1;
+    // entryRel = "dist/index.js", so container path is DOCKER_CONTAINER_DIR/dist/index.js.
+    expect(result?.args[imageIdx + 2]).toBe(`${DOCKER_CONTAINER_DIR}/dist/index.js`);
+    // The absolute host path must not appear.
+    expect(result?.args).not.toContain(nestedEntry);
   });
 
   it("degrades vz-vm / apple-container to null (no VM backend ships in this slice)", () => {
     expect(buildSandboxedSpawn(manifest([]), "vz-vm", opts)).toBeNull();
     expect(buildSandboxedSpawn(manifest([]), "apple-container", opts)).toBeNull();
+  });
+});
+
+describe("plugin-isolation-sandbox: ensureImage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    pingMock = () => Promise.resolve("OK");
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    pullMock = (_image, cb) => cb(null, { pipe: () => {} });
+    followProgressMock = (_stream, cb) => cb(null);
+  });
+
+  it("skips the pull when the image is already present locally", async () => {
+    // inspect resolves -> image present -> no pull needed.
+    inspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+    const pullSpy = vi.fn();
+    pullMock = (_image, cb) => {
+      pullSpy();
+      cb(null, { pipe: () => {} });
+    };
+    await expect(ensureImage(DOCKER_IMAGE)).resolves.toBeUndefined();
+    expect(pullSpy).not.toHaveBeenCalled();
+  });
+
+  it("pulls the image when it is absent from the local store", async () => {
+    // inspect rejects (image absent) -> triggers pull.
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    const pulledImages: string[] = [];
+    pullMock = (image, cb) => {
+      pulledImages.push(image);
+      cb(null, { pipe: () => {} });
+    };
+    followProgressMock = (_stream, cb) => cb(null);
+    await expect(ensureImage(DOCKER_IMAGE)).resolves.toBeUndefined();
+    expect(pulledImages).toContain(DOCKER_IMAGE);
+  });
+
+  it("rejects when the pull stream errors", async () => {
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    pullMock = (_image, cb) => cb(null, { pipe: () => {} });
+    followProgressMock = (_stream, cb) => cb(new Error("registry unreachable"));
+    await expect(ensureImage(DOCKER_IMAGE)).rejects.toThrow("registry unreachable");
+  });
+
+  it("rejects when docker.pull itself errors", async () => {
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    pullMock = (_image, cb) => cb(new Error("pull failed"), null);
+    await expect(ensureImage(DOCKER_IMAGE)).rejects.toThrow("pull failed");
   });
 });
 

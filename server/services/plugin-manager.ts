@@ -28,6 +28,7 @@ import {
   buildSandboxedSpawn,
   defaultIsolationProbes,
   detectIsolationCapabilities,
+  ensureImage,
   selectTier,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
@@ -760,18 +761,52 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // spawn follows the same errored/restart path as a direct spawn, so a blocked
   // out-of-band attempt never crashes the host or its siblings (AC3).
   const tier = await resolveIsolationTier();
+
+  // For the docker tier, pull the image before attempting the container spawn.
+  // If the pull fails (e.g. Docker Desktop not running on macOS, the plugin dir
+  // is not a shared path, or the image registry is unreachable), fall back to
+  // the broker-only floor rather than crash-looping inside the container.
+  let effectiveTier = tier;
+  if (tier === "docker") {
+    try {
+      await ensureImage();
+    } catch (imageErr) {
+      await writeLog(
+        entry,
+        "host",
+        `docker image pull failed, falling back to broker-only floor: ${(imageErr as Error).message}`,
+        "warn",
+      );
+      effectiveTier = "broker-only";
+    }
+  }
+
   const sandboxed =
-    tier === "broker-only"
+    effectiveTier === "broker-only"
       ? null
-      : buildSandboxedSpawn(manifest, tier, {
-          execPath: process.execPath,
+      : buildSandboxedSpawn(manifest, effectiveTier, {
+          pluginDir: resolvedDir,
           entryPath,
           baseEnv: spawnEnv,
         });
   const spawnCommand = sandboxed ? sandboxed.command : process.execPath;
+  // For the docker tier the entry and any e2e args are already baked into the
+  // container command via the volume mount; for the floor path spawnArgs.slice(1)
+  // carries any extra args (e2e scenario flags) that trail the entry path.
   const finalArgs = sandboxed ? [...sandboxed.args, ...spawnArgs.slice(1)] : spawnArgs;
 
-  let proc: ChildProcess;
+  // Track whether we are attempting a sandboxed spawn so we can detect a
+  // sandbox failure and fall back to the floor exactly once (#740).
+  const attemptedSandbox = sandboxed !== null;
+
+  // Perform the primary spawn attempt. On a sandboxed failure (throw or no pid),
+  // fall back ONCE to the broker-only floor and record a "sandbox-fallback"
+  // restart event so the fallback is observable (#740).
+  let proc: ChildProcess | null = null;
+
+  // Primary attempt: sandboxed (docker) or floor.
+  let primaryFailed = false;
+  let primaryFailReason = "";
   try {
     proc = spawn(spawnCommand, finalArgs, {
       cwd: entry.record.pluginDir,
@@ -779,32 +814,82 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
     });
+    if (proc.pid === undefined) {
+      primaryFailed = true;
+      primaryFailReason = "no pid returned";
+      proc = null;
+    }
   } catch (err) {
+    primaryFailed = true;
+    primaryFailReason = (err as Error).message;
+  }
+
+  if (primaryFailed && attemptedSandbox) {
+    // Sandboxed spawn threw or returned no pid (e.g. docker CLI absent,
+    // bind-mount not shared on macOS Docker Desktop). Retry ONCE on the
+    // broker-only floor before charging the restart budget (#740).
+    await writeLog(
+      entry,
+      "host",
+      `sandboxed spawn failed (${primaryFailReason}); retrying on broker-only floor`,
+      "warn",
+    );
+    entry.record.restartHistory.push({
+      at: nowIso(),
+      reason: "sandbox-fallback",
+      exitCode: null,
+    });
+    let fallbackFailed = false;
+    let fallbackFailReason = "";
+    try {
+      proc = spawn(process.execPath, spawnArgs, {
+        cwd: entry.record.pluginDir,
+        env: spawnEnv,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false,
+      });
+      if (proc.pid === undefined) {
+        fallbackFailed = true;
+        fallbackFailReason = "Floor spawn also returned no pid";
+        proc = null;
+      }
+    } catch (err) {
+      fallbackFailed = true;
+      fallbackFailReason = (err as Error).message;
+    }
+    if (fallbackFailed) {
+      entry.record.status = "errored";
+      entry.record.lastError = {
+        code: "spawn-failed",
+        message: fallbackFailReason,
+      };
+      entry.record.restartHistory.push({
+        at: nowIso(),
+        reason: "spawn-failed",
+        exitCode: null,
+      });
+      await writeLog(entry, "host", `floor spawn also failed: ${fallbackFailReason}`, "error");
+      return;
+    }
+  } else if (primaryFailed) {
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "spawn-failed",
-      message: (err as Error).message,
+      message: primaryFailReason,
     };
     entry.record.restartHistory.push({
       at: nowIso(),
       reason: "spawn-failed",
       exitCode: null,
     });
-    await writeLog(entry, "host", `spawn failed: ${(err as Error).message}`, "error");
+    await writeLog(entry, "host", `spawn failed: ${primaryFailReason}`, "error");
     return;
   }
 
-  if (proc.pid === undefined) {
-    entry.record.status = "errored";
-    entry.record.lastError = {
-      code: "spawn-failed",
-      message: "Child process did not return a pid",
-    };
-    return;
-  }
+  if (!proc) return;
 
   entry.process = proc;
-  entry.record.pid = proc.pid;
+  entry.record.pid = proc.pid ?? null;
   entry.record.status = "enabled";
   entry.record.lastError = null;
   attachStdioLogging(entry, proc);
