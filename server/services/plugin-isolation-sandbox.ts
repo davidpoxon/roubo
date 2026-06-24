@@ -243,20 +243,39 @@ export async function ensureImage(image: string = DOCKER_IMAGE): Promise<void> {
  * no I/O). The produced string is embedded verbatim inside a `sh -c '...'`
  * argument in the docker run command.
  *
- * hosts must come from the manifest's `permissions.network.hosts` list, which
- * has already been validated by the manifest parser before reaching here.
+ * hosts come from the manifest's `permissions.network.hosts` list. The manifest
+ * schema only constrains them to `z.array(z.string())` (no character allowlist),
+ * so this function does NOT trust them: each value is embedded inside an
+ * in-container `sh -c` script, where shell metacharacters in a host string
+ * (e.g. `api.example.com; iptables -F OUTPUT`) would otherwise inject arbitrary
+ * commands and tear down the very egress filter being installed. Host values are
+ * therefore both pattern-filtered (only safe hostname/wildcard characters admit
+ * a rule) and quoted before interpolation. A value that fails the pattern is
+ * dropped, emitting no ACCEPT rule for it, which is fail-closed (no
+ * wider-than-declared egress is admitted), the same safe behaviour an
+ * unresolvable wildcard already gets below.
  */
+// A conservative hostname / wildcard allowlist: letters, digits, dot, hyphen,
+// underscore, and `*` (for wildcard entries like `*.example.com`). It excludes
+// every shell metacharacter (whitespace, `;`, `$`, backtick, quotes, `(`/`)`,
+// `&`, `|`, `<`, `>`, etc.), so a value matching it cannot break out of the
+// quoted interpolation below even if quoting were somehow bypassed.
+const SAFE_EGRESS_HOST = /^[A-Za-z0-9*._-]+$/;
+
 export function buildEgressSetupScript(hosts: string[]): string {
   // Build the per-host iptables ACCEPT block. For each declared host we run
-  // `getent hosts <host>` (which resolves both A and AAAA records via the
-  // container's resolver) and ACCEPT every returned IP. Wildcard entries
-  // (*.example.com) are passed through as-is; getent will fail to resolve
-  // them and the for loop simply emits no rules for that entry, which is the
-  // safe behaviour (no wider-than-declared egress admitted).
+  // `getent hosts "<host>"` (which resolves both A and AAAA records via the
+  // container's resolver) and ACCEPT every returned IP. The host is quoted, and
+  // only values matching SAFE_EGRESS_HOST are admitted at all, so an
+  // attacker-declared host string cannot inject shell commands into this script.
+  // Wildcard entries (*.example.com) pass the pattern but getent fails to
+  // resolve them, so the for loop simply emits no rules for that entry, which is
+  // the safe behaviour (no wider-than-declared egress admitted).
   const hostBlocks = hosts
+    .filter((h) => SAFE_EGRESS_HOST.test(h))
     .map(
       (h) =>
-        `for ip in $(getent hosts ${h} | awk '{print $1}'); do iptables -A OUTPUT -d "$ip" -j ACCEPT 2>/dev/null || true; done`,
+        `for ip in $(getent hosts "${h}" | awk '{print $1}'); do iptables -A OUTPUT -d "$ip" -j ACCEPT 2>/dev/null || true; done`,
     )
     .join("; ");
 
@@ -454,8 +473,19 @@ export function buildSandboxedSpawn(
       // in an inline sh -c that first programs the iptables filter, then execs
       // node on the entry path so the plugin process inherits the restricted
       // network environment.
+      //
+      // The container entry path is passed as a discrete `-e` env value rather
+      // than interpolated into the shell string. `manifest.entry` is only
+      // validated for traversal / absoluteness (not shell metacharacters), so a
+      // crafted entry like `index.js; iptables -F` would otherwise inject into
+      // this sh -c script and tear down the egress filter. As a `-e` value it is
+      // a single literal argv element to `docker run` (the host spawn uses
+      // shell:false), and `exec node "$ROUBO_PLUGIN_ENTRY"` expands it inside
+      // double quotes, so the in-container shell treats it as one literal
+      // argument with no word-splitting or re-interpretation.
+      args.push("-e", `ROUBO_PLUGIN_ENTRY=${containerEntry}`);
       const egressSetup = buildEgressSetupScript(egress.allowedHosts);
-      const shellCmd = `${egressSetup}; exec node ${containerEntry}`;
+      const shellCmd = `${egressSetup}; exec node "$ROUBO_PLUGIN_ENTRY"`;
       // The image already provides the node binary; the host execPath (the
       // Electron binary) is never passed into the container (#740).
       args.push(DOCKER_EGRESS_IMAGE, "sh", "-c", shellCmd);

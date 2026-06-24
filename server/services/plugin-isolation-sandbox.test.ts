@@ -312,18 +312,37 @@ describe("plugin-isolation-sandbox: buildEgressSetupScript (#741)", () => {
     expect(script).not.toContain("getent");
   });
 
-  it("includes getent hosts resolution for each declared host", () => {
+  it("includes quoted getent hosts resolution for each declared host", () => {
     const script = buildEgressSetupScript(["metrics.internal"]);
-    expect(script).toContain("getent hosts metrics.internal");
+    expect(script).toContain('getent hosts "metrics.internal"');
     expect(script).toContain('iptables -A OUTPUT -d "$ip" -j ACCEPT');
   });
 
   it("produces a script that ends with the conntrack ESTABLISHED rule before host blocks", () => {
     const script = buildEgressSetupScript(["x.com"]);
     const conntrackIdx = script.indexOf("ESTABLISHED,RELATED");
-    const getentIdx = script.indexOf("getent hosts x.com");
+    const getentIdx = script.indexOf('getent hosts "x.com"');
     expect(conntrackIdx).toBeGreaterThanOrEqual(0);
     expect(getentIdx).toBeGreaterThan(conntrackIdx);
+  });
+
+  it("drops host values containing shell metacharacters (no injection into the sh -c script)", () => {
+    // The manifest schema constrains hosts only to z.string(), so a crafted
+    // value must never reach the in-container shell unquoted or unfiltered.
+    const malicious = "api.example.com; iptables -F OUTPUT";
+    const script = buildEgressSetupScript([malicious, "safe.example.com"]);
+    // The injected command fragment never appears: the whole entry is dropped.
+    expect(script).not.toContain("api.example.com");
+    expect(script).not.toContain("iptables -F OUTPUT;");
+    // The safe host is still admitted, quoted.
+    expect(script).toContain('getent hosts "safe.example.com"');
+    // The default-DROP policy is still installed regardless.
+    expect(script).toContain("iptables -P OUTPUT DROP");
+  });
+
+  it("admits wildcard hosts (they pass the pattern but resolve to no rule)", () => {
+    const script = buildEgressSetupScript(["*.example.com"]);
+    expect(script).toContain('getent hosts "*.example.com"');
   });
 });
 
@@ -365,10 +384,31 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     const shellCmd = result?.args[imageIdx + 3] ?? "";
     // The shell command must reference the declared host.
     expect(shellCmd).toContain("api.example.com");
-    // The shell command must exec node on the container entry path.
-    expect(shellCmd).toContain(`exec node ${DOCKER_CONTAINER_DIR}/index.js`);
+    // The shell command execs node on the entry via a quoted env var so a
+    // crafted manifest entry cannot inject into the sh -c script.
+    expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
+    // The entry path is passed as a discrete -e env value, not interpolated.
+    expect(result?.args).toContain(`ROUBO_PLUGIN_ENTRY=${DOCKER_CONTAINER_DIR}/index.js`);
     // iptables default-DROP policy must be present.
     expect(shellCmd).toContain("iptables -P OUTPUT DROP");
+  });
+
+  it("does NOT interpolate the entry path into the sh -c string (no entry injection)", () => {
+    // A crafted manifest entry with shell metacharacters must not break out of
+    // the sh -c script; it is carried as a literal -e env value and referenced
+    // as a quoted shell variable.
+    const malicious = "index.js; iptables -F OUTPUT";
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", {
+      pluginDir: "/plugins/demo",
+      entryPath: `/plugins/demo/${malicious}`,
+    });
+    const imageIdx = result?.args.indexOf(DOCKER_EGRESS_IMAGE) ?? -1;
+    const shellCmd = result?.args[imageIdx + 3] ?? "";
+    // The injected fragment never appears in the executed shell string.
+    expect(shellCmd).not.toContain("index.js; iptables -F OUTPUT");
+    expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
+    // The raw (untrusted) value is confined to the env assignment argv element.
+    expect(result?.args).toContain(`ROUBO_PLUGIN_ENTRY=${DOCKER_CONTAINER_DIR}/${malicious}`);
   });
 
   it("does NOT add --network none for allow-listed egress", () => {
