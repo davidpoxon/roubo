@@ -27,7 +27,9 @@ import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
   defaultIsolationProbes,
+  deriveEgressPolicy,
   detectIsolationCapabilities,
+  ensureEgressImage,
   ensureImage,
   selectTier,
   type IsolationProbes,
@@ -762,19 +764,30 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // out-of-band attempt never crashes the host or its siblings (AC3).
   const tier = await resolveIsolationTier();
 
-  // For the docker tier, pull the image before attempting the container spawn.
-  // If the pull fails (e.g. Docker Desktop not running on macOS, the plugin dir
-  // is not a shared path, or the image registry is unreachable), fall back to
+  // For the docker tier, ensure the required image is available before
+  // attempting the container spawn. If provisioning fails (e.g. Docker Desktop
+  // not running on macOS, the plugin dir is not a shared path, the image
+  // registry is unreachable, or the egress image build fails), fall back to
   // the broker-only floor rather than crash-looping inside the container.
+  //
+  // The deny-all path pulls node:24-slim (a standard registry image).
+  // The allow-listed path builds roubo-plugin-egress:node24 on demand from an
+  // inline Dockerfile (node:24-slim + iptables), so no external publish is
+  // needed. Both paths reuse the same fallback-to-floor error handling.
   let effectiveTier = tier;
   if (tier === "docker") {
     try {
-      await ensureImage();
+      const egressPolicy = deriveEgressPolicy(manifest);
+      if (egressPolicy.mode === "allow-listed") {
+        await ensureEgressImage();
+      } else {
+        await ensureImage();
+      }
     } catch (imageErr) {
       await writeLog(
         entry,
         "host",
-        `docker image pull failed, falling back to broker-only floor: ${(imageErr as Error).message}`,
+        `docker image provisioning failed, falling back to broker-only floor: ${(imageErr as Error).message}`,
         "warn",
       );
       effectiveTier = "broker-only";
