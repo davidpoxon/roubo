@@ -2,20 +2,23 @@ import os from "node:os";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { IsolationCapabilities, PluginManifest } from "@roubo/shared";
 import {
+  buildEgressSetupScript,
   buildSandboxedSpawn,
   defaultIsolationProbes,
   detectIsolationCapabilities,
   deriveEgressPolicy,
+  ensureEgressImage,
   ensureImage,
   selectTier,
   DOCKER_CONTAINER_DIR,
+  DOCKER_EGRESS_IMAGE,
   DOCKER_IMAGE,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
 
 // dockerode is lazy-imported inside the docker probe and ensureImage; mock it so
 // the probe and image-pull helpers can be exercised without a live daemon.
-// inspectMock, pullMock, and pingMock are reassigned per test.
+// inspectMock, pullMock, pingMock, and buildImageMock are reassigned per test.
 let pingMock: () => Promise<unknown> = () => Promise.resolve("OK");
 let inspectMock: () => Promise<unknown> = () =>
   Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
@@ -27,6 +30,11 @@ let followProgressMock: (stream: unknown, cb: (err: Error | null) => void) => vo
   _stream,
   cb,
 ) => cb(null);
+let buildImageMock: (
+  context: unknown,
+  opts: unknown,
+  cb: (err: Error | null, stream: { pipe: () => void } | null) => void,
+) => void = (_context, _opts, cb) => cb(null, { pipe: () => {} });
 
 vi.mock("dockerode", () => ({
   default: class {
@@ -40,6 +48,9 @@ vi.mock("dockerode", () => ({
     }
     pull(image: string, cb: (err: Error | null, stream: unknown) => void) {
       return pullMock(image, cb as Parameters<typeof pullMock>[1]);
+    }
+    buildImage(context: unknown, opts: unknown, cb: (err: Error | null, stream: unknown) => void) {
+      return buildImageMock(context, opts, cb as Parameters<typeof buildImageMock>[2]);
     }
     modem = {
       followProgress: (stream: unknown, cb: (err: Error | null) => void) => {
@@ -280,6 +291,160 @@ describe("plugin-isolation-sandbox: ensureImage", () => {
       Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
     pullMock = (_image, cb) => cb(new Error("pull failed"), null);
     await expect(ensureImage(DOCKER_IMAGE)).rejects.toThrow("pull failed");
+  });
+});
+
+describe("plugin-isolation-sandbox: buildEgressSetupScript (#741)", () => {
+  it("produces iptables rules for each declared host", () => {
+    const script = buildEgressSetupScript(["api.example.com", "cdn.example.com"]);
+    expect(script).toContain("api.example.com");
+    expect(script).toContain("cdn.example.com");
+    expect(script).toContain("iptables -P OUTPUT DROP");
+    expect(script).toContain("iptables -A OUTPUT -o lo -j ACCEPT");
+    expect(script).toContain("--dport 53");
+  });
+
+  it("allows loopback and DNS even with an empty host list", () => {
+    const script = buildEgressSetupScript([]);
+    expect(script).toContain("iptables -A OUTPUT -o lo -j ACCEPT");
+    expect(script).toContain("--dport 53");
+    // No getent calls when the host list is empty.
+    expect(script).not.toContain("getent");
+  });
+
+  it("includes getent hosts resolution for each declared host", () => {
+    const script = buildEgressSetupScript(["metrics.internal"]);
+    expect(script).toContain("getent hosts metrics.internal");
+    expect(script).toContain('iptables -A OUTPUT -d "$ip" -j ACCEPT');
+  });
+
+  it("produces a script that ends with the conntrack ESTABLISHED rule before host blocks", () => {
+    const script = buildEgressSetupScript(["x.com"]);
+    const conntrackIdx = script.indexOf("ESTABLISHED,RELATED");
+    const getentIdx = script.indexOf("getent hosts x.com");
+    expect(conntrackIdx).toBeGreaterThanOrEqual(0);
+    expect(getentIdx).toBeGreaterThan(conntrackIdx);
+  });
+});
+
+describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#741)", () => {
+  const pluginDir = "/plugins/demo";
+  const entryPath = "/plugins/demo/index.js";
+  const opts = { pluginDir, entryPath };
+
+  it("uses the egress image (not the base image) for allow-listed spawn", () => {
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    expect(result).not.toBeNull();
+    expect(result?.args).toContain(DOCKER_EGRESS_IMAGE);
+    expect(result?.args).not.toContain(DOCKER_IMAGE);
+  });
+
+  it("adds --cap-add NET_ADMIN for allow-listed egress", () => {
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    const capAddIdx = result?.args.indexOf("--cap-add") ?? -1;
+    expect(capAddIdx).toBeGreaterThan(0);
+    expect(result?.args[capAddIdx + 1]).toBe("NET_ADMIN");
+  });
+
+  it("passes ROUBO_ALLOWED_HOSTS env with the declared hosts comma-separated", () => {
+    const result = buildSandboxedSpawn(
+      manifest(["api.example.com", "cdn.example.com"]),
+      "docker",
+      opts,
+    );
+    expect(result?.args).toContain("-e");
+    expect(result?.args).toContain("ROUBO_ALLOWED_HOSTS=api.example.com,cdn.example.com");
+  });
+
+  it("wraps the node invocation in sh -c with the egress setup script", () => {
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    const imageIdx = result?.args.indexOf(DOCKER_EGRESS_IMAGE) ?? -1;
+    expect(imageIdx).toBeGreaterThan(0);
+    expect(result?.args[imageIdx + 1]).toBe("sh");
+    expect(result?.args[imageIdx + 2]).toBe("-c");
+    const shellCmd = result?.args[imageIdx + 3] ?? "";
+    // The shell command must reference the declared host.
+    expect(shellCmd).toContain("api.example.com");
+    // The shell command must exec node on the container entry path.
+    expect(shellCmd).toContain(`exec node ${DOCKER_CONTAINER_DIR}/index.js`);
+    // iptables default-DROP policy must be present.
+    expect(shellCmd).toContain("iptables -P OUTPUT DROP");
+  });
+
+  it("does NOT add --network none for allow-listed egress", () => {
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    expect(result?.args).not.toContain("--network");
+    expect(result?.args).not.toContain("none");
+  });
+
+  it("does NOT add --cap-add NET_ADMIN or ROUBO_ALLOWED_HOSTS for deny-all egress", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result?.args).not.toContain("NET_ADMIN");
+    expect(result?.args).not.toContain("ROUBO_ALLOWED_HOSTS=");
+  });
+
+  it("deny-all path: --network none is present and uses the base image (unchanged)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result?.args.slice(0, 5)).toEqual(["run", "--rm", "-i", "--network", "none"]);
+    const imageIdx = result?.args.indexOf(DOCKER_IMAGE) ?? -1;
+    expect(imageIdx).toBeGreaterThan(0);
+    expect(result?.args[imageIdx + 1]).toBe("node");
+    expect(result?.args[imageIdx + 2]).toBe(`${DOCKER_CONTAINER_DIR}/index.js`);
+    expect(result?.egress).toEqual({ mode: "deny-all", allowedHosts: [] });
+  });
+
+  it("broker-only still returns null (unchanged)", () => {
+    expect(buildSandboxedSpawn(manifest([]), "broker-only", opts)).toBeNull();
+    expect(buildSandboxedSpawn(manifest(["api.example.com"]), "broker-only", opts)).toBeNull();
+  });
+});
+
+describe("plugin-isolation-sandbox: ensureEgressImage (#741)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    buildImageMock = (_context, _opts, cb) => cb(null, { pipe: () => {} });
+    followProgressMock = (_stream, cb) => cb(null);
+  });
+
+  it("skips the build when the egress image is already present locally", async () => {
+    inspectMock = () => Promise.resolve({ Id: "sha256:egress" });
+    const buildSpy = vi.fn();
+    buildImageMock = (_context, _opts, cb) => {
+      buildSpy();
+      cb(null, { pipe: () => {} });
+    };
+    await expect(ensureEgressImage()).resolves.toBeUndefined();
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
+  it("builds the egress image when it is absent from the local store", async () => {
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    const builtTags: string[] = [];
+    buildImageMock = (_context, opts, cb) => {
+      builtTags.push((opts as { t: string }).t);
+      cb(null, { pipe: () => {} });
+    };
+    followProgressMock = (_stream, cb) => cb(null);
+    await expect(ensureEgressImage()).resolves.toBeUndefined();
+    expect(builtTags).toContain(DOCKER_EGRESS_IMAGE);
+  });
+
+  it("rejects when the build stream errors", async () => {
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    buildImageMock = (_context, _opts, cb) => cb(null, { pipe: () => {} });
+    followProgressMock = (_stream, cb) => cb(new Error("build failed"));
+    await expect(ensureEgressImage()).rejects.toThrow("build failed");
+  });
+
+  it("rejects when docker.buildImage itself errors", async () => {
+    inspectMock = () =>
+      Promise.reject(Object.assign(new Error("No such image"), { statusCode: 404 }));
+    buildImageMock = (_context, _opts, cb) => cb(new Error("daemon error"), null);
+    await expect(ensureEgressImage()).rejects.toThrow("daemon error");
   });
 });
 
