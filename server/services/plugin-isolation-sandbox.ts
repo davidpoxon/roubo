@@ -517,7 +517,14 @@ export function buildSandboxedSpawn(
       // argument with no word-splitting or re-interpretation.
       args.push("-e", `ROUBO_PLUGIN_ENTRY=${containerEntry}`);
       const egressSetup = buildEgressSetupScript(egress.allowedHosts);
-      const shellCmd = `${egressSetup}; exec node "$ROUBO_PLUGIN_ENTRY"`;
+      // Join the egress setup and `exec node` with a NEWLINE, not `; `. The setup
+      // script ends with a backgrounded loop (`...} &`), and in POSIX sh (dash, in
+      // node:24-slim) `&` is itself a command terminator, so a `;` immediately
+      // after it is a syntax error (`sh: 1: Syntax error: ";" unexpected`), which
+      // crash-looped the container before node ran (#762). A newline is a valid
+      // separator after both a normal command and a `&`-backgrounded job, so it is
+      // robust regardless of how the setup script ends.
+      const shellCmd = `${egressSetup}\nexec node "$ROUBO_PLUGIN_ENTRY"`;
       // The image already provides the node binary; the host execPath (the
       // Electron binary) is never passed into the container (#740).
       args.push(DOCKER_EGRESS_IMAGE, "sh", "-c", shellCmd);
