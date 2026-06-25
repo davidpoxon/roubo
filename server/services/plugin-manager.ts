@@ -1627,7 +1627,14 @@ export async function reinstallIntoUserRoot(pluginId: string): Promise<PluginRec
   }
 
   const sourceDir = path.resolve(entry.record.pluginDir);
-  const targetDir = path.join(getUserPluginsRoot(), pluginId);
+  // Regex-validate pluginId, then build the copy destination with resolveWithin
+  // so the user-supplied id is laundered before it reaches the `cp` sink. The
+  // route already rejects ids that fail PLUGIN_ID_RE, but validating here too
+  // keeps the function safe regardless of caller and presents the
+  // join-under-fixed-root barrier CodeQL's js/path-injection suite recognises
+  // as a sanitizer (a crafted id like "../foo" can never escape the user root).
+  assertSafeIdentifier(pluginId, PLUGIN_ID_RE, "pluginId");
+  const targetDir = resolveWithin(getUserPluginsRoot(), pluginId);
 
   // Copy first. A failure here leaves the bundled entry intact and running, so
   // the user can retry. `recursive` copies the whole plugin tree; symlinks in
