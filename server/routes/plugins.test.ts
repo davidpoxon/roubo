@@ -9,6 +9,7 @@ vi.mock("../services/plugin-manager.js", () => ({
   enable: vi.fn(),
   disable: vi.fn(),
   restart: vi.fn(),
+  reinstallIntoUserRoot: vi.fn(),
   readLogs: vi.fn(),
   uninstall: vi.fn(),
   invoke: vi.fn(),
@@ -179,6 +180,47 @@ describe("POST /:id/restart", () => {
     const res = await request(app).post("/github-com/restart");
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/no valid manifest/);
+  });
+});
+
+describe("POST /:id/reinstall-shared (#756)", () => {
+  beforeEach(() => {
+    vi.mocked(pluginManager.reinstallIntoUserRoot).mockReset();
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([record()]);
+  });
+
+  it("calls reinstallIntoUserRoot and returns 200 with the new record", async () => {
+    const newRecord = record({ source: "user", pluginDir: "/home/u/.roubo/plugins/github-com" });
+    vi.mocked(pluginManager.reinstallIntoUserRoot).mockResolvedValue(newRecord);
+
+    const res = await request(app).post("/github-com/reinstall-shared");
+    expect(res.status).toBe(200);
+    expect(pluginManager.reinstallIntoUserRoot).toHaveBeenCalledWith("github-com");
+    expect(res.body.source).toBe("user");
+    expect(res.body.id).toBe("github-com");
+  });
+
+  it("returns 400 when id is not kebab-case", async () => {
+    const res = await request(app).post("/Bad_Id/reinstall-shared");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid plugin id/i);
+    expect(pluginManager.reinstallIntoUserRoot).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the plugin is unknown", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    const res = await request(app).post("/github-com/reinstall-shared");
+    expect(res.status).toBe(404);
+    expect(pluginManager.reinstallIntoUserRoot).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when the reinstall fails (e.g. plugin not bundled)", async () => {
+    vi.mocked(pluginManager.reinstallIntoUserRoot).mockRejectedValue(
+      new Error("Only bundled plugins can be reinstalled into the shared location: github-com"),
+    );
+    const res = await request(app).post("/github-com/reinstall-shared");
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Only bundled plugins/);
   });
 });
 

@@ -12,6 +12,7 @@ vi.mock("../lib/api", async () => {
     enablePlugin: vi.fn(),
     disablePlugin: vi.fn(),
     restartPlugin: vi.fn(),
+    reinstallPluginShared: vi.fn(),
     uninstallPlugin: vi.fn(),
     fetchPluginLogs: vi.fn(),
     fetchConnectionStatus: vi.fn(),
@@ -28,6 +29,7 @@ import {
   useEnablePlugin,
   useDisablePlugin,
   useRestartPlugin,
+  useReinstallShared,
   useUninstallPlugin,
   usePluginLogs,
   useConnectionStatus,
@@ -112,6 +114,53 @@ describe("useRestartPlugin", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.restartPlugin).toHaveBeenCalledWith("github-com");
+  });
+});
+
+describe("useReinstallShared (#756)", () => {
+  const userRecord = {
+    id: "github-com",
+    manifest: null,
+    manifestPath: "/u/.roubo/plugins/github-com/roubo-plugin.yaml",
+    pluginDir: "/u/.roubo/plugins/github-com",
+    source: "user" as const,
+    status: "enabled" as const,
+    lastError: null,
+    restartHistory: [],
+    pid: 99,
+  };
+
+  it("calls reinstallPluginShared and invalidates the plugins query on success", async () => {
+    mockedApi.reinstallPluginShared.mockResolvedValue(userRecord);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useReinstallShared(), { queryClient });
+    await act(async () => {
+      result.current.mutate("github-com");
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.reinstallPluginShared).toHaveBeenCalledWith("github-com");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plugins"] });
+  });
+
+  it("surfaces a toast on failure", async () => {
+    mockedApi.reinstallPluginShared.mockRejectedValue(new ApiError("not bundled", 409));
+    const { result } = renderHookWithProviders(() => useReinstallShared());
+    await act(async () => {
+      result.current.mutate("github-com");
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(addToast).toHaveBeenCalledWith("not bundled");
+  });
+
+  it("falls back to a generic message for non-ApiError errors", async () => {
+    mockedApi.reinstallPluginShared.mockRejectedValue("string-error");
+    const { result } = renderHookWithProviders(() => useReinstallShared());
+    await act(async () => {
+      result.current.mutate("github-com");
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(addToast).toHaveBeenCalledWith("Failed to reinstall plugin in the shared location.");
   });
 });
 

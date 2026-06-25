@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, statSync, type WriteStream } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1589,6 +1589,64 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
     ...built.entry.record,
     restartHistory: [...built.entry.record.restartHistory],
   };
+}
+
+/**
+ * One-click remediation for a bundled plugin that cannot engage OS-level docker
+ * isolation because the read-only app bundle (e.g. `/Applications/Roubo.app/.../plugins/<id>`)
+ * is not a Docker Desktop shared path (issue #756). Copies the bundled plugin
+ * directory into the user plugins root (`~/.roubo/plugins/<id>/`, which is
+ * already a shared path), supersedes the in-memory bundled entry, then registers
+ * and starts the user copy from the shared location so the docker tier can
+ * engage on a host that shares `~/.roubo/plugins/`.
+ *
+ * The supersede happens AFTER a successful copy but BEFORE `registerInstalled`:
+ *  - copy first, so a partial-copy failure leaves the bundled entry intact and
+ *    running (nothing is torn down on the error path),
+ *  - supersede (drop the bundled in-memory entry) before register, so
+ *    `registerInstalled`'s duplicate-id guard does not throw and exactly one
+ *    visible entry remains, now `source: "user"`.
+ *
+ * We deliberately do NOT reuse `uninstallForUpdate()`: it throws for a bundled
+ * source by design. The bundled directory on disk is left untouched (it lives in
+ * the read-only app bundle); only the in-memory entry is dropped so the user
+ * copy takes precedence. The bundled entry is not re-scanned back in because
+ * `listInstalled()` reads solely from the in-memory `plugins` map; discovery
+ * only runs at `initialize()`.
+ *
+ * Throws when the plugin is unknown or is not a bundled plugin (the action is
+ * offered only for `source === "bundled"`).
+ */
+export async function reinstallIntoUserRoot(pluginId: string): Promise<PluginRecord> {
+  const entry = plugins.get(pluginId);
+  if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  if (entry.record.source !== "bundled") {
+    throw new Error(
+      `Only bundled plugins can be reinstalled into the shared location: ${pluginId}`,
+    );
+  }
+
+  const sourceDir = path.resolve(entry.record.pluginDir);
+  const targetDir = path.join(getUserPluginsRoot(), pluginId);
+
+  // Copy first. A failure here leaves the bundled entry intact and running, so
+  // the user can retry. `recursive` copies the whole plugin tree; symlinks in
+  // the bundle are dereferenced so the user copy is self-contained.
+  await cp(sourceDir, targetDir, { recursive: true, dereference: true });
+
+  // Supersede the bundled in-memory entry only after the copy succeeded: stop
+  // its process, close its log stream, and drop it from the registry so the
+  // duplicate-id guard in registerInstalled does not fire and only the user
+  // copy remains visible.
+  await stopPluginProcess(entry);
+  if (entry.logStream) {
+    const stream = entry.logStream;
+    entry.logStream = null;
+    await new Promise<void>((resolve) => stream.end(resolve));
+  }
+  plugins.delete(pluginId);
+
+  return registerInstalled(targetDir);
 }
 
 /**

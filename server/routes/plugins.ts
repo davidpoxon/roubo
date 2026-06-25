@@ -188,6 +188,29 @@ router.post("/:id/restart", async (req, res) => {
   }
 });
 
+// Issue #756: one-click reinstall of a bundled plugin into the shared
+// ~/.roubo/plugins/<id>/ location so OS-level docker isolation can engage.
+// Copies the bundled directory, supersedes the bundled in-memory entry, and
+// registers + starts the user copy. Returns the new (source: "user") record on
+// success; 409 on failure (e.g. the plugin is not bundled, or the copy fails).
+router.post("/:id/reinstall-shared", async (req, res) => {
+  const id = req.params.id;
+  if (badId(id)) {
+    res.status(400).json({ error: "Invalid plugin id" });
+    return;
+  }
+  if (!known(id)) {
+    res.status(404).json({ error: `Unknown plugin: ${id}` });
+    return;
+  }
+  try {
+    const record = await pluginManager.reinstallIntoUserRoot(id);
+    res.status(200).json(record);
+  } catch (err) {
+    res.status(409).json({ error: (err as Error).message });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   const id = req.params.id;
   if (badId(id)) {

@@ -1438,6 +1438,121 @@ describe("registerInstalled (WU-011)", () => {
   });
 });
 
+describe("reinstallIntoUserRoot (#756)", () => {
+  // A self-contained bundled plugin built as REAL files (not a symlink to the
+  // shared fixtures) with a zero-dependency keep-alive entry, so the copied
+  // user copy spawns successfully from the temp user root (which has no
+  // node_modules to resolve vscode-jsonrpc from). The keep-alive process gets a
+  // pid, so the supervisor marks the record "enabled" without exchanging RPC.
+  async function makeRealBundledPlugin(parent: string, id: string): Promise<string> {
+    const dir = path.join(parent, id);
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      [
+        `id: ${id}`,
+        `name: ${id} fixture`,
+        "version: 0.0.0",
+        "description: real-files bundled fixture",
+        "kind: integration",
+        "roubo: ^1.0.0",
+        "entry: ./index.cjs",
+        "permissions:",
+        "  network:",
+        "    hosts: []",
+        "  credentials:",
+        "    slots: []",
+        "  filesystem:",
+        "    paths: []",
+        "  processes: false",
+      ].join("\n") + "\n",
+    );
+    // Keep-alive: stays running (an unref'd interval) so the host sees a live
+    // pid. No external requires, so it runs from any directory.
+    await writeFile(
+      path.join(dir, "index.cjs"),
+      "setInterval(() => {}, 60000).unref();\nprocess.stdin.resume();\n",
+    );
+    return dir;
+  }
+
+  it("copies a bundled plugin into the user root and supersedes it with a single user entry", async () => {
+    sandbox = await makeSandbox({});
+    await makeRealBundledPlugin(sandbox.bundledDir, "shareme");
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const before = findRecord(mgr.listInstalled(), "shareme");
+    expect(before.source).toBe("bundled");
+
+    const record = await mgr.reinstallIntoUserRoot("shareme");
+    expect(record.id).toBe("shareme");
+    expect(record.source).toBe("user");
+    expect(record.status).toBe("enabled");
+
+    // The copy landed under the user root.
+    const copied = await stat(path.join(sandbox.userDir, "shareme", "index.cjs"));
+    expect(copied.isFile()).toBe(true);
+
+    // Exactly one visible entry, now sourced from user (no duplicate-id error).
+    const entries = mgr.listInstalled().filter((r) => r.id === "shareme");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source).toBe("user");
+    expect(entries[0].pluginDir).toBe(path.join(sandbox.userDir, "shareme"));
+  });
+
+  it("starts the user copy from the shared path", async () => {
+    sandbox = await makeSandbox({});
+    await makeRealBundledPlugin(sandbox.bundledDir, "shareme");
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const record = await mgr.reinstallIntoUserRoot("shareme");
+    expect(record.status).toBe("enabled");
+    expect(typeof record.pid).toBe("number");
+    expect(record.pluginDir).toBe(path.join(sandbox.userDir, "shareme"));
+  });
+
+  it("rejects a non-bundled (user) plugin", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const userDir = path.join(sandbox.userDir, "echo");
+    await symlink(path.join(FIXTURES_ROOT, "echo"), userDir, "dir");
+    await mgr.registerInstalled(userDir);
+
+    await expect(mgr.reinstallIntoUserRoot("echo")).rejects.toThrow(/Only bundled plugins/);
+  });
+
+  it("rejects an unknown plugin", async () => {
+    sandbox = await makeSandbox({});
+    mgr = await loadManager();
+    await mgr.initialize();
+    await expect(mgr.reinstallIntoUserRoot("nope")).rejects.toThrow(/Unknown plugin/);
+  });
+
+  it("leaves the bundled entry intact when the copy fails (no teardown on error)", async () => {
+    sandbox = await makeSandbox({});
+    await makeRealBundledPlugin(sandbox.bundledDir, "shareme");
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    // Force the copy target to fail by pre-creating it as a FILE where a
+    // directory is expected, so cp() rejects.
+    await writeFile(path.join(sandbox.userDir, "shareme"), "not a dir");
+
+    await expect(mgr.reinstallIntoUserRoot("shareme")).rejects.toThrow();
+
+    // The bundled entry survives the failed copy: still present, still bundled,
+    // still running.
+    const after = findRecord(mgr.listInstalled(), "shareme");
+    expect(after.source).toBe("bundled");
+    expect(after.status).toBe("enabled");
+    expect(after.pid).not.toBeNull();
+  });
+});
+
 describe("plugin-enable-state integration (WU-046)", () => {
   it("does not spawn plugins whose persisted state is 'disabled'", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({

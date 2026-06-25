@@ -69,6 +69,24 @@ export function useRestartPlugin() {
   });
 }
 
+// Issue #756: reinstall a bundled plugin into the shared ~/.roubo/plugins/
+// location so OS-level docker isolation can engage. Invalidates the plugins
+// query so the card re-renders as the now-user copy (and the isolation notice
+// clears once the docker tier engages).
+export function useReinstallShared() {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: (pluginId: string) => api.reinstallPluginShared(pluginId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+    },
+    onError: (err) => {
+      addToast(asErrorMessage(err, "Failed to reinstall plugin in the shared location."));
+    },
+  });
+}
+
 export function useUninstallPlugin() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
