@@ -2488,6 +2488,56 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
         expect(rec.isolationNotices ?? []).toHaveLength(0);
       });
 
+      // #748: the pre-check must ALSO downgrade effectiveTier so the doomed
+      // docker spawn is never attempted (no crash-loop path).
+      it("spawns on broker-only floor and records isolation notice without attempting docker when dir is a known-unshared path (#748)", async () => {
+        dockerPingMock = () => Promise.resolve("OK");
+        dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+        process.env.NODE_ENV = "production";
+        delete process.env.ROUBO_E2E;
+
+        let dockerSpawnAttempted = false;
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] === "docker") {
+            dockerSpawnAttempted = true;
+          }
+          return realSpawn(...args);
+        }) as SpawnFn;
+
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+
+        // Override the known-unshared predicate so any plugin dir matches,
+        // simulating a plugin installed under /Applications/Roubo.app/... without
+        // needing actual files in /Applications on the test runner (#748).
+        // Must be set after loadManager() since loadManager calls __test.reset().
+        pluginManager.__test.setKnownUnsharedDockerPathFn(() => true);
+
+        await mgr.initialize();
+
+        const rec = findRecord(mgr.listInstalled(), "echo");
+
+        // Plugin starts on the floor despite the docker tier being resolved.
+        expect(rec.status).toBe("enabled");
+        expect(typeof rec.pid).toBe("number");
+
+        // No docker command was ever spawned (no crash-loop path reached).
+        expect(dockerSpawnAttempted).toBe(false);
+
+        // The isolation notice is recorded exactly once.
+        expect(rec.isolationNotices).toHaveLength(1);
+        const notice = (rec.isolationNotices ?? [])[0];
+        expect(notice.kind).toBe("docker-mount-unshared");
+        expect(notice.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+        // No unexpected-exit events accrued (no crash-loop).
+        const unexpectedExits = rec.restartHistory.filter((e) => e.reason === "unexpected-exit");
+        expect(unexpectedExits).toHaveLength(0);
+      });
+
       // The proactive pre-check is keyed off a pure predicate so it is testable
       // without a real /Applications plugin dir or a live Docker daemon.
       describe("isKnownUnsharedDockerPath (proactive pre-check predicate)", () => {
