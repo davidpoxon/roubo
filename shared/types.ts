@@ -161,7 +161,9 @@ export interface InstallPreview {
   source: InstallSource;
 }
 
-export type InstallSource = { type: "git"; url: string } | { type: "local"; path: string };
+export type InstallSource =
+  | { type: "git"; url: string; directory?: string }
+  | { type: "local"; path: string };
 
 /**
  * Stable error codes emitted by the install pipeline. Routes map these to
@@ -217,8 +219,12 @@ export type MarketplaceKind = "component" | "integration";
 
 /**
  * One curated catalog entry as authored in the static manifest. The `source`
- * is the git URL the install/update flow clones from; `verified` is the
- * display-only first-party curation flag.
+ * is the git URL the install/update flow clones from; its optional `directory`
+ * names the subdirectory of the cloned repository that holds the plugin package
+ * (the monorepo-subdir source model, issue #750), so a component published
+ * inside a monorepo (e.g. `plugins/process`) stages and installs just that
+ * subdirectory rather than the whole repo. `verified` is the display-only
+ * first-party curation flag.
  *
  * `integrity` is the expected content digest of the staged package
  * (`sha256-<hex>`); after staging and before commit, the installer recomputes
@@ -233,7 +239,7 @@ export interface MarketplaceCatalogEntry {
   kind: MarketplaceKind;
   version: string;
   summary: string;
-  source: { type: "git"; url: string };
+  source: { type: "git"; url: string; directory?: string };
   provenance: string;
   integrity: string;
   revoked?: boolean;

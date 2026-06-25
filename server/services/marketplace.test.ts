@@ -178,7 +178,11 @@ describe("install", () => {
       source: entry.source,
     } as Awaited<ReturnType<typeof pluginInstaller.previewFromGitUrl>>);
     await marketplace.install(entry.id);
-    expect(previewFromGitUrl).toHaveBeenCalledWith(entry.source.url, entry.integrity);
+    expect(previewFromGitUrl).toHaveBeenCalledWith(
+      entry.source.url,
+      entry.integrity,
+      entry.source.directory,
+    );
   });
 
   it("throws invalid-input for an unknown id", async () => {
@@ -206,6 +210,7 @@ describe("update", () => {
       entry.source.url,
       entry.id,
       entry.integrity,
+      entry.source.directory,
     );
   });
 

@@ -210,9 +210,100 @@ function validateLocalPath(absPath: string): string {
   return normalized;
 }
 
+// A catalog entry's optional `directory` points at the subdirectory of the
+// cloned repository that holds the plugin package (the monorepo-subdir source
+// model, issue #750). It must be a relative path with no traversal; the final
+// containment is enforced by resolveWithin when it is joined onto the clone dir.
+function validateSubdir(directory: string): string {
+  const trimmed = directory.trim();
+  if (trimmed.length === 0) {
+    throw new InstallError("invalid-input", "Source directory must not be empty");
+  }
+  if (path.isAbsolute(trimmed)) {
+    throw new InstallError("invalid-input", "Source directory must be a relative path");
+  }
+  if (containsControlChar(trimmed)) {
+    throw new InstallError("invalid-input", "Source directory contains control characters");
+  }
+  // Reject traversal up front (resolveWithin is the second barrier) so a `..`
+  // segment surfaces as a clear invalid-input rather than a wrapped clone error.
+  if (trimmed.split(/[\\/]/).includes("..")) {
+    throw new InstallError("invalid-input", "Source directory must not contain '..' segments");
+  }
+  return trimmed;
+}
+
+async function runGitClone(safeUrl: string, destDir: string): Promise<void> {
+  // `--` terminates option parsing so `safeUrl` and `destDir` cannot be
+  // re-interpreted as flags even if the validator misses a case. The explicit
+  // `-c protocol.allow=user` lockdown is a defence-in-depth layer on top of the
+  // URL allowlist in validateGitUrl.
+  const result = await runCommand(
+    "git",
+    [
+      "-c",
+      "protocol.allow=user",
+      "-c",
+      "protocol.file.allow=never",
+      "clone",
+      "--depth",
+      "1",
+      "--",
+      safeUrl,
+      destDir,
+    ],
+    stagingRoot(),
+    undefined,
+    GIT_CLONE_TIMEOUT_MS,
+  );
+  if (result.code !== 0) {
+    throw gitCloneError(result.code, result.stderr);
+  }
+}
+
+// Clone `safeUrl` and leave the plugin package at `stagingDir`. With no
+// `directory` the clone root IS the package (cloned straight into stagingDir,
+// the original whole-repo behaviour). With a `directory` (the catalog
+// monorepo-subdir model, #750) the repo is cloned into a sibling temp dir and
+// only that subdirectory is copied into stagingDir, so the staged package, its
+// integrity digest, and the installed plugin are the component, not the whole
+// monorepo. The temp clone dir is always removed.
+async function clonePackageInto(
+  stagingDir: string,
+  safeUrl: string,
+  directory: string | undefined,
+): Promise<void> {
+  if (directory === undefined) {
+    await runGitClone(safeUrl, stagingDir);
+    return;
+  }
+  const sub = validateSubdir(directory);
+  const cloneDir = resolveWithin(stagingRoot(), `${path.basename(stagingDir)}.clone`);
+  try {
+    await runGitClone(safeUrl, cloneDir);
+    const pkgRoot = resolveWithin(cloneDir, sub);
+    let s;
+    try {
+      s = await stat(pkgRoot);
+    } catch {
+      throw new InstallError(
+        "missing-manifest",
+        `Source directory "${sub}" not found in the cloned repository`,
+      );
+    }
+    if (!s.isDirectory()) {
+      throw new InstallError("invalid-input", `Source directory "${sub}" is not a directory`);
+    }
+    await cp(pkgRoot, stagingDir, { recursive: true });
+  } finally {
+    await rmStaging(cloneDir);
+  }
+}
+
 export async function previewFromGitUrl(
   url: string,
   expectedIntegrity?: string | null,
+  directory?: string,
 ): Promise<InstallPreview> {
   const safeUrl = validateGitUrl(url);
   await ensureStagingRoot();
@@ -221,35 +312,10 @@ export async function previewFromGitUrl(
   const stagingDir = resolveWithin(stagingRoot(), token);
 
   try {
-    // `--` terminates option parsing so `safeUrl` and `stagingDir` cannot be
-    // re-interpreted as flags even if the validator misses a case. The
-    // explicit `-c protocol.allow=user` lockdown is a defence-in-depth layer
-    // on top of the URL allowlist in validateGitUrl.
-    const result = await runCommand(
-      "git",
-      [
-        "-c",
-        "protocol.allow=user",
-        "-c",
-        "protocol.file.allow=never",
-        "clone",
-        "--depth",
-        "1",
-        "--",
-        safeUrl,
-        stagingDir,
-      ],
-      stagingRoot(),
-      undefined,
-      GIT_CLONE_TIMEOUT_MS,
-    );
-    if (result.code !== 0) {
-      await rmStaging(stagingDir);
-      throw gitCloneError(result.code, result.stderr);
-    }
+    await clonePackageInto(stagingDir, safeUrl, directory);
   } catch (err) {
-    if (err instanceof InstallError) throw err;
     await rmStaging(stagingDir);
+    if (err instanceof InstallError) throw err;
     throw new InstallError("clone-failed", (err as Error).message);
   }
 
@@ -258,7 +324,11 @@ export async function previewFromGitUrl(
     assertCompatible(manifest);
     await assertPackageIntegrity(stagingDir, expectedIntegrity);
     assertNotDuplicate(manifest.id);
-    const source: InstallSource = { type: "git", url: safeUrl };
+    const source: InstallSource = {
+      type: "git",
+      url: safeUrl,
+      ...(directory !== undefined ? { directory } : {}),
+    };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
     return { stagingToken: token, manifest, source };
   } catch (err) {
@@ -280,6 +350,7 @@ export async function previewUpdateFromGitUrl(
   url: string,
   expectedId: string,
   expectedIntegrity?: string | null,
+  directory?: string,
 ): Promise<InstallPreview> {
   const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
   if (!existing) {
@@ -302,31 +373,10 @@ export async function previewUpdateFromGitUrl(
   const stagingDir = resolveWithin(stagingRoot(), token);
 
   try {
-    const result = await runCommand(
-      "git",
-      [
-        "-c",
-        "protocol.allow=user",
-        "-c",
-        "protocol.file.allow=never",
-        "clone",
-        "--depth",
-        "1",
-        "--",
-        safeUrl,
-        stagingDir,
-      ],
-      stagingRoot(),
-      undefined,
-      GIT_CLONE_TIMEOUT_MS,
-    );
-    if (result.code !== 0) {
-      await rmStaging(stagingDir);
-      throw gitCloneError(result.code, result.stderr);
-    }
+    await clonePackageInto(stagingDir, safeUrl, directory);
   } catch (err) {
-    if (err instanceof InstallError) throw err;
     await rmStaging(stagingDir);
+    if (err instanceof InstallError) throw err;
     throw new InstallError("clone-failed", (err as Error).message);
   }
 
@@ -340,7 +390,11 @@ export async function previewUpdateFromGitUrl(
       );
     }
     await assertPackageIntegrity(stagingDir, expectedIntegrity);
-    const source: InstallSource = { type: "git", url: safeUrl };
+    const source: InstallSource = {
+      type: "git",
+      url: safeUrl,
+      ...(directory !== undefined ? { directory } : {}),
+    };
     staged.set(token, {
       stagingDir,
       source,
