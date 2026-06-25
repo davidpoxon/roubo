@@ -1132,6 +1132,15 @@ export function uninstallPlugin(pluginId: string): Promise<void> {
   return requestVoid(`/plugins/${encodeURIComponent(pluginId)}`, { method: "DELETE" });
 }
 
+// Issue #756: copy a bundled plugin into the shared ~/.roubo/plugins/<id>/
+// location, supersede the bundled entry, and start the user copy. Returns the
+// new (source: "user") record.
+export function reinstallPluginShared(pluginId: string): Promise<PluginRecord> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/reinstall-shared`, {
+    method: "POST",
+  });
+}
+
 export function fetchConnectionStatus(pluginId: string): Promise<ConnectionStatus> {
   return request(`/plugins/${encodeURIComponent(pluginId)}/connection-status`);
 }

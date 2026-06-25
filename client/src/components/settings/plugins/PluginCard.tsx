@@ -151,7 +151,11 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
 
       {plugin.isolationNotices && plugin.isolationNotices.length > 0 && (
         <div className="mt-3">
-          <IsolationNoticeBanner notices={plugin.isolationNotices} />
+          <IsolationNoticeBanner
+            notices={plugin.isolationNotices}
+            pluginId={plugin.id}
+            source={plugin.source}
+          />
         </div>
       )}
 
