@@ -1218,6 +1218,95 @@ permissions:
     expect(rec.pid).toBeNull();
     expect(rec.restartHistory).toEqual([]);
   });
+
+  // #761: existsSync/statSync follow symlinks, so an entry symlinked to a real
+  // file OUTSIDE the plugin dir passes the host existence check yet is
+  // unresolvable inside the read-only /roubo-plugin bind mount (only the plugin
+  // dir is mounted). The container follows the symlink to an unmounted path and
+  // exits 1 with a raw MODULE_NOT_FOUND, charging the restart budget. Resolve
+  // the entry's real path and fail fast with the same missing-entry error when
+  // the target escapes the plugin dir, so the doomed restart loop never starts.
+  it("errors a plugin whose entry symlink resolves outside the plugin dir and never spawns it", async () => {
+    sandbox = await makeSandbox({});
+    const dir = path.join(sandbox.bundledDir, "symlink-escape");
+    await mkdir(dir, { recursive: true });
+    // A real entry file that lives OUTSIDE the plugin dir.
+    const outside = path.join(sandbox.bundledDir, "outside-index.cjs");
+    await writeFile(outside, "setInterval(() => {}, 60000);\n");
+    // The manifest entry is a symlink inside the plugin dir pointing at it. The
+    // host existsSync/statSync follow the symlink and see a real file; only
+    // realpath resolution reveals it escapes the dir.
+    await symlink(outside, path.join(dir, "index.cjs"));
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: symlink-escape
+name: Symlink Escape
+version: 0.0.0
+description: x
+kind: component
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "symlink-escape");
+    expect(rec.status).toBe("errored");
+    expect(rec.lastError?.code).toBe("missing-entry");
+    // The doomed restart loop never started: no process, no restart history.
+    expect(rec.pid).toBeNull();
+    expect(rec.restartHistory).toEqual([]);
+  });
+
+  // #761: the containment guard must not over-reach. A symlinked entry whose
+  // real target stays INSIDE the plugin dir is mounted too, so it resolves in
+  // the container and must still spawn normally.
+  it("still spawns a plugin whose entry symlink resolves inside the plugin dir", async () => {
+    sandbox = await makeSandbox({});
+    const dir = path.join(sandbox.bundledDir, "symlink-inside");
+    await mkdir(dir, { recursive: true });
+    // The real entry file lives inside the plugin dir; the manifest entry is a
+    // symlink (also inside the dir) pointing at it, so realpath stays contained.
+    await writeFile(path.join(dir, "real-index.cjs"), "setInterval(() => {}, 60000);\n");
+    await symlink(path.join(dir, "real-index.cjs"), path.join(dir, "index.cjs"));
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: symlink-inside
+name: Symlink Inside
+version: 0.0.0
+description: x
+kind: component
+roubo: ^1.0.0
+entry: ./index.cjs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "symlink-inside");
+    // The containment guard did not block the spawn: it was attempted and the
+    // process is live (status flips to "enabled" on a successful spawn, before
+    // any JSON-RPC handshake).
+    expect(rec.status).not.toBe("errored");
+    expect(rec.lastError?.code).not.toBe("missing-entry");
+    expect(rec.status).toBe("enabled");
+    expect(typeof rec.pid).toBe("number");
+  });
 });
 
 describe("uninstall", () => {
