@@ -16,6 +16,7 @@ import SourceLabel from "./SourceLabel";
 import ErroredBanner from "./ErroredBanner";
 import IncompatibleBanner from "./IncompatibleBanner";
 import InvalidBanner from "./InvalidBanner";
+import IsolationNoticeBanner from "./IsolationNoticeBanner";
 import ViewLogsDialog from "./ViewLogsDialog";
 import UninstallPluginDialog from "./UninstallPluginDialog";
 import { derivePluginConnectionState, primaryActionLabelFor } from "./derivePluginConnectionState";
@@ -145,6 +146,12 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
       {plugin.status === "invalid" && plugin.lastError && (
         <div className="mt-3">
           <InvalidBanner message={plugin.lastError.message} />
+        </div>
+      )}
+
+      {plugin.isolationNotices && plugin.isolationNotices.length > 0 && (
+        <div className="mt-3">
+          <IsolationNoticeBanner notices={plugin.isolationNotices} />
         </div>
       )}
 

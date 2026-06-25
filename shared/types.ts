@@ -134,6 +134,7 @@ export type {
   RestartEvent,
   PluginError,
   LogLine,
+  IsolationNotice,
   PluginRecord,
 } from "./plugin-runtime-types.js";
 
@@ -142,7 +143,7 @@ import type {
   PluginPermissions,
   PluginDefaultIntegrationConfig,
 } from "./plugin-manifest-schema.js";
-import type { PluginStatus } from "./plugin-runtime-types.js";
+import type { IsolationNotice, PluginStatus } from "./plugin-runtime-types.js";
 import type { PluginManifest } from "./plugin-manifest-schema.js";
 
 /**
@@ -537,6 +538,7 @@ export interface InstalledPluginSummary {
   name: string;
   status: PluginStatus;
   lastError?: string;
+  isolationNotices?: IsolationNotice[];
 }
 
 export const DONE_STATUSES = new Set(["done", "closed", "archived", "cancelled"]);
