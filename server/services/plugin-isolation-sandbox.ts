@@ -69,6 +69,17 @@ export const DOCKER_IMAGE = "node:24-slim";
 export const DOCKER_EGRESS_IMAGE = "roubo-plugin-egress:node24";
 
 /**
+ * How often (in seconds) the in-container background loop re-resolves declared
+ * egress hosts and repopulates the ROUBO_EGRESS chain. Exported so tests can
+ * assert the value without hard-coding it.
+ *
+ * 60 seconds balances responsiveness to IP rotation (CDN failovers commonly
+ * settle within a minute) against the getent DNS cost multiplied by the number
+ * of declared hosts.
+ */
+export const EGRESS_RERESOLVE_INTERVAL_SECONDS = 60;
+
+/**
  * Probe whether an executable is resolvable on the host's PATH, returning false
  * on any error (missing binary, spawn failure, timeout). Used by the
  * apple-container probe to confirm the `container` CLI is actually present, not
@@ -263,24 +274,37 @@ export async function ensureImage(image: string = DOCKER_IMAGE): Promise<void> {
 const SAFE_EGRESS_HOST = /^[A-Za-z0-9*._-]+$/;
 
 export function buildEgressSetupScript(hosts: string[]): string {
-  // Build the per-host iptables ACCEPT block. For each declared host we run
-  // `getent hosts "<host>"` (which resolves both A and AAAA records via the
-  // container's resolver) and ACCEPT every returned IP. The host is quoted, and
-  // only values matching SAFE_EGRESS_HOST are admitted at all, so an
-  // attacker-declared host string cannot inject shell commands into this script.
-  // Wildcard entries (*.example.com) pass the pattern but getent fails to
-  // resolve them, so the for loop simply emits no rules for that entry, which is
-  // the safe behaviour (no wider-than-declared egress admitted).
-  const hostBlocks = hosts
+  // Build per-host getent resolution lines for the roubo_reresolve function.
+  // For each declared host we run `getent hosts "<host>"` (which resolves both
+  // A and AAAA records via the container's resolver) and ACCEPT every returned
+  // IP via ROUBO_EGRESS. The host is quoted, and only values matching
+  // SAFE_EGRESS_HOST are admitted at all, so an attacker-declared host string
+  // cannot inject shell commands into this script. Wildcard entries
+  // (*.example.com) pass the pattern but getent fails to resolve them, so the
+  // for loop emits no rules for that entry, which is the safe behaviour (no
+  // wider-than-declared egress admitted).
+  const hostLines = hosts
     .filter((h) => SAFE_EGRESS_HOST.test(h))
     .map(
       (h) =>
-        `for ip in $(getent hosts "${h}" | awk '{print $1}'); do iptables -A OUTPUT -d "$ip" -j ACCEPT 2>/dev/null || true; done`,
+        `for ip in $(getent hosts "${h}" | awk '{print $1}'); do iptables -A ROUBO_EGRESS -d "$ip" -j ACCEPT 2>/dev/null || true; done`,
     )
     .join("; ");
 
+  // roubo_reresolve: flush the managed chain, then re-add per-host ACCEPT rules
+  // targeting only the currently resolved IPs of the declared hosts. Flushing
+  // before re-adding means the admitted set is always exactly the IPs returned
+  // by the current DNS query, never a growing union of past and present IPs.
+  // This is what prevents stale rotated IPs from accumulating as permanently-
+  // admitted rules (AC-2: fix must not widen egress beyond the declared hosts).
+  const flushLine = "iptables -F ROUBO_EGRESS 2>/dev/null || true";
+  const funcBody = hostLines ? `${flushLine}; ${hostLines}` : flushLine;
+  const reresolveFunc = `roubo_reresolve() { ${funcBody}; }`;
+
   const parts: string[] = [
-    // Flush any existing rules and set the default OUTPUT policy to DROP.
+    // Create the managed egress chain once; tolerate "already exists" gracefully.
+    "iptables -N ROUBO_EGRESS 2>/dev/null || true",
+    // Flush any existing OUTPUT rules and set the default OUTPUT policy to DROP.
     "iptables -F OUTPUT 2>/dev/null || true",
     "iptables -P OUTPUT DROP 2>/dev/null || true",
     // Allow loopback so the node process can communicate with itself.
@@ -291,10 +315,18 @@ export function buildEgressSetupScript(hosts: string[]): string {
     // Allow DNS so host resolution works inside the container.
     "iptables -A OUTPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || true",
     "iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT 2>/dev/null || true",
+    // Delegate all other OUTPUT traffic to the managed ROUBO_EGRESS chain.
+    "iptables -A OUTPUT -j ROUBO_EGRESS 2>/dev/null || true",
+    // Define the re-resolution function and populate the chain for the first time.
+    reresolveFunc,
+    "roubo_reresolve",
+    // Background a periodic re-resolution loop. The node process runs as PID 1
+    // via exec, so when the container exits the shell exits too and the background
+    // loop dies with it (no leak, satisfies AC-1). The interval is controlled by
+    // EGRESS_RERESOLVE_INTERVAL_SECONDS exported from the host module.
+    `{ while true; do sleep ${EGRESS_RERESOLVE_INTERVAL_SECONDS}; roubo_reresolve; done; } &`,
   ];
-  if (hostBlocks) {
-    parts.push(hostBlocks);
-  }
+
   return parts.join("; ");
 }
 
