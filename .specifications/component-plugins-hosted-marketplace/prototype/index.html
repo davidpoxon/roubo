@@ -1,0 +1,1670 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roubo · Hosted marketplace + plugin de-bundling (prototype)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --white: #ffffff;
+        --stone-50: #fafaf9;
+        --stone-100: #f5f5f4;
+        --stone-200: #e7e5e4;
+        --stone-300: #d6d3d1;
+        --stone-400: #a8a29e;
+        --stone-500: #78716c;
+        --stone-600: #57534e;
+        --stone-700: #44403c;
+        --stone-800: #292524;
+        --stone-900: #1c1917;
+        --stone-950: #0c0a09;
+        --amber-50: #fffbeb;
+        --amber-100: #fef3c7;
+        --amber-200: #fde68a;
+        --amber-400: #fbbf24;
+        --amber-500: #f59e0b;
+        --amber-600: #d97706;
+        --amber-700: #b45309;
+        --amber-800: #92400e;
+        --red-50: #fef2f2;
+        --red-100: #fee2e2;
+        --red-200: #fecaca;
+        --red-500: #ef4444;
+        --red-600: #dc2626;
+        --red-700: #b91c1c;
+        --green-50: #f0fdf4;
+        --green-100: #dcfce7;
+        --green-200: #bbf7d0;
+        --green-500: #22c55e;
+        --green-600: #16a34a;
+        --green-700: #15803d;
+        --green-800: #166534;
+        --font-ui: "Inter", system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: var(--font-ui);
+        color: var(--stone-700);
+        background: var(--stone-100);
+        -webkit-font-smoothing: antialiased;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 256px 1fr;
+        min-height: 100vh;
+      }
+      .rail {
+        background: var(--stone-50);
+        border-right: 1px solid var(--stone-200);
+        padding: 24px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 8px 16px;
+      }
+      .brand .mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: var(--stone-900);
+        display: grid;
+        place-items: center;
+        color: var(--amber-500);
+        font-weight: 700;
+      }
+      .brand .name {
+        font-weight: 600;
+        color: var(--stone-900);
+        letter-spacing: -0.01em;
+      }
+      .rail-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--stone-400);
+        padding: 14px 8px 6px;
+        font-weight: 600;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: var(--stone-600);
+        cursor: pointer;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        font-size: 13.5px;
+        font-family: var(--font-ui);
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+      .nav-item:hover {
+        background: var(--stone-100);
+        color: var(--stone-800);
+      }
+      .nav-item.active {
+        background: var(--white);
+        color: var(--stone-900);
+        font-weight: 500;
+        box-shadow: inset 0 0 0 1px var(--stone-200);
+      }
+      .nav-item .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--amber-500);
+        flex: none;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .nav-item.active .dot {
+        opacity: 1;
+      }
+      .rail-foot {
+        margin-top: auto;
+        padding: 12px 8px 0;
+        font-size: 11px;
+        color: var(--stone-400);
+        font-family: var(--font-mono);
+        line-height: 1.7;
+      }
+      .main {
+        padding: 40px 48px 72px;
+        max-width: 1000px;
+      }
+      .crumb {
+        font-size: 12px;
+        color: var(--stone-400);
+        font-family: var(--font-mono);
+        margin-bottom: 6px;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--stone-900);
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        color: var(--stone-500);
+        margin-top: 6px;
+        font-size: 14px;
+        max-width: 64ch;
+      }
+      .screen {
+        display: none;
+      }
+      .screen.active {
+        display: block;
+        animation: fade 0.2s ease;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .sec-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 30px 0 14px;
+      }
+      .sec-head .mk {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--amber-500);
+      }
+      .sec-head h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--stone-500);
+        font-weight: 600;
+      }
+      .card {
+        background: var(--white);
+        border: 1px solid var(--stone-200);
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        transition: border-color 0.15s ease;
+      }
+      .card:hover {
+        border-color: var(--stone-300);
+      }
+      .card.hidden {
+        display: none;
+      }
+      .plugin-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      .tile {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--stone-100);
+        border: 1px solid var(--stone-200);
+        display: grid;
+        place-items: center;
+        color: var(--stone-500);
+        flex: none;
+      }
+      .tile svg {
+        width: 22px;
+        height: 22px;
+      }
+      .pl-main {
+        flex: 1;
+        min-width: 0;
+      }
+      .pl-titleline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .pl-name {
+        font-weight: 600;
+        color: var(--stone-900);
+        font-size: 15px;
+      }
+      .pl-ver {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--stone-400);
+      }
+      .kind {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--stone-500);
+        border: 1px solid var(--stone-200);
+        border-radius: 5px;
+        padding: 1px 6px;
+      }
+      .pl-path {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--stone-500);
+        margin-top: 3px;
+      }
+      .pl-desc {
+        color: var(--stone-600);
+        margin-top: 8px;
+        font-size: 13.5px;
+      }
+      .pl-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--stone-100);
+      }
+      .spacer {
+        flex: 1;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .pill .d {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .pill.installed {
+        background: var(--green-50);
+        color: var(--green-800);
+      }
+      .pill.installed .d {
+        background: var(--green-500);
+      }
+      .pill.seeded {
+        background: var(--amber-50);
+        color: var(--amber-800);
+      }
+      .pill.seeded .d {
+        background: var(--amber-500);
+      }
+      .pill.available {
+        background: var(--stone-100);
+        color: var(--stone-600);
+      }
+      .pill.available .d {
+        background: var(--stone-400);
+      }
+      .pill.update {
+        background: var(--amber-50);
+        color: var(--amber-800);
+      }
+      .pill.update .d {
+        background: var(--amber-500);
+      }
+      .pill.error {
+        background: var(--red-50);
+        color: var(--red-700);
+      }
+      .pill.error .d {
+        background: var(--red-500);
+      }
+      .pill.working {
+        background: var(--amber-50);
+        color: var(--amber-800);
+      }
+      .pill.working .d {
+        background: var(--amber-500);
+        animation: pulse 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .pill.verified {
+        background: var(--green-50);
+        color: var(--green-800);
+      }
+      .pill.verified .d {
+        background: var(--green-500);
+      }
+      .pill.revoked {
+        background: var(--stone-200);
+        color: var(--stone-600);
+      }
+      .pill.revoked .d {
+        background: var(--stone-500);
+      }
+      .btn {
+        font-family: var(--font-ui);
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 13px;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease;
+      }
+      .btn.primary {
+        background: var(--amber-500);
+        color: var(--stone-950);
+      }
+      .btn.primary:hover {
+        background: var(--amber-400);
+      }
+      .btn.primary:active {
+        background: var(--amber-600);
+      }
+      .btn.secondary {
+        background: var(--stone-100);
+        color: var(--stone-700);
+        border-color: var(--stone-200);
+      }
+      .btn.secondary:hover {
+        border-color: var(--stone-300);
+      }
+      .btn.ghost {
+        background: none;
+        color: var(--stone-600);
+      }
+      .btn.ghost:hover {
+        background: var(--stone-100);
+        color: var(--stone-800);
+      }
+      .btn.danger {
+        background: none;
+        color: var(--red-700);
+      }
+      .btn.danger:hover {
+        background: var(--red-50);
+      }
+      .btn.danger-solid {
+        background: var(--red-600);
+        color: #fff;
+      }
+      .btn.danger-solid:hover {
+        background: var(--red-700);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .banner {
+        display: flex;
+        gap: 12px;
+        border-radius: 10px;
+        padding: 13px 15px;
+        margin-top: 14px;
+      }
+      .banner.err {
+        background: var(--red-50);
+        border: 1px solid var(--red-200);
+      }
+      .banner.warn {
+        background: var(--amber-50);
+        border: 1px solid var(--amber-200);
+      }
+      .banner .ico {
+        flex: none;
+        margin-top: 1px;
+      }
+      .banner.err .ico {
+        color: var(--red-500);
+      }
+      .banner.warn .ico {
+        color: var(--amber-600);
+      }
+      .banner .b-body {
+        min-width: 0;
+        flex: 1;
+      }
+      .banner.err .b-msg {
+        color: var(--red-700);
+      }
+      .banner.warn .b-msg {
+        color: var(--amber-800);
+      }
+      .b-msg {
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .b-code {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        background: rgba(0, 0, 0, 0.04);
+        border-radius: 5px;
+        padding: 1px 5px;
+        color: var(--red-700);
+      }
+      .b-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .b-actions .btn {
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+      .banner.err .btn {
+        color: var(--red-700);
+      }
+      .banner.err .btn:hover {
+        background: var(--red-100);
+      }
+      .steps {
+        margin-top: 14px;
+        border: 1px solid var(--stone-200);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--stone-100);
+      }
+      .step:last-child {
+        border-bottom: none;
+      }
+      .step .si {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        flex: none;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+      }
+      .step.done .si {
+        background: var(--green-50);
+        color: var(--green-600);
+        border: 1px solid var(--green-200);
+      }
+      .step.active .si {
+        background: var(--amber-50);
+        color: var(--amber-600);
+        border: 1px solid var(--amber-200);
+      }
+      .step.todo .si {
+        background: var(--stone-50);
+        color: var(--stone-300);
+        border: 1px solid var(--stone-200);
+      }
+      .step .st {
+        font-size: 13.5px;
+        color: var(--stone-700);
+      }
+      .step.todo .st {
+        color: var(--stone-400);
+      }
+      .step .stmeta {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--stone-400);
+        margin-left: auto;
+      }
+      .step.active .st {
+        color: var(--stone-900);
+        font-weight: 500;
+      }
+      .note {
+        font-size: 12.5px;
+        color: var(--stone-500);
+        background: var(--stone-50);
+        border: 1px solid var(--stone-200);
+        border-radius: 8px;
+        padding: 10px 13px;
+        margin-top: 14px;
+        display: flex;
+        gap: 9px;
+      }
+      .note .mk {
+        color: var(--amber-500);
+        font-weight: 700;
+        flex: none;
+      }
+      .map-tag {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--amber-700);
+        background: var(--amber-50);
+        border: 1px solid var(--amber-200);
+        border-radius: 5px;
+        padding: 1px 6px;
+      }
+      .toast {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--stone-900);
+        color: var(--stone-50);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 13px;
+        max-width: 520px;
+      }
+      .toast b {
+        color: #fff;
+      }
+      .toast .d {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green-500);
+        flex: none;
+      }
+      .searchbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 18px 0 6px;
+      }
+      .search {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        border: 1px solid var(--stone-200);
+        border-radius: 9px;
+        padding: 9px 12px;
+        background: var(--white);
+      }
+      .search input {
+        border: none;
+        outline: none;
+        flex: 1;
+        font-family: var(--font-ui);
+        font-size: 13.5px;
+        color: var(--stone-800);
+        background: none;
+      }
+      .search input::placeholder {
+        color: var(--stone-400);
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+      }
+      .chip {
+        font-size: 12.5px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--stone-200);
+        background: var(--white);
+        color: var(--stone-600);
+        cursor: pointer;
+      }
+      .chip.on {
+        background: var(--stone-900);
+        color: var(--white);
+        border-color: var(--stone-900);
+      }
+      .field {
+        margin-bottom: 16px;
+      }
+      .field label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--stone-400);
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .input {
+        width: 100%;
+        border: 1px solid var(--stone-200);
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        color: var(--stone-900);
+        background: var(--white);
+      }
+      .input::placeholder {
+        color: var(--stone-400);
+      }
+      select.input {
+        font-family: var(--font-ui);
+      }
+      .binding {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        background: var(--stone-50);
+        border: 1px solid var(--stone-200);
+        border-radius: 8px;
+        padding: 9px 12px;
+        color: var(--stone-700);
+      }
+      .binding b {
+        color: var(--stone-900);
+      }
+      .removed-strike {
+        opacity: 0.5;
+      }
+      .removed-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--red-700);
+        background: var(--red-50);
+        border: 1px solid var(--red-200);
+        border-radius: 5px;
+        padding: 1px 7px;
+      }
+      .twocol {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--stone-200);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .seg span {
+        padding: 7px 16px;
+        font-size: 13px;
+        color: var(--stone-500);
+      }
+      .seg span.on {
+        background: var(--stone-800);
+        color: var(--white);
+      }
+      .confirm {
+        border: 1px solid var(--red-200);
+        background: var(--red-50);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-top: 12px;
+      }
+      .confirm h3 {
+        font-size: 14px;
+        color: var(--stone-900);
+        margin-bottom: 5px;
+      }
+      .confirm p {
+        font-size: 13px;
+        color: var(--stone-600);
+      }
+      .confirm .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .comp-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 13px 15px;
+        border: 1px solid var(--stone-200);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        background: var(--white);
+      }
+      .comp-row .nm {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--stone-900);
+        font-size: 13.5px;
+      }
+      .add-panel {
+        border: 1px dashed var(--stone-300);
+        border-radius: 12px;
+        padding: 18px 20px;
+        background: var(--stone-50);
+        margin-top: 6px;
+      }
+      @media (max-width: 760px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .rail {
+          display: none;
+        }
+        .main {
+          padding: 24px;
+        }
+        .twocol {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <div class="mark">R</div>
+          <div class="name">Roubo</div>
+        </div>
+        <div class="rail-label">Plugin lifecycle</div>
+        <button class="nav-item active" data-screen="fresh">
+          <span class="dot"></span>Fresh install
+        </button>
+        <button class="nav-item" data-screen="browse">
+          <span class="dot"></span>Browse &amp; install
+        </button>
+        <button class="nav-item" data-screen="install">
+          <span class="dot"></span>Install &amp; verify
+        </button>
+        <button class="nav-item" data-screen="uninstall"><span class="dot"></span>Uninstall</button>
+        <button class="nav-item" data-screen="components">
+          <span class="dot"></span>Configure components
+        </button>
+        <div class="rail-label">States</div>
+        <button class="nav-item" data-screen="errored">
+          <span class="dot"></span>Errored plugin
+        </button>
+        <button class="nav-item" data-screen="offline">
+          <span class="dot"></span>Offline / unreachable
+        </button>
+        <div class="rail-foot">
+          prototype<br />component-plugins-<br />hosted-marketplace<br />parent: component-plugins
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- FRESH INSTALL -->
+        <section class="screen active" id="fresh">
+          <div class="crumb">First launch · clean machine</div>
+          <h1>What you get out of the box</h1>
+          <p class="lede">
+            The app bundles no plugin source. On first launch a small built, signed seed cache
+            installs three plugins with no network, so the common case works immediately and
+            offline. Everything else is installed from the marketplace on demand.
+            <span class="map-tag">FR-004 FR-005 NFR-002</span>
+          </p>
+
+          <div class="toast" style="margin-top: 18px">
+            <span class="d"></span>First-run seed installed (offline, verified): <b>github-com</b>,
+            <b>process</b>, <b>database</b>
+          </div>
+
+          <div class="sec-head">
+            <span class="mk"></span>
+            <h2>Seeded automatically (3)</h2>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(GH)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">GitHub.com</span><span class="kind">integration</span
+                  ><span class="pl-ver">v0.2.0</span
+                  ><span class="pill seeded"><span class="d"></span>Seeded</span
+                  ><span class="pill verified"><span class="d"></span>Verified</span>
+                </div>
+                <div class="pl-path">~/.roubo/plugins/github-com/</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(PR)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Process</span><span class="kind">component</span
+                  ><span class="pl-ver">v0.1.0</span
+                  ><span class="pill seeded"><span class="d"></span>Seeded</span
+                  ><span class="pill verified"><span class="d"></span>Verified</span>
+                </div>
+                <div class="pl-path">~/.roubo/plugins/process/</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(DB)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Database</span><span class="kind">component</span
+                  ><span class="pl-ver">v0.1.0</span
+                  ><span class="pill seeded"><span class="d"></span>Seeded</span
+                  ><span class="pill verified"><span class="d"></span>Verified</span>
+                </div>
+                <div class="pl-path">~/.roubo/plugins/database/</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec-head">
+            <span class="mk" style="background: var(--stone-400)"></span>
+            <h2>Not installed (marketplace-only)</h2>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(GE)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">GitHub Enterprise</span><span class="kind">integration</span
+                  ><span class="pl-ver">v0.2.0</span
+                  ><span class="pill available"><span class="d"></span>Not installed</span>
+                </div>
+                <div class="pl-desc">Install from the marketplace when you need it.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(JI)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Self-hosted Jira</span><span class="kind">integration</span
+                  ><span class="pl-ver">v0.3.1</span
+                  ><span class="pill available"><span class="d"></span>Not installed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            <span class="mk">&rarr;</span>
+            <div>
+              Open <b>Browse &amp; install</b> to add GitHub Enterprise, Jira, or any community
+              plugin.
+            </div>
+          </div>
+        </section>
+
+        <!-- BROWSE & INSTALL -->
+        <section class="screen" id="browse">
+          <div class="crumb">Settings / Plugins / Marketplace</div>
+          <h1>Browse the marketplace</h1>
+          <p class="lede">
+            The hosted catalog is fetched over the network and signature-verified. Search and
+            filter, then install any entry. Revoked entries are shown but can't be installed.
+            <span class="map-tag">FR-001 FR-007</span>
+          </p>
+
+          <div class="searchbar">
+            <div class="search">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#A8A29E"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.5" y2="16.5" />
+              </svg>
+              <input id="q" type="text" placeholder="Search plugins..." />
+            </div>
+            <div class="chips">
+              <button class="chip on" data-kind="all">All</button>
+              <button class="chip" data-kind="integration">Integrations</button>
+              <button class="chip" data-kind="component">Components</button>
+            </div>
+          </div>
+
+          <div id="catalog">
+            <div class="card" data-kind="integration" data-name="github.com">
+              <div class="plugin-top">
+                <div class="tile">$(GH)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name">GitHub.com</span><span class="kind">integration</span
+                    ><span class="pl-ver">v0.2.0</span
+                    ><span class="pill installed"><span class="d"></span>Installed</span>
+                  </div>
+                  <div class="pl-desc">GitHub.com issue source.</div>
+                  <div class="pl-actions">
+                    <span class="spacer"></span><button class="btn ghost">View logs</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card" data-kind="component" data-name="process">
+              <div class="plugin-top">
+                <div class="tile">$(PR)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name">Process</span><span class="kind">component</span
+                    ><span class="pl-ver">v0.1.0</span
+                    ><span class="pill installed"><span class="d"></span>Installed</span>
+                  </div>
+                  <div class="pl-desc">Supervises a long-running process for a bench.</div>
+                </div>
+              </div>
+            </div>
+            <div class="card" data-kind="component" data-name="database">
+              <div class="plugin-top">
+                <div class="tile">$(DB)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name">Database</span><span class="kind">component</span
+                    ><span class="pl-ver">v0.1.0</span
+                    ><span class="pill installed"><span class="d"></span>Installed</span>
+                  </div>
+                  <div class="pl-desc">Docker-backed database for a bench.</div>
+                </div>
+              </div>
+            </div>
+            <div class="card" data-kind="integration" data-name="github enterprise ghe">
+              <div class="plugin-top">
+                <div class="tile">$(GE)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name">GitHub Enterprise</span
+                    ><span class="kind">integration</span><span class="pl-ver">v0.2.0</span
+                    ><span class="pill available"><span class="d"></span>Not installed</span>
+                  </div>
+                  <div class="pl-desc">Self-hosted GitHub Enterprise issue source.</div>
+                  <div class="pl-actions">
+                    <span class="spacer"></span
+                    ><button class="btn primary goInstall">Install</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card" data-kind="integration" data-name="jira">
+              <div class="plugin-top">
+                <div class="tile">$(JI)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name">Self-hosted Jira</span
+                    ><span class="kind">integration</span><span class="pl-ver">v0.3.1</span
+                    ><span class="pill available"><span class="d"></span>Not installed</span>
+                  </div>
+                  <div class="pl-desc">Jira Data Center / Server issue source.</div>
+                  <div class="pl-actions">
+                    <span class="spacer"></span
+                    ><button class="btn primary goInstall">Install</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card" data-kind="component" data-name="redis">
+              <div class="plugin-top">
+                <div class="tile" style="color: var(--stone-400)">$(DB)</div>
+                <div class="pl-main">
+                  <div class="pl-titleline">
+                    <span class="pl-name" style="color: var(--stone-500)">Redis</span
+                    ><span class="kind">component</span><span class="pl-ver">v0.0.3</span
+                    ><span class="pill revoked"><span class="d"></span>Revoked</span>
+                  </div>
+                  <div class="pl-desc">
+                    Withdrawn pending a published source. Cannot be installed.
+                  </div>
+                  <div class="pl-actions">
+                    <span class="spacer"></span
+                    ><button class="btn secondary" disabled>Install</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note" id="noresult" style="display: none">
+            <span class="mk">i</span>
+            <div>No plugins match your search.</div>
+          </div>
+        </section>
+
+        <!-- INSTALL & VERIFY -->
+        <section class="screen" id="install">
+          <div class="crumb">Settings / Plugins / Install</div>
+          <h1>Install &amp; verify</h1>
+          <p class="lede">
+            Installing downloads a pre-built artifact, then verifies the catalog signature and the
+            digest over the built artifact before anything runs. Verification fails closed.
+            <span class="map-tag">FR-002 FR-003 NFR-001 US-005</span>
+          </p>
+
+          <div class="card" style="margin-top: 18px">
+            <div class="plugin-top">
+              <div class="tile">$(GE)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">GitHub Enterprise</span><span class="pl-ver">v0.2.0</span
+                  ><span class="pill working" id="instPill"
+                    ><span class="d"></span><span id="instPillLabel">Installing</span></span
+                  >
+                </div>
+                <div class="pl-path" id="instPath">
+                  Downloading ghe-0.2.0.tgz from release asset
+                </div>
+                <div class="steps" id="steps">
+                  <div class="step active" data-step="0">
+                    <div class="si">1</div>
+                    <div class="st">Download built artifact</div>
+                    <div class="stmeta">ghe-0.2.0.tgz · 1.2&nbsp;MB</div>
+                  </div>
+                  <div class="step todo" data-step="1">
+                    <div class="si">2</div>
+                    <div class="st">Verify catalog signature</div>
+                    <div class="stmeta">ed25519</div>
+                  </div>
+                  <div class="step todo" data-step="2">
+                    <div class="si">3</div>
+                    <div class="st">Verify artifact digest</div>
+                    <div class="stmeta">sha256</div>
+                  </div>
+                  <div class="step todo" data-step="3">
+                    <div class="si">4</div>
+                    <div class="st">Unpack &amp; install</div>
+                    <div class="stmeta">~/.roubo/plugins/ghe</div>
+                  </div>
+                </div>
+                <div class="pl-actions">
+                  <span class="spacer"></span
+                  ><button class="btn secondary" id="replay">Replay</button
+                  ><button class="btn secondary" id="tamper">Show tamper rejection</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            <span class="mk">i</span>
+            <div>
+              The signature is checked against an app-held key resolved from a signed key-ring, so
+              operational keys rotate without an app release.
+              <span class="map-tag">FR-007 NFR-004</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- UNINSTALL -->
+        <section class="screen" id="uninstall">
+          <div class="crumb">Settings / Plugins</div>
+          <h1>Uninstall a plugin</h1>
+          <p class="lede">
+            Because every plugin is now marketplace-managed (nothing is a permanent in-app bundle),
+            any plugin can be uninstalled, including the seeded ones, and reinstalled from the
+            marketplace anytime. <span class="map-tag">FR-003 FR-008</span>
+          </p>
+
+          <div class="card" id="uninstallCard">
+            <div class="plugin-top">
+              <div class="tile">$(JI)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name" id="unName">Self-hosted Jira</span
+                  ><span class="pl-ver">v0.3.1</span
+                  ><span class="pill installed" id="unPill"><span class="d"></span>Installed</span>
+                </div>
+                <div class="pl-path">~/.roubo/plugins/jira-self-hosted/</div>
+                <div class="pl-actions">
+                  <span class="spacer"></span><button class="btn ghost">Disable</button
+                  ><button class="btn danger" id="unBtn">Uninstall</button>
+                </div>
+
+                <div class="confirm" id="unConfirm" style="display: none">
+                  <h3>Remove Self-hosted Jira?</h3>
+                  <p>
+                    This deletes
+                    <span
+                      class="b-code"
+                      style="color: var(--stone-700); background: rgba(0, 0, 0, 0.04)"
+                      >~/.roubo/plugins/jira-self-hosted/</span
+                    >. Any project component bound to it will need rebinding. You can reinstall it
+                    from the marketplace at any time.
+                  </p>
+                  <div class="row">
+                    <button class="btn danger-solid" id="unGo">Uninstall</button
+                    ><button class="btn secondary" id="unCancel">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note" id="unDone" style="display: none">
+            <span class="mk" style="color: var(--green-600)">&check;</span>
+            <div>
+              Removed. Self-hosted Jira is back in the marketplace as <b>Not installed</b>, ready to
+              reinstall.
+            </div>
+          </div>
+        </section>
+
+        <!-- CONFIGURE COMPONENTS -->
+        <section class="screen" id="components">
+          <div class="crumb">Roubo project / Settings / Components</div>
+          <h1>Use component plugins in a project</h1>
+          <p class="lede">
+            A project's components each bind to an installed <b>component plugin</b>. You pick the
+            plugin, then fill in the fields its config schema defines. There is no free-floating
+            "Role": if a component type isn't installed, you install it from the marketplace first.
+            <span class="map-tag">FR-010 US-006</span>
+          </p>
+
+          <div class="sec-head">
+            <span class="mk"></span>
+            <h2>Components in roubo.yaml</h2>
+          </div>
+          <div class="comp-row">
+            <div class="tile" style="width: 34px; height: 34px">$(PR)</div>
+            <div>
+              <div class="nm">api</div>
+              <div style="font-size: 12px; color: var(--stone-500)">
+                bound to <b style="color: var(--stone-700)">process</b>
+              </div>
+            </div>
+            <span class="spacer"></span><span class="pl-ver">3000</span
+            ><button class="btn ghost">Edit</button>
+          </div>
+          <div class="comp-row">
+            <div class="tile" style="width: 34px; height: 34px">$(DB)</div>
+            <div>
+              <div class="nm">db</div>
+              <div style="font-size: 12px; color: var(--stone-500)">
+                bound to <b style="color: var(--stone-700)">database</b>
+              </div>
+            </div>
+            <span class="spacer"></span><span class="pl-ver">5432</span
+            ><button class="btn ghost">Edit</button>
+          </div>
+
+          <div class="sec-head">
+            <span class="mk"></span>
+            <h2>Add a component</h2>
+          </div>
+          <div class="add-panel">
+            <div class="twocol">
+              <div class="field">
+                <label>Component name</label><input class="input" placeholder="e.g. worker" />
+              </div>
+              <div class="field">
+                <label>Component plugin</label>
+                <select class="input" id="pluginSel">
+                  <option value="process">Process · component (installed)</option>
+                  <option value="database">Database · component (installed)</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="cfgProcess">
+              <div class="field">
+                <label>Command</label><input class="input" placeholder="npm run start" />
+              </div>
+              <div class="twocol">
+                <div class="field">
+                  <label>Directory</label><input class="input" placeholder="(workspace root)" />
+                </div>
+                <div class="field">
+                  <label>Setup (optional)</label><input class="input" placeholder="npm install" />
+                </div>
+              </div>
+              <div class="note">
+                <span class="mk">i</span>
+                <div>Fields come from the <b>process</b> plugin's config schema.</div>
+              </div>
+            </div>
+            <div id="cfgDatabase" style="display: none">
+              <div class="twocol">
+                <div class="field">
+                  <label>Docker compose file</label
+                  ><input class="input" placeholder="docker-compose.yml" />
+                </div>
+                <div class="field">
+                  <label>Service</label><input class="input" placeholder="postgres" />
+                </div>
+              </div>
+              <div class="note">
+                <span class="mk">i</span>
+                <div>Fields come from the <b>database</b> plugin's config schema.</div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top: 6px">
+              <div class="binding">plugin: <b id="bindEcho">{ id: process }</b></div>
+            </div>
+            <button class="btn primary">Add component</button>
+          </div>
+
+          <div class="note">
+            <span class="mk">&rarr;</span>
+            <div>
+              Only <b>installed</b> component plugins appear in the selector. Need another component
+              type? Install it from the marketplace, then it shows up here. (This is the link that
+              used to be missing: the old "Role: Process / Database" toggle let you configure a
+              database with no database plugin installed.)
+            </div>
+          </div>
+
+          <div class="sec-head">
+            <span class="mk" style="background: var(--stone-400)"></span>
+            <h2>Removed: the legacy Role toggle</h2>
+          </div>
+          <div class="card removed-strike">
+            <div class="field">
+              <label>Role &nbsp; <span class="removed-tag">removed · FR-010</span></label>
+              <div class="seg"><span>Process</span><span class="on">Database</span></div>
+              <div style="font-size: 12.5px; color: var(--stone-500); margin-top: 8px">
+                Edited the deprecated
+                <span style="font-family: var(--font-mono)">component.type</span> field, decoupled
+                from any plugin binding.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ERRORED -->
+        <section class="screen" id="errored">
+          <div class="crumb">Settings / Plugins</div>
+          <h1>Errored plugin: the real reason</h1>
+          <p class="lede">
+            When a plugin fails, the banner now surfaces its actual
+            <span style="font-family: var(--font-mono)">lastError</span> instead of hardcoded
+            integration-only copy, so you can act on it. <span class="map-tag">FR-012</span>
+          </p>
+
+          <div class="sec-head">
+            <span class="mk" style="background: var(--green-500)"></span>
+            <h2>After</h2>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(PR)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Process</span><span class="pl-ver">v0.1.0</span
+                  ><span class="pill error"><span class="d"></span>Error</span>
+                </div>
+                <div class="pl-path">~/.roubo/plugins/process/</div>
+                <div class="banner err">
+                  <svg
+                    class="ico"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <div class="b-body">
+                    <div class="b-msg">
+                      <span class="b-code">missing-entry</span> &nbsp;Plugin entry file not found:
+                      <span class="b-code">./dist/index.js</span>. The plugin may not be built;
+                      reinstall it from the marketplace.
+                    </div>
+                    <div class="b-actions">
+                      <button class="btn">Reinstall</button><button class="btn">View logs</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sec-head">
+            <span class="mk" style="background: var(--stone-400)"></span>
+            <h2>Before (what it used to say)</h2>
+          </div>
+          <div class="card removed-strike">
+            <div class="plugin-top">
+              <div class="tile">$(PR)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Process</span><span class="pl-ver">v0.1.0</span
+                  ><span class="pill error"><span class="d"></span>Error</span>
+                </div>
+                <div class="banner err">
+                  <svg
+                    class="ico"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <div class="b-body">
+                    <div class="b-msg">
+                      Plugin failed to start after 3 restart attempts. Showing your last successful
+                      issue snapshot.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            <span class="mk">!</span>
+            <div>
+              The old copy invented "3 restart attempts" and an "issue snapshot" (an
+              integration-only concept) that meant nothing for a component plugin, and hid the
+              actual fixable error.
+            </div>
+          </div>
+        </section>
+
+        <!-- OFFLINE -->
+        <section class="screen" id="offline">
+          <div class="crumb">Settings / Plugins</div>
+          <h1>Marketplace unreachable</h1>
+          <p class="lede">
+            When the hosted marketplace can't be reached, the app degrades to the last-known catalog
+            and the seed cache. It never drops to zero plugins; a new install fails with a clear
+            message. <span class="map-tag">FR-009 NFR-003</span>
+          </p>
+          <div class="banner warn" style="margin-top: 18px">
+            <svg
+              class="ico"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 2a10 10 0 1 0 10 10" />
+              <line x1="12" y1="7" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div class="b-body">
+              <div class="b-msg">
+                <b>Marketplace unreachable.</b> Showing the last verified catalog (fetched 2h ago).
+                Seeded and installed plugins are available; new installs are paused until you're
+                back online.
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 14px">
+            <div class="plugin-top">
+              <div class="tile">$(PR)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Process</span><span class="pl-ver">v0.1.0</span
+                  ><span class="pill installed"><span class="d"></span>Running</span>
+                </div>
+                <div class="pl-desc">Seeded plugins keep working with no network.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="plugin-top">
+              <div class="tile">$(JI)</div>
+              <div class="pl-main">
+                <div class="pl-titleline">
+                  <span class="pl-name">Self-hosted Jira</span><span class="pl-ver">v0.3.1</span
+                  ><span class="pill available"><span class="d"></span>Not installed</span>
+                </div>
+                <div class="banner err">
+                  <svg
+                    class="ico"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <div class="b-body">
+                    <div class="b-msg">
+                      Can't install while the marketplace is unreachable. Try again when you're
+                      online.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      var ICON = {
+        "$(GH)":
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5A10.5 10.5 0 0 0 8.7 22c.5.1.7-.2.7-.5v-1.9c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.4 1.1 3 .8.1-.6.3-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .3.3.7 1 .7 2v3c0 .3.2.6.7.5A10.5 10.5 0 0 0 12 1.5Z"/></svg>',
+        "$(PR)":
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>',
+        "$(DB)":
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+        "$(GE)":
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>',
+        "$(JI)":
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 12l10 10 10-10z"/></svg>',
+      };
+      document.querySelectorAll(".tile").forEach(function (t) {
+        var k = t.textContent.trim();
+        if (ICON[k]) t.innerHTML = ICON[k];
+      });
+
+      var items = document.querySelectorAll(".nav-item");
+      function show(id) {
+        document.querySelectorAll(".screen").forEach(function (s) {
+          s.classList.toggle("active", s.id === id);
+        });
+        items.forEach(function (i) {
+          i.classList.toggle("active", i.dataset.screen === id);
+        });
+        if (id === "install") runInstall();
+        window.scrollTo(0, 0);
+      }
+      items.forEach(function (i) {
+        i.addEventListener("click", function () {
+          show(i.dataset.screen);
+        });
+      });
+      document.querySelectorAll(".goInstall").forEach(function (b) {
+        b.addEventListener("click", function () {
+          show("install");
+        });
+      });
+
+      // browse search + filter
+      var kind = "all";
+      function filter() {
+        var q = (document.getElementById("q").value || "").toLowerCase().trim();
+        var any = false;
+        document.querySelectorAll("#catalog .card").forEach(function (c) {
+          var okKind = kind === "all" || c.dataset.kind === kind;
+          var okQ = !q || (c.dataset.name || "").indexOf(q) >= 0;
+          var on = okKind && okQ;
+          c.classList.toggle("hidden", !on);
+          if (on) any = true;
+        });
+        document.getElementById("noresult").style.display = any ? "none" : "flex";
+      }
+      var qel = document.getElementById("q");
+      if (qel) qel.addEventListener("input", filter);
+      document.querySelectorAll(".chip").forEach(function (ch) {
+        ch.addEventListener("click", function () {
+          document.querySelectorAll(".chip").forEach(function (x) {
+            x.classList.remove("on");
+          });
+          ch.classList.add("on");
+          kind = ch.dataset.kind;
+          filter();
+        });
+      });
+
+      // install sim
+      var timers = [];
+      function clearTimers() {
+        timers.forEach(clearTimeout);
+        timers = [];
+      }
+      function setStep(n, state) {
+        var s = document.querySelector('.step[data-step="' + n + '"]');
+        if (!s) return;
+        s.classList.remove("todo", "active", "done");
+        s.classList.add(state);
+        var si = s.querySelector(".si");
+        si.style.background = "";
+        si.style.color = "";
+        si.style.borderColor = "";
+        if (state === "done") si.textContent = "✓";
+        else si.textContent = n + 1;
+      }
+      function runInstall() {
+        clearTimers();
+        var labels = [
+          "Downloading ghe-0.2.0.tgz from release asset",
+          "Verifying catalog signature (ed25519)",
+          "Verifying artifact digest (sha256)",
+          "Unpacking into ~/.roubo/plugins/ghe",
+        ];
+        [0, 1, 2, 3].forEach(function (n) {
+          setStep(n, n === 0 ? "active" : "todo");
+          var s = document.querySelector('.step[data-step="' + n + '"]');
+          s.querySelector(".st").style.color = "";
+          s.querySelector(".st").textContent = [
+            "Download built artifact",
+            "Verify catalog signature",
+            "Verify artifact digest",
+            "Unpack & install",
+          ][n];
+        });
+        document.getElementById("instPill").className = "pill working";
+        document.getElementById("instPillLabel").textContent = "Installing";
+        document.getElementById("instPath").textContent = labels[0];
+        [0, 1, 2, 3].forEach(function (n) {
+          timers.push(
+            setTimeout(
+              function () {
+                setStep(n, "done");
+                if (n < 3) {
+                  setStep(n + 1, "active");
+                  document.getElementById("instPath").textContent = labels[n + 1];
+                } else {
+                  var p = document.getElementById("instPill");
+                  p.className = "pill verified";
+                  document.getElementById("instPillLabel").textContent = "Installed & verified";
+                  document.getElementById("instPath").textContent =
+                    "~/.roubo/plugins/ghe/  ·  signature + digest verified";
+                }
+              },
+              (n + 1) * 900,
+            ),
+          );
+        });
+      }
+      var rp = document.getElementById("replay");
+      if (rp) rp.addEventListener("click", runInstall);
+      var tb = document.getElementById("tamper");
+      if (tb)
+        tb.addEventListener("click", function () {
+          clearTimers();
+          setStep(0, "done");
+          setStep(1, "done");
+          var s2 = document.querySelector('.step[data-step="2"]');
+          s2.classList.remove("todo", "active", "done");
+          s2.classList.add("todo");
+          var si = s2.querySelector(".si");
+          si.textContent = "✕";
+          si.style.background = "var(--red-50)";
+          si.style.color = "var(--red-600)";
+          si.style.borderColor = "var(--red-200)";
+          s2.querySelector(".st").textContent =
+            "Verify artifact digest: FAILED, install aborted (fail closed)";
+          s2.querySelector(".st").style.color = "var(--red-700)";
+          setStep(3, "todo");
+          var p = document.getElementById("instPill");
+          p.className = "pill error";
+          document.getElementById("instPillLabel").textContent = "Rejected";
+          document.getElementById("instPath").textContent =
+            "digest mismatch · nothing written, nothing executed";
+        });
+
+      // uninstall flow
+      var unBtn = document.getElementById("unBtn"),
+        unConfirm = document.getElementById("unConfirm");
+      if (unBtn) {
+        unBtn.addEventListener("click", function () {
+          unConfirm.style.display = "block";
+          unBtn.disabled = true;
+        });
+      }
+      var unCancel = document.getElementById("unCancel");
+      if (unCancel)
+        unCancel.addEventListener("click", function () {
+          unConfirm.style.display = "none";
+          unBtn.disabled = false;
+        });
+      var unGo = document.getElementById("unGo");
+      if (unGo)
+        unGo.addEventListener("click", function () {
+          unConfirm.style.display = "none";
+          var pill = document.getElementById("unPill");
+          pill.className = "pill available";
+          pill.innerHTML = '<span class="d"></span>Not installed';
+          document.getElementById("uninstallCard").classList.add("removed-strike");
+          document.getElementById("unDone").style.display = "flex";
+        });
+
+      // component plugin selector -> schema-driven fields
+      var sel = document.getElementById("pluginSel");
+      if (sel) {
+        sel.addEventListener("change", function () {
+          var v = sel.value;
+          document.getElementById("cfgProcess").style.display = v === "process" ? "block" : "none";
+          document.getElementById("cfgDatabase").style.display =
+            v === "database" ? "block" : "none";
+          document.getElementById("bindEcho").textContent = "{ id: " + v + " }";
+        });
+      }
+    </script>
+  </body>
+</html>

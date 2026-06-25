@@ -1,0 +1,3810 @@
+{
+  "$schema": "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json",
+  "schemaVersion": "1.1.0",
+  "specSlug": "component-plugins-hosted-marketplace",
+  "cases": [
+    {
+      "id": "TC-001",
+      "title": "App fetches hosted catalog and verifies its signature on launch",
+      "area": "marketplace-catalog",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A signed catalog envelope {payload, signature} is published to the hosted GitHub Pages URL",
+        "A signed key-ring is published and resolves to the operational key that signed the catalog",
+        "The app ships with the embedded bootstrap root key anchoring the key-ring"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app with network access to the hosted marketplace URL",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The app requests the catalog from the hosted URL, not from an embedded file"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Let the app fetch the signed key-ring and verify it against the embedded bootstrap root key",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The key-ring signature validates against the embedded root key and the operational key is resolved"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Let the app verify the fetched catalog's ed25519 signature against the resolved operational key",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The catalog signature verifies successfully"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The catalog payload is accepted and parsed"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Open the marketplace Browse screen",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Verified catalog entries are listed"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "happy-path", "critical-path"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-003", "US-004"]
+    },
+    {
+      "id": "TC-002",
+      "title": "Browse screen filters verified catalog entries by Integrations and Components",
+      "area": "marketplace-catalog",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "The app has fetched and signature-verified the hosted catalog",
+        "The Browse screen is open with a mix of Integration and Component entries"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Type a query into the catalog search box",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The listing filters to entries matching the query"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Select the Integrations filter",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Only Integration-type entries are shown"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Select the Components filter",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Only Component-type entries are shown"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "browse"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-003",
+      "title": "Maintainer CI builds, signs, digests, and publishes a plugin plus regenerated signed catalog",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "The marketplace repo CI pipeline is configured with the ed25519 signing key available only as a CI secret",
+        "A plugin source change is ready to publish"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Trigger the marketplace CI pipeline for the plugin change",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Let CI build the plugin artifact",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "A per-plugin artifact is produced"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Let CI compute the artifact digest and sign the artifact",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "A digest is computed for the artifact"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The artifact is signed with the operational signing key"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Let CI regenerate and sign the catalog and publish artifact plus catalog",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The artifact is published as a per-plugin GitHub Release asset"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "The regenerated catalog is re-signed and published to the hosted GitHub Pages URL"
+            },
+            {
+              "id": "S004-O03",
+              "expected": "The catalog entry references the published artifact digest"
+            }
+          ]
+        }
+      ],
+      "tags": ["publish", "ci", "regression"],
+      "linked_requirement_ids": ["FR-006"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-004",
+      "title": "Maintainer revokes a catalog entry and clients block it at next refresh",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "The catalog contains an active entry that is installable",
+        "The maintainer has access to publish a revised signed catalog without an app release"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Set revoked:true on the target entry, re-sign the catalog, and republish it",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The republished catalog carries the revoked entry with a valid signature"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "On a client, refresh the catalog by reopening the marketplace",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The newly fetched catalog signature verifies"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Locate the revoked entry in the Browse listing",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The revoked entry is either removed from listings or shown with its Install button disabled"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "Install and update are blocked for the revoked entry"
+            }
+          ]
+        }
+      ],
+      "tags": ["revocation", "regression"],
+      "linked_requirement_ids": ["FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-005",
+      "title": "Maintainer rotates the signing key without an app release and clients accept the new key",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "A key-ring signed by the root key currently anchors one operational key",
+        "A new operational key pair has been generated for rotation"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Add the new operational public key to the key-ring and re-sign the ring with the root key",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The republished key-ring validates against the embedded root key and includes the new operational key"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Re-sign the catalog with the new operational key and republish it",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The catalog is published signed by the new operational key, with no app release performed"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "On a client, refresh by reopening the marketplace",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The client resolves the new operational key from the verified key-ring"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The catalog signed by the new key verifies and entries list normally"
+            }
+          ]
+        }
+      ],
+      "tags": ["key-rotation", "regression"],
+      "linked_requirement_ids": ["FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-006",
+      "title": "Catalog with a tampered or invalid signature is rejected",
+      "area": "marketplace-catalog",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "A signed key-ring and operational key are resolvable by the app",
+        "A catalog whose payload has been modified after signing (or whose signature bytes are corrupted) is served from the hosted URL"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app and let it fetch the tampered catalog",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Ed25519 signature verification against the operational key fails"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the app's handling of the failed verification",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The tampered catalog payload is rejected and not used to populate listings"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No entries from the tampered catalog are offered for install"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "signature", "security"],
+      "linked_requirement_ids": ["FR-001", "NFR-004"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-007",
+      "title": "A revoked entry cannot be installed even via direct action",
+      "area": "marketplace-catalog",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "The verified catalog marks the target entry revoked:true",
+        "The Browse screen shows the revoked entry with its Install button disabled"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Attempt to install the revoked entry (via the disabled Install control or a direct install request)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Install is blocked for the revoked entry"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt to update an already-installed copy of the revoked plugin",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Update is blocked for the revoked entry"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "revocation"],
+      "linked_requirement_ids": ["FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-008",
+      "title": "Catalog signed by a key not present in the key-ring is rejected",
+      "area": "marketplace-catalog",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "The app has a valid key-ring anchored by the embedded root key",
+        "A catalog is served signed by an operational key that is NOT present in the key-ring"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app and let it fetch the catalog signed by the unknown key",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No key in the verified key-ring matches the catalog signer"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe verification handling",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Catalog verification fails because the signing key is unknown/untrusted"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The catalog is rejected and entries are not listed or installed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "key-rotation", "security"],
+      "linked_requirement_ids": ["FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-009",
+      "title": "Tampered key-ring not signed by the embedded root key is rejected",
+      "area": "marketplace-catalog",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "The app ships with the embedded bootstrap root key",
+        "A key-ring whose contents were altered after signing (or signed by a non-root key) is served from the hosted URL"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app and let it fetch the tampered key-ring",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Key-ring signature verification against the embedded root key fails"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe how the app proceeds with catalog resolution",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The tampered key-ring is rejected and no operational key is trusted from it"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The catalog is not accepted and no entries are offered for install"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "key-ring", "security"],
+      "linked_requirement_ids": ["FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-010",
+      "title": "Catalog exceeding the size budget is handled without crashing",
+      "area": "marketplace-catalog",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "The hosted URL serves a signed catalog whose size exceeds the configured size budget"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app and let it begin fetching the oversized catalog",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The fetch is bounded by the size budget rather than consuming unbounded memory"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the app's response when the size budget is exceeded",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The oversized catalog is rejected with a clear failure rather than a crash or hang"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The app remains responsive and no partial/unverified entries are installed"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "size-budget", "reliability"],
+      "linked_requirement_ids": ["FR-001"],
+      "linked_user_story_ids": ["US-003"]
+    },
+    {
+      "id": "TC-011",
+      "title": "Signing key never appears in CI logs or published artifacts, and revocation propagates without an app release",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "security",
+      "preconditions": [
+        "The ed25519 signing key is configured only as a CI secret / held out-of-band",
+        "A publish pipeline run and a revocation publish have completed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run a secret-scan across the published artifacts (Release assets, catalog, key-ring)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No ed25519 private key material is present in any published artifact"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Run a secret-scan across the CI pipeline logs for the publish run",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "No private signing key material is emitted or echoed in CI logs"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Publish a revocation (revoked:true + re-sign + republish) and refresh a client at next catalog fetch",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The revoked plugin is blocked on the client at the next catalog refresh with no app release shipped"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "supply-chain", "secret-scan", "revocation"],
+      "linked_requirement_ids": ["NFR-004", "FR-007"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-012",
+      "title": "Published artifact digest mismatch is detected and install blocked",
+      "area": "marketplace-catalog",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "The verified catalog lists an entry with a recorded artifact digest",
+        "The corresponding GitHub Release asset has been replaced with content whose digest differs from the catalog"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Initiate install of the entry and let the app download the Release asset",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The downloaded artifact's computed digest does not match the catalog-recorded digest"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the install handling on digest mismatch",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Install is aborted and the mismatched artifact is not used"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "supply-chain", "negative", "digest"],
+      "linked_requirement_ids": ["FR-006", "NFR-004"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-013",
+      "title": "Add a new catalog entry without an app release and clients see it at next refresh",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "A new plugin artifact has been published as a Release asset",
+        "The maintainer can publish a revised signed catalog without an app release"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Add the new entry to the catalog, re-sign, and republish to the hosted URL",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The republished catalog includes the new entry and verifies"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "On a client, refresh by reopening the marketplace",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The new entry appears in the Browse listing without an app release"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The new entry is installable"
+            }
+          ]
+        }
+      ],
+      "tags": ["catalog-update", "regression"],
+      "linked_requirement_ids": ["FR-007", "FR-001"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-014",
+      "title": "End-to-end: maintainer publishes then revokes a plugin and a client reflects both at next refresh",
+      "area": "marketplace-catalog",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "The marketplace repo CI is configured with the signing key as a CI secret",
+        "A client app instance with the embedded bootstrap root key is available",
+        "GitHub Pages hosting and the key-ring are reachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "As maintainer, trigger CI to build, sign, and digest a new plugin artifact",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The artifact is published as a GitHub Release asset with a computed digest"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Let CI regenerate, re-sign, and publish the catalog with the new entry",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The signed catalog at the hosted URL now includes the new entry"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "As a client user, launch the app and open the marketplace Browse screen",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The app fetches the catalog and verifies its signature via the key-ring anchored by the embedded root key"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Find the newly published entry and install it",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The entry is listed and installs successfully after digest verification"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "As maintainer, set revoked:true on the entry, re-sign the catalog, and republish (no app release)",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "The republished signed catalog marks the entry revoked"
+            }
+          ]
+        },
+        {
+          "id": "S006",
+          "instruction": "As the client user, refresh by reopening the marketplace",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "The refreshed catalog verifies and the entry is shown revoked (or removed) with Install disabled"
+            },
+            {
+              "id": "S006-O02",
+              "expected": "Install and update of the revoked entry are blocked at this next refresh with no app release shipped"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "publish", "revocation", "smoke"],
+      "linked_requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
+      "linked_user_story_ids": ["US-003", "US-004"]
+    },
+    {
+      "id": "TC-015",
+      "title": "Installed plugin runs from dist/index.js with no build step",
+      "area": "artifact-install",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Marketplace catalog is signature-verified and available",
+        "A pre-built plugin artifact is published as a Release asset tarball"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Install the plugin from the marketplace listing",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Install completes without invoking any compiler, bundler, or build script"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "~/.roubo/plugins/<id>/dist/index.js exists on disk after install"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Invoke the installed plugin entry point",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "dist/index.js loads and runs directly with no transpilation or build step on the user's machine"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["FR-002"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-016",
+      "title": "Full download to install happy path produces a runnable plugin",
+      "area": "artifact-install",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "App holds the catalog signing public key (ed25519)",
+        "A valid, untampered plugin artifact and catalog are published"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Trigger install on the Install & verify screen",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Step 1 'Download built artifact' completes and the Release asset tarball is fetched into staging"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Let the catalog signature verification step run",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Step 2 'Verify catalog signature ed25519' passes against the app-held key"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Let the artifact digest verification step run",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Step 3 'Verify artifact digest sha256' passes (computed digest over the built package matches the catalog value)"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Let the unpack and install step complete",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Step 4 'Unpack & install' atomically renames staging into ~/.roubo/plugins/<id>"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "All four progress steps show success and the plugin appears as installed and runnable"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "regression"],
+      "linked_requirement_ids": ["FR-002", "FR-003"],
+      "linked_user_story_ids": ["US-001", "US-005"]
+    },
+    {
+      "id": "TC-017",
+      "title": "End-to-end install journey from marketplace listing to running plugin",
+      "area": "artifact-install",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "App holds the catalog signing public key",
+        "Marketplace catalog lists an untampered, signature-verified plugin with a built-artifact digest"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the marketplace and select the plugin listing",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Listing is shown because the catalog signature already verified against the app-held key"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Click Install to open the Install & verify screen",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The 4-step progress (Download, Verify catalog signature, Verify artifact digest, Unpack & install) is displayed"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Wait for 'Download built artifact' to finish",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The per-plugin Release asset tarball is downloaded into staging with no git clone"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Wait for 'Verify catalog signature ed25519' to finish",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Catalog signature passes ed25519 verification against the app-held key"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Wait for 'Verify artifact digest sha256' to finish",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "Computed sha256 over the built artifact matches the catalog digest"
+            }
+          ]
+        },
+        {
+          "id": "S006",
+          "instruction": "Wait for 'Unpack & install' to finish",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "Staging is atomically renamed into ~/.roubo/plugins/<id> and dist/index.js is present"
+            }
+          ]
+        },
+        {
+          "id": "S007",
+          "instruction": "Invoke the installed plugin",
+          "observations": [
+            {
+              "id": "S007-O01",
+              "expected": "dist/index.js runs directly with no build step on the user's machine"
+            },
+            {
+              "id": "S007-O02",
+              "expected": "Plugin is listed as installed and is fully usable"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "happy-path", "smoke"],
+      "linked_requirement_ids": ["FR-002", "FR-003"],
+      "linked_user_story_ids": ["US-001", "US-005"]
+    },
+    {
+      "id": "TC-018",
+      "title": "Digest mismatch on built artifact is rejected fail-closed",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Catalog signature verifies successfully",
+        "Downloaded tarball's built artifact has been modified so its sha256 no longer matches the catalog digest"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run install through to the 'Verify artifact digest sha256' step",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Step 3 fails: computed digest over the built package does not match the catalog digest"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the install outcome after the digest failure",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Install aborts with 'digest mismatch, nothing written, nothing executed'"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No directory is created under ~/.roubo/plugins/<id> and no plugin code is executed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "fail-closed", "regression"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-019",
+      "title": "Bad catalog signature is rejected before any download or install",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Catalog content or its ed25519 signature has been altered so it no longer verifies against the app-held key"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Attempt to load the marketplace catalog",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Catalog signature verification fails against the app-held ed25519 key"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt to install a plugin from the unverified catalog",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "No listing is served and install is refused (fail-closed)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No artifact is downloaded, written, or executed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "fail-closed", "regression"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-020",
+      "title": "Zip-slip / path-escaping tarball entry is rejected during unpack",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Catalog signature verifies and digest matches a tarball that contains an entry whose path escapes the staging root (e.g. ../../etc/evil or an absolute path)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Unpack the tarball into staging with the path-containment guard active",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The path-escaping entry is detected by the zip-slip guard and rejected"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the filesystem outside the staging root",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "No file is written outside the staging/install root"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Install aborts and nothing is renamed into ~/.roubo/plugins/<id>"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "security", "fail-closed"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-021",
+      "title": "Oversized tarball exceeding size/entry-count limits is rejected",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "A tarball whose total unpacked size or entry count exceeds the configured staging limits is presented for install"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Begin unpacking the tarball into staging",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Unpack aborts once the size limit or entry-count limit is exceeded"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the install outcome and staging directory",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Install fails closed with no plugin written to ~/.roubo/plugins/<id>"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Partial staging contents are cleaned up and nothing is executed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "limits", "fail-closed"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-022",
+      "title": "Tampered artifact is rejected with zero unverified execution (no-network tamper test)",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "Offline / no-network tamper harness (mirrors marketplace-integrity.test.ts)",
+        "Catalog signature is valid but the built artifact bytes have been tampered after digest publication"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run the install verification pipeline against the tampered artifact with no network access",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "sha256 digest over the built package fails to match the catalog digest"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Assert post-conditions of the rejection",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The tampered artifact is rejected (install aborts)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "0 unverified artifacts are executed and nothing is written to ~/.roubo/plugins/<id>"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "tamper", "no-network", "fail-closed"],
+      "linked_requirement_ids": ["NFR-001", "FR-003"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-023",
+      "title": "Tampered catalog is rejected with zero unverified execution (no-network tamper test)",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "Offline / no-network tamper harness (mirrors marketplace-integrity.test.ts)",
+        "Catalog has been tampered so its ed25519 signature no longer verifies against the app-held key"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run catalog signature verification against the tampered catalog with no network access",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "ed25519 signature verification fails against the app-held key"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Assert post-conditions of the rejection",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The tampered catalog is rejected: no listing served and no install permitted"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "0 unverified artifacts are executed and nothing is downloaded or written"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "tamper", "no-network", "fail-closed"],
+      "linked_requirement_ids": ["NFR-001", "FR-003"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-024",
+      "title": "Tamper rejection demo aborts the install at the digest step",
+      "area": "artifact-install",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "Install & verify screen is open with the 'Show tamper rejection' action available"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Trigger the 'Show tamper rejection' action",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Steps 1 and 2 (download, catalog signature) pass and step 3 'Verify artifact digest sha256' fails"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Read the abort message and final state",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Install aborts with the message 'digest mismatch, nothing written, nothing executed'"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Step 4 'Unpack & install' never runs and no plugin is installed"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "tamper", "prototype", "fail-closed"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-025",
+      "title": "Truncated download is rejected and nothing is installed",
+      "area": "artifact-install",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "The Release asset download is interrupted so the tarball is incomplete/truncated"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Attempt to download the built-artifact tarball and have the connection cut mid-transfer",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Download is detected as incomplete (truncated tarball / failed read)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Continue the verification pipeline with the truncated tarball",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Verification fails (unreadable archive or digest mismatch) and install aborts fail-closed"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No plugin is written to ~/.roubo/plugins/<id> and nothing is executed"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "reliability", "fail-closed"],
+      "linked_requirement_ids": ["FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-026",
+      "title": "Partial unpack failure rolls back staging leaving install root untouched",
+      "area": "artifact-install",
+      "level": 4,
+      "type": "reliability",
+      "preconditions": [
+        "Unpack into staging fails partway (e.g. disk error or a late-detected limit/path violation after some entries are written)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Start unpacking the tarball into staging and induce a mid-unpack failure",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The atomic rename into ~/.roubo/plugins/<id> never occurs because unpack did not complete"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect staging and the install root after the failure",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Partial staging contents are rolled back / cleaned up"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "~/.roubo/plugins/<id> is either absent or unchanged from its prior state; no partial install is exposed or executed"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "reliability", "atomicity", "fail-closed"],
+      "linked_requirement_ids": ["FR-002", "FR-003", "NFR-001"],
+      "linked_user_story_ids": ["US-001", "US-005"]
+    },
+    {
+      "id": "TC-027",
+      "title": "Reinstall over an existing plugin is atomic and never exposes a half-written dist",
+      "area": "artifact-install",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "A verified version of the plugin is already installed at ~/.roubo/plugins/<id>",
+        "A new verified artifact is being installed over it"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Install the new verified artifact while the previous version is present",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "New artifact is verified (signature + digest) before any change to the install root"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Observe the install root during and after the atomic rename",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The swap is atomic: at no point is a partially-written dist/index.js observable at ~/.roubo/plugins/<id>"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "After install, dist/index.js is the new verified build and runs with no build step"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge", "atomicity", "reliability"],
+      "linked_requirement_ids": ["FR-002", "FR-003"],
+      "linked_user_story_ids": ["US-001", "US-005"]
+    },
+    {
+      "id": "TC-028",
+      "title": "Fresh launch yields exactly the three seeded plugins, usable with no network",
+      "area": "seed-cache",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "Clean machine: no ~/.roubo/plugins directory and no seed idempotency marker",
+        "Installer shipped resources/seed/ with the three built+signed tarballs and a signed seed-catalog snapshot",
+        "Network is fully disabled (airplane mode / no DNS, no egress)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app for the first time on the clean machine",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "App reaches a usable/ready state without any network request on the critical path"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "plugin-manager.seedFromBundled() runs and installs into ~/.roubo/plugins"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the installed-plugins view",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Exactly three plugins are present: github-com, process, and database"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Each of the three is shown as 'Seeded' and 'Verified'"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "No other plugin (e.g. ghe, jira-self-hosted) is installed"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Confirm a seeded plugin (e.g. process) is usable by invoking it offline",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The seeded plugin is operational without any network call"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "happy-path", "offline", "first-run"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001", "US-002"]
+    },
+    {
+      "id": "TC-029",
+      "title": "First-run seed installs offline and surfaces the confirmation toast",
+      "area": "seed-cache",
+      "level": 1,
+      "type": "functional",
+      "preconditions": ["Clean machine with no seed idempotency marker", "Network disabled"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app on the clean machine with no network",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A toast appears reading 'First-run seed installed (offline, verified): github-com, process, database'"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "A seed idempotency marker is written after the install completes"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "first-run", "offline"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-030",
+      "title": "Seeded plugins verify against the bundled signed seed catalog",
+      "area": "seed-cache",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "Clean machine with no seed idempotency marker",
+        "Network disabled so verification cannot reach the hosted catalog"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app to trigger seedFromBundled()",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the verification result recorded for each seeded plugin",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "github-com, process, and database each verify against the signed seed-catalog snapshot (not the hosted catalog)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "All three are marked 'Verified' and signature/digest checks pass offline"
+            }
+          ]
+        }
+      ],
+      "tags": ["integration", "verification", "offline"],
+      "linked_requirement_ids": ["FR-004", "NFR-002"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-031",
+      "title": "ghe installs on demand from the marketplace after seeding",
+      "area": "seed-cache",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "App has completed first-run seed (github-com, process, database installed)",
+        "Network is available and the hosted catalog is reachable",
+        "ghe is shown as 'Not installed (marketplace-only)'"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the marketplace and select ghe",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "ghe is listed as marketplace-only and installable on demand"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Trigger install of ghe",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "ghe is fetched from the hosted catalog, verified, and placed into ~/.roubo/plugins"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "ghe transitions from 'Not installed (marketplace-only)' to installed/verified"
+            }
+          ]
+        }
+      ],
+      "tags": ["functional", "marketplace", "on-demand"],
+      "linked_requirement_ids": ["FR-005", "FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-032",
+      "title": "jira-self-hosted installs on demand from the marketplace",
+      "area": "seed-cache",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "First-run seed already completed",
+        "Network available and hosted catalog reachable",
+        "jira-self-hosted shown as 'Not installed (marketplace-only)'"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the marketplace and trigger install of jira-self-hosted",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "jira-self-hosted is fetched, verified, and placed into ~/.roubo/plugins"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "jira-self-hosted becomes installed/verified and usable"
+            }
+          ]
+        }
+      ],
+      "tags": ["functional", "marketplace", "on-demand"],
+      "linked_requirement_ids": ["FR-005"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-033",
+      "title": "Seed runs only once: second launch is idempotent and does not re-seed",
+      "area": "seed-cache",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "App has already completed first-run seed and written the idempotency marker",
+        "All three seeded plugins remain installed in ~/.roubo/plugins"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Relaunch the app",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "seedFromBundled() detects the idempotency marker and does not re-install the seeded plugins"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No 'First-run seed installed' toast is shown on the second launch"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the installed-plugins view after relaunch",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Still exactly github-com, process, database (no duplicates, no overwrite of marketplace-managed updates)"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "idempotency", "regression"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-034",
+      "title": "Marketplace-managed update to a seeded plugin is not clobbered by re-seed",
+      "area": "seed-cache",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "First-run seed completed and idempotency marker written",
+        "A seeded plugin (e.g. github-com) has since been updated to a newer version via the marketplace"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Relaunch the app after the marketplace update",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "seedFromBundled() does not run again and does not downgrade the marketplace-updated github-com back to the bundled seed version"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The marketplace-managed version of github-com is preserved"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "idempotency", "marketplace"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-035",
+      "title": "Corrupt seed artifact is rejected fail-closed (not installed)",
+      "area": "seed-cache",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "Clean machine with no idempotency marker",
+        "One bundled seed tarball (e.g. database) is tampered so its signature/digest no longer matches the signed seed catalog"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app to trigger seedFromBundled() with the corrupted artifact present",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The tampered artifact fails verification against the signed seed catalog"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The corrupt plugin is NOT installed into ~/.roubo/plugins (fail-closed)"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "An error/warning is surfaced indicating the seed artifact was rejected"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the installed-plugins view",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The rejected plugin (database) is absent; no partial/unverified copy is placed"
+            }
+          ]
+        }
+      ],
+      "tags": ["security", "fail-closed", "negative", "verification"],
+      "linked_requirement_ids": ["FR-004", "NFR-002"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-036",
+      "title": "ghe and jira-self-hosted are NOT present in the seed on a clean install",
+      "area": "seed-cache",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Clean machine with no idempotency marker",
+        "Network disabled (so nothing can be fetched from the hosted catalog)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app offline to complete the first-run seed",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the installed-plugins view and the seeded artifact set",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "ghe is shown as 'Not installed (marketplace-only)' and has no bundled seed artifact"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "jira-self-hosted is shown as 'Not installed (marketplace-only)' and has no bundled seed artifact"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Only github-com, process, database were installed by the seed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "marketplace-only", "offline"],
+      "linked_requirement_ids": ["FR-005", "FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-037",
+      "title": "Missing or empty bundled seed directory does not block app readiness",
+      "area": "seed-cache",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Clean machine with no idempotency marker",
+        "resources/seed/ is missing or contains no tarballs (degraded installer scenario)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch the app",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "seedFromBundled() handles the absent/empty seed gracefully without crashing the app"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "App still reaches a usable state; no partial install is left behind and no idempotency marker falsely claims a successful seed"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "edge_case", "resilience"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-038",
+      "title": "Partial seed interrupted then resumed completes to exactly three verified plugins",
+      "area": "seed-cache",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "Clean machine with no idempotency marker",
+        "First launch is interrupted (process killed) after one or two of the three plugins are installed but before the idempotency marker is written"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Start the app, then kill it mid-seed after only github-com (and possibly process) have been placed",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No idempotency marker is present because the seed did not complete"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Relaunch the app",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "seedFromBundled() resumes and installs the remaining seeded plugin(s) (verifying each)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Any partially-written/unverified artifact from the interrupted run is not left in a usable state and is re-verified or replaced"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect the installed-plugins view and idempotency marker after the resumed run",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Exactly github-com, process, database are installed and all marked 'Verified'"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The idempotency marker is now written so subsequent launches do not re-seed"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "reliability", "resume", "idempotency"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-039",
+      "title": "Concurrent launches do not double-seed or race the idempotency marker",
+      "area": "seed-cache",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "Clean machine with no idempotency marker",
+        "Two app instances (or two windows) start nearly simultaneously on first run"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Launch two instances at the same time so both observe no idempotency marker",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Seeding is serialized/locked so the three plugins are installed once, not duplicated or corrupted by a race"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect ~/.roubo/plugins and the idempotency marker after both instances settle",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Exactly github-com, process, database present, each 'Verified'; exactly one idempotency marker written"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "concurrency", "idempotency"],
+      "linked_requirement_ids": ["FR-004"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-040",
+      "title": "First-run readiness < 5s offline, catalog payload < 256 KB, single install p95 < 10s @ 10 Mbps",
+      "area": "seed-cache",
+      "level": 2,
+      "type": "performance",
+      "preconditions": [
+        "Clean machine with no idempotency marker for the offline readiness measurement",
+        "Network shaped to 10 Mbps for the single-install benchmark",
+        "Bundled seed-catalog snapshot and hosted catalog payload available for size measurement"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "With network fully disabled, time from app launch to first-run readiness (seed installed and usable)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Readiness is reached in < 5s"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No network call occurs on the critical path (verified by network trace showing zero egress during readiness)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Measure the size of the catalog fetch payload (hosted catalog snapshot used for marketplace)",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Catalog fetch payload is < 256 KB"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Benchmark a single on-demand plugin install (fetch + verify + place) at 10 Mbps across repeated runs",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Single-plugin install (fetch+verify+place) completes at p95 < 10s @ 10 Mbps"
+            }
+          ]
+        }
+      ],
+      "tags": ["performance", "offline", "benchmark"],
+      "linked_requirement_ids": ["NFR-002"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-041",
+      "title": "E2E first-run journey: fresh launch to three seeded plugins, usable offline",
+      "area": "seed-cache",
+      "level": 1,
+      "type": "e2e_flow",
+      "preconditions": [
+        "Brand-new clean machine: no ~/.roubo/plugins, no idempotency marker",
+        "Network is fully disabled for the entire flow (airplane mode)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Install the app from the installer that ships resources/seed/ (three signed tarballs + signed seed-catalog snapshot)",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Launch the app for the first time with no network",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "App reaches a usable state with no network call on the critical path"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Toast appears: 'First-run seed installed (offline, verified): github-com, process, database'"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Open the Fresh install / installed-plugins screen",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "github-com, process, database each show 'Seeded' and 'Verified'"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "ghe and jira-self-hosted each show 'Not installed (marketplace-only)'"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Exercise a seeded plugin (e.g. create a bench using the process plugin) while still offline",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The seeded plugin operates correctly with zero network access"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Close and relaunch the app (still offline)",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "No re-seed occurs and no first-run toast reappears (idempotent)"
+            },
+            {
+              "id": "S005-O02",
+              "expected": "The same three plugins remain Seeded + Verified and usable"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e_flow", "first-run", "offline", "happy-path"],
+      "linked_requirement_ids": ["FR-004", "FR-005"],
+      "linked_user_story_ids": ["US-001", "US-002"]
+    },
+    {
+      "id": "TC-042",
+      "title": "App loads seeded and previously-installed plugins with the marketplace unreachable",
+      "area": "offline-reliability",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "App has completed first run online at least once",
+        "At least one seeded plugin and one previously-installed (non-seeded) plugin exist",
+        "A last-verified signed catalog envelope is cached under ~/.roubo/marketplace/",
+        "Network to the hosted marketplace is unreachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Disconnect the network so the hosted catalog endpoint is unreachable",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Launch the app and open the Plugins view",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The app starts without crashing or hanging"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The plugin list is non-empty (never zero plugins)"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect the status of a seeded plugin and a previously-installed plugin",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The seeded plugin shows a Running/available state"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The previously-installed plugin shows a Running/available state"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "offline", "critical-path"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-043",
+      "title": "Catalog degrades to the last-known cached envelope and shows the offline banner",
+      "area": "offline-reliability",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "App has completed first run online",
+        "A last-verified signed catalog envelope was cached 2h ago under ~/.roubo/marketplace/",
+        "Network to the hosted marketplace is unreachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Plugins view while the marketplace fetch fails on a network error",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The catalog renders from the last-known cached envelope, not the seed catalog"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Plugins from the cached catalog are listed"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Read the warning banner at the top of the Plugins view",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Banner states the marketplace is unreachable and the last verified catalog is being shown"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Banner indicates how stale the cache is (e.g. fetched 2h ago)"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "Banner notes seeded and installed plugins are available and new installs are paused until back online"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "happy-path", "catalog"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-044",
+      "title": "On a network fetch failure the catalog-client returns the cached envelope",
+      "area": "offline-reliability",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "A valid signed catalog envelope is cached under ~/.roubo/marketplace/",
+        "The marketplace HTTP endpoint returns a connection/timeout error"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Invoke the catalog-client fetch with the marketplace endpoint unreachable",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The fetch failure is caught and not surfaced as an unhandled exception"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The cached catalog envelope is returned to the caller"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The source of the returned catalog is reported as the on-disk cache, not the live network"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "integration", "catalog-client"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-045",
+      "title": "Attempting to install a new plugin offline fails with a clear message and no crash",
+      "area": "offline-reliability",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Network to the marketplace is unreachable",
+        "The Plugins view is showing the last-known cached catalog",
+        "Jira is a non-seeded plugin that is not yet installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Click Install on the Jira plugin",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The install attempt fails fast and does not crash the app"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "A clear error is shown, e.g. \"Can't install while the marketplace is unreachable\""
+            },
+            {
+              "id": "S001-O03",
+              "expected": "No partial or corrupt install artifacts are left behind for Jira"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Re-check the seeded and previously-installed plugins after the failed install",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Seeded and installed plugins remain Running/available and unaffected"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "negative", "install"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-046",
+      "title": "A cached catalog with a bad signature is not trusted and verification stays fail-closed",
+      "area": "offline-reliability",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "Network to the marketplace is unreachable",
+        "The on-disk cached catalog envelope under ~/.roubo/marketplace/ has an invalid/tampered signature"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Plugins view so the catalog-client loads the cached envelope and verifies its signature",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Signature verification of the cached envelope fails"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The tampered cached catalog is rejected and not served as the catalog"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The client falls through to the trusted seed catalog rather than trusting unsigned/tampered data"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Verify the plugin list after the bad-signature cache is rejected",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The plugin list is non-empty (seed catalog is shown, never zero plugins)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Verification remains fail-closed: nothing from the rejected cache is treated as verified"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "security", "fail-closed", "signature"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-047",
+      "title": "Offline catalog degradation never falls to zero plugins",
+      "area": "offline-reliability",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "App has completed first run online",
+        "Network to the marketplace is unreachable"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Force every catalog source to its worst case in turn: live fetch fails, then evaluate with cache present and with cache absent",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "With a valid cache present, the cached catalog is served (non-empty)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "With no usable cache, the seed catalog is served (non-empty)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Assert the rendered plugin count across both source paths",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The plugin count is always >= the seed catalog size and is never zero"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "negative", "never-zero"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-048",
+      "title": "Corrupt or empty on-disk cache falls through to the seed catalog",
+      "area": "offline-reliability",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "Network to the marketplace is unreachable",
+        "The cached catalog file under ~/.roubo/marketplace/ is empty or contains truncated/non-parseable JSON"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Plugins view so the catalog-client attempts to read the corrupt/empty cache",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Reading/parsing the corrupt cache fails without crashing the app"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The client falls through to the seed catalog"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The plugin list is non-empty (seed plugins are shown)"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "edge", "corrupt-cache"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-049",
+      "title": "Catalog fetch returning a bad-signature payload falls back to the cached catalog",
+      "area": "offline-reliability",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "A valid signed catalog envelope is cached under ~/.roubo/marketplace/",
+        "The marketplace is reachable but returns a payload whose signature does not verify"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Trigger a catalog fetch that returns a signature-invalid payload",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Signature verification of the fetched payload fails"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The invalid fetched payload is discarded (not written over the trusted cache)"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The previously cached, last-verified catalog is served instead"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "edge", "signature", "fail-closed"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-050",
+      "title": "Reliability: seeded and installed plugins load 100% offline and new installs fail gracefully",
+      "area": "offline-reliability",
+      "level": 2,
+      "type": "reliability",
+      "preconditions": [
+        "App has completed first run online",
+        "A set of seeded plugins and previously-installed plugins is present",
+        "Network to the marketplace is unreachable for the duration of the run"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Cold-start the app offline repeatedly across the verification run and load the Plugins view each time",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Seeded plugins load successfully on 100% of offline starts"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Previously-installed plugins load successfully on 100% of offline starts"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "The app never degrades to zero plugins on any offline start"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt a new (non-seeded) plugin install on each offline start",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Each new-install attempt surfaces a clear \"marketplace unreachable\" error"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No new-install attempt crashes the app or leaves it in a broken state"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Confirm verification posture while serving the cached/seed catalog",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Verification stays fail-closed throughout (no unverified plugin is treated as verified)"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "reliability", "availability"],
+      "linked_requirement_ids": ["NFR-003", "FR-009"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-051",
+      "title": "End-to-end offline journey: go offline, seeded plugins still work, new install fails clearly",
+      "area": "offline-reliability",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "App has completed first run online and cached a last-verified signed catalog under ~/.roubo/marketplace/",
+        "At least one seeded plugin is running and Jira is a non-seeded, not-yet-installed plugin"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Disconnect the network so the hosted marketplace is unreachable",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Launch the app and open the Plugins view",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The app loads without crashing and the plugin list is non-empty"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Read the offline warning banner",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Banner reads that the marketplace is unreachable and the last verified catalog (fetched 2h ago) is shown, with new installs paused until back online"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Locate the seeded plugin and confirm it is operational offline",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The seeded plugin shows Running and can be used without network"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Click Install on the Jira plugin",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "The install is blocked with a clear error: \"Can't install while the marketplace is unreachable\""
+            },
+            {
+              "id": "S005-O02",
+              "expected": "The app does not crash and the seeded plugin remains Running"
+            }
+          ]
+        },
+        {
+          "id": "S006",
+          "instruction": "Reconnect the network and re-open the Plugins view",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "The offline banner clears and the live catalog is fetched, verified, and cached"
+            },
+            {
+              "id": "S006-O02",
+              "expected": "Installing Jira now succeeds (new installs are no longer paused)"
+            }
+          ]
+        }
+      ],
+      "tags": ["offline", "e2e", "journey"],
+      "linked_requirement_ids": ["FR-009", "NFR-003"],
+      "linked_user_story_ids": ["US-002"]
+    },
+    {
+      "id": "TC-052",
+      "title": "Packaged app contains no plugin source dirs, only resources/seed built artifacts",
+      "area": "de-bundle-migration",
+      "level": 1,
+      "type": "structural",
+      "preconditions": [
+        "The app has been packaged with the marketplace-based (de-bundled) build pipeline",
+        "app-packaging downloaded the pinned seed artifacts into resources/seed/ at package time"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Inspect the packaged app's resources/ directory tree (inside and outside the asar)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No resources/plugins/ source directory is present anywhere in the package"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No plugin src/ trees are shipped (no github-com/src, process/src, or database/src)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the resources/seed/ directory of the packaged app",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "resources/seed/ contains the signed seed catalog.json plus exactly the three built tarballs github-com, process, and database (<id>-<version>.tgz)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "Each seed tarball contains a built dist/index.js plus roubo-plugin.yaml/package.json/README, with no src/ and no node_modules"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Search the packaging code path for the legacy BUNDLED_PLUGIN_IDS source-copy used by copy-resources",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The BUNDLED_PLUGIN_IDS source-copy path that copied plugins/<id> into resources/plugins/ is removed/replaced by the seed-artifact download path"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "structural", "packaging", "de-bundle"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-053",
+      "title": "Functional proof: app ships no executable plugin source, seed install provides the three defaults",
+      "area": "de-bundle-migration",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A fresh install of the de-bundled app on a machine with no prior ~/.roubo/plugins seed marker"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Confirm the app binary/resources carry no plugins/ source dir before first launch",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "There is no in-app plugins/ source to discover; the only plugin payload present is the resources/seed/ built artifacts"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Launch the app for the first time and let plugin-manager.seedFromBundled() run",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The three seed artifacts are installed into ~/.roubo/plugins as built plugins (each with a runnable dist/index.js)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "A seed-completed marker is written so seeding is idempotent on subsequent launches"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "List installed plugins after seeding completes",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "github-com, process, and database are present and discoverable; ghe and jira-self-hosted are absent (marketplace-only, not seeded)"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "functional", "seed", "de-bundle"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-054",
+      "title": "Upgrade drops prior bundled installs and the seed provides the three defaults fresh",
+      "area": "de-bundle-migration",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "A user is on a prior bundled build with bundled-discovered installs of github-com, process, and database",
+        "The user upgrades to the marketplace-based de-bundled build"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Record the prior bundled-discovered plugin set and the seed marker state before upgrade",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Perform the upgrade and launch the de-bundled build for the first time",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The clean-break upgrade step drops the prior bundled-discovered installs (they are not carried over in place)"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Let the first-run seed step run on the upgraded build",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "seedFromBundled() installs github-com, process, and database fresh from resources/seed into ~/.roubo/plugins as built artifacts"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The three seeded plugins start and run after the upgrade"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Confirm the seed marker is written and re-launch the app",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "Seeding does not run again on the second launch (idempotent via the marker)"
+            }
+          ]
+        }
+      ],
+      "tags": ["upgrade", "integration", "clean-break", "seed"],
+      "linked_requirement_ids": ["FR-008", "NFR-005"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-055",
+      "title": "A non-seeded plugin removed by the clean break is reinstallable from the marketplace",
+      "area": "de-bundle-migration",
+      "level": 2,
+      "type": "integration",
+      "preconditions": [
+        "A user had a non-seeded plugin (e.g. ghe) bundled-discovered on the prior build",
+        "The user has upgraded to the de-bundled build and first-run seeding has completed",
+        "The hosted marketplace catalog is reachable and verifies"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Confirm ghe is absent after upgrade (dropped by the clean break, not seeded)",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "ghe is not present in ~/.roubo/plugins after the upgrade and seed step"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the marketplace UI and locate ghe in the verified catalog",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "ghe is listed in the marketplace as installable"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Install ghe from the marketplace",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "ghe downloads, verifies, and installs as a built artifact and runs (no missing-entry)"
+            }
+          ]
+        }
+      ],
+      "tags": ["upgrade", "integration", "marketplace", "reinstall"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-056",
+      "title": "Regression/parity: seeded github-com behaves identically to the previously-bundled build",
+      "area": "de-bundle-migration",
+      "level": 3,
+      "type": "functional",
+      "preconditions": [
+        "The seeded github-com artifact from resources/seed is installed on the de-bundled build",
+        "A reference baseline of the previously-bundled github-com behavior is captured"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Spawn the seeded github-com plugin and read its manifest and exposed capabilities",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The seeded github-com manifest, plugin id, kind (integration), and declared capabilities match the previously-bundled build exactly"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Run the parity test exercising github-com's integration actions (issue listing/assign and status-category discovery) against both the seeded and prior-bundled builds",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Every action's request/response shape and result is identical between seeded and previously-bundled github-com"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "0 regressions are reported across the seeded vs bundled comparison"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "parity", "no-regression", "github-com"],
+      "linked_requirement_ids": ["NFR-005"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-057",
+      "title": "Config-load regression: existing roubo.yaml with process/database bindings loads and starts identically",
+      "area": "de-bundle-migration",
+      "level": 3,
+      "type": "functional",
+      "preconditions": [
+        "An existing roubo.yaml with component bindings to the process and database plugins exists unchanged",
+        "The de-bundled build is installed and the three seed plugins are present"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Load the existing unchanged roubo.yaml on the de-bundled build",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The config parses with no errors and no migration is attempted on the file"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The process and database component bindings resolve to the seeded plugins exactly as before (the Role-toggle removal does not alter plugin bindings)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Start a bench whose components are bound by the existing config",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The process and database components start identically to the prior bundled build (same lifecycle, same effective component configuration)"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Compare the started components' effective configuration against the prior-bundled baseline",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Existing component configs start identically; 0 config-load regressions"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "config-load", "no-regression", "process", "database"],
+      "linked_requirement_ids": ["NFR-005"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-058",
+      "title": "No config/instance migration occurs by design on upgrade",
+      "area": "de-bundle-migration",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "A prior bundled build had per-plugin instance state and config carried with the in-place bundled installs",
+        "The user upgrades to the de-bundled build"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Capture the prior build's per-plugin instance/config state, then upgrade and let the clean-break + seed steps run",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No migration step reads, copies, or transforms the prior bundled installs' plugin instance state or config into the new installs"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the freshly seeded github-com/process/database installs after upgrade",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The seeded plugins are fresh installs (clean break), not migrated copies; no inherited instance state is present"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The upgrade completes without error despite no migration path existing (no crash, no partial-migration state)"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "clean-break", "no-migration"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-059",
+      "title": "Edge: a user who had ghe bundled before upgrade finds it gone and reinstallable from the marketplace",
+      "area": "de-bundle-migration",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "A user was on a prior bundled build with ghe bundled-discovered and configured",
+        "The user upgrades to the de-bundled build"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Upgrade and complete first-run seeding, then look for ghe",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "ghe is gone after upgrade because it is not part of the three-plugin seed set (only github-com/process/database are seeded)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the marketplace and reinstall ghe from the hosted catalog",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "ghe is listed and installs as a verified built artifact, then runs"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Re-add ghe's configuration manually (no migration carried it over) and use it",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "After manual reconfiguration ghe behaves normally; the clean break required a fresh setup, which is the expected by-design behavior"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "clean-break", "ghe", "reinstall"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-060",
+      "title": "Edge: re-running the upgrade/seed twice is idempotent and does not re-drop or re-seed",
+      "area": "de-bundle-migration",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "The de-bundled build has already completed its clean-break upgrade and first-run seed (marker present)"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Relaunch the app and let the seed/clean-break logic evaluate again",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Seeding is skipped because the seed-completed marker is present (no re-seed)"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The clean-break drop does not re-run against already-marketplace-managed installs (no marketplace-installed plugins are dropped)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Confirm a user-initiated marketplace install made after seeding survives the relaunch",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "A plugin the user installed from the marketplace after seeding is retained, not mistaken for a prior bundled install and dropped"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge_case", "idempotent", "seed-marker"],
+      "linked_requirement_ids": ["FR-008"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-061",
+      "title": "e2e upgrade journey: bundled dropped, seed provides three defaults, a removed plugin reinstalled from marketplace",
+      "area": "de-bundle-migration",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "A user is on the prior bundled build with github-com, process, database, and ghe all bundled-discovered and in use",
+        "An existing roubo.yaml binds process and database components",
+        "The hosted marketplace catalog is reachable and verifies"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Record the prior bundled plugin set (github-com, process, database, ghe) and the existing roubo.yaml component bindings",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Install and launch the marketplace-based de-bundled build for the first time",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The clean-break upgrade drops the prior bundled-discovered installs (none are carried over in place)"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Allow first-run seeding to run with no network on the critical path",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "github-com, process, and database are seeded fresh from resources/seed and the seed-completed marker is written"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "ghe is NOT seeded (it is marketplace-only)"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Load the existing unchanged roubo.yaml and start a bench whose components bind to process and database",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The config loads with no migration and the process/database components start identically to the prior bundled build (NFR-005)"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Open the marketplace and reinstall ghe (the removed non-seeded plugin)",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "ghe is listed, installs as a verified built artifact, and runs (no missing-entry)"
+            }
+          ]
+        },
+        {
+          "id": "S006",
+          "instruction": "Verify the seeded github-com behaves identically to its previously-bundled self",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "github-com's manifest and integration actions match the prior bundled build with 0 regressions"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "upgrade", "happy-path", "clean-break", "seed", "marketplace"],
+      "linked_requirement_ids": ["FR-008", "NFR-005"],
+      "linked_user_story_ids": ["US-001"]
+    },
+    {
+      "id": "TC-062",
+      "title": "Plugin in the separate repo builds resolving @roubo/plugin-sdk from the registry",
+      "area": "repo-split",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "@roubo/plugin-sdk is published to the registry at a pinned version",
+        "A plugin project lives in the separate plugins repo (outside the Roubo monorepo)",
+        "The plugin's package.json depends on @roubo/plugin-sdk by pinned version, not by a file: workspace ref"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run a clean install of dependencies in the separate plugin repo",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "@roubo/plugin-sdk is fetched from the registry at the pinned version"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "Install completes with no unresolved file:/workspace references"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Grep the plugin's package.json and lockfile for file: refs to @roubo packages",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "No file: or workspace: dependency on @roubo/plugin-sdk is present"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Run the plugin build (tsup) in the separate repo",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Build succeeds with exit code 0"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "dist/index.js is produced"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "critical-path", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-063",
+      "title": "Integration plugin resolves @roubo/shared and @roubo/shared-github and bundles a self-contained dist",
+      "area": "repo-split",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "@roubo/shared and @roubo/shared-github are published to the registry at pinned versions",
+        "An integration plugin in the separate repo depends on @roubo/plugin-sdk, @roubo/shared, and @roubo/shared-github by pinned version"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run a clean install in the integration plugin project",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "@roubo/shared and @roubo/shared-github resolve from the registry at their pinned versions"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Run the tsup build for the integration plugin",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Build succeeds and emits dist/index.js"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "tsup bundles @roubo/shared and @roubo/shared-github into dist/index.js"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Inspect the built plugin's published package.json dependencies field",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "dist/index.js declares no runtime dependencies (the bundle is self-contained)"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Load dist/index.js in a host with no @roubo packages installed at runtime",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The plugin loads and its integration entrypoint runs without a missing-module error"
+            }
+          ]
+        }
+      ],
+      "tags": ["happy-path", "integration", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-064",
+      "title": "Dependency audit finds no new runtime crypto or supply-chain dependency in the host",
+      "area": "repo-split",
+      "level": 3,
+      "type": "security",
+      "preconditions": [
+        "The Electron host already verifies plugin artifacts with the existing zero-dependency node:crypto ed25519/sha256 verifier",
+        "The repo-split change has been applied to the host"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run a dependency audit of the host's runtime dependency tree after the repo-split change",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No oras, cosign, Sigstore, TUF, or OCI client dependency appears in the host runtime tree"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No new crypto or supply-chain library is added beyond node:crypto"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Grep the host verifier implementation for its crypto imports",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Verification still uses only node:crypto ed25519 and sha256"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Diff the host package.json runtime dependencies before vs after the change",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "No heavyweight signing or supply-chain runtime dependency was added to the host"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "nfr", "supply-chain", "automated"],
+      "linked_requirement_ids": ["NFR-006"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-065",
+      "title": "Building against a stale or missing SDK version fails the plugin build clearly",
+      "area": "repo-split",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "The separate plugin repo pins @roubo/plugin-sdk to a version that does not exist (or has been unpublished) in the registry"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run a clean install in the plugin repo with the bad pinned SDK version",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Install fails with a clear error naming @roubo/plugin-sdk and the unresolvable version"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The error does not silently fall back to a cached or different SDK version"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt the plugin build without a successful install",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Build aborts with a non-zero exit code and a message indicating @roubo/plugin-sdk is missing"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "error-handling", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-066",
+      "title": "Building the same plugin twice in CI yields the same sha256 digest",
+      "area": "repo-split",
+      "level": 3,
+      "type": "structural",
+      "preconditions": [
+        "CI normalizes the tarball: sorted entries, fixed mtime, stripped pack metadata, pinned toolchain",
+        "A fixed plugin source revision and pinned SDK version are used for both builds"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Run the CI build-and-pack pipeline for the plugin from a clean checkout (build A)",
+          "observations": []
+        },
+        {
+          "id": "S002",
+          "instruction": "Record the sha256 digest of the packed artifact from build A",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "A sha256 digest is produced for the build A artifact"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Run the same CI build-and-pack pipeline again from a fresh clean checkout (build B)",
+          "observations": []
+        },
+        {
+          "id": "S004",
+          "instruction": "Compare the sha256 digest of build B against build A",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The build B digest is byte-for-byte equal to the build A digest"
+            },
+            {
+              "id": "S004-O02",
+              "expected": "Tarball entry order, mtimes, and pack metadata are identical across the two builds"
+            }
+          ]
+        }
+      ],
+      "tags": ["reproducibility", "structural", "automated"],
+      "linked_requirement_ids": ["NFR-006"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-067",
+      "title": "Publish-gate self-check rejects a digest that does not match the catalog entry",
+      "area": "repo-split",
+      "level": 3,
+      "type": "functional",
+      "preconditions": [
+        "The marketplace catalog records the expected sha256 digest for the published asset",
+        "A publish-gate self-check runs after upload"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Publish an asset whose sha256 digest matches its catalog entry",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The publish-gate self-check passes and the publish is allowed to complete"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Re-run the publish-gate against an uploaded asset whose bytes were altered so its digest differs from the catalog entry",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The self-check fails and blocks the publish"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The failure message reports the expected catalog digest versus the actual uploaded digest"
+            }
+          ]
+        }
+      ],
+      "tags": ["reproducibility", "publish-gate", "negative", "automated"],
+      "linked_requirement_ids": ["NFR-006", "FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-068",
+      "title": "SDK major bump incompatible with HOST_API_VERSION is rejected at load",
+      "area": "repo-split",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "A plugin is built in the separate repo against a new major version of @roubo/plugin-sdk",
+        "The host exposes a HOST_API_VERSION the SDK declares compatibility against"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Build a plugin against an @roubo/plugin-sdk major version newer than the host's HOST_API_VERSION supports",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The plugin builds successfully in the separate repo (build is decoupled from host compat)"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Load the resulting plugin into a host whose HOST_API_VERSION predates the SDK major",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The host refuses to load the plugin with a clear API-version incompatibility error"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The error names the required SDK/host API version and the host's actual version"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Load a plugin built against an SDK major within the host's supported HOST_API_VERSION range",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The compatible plugin loads and runs normally"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge-case", "compatibility", "exploratory", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-069",
+      "title": "Pinned SDK version mismatch between two plugins in the repo does not cross-contaminate builds",
+      "area": "repo-split",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "The separate plugins repo contains two plugins pinning different @roubo/plugin-sdk versions",
+        "Both pinned SDK versions exist in the registry"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Install dependencies for both plugins in the separate repo",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "Each plugin resolves its own pinned @roubo/plugin-sdk version"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Build each plugin in turn and inspect the SDK symbols bundled into each dist/index.js",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Each plugin's bundle contains the SDK version it pinned, not the other plugin's version"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge-case", "isolation", "exploratory", "automated"],
+      "linked_requirement_ids": ["FR-011"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-070",
+      "title": "Author journey: build in separate repo against published SDK, CI builds and signs and publishes reproducibly, catalog digest matches",
+      "area": "repo-split",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "@roubo/plugin-sdk, @roubo/shared, and @roubo/shared-github are published to the registry at pinned versions",
+        "A plugin author has a plugin project in the separate plugins repo with pinned @roubo dependencies (no file: refs)",
+        "CI is configured to build, pack with tarball normalization, sign with node:crypto ed25519, and publish to the marketplace catalog",
+        "The host verifier uses node:crypto ed25519/sha256 only"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "As the author, run a clean install in the separate plugin repo",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "All @roubo/* dependencies resolve from the registry at pinned versions with no file: refs"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "As the author, run the local tsup build and confirm a self-contained dist/index.js",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "Build succeeds and dist/index.js bundles the @roubo deps with no runtime dependencies"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Push the plugin source revision to trigger the CI build-and-publish pipeline",
+          "observations": []
+        },
+        {
+          "id": "S004",
+          "instruction": "Let CI build and pack the plugin with the normalized-tarball steps and pinned toolchain",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "CI produces a packed artifact and computes its sha256 digest"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Let CI sign the artifact with node:crypto ed25519 and publish it to the marketplace",
+          "observations": [
+            {
+              "id": "S005-O01",
+              "expected": "The artifact is signed and uploaded without adding any oras/cosign/Sigstore/TUF dependency"
+            }
+          ]
+        },
+        {
+          "id": "S006",
+          "instruction": "Let the publish-gate self-check compare the uploaded asset digest to the catalog entry",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "The uploaded asset's sha256 digest equals the catalog entry digest and the publish completes"
+            }
+          ]
+        },
+        {
+          "id": "S007",
+          "instruction": "Re-run CI on the same source revision and re-verify the published artifact digest in the host",
+          "observations": [
+            {
+              "id": "S007-O01",
+              "expected": "The re-built artifact has the same sha256 digest (reproducible build)"
+            },
+            {
+              "id": "S007-O02",
+              "expected": "The host re-verifies the catalog digest and signature using node:crypto ed25519/sha256 only"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "author-journey", "reproducibility", "supply-chain", "manual"],
+      "linked_requirement_ids": ["FR-011", "NFR-006"],
+      "linked_user_story_ids": ["US-004"]
+    },
+    {
+      "id": "TC-071",
+      "title": "Components editor shows no legacy Role (Process/Database) toggle",
+      "area": "components-ui",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A project with at least one configured component is registered",
+        "At least one component plugin (Process, Database) is installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the project's Components editor",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The editor renders the list of configured components"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Inspect the controls available for a component",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "No 'Role' toggle and no Process/Database switch is present anywhere in the editor"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No control edits the deprecated component.type field"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "The component's configuration is presented in terms of its bound plugin only"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "regression", "components-editor"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-072",
+      "title": "Errored component plugin surfaces its real lastError in the banner",
+      "area": "components-ui",
+      "level": 1,
+      "type": "functional",
+      "preconditions": [
+        "A project has a component bound to a component plugin",
+        "That plugin's record has lastError { code: 'missing-entry', message: 'Plugin entry file not found: ./dist/index.js ...' }"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Components editor for the project with the errored plugin",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A red errored-plugin banner is shown for the affected component"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Read the banner text",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The banner shows the plugin's real lastError code (missing-entry) and message (Plugin entry file not found: ./dist/index.js ...)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The banner does NOT show the hardcoded 'Plugin failed to start after 3 restart attempts' copy"
+            },
+            {
+              "id": "S002-O03",
+              "expected": "The banner does NOT show the 'Showing your last successful issue snapshot' line"
+            }
+          ]
+        }
+      ],
+      "tags": ["smoke", "regression", "errored-banner"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-073",
+      "title": "Add a component by binding an installed component plugin and its schema fields render",
+      "area": "components-ui",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "A project is open in the Components editor",
+        "The Process and Database component plugins are installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Add-component panel",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "An Add-component panel opens with a 'Component plugin' selector"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Open the 'Component plugin' selector",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The selector lists only installed component plugins (Process, Database)"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "No standalone Role/type option is offered separate from a plugin binding"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Select the Database component plugin",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The bound plugin's config-schema fields render in the panel"
+            },
+            {
+              "id": "S003-O02",
+              "expected": "The component's plugin binding is set to plugin: { id: <database-plugin-id> }"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-074",
+      "title": "Switching the bound component plugin re-renders schema-driven fields",
+      "area": "components-ui",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "The Add-component panel is open",
+        "The Process and Database component plugins are installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Select the Process component plugin in the 'Component plugin' selector",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The Process plugin's config-schema fields render"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Change the selection to the Database component plugin",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The Process plugin fields are replaced by the Database plugin's config-schema fields"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The plugin binding updates to the Database plugin id"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-075",
+      "title": "Errored integration plugin banner keeps the issue-snapshot line; component plugin omits it",
+      "area": "components-ui",
+      "level": 2,
+      "type": "functional",
+      "preconditions": [
+        "An integration plugin is in an errored state with a real lastError",
+        "A component plugin is in an errored state with a real lastError"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "View the errored banner for the integration plugin",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The integration plugin banner shows its real lastError code and message"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The integration plugin banner may include the issue-snapshot line, since it applies to integration plugins"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "View the errored banner for the component plugin",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The component plugin banner shows its real lastError code and message"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The component plugin banner omits the issue-snapshot line entirely"
+            }
+          ]
+        }
+      ],
+      "tags": ["regression", "errored-banner", "plugin-kind"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-076",
+      "title": "Add-component selector lists only installed component plugins (cannot configure an uninstalled type)",
+      "area": "components-ui",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "Only the Process component plugin is installed",
+        "The Database component plugin is NOT installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Add-component panel and open the 'Component plugin' selector",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The selector lists Process only and does not list Database"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Attempt to configure a Database component",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "There is no way to add a Database component with no plugin installed"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The user cannot create a component decoupled from a plugin binding (no 'database with no plugin' state)"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-077",
+      "title": "Component plugin banner never renders the issue-snapshot line",
+      "area": "components-ui",
+      "level": 3,
+      "type": "negative",
+      "preconditions": ["A component plugin is in an errored state with a real lastError"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the errored banner for the component plugin and scan its full text",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The banner does not contain the phrase 'issue snapshot' or any last-successful-snapshot wording"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The banner shows only the plugin's real lastError plus the recovery actions (Reinstall / View logs)"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "errored-banner", "plugin-kind"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-078",
+      "title": "Banner never shows '3 restart attempts' when the real error is missing-entry",
+      "area": "components-ui",
+      "level": 3,
+      "type": "negative",
+      "preconditions": [
+        "A component plugin's record has lastError { code: 'missing-entry', message: 'Plugin entry file not found: ./dist/index.js ... reinstall it from the marketplace' }"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the errored banner and read its full text",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The banner does not contain the hardcoded 'Plugin failed to start after 3 restart attempts' string"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The banner reflects the missing-entry message including the './dist/index.js' path and 'reinstall it from the marketplace' guidance"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "Reinstall and View logs actions are offered"
+            }
+          ]
+        }
+      ],
+      "tags": ["negative", "errored-banner", "regression"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-079",
+      "title": "Banner with a long, multi-line lastError renders without breaking layout",
+      "area": "components-ui",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": [
+        "A component plugin's record has a very long, multi-line lastError message"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the errored banner for the plugin with the long multi-line lastError",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The full lastError code and message are presented (wrapped or scrollable), not silently truncated to nothing"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "The banner layout does not overflow its container or push the Reinstall / View logs actions off-screen"
+            },
+            {
+              "id": "S001-O03",
+              "expected": "Surrounding editor controls remain usable and correctly positioned"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge-case", "errored-banner", "layout"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-080",
+      "title": "Component with an empty/absent lastError shows no errored banner",
+      "area": "components-ui",
+      "level": 4,
+      "type": "edge_case",
+      "preconditions": ["A component is bound to a healthy component plugin with no lastError set"],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the Components editor for the healthy component",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "No errored-plugin banner is rendered for the healthy component"
+            },
+            {
+              "id": "S001-O02",
+              "expected": "No leftover hardcoded '3 restart attempts' or 'issue snapshot' copy appears anywhere"
+            }
+          ]
+        }
+      ],
+      "tags": ["edge-case", "errored-banner"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    },
+    {
+      "id": "TC-081",
+      "title": "End-to-end: open project settings, add a component, bind an installed plugin, configure, and save",
+      "area": "components-ui",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "A registered project is available",
+        "The Process and Database component plugins are installed"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the project's settings and navigate to the Components editor",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "The Components editor opens with no legacy Role (Process/Database) toggle visible"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Click Add component to open the Add-component panel",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The Add-component panel opens with a 'Component plugin' selector"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Open the 'Component plugin' selector",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "The selector lists only installed component plugins (Process, Database)"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Select the Database component plugin",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The bound plugin's config-schema fields render in the panel"
+            }
+          ]
+        },
+        {
+          "id": "S005",
+          "instruction": "Fill in the required schema-driven configuration fields with valid values",
+          "observations": []
+        },
+        {
+          "id": "S006",
+          "instruction": "Click Save",
+          "observations": [
+            {
+              "id": "S006-O01",
+              "expected": "The component is persisted with plugin: { id: <database-plugin-id> } as its binding"
+            },
+            {
+              "id": "S006-O02",
+              "expected": "The deprecated component.type field is not written for the new component"
+            },
+            {
+              "id": "S006-O03",
+              "expected": "The new component appears in the Components editor list bound to the Database plugin"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "components-editor", "plugin-binding", "happy-path"],
+      "linked_requirement_ids": ["FR-010"],
+      "linked_user_story_ids": ["US-006"]
+    },
+    {
+      "id": "TC-082",
+      "title": "End-to-end: an errored component plugin guides recovery via real lastError and Reinstall",
+      "area": "components-ui",
+      "level": 2,
+      "type": "e2e_flow",
+      "preconditions": [
+        "A project has a component bound to a component plugin",
+        "That plugin's record has lastError { code: 'missing-entry', message: 'Plugin entry file not found: ./dist/index.js ... reinstall it from the marketplace' }"
+      ],
+      "steps": [
+        {
+          "id": "S001",
+          "instruction": "Open the project's settings and navigate to the Components editor",
+          "observations": [
+            {
+              "id": "S001-O01",
+              "expected": "A red errored-plugin banner is shown for the affected component"
+            }
+          ]
+        },
+        {
+          "id": "S002",
+          "instruction": "Read the banner content",
+          "observations": [
+            {
+              "id": "S002-O01",
+              "expected": "The banner shows the real lastError (missing-entry, ./dist/index.js, 'reinstall it from the marketplace')"
+            },
+            {
+              "id": "S002-O02",
+              "expected": "The banner omits the issue-snapshot line and the '3 restart attempts' hardcoded copy"
+            }
+          ]
+        },
+        {
+          "id": "S003",
+          "instruction": "Confirm the recovery affordances are present",
+          "observations": [
+            {
+              "id": "S003-O01",
+              "expected": "Reinstall and View logs actions are shown"
+            }
+          ]
+        },
+        {
+          "id": "S004",
+          "instruction": "Click Reinstall",
+          "observations": [
+            {
+              "id": "S004-O01",
+              "expected": "The reinstall flow for the affected plugin is initiated"
+            }
+          ]
+        }
+      ],
+      "tags": ["e2e", "errored-banner", "recovery"],
+      "linked_requirement_ids": ["FR-012"],
+      "linked_user_story_ids": ["US-005"]
+    }
+  ]
+}
