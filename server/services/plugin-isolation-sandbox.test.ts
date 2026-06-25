@@ -472,6 +472,35 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     expect(result?.args).not.toContain("none");
   });
 
+  it("joins the backgrounded egress loop and exec node with no '&;' sequence (#762)", () => {
+    // The egress setup ends with `...} &`. Joining it to `exec node` with `; `
+    // produces `} &;`, which is a POSIX sh syntax error (dash, node:24-slim) and
+    // crash-looped the container. The generated shellCmd must contain no `&`
+    // immediately followed by `;` (allowing for intervening whitespace).
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    const imageIdx = result?.args.indexOf(DOCKER_EGRESS_IMAGE) ?? -1;
+    const shellCmd = result?.args[imageIdx + 3] ?? "";
+    expect(shellCmd).not.toMatch(/&\s*;/);
+    // The setup still backgrounds its loop and still execs node.
+    expect(shellCmd).toContain("} &");
+    expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
+  });
+
+  it("emits a shellCmd that parses under POSIX sh -n (#762)", async () => {
+    // Validate the generated script with the real shell's parser. `sh -n` only
+    // parses (no execution), reads the script from stdin, and exits 0 when the
+    // syntax is valid. Done deterministically via child_process to catch the
+    // `&;` regression at the source. Keeps the test zero-output: stdio is fully
+    // captured, nothing is written to the test runner's stdout/stderr.
+    const { spawnSync } = await import("node:child_process");
+    const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
+    const imageIdx = result?.args.indexOf(DOCKER_EGRESS_IMAGE) ?? -1;
+    const shellCmd = result?.args[imageIdx + 3] ?? "";
+    const check = spawnSync("sh", ["-n"], { input: shellCmd, encoding: "utf8" });
+    expect(check.status).toBe(0);
+    expect(check.stderr).toBe("");
+  });
+
   it("does NOT add --cap-add NET_ADMIN or ROUBO_ALLOWED_HOSTS for deny-all egress", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", opts);
     expect(result?.args).not.toContain("NET_ADMIN");
