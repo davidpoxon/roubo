@@ -238,6 +238,14 @@ function recordIsolationNotice(entry: PluginEntry, resolvedPluginDir: string): v
   entry.record.isolationNotices.push(notice);
 }
 
+// Predicate override for the isKnownUnsharedDockerPath pre-check (#748). In
+// production this is null and the real isKnownUnsharedDockerPath function runs.
+// Tests set it via __test.setKnownUnsharedDockerPathFn to exercise the tier
+// downgrade path without needing a real /Applications dir on the test runner.
+let knownUnsharedDockerPathFn:
+  | ((platform: NodeJS.Platform, resolvedDir: string) => boolean)
+  | null = null;
+
 // Isolation probes (NFR-005: query each runtime, never assume). The real
 // host-capability probes (defaultIsolationProbes: Docker daemon reachability via
 // dockerode ping, Apple `container` presence, Virtualization.framework
@@ -818,13 +826,23 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // out-of-band attempt never crashes the host or its siblings (AC3).
   const tier = await resolveIsolationTier();
 
+  // #748: effectiveTier starts as the resolved tier and may be downgraded to
+  // broker-only by the pre-check below or by a failed image provisioning step.
+  // It must be declared before the pre-check so the pre-check can set it.
+  let effectiveTier = tier;
+
   // #743: proactive pre-check. On macOS, paths under /Applications/ are not in
   // Docker Desktop's default file-sharing allow-list, so a docker-tier spawn
-  // against a plugin installed there will almost certainly fail with a
-  // mount-unavailable error. Emit the isolation notice proactively so the user
-  // sees the remediation before (or even if) the spawn attempt is made.
-  if (tier === "docker" && isKnownUnsharedDockerPath(process.platform, resolvedDir)) {
+  // against a plugin installed there will certainly fail with exit 125 (mounts
+  // denied). The docker process gets a pid and exits normally, so the #740
+  // spawn-level fallback never fires and the plugin crash-loops instead.
+  // Record the isolation notice (as before) AND downgrade effectiveTier to
+  // broker-only so the doomed docker spawn and image-provisioning step are
+  // skipped entirely (#748).
+  const checkUnsharedPath = knownUnsharedDockerPathFn ?? isKnownUnsharedDockerPath;
+  if (tier === "docker" && checkUnsharedPath(process.platform, resolvedDir)) {
     recordIsolationNotice(entry, resolvedDir);
+    effectiveTier = "broker-only";
   }
 
   // For the docker tier, ensure the required image is available before
@@ -837,8 +855,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // The allow-listed path builds roubo-plugin-egress:node24 on demand from an
   // inline Dockerfile (node:24-slim + iptables), so no external publish is
   // needed. Both paths reuse the same fallback-to-floor error handling.
-  let effectiveTier = tier;
-  if (tier === "docker") {
+  if (effectiveTier === "docker") {
     try {
       const egressPolicy = deriveEgressPolicy(manifest);
       if (egressPolicy.mode === "allow-listed") {
@@ -1975,6 +1992,7 @@ export const __test = {
     e2eNow = null;
     e2eConnectionStateLogTap.length = 0;
     setIsolationProbes(null);
+    knownUnsharedDockerPathFn = null;
     sandboxAuditLog.clear();
     brokerContexts.clear();
     mountUnsharedNoticed.clear();
@@ -1987,6 +2005,14 @@ export const __test = {
   },
   setIsolationProbes(probes: IsolationProbes | null): void {
     setIsolationProbes(probes);
+  },
+  // #748: override the isKnownUnsharedDockerPath predicate so tests can exercise
+  // the pre-check + tier-downgrade path without needing a real /Applications dir.
+  // Pass null to restore the production predicate.
+  setKnownUnsharedDockerPathFn(
+    fn: ((platform: NodeJS.Platform, resolvedDir: string) => boolean) | null,
+  ): void {
+    knownUnsharedDockerPathFn = fn;
   },
   resolveIsolationTier(): Promise<IsolationTier> {
     return resolveIsolationTier();
