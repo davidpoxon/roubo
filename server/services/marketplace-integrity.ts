@@ -13,11 +13,14 @@ import path from "node:path";
 //      first-party public key below. An invalid or missing signature fails
 //      closed (the caller surfaces zero listings).
 //   2. Per-plugin integrity: each catalog entry carries an expected content
-//      digest (`sha256-<hex>`) over the unpacked built artifact (the ReleaseAsset
-//      file set: dist/index.js + roubo-plugin.yaml + package.json + README, with
-//      no `src/` and no `node_modules`), not the cloned source subdir. After
-//      staging and before commit, the installer recomputes the unpacked
-//      artifact's digest and rejects a mismatch.
+//      digest (`sha256-<hex>`) whose target is the unpacked built artifact (the
+//      ReleaseAsset file set: dist/index.js + roubo-plugin.yaml + package.json +
+//      README, with no `src/` and no `node_modules`), not the cloned source
+//      subdir. The digest primitive and the catalog contract bind to that built
+//      artifact (issue #765). Wiring the production install path to recompute
+//      the digest over the unpacked artifact (rather than the cloned-source
+//      staging tree it digests today) lands with the download/unpack installer
+//      in #773; until then the installed digest input is unchanged.
 //
 // Verification uses node:crypto only (no third-party crypto dependency). The
 // private signing key is held out of band by maintainers; only the public key
@@ -77,13 +80,16 @@ export function verifyCatalogSignature(payload: unknown, signatureBase64: string
 }
 
 /**
- * Compute the content digest of an unpacked built plugin artifact as
- * `sha256-<hex>`. The digest target is the unpacked ReleaseAsset (dist/index.js
- * + roubo-plugin.yaml + package.json + README), not the cloned source subdir:
- * an installed plugin runs from `dist/`, so binding integrity to the built
- * artifact is what makes the check meaningful. The walk is generic and reused
- * verbatim, the digest input changed: the caller now supplies the unpacked built
- * artifact directory rather than a staged source tree.
+ * Compute the content digest of a plugin package directory as `sha256-<hex>`.
+ * The walk is generic over whatever directory it is handed; the intended digest
+ * target is the unpacked built artifact (the ReleaseAsset file set: dist/index.js
+ * + roubo-plugin.yaml + package.json + README), not the cloned source subdir,
+ * because an installed plugin runs from `dist/`, so binding integrity to the
+ * built artifact is what makes the check meaningful (issue #765). The catalog
+ * contract and these primitives' tests bind to that built artifact. The
+ * production install path still hands this function its cloned-source staging
+ * tree; pointing it at the unpacked artifact lands with the download/unpack
+ * installer in #773.
  *
  * The digest is normalized and deterministic: relative paths are sorted, path
  * separators normalized to "/", and the `.git` directory is excluded (it is
@@ -135,10 +141,11 @@ export async function computePackageDigest(dir: string): Promise<string> {
 }
 
 /**
- * Verify an unpacked built artifact's content digest against the expected digest
- * from the signed catalog entry. Returns true only on an exact match. A
- * null/empty expected digest returns false (an entry with no integrity field
- * cannot be trusted). A tampered built artifact (any changed or added file)
+ * Verify a package directory's content digest against the expected digest from
+ * the signed catalog entry, the directory's intended target being the unpacked
+ * built artifact (see `computePackageDigest`). Returns true only on an exact
+ * match. A null/empty expected digest returns false (an entry with no integrity
+ * field cannot be trusted). A tampered artifact (any changed or added file)
  * yields a different digest and is rejected fail-closed. Never throws on a
  * mismatch; only filesystem errors from `computePackageDigest` propagate.
  */
