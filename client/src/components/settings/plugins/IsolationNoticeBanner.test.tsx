@@ -24,6 +24,18 @@ describe("IsolationNoticeBanner (#743)", () => {
     expect(banner.className).not.toContain("red");
   });
 
+  it("lets a long plugin path wrap inside the card instead of overflowing (#754)", () => {
+    const longPath = "/Applications/Roubo.app/Contents/Resources/plugins/github-com";
+    const { getByTestId } = render(<IsolationNoticeBanner notices={[notice(longPath)]} />);
+    const message = getByTestId("plugin-isolation-notice").querySelector("p");
+    expect(message).not.toBeNull();
+    // min-w-0 lets the flex text column shrink below the long token's intrinsic
+    // width; break-words lets the unbreakable path wrap so it stays in the card.
+    expect(message?.className).toContain("min-w-0");
+    expect(message?.className).toContain("break-words");
+    expect(message?.textContent).toContain(longPath);
+  });
+
   it("renders one banner per notice", () => {
     const { getAllByTestId } = render(
       <IsolationNoticeBanner notices={[notice("/Applications/a"), notice("/Applications/b")]} />,
