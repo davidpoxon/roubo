@@ -1,5 +1,5 @@
 {
-  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry carries an `integrity` content digest (sha256-<hex> over the staged package), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The `database` entry's `integrity` is a real `sha256-<hex>` digest of a frozen checked-in test fixture (server/services/__fixtures__/marketplace/database), validated end-to-end through the actual verifyPackageIntegrity path by a no-network CI test (server/services/marketplace-integrity.test.ts, issue #689); the remaining entries keep placeholder digests pending real per-plugin package sources (sources point at the monorepo root, which has no per-plugin manifest at the clone root), tracked by #621. `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
+  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622; per-plugin subdir sources + signing-key rotation, issue #750). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry's `source.directory` names the subdirectory of the cloned repo that holds the plugin package (the monorepo-subdir model, #750): the installer clones `source.url`, stages only that subdirectory, and installs it. Each entry carries an `integrity` content digest (sha256-<hex> over the staged subdirectory), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The five installable entries (database, process, github-com, ghe, jira-self-hosted) carry REAL digests of their `plugins/<id>` subdirectory at the signed commit, validated end-to-end through the actual verifyPackageIntegrity path by a no-network CI test (server/services/marketplace-integrity.test.ts, issue #689); `redis` is revoked pending a published source and `worker-queue` is revoked (withdrawn). Because a digest binds to live `plugins/<id>` content, any change to those directories requires recomputing the digest and RE-SIGNING this file (the #689 test fails closed on drift). `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. The signing key was rotated in #750 (the prior key was lost); the matching ed25519 private key is held out of band and never committed. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
   "payload": {
     "entries": [
       {
@@ -10,10 +10,11 @@
         "summary": "Docker-backed databases via compose, with migrations and connection-string templating.",
         "source": {
           "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
+          "url": "https://github.com/davidpoxon/roubo.git",
+          "directory": "plugins/database"
         },
         "provenance": "roubo/plugins@database",
-        "integrity": "sha256-3923912556604b0579fc73a5177a7878d0092be7566f60db832e2ef60e5f5c89",
+        "integrity": "sha256-1122fc13e5b93a7c48932c5135fcb18298b601db5db4190909efdb3f0fcd8be1",
         "verified": true
       },
       {
@@ -24,10 +25,11 @@
         "summary": "Long-running commands: dev servers, watchers, and workers, with setup and env handling.",
         "source": {
           "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
+          "url": "https://github.com/davidpoxon/roubo.git",
+          "directory": "plugins/process"
         },
         "provenance": "roubo/plugins@process",
-        "integrity": "sha256-process-0.1.0-PLACEHOLDER",
+        "integrity": "sha256-884a258cb5c2747b8973cb74f9187a0eda1914bf0421e0c8a6f37c2de1698823",
         "verified": true
       },
       {
@@ -35,13 +37,14 @@
         "name": "Redis",
         "kind": "component",
         "version": "1.3.0",
-        "summary": "A Redis cache component: brings up a Redis container and exposes its connection string.",
+        "summary": "A Redis cache component: brings up a Redis container and exposes its connection string. Revoked: no published source yet.",
         "source": {
           "type": "git",
           "url": "https://github.com/davidpoxon/roubo.git"
         },
         "provenance": "roubo/plugins@redis",
         "integrity": "sha256-redis-1.3.0-PLACEHOLDER",
+        "revoked": true,
         "verified": true
       },
       {
@@ -52,10 +55,11 @@
         "summary": "Connect GitHub issues, projects, and code-scanning alerts to your benches.",
         "source": {
           "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
+          "url": "https://github.com/davidpoxon/roubo.git",
+          "directory": "plugins/github-com"
         },
         "provenance": "roubo/plugins@github-com",
-        "integrity": "sha256-github-com-0.2.0-PLACEHOLDER",
+        "integrity": "sha256-ca69673c81ed6c42a5b4ff4a5137455d4f33d6b6fc9dff4b1a430920b3f846c4",
         "verified": true
       },
       {
@@ -66,10 +70,11 @@
         "summary": "Integration for self-hosted GitHub Enterprise Server: PAT plus instance URL auth with optional self-signed TLS opt-in.",
         "source": {
           "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
+          "url": "https://github.com/davidpoxon/roubo.git",
+          "directory": "plugins/ghe"
         },
         "provenance": "roubo/plugins@ghe",
-        "integrity": "sha256-ghe-0.1.0-PLACEHOLDER",
+        "integrity": "sha256-5bafcc8d081b2ed7c2bbe90652c5e8bee80d6837ec2bb33f496a3abdec948287",
         "verified": true
       },
       {
@@ -80,10 +85,11 @@
         "summary": "Integration for self-hosted Atlassian Jira (Data Center 8.14+) with PAT auth and configurable link-type mapping.",
         "source": {
           "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
+          "url": "https://github.com/davidpoxon/roubo.git",
+          "directory": "plugins/jira-self-hosted"
         },
         "provenance": "roubo/plugins@jira-self-hosted",
-        "integrity": "sha256-jira-self-hosted-0.1.0-PLACEHOLDER",
+        "integrity": "sha256-663399fb33573bc258603e3689f1811d2732e6bed82847152b23386111156ad9",
         "verified": true
       },
       {
@@ -103,5 +109,5 @@
       }
     ]
   },
-  "signature": "x0qaO1jUhqUQQ5b5YlYqYbfqoU85iQapFixg4pncEbKu3P+1LAdxi2kColEL3hca7qC31XVJOB0p0V5j/5pEDw=="
+  "signature": "VVMdV/OcXOiJGekfjl0fr0mxqAcaO0EHLniXjwhHMKBM7uB5w040ELSHwLAWzsYHZqZxM7ImIw3NTTq+mvLQCw=="
 }

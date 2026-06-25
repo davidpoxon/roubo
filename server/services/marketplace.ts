@@ -132,7 +132,11 @@ function assertInstallable(id: string): MarketplaceCatalogEntry {
  */
 export async function install(id: string): Promise<InstallPreview> {
   const entry = assertInstallable(id);
-  return pluginInstaller.previewFromGitUrl(entry.source.url, entry.integrity);
+  return pluginInstaller.previewFromGitUrl(
+    entry.source.url,
+    entry.integrity,
+    entry.source.directory,
+  );
 }
 
 /**
@@ -145,5 +149,10 @@ export async function install(id: string): Promise<InstallPreview> {
  */
 export async function update(id: string): Promise<InstallPreview> {
   const entry = assertInstallable(id);
-  return pluginInstaller.previewUpdateFromGitUrl(entry.source.url, entry.id, entry.integrity);
+  return pluginInstaller.previewUpdateFromGitUrl(
+    entry.source.url,
+    entry.id,
+    entry.integrity,
+    entry.source.directory,
+  );
 }

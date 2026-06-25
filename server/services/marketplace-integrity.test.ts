@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -141,42 +142,76 @@ describe("computePackageDigest / verifyPackageIntegrity", () => {
   });
 });
 
-describe("checked-in catalog digest validates against a real package (issue #689)", () => {
-  // End-to-end guard: at least one checked-in catalog `integrity` digest must be
-  // a real content digest of an actual package, validated through the same
-  // verifyPackageIntegrity path the installer uses. This is what catches a
-  // wrong/placeholder digest in the committed catalog at CI time. The `database`
-  // entry is bound to a frozen, deterministic fixture package under
-  // __fixtures__/marketplace/database; the rest remain placeholders pending real
-  // per-plugin sources (issue #621). No network: the fixture is read from disk.
-  const fixtureDir = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "__fixtures__",
-    "marketplace",
-    "database",
-  );
+describe("checked-in catalog digests validate against the real per-plugin sources (issue #689 / #750)", () => {
+  // End-to-end guard: every installable catalog entry's `integrity` digest must be
+  // a real content digest of its `plugins/<id>` source subdirectory (the
+  // monorepo-subdir source model, #750), validated through the same
+  // verifyPackageIntegrity path the installer uses. This catches a
+  // wrong/placeholder/stale digest in the committed catalog at CI time: because a
+  // digest binds to live `plugins/<id>` content, any change there without
+  // recomputing the digest and re-signing the catalog fails this test (fail
+  // closed on drift). No network: the source is exported from the local git tree
+  // (tracked content at HEAD, exactly what a fresh clone then subdir-stage
+  // produces).
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-  async function databaseIntegrity(): Promise<string> {
-    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: { entries: { id: string; integrity: string }[] } };
-    const entry = catalog.payload.entries.find((e) => e.id === "database");
-    if (!entry) throw new Error("expected a `database` catalog entry");
-    return entry.integrity;
+  interface CatalogEntry {
+    id: string;
+    integrity: string;
+    source: { directory?: string };
+    revoked?: boolean;
   }
 
-  it("verifies the database entry's catalog digest against the frozen fixture package", async () => {
-    const integrity = await databaseIntegrity();
-    // The catalog digest must be a real sha256 hex, not a placeholder.
-    expect(integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
-    expect(await verifyPackageIntegrity(fixtureDir, integrity)).toBe(true);
+  async function loadEntries(): Promise<CatalogEntry[]> {
+    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
+      .default as { payload: { entries: CatalogEntry[] } };
+    return catalog.payload.entries;
+  }
+
+  // Export a subdirectory's tracked content at HEAD into a fresh temp dir: the
+  // same clean content a `git clone` + subdir-stage stages and digests. stdio is
+  // pinned so the subprocesses stay silent (no test stdout/stderr noise).
+  const dirs: string[] = [];
+  async function exportSubdir(directory: string): Promise<string> {
+    const dest = await mkdtemp(path.join(tmpdir(), "roubo-catalog-src-"));
+    dirs.push(dest);
+    const archive = execFileSync("git", ["-C", repoRoot, "archive", `HEAD:${directory}`], {
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    execFileSync("tar", ["-x", "-C", dest], { input: archive, stdio: ["pipe", "pipe", "pipe"] });
+    return dest;
+  }
+
+  afterEach(async () => {
+    await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
   });
 
-  it("rejects a wrong/placeholder digest against the same fixture package", async () => {
+  const installable = ["database", "process", "github-com", "ghe", "jira-self-hosted"] as const;
+
+  it.each(installable)(
+    "verifies the %s entry's catalog digest against its plugins/<id> source",
+    async (id: string) => {
+      const entry = (await loadEntries()).find((e) => e.id === id);
+      if (!entry) throw new Error(`expected a ${id} catalog entry`);
+      expect(entry.revoked ?? false).toBe(false);
+      const directory = entry.source.directory;
+      if (directory === undefined) {
+        throw new Error(`expected ${id} to declare a source.directory`);
+      }
+      expect(directory).toBe(`plugins/${id}`);
+      // The catalog digest must be a real sha256 hex, not a placeholder.
+      expect(entry.integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
+      const dir = await exportSubdir(directory);
+      expect(await verifyPackageIntegrity(dir, entry.integrity)).toBe(true);
+    },
+  );
+
+  it("rejects a wrong/placeholder digest against a real source package", async () => {
     // A placeholder or otherwise incorrect catalog digest must fail closed, which
     // is exactly the regression this end-to-end test exists to catch.
-    expect(await verifyPackageIntegrity(fixtureDir, "sha256-database-0.1.0-PLACEHOLDER")).toBe(
-      false,
-    );
-    expect(await verifyPackageIntegrity(fixtureDir, `sha256-${"0".repeat(64)}`)).toBe(false);
+    const dir = await exportSubdir("plugins/database");
+    expect(await verifyPackageIntegrity(dir, "sha256-database-0.1.0-PLACEHOLDER")).toBe(false);
+    expect(await verifyPackageIntegrity(dir, `sha256-${"0".repeat(64)}`)).toBe(false);
   });
 });

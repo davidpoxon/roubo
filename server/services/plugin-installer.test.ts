@@ -189,6 +189,62 @@ describe("previewFromGitUrl", () => {
   });
 });
 
+describe("previewFromGitUrl with a source subdirectory (issue #750)", () => {
+  // Pretend `git clone <url> <cloneDest>` succeeded by writing the manifest into
+  // `<cloneDest>/<directory>`, the monorepo-subdir layout the installer extracts.
+  function fakeCloneSubdir(manifest: string, directory: string) {
+    vi.mocked(exec.runCommand).mockImplementation(async (_cmd, args) => {
+      const dest = args[args.length - 1] as string;
+      const pkg = path.join(dest, directory);
+      await mkdir(pkg, { recursive: true });
+      await writeFile(path.join(pkg, "roubo-plugin.yaml"), manifest, "utf8");
+      return { code: 0, stdout: "", stderr: "" };
+    });
+  }
+
+  it("clones the repo and stages only the given subdirectory", async () => {
+    fakeCloneSubdir(ECHO_MANIFEST, "plugins/echo");
+    const preview = await pluginInstaller.previewFromGitUrl(
+      "https://github.com/example/monorepo.git",
+      undefined,
+      "plugins/echo",
+    );
+    expect(preview.manifest.id).toBe("echo");
+    expect(preview.source).toEqual({
+      type: "git",
+      url: "https://github.com/example/monorepo.git",
+      directory: "plugins/echo",
+    });
+    // The staged package is the subdirectory; the temp clone dir is removed.
+    const staging = await listStaging();
+    expect(staging).toContain(preview.stagingToken);
+    expect(staging.some((n) => n.endsWith(".clone"))).toBe(false);
+  });
+
+  it("rejects when the subdirectory is absent from the clone (missing-manifest) and cleans up", async () => {
+    fakeCloneSubdir(ECHO_MANIFEST, "plugins/elsewhere");
+    await expect(
+      pluginInstaller.previewFromGitUrl(
+        "https://github.com/example/monorepo.git",
+        undefined,
+        "plugins/missing",
+      ),
+    ).rejects.toMatchObject({ code: "missing-manifest" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a traversal subdirectory without cloning (invalid-input)", async () => {
+    await expect(
+      pluginInstaller.previewFromGitUrl(
+        "https://github.com/example/monorepo.git",
+        undefined,
+        "../escape",
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(exec.runCommand).not.toHaveBeenCalled();
+  });
+});
+
 describe("previewFromGitUrl integrity verification (issue #622)", () => {
   it("rejects a package whose digest does not match the expected catalog digest (CP-TC-107/108)", async () => {
     fakeClone(ECHO_MANIFEST);

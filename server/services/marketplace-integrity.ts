@@ -28,7 +28,7 @@ import path from "node:path";
  * private key and replacing this constant in the same change.
  */
 export const CATALOG_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAtIXEBgtw2N/7S1x8rTZiqLvShpfGkgsr/wTfdo6pPJw=
+MCowBQYDK2VwAyEAWk7+soWCgnhP6l8MCGBW0poQu7vmmw77eo5QiVieVIk=
 -----END PUBLIC KEY-----`;
 
 /**
