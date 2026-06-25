@@ -1,0 +1,392 @@
+[
+  {
+    "number": 765,
+    "url": "https://github.com/davidpoxon/roubo/issues/765",
+    "title": "Verify integrity over the built plugin artifact",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M1 Foundation",
+    "labels": ["feature", "P0"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-003", "NFR-006"],
+      "user_story_ids": [],
+      "test_case_ids": ["TC-015", "TC-016", "TC-008", "TC-009"]
+    }
+  },
+  {
+    "number": 766,
+    "url": "https://github.com/davidpoxon/roubo/issues/766",
+    "title": "Publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds",
+    "type": "task",
+    "milestone": "Hosted marketplace: M1 Foundation",
+    "labels": ["task", "P1"],
+    "blocked_by": [],
+    "implements": {
+      "requirement_ids": ["FR-011"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-062", "TC-063", "TC-064"]
+    }
+  },
+  {
+    "number": 767,
+    "url": "https://github.com/davidpoxon/roubo/issues/767",
+    "title": "Remove the vestigial Role toggle from the Components editor",
+    "type": "task",
+    "milestone": "Hosted marketplace: M5 UI cleanup",
+    "labels": ["task", "P1"],
+    "blocked_by": [787],
+    "implements": {
+      "requirement_ids": ["FR-010"],
+      "user_story_ids": ["US-006"],
+      "test_case_ids": ["TC-071", "TC-073", "TC-074", "TC-076", "TC-081"]
+    }
+  },
+  {
+    "number": 768,
+    "url": "https://github.com/davidpoxon/roubo/issues/768",
+    "title": "ErroredBanner surfaces the plugin's real lastError",
+    "type": "bug",
+    "milestone": "Hosted marketplace: M5 UI cleanup",
+    "labels": ["bug", "P2"],
+    "blocked_by": [787],
+    "implements": {
+      "requirement_ids": ["FR-012"],
+      "user_story_ids": ["US-005"],
+      "test_case_ids": ["TC-072", "TC-075", "TC-077", "TC-078", "TC-079", "TC-080", "TC-082"]
+    }
+  },
+  {
+    "number": 769,
+    "url": "https://github.com/davidpoxon/roubo/issues/769",
+    "title": "Create roubo-plugins repo and move plugins there",
+    "type": "task",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["task", "P0"],
+    "blocked_by": [766, 784],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-011"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-001"]
+    }
+  },
+  {
+    "number": 770,
+    "url": "https://github.com/davidpoxon/roubo/issues/770",
+    "title": "CI build/sign/publish pipeline with reproducible digest",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["feature", "P0"],
+    "blocked_by": [765, 769, 784],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-006", "NFR-006"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-065", "TC-066", "TC-003", "TC-012"]
+    }
+  },
+  {
+    "number": 771,
+    "url": "https://github.com/davidpoxon/roubo/issues/771",
+    "title": "Signed catalog on Pages + signed key-ring + revocation",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["feature", "P0"],
+    "blocked_by": [770, 784],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-007", "NFR-004"],
+      "user_story_ids": ["US-003", "US-004"],
+      "test_case_ids": ["TC-004", "TC-005", "TC-011", "TC-013", "TC-009"]
+    }
+  },
+  {
+    "number": 772,
+    "url": "https://github.com/davidpoxon/roubo/issues/772",
+    "title": "catalog-client: fetch, verify, cache, offline-degrade",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["feature", "P0"],
+    "blocked_by": [771, 785],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-009", "NFR-003", "NFR-002"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": ["TC-042", "TC-043", "TC-051", "TC-006", "TC-007"]
+    }
+  },
+  {
+    "number": 773,
+    "url": "https://github.com/davidpoxon/roubo/issues/773",
+    "title": "plugin-installer: download, verify, unpack a built artifact",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["feature", "P0"],
+    "blocked_by": [765, 771, 785],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-003", "NFR-001", "NFR-002"],
+      "user_story_ids": ["US-001", "US-005"],
+      "test_case_ids": ["TC-017", "TC-018", "TC-019", "TC-020", "TC-021", "TC-022", "TC-023"]
+    }
+  },
+  {
+    "number": 774,
+    "url": "https://github.com/davidpoxon/roubo/issues/774",
+    "title": "marketplace.ts network source + revocation enforcement",
+    "type": "task",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["task", "P1"],
+    "blocked_by": [772, 785],
+    "implements": {
+      "requirement_ids": ["FR-007", "NFR-001"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-001", "TC-002", "TC-007", "TC-010"]
+    }
+  },
+  {
+    "number": 775,
+    "url": "https://github.com/davidpoxon/roubo/issues/775",
+    "title": "app-packaging seed bundle; remove BUNDLED_PLUGIN_IDS source-copy",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M4 De-bundle + seed",
+    "labels": ["feature", "P0"],
+    "blocked_by": [770, 773, 786],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-005"],
+      "user_story_ids": ["US-001"],
+      "test_case_ids": ["TC-052", "TC-053", "TC-009"]
+    }
+  },
+  {
+    "number": 776,
+    "url": "https://github.com/davidpoxon/roubo/issues/776",
+    "title": "plugin-manager first-run seed + clean-break upgrade",
+    "type": "feature",
+    "milestone": "Hosted marketplace: M4 De-bundle + seed",
+    "labels": ["feature", "P0"],
+    "blocked_by": [775, 786],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-008", "NFR-005", "NFR-002"],
+      "user_story_ids": ["US-001"],
+      "test_case_ids": [
+        "TC-028",
+        "TC-029",
+        "TC-041",
+        "TC-054",
+        "TC-055",
+        "TC-056",
+        "TC-061",
+        "TC-040"
+      ]
+    }
+  },
+  {
+    "number": 777,
+    "url": "https://github.com/davidpoxon/roubo/issues/777",
+    "title": "E2E: maintainer publishes then revokes a plugin, client reflects both at next refresh",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [770, 771],
+    "verified_by": ["TC-014"],
+    "covers": [770, 771],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
+      "user_story_ids": ["US-003", "US-004"],
+      "test_case_ids": ["TC-014"]
+    }
+  },
+  {
+    "number": 778,
+    "url": "https://github.com/davidpoxon/roubo/issues/778",
+    "title": "E2E: install a plugin from the marketplace listing to a running plugin",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [773],
+    "verified_by": ["TC-017"],
+    "covers": [773],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-003"],
+      "user_story_ids": ["US-001", "US-005"],
+      "test_case_ids": ["TC-017"]
+    }
+  },
+  {
+    "number": 779,
+    "url": "https://github.com/davidpoxon/roubo/issues/779",
+    "title": "E2E: fresh launch yields the three seeded plugins, usable offline",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M4 De-bundle + seed",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [775, 776],
+    "verified_by": ["TC-041"],
+    "covers": [775, 776],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-005"],
+      "user_story_ids": ["US-001", "US-002"],
+      "test_case_ids": ["TC-041"]
+    }
+  },
+  {
+    "number": 780,
+    "url": "https://github.com/davidpoxon/roubo/issues/780",
+    "title": "E2E: go offline, seeded plugins still work, a new install fails clearly",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [772],
+    "verified_by": ["TC-051"],
+    "covers": [772],
+    "implements": {
+      "requirement_ids": ["FR-009", "NFR-003"],
+      "user_story_ids": ["US-002"],
+      "test_case_ids": ["TC-051"]
+    }
+  },
+  {
+    "number": 781,
+    "url": "https://github.com/davidpoxon/roubo/issues/781",
+    "title": "E2E: upgrade drops bundled installs, seed provides defaults, a removed plugin reinstalls",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M4 De-bundle + seed",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [775, 776],
+    "verified_by": ["TC-061"],
+    "covers": [775, 776],
+    "implements": {
+      "requirement_ids": ["FR-008", "NFR-005"],
+      "user_story_ids": ["US-001"],
+      "test_case_ids": ["TC-061"]
+    }
+  },
+  {
+    "number": 782,
+    "url": "https://github.com/davidpoxon/roubo/issues/782",
+    "title": "E2E: author builds against the published SDK, CI publishes reproducibly, digest matches",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [766, 769, 770],
+    "verified_by": ["TC-070"],
+    "covers": [766, 769, 770],
+    "implements": {
+      "requirement_ids": ["FR-011", "NFR-006"],
+      "user_story_ids": ["US-004"],
+      "test_case_ids": ["TC-070"]
+    }
+  },
+  {
+    "number": 783,
+    "url": "https://github.com/davidpoxon/roubo/issues/783",
+    "title": "E2E: configure a component via plugin binding; errored banner guides recovery",
+    "type": "task",
+    "kind": "e2e",
+    "milestone": "Hosted marketplace: M5 UI cleanup",
+    "labels": ["task", "e2e", "P1"],
+    "blocked_by": [767, 768],
+    "verified_by": ["TC-081", "TC-082"],
+    "covers": [767, 768],
+    "implements": {
+      "requirement_ids": ["FR-010", "FR-012"],
+      "user_story_ids": ["US-005", "US-006"],
+      "test_case_ids": ["TC-081", "TC-082"]
+    }
+  },
+  {
+    "number": 784,
+    "url": "https://github.com/davidpoxon/roubo/issues/784",
+    "title": "Verify gate: Hosted marketplace: M1 Foundation",
+    "type": "task",
+    "kind": "verify",
+    "milestone": "Hosted marketplace: M1 Foundation",
+    "labels": ["task", "verify", "P0"],
+    "blocked_by": [765, 766],
+    "verified_by": ["TC-015", "TC-016", "TC-062", "TC-063"],
+    "covers": [765, 766],
+    "implements": {
+      "requirement_ids": ["FR-002", "FR-003", "FR-011"],
+      "user_story_ids": ["US-001", "US-004", "US-005"],
+      "test_case_ids": ["TC-015", "TC-016", "TC-062", "TC-063"]
+    }
+  },
+  {
+    "number": 785,
+    "url": "https://github.com/davidpoxon/roubo/issues/785",
+    "title": "Verify gate: Hosted marketplace: M2 Marketplace repo",
+    "type": "task",
+    "kind": "verify",
+    "milestone": "Hosted marketplace: M2 Marketplace repo",
+    "labels": ["task", "verify", "P0"],
+    "blocked_by": [769, 770, 771],
+    "verified_by": ["TC-001", "TC-003", "TC-004", "TC-005", "TC-011", "TC-013"],
+    "covers": [769, 770, 771],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
+      "user_story_ids": ["US-003", "US-004"],
+      "test_case_ids": ["TC-001", "TC-003", "TC-004", "TC-005", "TC-011", "TC-013"]
+    }
+  },
+  {
+    "number": 786,
+    "url": "https://github.com/davidpoxon/roubo/issues/786",
+    "title": "Verify gate: Hosted marketplace: M3 App client",
+    "type": "task",
+    "kind": "verify",
+    "milestone": "Hosted marketplace: M3 App client",
+    "labels": ["task", "verify", "P0"],
+    "blocked_by": [772, 773, 774],
+    "verified_by": ["TC-001", "TC-002", "TC-017", "TC-042", "TC-043", "TC-051"],
+    "covers": [772, 773, 774],
+    "implements": {
+      "requirement_ids": ["FR-001", "FR-002", "FR-003", "FR-009", "NFR-003"],
+      "user_story_ids": ["US-001", "US-002", "US-003", "US-004", "US-005"],
+      "test_case_ids": ["TC-001", "TC-002", "TC-017", "TC-042", "TC-043", "TC-051"]
+    }
+  },
+  {
+    "number": 787,
+    "url": "https://github.com/davidpoxon/roubo/issues/787",
+    "title": "Verify gate: Hosted marketplace: M4 De-bundle + seed",
+    "type": "task",
+    "kind": "verify",
+    "milestone": "Hosted marketplace: M4 De-bundle + seed",
+    "labels": ["task", "verify", "P0"],
+    "blocked_by": [775, 776],
+    "verified_by": ["TC-028", "TC-029", "TC-041", "TC-052", "TC-053", "TC-054", "TC-055", "TC-061"],
+    "covers": [775, 776],
+    "implements": {
+      "requirement_ids": ["FR-004", "FR-005", "FR-008", "NFR-005"],
+      "user_story_ids": ["US-001", "US-002"],
+      "test_case_ids": [
+        "TC-028",
+        "TC-029",
+        "TC-041",
+        "TC-052",
+        "TC-053",
+        "TC-054",
+        "TC-055",
+        "TC-061"
+      ]
+    }
+  },
+  {
+    "number": 788,
+    "url": "https://github.com/davidpoxon/roubo/issues/788",
+    "title": "Verify gate: Hosted marketplace: M5 UI cleanup",
+    "type": "task",
+    "kind": "verify",
+    "milestone": "Hosted marketplace: M5 UI cleanup",
+    "labels": ["task", "verify", "P0"],
+    "blocked_by": [767, 768],
+    "verified_by": ["TC-071", "TC-072", "TC-073", "TC-074", "TC-075", "TC-081", "TC-082"],
+    "covers": [767, 768],
+    "implements": {
+      "requirement_ids": ["FR-010", "FR-012"],
+      "user_story_ids": ["US-005", "US-006"],
+      "test_case_ids": ["TC-071", "TC-072", "TC-073", "TC-074", "TC-075", "TC-081", "TC-082"]
+    }
+  }
+]
