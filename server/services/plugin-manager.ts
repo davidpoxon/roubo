@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, existsSync, statSync, type WriteStream } from "node:fs";
+import { createWriteStream, existsSync, realpathSync, statSync, type WriteStream } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -815,6 +815,45 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     entry.record.lastError = {
       code: "missing-entry",
       message: `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built; check its build output exists.`,
+    };
+    return;
+  }
+
+  // #761: existsSync/statSync above both follow symlinks, so an entry symlinked
+  // to a real file OUTSIDE the plugin dir passes the host check yet is
+  // unresolvable inside the container. The docker isolation tier bind-mounts
+  // only the plugin dir read-only at /roubo-plugin (buildSandboxedSpawn), so a
+  // symlink whose real target escapes that mount is followed by Node to a path
+  // that is not mounted, exiting 1 with a raw MODULE_NOT_FOUND that charges the
+  // restart budget three times and disables the component. Resolve the real
+  // path and re-apply the same containment invariant the lexical guard above
+  // enforces: a real target that stays inside the plugin dir is mounted too and
+  // is fine to spawn; one that escapes (or dangles, ENOENT from realpathSync)
+  // fails fast with the same actionable missing-entry error so the doomed
+  // restart loop never starts (mirrors the #748 skip-the-doomed-spawn
+  // philosophy). Containment is checked against the plugin dir's REAL path: a
+  // symlinked plugin dir is legitimate (docker follows it when mounting), so
+  // resolving the dir too keeps the check from false-positiving on it and only
+  // catches a symlink whose target leaves the mounted tree.
+  let realEntry: string;
+  let realDir: string;
+  try {
+    realEntry = realpathSync(resolvedEntry);
+    realDir = realpathSync(resolvedDir);
+  } catch {
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "missing-entry",
+      message: `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built; check its build output exists.`,
+    };
+    return;
+  }
+  const realRel = path.relative(realDir, realEntry);
+  if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "missing-entry",
+      message: `Plugin entry resolves outside the plugin directory: ${entryRel} -> ${realEntry} (in ${resolvedDir}). The entry may be a symlink pointing outside the plugin; only files inside the plugin directory are mounted.`,
     };
     return;
   }
