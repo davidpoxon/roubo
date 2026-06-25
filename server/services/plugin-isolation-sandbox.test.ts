@@ -13,6 +13,7 @@ import {
   DOCKER_CONTAINER_DIR,
   DOCKER_EGRESS_IMAGE,
   DOCKER_IMAGE,
+  EGRESS_RERESOLVE_INTERVAL_SECONDS,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
 
@@ -294,7 +295,21 @@ describe("plugin-isolation-sandbox: ensureImage", () => {
   });
 });
 
-describe("plugin-isolation-sandbox: buildEgressSetupScript (#741)", () => {
+describe("plugin-isolation-sandbox: buildEgressSetupScript (#741, #745)", () => {
+  it("creates the ROUBO_EGRESS chain once (tolerates already-exists via || true)", () => {
+    const script = buildEgressSetupScript(["api.example.com"]);
+    expect(script).toContain("iptables -N ROUBO_EGRESS");
+  });
+
+  it("adds a single delegating OUTPUT jump to ROUBO_EGRESS after base rules", () => {
+    const script = buildEgressSetupScript(["api.example.com"]);
+    expect(script).toContain("iptables -A OUTPUT -j ROUBO_EGRESS");
+    // The jump must come after the conntrack ESTABLISHED rule.
+    const conntrackIdx = script.indexOf("ESTABLISHED,RELATED");
+    const jumpIdx = script.indexOf("iptables -A OUTPUT -j ROUBO_EGRESS");
+    expect(jumpIdx).toBeGreaterThan(conntrackIdx);
+  });
+
   it("produces iptables rules for each declared host", () => {
     const script = buildEgressSetupScript(["api.example.com", "cdn.example.com"]);
     expect(script).toContain("api.example.com");
@@ -312,10 +327,50 @@ describe("plugin-isolation-sandbox: buildEgressSetupScript (#741)", () => {
     expect(script).not.toContain("getent");
   });
 
-  it("includes quoted getent hosts resolution for each declared host", () => {
+  it("routes per-host ACCEPT rules through ROUBO_EGRESS (not directly to OUTPUT)", () => {
     const script = buildEgressSetupScript(["metrics.internal"]);
     expect(script).toContain('getent hosts "metrics.internal"');
-    expect(script).toContain('iptables -A OUTPUT -d "$ip" -j ACCEPT');
+    // Rules target the managed chain, not OUTPUT directly.
+    expect(script).toContain('iptables -A ROUBO_EGRESS -d "$ip" -j ACCEPT');
+    expect(script).not.toContain('iptables -A OUTPUT -d "$ip" -j ACCEPT');
+  });
+
+  it("defines roubo_reresolve that flushes ROUBO_EGRESS before re-adding rules (#745 AC-2)", () => {
+    const script = buildEgressSetupScript(["api.example.com"]);
+    expect(script).toContain("roubo_reresolve()");
+    // The function must flush the chain first so stale IPs are not accumulated.
+    const funcStart = script.indexOf("roubo_reresolve()");
+    const flushIdx = script.indexOf("iptables -F ROUBO_EGRESS", funcStart);
+    expect(flushIdx).toBeGreaterThan(funcStart);
+    // The flush must appear before the host getent block inside the function.
+    const getentIdx = script.indexOf('getent hosts "api.example.com"', funcStart);
+    expect(getentIdx).toBeGreaterThan(flushIdx);
+  });
+
+  it("calls roubo_reresolve once for the initial populate", () => {
+    const script = buildEgressSetupScript(["api.example.com"]);
+    // The function definition and a bare call to it must both be present.
+    expect(script).toContain("roubo_reresolve()");
+    // After the function definition there must be a standalone invocation.
+    const defEnd = script.indexOf("roubo_reresolve()") + "roubo_reresolve()".length;
+    const callIdx = script.indexOf("roubo_reresolve", defEnd);
+    expect(callIdx).toBeGreaterThan(defEnd);
+  });
+
+  it("backgrounds a periodic re-resolution loop that uses sleep and & (#745 AC-1)", () => {
+    const script = buildEgressSetupScript(["api.example.com"]);
+    // The loop must be present: while, sleep with the configured interval, and
+    // the roubo_reresolve call backgrounded with &.
+    expect(script).toContain("while true");
+    expect(script).toContain(`sleep ${EGRESS_RERESOLVE_INTERVAL_SECONDS}`);
+    expect(script).toContain("roubo_reresolve");
+    // The block must be backgrounded so the script falls through to exec node.
+    expect(script).toContain("} &");
+  });
+
+  it("EGRESS_RERESOLVE_INTERVAL_SECONDS is exported and a positive integer", () => {
+    expect(EGRESS_RERESOLVE_INTERVAL_SECONDS).toBeGreaterThan(0);
+    expect(Number.isInteger(EGRESS_RERESOLVE_INTERVAL_SECONDS)).toBe(true);
   });
 
   it("produces a script that ends with the conntrack ESTABLISHED rule before host blocks", () => {
