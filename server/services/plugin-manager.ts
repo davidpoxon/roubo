@@ -200,6 +200,21 @@ function classifyMountUnshared(reason: string): boolean {
 }
 
 /**
+ * Returns true when the docker tier is about to spawn against a resolved plugin
+ * dir that is known to be outside Docker Desktop's default file-sharing
+ * allow-list, so the spawn would fail with a mount-unavailable error. Today this
+ * is the macOS `/Applications/` prefix (where a packaged Roubo.app installs
+ * bundled plugins); other platforms have no known-unshared prefix. Pure so the
+ * proactive pre-check can be unit-tested without a live Docker daemon or a real
+ * `/Applications` plugin dir.
+ */
+function isKnownUnsharedDockerPath(platform: NodeJS.Platform, resolvedDir: string): boolean {
+  if (platform !== "darwin") return false;
+  const normalized = resolvedDir.replace(/\/+$/, "");
+  return normalized === "/Applications" || normalized.startsWith("/Applications/");
+}
+
+/**
  * Records a docker-mount-unshared isolation notice on `entry.record`. Dedups
  * by resolved plugin dir: if this dir has already been noticed in the current
  * host process, the call is a no-op. The notice names the concrete path and
@@ -808,11 +823,8 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // against a plugin installed there will almost certainly fail with a
   // mount-unavailable error. Emit the isolation notice proactively so the user
   // sees the remediation before (or even if) the spawn attempt is made.
-  if (tier === "docker" && process.platform === "darwin") {
-    const normalized = resolvedDir.replace(/\/+$/, "");
-    if (normalized === "/Applications" || normalized.startsWith("/Applications/")) {
-      recordIsolationNotice(entry, resolvedDir);
-    }
+  if (tier === "docker" && isKnownUnsharedDockerPath(process.platform, resolvedDir)) {
+    recordIsolationNotice(entry, resolvedDir);
   }
 
   // For the docker tier, ensure the required image is available before
@@ -1978,6 +1990,12 @@ export const __test = {
   },
   resolveIsolationTier(): Promise<IsolationTier> {
     return resolveIsolationTier();
+  },
+  // #743: the pure predicate behind the proactive docker-mount-unshared
+  // pre-check, exposed so tests can exercise the known-unshared-path logic
+  // without a real `/Applications` plugin dir or a live Docker daemon.
+  isKnownUnsharedDockerPath(platform: NodeJS.Platform, resolvedDir: string): boolean {
+    return isKnownUnsharedDockerPath(platform, resolvedDir);
   },
   setE2EConfig(config: { scenario: string | null; now: string | null }): void {
     e2eScenario = config.scenario;

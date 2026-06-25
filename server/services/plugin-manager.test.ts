@@ -2487,6 +2487,45 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
         // No isolation notice for a generic failure.
         expect(rec.isolationNotices ?? []).toHaveLength(0);
       });
+
+      // The proactive pre-check is keyed off a pure predicate so it is testable
+      // without a real /Applications plugin dir or a live Docker daemon.
+      describe("isKnownUnsharedDockerPath (proactive pre-check predicate)", () => {
+        it("flags /Applications and its descendants on darwin", () => {
+          expect(pluginManager.__test.isKnownUnsharedDockerPath("darwin", "/Applications")).toBe(
+            true,
+          );
+          expect(
+            pluginManager.__test.isKnownUnsharedDockerPath(
+              "darwin",
+              "/Applications/Roubo.app/Contents/Resources/plugins/echo",
+            ),
+          ).toBe(true);
+          // A trailing slash must not defeat the match.
+          expect(pluginManager.__test.isKnownUnsharedDockerPath("darwin", "/Applications/")).toBe(
+            true,
+          );
+        });
+
+        it("does not flag shared or unrelated paths on darwin", () => {
+          expect(
+            pluginManager.__test.isKnownUnsharedDockerPath("darwin", "/Users/me/.roubo/plugins/x"),
+          ).toBe(false);
+          // A path that merely starts with the substring but is a different dir.
+          expect(
+            pluginManager.__test.isKnownUnsharedDockerPath("darwin", "/ApplicationsData/x"),
+          ).toBe(false);
+        });
+
+        it("never flags on non-darwin platforms (no known-unshared prefix)", () => {
+          expect(pluginManager.__test.isKnownUnsharedDockerPath("linux", "/Applications/x")).toBe(
+            false,
+          );
+          expect(pluginManager.__test.isKnownUnsharedDockerPath("win32", "/Applications")).toBe(
+            false,
+          );
+        });
+      });
     });
   });
 });
