@@ -1,7 +1,6 @@
 {
   "name": "@roubo/shared",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Shared TypeScript types for Roubo client + server.",
   "author": "David Poxon",
   "license": "Apache-2.0",
@@ -25,6 +24,13 @@
     "./testbench-domain": "./testbench-domain.ts",
     "./work-units-contract": "./work-units-contract.ts",
     "./gate-overrides-contract": "./gate-overrides-contract.ts"
+  },
+  "files": [
+    "*.ts",
+    "!*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "yaml": "2.9.0",
