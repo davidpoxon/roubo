@@ -23,6 +23,19 @@ export interface LogLine {
   text: string;
 }
 
+/**
+ * A structured, user-visible notice that the docker isolation tier could not
+ * engage for the plugin's directory. Surfaced on PluginRecord so callers of
+ * listInstalled() can present an actionable remediation rather than relying
+ * only on the log line (#743).
+ */
+export interface IsolationNotice {
+  kind: "docker-mount-unshared";
+  pluginDir: string;
+  message: string;
+  at: string;
+}
+
 export interface PluginRecord {
   id: string;
   manifest: PluginManifest | null;
@@ -33,4 +46,5 @@ export interface PluginRecord {
   lastError: PluginError | null;
   restartHistory: RestartEvent[];
   pid: number | null;
+  isolationNotices?: IsolationNotice[];
 }

@@ -9,6 +9,7 @@ import treeKill from "tree-kill";
 import {
   parseManifest,
   type ConnectionState,
+  type IsolationNotice,
   type LogLine,
   type PluginError,
   type PluginManifest,
@@ -183,6 +184,44 @@ function resolveBrokerContext(pluginId: string, benchId: number): BrokerContext 
 // broker AuditLog (owned by bench-manager): the sandbox tier may deny below the
 // broker, where there is no bench context to route the entry through.
 const sandboxAuditLog = new AuditLog();
+
+// #743: dedup set for docker-mount-unshared isolation notices. Keyed by the
+// resolved plugin dir so a respawn loop for the same plugin dir emits the
+// notice at most once per host process lifetime.
+const mountUnsharedNoticed = new Set<string>();
+
+/**
+ * Returns true when a sandboxed spawn failure message indicates that the
+ * plugin directory is not a Docker Desktop shared path ("Mounts denied",
+ * "is not shared from the host and is not known to Docker", etc.).
+ */
+function classifyMountUnshared(reason: string): boolean {
+  return /not shared from the host|Mounts denied|is not known to Docker/i.test(reason);
+}
+
+/**
+ * Records a docker-mount-unshared isolation notice on `entry.record`. Dedups
+ * by resolved plugin dir: if this dir has already been noticed in the current
+ * host process, the call is a no-op. The notice names the concrete path and
+ * includes the Docker Desktop File sharing remediation.
+ */
+function recordIsolationNotice(entry: PluginEntry, resolvedPluginDir: string): void {
+  if (mountUnsharedNoticed.has(resolvedPluginDir)) return;
+  mountUnsharedNoticed.add(resolvedPluginDir);
+  const notice: IsolationNotice = {
+    kind: "docker-mount-unshared",
+    pluginDir: resolvedPluginDir,
+    message:
+      `The docker isolation tier could not engage because "${resolvedPluginDir}" is not a ` +
+      `Docker Desktop shared path. The plugin is running on the broker-only floor as a ` +
+      `fallback. To enable OS-level isolation, add this path (or its parent) to ` +
+      `Docker Desktop > Settings > Resources > File sharing, or install the plugin into ` +
+      `a user-plugins location that is already shared (e.g. ~/.roubo/plugins/).`,
+    at: nowIso(),
+  };
+  if (!entry.record.isolationNotices) entry.record.isolationNotices = [];
+  entry.record.isolationNotices.push(notice);
+}
 
 // Isolation probes (NFR-005: query each runtime, never assume). The real
 // host-capability probes (defaultIsolationProbes: Docker daemon reachability via
@@ -764,6 +803,18 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // out-of-band attempt never crashes the host or its siblings (AC3).
   const tier = await resolveIsolationTier();
 
+  // #743: proactive pre-check. On macOS, paths under /Applications/ are not in
+  // Docker Desktop's default file-sharing allow-list, so a docker-tier spawn
+  // against a plugin installed there will almost certainly fail with a
+  // mount-unavailable error. Emit the isolation notice proactively so the user
+  // sees the remediation before (or even if) the spawn attempt is made.
+  if (tier === "docker" && process.platform === "darwin") {
+    const normalized = resolvedDir.replace(/\/+$/, "");
+    if (normalized === "/Applications" || normalized.startsWith("/Applications/")) {
+      recordIsolationNotice(entry, resolvedDir);
+    }
+  }
+
   // For the docker tier, ensure the required image is available before
   // attempting the container spawn. If provisioning fails (e.g. Docker Desktop
   // not running on macOS, the plugin dir is not a shared path, the image
@@ -847,6 +898,12 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       `sandboxed spawn failed (${primaryFailReason}); retrying on broker-only floor`,
       "warn",
     );
+    // #743: if the failure is specifically a bind-mount-unavailable condition,
+    // surface a structured, actionable notice on the record so the UI can
+    // present remediation guidance rather than only having a log line.
+    if (classifyMountUnshared(primaryFailReason)) {
+      recordIsolationNotice(entry, resolvedDir);
+    }
     entry.record.restartHistory.push({
       at: nowIso(),
       reason: "sandbox-fallback",
@@ -1204,6 +1261,9 @@ export function listInstalled(): PluginRecord[] {
   return Array.from(plugins.values()).map((entry) => ({
     ...entry.record,
     restartHistory: [...entry.record.restartHistory],
+    ...(entry.record.isolationNotices
+      ? { isolationNotices: [...entry.record.isolationNotices] }
+      : {}),
   }));
 }
 
@@ -1218,6 +1278,9 @@ export function getRecord(pluginId: string): PluginRecord | undefined {
   return {
     ...entry.record,
     restartHistory: [...entry.record.restartHistory],
+    ...(entry.record.isolationNotices
+      ? { isolationNotices: [...entry.record.isolationNotices] }
+      : {}),
   };
 }
 
@@ -1902,6 +1965,7 @@ export const __test = {
     setIsolationProbes(null);
     sandboxAuditLog.clear();
     brokerContexts.clear();
+    mountUnsharedNoticed.clear();
   },
   // #677 / #685: the per-call resolver the broker handlers read, exposed so tests
   // can assert which bench context a multiplexed connection resolves the named

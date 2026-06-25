@@ -2383,5 +2383,110 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       const fallbackEvents = rec.restartHistory.filter((e) => e.reason === "sandbox-fallback");
       expect(fallbackEvents).toHaveLength(1);
     });
+
+    // #743: isolation notices for the docker-mount-unshared condition.
+    describe("docker-mount-unshared isolation notices (#743)", () => {
+      it("records exactly one isolation notice when the docker spawn fails with a mount-unavailable message", async () => {
+        dockerPingMock = () => Promise.resolve("OK");
+        dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+        process.env.NODE_ENV = "production";
+        delete process.env.ROUBO_E2E;
+
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        let dockerSpawnFailed = false;
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] === "docker" && !dockerSpawnFailed) {
+            dockerSpawnFailed = true;
+            // Use the canonical Docker Desktop mount-denied message so the
+            // classifier fires. No live daemon needed.
+            throw new Error("/some/plugin is not shared from the host and is not known to Docker");
+          }
+          return realSpawn(...args);
+        }) as SpawnFn;
+
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        const rec = findRecord(mgr.listInstalled(), "echo");
+        // Plugin still starts on the floor (no #740 regression).
+        expect(rec.status).toBe("enabled");
+        expect(typeof rec.pid).toBe("number");
+        // Exactly one notice was added.
+        expect(rec.isolationNotices).toHaveLength(1);
+        const notices = rec.isolationNotices ?? [];
+        const notice = notices[0];
+        expect(notice.kind).toBe("docker-mount-unshared");
+        expect(notice.pluginDir).toBeTruthy();
+        expect(notice.message).toMatch(/Docker Desktop/);
+        expect(notice.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      });
+
+      it("does NOT add a duplicate notice when the same plugin dir fails again on a second spawn", async () => {
+        dockerPingMock = () => Promise.resolve("OK");
+        dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+        process.env.NODE_ENV = "production";
+        delete process.env.ROUBO_E2E;
+
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        // Always fail docker spawns with the mount-unshared message.
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] === "docker") {
+            throw new Error("Mounts denied: path is not shared from the host");
+          }
+          return realSpawn(...args);
+        }) as SpawnFn;
+
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        const recAfterFirst = findRecord(mgr.listInstalled(), "echo");
+        expect(recAfterFirst.isolationNotices).toHaveLength(1);
+
+        // Simulate a second spawn (e.g. manual restart) for the same plugin dir.
+        await mgr.restart("echo");
+        // Allow the spawn attempt to settle.
+        await new Promise((r) => setTimeout(r, 100));
+
+        const recAfterSecond = findRecord(mgr.listInstalled(), "echo");
+        // Still exactly one notice; dedup prevented a second entry.
+        expect(recAfterSecond.isolationNotices).toHaveLength(1);
+      });
+
+      it("does NOT record an isolation notice for a generic (non-mount) spawn failure", async () => {
+        dockerPingMock = () => Promise.resolve("OK");
+        dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+        process.env.NODE_ENV = "production";
+        delete process.env.ROUBO_E2E;
+
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        let dockerSpawnFailed = false;
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] === "docker" && !dockerSpawnFailed) {
+            dockerSpawnFailed = true;
+            // Generic docker failure unrelated to file sharing.
+            throw new Error("spawn docker ENOENT");
+          }
+          return realSpawn(...args);
+        }) as SpawnFn;
+
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        const rec = findRecord(mgr.listInstalled(), "echo");
+        // Plugin starts on the floor (no regression).
+        expect(rec.status).toBe("enabled");
+        // No isolation notice for a generic failure.
+        expect(rec.isolationNotices ?? []).toHaveLength(0);
+      });
+    });
   });
 });

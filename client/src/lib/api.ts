@@ -1089,6 +1089,7 @@ export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]>
         name: r.manifest.name,
         status: r.status,
         ...(r.lastError ? { lastError: r.lastError.message } : {}),
+        ...(r.isolationNotices?.length ? { isolationNotices: r.isolationNotices } : {}),
       },
     ];
   });
