@@ -29,7 +29,11 @@ const listInstalled = vi.mocked(pluginManager.listInstalled);
 const previewFromGitUrl = vi.mocked(pluginInstaller.previewFromGitUrl);
 const previewUpdateFromGitUrl = vi.mocked(pluginInstaller.previewUpdateFromGitUrl);
 
-function installedRecord(id: string, version: string): PluginRecord {
+function installedRecord(
+  id: string,
+  version: string,
+  source: PluginRecord["source"] = "user",
+): PluginRecord {
   return {
     id,
     manifest: {
@@ -49,7 +53,7 @@ function installedRecord(id: string, version: string): PluginRecord {
     } as PluginRecord["manifest"],
     manifestPath: `/p/${id}/roubo-plugin.yaml`,
     pluginDir: `/p/${id}`,
-    source: "user",
+    source,
     status: "enabled",
     lastError: null,
     restartHistory: [],
@@ -129,6 +133,25 @@ describe("listCatalog", () => {
   it("flags updateAvailable when the installed version is older than the catalog", () => {
     const entry = marketplace.listCatalog()[0];
     listInstalled.mockReturnValue([installedRecord(entry.id, "0.0.1")]);
+    const annotated = annotatedById(entry.id);
+    expect(annotated.installed).toBe(true);
+    expect(annotated.updateAvailable).toBe(true);
+  });
+
+  // issue #752: a bundled plugin (e.g. github-com) cannot be updated in place,
+  // so the card must never offer an Update even when the catalog version field
+  // is ahead of the bundled manifest. It still reads as installed.
+  it("never flags updateAvailable for a bundled installed plugin (issue #752)", () => {
+    const entry = marketplace.listCatalog()[0];
+    listInstalled.mockReturnValue([installedRecord(entry.id, "0.0.1", "bundled")]);
+    const annotated = annotatedById(entry.id);
+    expect(annotated.installed).toBe(true);
+    expect(annotated.updateAvailable).toBe(false);
+  });
+
+  it("still flags updateAvailable for a user-installed plugin behind the catalog (issue #752)", () => {
+    const entry = marketplace.listCatalog()[0];
+    listInstalled.mockReturnValue([installedRecord(entry.id, "0.0.1", "user")]);
     const annotated = annotatedById(entry.id);
     expect(annotated.installed).toBe(true);
     expect(annotated.updateAvailable).toBe(true);

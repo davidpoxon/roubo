@@ -69,8 +69,17 @@ function annotate(entry: MarketplaceCatalogEntry): MarketplaceListing {
   const record = pluginManager.listInstalled().find((r) => r.id === entry.id);
   const installed = record !== undefined;
   const installedVersion = record?.manifest?.version ?? null;
+  // Bundled plugins (e.g. github-com) ship with Roubo and update with it; they
+  // cannot be updated in place. The catalog source for such an entry is the same
+  // bundled directory, so a stale catalog `version` field could otherwise read as
+  // a newer release and offer an Update action that always fails at
+  // previewUpdateFromGitUrl (issue #752). Suppress updateAvailable for bundled
+  // records here, where it is computed, so the card shows them as Installed.
   const updateAvailable =
-    installed && installedVersion !== null && isNewerVersion(entry.version, installedVersion);
+    installed &&
+    record?.source !== "bundled" &&
+    installedVersion !== null &&
+    isNewerVersion(entry.version, installedVersion);
   return { ...entry, installed, installedVersion, updateAvailable };
 }
 
