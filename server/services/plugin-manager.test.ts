@@ -1180,6 +1180,44 @@ permissions:
     expect(rec.status).toBe("invalid");
     expect(rec.lastError?.code).toBe("invalid-entry");
   });
+
+  // #759: a component plugin whose manifest entry points at a file that does
+  // not exist on disk (e.g. dist/index.js never built) must fail fast with an
+  // actionable, plugin-scoped "missing-entry" error rather than crash-looping
+  // on a raw Node MODULE_NOT_FOUND until the restart budget is exhausted.
+  it("errors a plugin whose entry file is missing and never spawns it", async () => {
+    sandbox = await makeSandbox({});
+    const dir = path.join(sandbox.bundledDir, "unbuilt");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: unbuilt
+name: Unbuilt
+version: 0.0.0
+description: x
+kind: component
+roubo: ^1.0.0
+entry: ./dist/index.js
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "unbuilt");
+    expect(rec.status).toBe("errored");
+    expect(rec.lastError?.code).toBe("missing-entry");
+    expect(rec.lastError?.message).toContain("dist/index.js");
+    // The doomed restart loop never started: no process, no restart history.
+    expect(rec.pid).toBeNull();
+    expect(rec.restartHistory).toEqual([]);
+  });
 });
 
 describe("uninstall", () => {
