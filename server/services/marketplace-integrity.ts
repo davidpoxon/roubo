@@ -13,8 +13,11 @@ import path from "node:path";
 //      first-party public key below. An invalid or missing signature fails
 //      closed (the caller surfaces zero listings).
 //   2. Per-plugin integrity: each catalog entry carries an expected content
-//      digest (`sha256-<hex>`) over the staged package. After staging and before
-//      commit, the installer recomputes the staged digest and rejects a mismatch.
+//      digest (`sha256-<hex>`) over the unpacked built artifact (the ReleaseAsset
+//      file set: dist/index.js + roubo-plugin.yaml + package.json + README, with
+//      no `src/` and no `node_modules`), not the cloned source subdir. After
+//      staging and before commit, the installer recomputes the unpacked
+//      artifact's digest and rejects a mismatch.
 //
 // Verification uses node:crypto only (no third-party crypto dependency). The
 // private signing key is held out of band by maintainers; only the public key
@@ -74,12 +77,19 @@ export function verifyCatalogSignature(payload: unknown, signatureBase64: string
 }
 
 /**
- * Compute the content digest of a staged package as `sha256-<hex>`. The digest
- * is over the package's file tree, normalized and deterministic: relative paths
- * are sorted, path separators normalized to "/", and the `.git` directory is
- * excluded (it is non-deterministic and not part of the distributed package).
- * The hash mixes each file's relative path and its bytes, so both content and
- * layout changes are detected.
+ * Compute the content digest of an unpacked built plugin artifact as
+ * `sha256-<hex>`. The digest target is the unpacked ReleaseAsset (dist/index.js
+ * + roubo-plugin.yaml + package.json + README), not the cloned source subdir:
+ * an installed plugin runs from `dist/`, so binding integrity to the built
+ * artifact is what makes the check meaningful. The walk is generic and reused
+ * verbatim, the digest input changed: the caller now supplies the unpacked built
+ * artifact directory rather than a staged source tree.
+ *
+ * The digest is normalized and deterministic: relative paths are sorted, path
+ * separators normalized to "/", and the `.git` directory is excluded (it is
+ * non-deterministic and never present in a distributed artifact). The hash mixes
+ * each file's relative path and its bytes, so both content and layout changes
+ * are detected.
  */
 export async function computePackageDigest(dir: string): Promise<string> {
   const files: string[] = [];
@@ -125,11 +135,12 @@ export async function computePackageDigest(dir: string): Promise<string> {
 }
 
 /**
- * Verify a staged package's content digest against the expected digest from the
- * signed catalog entry. Returns true only on an exact match. A null/empty
- * expected digest returns false (an entry with no integrity field cannot be
- * trusted). Never throws on a mismatch; only filesystem errors from
- * `computePackageDigest` propagate.
+ * Verify an unpacked built artifact's content digest against the expected digest
+ * from the signed catalog entry. Returns true only on an exact match. A
+ * null/empty expected digest returns false (an entry with no integrity field
+ * cannot be trusted). A tampered built artifact (any changed or added file)
+ * yields a different digest and is rejected fail-closed. Never throws on a
+ * mismatch; only filesystem errors from `computePackageDigest` propagate.
  */
 export async function verifyPackageIntegrity(
   dir: string,

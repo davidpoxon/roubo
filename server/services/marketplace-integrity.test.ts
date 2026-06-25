@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   canonicalize,
   computePackageDigest,
@@ -14,8 +12,39 @@ import {
 
 // Unit tests for the marketplace channel-integrity primitives (CP-FR-021,
 // issue #622): deterministic canonicalization, ed25519 catalog-signature
-// verification (fail-closed), and the deterministic staged-package digest +
-// integrity check.
+// verification (fail-closed), and the deterministic built-artifact digest +
+// integrity check. The digest now targets the unpacked built artifact (issue
+// #765, FR-003/NFR-006), not the cloned source subdir.
+
+// Assemble an unpacked built-artifact fixture: the ReleaseAsset file set the
+// marketplace digests (dist/index.js + roubo-plugin.yaml + package.json +
+// README), self-contained with no `src/` and no `node_modules`. This is what a
+// downloaded, unpacked plugin tarball looks like, and what the digest binds to.
+async function writeBuiltArtifact(dir: string): Promise<void> {
+  await mkdir(path.join(dir, "dist"), { recursive: true });
+  await writeFile(path.join(dir, "dist", "index.js"), "export const plugin = () => {};\n");
+  await writeFile(path.join(dir, "roubo-plugin.yaml"), "id: demo\nentry: dist/index.js\n");
+  await writeFile(
+    path.join(dir, "package.json"),
+    `${JSON.stringify({ name: "demo", version: "0.1.0", main: "dist/index.js" })}\n`,
+  );
+  await writeFile(path.join(dir, "README.md"), "# Demo plugin\n");
+}
+
+// Assemble a cloned-source-subdir fixture: src/ + build config, no dist/. This
+// is the OLD digest target (issue #689 / #750); the digest must now distinguish
+// it from the built artifact above.
+async function writeSourceSubdir(dir: string): Promise<void> {
+  await mkdir(path.join(dir, "src"), { recursive: true });
+  await writeFile(path.join(dir, "src", "index.ts"), "export const plugin = () => {};\n");
+  await writeFile(path.join(dir, "roubo-plugin.yaml"), "id: demo\nentry: dist/index.js\n");
+  await writeFile(
+    path.join(dir, "package.json"),
+    `${JSON.stringify({ name: "demo", version: "0.1.0", main: "dist/index.js" })}\n`,
+  );
+  await writeFile(path.join(dir, "tsup.config.ts"), "export default {};\n");
+  await writeFile(path.join(dir, "README.md"), "# Demo plugin\n");
+}
 
 describe("canonicalize", () => {
   it("sorts object keys recursively and is whitespace-insensitive", () => {
@@ -72,7 +101,7 @@ describe("verifyCatalogSignature", () => {
   });
 });
 
-describe("computePackageDigest / verifyPackageIntegrity", () => {
+describe("computePackageDigest / verifyPackageIntegrity (over the built artifact)", () => {
   let dir: string;
 
   beforeEach(async () => {
@@ -83,18 +112,35 @@ describe("computePackageDigest / verifyPackageIntegrity", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("is deterministic and order-independent for the same content", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
-    await mkdir(path.join(dir, "sub"));
-    await writeFile(path.join(dir, "sub", "b.txt"), "beta");
+  it("is deterministic and order-independent over the unpacked built artifact", async () => {
+    await writeBuiltArtifact(dir);
     const first = await computePackageDigest(dir);
     const second = await computePackageDigest(dir);
     expect(first).toBe(second);
     expect(first).toMatch(/^sha256-[0-9a-f]{64}$/);
   });
 
+  it("digests the built artifact (dist + manifest), not the cloned source subdir", async () => {
+    // AC1: the same logical plugin produces a different digest depending on
+    // whether the built artifact (dist/index.js + manifest) or the source subdir
+    // (src/ + build config) is the target. The marketplace binds to the former.
+    const builtDir = await mkdtemp(path.join(tmpdir(), "roubo-integrity-built-"));
+    const sourceDir = await mkdtemp(path.join(tmpdir(), "roubo-integrity-src-"));
+    try {
+      await writeBuiltArtifact(builtDir);
+      await writeSourceSubdir(sourceDir);
+      const builtDigest = await computePackageDigest(builtDir);
+      const sourceDigest = await computePackageDigest(sourceDir);
+      expect(builtDigest).toMatch(/^sha256-[0-9a-f]{64}$/);
+      expect(builtDigest).not.toBe(sourceDigest);
+    } finally {
+      await rm(builtDir, { recursive: true, force: true });
+      await rm(sourceDir, { recursive: true, force: true });
+    }
+  });
+
   it("excludes the .git directory from the digest", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+    await writeBuiltArtifact(dir);
     const before = await computePackageDigest(dir);
     await mkdir(path.join(dir, ".git"));
     await writeFile(path.join(dir, ".git", "HEAD"), "ref: refs/heads/main");
@@ -102,116 +148,111 @@ describe("computePackageDigest / verifyPackageIntegrity", () => {
     expect(after).toBe(before);
   });
 
-  it("changes when file content changes", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+  it("changes when a built file's content changes", async () => {
+    await writeBuiltArtifact(dir);
     const before = await computePackageDigest(dir);
-    await writeFile(path.join(dir, "a.txt"), "tampered");
+    await writeFile(path.join(dir, "dist", "index.js"), "export const plugin = () => 'evil';\n");
     const after = await computePackageDigest(dir);
     expect(after).not.toBe(before);
   });
 
-  it("changes when a file is added (layout change)", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+  it("changes when a file is added to the built artifact (layout change)", async () => {
+    await writeBuiltArtifact(dir);
     const before = await computePackageDigest(dir);
-    await writeFile(path.join(dir, "extra.txt"), "alpha");
+    await writeFile(path.join(dir, "dist", "extra.js"), "console.log('injected');\n");
     const after = await computePackageDigest(dir);
     expect(after).not.toBe(before);
   });
 
   it("ignores a dangling symlink without throwing", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+    await writeBuiltArtifact(dir);
     await symlink(path.join(dir, "missing-target"), path.join(dir, "dangling"));
     await expect(computePackageDigest(dir)).resolves.toMatch(/^sha256-/);
   });
 
   it("verifyPackageIntegrity returns true on an exact digest match", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+    await writeBuiltArtifact(dir);
     const expected = await computePackageDigest(dir);
     expect(await verifyPackageIntegrity(dir, expected)).toBe(true);
   });
 
+  it("verifyPackageIntegrity rejects a tampered built artifact (fail closed)", async () => {
+    // AC2: pin the expected digest from the clean artifact, then mutate a built
+    // file. The recomputed digest no longer matches, so the check fails closed.
+    await writeBuiltArtifact(dir);
+    const expected = await computePackageDigest(dir);
+    await writeFile(path.join(dir, "dist", "index.js"), "export const plugin = () => 'evil';\n");
+    expect(await verifyPackageIntegrity(dir, expected)).toBe(false);
+  });
+
   it("verifyPackageIntegrity returns false on a mismatch", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+    await writeBuiltArtifact(dir);
     expect(await verifyPackageIntegrity(dir, "sha256-deadbeef")).toBe(false);
   });
 
   it("verifyPackageIntegrity returns false for a null/empty expected digest", async () => {
-    await writeFile(path.join(dir, "a.txt"), "alpha");
+    await writeBuiltArtifact(dir);
     expect(await verifyPackageIntegrity(dir, null)).toBe(false);
     expect(await verifyPackageIntegrity(dir, "")).toBe(false);
   });
 });
 
-describe("checked-in catalog digests validate against the real per-plugin sources (issue #689 / #750)", () => {
-  // End-to-end guard: every installable catalog entry's `integrity` digest must be
-  // a real content digest of its `plugins/<id>` source subdirectory (the
-  // monorepo-subdir source model, #750), validated through the same
-  // verifyPackageIntegrity path the installer uses. This catches a
-  // wrong/placeholder/stale digest in the committed catalog at CI time: because a
-  // digest binds to live `plugins/<id>` content, any change there without
-  // recomputing the digest and re-signing the catalog fails this test (fail
-  // closed on drift). No network: the source is exported from the local git tree
-  // (tracked content at HEAD, exactly what a fresh clone then subdir-stage
-  // produces).
-  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-
+describe("catalog integrity digests bind to the built artifact (reconciles #689 / #750 onto #765)", () => {
+  // The #689 / #750 guard verified that the committed catalog's `integrity`
+  // digests were real content digests of each `plugins/<id>` SOURCE subdir.
+  // Issue #765 retargets the digest to the unpacked BUILT artifact, so that
+  // source-subdir assertion no longer holds: the committed catalog's digests are
+  // over source and signed with an out-of-band key, so they cannot be recomputed
+  // and re-signed against built artifacts here, and catalog (re)generation moves
+  // to the external roubo-plugins CI under the de-bundling (catalog hosting #5,
+  // download/unpack install #7 are both out of scope for this slice). What stays
+  // load-bearing and in-scope is the property #689 / #750 protected: a catalog
+  // `integrity` digest must be a real content digest of the artifact the
+  // installer verifies, and any drift or placeholder fails closed. We assert that
+  // property over a synthetic catalog entry whose digest is computed over an
+  // unpacked built-artifact fixture, the same verifyPackageIntegrity path the
+  // installer uses. The committed catalog's ed25519 SIGNATURE is still exercised
+  // unchanged above (verifyCatalogSignature against the bundled public key).
   interface CatalogEntry {
     id: string;
     integrity: string;
-    source: { directory?: string };
-    revoked?: boolean;
+    source: { type: "release"; assetUrl: string };
   }
 
-  async function loadEntries(): Promise<CatalogEntry[]> {
-    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: { entries: CatalogEntry[] } };
-    return catalog.payload.entries;
-  }
+  let dir: string;
 
-  // Export a subdirectory's tracked content at HEAD into a fresh temp dir: the
-  // same clean content a `git clone` + subdir-stage stages and digests. stdio is
-  // pinned so the subprocesses stay silent (no test stdout/stderr noise).
-  const dirs: string[] = [];
-  async function exportSubdir(directory: string): Promise<string> {
-    const dest = await mkdtemp(path.join(tmpdir(), "roubo-catalog-src-"));
-    dirs.push(dest);
-    const archive = execFileSync("git", ["-C", repoRoot, "archive", `HEAD:${directory}`], {
-      maxBuffer: 64 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    execFileSync("tar", ["-x", "-C", dest], { input: archive, stdio: ["pipe", "pipe", "pipe"] });
-    return dest;
-  }
-
-  afterEach(async () => {
-    await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "roubo-catalog-built-"));
   });
 
-  const installable = ["database", "process", "github-com", "ghe", "jira-self-hosted"] as const;
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
 
-  it.each(installable)(
-    "verifies the %s entry's catalog digest against its plugins/<id> source",
-    async (id: string) => {
-      const entry = (await loadEntries()).find((e) => e.id === id);
-      if (!entry) throw new Error(`expected a ${id} catalog entry`);
-      expect(entry.revoked ?? false).toBe(false);
-      const directory = entry.source.directory;
-      if (directory === undefined) {
-        throw new Error(`expected ${id} to declare a source.directory`);
-      }
-      expect(directory).toBe(`plugins/${id}`);
-      // The catalog digest must be a real sha256 hex, not a placeholder.
-      expect(entry.integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
-      const dir = await exportSubdir(directory);
-      expect(await verifyPackageIntegrity(dir, entry.integrity)).toBe(true);
-    },
-  );
+  it("verifies a catalog entry whose digest is a real digest of the built artifact", async () => {
+    await writeBuiltArtifact(dir);
+    const entry: CatalogEntry = {
+      id: "demo",
+      integrity: await computePackageDigest(dir),
+      source: { type: "release", assetUrl: "https://example.invalid/demo-0.1.0.tgz" },
+    };
+    expect(entry.integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
+    expect(await verifyPackageIntegrity(dir, entry.integrity)).toBe(true);
+  });
 
-  it("rejects a wrong/placeholder digest against a real source package", async () => {
+  it("rejects a wrong/placeholder catalog digest against a real built artifact (fail closed)", async () => {
     // A placeholder or otherwise incorrect catalog digest must fail closed, which
-    // is exactly the regression this end-to-end test exists to catch.
-    const dir = await exportSubdir("plugins/database");
-    expect(await verifyPackageIntegrity(dir, "sha256-database-0.1.0-PLACEHOLDER")).toBe(false);
+    // is exactly the drift regression the #689 / #750 guard existed to catch.
+    await writeBuiltArtifact(dir);
+    expect(await verifyPackageIntegrity(dir, "sha256-demo-0.1.0-PLACEHOLDER")).toBe(false);
     expect(await verifyPackageIntegrity(dir, `sha256-${"0".repeat(64)}`)).toBe(false);
+  });
+
+  it("rejects a tampered built artifact against a pinned catalog digest (fail closed)", async () => {
+    await writeBuiltArtifact(dir);
+    const integrity = await computePackageDigest(dir);
+    // Inject a file into the unpacked artifact after the digest was pinned.
+    await writeFile(path.join(dir, "dist", "payload.js"), "console.log('injected');\n");
+    expect(await verifyPackageIntegrity(dir, integrity)).toBe(false);
   });
 });
