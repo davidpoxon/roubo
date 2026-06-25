@@ -800,6 +800,25 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     return;
   }
 
+  // #759: confirm the entry file actually exists on the host before spawning.
+  // The container path is DOCKER_CONTAINER_DIR/<entryRel> (the host plugin dir
+  // is bind-mounted at /roubo-plugin), so a missing or unbuilt host entry
+  // (e.g. dist/index.js absent because the plugin was never built) makes Node
+  // exit 1 with a raw MODULE_NOT_FOUND once the container starts. That runtime
+  // exit charges the restart budget three times and then disables the
+  // component, never surfacing the real cause. Fail fast here with an
+  // actionable, plugin-scoped error instead, so the doomed restart loop never
+  // starts (mirrors the invalid-entry branch above and the #748 "skip the
+  // doomed spawn" philosophy).
+  if (!existsSync(resolvedEntry) || !statSync(resolvedEntry).isFile()) {
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "missing-entry",
+      message: `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built; check its build output exists.`,
+    };
+    return;
+  }
+
   const spawnArgs: string[] = [entryPath];
   if (process.env.ROUBO_E2E === "1") {
     if (e2eScenario !== null) spawnArgs.push(`--scenario=${e2eScenario}`);
