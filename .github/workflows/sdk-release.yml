@@ -80,3 +80,156 @@ jobs:
       - name: Publish @roubo/shared-github (trusted publisher / OIDC)
         working-directory: plugins/_shared-github
         run: npm publish --provenance
+
+  # Automated AC2 gate for #766: prove a real plugin builds in a standalone
+  # (out-of-monorepo) checkout that resolves @roubo/plugin-sdk, @roubo/shared,
+  # and @roubo/shared-github from the LIVE npm registry at their just-published
+  # versions, with no surviving file:/workspace ref. This replaces the manual
+  # maintainer check #766 left behind, so a broken standalone build fails the
+  # release rather than being discovered later by hand.
+  smoke:
+    name: smoke-test a plugin builds against the live registry
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # Check out only to source the database plugin's build inputs (src +
+      # tsup.config.ts); the build itself runs in a fresh dir outside this tree.
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.inputs.tag_name || github.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build the database plugin standalone against the published packages
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${RELEASE_TAG}" != sdk-v* ]]; then
+            echo "::error::Tag '${RELEASE_TAG}' must start with 'sdk-v' (e.g. sdk-v0.1.0)"
+            exit 1
+          fi
+          # Lockstep tag version, identical to the publish job's version-match step.
+          VERSION="${RELEASE_TAG#sdk-v}"
+          echo "Smoke-testing standalone build against published version ${VERSION}"
+
+          # Assemble a workdir OUTSIDE the checkout so nothing can resolve via the
+          # monorepo's workspace symlinks; only the live registry can satisfy the
+          # @roubo/* deps.
+          SMOKE_DIR="$(mktemp -d)"
+          cp -R plugins/database/src "${SMOKE_DIR}/src"
+          cp plugins/database/tsup.config.ts "${SMOKE_DIR}/tsup.config.ts"
+
+          # Self-contained tsconfig: the in-repo plugin tsconfig extends
+          # ../../tsconfig.json, which does not exist standalone, so inline the
+          # merged compiler options here (root + plugin, plugin wins on conflict).
+          cat > "${SMOKE_DIR}/tsconfig.json" <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ES2022",
+              "module": "NodeNext",
+              "moduleResolution": "NodeNext",
+              "strict": true,
+              "esModuleInterop": true,
+              "skipLibCheck": true,
+              "forceConsistentCasingInFileNames": true,
+              "resolveJsonModule": true,
+              "declaration": true,
+              "declarationMap": true,
+              "sourceMap": true,
+              "ignoreDeprecations": "6.0",
+              "outDir": "./dist",
+              "rootDir": "./src",
+              "types": ["node"]
+            },
+            "include": ["./src/**/*.ts"],
+            "exclude": ["dist", "./src/**/*.test.ts", "./src/__tests__/**"]
+          }
+          JSON
+
+          # Standalone package.json: pin all three published packages at the tag
+          # version so install can only succeed from the live registry. Tooling
+          # versions mirror the database plugin and the monorepo root.
+          cat > "${SMOKE_DIR}/package.json" <<JSON
+          {
+            "name": "roubo-sdk-smoke",
+            "version": "0.0.0",
+            "private": true,
+            "type": "module",
+            "scripts": {
+              "build": "tsc --noEmit && tsup"
+            },
+            "dependencies": {
+              "@roubo/plugin-sdk": "${VERSION}",
+              "@roubo/shared": "${VERSION}",
+              "@roubo/shared-github": "${VERSION}"
+            },
+            "devDependencies": {
+              "@types/node": "25.9.1",
+              "tsup": "8.5.1",
+              "typescript": "6.0.3"
+            }
+          }
+          JSON
+
+          cd "${SMOKE_DIR}"
+
+          # npm registry propagation can lag a publish by a few seconds; retry the
+          # install a few times before treating a failure as fatal.
+          attempt=1
+          max_attempts=5
+          until npm install --no-audit --no-fund; do
+            if (( attempt >= max_attempts )); then
+              echo "::error::npm install failed after ${max_attempts} attempts; the published ${VERSION} packages did not resolve from the registry"
+              exit 1
+            fi
+            echo "npm install attempt ${attempt} failed (registry propagation lag?); retrying in 15s"
+            attempt=$(( attempt + 1 ))
+            sleep 15
+          done
+
+          # Assert every @roubo/* dep resolved to a real registry tarball at the
+          # expected version, with no surviving file:/workspace link.
+          export VERSION_EXPECTED="${VERSION}"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const expected = process.env.VERSION_EXPECTED;
+          const pkgs = ['@roubo/plugin-sdk', '@roubo/shared', '@roubo/shared-github'];
+          let failed = false;
+          for (const name of pkgs) {
+            const entry = lock.packages?.[`node_modules/${name}`];
+            if (!entry) {
+              console.error(`::error::${name} is missing from the lockfile`);
+              failed = true;
+              continue;
+            }
+            if (entry.link) {
+              console.error(`::error::${name} resolved to a workspace/file link, not the registry`);
+              failed = true;
+            }
+            if (!entry.resolved || !entry.resolved.startsWith('https://registry.npmjs.org/')) {
+              console.error(`::error::${name} did not resolve from the live registry (resolved='${entry.resolved ?? ''}')`);
+              failed = true;
+            }
+            if (entry.version !== expected) {
+              console.error(`::error::${name} resolved to version '${entry.version}', expected '${expected}'`);
+              failed = true;
+            }
+            if (entry.resolved && entry.version === expected && !entry.link) {
+              console.log(`${name}@${entry.version} resolved from ${entry.resolved}`);
+            }
+          }
+          if (failed) process.exit(1);
+          NODE
+
+          # Build the real plugin against the published packages; any non-zero
+          # exit fails the workflow loudly.
+          npm run build
+          echo "Standalone build succeeded against @roubo/* ${VERSION} from the live registry"
