@@ -270,7 +270,10 @@ export default function CaseDetail({
             over, so exactly one notes surface renders at a time. */}
         {showInlineRail && (
           <div className="flex flex-col min-h-0 basis-2/5 border-l border-stone-100 dark:border-stone-800 pl-6">
-            <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
+            {/* The label is a pinned header; NotesRail fills the remaining height
+                and scrolls its notes list internally so the "Add a note" form
+                stays reachable on a short pane (#806). */}
+            <div className={`${SECTION_LABEL} mt-0 shrink-0`}>Notes</div>
             <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
           </div>
         )}
