@@ -704,15 +704,13 @@ export default function BenchDetail() {
         </div>
       )}
 
-      {/* Keep the Tabs mounted when the header collapses and hide them via the
-          `hidden` attribute, rather than unmounting. The Terminal panel uses
-          shouldForceMount to keep its live WebSocket session alive across tab
-          switches; unmounting on collapse would tear that session down and force a
-          reconnect on expand (#805). */}
-      <div
-        hidden={headerCollapsed}
-        className={headerCollapsed ? undefined : "flex flex-col flex-1 min-h-0"}
-      >
+      {/* Collapsing the header hides only the detail metadata above the tabs (gated
+          on `!headerCollapsed` further up); the Tabs always stay visible so the
+          collapse reclaims just the header's vertical space, not the whole bench
+          (#811). Keeping the Tabs mounted also preserves the Terminal panel's live
+          WebSocket session, which uses shouldForceMount to survive tab switches and a
+          collapse/expand cycle without a reconnect (#805). */}
+      <div className="flex flex-col flex-1 min-h-0">
         <Tabs
           className="flex flex-col flex-1 min-h-0"
           selectedKey={selectedTab}
