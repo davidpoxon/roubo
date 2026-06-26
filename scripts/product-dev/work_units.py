@@ -887,24 +887,28 @@ IMPLEMENTED_TRACKER_SYSTEMS = ("github",)
 RESERVED_TRACKER_SYSTEMS = ("ghe", "jira")
 
 # Hardcoded allowlist of the only `gh` subcommands this module ever issues:
-# `auth status`, `api graphql`, and `issue create`. `_gh_runner` validates the
-# subcommand (argv[0]) against this set before shelling out, so a value that
-# managed to flow into argv cannot pivot `gh` into an unintended subcommand
-# (argument-injection barrier; CWE-78/88). Membership check is the sanitizer.
-_GH_ALLOWED_SUBCOMMANDS = frozenset({"auth", "api", "issue"})
+# `auth status`, `api graphql`, and `api --method=POST .../issues` (REST issue
+# creation). `_gh_runner` validates the subcommand (argv[0]) against this set
+# before shelling out, so a value that managed to flow into argv cannot pivot
+# `gh` into an unintended subcommand (defence-in-depth argument barrier;
+# CWE-78/88). Membership check is the sanitizer.
+_GH_ALLOWED_SUBCOMMANDS = frozenset({"auth", "api"})
 
 # The ONLY option-shaped tokens (those starting with `-`) the module ever puts
-# in a gh argv. `_gh_runner` rejects any other dash-leading token, so a
-# user-derived value cannot smuggle in an extra flag (argument injection,
-# CWE-88). User VALUES are passed joined as `--flag=value` (see `_create_issue`),
-# so their content is never parsed as a separate option token, however it begins.
+# in a gh argv: the bare `-f` (GraphQL field flag) and the joined `--method=...`
+# / `--input=...` flags whose VALUES are hardcoded constants (`POST`, `-`), never
+# user data. `_gh_runner` rejects any other dash-leading token, so a value that
+# reached argv could not smuggle in an extra flag (argument injection, CWE-88).
+# User data never rides on the command line at all: free-form fields go on STDIN
+# (see `_create_issue`) and the few interpolated identifiers are reduced to a
+# safe character set first (see `_safe_gh_value`).
 _GH_BARE_FLAGS = frozenset({"-f"})
-_GH_VALUE_FLAG_RE = re.compile(r"\A--(?:repo|title|body|label)=")
+_GH_VALUE_FLAG_RE = re.compile(r"\A--(?:method|input)=")
 
-# A repo reference is interpolated into the gh command line (`--repo`) AND into
-# GraphQL query strings. Constrain it to a strict `owner/name` of safe chars so a
-# user-provided value cannot carry option/shell/whitespace metacharacters into
-# either sink. This regex IS the sanitizer on the argv-sourced `repo` taint path.
+# A repo reference is interpolated into the gh command line (the REST endpoint
+# path) AND into GraphQL query strings. `_REPO_RE` enforces a strict `owner/name`
+# shape; `_safe_gh_value` then rebuilds it from an allowlisted character set,
+# which is the control CodeQL recognises on the argv-sourced `repo` taint path.
 _REPO_RE = re.compile(r"\A[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\Z")
 
 
@@ -926,24 +930,23 @@ def _validate_gh_argv(args):
     """Return a validated argv list or raise ValueError.
 
     The barrier `_gh_runner` applies before shelling out. It sits on the WHOLE
-    argv (not just the subcommand), because the user-derived values that
-    CodeQL flags as the command-injection source (the repo from CLI argv, and
-    title/body/labels from the stdin envelope) all land in argv[1:], not
-    argv[0]. argv must be:
+    argv (not just the subcommand) as defence-in-depth: even though no
+    user-derived value reaches the command line any more (free-form fields ride
+    on STDIN and interpolated identifiers pass through `_safe_gh_value` first),
+    the argv is still pinned to exactly the shapes this module emits. argv must
+    be:
 
       1. a non-empty sequence of strings;
       2. whose first element (the gh subcommand) is in `_GH_ALLOWED_SUBCOMMANDS`;
       3. whose every OTHER element either does NOT start with `-` (a plain
          positional value), or is one of the hardcoded option tokens this module
          emits: a bare flag in `_GH_BARE_FLAGS`, or a joined `--flag=value` whose
-         flag name is in the `_GH_VALUE_FLAG_RE` allowlist.
+         flag name is in the `_GH_VALUE_FLAG_RE` allowlist (and whose value is a
+         hardcoded constant, never user data).
 
-    Rule 3 is the argument-injection (CWE-88) control: a user-derived value can
-    never be parsed as an extra option, because the only dash-leading tokens
-    permitted are hardcoded flag names, and user values ride joined onto those
-    flags (`--title=<value>`) where their content, however it begins, stays the
-    value rather than a new option. Non-string argv elements are rejected
-    outright.
+    Rule 3 is the argument-injection (CWE-88) control: the only dash-leading
+    tokens permitted are hardcoded flag names, so nothing that reached argv could
+    be parsed as an extra option. Non-string argv elements are rejected outright.
     """
     argv = list(args)
     if not argv:
@@ -1014,7 +1017,13 @@ def _graphql(run, query):
 
 
 def _resolve_issue_node_id(run, owner, name, number):
-    """Resolve a created issue's GraphQL node id from its number."""
+    """Resolve a created issue's GraphQL node id from its number.
+
+    `number` can originate from the stdin envelope (a `tracker.ref` /
+    `blocked_by_refs` entry), so it is reduced to a safe character set before
+    being interpolated into the GraphQL query string (CWE-78).
+    """
+    number = _safe_gh_value(number, "issue number")
     query = (
         'query { repository(owner: "%s", name: "%s") { issue(number: %s) { id } } }'
         % (owner, name, number))
@@ -1050,17 +1059,50 @@ def _issue_type_ids(run, owner, name):
             if n.get("isEnabled") and n.get("id") and n.get("name")}
 
 
+def _safe_gh_value(value, what):
+    """Return `value` rebuilt from per-character allowlist-guarded characters.
+
+    The few identifiers this module still interpolates into a gh command line or
+    a GraphQL query string (the repo `owner`/`name`, an issue number, and a
+    GraphQL node id) are each reassembled here from a closed character set. The
+    `ch in (...)` membership test against the INLINE literal tuple is the control
+    CodeQL recognises as a sanitizer (a constant-comparison barrier guard), and
+    it is genuinely safe: a value composed solely of ASCII letters, digits and
+    `. _ - / = +` cannot carry a quote, brace, parenthesis, whitespace, or
+    option metacharacter into either sink (CWE-78/88). Every legitimate repo
+    segment, issue number, and GitHub node id is already composed only of these
+    characters, so the returned value is unchanged on every real call path; a
+    value containing anything else is rejected rather than passed through.
+    """
+    rebuilt = []
+    for ch in str(value):
+        if ch in (
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+            ".", "_", "-", "/", "=", "+",
+        ):
+            rebuilt.append(ch)
+        else:
+            raise InputError(
+                "%s contains a disallowed character: %r" % (what, value))
+    return "".join(rebuilt)
+
+
 def _split_repo(repo):
     """Split an `owner/name` string, raising InputError on a malformed value.
 
-    The shape is enforced with `_REPO_RE` (strict owner/name of safe chars), not
-    just a `/`-count check: `repo` is interpolated into the gh command line and
-    into GraphQL queries, so this is the sanitizer that keeps a user-provided
-    value from carrying option/shell/whitespace metacharacters into either sink.
+    The shape is enforced with `_REPO_RE` (strict owner/name) and then reduced to
+    a safe character set with `_safe_gh_value`: `repo` is interpolated into the
+    gh REST endpoint path and into GraphQL queries, so this is the sanitizer that
+    keeps a user-provided value from carrying option/shell/whitespace
+    metacharacters into either sink (CWE-78/88).
     """
     if not isinstance(repo, str) or not _REPO_RE.match(repo):
         raise InputError("repo must be in owner/name form, got %r" % repo)
-    return repo.split("/", 1)
+    return _safe_gh_value(repo, "repo").split("/", 1)
 
 
 def file_unit(unit, repo, run=None, retry_links_only=False):
@@ -1071,7 +1113,7 @@ def file_unit(unit, repo, run=None, retry_links_only=False):
       1. `gh auth status` BEFORE any mutation. Unauthenticated/unavailable ->
          InputError (exit 1) with an actionable message, stopping BEFORE any
          issue is filed (no partial file). (WUAAVG-TC-022)
-      2. Create the issue (`gh issue create`); capture its number/url.
+      2. Create the issue (REST `gh api .../issues`); capture its number/url.
       3. Resolve the created issue's node id.
       4. Set the native Issue Type from `unit.type` via `updateIssueIssueType`.
          If the repo has no matching enabled native type, SKIP and warn (never
@@ -1137,7 +1179,13 @@ def file_unit(unit, repo, run=None, retry_links_only=False):
             raise InputError(
                 "link-only retry needs an existing tracker.ref, but unit %r has "
                 "none (nothing to retry; file it first)." % unit.get("id"))
-        if not node_id:
+        # A stdin-supplied node id is interpolated into GraphQL mutations, so
+        # reduce it to a safe character set; otherwise resolve it from the ref.
+        # The if/else (rather than two separate ifs) keeps every path assigning a
+        # sanitized-or-resolved value, never the raw stdin one (CWE-78).
+        if node_id:
+            node_id = _safe_gh_value(node_id, "node id")
+        else:
             node_id = _resolve_issue_node_id(run, owner, name, ref)
         block = {
             "system": "github",
@@ -1179,34 +1227,39 @@ def _issue_url(owner, name, number):
 
 
 def _create_issue(run, repo, unit):
-    """Create the issue via `gh issue create`; return (number, url).
+    """Create the issue via the GitHub REST API; return (number, url).
 
     The body is the inline projection of `description`/`acceptance_criteria`
-    (R5). `gh issue create` prints the new issue URL on stdout; the trailing
-    number is parsed from it.
+    (R5). The user-controlled fields (title, body, labels) are delivered as a
+    JSON request body on STDIN, never on the command line: gh's argv carries only
+    the static method/endpoint plus the sanitized `owner`/`name`, so no
+    user-provided value can reach the command line (CWE-78/88). `gh issue create`
+    has no way to take the title off argv, so the REST form (`gh api .../issues`)
+    is used; it returns the created issue as JSON, from which number/url are read.
     """
+    owner, name = _split_repo(repo)
     title = unit.get("title") or unit.get("id") or "Untitled work unit"
     body = _render_body(unit)
-    # Joined `--flag=value` form (not space-separated): a user-derived value can
-    # then never be parsed as a separate option token, however it begins, which
-    # is what lets the `_gh_runner` argv barrier admit it (argument-injection
-    # control, CWE-88). The same values are equivalent to gh either way.
-    args = ["issue", "create", "--repo=" + repo, "--title=" + title,
-            "--body=" + body]
-    for label in (unit.get("labels") or []):
-        if isinstance(label, str) and label:
-            args += ["--label=" + label]
-    rc, out, err = run(args)
+    labels = [x for x in (unit.get("labels") or []) if isinstance(x, str) and x]
+    payload = json.dumps({"title": title, "body": body, "labels": labels})
+    endpoint = "repos/" + owner + "/" + name + "/issues"
+    rc, out, err = run(["api", "--method=POST", endpoint, "--input=-"],
+                       input_text=payload)
     if rc != 0:
         raise InputError(
-            "gh issue create failed (rc=%d): %s (no issue filed)."
-            % (rc, (err or out or "").strip()))
-    url = (out or "").strip().splitlines()[-1].strip() if out.strip() else ""
-    number = url.rstrip("/").rsplit("/", 1)[-1] if url else ""
-    if not number.isdigit():
+            "creating the issue (gh api POST .../issues) failed (rc=%d): %s "
+            "(no issue filed)." % (rc, (err or out or "").strip()))
+    try:
+        data = json.loads(out) if out.strip() else {}
+    except json.JSONDecodeError:
         raise InputError(
-            "gh issue create did not return a parseable issue URL: %r" % out)
-    return number, url
+            "gh api issue create did not return parseable JSON: %r" % out)
+    number = data.get("number")
+    url = data.get("html_url") or ""
+    if not isinstance(number, int):
+        raise InputError(
+            "gh api issue create returned no issue number: %r" % out)
+    return str(number), url
 
 
 def _render_body(unit):
@@ -1696,11 +1749,17 @@ def _selftest():
         return lambda a: a[:2] == ["api", "graphql"] and all(
             n in (a[-1] if a else "") for n in needles)
 
+    # The REST issue-create call: `gh api --method=POST repos/.../issues
+    # --input=-` (user fields ride on stdin, not argv).
+    def is_create(a):
+        return a[:2] == ["api", "--method=POST"]
+
     # Happy path: auth ok, create -> node id -> type set -> (no links).
     happy = fake_runner([
         (lambda a: a[:2] == ["auth", "status"], (0, "ok", "")),
-        (lambda a: a[:2] == ["issue", "create"],
-         (0, "https://github.com/o/r/issues/42\n", "")),
+        (is_create,
+         (0, json.dumps({"number": 42,
+                         "html_url": "https://github.com/o/r/issues/42"}), "")),
         (gql_with("issueTypes"),
          (0, json.dumps({"data": {"repository": {"issueTypes": {"nodes": [
              {"id": "IT_feat", "name": "Feature", "isEnabled": True}]}}}}), "")),
@@ -1719,7 +1778,7 @@ def _selftest():
     def auth_fail_run(args, input_text=None):
         if args[:2] == ["auth", "status"]:
             return (1, "", "not logged in")
-        if args[:2] == ["issue", "create"]:
+        if is_create(args):
             filed["created"] = True
         return (0, "{}", "")
     check_raises("seam auth-fail raises",
@@ -1743,8 +1802,9 @@ def _selftest():
         q = args[-1] if args else ""
         if args[:2] == ["auth", "status"]:
             return (0, "ok", "")
-        if args[:2] == ["issue", "create"]:
-            return (0, "https://github.com/o/r/issues/55\n", "")
+        if is_create(args):
+            return (0, json.dumps({"number": 55,
+                    "html_url": "https://github.com/o/r/issues/55"}), "")
         if "issueTypes" in q:
             return (0, json.dumps({"data": {"repository": {"issueTypes":
                     {"nodes": [{"id": "IT_task", "name": "Task",
@@ -1768,10 +1828,11 @@ def _selftest():
 
     # --- _gh_runner argv barrier (CWE-78/88) ---
     # The barrier sits on the WHOLE argv: a disallowed subcommand (argv[0]) AND a
-    # user-derived value smuggling an extra option into argv[1:] are both refused
-    # with a non-zero tuple and NO subprocess invocation; the legitimate call
-    # shapes (including arbitrary, even dash-leading, joined `--flag=value`
-    # values) pass through to the (faked) sink.
+    # dash-leading token that is not one of the hardcoded flags this module emits
+    # are both refused with a non-zero tuple and NO subprocess invocation; the
+    # legitimate call shapes (auth, the `-f query=` graphql shape, and the REST
+    # create shape with its joined `--method=`/`--input=` flags) pass through to
+    # the (faked) sink.
     import subprocess as _subprocess
     real_run = _subprocess.run
     sink_calls = []
@@ -1792,39 +1853,52 @@ def _selftest():
         check("gh barrier rejects disallowed no-sink", sink_calls, [])
         if "disallowed gh subcommand" not in err:
             failures.append("gh barrier: expected refusal reason, got %r" % err)
-        # An option-shaped value injected into argv[1:] is refused, with no sink.
+        # An unexpected option token in argv[1:] is refused, with no sink.
         rc_inj, _oi, err_inj = _gh_runner(
-            ["issue", "create", "--repo=o/r", "--malicious-flag"])
+            ["api", "--method=POST", "repos/o/r/issues", "--malicious-flag"])
         check("gh barrier rejects argv[1:] option-injection rc", rc_inj, 2)
         check("gh barrier rejects argv[1:] option-injection no-sink",
               sink_calls, [])
         if "disallowed option-shaped gh argument" not in err_inj:
             failures.append(
                 "gh barrier: expected option-shape refusal, got %r" % err_inj)
-        # Legitimate calls pass through: bare subcommand, the `-f query=` graphql
-        # shape, and joined `--flag=value` values (even dash-leading content).
+        # Legitimate call shapes pass through to the (faked) sink unchanged.
         rc2, out2, _e = _gh_runner(["auth", "status"])
         check("gh barrier passthrough rc", rc2, 0)
         check("gh barrier passthrough out", out2, "ok")
         _gh_runner(["api", "graphql", "-f", "query={x}"])
-        _gh_runner(["issue", "create", "--repo=o/r",
-                    "--title=- dash-leading title", "--body=b", "--label=x"])
+        _gh_runner(["api", "--method=POST", "repos/o/r/issues", "--input=-"],
+                   input_text="{}")
         check("gh barrier passthrough sink argv", sink_calls, [
             ["gh", "auth", "status"],
             ["gh", "api", "graphql", "-f", "query={x}"],
-            ["gh", "issue", "create", "--repo=o/r",
-             "--title=- dash-leading title", "--body=b", "--label=x"],
+            ["gh", "api", "--method=POST", "repos/o/r/issues", "--input=-"],
         ])
     finally:
         _subprocess.run = real_run
 
     # --- _split_repo strict shape (sanitizes the repo taint) ---
     check("split_repo accepts owner/name", list(_split_repo("o/r")), ["o", "r"])
+    check("split_repo accepts dotted/dashed",
+          list(_split_repo("My-Org.x/repo_1")), ["My-Org.x", "repo_1"])
     check_raises("split_repo rejects option-shaped repo",
                  lambda: _split_repo("--repo=x"))
     check_raises("split_repo rejects whitespace repo",
                  lambda: _split_repo("o r/n"))
     check_raises("split_repo rejects missing name", lambda: _split_repo("owner"))
+
+    # --- _safe_gh_value char-allowlist sanitizer (the recognised CWE-78 barrier)
+    # Allowlisted values (repo segments, issue numbers, node ids) pass through
+    # unchanged; anything carrying a metacharacter is rejected, not passed on.
+    check("safe_gh_value passes node id", _safe_gh_value("I_kwDO-1=", "x"),
+          "I_kwDO-1=")
+    check("safe_gh_value passes number", _safe_gh_value(42, "x"), "42")
+    check_raises("safe_gh_value rejects quote",
+                 lambda: _safe_gh_value('a"b', "x"))
+    check_raises("safe_gh_value rejects brace",
+                 lambda: _safe_gh_value("a}b", "x"))
+    check_raises("safe_gh_value rejects space",
+                 lambda: _safe_gh_value("a b", "x"))
 
     if failures:
         log("selftest FAILED (%d):" % len(failures))
