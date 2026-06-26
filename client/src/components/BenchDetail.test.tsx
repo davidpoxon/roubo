@@ -987,6 +987,19 @@ describe("BenchDetail", () => {
       expect(screen.queryByText("provisioning failed")).not.toBeInTheDocument();
     });
 
+    it("keeps the terminal mounted (not torn down) when collapsed (#805)", async () => {
+      renderBench(benchWithMeta as never);
+      // The Terminal panel uses shouldForceMount, so it is mounted while expanded.
+      expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+
+      // Collapsing hides the tab row from the accessibility tree but must NOT unmount
+      // the Tabs: the live terminal session has to survive a collapse/expand cycle.
+      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
+    });
+
     it("expands again, restoring metadata and tabs", async () => {
       renderBench(benchWithMeta as never);
       await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));

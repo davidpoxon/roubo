@@ -704,7 +704,15 @@ export default function BenchDetail() {
         </div>
       )}
 
-      {!headerCollapsed && (
+      {/* Keep the Tabs mounted when the header collapses and hide them via the
+          `hidden` attribute, rather than unmounting. The Terminal panel uses
+          shouldForceMount to keep its live WebSocket session alive across tab
+          switches; unmounting on collapse would tear that session down and force a
+          reconnect on expand (#805). */}
+      <div
+        hidden={headerCollapsed}
+        className={headerCollapsed ? undefined : "flex flex-col flex-1 min-h-0"}
+      >
         <Tabs
           className="flex flex-col flex-1 min-h-0"
           selectedKey={selectedTab}
@@ -788,7 +796,7 @@ export default function BenchDetail() {
             <InfoTab bench={bench} />
           </TabPanel>
         </Tabs>
-      )}
+      </div>
 
       <ModalOverlay
         isOpen={showTeardown}
