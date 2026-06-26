@@ -90,9 +90,9 @@ _Dropped as N/A: accessibility (a UI deletion, no new UI), scalability (tiny sin
 
 ### Lagging
 
-| Indicator                                                                                  | Baseline                      | Target           | Source                | Validates   |
-| ------------------------------------------------------------------------------------------ | ----------------------------- | ---------------- | --------------------- | ----------- |
-| "Plugin won't start" issue volume for component plugins                                    | nonzero (the bug this closes) | ~0 after rollout | GitHub issues         | the feature |
+| Indicator                                                                                  | Baseline                      | Target           | Source                                                                 | Validates   |
+| ------------------------------------------------------------------------------------------ | ----------------------------- | ---------------- | ---------------------------------------------------------------------- | ----------- |
+| "Plugin won't start" issue volume for component plugins                                    | nonzero (the bug this closes) | ~0 after rollout | GitHub issues                                                          | the feature |
 | Non-seeded / third-party plugin installs (ghe, jira, community) via the hosted marketplace | 0                             | growing          | GitHub Release download counts (lens A ships no first-party telemetry) | US-004      |
 
 ## Dependencies & assumptions
