@@ -959,7 +959,7 @@ describe("BenchDetail", () => {
       baseCommit: "abc1234",
     };
 
-    it("collapses the header, hiding metadata and tabs while keeping the title row and actions", async () => {
+    it("collapses the header, hiding only the metadata while keeping the tabs and actions", async () => {
       renderBench(benchWithMeta as never);
       // Expanded by default: metadata + tabs visible.
       expect(screen.getByText("feature/my-branch")).toBeInTheDocument();
@@ -969,7 +969,7 @@ describe("BenchDetail", () => {
 
       await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
 
-      // Title row + actions remain; metadata + tabs are gone.
+      // Title row + actions + tabs remain; only the metadata above the tabs is gone.
       expect(screen.getByText("Bench 1")).toBeInTheDocument();
       expect(screen.getByText("active")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /stop all/i })).toBeInTheDocument();
@@ -977,7 +977,7 @@ describe("BenchDetail", () => {
       expect(screen.queryByText("feature/my-branch")).not.toBeInTheDocument();
       expect(screen.queryByText(/branched from/i)).not.toBeInTheDocument();
       expect(screen.queryByText("My App")).not.toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
     });
 
     it("hides the error banner when collapsed", async () => {
@@ -994,16 +994,17 @@ describe("BenchDetail", () => {
 
       await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
 
-      // Collapsing hides the tab row from the accessibility tree but must NOT unmount
-      // the Tabs: the live terminal session has to survive a collapse/expand cycle.
-      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      // Collapsing keeps the tab row visible and the Tabs mounted: the live terminal
+      // session has to survive a collapse/expand cycle.
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
       expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
     });
 
-    it("expands again, restoring metadata and tabs", async () => {
+    it("expands again, restoring the metadata", async () => {
       renderBench(benchWithMeta as never);
       await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
-      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("feature/my-branch")).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
 
       await userEvent.click(screen.getByRole("button", { name: /expand bench header/i }));
       expect(screen.getByText("feature/my-branch")).toBeInTheDocument();
@@ -1024,14 +1025,14 @@ describe("BenchDetail", () => {
     it("persists the collapsed state across unmount and remount", async () => {
       const { unmount } = renderBench(benchWithMeta as never);
       await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
-      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("feature/my-branch")).not.toBeInTheDocument();
 
       unmount();
       renderBench(benchWithMeta as never);
 
-      // Still collapsed: the toggle offers to expand and tabs stay hidden.
+      // Still collapsed: the toggle offers to expand and the metadata stays hidden.
       expect(screen.getByRole("button", { name: /expand bench header/i })).toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("feature/my-branch")).not.toBeInTheDocument();
     });
 
     it("keeps header collapse independent per bench", async () => {
