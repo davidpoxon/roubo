@@ -76,7 +76,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
     append.error instanceof ApiError ? append.error.message : append.error?.message;
 
   return (
-    <aside aria-label="Notes" className="flex h-full flex-col gap-4">
+    <aside aria-label="Notes" className="flex min-h-0 flex-1 flex-col gap-4">
       {hasSentinelAuthor && (
         <div
           role="alert"
@@ -91,7 +91,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
         </div>
       )}
 
-      <ol className="flex flex-1 flex-col gap-3 overflow-y-auto">
+      <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {notes.length === 0 ? (
           <li className="text-sm text-stone-400">No notes yet.</li>
         ) : (
@@ -120,7 +120,10 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
       <form
         // px-0.5 keeps the textarea's 2px focus ring off the rail's clipping
         // edge so it is not cut off on the left and right (#508, Image #2).
-        className="flex flex-col gap-2 px-0.5"
+        // shrink-0 pins the form so a short pane scrolls the notes list above it
+        // rather than squeezing/clipping the "Add a note" field off the bottom
+        // (#806).
+        className="flex shrink-0 flex-col gap-2 px-0.5"
         onSubmit={(event) => {
           event.preventDefault();
           handleSubmit();

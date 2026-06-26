@@ -396,6 +396,46 @@ describe("CaseDetail notes layout gated on container width (#524)", () => {
       expect(screen.queryByRole("complementary", { name: "Notes" })).not.toBeInTheDocument();
     });
   });
+
+  it("keeps the inline-rail notes list scrollable and the add-note form pinned on a short pane (#806)", () => {
+    // jsdom has no layout, so assert the flex sizing structure rather than
+    // rendered geometry: the notes list is the internal scroll container and
+    // the add-note form stays rendered and pinned even when vertical space is
+    // constrained but the pane is wide enough for the inline rail.
+    const withNotes: CaseResult = {
+      observationMarks: {},
+      derivedStatus: "not_started",
+      notes: [
+        {
+          id: "n1",
+          text: "First note",
+          author: { name: "Ada", email: "a@e.com" },
+          timestamp: "2026-06-08T10:00:00.000Z",
+          statusAtWrite: "not_started",
+        },
+      ],
+    };
+    withClientWidth(900, () => {
+      render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={withNotes} />);
+      const rail = screen.getByRole("complementary", { name: "Notes" });
+      // The rail fills the remaining height and is allowed to shrink (flex-1 +
+      // min-h-0), instead of overflowing its container with h-full.
+      expect(rail.className).toContain("flex-1");
+      expect(rail.className).toContain("min-h-0");
+      expect(rail.className).not.toContain("h-full");
+      // The notes list is the scroll container: overflow-y-auto plus min-h-0 so
+      // it actually shrinks and scrolls rather than clipping the form below it.
+      const list = within(rail).getByRole("list");
+      expect(list.className).toContain("overflow-y-auto");
+      expect(list.className).toContain("min-h-0");
+      // The add-note form stays rendered and pinned (shrink-0), so the textarea
+      // and Add note button remain reachable on a short pane.
+      expect(within(rail).getByPlaceholderText("Append an immutable note")).toBeInTheDocument();
+      expect(within(rail).getByRole("button", { name: /Add note/ })).toBeInTheDocument();
+      const form = rail.querySelector("form");
+      expect(form?.className).toContain("shrink-0");
+    });
+  });
 });
 
 describe("CaseDetail a11y (TC-036)", () => {
