@@ -1,6 +1,6 @@
 {
   "name": "@roubo/plugin-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plugin author SDK for Roubo integration plugins. Wraps the host JSON-RPC protocol so authors implement only contract methods.",
   "author": "David Poxon",
   "license": "Apache-2.0",
