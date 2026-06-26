@@ -951,4 +951,100 @@ describe("BenchDetail", () => {
       expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
     });
   });
+
+  describe("header collapse (#805)", () => {
+    const benchWithMeta = {
+      ...baseBench,
+      baseBranch: "main",
+      baseCommit: "abc1234",
+    };
+
+    it("collapses the header, hiding metadata and tabs while keeping the title row and actions", async () => {
+      renderBench(benchWithMeta as never);
+      // Expanded by default: metadata + tabs visible.
+      expect(screen.getByText("feature/my-branch")).toBeInTheDocument();
+      expect(screen.getByText(/branched from/i)).toBeInTheDocument();
+      expect(screen.getByText("My App")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+
+      // Title row + actions remain; metadata + tabs are gone.
+      expect(screen.getByText("Bench 1")).toBeInTheDocument();
+      expect(screen.getByText("active")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /stop all/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+      expect(screen.queryByText("feature/my-branch")).not.toBeInTheDocument();
+      expect(screen.queryByText(/branched from/i)).not.toBeInTheDocument();
+      expect(screen.queryByText("My App")).not.toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the error banner when collapsed", async () => {
+      renderBench({ ...benchWithMeta, status: "error", error: "provisioning failed" } as never);
+      expect(screen.getByText("provisioning failed")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+      expect(screen.queryByText("provisioning failed")).not.toBeInTheDocument();
+    });
+
+    it("expands again, restoring metadata and tabs", async () => {
+      renderBench(benchWithMeta as never);
+      await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /expand bench header/i }));
+      expect(screen.getByText("feature/my-branch")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
+    });
+
+    it("reflects collapsed state via aria-expanded", async () => {
+      renderBench(benchWithMeta as never);
+      const toggle = screen.getByRole("button", { name: /collapse bench header/i });
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await userEvent.click(toggle);
+      expect(screen.getByRole("button", { name: /expand bench header/i })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("persists the collapsed state across unmount and remount", async () => {
+      const { unmount } = renderBench(benchWithMeta as never);
+      await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+
+      unmount();
+      renderBench(benchWithMeta as never);
+
+      // Still collapsed: the toggle offers to expand and tabs stay hidden.
+      expect(screen.getByRole("button", { name: /expand bench header/i })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: /components/i })).not.toBeInTheDocument();
+    });
+
+    it("keeps header collapse independent per bench", async () => {
+      localStorage.setItem(
+        "roubo-bench-view-state",
+        JSON.stringify({ "proj-1:1": { headerCollapsed: true } }),
+      );
+      // Bench 1 persisted collapsed.
+      const { unmount } = renderBench(benchWithMeta as never);
+      expect(screen.getByRole("button", { name: /expand bench header/i })).toBeInTheDocument();
+      unmount();
+
+      // Bench 2 (no persisted entry) renders expanded.
+      mockUseBenchDetail.mockReturnValue({
+        data: { ...benchWithMeta, id: 2 },
+        isLoading: false,
+        isError: false,
+      } as never);
+      render(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/2"]}>
+          <Routes>
+            <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole("button", { name: /collapse bench header/i })).toBeInTheDocument();
+    });
+  });
 });

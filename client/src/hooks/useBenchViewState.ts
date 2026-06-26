@@ -10,6 +10,10 @@ type BenchViewEntry = {
   // TestBench case-list collapse (#524). Persisted per bench so reclaiming
   // horizontal space for the case-detail pane survives navigation and reload.
   testbenchCaseListCollapsed?: boolean;
+  // BenchDetail header collapse (#805). Persisted per bench so reclaiming
+  // vertical space (hiding metadata + tabs, keeping the title row + actions)
+  // survives navigation and reload.
+  headerCollapsed?: boolean;
 };
 type BenchViewStore = Record<string, BenchViewEntry>;
 
@@ -77,6 +81,14 @@ export function useBenchViewState(projectId: string, benchId: number) {
     [benchKey, bump],
   );
 
+  const setHeaderCollapsed = useCallback(
+    (collapsed: boolean) => {
+      writeEntry(benchKey, { headerCollapsed: collapsed });
+      bump();
+    },
+    [benchKey, bump],
+  );
+
   return {
     activeTab: entry.activeTab,
     setActiveTab,
@@ -84,5 +96,7 @@ export function useBenchViewState(projectId: string, benchId: number) {
     setActiveTerminalSessionId,
     testbenchCaseListCollapsed: entry.testbenchCaseListCollapsed ?? false,
     setTestbenchCaseListCollapsed,
+    headerCollapsed: entry.headerCollapsed ?? false,
+    setHeaderCollapsed,
   };
 }

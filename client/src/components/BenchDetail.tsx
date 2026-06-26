@@ -497,7 +497,10 @@ export default function BenchDetail() {
 
   const isTestbench = bench?.variant === "testbench";
 
-  const { activeTab, setActiveTab } = useBenchViewState(projectId, benchId);
+  const { activeTab, setActiveTab, headerCollapsed, setHeaderCollapsed } = useBenchViewState(
+    projectId,
+    benchId,
+  );
   // A TestBench (#418) surfaces a dedicated "testbench" tab as the first tab so a
   // freshly created TestBench opens on it. The review surface itself ships in #419
   // via TestBenchPanel.
@@ -553,69 +556,90 @@ export default function BenchDetail() {
               {bench.status}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-stone-600 dark:text-stone-400">
-            <GitBranch size={14} className="text-stone-400 dark:text-stone-600" />
-            {bench.branch}
-          </div>
-          {bench.baseBranch && bench.baseCommit && (
-            <p className="text-xs text-stone-500 dark:text-stone-600">
-              Branched from{" "}
-              <span className="font-mono text-stone-600 dark:text-stone-400">
-                {bench.baseBranch}
-              </span>
-              {" @ "}
-              <span className="font-mono text-stone-600 dark:text-stone-400">
-                {bench.baseCommit}
-              </span>
-            </p>
-          )}
-          {project && (
-            <p className="text-xs text-stone-400 dark:text-stone-600">
-              {project.config?.project?.displayName}
-            </p>
-          )}
-          {bench.assignedIssue && (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500">
-              <span className="font-mono text-violet-400">
-                {displayIssueRef(bench.assignedIssue)}
-              </span>
-              <span>{bench.assignedIssue.title}</span>
-              <AssignedIssueTransition
-                projectId={projectId}
-                externalId={bench.assignedIssue.externalId}
-                capturedUserId={integration?.effective.capturedUserId}
-              />
-              {isFromPreviousIntegration && (
-                <span
-                  data-testid="previous-integration-badge"
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
-                >
-                  Issue from previous integration
-                </span>
+          {!headerCollapsed && (
+            <>
+              <div className="flex items-center gap-1.5 text-sm text-stone-600 dark:text-stone-400">
+                <GitBranch size={14} className="text-stone-400 dark:text-stone-600" />
+                {bench.branch}
+              </div>
+              {bench.baseBranch && bench.baseCommit && (
+                <p className="text-xs text-stone-500 dark:text-stone-600">
+                  Branched from{" "}
+                  <span className="font-mono text-stone-600 dark:text-stone-400">
+                    {bench.baseBranch}
+                  </span>
+                  {" @ "}
+                  <span className="font-mono text-stone-600 dark:text-stone-400">
+                    {bench.baseCommit}
+                  </span>
+                </p>
               )}
-              {bench.assignedIssue.blockedBy && bench.assignedIssue.blockedBy.length > 0 && (
-                <TooltipTrigger delay={300}>
-                  <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-500/15 text-red-400 outline-none cursor-default">
-                    <Ban size={10} />
-                    Blocked
-                  </Button>
-                  <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-stone-400 mb-0.5">Blocked by:</span>
-                      {bench.assignedIssue.blockedBy.map((ref) => (
-                        <span key={ref} className="font-mono text-violet-400">
-                          {shortIssueRef(ref)}
-                        </span>
-                      ))}
-                    </div>
-                  </Tooltip>
-                </TooltipTrigger>
+              {project && (
+                <p className="text-xs text-stone-400 dark:text-stone-600">
+                  {project.config?.project?.displayName}
+                </p>
               )}
-            </div>
+              {bench.assignedIssue && (
+                <div className="flex items-center gap-1.5 text-xs text-stone-500">
+                  <span className="font-mono text-violet-400">
+                    {displayIssueRef(bench.assignedIssue)}
+                  </span>
+                  <span>{bench.assignedIssue.title}</span>
+                  <AssignedIssueTransition
+                    projectId={projectId}
+                    externalId={bench.assignedIssue.externalId}
+                    capturedUserId={integration?.effective.capturedUserId}
+                  />
+                  {isFromPreviousIntegration && (
+                    <span
+                      data-testid="previous-integration-badge"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                    >
+                      Issue from previous integration
+                    </span>
+                  )}
+                  {bench.assignedIssue.blockedBy && bench.assignedIssue.blockedBy.length > 0 && (
+                    <TooltipTrigger delay={300}>
+                      <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-red-500/15 text-red-400 outline-none cursor-default">
+                        <Ban size={10} />
+                        Blocked
+                      </Button>
+                      <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-stone-400 mb-0.5">Blocked by:</span>
+                          {bench.assignedIssue.blockedBy.map((ref) => (
+                            <span key={ref} className="font-mono text-violet-400">
+                              {shortIssueRef(ref)}
+                            </span>
+                          ))}
+                        </div>
+                      </Tooltip>
+                    </TooltipTrigger>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <div className="flex items-center gap-1.5">
+          <TooltipTrigger delay={300}>
+            <Button
+              aria-label={headerCollapsed ? "Expand bench header" : "Collapse bench header"}
+              aria-expanded={!headerCollapsed}
+              onPress={() => setHeaderCollapsed(!headerCollapsed)}
+              className="flex items-center justify-center p-1.5 rounded-lg text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            >
+              {headerCollapsed ? (
+                <ChevronRight size={14} aria-hidden="true" />
+              ) : (
+                <ChevronDown size={14} aria-hidden="true" />
+              )}
+            </Button>
+            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+              {headerCollapsed ? "Expand header" : "Collapse header"}
+            </Tooltip>
+          </TooltipTrigger>
           <ToolButtons projectId={projectId} benchId={benchId} />
           <Button
             isDisabled={isBusy}
@@ -639,7 +663,7 @@ export default function BenchDetail() {
         </div>
       </div>
 
-      {bench.error && (
+      {!headerCollapsed && bench.error && (
         <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20">
           <p
             id="bench-error-message"
@@ -680,89 +704,91 @@ export default function BenchDetail() {
         </div>
       )}
 
-      <Tabs
-        className="flex flex-col flex-1 min-h-0"
-        selectedKey={selectedTab}
-        onSelectionChange={(k) => {
-          setActiveTab(k as BenchTabId);
-        }}
-      >
-        <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-6">
-          {isTestbench && (
-            <Tab id="testbench" className={tabClassName}>
-              TestBench
+      {!headerCollapsed && (
+        <Tabs
+          className="flex flex-col flex-1 min-h-0"
+          selectedKey={selectedTab}
+          onSelectionChange={(k) => {
+            setActiveTab(k as BenchTabId);
+          }}
+        >
+          <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-6">
+            {isTestbench && (
+              <Tab id="testbench" className={tabClassName}>
+                TestBench
+              </Tab>
+            )}
+            <Tab id="components" className={tabClassName}>
+              Components
             </Tab>
-          )}
-          <Tab id="components" className={tabClassName}>
-            Components
-          </Tab>
-          <Tab id="terminal" className={tabClassName}>
-            Terminal
-            <NotificationIndicator
-              notifications={bench.notifications.filter((n) => n.sourceSessionId)}
-            />
-          </Tab>
-          {hasInsepection && (
-            <Tab id="inspection" className={tabClassName}>
-              Inspection
+            <Tab id="terminal" className={tabClassName}>
+              Terminal
+              <NotificationIndicator
+                notifications={bench.notifications.filter((n) => n.sourceSessionId)}
+              />
             </Tab>
-          )}
-          <Tab id="info" className={tabClassName}>
-            Info
-          </Tab>
-        </TabList>
+            {hasInsepection && (
+              <Tab id="inspection" className={tabClassName}>
+                Inspection
+              </Tab>
+            )}
+            <Tab id="info" className={tabClassName}>
+              Info
+            </Tab>
+          </TabList>
 
-        {isTestbench && (
-          <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
-            <TestBenchPanel
+          {isTestbench && (
+            <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
+              <TestBenchPanel
+                projectId={projectId}
+                benchId={benchId}
+                focusedSpecPath={bench.focusedSpecPath}
+                benchStatus={bench.status}
+              />
+            </TabPanel>
+          )}
+
+          <TabPanel id="components" className="outline-none overflow-auto flex-1">
+            {isTearingDown && <StepList steps={bench.teardownSteps} />}
+            <ComponentsTab
+              bench={bench}
               projectId={projectId}
               benchId={benchId}
-              focusedSpecPath={bench.focusedSpecPath}
-              benchStatus={bench.status}
+              isBusy={isBusy}
+              showSteps={showSteps}
+              hasDatabaseComponent={hasDatabaseComponent}
+              databaseComponentName={databaseComponentName}
             />
           </TabPanel>
-        )}
 
-        <TabPanel id="components" className="outline-none overflow-auto flex-1">
-          {isTearingDown && <StepList steps={bench.teardownSteps} />}
-          <ComponentsTab
-            bench={bench}
-            projectId={projectId}
-            benchId={benchId}
-            isBusy={isBusy}
-            showSteps={showSteps}
-            hasDatabaseComponent={hasDatabaseComponent}
-            databaseComponentName={databaseComponentName}
-          />
-        </TabPanel>
-
-        <TabPanel
-          id="terminal"
-          className={({ isInert }) =>
-            `outline-none flex flex-col flex-1 min-h-0 ${isInert ? "hidden" : ""}`
-          }
-          shouldForceMount
-        >
-          <TerminalTabs
-            key={`${projectId}:${benchId}`}
-            projectId={projectId}
-            benchId={benchId}
-            projectName={project?.config?.project?.displayName ?? projectId}
-            hasAssignedIssue={!!bench.assignedIssue}
-            notifications={bench.notifications}
-          />
-        </TabPanel>
-
-        {hasInsepection && (
-          <TabPanel id="inspection" className="outline-none overflow-auto flex-1">
-            <InspectionRunner projectId={projectId} benchId={benchId} />
+          <TabPanel
+            id="terminal"
+            className={({ isInert }) =>
+              `outline-none flex flex-col flex-1 min-h-0 ${isInert ? "hidden" : ""}`
+            }
+            shouldForceMount
+          >
+            <TerminalTabs
+              key={`${projectId}:${benchId}`}
+              projectId={projectId}
+              benchId={benchId}
+              projectName={project?.config?.project?.displayName ?? projectId}
+              hasAssignedIssue={!!bench.assignedIssue}
+              notifications={bench.notifications}
+            />
           </TabPanel>
-        )}
 
-        <TabPanel id="info" className="outline-none overflow-auto flex-1">
-          <InfoTab bench={bench} />
-        </TabPanel>
-      </Tabs>
+          {hasInsepection && (
+            <TabPanel id="inspection" className="outline-none overflow-auto flex-1">
+              <InspectionRunner projectId={projectId} benchId={benchId} />
+            </TabPanel>
+          )}
+
+          <TabPanel id="info" className="outline-none overflow-auto flex-1">
+            <InfoTab bench={bench} />
+          </TabPanel>
+        </Tabs>
+      )}
 
       <ModalOverlay
         isOpen={showTeardown}
