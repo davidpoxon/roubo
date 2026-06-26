@@ -137,6 +137,7 @@ Exit codes:
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -892,6 +893,20 @@ RESERVED_TRACKER_SYSTEMS = ("ghe", "jira")
 # (argument-injection barrier; CWE-78/88). Membership check is the sanitizer.
 _GH_ALLOWED_SUBCOMMANDS = frozenset({"auth", "api", "issue"})
 
+# The ONLY option-shaped tokens (those starting with `-`) the module ever puts
+# in a gh argv. `_gh_runner` rejects any other dash-leading token, so a
+# user-derived value cannot smuggle in an extra flag (argument injection,
+# CWE-88). User VALUES are passed joined as `--flag=value` (see `_create_issue`),
+# so their content is never parsed as a separate option token, however it begins.
+_GH_BARE_FLAGS = frozenset({"-f"})
+_GH_VALUE_FLAG_RE = re.compile(r"\A--(?:repo|title|body|label)=")
+
+# A repo reference is interpolated into the gh command line (`--repo`) AND into
+# GraphQL query strings. Constrain it to a strict `owner/name` of safe chars so a
+# user-provided value cannot carry option/shell/whitespace metacharacters into
+# either sink. This regex IS the sanitizer on the argv-sourced `repo` taint path.
+_REPO_RE = re.compile(r"\A[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\Z")
+
 
 class TrackerError(Exception):
     """Raised when a tracker mutation fails AFTER the issue was created.
@@ -910,11 +925,24 @@ class TrackerError(Exception):
 def _validate_gh_argv(args):
     """Return a validated argv list or raise ValueError.
 
-    The barrier `_gh_runner` applies before shelling out: argv must be a
-    non-empty sequence of strings whose first element (the gh subcommand) is in
-    the hardcoded `_GH_ALLOWED_SUBCOMMANDS` allowlist. This neutralises
-    argument injection (CWE-78/88): a user-derived value cannot redirect `gh`
-    into an unintended subcommand, and non-string argv elements are rejected
+    The barrier `_gh_runner` applies before shelling out. It sits on the WHOLE
+    argv (not just the subcommand), because the user-derived values that
+    CodeQL flags as the command-injection source (the repo from CLI argv, and
+    title/body/labels from the stdin envelope) all land in argv[1:], not
+    argv[0]. argv must be:
+
+      1. a non-empty sequence of strings;
+      2. whose first element (the gh subcommand) is in `_GH_ALLOWED_SUBCOMMANDS`;
+      3. whose every OTHER element either does NOT start with `-` (a plain
+         positional value), or is one of the hardcoded option tokens this module
+         emits: a bare flag in `_GH_BARE_FLAGS`, or a joined `--flag=value` whose
+         flag name is in the `_GH_VALUE_FLAG_RE` allowlist.
+
+    Rule 3 is the argument-injection (CWE-88) control: a user-derived value can
+    never be parsed as an extra option, because the only dash-leading tokens
+    permitted are hardcoded flag names, and user values ride joined onto those
+    flags (`--title=<value>`) where their content, however it begins, stays the
+    value rather than a new option. Non-string argv elements are rejected
     outright.
     """
     argv = list(args)
@@ -924,6 +952,12 @@ def _validate_gh_argv(args):
         raise ValueError("all argv elements must be strings")
     if argv[0] not in _GH_ALLOWED_SUBCOMMANDS:
         raise ValueError("disallowed gh subcommand %r" % (argv[0],))
+    for tok in argv[1:]:
+        if not tok.startswith("-"):
+            continue
+        if tok in _GH_BARE_FLAGS or _GH_VALUE_FLAG_RE.match(tok):
+            continue
+        raise ValueError("disallowed option-shaped gh argument %r" % (tok,))
     return argv
 
 
@@ -1017,11 +1051,16 @@ def _issue_type_ids(run, owner, name):
 
 
 def _split_repo(repo):
-    """Split an `owner/name` string, raising InputError on a malformed value."""
-    parts = (repo or "").split("/")
-    if len(parts) != 2 or not parts[0] or not parts[1]:
+    """Split an `owner/name` string, raising InputError on a malformed value.
+
+    The shape is enforced with `_REPO_RE` (strict owner/name of safe chars), not
+    just a `/`-count check: `repo` is interpolated into the gh command line and
+    into GraphQL queries, so this is the sanitizer that keeps a user-provided
+    value from carrying option/shell/whitespace metacharacters into either sink.
+    """
+    if not isinstance(repo, str) or not _REPO_RE.match(repo):
         raise InputError("repo must be in owner/name form, got %r" % repo)
-    return parts[0], parts[1]
+    return repo.split("/", 1)
 
 
 def file_unit(unit, repo, run=None, retry_links_only=False):
@@ -1148,11 +1187,15 @@ def _create_issue(run, repo, unit):
     """
     title = unit.get("title") or unit.get("id") or "Untitled work unit"
     body = _render_body(unit)
-    args = ["issue", "create", "--repo", repo, "--title", title,
-            "--body", body]
+    # Joined `--flag=value` form (not space-separated): a user-derived value can
+    # then never be parsed as a separate option token, however it begins, which
+    # is what lets the `_gh_runner` argv barrier admit it (argument-injection
+    # control, CWE-88). The same values are equivalent to gh either way.
+    args = ["issue", "create", "--repo=" + repo, "--title=" + title,
+            "--body=" + body]
     for label in (unit.get("labels") or []):
         if isinstance(label, str) and label:
-            args += ["--label", label]
+            args += ["--label=" + label]
     rc, out, err = run(args)
     if rc != 0:
         raise InputError(
@@ -1723,9 +1766,12 @@ def _selftest():
         check("seam link-fail partial pending refs",
               exc.partial["blocked_by_refs"], [])
 
-    # --- _gh_runner argv allowlist barrier (CWE-78/88) ---
-    # A disallowed subcommand is refused with a non-zero tuple and NO subprocess
-    # invocation; an allowed subcommand passes through to the (faked) sink.
+    # --- _gh_runner argv barrier (CWE-78/88) ---
+    # The barrier sits on the WHOLE argv: a disallowed subcommand (argv[0]) AND a
+    # user-derived value smuggling an extra option into argv[1:] are both refused
+    # with a non-zero tuple and NO subprocess invocation; the legitimate call
+    # shapes (including arbitrary, even dash-leading, joined `--flag=value`
+    # values) pass through to the (faked) sink.
     import subprocess as _subprocess
     real_run = _subprocess.run
     sink_calls = []
@@ -1746,13 +1792,39 @@ def _selftest():
         check("gh barrier rejects disallowed no-sink", sink_calls, [])
         if "disallowed gh subcommand" not in err:
             failures.append("gh barrier: expected refusal reason, got %r" % err)
+        # An option-shaped value injected into argv[1:] is refused, with no sink.
+        rc_inj, _oi, err_inj = _gh_runner(
+            ["issue", "create", "--repo=o/r", "--malicious-flag"])
+        check("gh barrier rejects argv[1:] option-injection rc", rc_inj, 2)
+        check("gh barrier rejects argv[1:] option-injection no-sink",
+              sink_calls, [])
+        if "disallowed option-shaped gh argument" not in err_inj:
+            failures.append(
+                "gh barrier: expected option-shape refusal, got %r" % err_inj)
+        # Legitimate calls pass through: bare subcommand, the `-f query=` graphql
+        # shape, and joined `--flag=value` values (even dash-leading content).
         rc2, out2, _e = _gh_runner(["auth", "status"])
         check("gh barrier passthrough rc", rc2, 0)
         check("gh barrier passthrough out", out2, "ok")
-        check("gh barrier passthrough sink argv",
-              sink_calls, [["gh", "auth", "status"]])
+        _gh_runner(["api", "graphql", "-f", "query={x}"])
+        _gh_runner(["issue", "create", "--repo=o/r",
+                    "--title=- dash-leading title", "--body=b", "--label=x"])
+        check("gh barrier passthrough sink argv", sink_calls, [
+            ["gh", "auth", "status"],
+            ["gh", "api", "graphql", "-f", "query={x}"],
+            ["gh", "issue", "create", "--repo=o/r",
+             "--title=- dash-leading title", "--body=b", "--label=x"],
+        ])
     finally:
         _subprocess.run = real_run
+
+    # --- _split_repo strict shape (sanitizes the repo taint) ---
+    check("split_repo accepts owner/name", list(_split_repo("o/r")), ["o", "r"])
+    check_raises("split_repo rejects option-shaped repo",
+                 lambda: _split_repo("--repo=x"))
+    check_raises("split_repo rejects whitespace repo",
+                 lambda: _split_repo("o r/n"))
+    check_raises("split_repo rejects missing name", lambda: _split_repo("owner"))
 
     if failures:
         log("selftest FAILED (%d):" % len(failures))
