@@ -80,7 +80,7 @@
     "implements": {
       "requirement_ids": ["FR-002", "FR-006", "NFR-006"],
       "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-065", "TC-066", "TC-003", "TC-012"]
+      "test_case_ids": ["TC-065", "TC-066", "TC-003", "TC-012", "TC-067"]
     }
   },
   {
@@ -94,7 +94,7 @@
     "implements": {
       "requirement_ids": ["FR-001", "FR-007", "NFR-004"],
       "user_story_ids": ["US-003", "US-004"],
-      "test_case_ids": ["TC-004", "TC-005", "TC-011", "TC-013", "TC-009"]
+      "test_case_ids": ["TC-004", "TC-005", "TC-011", "TC-013", "TC-009", "TC-008"]
     }
   },
   {
@@ -108,7 +108,7 @@
     "implements": {
       "requirement_ids": ["FR-001", "FR-009", "NFR-003", "NFR-002"],
       "user_story_ids": ["US-002"],
-      "test_case_ids": ["TC-042", "TC-043", "TC-051", "TC-006", "TC-007"]
+      "test_case_ids": ["TC-042", "TC-043", "TC-051", "TC-006", "TC-007", "TC-048"]
     }
   },
   {

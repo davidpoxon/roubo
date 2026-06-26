@@ -90,14 +90,14 @@ _Dropped as N/A: accessibility (a UI deletion, no new UI), scalability (tiny sin
 
 ### Lagging
 
-| Indicator                                                                                  | Baseline                      | Target           | Source                | Validates   |
-| ------------------------------------------------------------------------------------------ | ----------------------------- | ---------------- | --------------------- | ----------- |
-| "Plugin won't start" issue volume for component plugins                                    | nonzero (the bug this closes) | ~0 after rollout | GitHub issues         | the feature |
-| Non-seeded / third-party plugin installs (ghe, jira, community) via the hosted marketplace | 0                             | growing          | marketplace telemetry | US-004      |
+| Indicator                                                                                  | Baseline                      | Target           | Source                                                                 | Validates   |
+| ------------------------------------------------------------------------------------------ | ----------------------------- | ---------------- | ---------------------------------------------------------------------- | ----------- |
+| "Plugin won't start" issue volume for component plugins                                    | nonzero (the bug this closes) | ~0 after rollout | GitHub issues                                                          | the feature |
+| Non-seeded / third-party plugin installs (ghe, jira, community) via the hosted marketplace | 0                             | growing          | GitHub Release download counts (lens A ships no first-party telemetry) | US-004      |
 
 ## Dependencies & assumptions
 
-- The `davidpoxon/roubo` plugins repo is and remains **public** (Releases downloads / optional attestations need no GitHub Enterprise Cloud plan).
+- The `davidpoxon/roubo-plugins` plugins repo is and remains **public** (Releases downloads / optional attestations need no GitHub Enterprise Cloud plan).
 - Catalog/trust stays **single-vendor, maintainer-curated**, no third-party submission path; if that changes, the signing calculus (Sigstore/TUF) is revisited.
 - The Electron host must verify artifacts **offline / at rest** against a key it holds.
 - Built artifacts stay small self-contained `dist/index.js` bundles (tsup, no runtime deps).
@@ -105,11 +105,11 @@ _Dropped as N/A: accessibility (a UI deletion, no new UI), scalability (tiny sin
 
 ## Open questions
 
-Carried from feasibility (DE-RISK), to be resolved in architecture:
+Carried from feasibility (DE-RISK), resolved in architecture:
 
-- [ ] Catalog hosting path (GitHub raw vs Pages vs a Releases asset) and the client's caching / staleness / offline behavior.
-- [ ] CI custody of the ed25519 private signing key (CI secret vs manual local re-sign) without exposing it.
-- [ ] Whether sha256-of-bytes is sufficient or build provenance/attestation is required.
-- [ ] Per-plugin independent releases vs a single monorepo release; effect on catalog `source` addressing.
-- [ ] Revocation / kill-switch propagation latency against the catalog refresh cadence.
-- [ ] SDK / shared-package delivery: publish to npm vs co-locate in the marketplace repo vs build-time-only (FR-011).
+- [x] Catalog hosting path: GitHub Pages serves the signed catalog; the client caches the last-verified envelope on disk and degrades to cache then seed when offline (FR-009).
+- [x] CI custody of the ed25519 private signing key: held only as a scoped CI secret (GitHub OIDC / Actions secret), never written to an artifact or log (NFR-004).
+- [x] sha256-of-bytes is sufficient: the digest is sha256 over the built tarball; no Sigstore/TUF/attestation is adopted (NFR-006).
+- [x] Per-plugin independent releases: each plugin ships as its own GitHub Release asset tagged `<id>-v<version>` (not a single monorepo release).
+- [x] Revocation / kill-switch propagation: the catalog is fetched on app launch and on opening the marketplace, so a revoked entry is blocked within an app session (NFR-004).
+- [x] SDK / shared-package delivery: publish `@roubo/plugin-sdk`, `@roubo/shared`, and `@roubo/shared-github` to a registry and pin versions in the separate repo (FR-011).
