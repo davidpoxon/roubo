@@ -64,12 +64,26 @@ function GateCard({
   // for a passed gate, and require at least two covering units to assign.
   const canSplit = isBlocked && blockingUnits.length >= 2;
 
+  // Whole-card open (#804): the card body and the (decorative) chevron must open
+  // the gate, not just the gate-id text. We use the React Aria clickable-card
+  // overlay pattern: an absolutely-positioned Button fills the card and is the
+  // open trigger, layered BENEATH the nested controls. The nested controls
+  // (merge checkbox, Split) are lifted above it with `relative z-10` so their own
+  // presses win and never bubble into open, which also avoids nesting a button
+  // inside a button (a11y). In merge mode the overlay toggles selection instead
+  // of opening, so the whole card is a consistent pick target.
   return (
     <div
       data-testid="gate-card"
       data-selected={selected || undefined}
-      className="group flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors data-[selected]:ring-amber-500"
+      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[selected]:ring-amber-500"
     >
+      <Button
+        onPress={() => (selectable ? onToggleSelected(gate.gateId) : onOpen(gate.gateId))}
+        data-testid="gate-open"
+        aria-label={selectable ? `Select ${gate.gateId} to merge` : `Open gate ${gate.gateId}`}
+        className="absolute inset-0 rounded-lg outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-amber-500"
+      />
       <div className="flex items-center justify-between gap-3 w-full min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           {selectable ? (
@@ -78,27 +92,23 @@ function GateCard({
               onChange={() => onToggleSelected(gate.gateId)}
               aria-label={`Select ${gate.gateId} to merge`}
               data-testid="gate-merge-checkbox"
-              className="flex items-center justify-center w-4 h-4 rounded border border-stone-300 dark:border-stone-700 data-[selected]:bg-amber-500 data-[selected]:border-amber-500 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-500 shrink-0 cursor-pointer"
+              className="relative z-10 flex items-center justify-center w-4 h-4 rounded border border-stone-300 dark:border-stone-700 data-[selected]:bg-amber-500 data-[selected]:border-amber-500 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-500 shrink-0 cursor-pointer"
             >
               {selected && <span className="w-1.5 h-1.5 rounded-sm bg-stone-950" />}
             </Checkbox>
           ) : (
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
           )}
-          <Button
-            onPress={() => onOpen(gate.gateId)}
-            data-testid="gate-open"
-            className="font-mono text-[11px] text-stone-600 dark:text-stone-300 truncate hover:text-stone-900 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded text-left"
-          >
+          <span className="font-mono text-[11px] text-stone-600 dark:text-stone-300 truncate group-hover:text-stone-900 dark:group-hover:text-stone-100 transition-colors">
             {gate.gateId}
-          </Button>
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {canSplit && !selectable && (
             <Button
               onPress={() => onSplit(gate)}
               data-testid="gate-split-trigger"
-              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <Split size={11} aria-hidden />
               {STRINGS.split}

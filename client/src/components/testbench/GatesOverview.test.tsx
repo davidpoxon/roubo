@@ -74,13 +74,53 @@ describe("GatesOverview", () => {
     expect(screen.queryByText(/Blocked by/)).toBeNull();
   });
 
-  it("invokes onOpenGate with the gate id when a card is activated", async () => {
+  it("invokes onOpenGate with the gate id when the card body is activated (AC1)", async () => {
     mockedApi.fetchGates.mockResolvedValue([blockedGate] as never);
     const onOpen = vi.fn();
     renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByTestId("gate-card")).toBeTruthy());
+    // The whole-card open trigger is the absolute overlay Button (#804); it
+    // covers the card body and the decorative chevron alike.
     fireEvent.click(screen.getByTestId("gate-open"));
     expect(onOpen).toHaveBeenCalledWith("WU-099");
+  });
+
+  it("opens the split dialog from the Split control without opening the gate (AC2)", async () => {
+    mockedApi.fetchGates.mockResolvedValue([bigPhase] as never);
+    const onOpen = vi.fn();
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("gate-split-trigger"));
+    await waitFor(() => expect(screen.getByTestId("split-confirm")).toBeTruthy());
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("toggles selection from the merge checkbox without opening the gate (AC3)", async () => {
+    mockedApi.fetchGates.mockResolvedValue([phase2, phase3] as never);
+    const onOpen = vi.fn();
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("merge-mode-trigger"));
+    const checkbox = screen.getAllByTestId("gate-merge-checkbox")[0];
+    fireEvent.click(checkbox);
+    // Selection reflected on the card; the gate did not open.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("gate-card")[0].dataset.selected).toBe("true"),
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("toggles selection (not open) when the card overlay is activated in merge mode", async () => {
+    mockedApi.fetchGates.mockResolvedValue([phase2, phase3] as never);
+    const onOpen = vi.fn();
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("merge-mode-trigger"));
+    fireEvent.click(screen.getAllByTestId("gate-open")[0]);
+    await waitFor(() =>
+      expect(screen.getAllByTestId("gate-card")[0].dataset.selected).toBe("true"),
+    );
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("shows an empty-state message when there are no gates", async () => {
