@@ -885,6 +885,13 @@ TYPE_TO_NATIVE = {
 IMPLEMENTED_TRACKER_SYSTEMS = ("github",)
 RESERVED_TRACKER_SYSTEMS = ("ghe", "jira")
 
+# Hardcoded allowlist of the only `gh` subcommands this module ever issues:
+# `auth status`, `api graphql`, and `issue create`. `_gh_runner` validates the
+# subcommand (argv[0]) against this set before shelling out, so a value that
+# managed to flow into argv cannot pivot `gh` into an unintended subcommand
+# (argument-injection barrier; CWE-78/88). Membership check is the sanitizer.
+_GH_ALLOWED_SUBCOMMANDS = frozenset({"auth", "api", "issue"})
+
 
 class TrackerError(Exception):
     """Raised when a tracker mutation fails AFTER the issue was created.
@@ -900,6 +907,26 @@ class TrackerError(Exception):
         self.partial = partial
 
 
+def _validate_gh_argv(args):
+    """Return a validated argv list or raise ValueError.
+
+    The barrier `_gh_runner` applies before shelling out: argv must be a
+    non-empty sequence of strings whose first element (the gh subcommand) is in
+    the hardcoded `_GH_ALLOWED_SUBCOMMANDS` allowlist. This neutralises
+    argument injection (CWE-78/88): a user-derived value cannot redirect `gh`
+    into an unintended subcommand, and non-string argv elements are rejected
+    outright.
+    """
+    argv = list(args)
+    if not argv:
+        raise ValueError("empty argv")
+    if not all(isinstance(a, str) for a in argv):
+        raise ValueError("all argv elements must be strings")
+    if argv[0] not in _GH_ALLOWED_SUBCOMMANDS:
+        raise ValueError("disallowed gh subcommand %r" % (argv[0],))
+    return argv
+
+
 def _gh_runner(args, input_text=None):
     """The real gh runner: shell out to `gh` and return (rc, stdout, stderr).
 
@@ -907,11 +934,20 @@ def _gh_runner(args, input_text=None):
     Stdlib only (`subprocess`); imported lazily so the pure core never pulls it
     in. This is the ONLY function in the module that touches the network, and it
     is injectable so tests substitute a fake (no-network) runner.
+
+    Before shelling out, the argv passes through `_validate_gh_argv`, an
+    allowlist barrier on the gh subcommand (argument-injection control). A
+    validation failure returns a non-zero refusal tuple rather than raising, so
+    the `(rc, stdout, stderr)` contract every caller branches on is preserved.
     """
     import subprocess
     try:
+        argv = _validate_gh_argv(args)
+    except ValueError as exc:
+        return (2, "", "refusing to run gh: %s" % exc)
+    try:
         proc = subprocess.run(
-            ["gh"] + list(args),
+            ["gh"] + argv,
             input=input_text,
             capture_output=True,
             text=True,
@@ -1686,6 +1722,37 @@ def _selftest():
         check("seam link-fail partial ref", exc.partial["ref"], "55")
         check("seam link-fail partial pending refs",
               exc.partial["blocked_by_refs"], [])
+
+    # --- _gh_runner argv allowlist barrier (CWE-78/88) ---
+    # A disallowed subcommand is refused with a non-zero tuple and NO subprocess
+    # invocation; an allowed subcommand passes through to the (faked) sink.
+    import subprocess as _subprocess
+    real_run = _subprocess.run
+    sink_calls = []
+
+    def fake_run(cmd, input=None, capture_output=False, text=False):
+        sink_calls.append(cmd)
+
+        class _Proc:
+            returncode = 0
+            stdout = "ok"
+            stderr = ""
+        return _Proc()
+
+    _subprocess.run = fake_run
+    try:
+        rc, _o, err = _gh_runner(["rm", "-rf", "/"])
+        check("gh barrier rejects disallowed rc", rc, 2)
+        check("gh barrier rejects disallowed no-sink", sink_calls, [])
+        if "disallowed gh subcommand" not in err:
+            failures.append("gh barrier: expected refusal reason, got %r" % err)
+        rc2, out2, _e = _gh_runner(["auth", "status"])
+        check("gh barrier passthrough rc", rc2, 0)
+        check("gh barrier passthrough out", out2, "ok")
+        check("gh barrier passthrough sink argv",
+              sink_calls, [["gh", "auth", "status"]])
+    finally:
+        _subprocess.run = real_run
 
     if failures:
         log("selftest FAILED (%d):" % len(failures))
