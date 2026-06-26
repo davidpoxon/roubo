@@ -1,290 +1,216 @@
-[
-  {
-    "id": "WU-001",
-    "category": "feature",
-    "title": "Searchable picker shape contract + project-scoped sources schema",
-    "description": "Add the additive `searchable-categorized` picker shape and `SearchableSourceCategory` to the shared integration types, widen the roubo.yaml `SourceEntry` object form to carry `project`, `boardMode`, and `mineScope`, add the root `excludedStatusCategories` field (default `[\"Done\"]`), and seed it in the Jira plugin manifest. The JSON schema (`schema/roubo-config.schema.json`) and manifest schema are updated in lockstep. This is the contract foundation every later slice builds on.",
-    "acceptance_criteria": [
-      "shared/integration-types.ts exports the searchable-categorized shape literal and SearchableSourceCategory without altering multi-list or categorized-multi-list",
-      "shared/config-schema.ts SourceEntry object form accepts project, boardMode, and mineScope; root accepts excludedStatusCategories",
-      "schema/roubo-config.schema.json and shared/plugin-manifest-schema.ts are updated to match in the same change",
-      "github-com and ghe plugins continue to validate and render unchanged"
-    ],
-    "linked_requirement_ids": ["FR-003", "FR-010", "FR-012"],
-    "linked_user_story_ids": ["US-001", "US-010"],
-    "linked_test_ids": ["TC-003", "TC-012"],
-    "estimate": 3,
-    "depends_on": [],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/350",
-      "id": 350,
-      "node_id": "I_kwDOSiX_888AAAABD9fAJQ",
-      "db_id": 4560764965,
-      "blocked_by": null
+{
+  "$schema": "https://roubo.dev/schema/work-units/v1.0.0.json",
+  "schemaVersion": "1.0.0",
+  "specSlug": "jira-sources-scale",
+  "units": [
+    {
+      "id": "WU-001",
+      "title": "Searchable picker shape contract + project-scoped sources schema",
+      "type": "feature",
+      "description": "Add the additive `searchable-categorized` picker shape and `SearchableSourceCategory` to the shared integration types, widen the roubo.yaml `SourceEntry` object form to carry `project`, `boardMode`, and `mineScope`, add the root `excludedStatusCategories` field (default `[\"Done\"]`), and seed it in the Jira plugin manifest. The JSON schema (`schema/roubo-config.schema.json`) and manifest schema are updated in lockstep. This is the contract foundation every later slice builds on.",
+      "acceptance_criteria": [
+        "shared/integration-types.ts exports the searchable-categorized shape literal and SearchableSourceCategory without altering multi-list or categorized-multi-list",
+        "shared/config-schema.ts SourceEntry object form accepts project, boardMode, and mineScope; root accepts excludedStatusCategories",
+        "schema/roubo-config.schema.json and shared/plugin-manifest-schema.ts are updated to match in the same change",
+        "github-com and ghe plugins continue to validate and render unchanged"
+      ],
+      "depends_on": [],
+      "implements": {
+        "requirement_ids": ["FR-003", "FR-010", "FR-012"],
+        "user_story_ids": ["US-001", "US-010"],
+        "test_case_ids": ["TC-003", "TC-012"]
+      }
+    },
+    {
+      "id": "WU-002",
+      "title": "getSourceOptions RPC + source-options route + typed client hook",
+      "type": "feature",
+      "description": "Implement the `getSourceOptions(category, scope, search, cursor)` plugin RPC as a generalization of the existing getFacetOptions async path: scoped, text-matched, cursor-paginated project/board/filter/epic search against the Jira REST and Agile APIs. Add the host route copied from the facet-options handler and the typed client + infinite-query hook. Removes the instance-wide loaders and the 50-epic cap.",
+      "acceptance_criteria": [
+        "getSourceOptions returns a scoped, cursor-paginated page for project, board, filter, and epic categories",
+        "Epic and filter discovery use search endpoints with no fixed item cap and no instance-wide enumeration",
+        "A new GET .../integration/source-options route proxies to the plugin and a typed client hook consumes it",
+        "Every selectable item is reachable by paging the cursor; no page is dropped or duplicated"
+      ],
+      "depends_on": ["WU-001"],
+      "implements": {
+        "requirement_ids": ["FR-002", "FR-005", "FR-006", "NFR-001", "NFR-004"],
+        "user_story_ids": ["US-003", "US-004", "US-009"],
+        "test_case_ids": [
+          "TC-002",
+          "TC-005",
+          "TC-006",
+          "TC-015",
+          "TC-018",
+          "TC-034",
+          "TC-040",
+          "TC-042"
+        ]
+      }
+    },
+    {
+      "id": "WU-003",
+      "title": "Async type-ahead source picker with project-first cascade, rich labels, and modal-clip fix",
+      "type": "feature",
+      "description": "Build the debounced (250ms) async-search client control and the searchable source picker arm. Gate board/filter/epic pickers behind project scope (project-first cascade). Render full, untruncated labels with project key + item id. Fix the configure-modal dropdown clipping with a body-level portal popover. Meet WCAG 2.1 AA keyboard navigation.",
+      "acceptance_criteria": [
+        "Board/filter/epic pickers are disabled until at least one Jira project is in scope",
+        "The picker debounces input ~250ms and renders results from getSourceOptions with Load more paging",
+        "Each result shows the full name plus a monospace project-key + item-id secondary line, never truncated to ambiguity",
+        "The dropdown is never clipped by the configure modal, regardless of result-list length",
+        "The picker is fully keyboard-navigable with visible focus and screen-reader labels (WCAG 2.1 AA)"
+      ],
+      "depends_on": ["WU-001", "WU-002"],
+      "implements": {
+        "requirement_ids": ["FR-001", "FR-011", "FR-013", "NFR-001", "NFR-002"],
+        "user_story_ids": ["US-001", "US-004", "US-011"],
+        "test_case_ids": [
+          "TC-001",
+          "TC-011",
+          "TC-013",
+          "TC-016",
+          "TC-035",
+          "TC-038",
+          "TC-039",
+          "TC-043"
+        ]
+      }
+    },
+    {
+      "id": "WU-004",
+      "title": "JQL builder: project/board/mine source kinds, union, and active-sprint resolution",
+      "type": "feature",
+      "description": "Extend the JQL builder to support the new source kinds (project, board, mine) alongside filter and epic, building a union (OR) across per-source clauses. Resolve a board source to its active sprint by default with a widen-to-whole-board option. Implement the assigned-to-me preset in both in-project and anywhere modes via getCurrentUser. Preserve the per-source incremental updated>= watermark across the new kinds.",
+      "acceptance_criteria": [
+        "toSourceClauses handles project, board, and mine in addition to filter and epic",
+        "A board source resolves to its active sprint by default and can widen to the whole board",
+        "Assigned-to-me supports in-scoped-projects and anywhere modes",
+        "The cut list is the de-duplicated union of all configured sources",
+        "The per-source updated>= watermark is preserved and advances only at pagination exhaustion"
+      ],
+      "depends_on": ["WU-001", "WU-002"],
+      "implements": {
+        "requirement_ids": ["FR-004", "FR-007", "FR-008", "FR-014"],
+        "user_story_ids": ["US-002", "US-005", "US-008"],
+        "test_case_ids": ["TC-004", "TC-007", "TC-008", "TC-014", "TC-031", "TC-032", "TC-041"]
+      }
+    },
+    {
+      "id": "WU-005",
+      "title": "Server-side status-category exclusion in JQL + injection hardening",
+      "type": "feature",
+      "description": "Move status exclusion off the client and into the JQL query as the single source of truth, defaulting to excluding Jira's Done status category and honoring a user-editable category set through the three-layer merge. Remove client-side applyFilters exclusion. Harden all user-supplied search terms against JQL injection and ensure no JQL, PAT, search term, or issue content is logged.",
+      "acceptance_criteria": [
+        "Excluded statuses are applied in the JQL (statusCategory not in ...) so closed/done issues never reach a result page",
+        "The default excluded set is the Done category and is user-editable; client-side exclusion is removed as source of truth",
+        "If statusCategory is unsupported on the instance, the builder falls back to enumerating status names",
+        "User search terms are escaped/parameterized; a crafted term cannot inject a clause",
+        "Logs, metrics, and traces never carry PAT, JQL, search terms, or issue contents"
+      ],
+      "depends_on": ["WU-001", "WU-004"],
+      "implements": {
+        "requirement_ids": ["FR-009", "FR-010", "NFR-003"],
+        "user_story_ids": ["US-006", "US-007"],
+        "test_case_ids": ["TC-009", "TC-010", "TC-017", "TC-033", "TC-037"]
+      }
+    },
+    {
+      "id": "WU-006",
+      "title": "Source-kind translation extension + old-shape clean-break detection",
+      "type": "feature",
+      "description": "Add project/board/mine to the host CATEGORY_TO_KIND translation map (retiring the old boards kind) so configured sources flow to the plugin correctly. Detect legacy boards/epics/filters-shaped configs and prompt the user to re-pick rather than silently honoring them (clean break, no migration). Manifest-driven mapping is deferred to issue #349.",
+      "acceptance_criteria": [
+        "Configured project, board, and mine sources translate to the correct plugin source kind",
+        "A legacy old-shape source config is not silently honored; the user is prompted to re-pick in the new picker",
+        "No automatic migration of old-shape configs is performed"
+      ],
+      "depends_on": ["WU-001", "WU-003"],
+      "implements": {
+        "requirement_ids": ["FR-001", "FR-012"],
+        "user_story_ids": ["US-010"],
+        "test_case_ids": ["TC-036"]
+      }
+    },
+    {
+      "id": "WU-007",
+      "title": "Automate picker end-to-end flows",
+      "type": "feature",
+      "description": "Automate the picker-area end-to-end journeys defined in .specifications/jira-sources-scale/test-cases.json: TC-019 (pick project first), TC-020 (add scrum board active sprint), TC-021 (add saved filter), TC-023 (combine multiple sources), TC-026 (assigned-to-me), TC-027 (epic scope), TC-029 (disambiguate similar names). The automation mirrors each test's steps and runs in CI.",
+      "acceptance_criteria": [
+        "Automated test for TC-019 (project-first scoping) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-020 (scrum board active sprint) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-021 (saved filter source) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-023 (combine multiple sources) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-026 (assigned-to-me) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-027 (epic scope) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-029 (disambiguate similar names) exists, mirrors the steps, and passes in CI.",
+        "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
+      ],
+      "depends_on": ["WU-002", "WU-003", "WU-004"],
+      "implements": {
+        "requirement_ids": [
+          "FR-001",
+          "FR-002",
+          "FR-003",
+          "FR-004",
+          "FR-005",
+          "FR-006",
+          "FR-007",
+          "FR-008",
+          "FR-011"
+        ],
+        "user_story_ids": ["US-001", "US-002", "US-003", "US-005", "US-008", "US-009", "US-011"],
+        "test_case_ids": ["TC-019", "TC-020", "TC-021", "TC-023", "TC-026", "TC-027", "TC-029"]
+      }
+    },
+    {
+      "id": "WU-008",
+      "title": "Automate source-search end-to-end flows",
+      "type": "feature",
+      "description": "Automate the source-search-area end-to-end journey defined in .specifications/jira-sources-scale/test-cases.json: TC-022 (find a source by searching instead of scrolling, within the latency target and with an unclipped dropdown). The automation mirrors the test's steps and runs in CI.",
+      "acceptance_criteria": [
+        "Automated test for TC-022 (search instead of scroll) exists, mirrors the steps, and passes in CI.",
+        "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
+      ],
+      "depends_on": ["WU-002", "WU-003"],
+      "implements": {
+        "requirement_ids": ["FR-002", "FR-013", "NFR-001"],
+        "user_story_ids": ["US-004"],
+        "test_case_ids": ["TC-022"]
+      }
+    },
+    {
+      "id": "WU-009",
+      "title": "Automate cut-list end-to-end flows",
+      "type": "feature",
+      "description": "Automate the cut-list-area end-to-end journeys defined in .specifications/jira-sources-scale/test-cases.json: TC-024 (closed issues never appear) and TC-025 (edit which status categories are excluded). The automation mirrors each test's steps and runs in CI.",
+      "acceptance_criteria": [
+        "Automated test for TC-024 (closed issues kept out) exists, mirrors the steps, and passes in CI.",
+        "Automated test for TC-025 (edit excluded status categories) exists, mirrors the steps, and passes in CI.",
+        "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
+      ],
+      "depends_on": ["WU-005"],
+      "implements": {
+        "requirement_ids": ["FR-009", "FR-010"],
+        "user_story_ids": ["US-006", "US-007"],
+        "test_case_ids": ["TC-024", "TC-025"]
+      }
+    },
+    {
+      "id": "WU-010",
+      "title": "Automate config end-to-end flows",
+      "type": "feature",
+      "description": "Automate the config-area end-to-end journey defined in .specifications/jira-sources-scale/test-cases.json: TC-028 (a team default is overridden by a personal source set). The automation mirrors the test's steps and runs in CI.",
+      "acceptance_criteria": [
+        "Automated test for TC-028 (team default overridden by personal selection) exists, mirrors the steps, and passes in CI.",
+        "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
+      ],
+      "depends_on": ["WU-001", "WU-006"],
+      "implements": {
+        "requirement_ids": ["FR-012"],
+        "user_story_ids": ["US-010"],
+        "test_case_ids": ["TC-028"]
+      }
     }
-  },
-  {
-    "id": "WU-002",
-    "category": "feature",
-    "title": "getSourceOptions RPC + source-options route + typed client hook",
-    "description": "Implement the `getSourceOptions(category, scope, search, cursor)` plugin RPC as a generalization of the existing getFacetOptions async path: scoped, text-matched, cursor-paginated project/board/filter/epic search against the Jira REST and Agile APIs. Add the host route copied from the facet-options handler and the typed client + infinite-query hook. Removes the instance-wide loaders and the 50-epic cap.",
-    "acceptance_criteria": [
-      "getSourceOptions returns a scoped, cursor-paginated page for project, board, filter, and epic categories",
-      "Epic and filter discovery use search endpoints with no fixed item cap and no instance-wide enumeration",
-      "A new GET .../integration/source-options route proxies to the plugin and a typed client hook consumes it",
-      "Every selectable item is reachable by paging the cursor; no page is dropped or duplicated"
-    ],
-    "linked_requirement_ids": ["FR-002", "FR-005", "FR-006", "NFR-001", "NFR-004"],
-    "linked_user_story_ids": ["US-003", "US-004", "US-009"],
-    "linked_test_ids": [
-      "TC-002",
-      "TC-005",
-      "TC-006",
-      "TC-015",
-      "TC-018",
-      "TC-034",
-      "TC-040",
-      "TC-042"
-    ],
-    "estimate": 5,
-    "depends_on": ["WU-001"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/351",
-      "id": 351,
-      "node_id": "I_kwDOSiX_888AAAABD9fAww",
-      "db_id": 4560765123,
-      "blocked_by": [350],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-003",
-    "category": "feature",
-    "title": "Async type-ahead source picker with project-first cascade, rich labels, and modal-clip fix",
-    "description": "Build the debounced (250ms) async-search client control and the searchable source picker arm. Gate board/filter/epic pickers behind project scope (project-first cascade). Render full, untruncated labels with project key + item id. Fix the configure-modal dropdown clipping with a body-level portal popover. Meet WCAG 2.1 AA keyboard navigation.",
-    "acceptance_criteria": [
-      "Board/filter/epic pickers are disabled until at least one Jira project is in scope",
-      "The picker debounces input ~250ms and renders results from getSourceOptions with Load more paging",
-      "Each result shows the full name plus a monospace project-key + item-id secondary line, never truncated to ambiguity",
-      "The dropdown is never clipped by the configure modal, regardless of result-list length",
-      "The picker is fully keyboard-navigable with visible focus and screen-reader labels (WCAG 2.1 AA)"
-    ],
-    "linked_requirement_ids": ["FR-001", "FR-011", "FR-013", "NFR-001", "NFR-002"],
-    "linked_user_story_ids": ["US-001", "US-004", "US-011"],
-    "linked_test_ids": [
-      "TC-001",
-      "TC-011",
-      "TC-013",
-      "TC-016",
-      "TC-035",
-      "TC-038",
-      "TC-039",
-      "TC-043"
-    ],
-    "estimate": 5,
-    "depends_on": ["WU-001", "WU-002"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/352",
-      "id": 352,
-      "node_id": "I_kwDOSiX_888AAAABD9fBdg",
-      "db_id": 4560765302,
-      "blocked_by": [350, 351],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-004",
-    "category": "feature",
-    "title": "JQL builder: project/board/mine source kinds, union, and active-sprint resolution",
-    "description": "Extend the JQL builder to support the new source kinds (project, board, mine) alongside filter and epic, building a union (OR) across per-source clauses. Resolve a board source to its active sprint by default with a widen-to-whole-board option. Implement the assigned-to-me preset in both in-project and anywhere modes via getCurrentUser. Preserve the per-source incremental updated>= watermark across the new kinds.",
-    "acceptance_criteria": [
-      "toSourceClauses handles project, board, and mine in addition to filter and epic",
-      "A board source resolves to its active sprint by default and can widen to the whole board",
-      "Assigned-to-me supports in-scoped-projects and anywhere modes",
-      "The cut list is the de-duplicated union of all configured sources",
-      "The per-source updated>= watermark is preserved and advances only at pagination exhaustion"
-    ],
-    "linked_requirement_ids": ["FR-004", "FR-007", "FR-008", "FR-014"],
-    "linked_user_story_ids": ["US-002", "US-005", "US-008"],
-    "linked_test_ids": ["TC-004", "TC-007", "TC-008", "TC-014", "TC-031", "TC-032", "TC-041"],
-    "estimate": 5,
-    "depends_on": ["WU-001", "WU-002"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/353",
-      "id": 353,
-      "node_id": "I_kwDOSiX_888AAAABD9fCMQ",
-      "db_id": 4560765489,
-      "blocked_by": [350, 351],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-005",
-    "category": "feature",
-    "title": "Server-side status-category exclusion in JQL + injection hardening",
-    "description": "Move status exclusion off the client and into the JQL query as the single source of truth, defaulting to excluding Jira's Done status category and honoring a user-editable category set through the three-layer merge. Remove client-side applyFilters exclusion. Harden all user-supplied search terms against JQL injection and ensure no JQL, PAT, search term, or issue content is logged.",
-    "acceptance_criteria": [
-      "Excluded statuses are applied in the JQL (statusCategory not in ...) so closed/done issues never reach a result page",
-      "The default excluded set is the Done category and is user-editable; client-side exclusion is removed as source of truth",
-      "If statusCategory is unsupported on the instance, the builder falls back to enumerating status names",
-      "User search terms are escaped/parameterized; a crafted term cannot inject a clause",
-      "Logs, metrics, and traces never carry PAT, JQL, search terms, or issue contents"
-    ],
-    "linked_requirement_ids": ["FR-009", "FR-010", "NFR-003"],
-    "linked_user_story_ids": ["US-006", "US-007"],
-    "linked_test_ids": ["TC-009", "TC-010", "TC-017", "TC-033", "TC-037"],
-    "estimate": 5,
-    "depends_on": ["WU-001", "WU-004"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/354",
-      "id": 354,
-      "node_id": "I_kwDOSiX_888AAAABD9fC5w",
-      "db_id": 4560765671,
-      "blocked_by": [350, 353],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-006",
-    "category": "feature",
-    "title": "Source-kind translation extension + old-shape clean-break detection",
-    "description": "Add project/board/mine to the host CATEGORY_TO_KIND translation map (retiring the old boards kind) so configured sources flow to the plugin correctly. Detect legacy boards/epics/filters-shaped configs and prompt the user to re-pick rather than silently honoring them (clean break, no migration). Manifest-driven mapping is deferred to issue #349.",
-    "acceptance_criteria": [
-      "Configured project, board, and mine sources translate to the correct plugin source kind",
-      "A legacy old-shape source config is not silently honored; the user is prompted to re-pick in the new picker",
-      "No automatic migration of old-shape configs is performed"
-    ],
-    "linked_requirement_ids": ["FR-001", "FR-012"],
-    "linked_user_story_ids": ["US-010"],
-    "linked_test_ids": ["TC-036"],
-    "estimate": 3,
-    "depends_on": ["WU-001", "WU-003"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/355",
-      "id": 355,
-      "node_id": "I_kwDOSiX_888AAAABD9fDkA",
-      "db_id": 4560765840,
-      "blocked_by": [350, 352],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-007",
-    "category": "e2e_automation",
-    "title": "Automate picker end-to-end flows",
-    "description": "Automate the picker-area end-to-end journeys defined in .specifications/jira-sources-scale/test-cases.json: TC-019 (pick project first), TC-020 (add scrum board active sprint), TC-021 (add saved filter), TC-023 (combine multiple sources), TC-026 (assigned-to-me), TC-027 (epic scope), TC-029 (disambiguate similar names). The automation mirrors each test's steps and runs in CI.",
-    "acceptance_criteria": [
-      "Automated test for TC-019 (project-first scoping) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-020 (scrum board active sprint) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-021 (saved filter source) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-023 (combine multiple sources) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-026 (assigned-to-me) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-027 (epic scope) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-029 (disambiguate similar names) exists, mirrors the steps, and passes in CI.",
-      "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
-    ],
-    "linked_requirement_ids": [
-      "FR-001",
-      "FR-002",
-      "FR-003",
-      "FR-004",
-      "FR-005",
-      "FR-006",
-      "FR-007",
-      "FR-008",
-      "FR-011"
-    ],
-    "linked_user_story_ids": ["US-001", "US-002", "US-003", "US-005", "US-008", "US-009", "US-011"],
-    "linked_test_ids": ["TC-019", "TC-020", "TC-021", "TC-023", "TC-026", "TC-027", "TC-029"],
-    "estimate": 8,
-    "depends_on": ["WU-002", "WU-003", "WU-004"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/356",
-      "id": 356,
-      "node_id": "I_kwDOSiX_888AAAABD9fESg",
-      "db_id": 4560766026,
-      "blocked_by": [351, 352, 353],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-008",
-    "category": "e2e_automation",
-    "title": "Automate source-search end-to-end flows",
-    "description": "Automate the source-search-area end-to-end journey defined in .specifications/jira-sources-scale/test-cases.json: TC-022 (find a source by searching instead of scrolling, within the latency target and with an unclipped dropdown). The automation mirrors the test's steps and runs in CI.",
-    "acceptance_criteria": [
-      "Automated test for TC-022 (search instead of scroll) exists, mirrors the steps, and passes in CI.",
-      "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
-    ],
-    "linked_requirement_ids": ["FR-002", "FR-013", "NFR-001"],
-    "linked_user_story_ids": ["US-004"],
-    "linked_test_ids": ["TC-022"],
-    "estimate": 3,
-    "depends_on": ["WU-002", "WU-003"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/357",
-      "id": 357,
-      "node_id": "I_kwDOSiX_888AAAABD9fFCA",
-      "db_id": 4560766216,
-      "blocked_by": [351, 352],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-009",
-    "category": "e2e_automation",
-    "title": "Automate cut-list end-to-end flows",
-    "description": "Automate the cut-list-area end-to-end journeys defined in .specifications/jira-sources-scale/test-cases.json: TC-024 (closed issues never appear) and TC-025 (edit which status categories are excluded). The automation mirrors each test's steps and runs in CI.",
-    "acceptance_criteria": [
-      "Automated test for TC-024 (closed issues kept out) exists, mirrors the steps, and passes in CI.",
-      "Automated test for TC-025 (edit excluded status categories) exists, mirrors the steps, and passes in CI.",
-      "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
-    ],
-    "linked_requirement_ids": ["FR-009", "FR-010"],
-    "linked_user_story_ids": ["US-006", "US-007"],
-    "linked_test_ids": ["TC-024", "TC-025"],
-    "estimate": 5,
-    "depends_on": ["WU-005"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/358",
-      "id": 358,
-      "node_id": "I_kwDOSiX_888AAAABD9fFpg",
-      "db_id": 4560766374,
-      "blocked_by": [354],
-      "blocked_by_linked": true
-    }
-  },
-  {
-    "id": "WU-010",
-    "category": "e2e_automation",
-    "title": "Automate config end-to-end flows",
-    "description": "Automate the config-area end-to-end journey defined in .specifications/jira-sources-scale/test-cases.json: TC-028 (a team default is overridden by a personal source set). The automation mirrors the test's steps and runs in CI.",
-    "acceptance_criteria": [
-      "Automated test for TC-028 (team default overridden by personal selection) exists, mirrors the steps, and passes in CI.",
-      "All listed e2e_flow tests for this area share the automation harness and run as a single CI suite."
-    ],
-    "linked_requirement_ids": ["FR-012"],
-    "linked_user_story_ids": ["US-010"],
-    "linked_test_ids": ["TC-028"],
-    "estimate": 3,
-    "depends_on": ["WU-001", "WU-006"],
-    "issue": {
-      "system": "github",
-      "url": "https://github.com/davidpoxon/roubo/issues/359",
-      "id": 359,
-      "node_id": "I_kwDOSiX_888AAAABD9fGYg",
-      "db_id": 4560766562,
-      "blocked_by": [350, 355],
-      "blocked_by_linked": true
-    }
-  }
-]
+  ]
+}

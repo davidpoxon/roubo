@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   loadVerifyUnits,
   buildWorkUnitCaseMap,
@@ -10,6 +11,7 @@ import {
 import {
   WORK_UNITS_SCHEMA_ID,
   WORK_UNITS_SCHEMA_VERSION,
+  validateWorkUnits,
   type Unit,
   type WorkUnitsFile,
 } from "@roubo/shared/work-units-contract";
@@ -157,6 +159,62 @@ describe("loadVerifyUnits", () => {
   it("throws when a verify unit has an empty test_case_ids (R4)", () => {
     writeWorkUnits("alpha", JSON.stringify(envelope("alpha", [verifyUnit("WU-100", [])])));
     expect(() => loadVerifyUnits(repoPath, "alpha")).toThrow(WorkUnitsValidationError);
+  });
+
+  // #802: the cross-spec (no-slug) load must not abort the whole request when a
+  // single spec's work-units.json is malformed. The bad spec is warned-about and
+  // skipped; the valid specs still load. The single-slug path stays fail-closed.
+  it("skips a malformed spec on the all-specs path and loads the valid ones", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // A bare top-level array (the legacy shape) is not the envelope object the
+      // contract requires, so this spec fails validation.
+      writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
+      writeWorkUnits(
+        "alpha",
+        JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])),
+      );
+      writeWorkUnits("beta", JSON.stringify(envelope("beta", [verifyUnit("WU-200", ["TC-009"])])));
+
+      const loaded = loadVerifyUnits(repoPath);
+      expect(loaded.map((l) => `${l.slug}:${l.unit.id}`)).toEqual(["alpha:WU-100", "beta:WU-200"]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain("legacy");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("still throws on the single-slug path for that same malformed spec (NFR-007)", () => {
+    writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
+    expect(() => loadVerifyUnits(repoPath, "legacy")).toThrow(WorkUnitsValidationError);
+  });
+});
+
+// #802 data-integrity guard: every committed `.specifications/*/work-units.json`
+// under the repo root must validate against the published contract. This pins the
+// legacy-array migration and catches any future spec that drifts off-contract
+// (which would otherwise re-break the cross-spec Batches/gates view).
+describe("committed work-units.json artifacts", () => {
+  const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
+  const specsRoot = path.join(repoRoot, ".specifications");
+
+  const specFiles = fs.existsSync(specsRoot)
+    ? fs
+        .readdirSync(specsRoot, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => ({ slug: e.name, file: path.join(specsRoot, e.name, "work-units.json") }))
+        .filter((s) => fs.existsSync(s.file))
+    : [];
+
+  it("finds at least one committed work-units.json to validate", () => {
+    expect(specFiles.length).toBeGreaterThan(0);
+  });
+
+  it.each(specFiles)("$slug/work-units.json passes the contract", ({ file }) => {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    const result = validateWorkUnits(parsed);
+    expect(result.ok ? [] : result.errors).toEqual([]);
   });
 });
 
