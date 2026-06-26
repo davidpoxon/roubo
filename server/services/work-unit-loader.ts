@@ -145,8 +145,17 @@ export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string
 // (like discoverSpecs) and the verify units across all of them are concatenated.
 //
 // Fail-open: an absent or unreadable `.specifications/` directory, and any spec
-// folder without a work-units.json, contribute no gates. A present-but-invalid
-// work-units.json throws WorkUnitsValidationError (it is surfaced, not dropped).
+// folder without a work-units.json, contribute no gates.
+//
+// Per-spec error handling diverges by path (#802):
+//   - single-slug path (`slug` given): a present-but-invalid work-units.json
+//     throws WorkUnitsValidationError, surfaced not dropped. This is the fail-
+//     closed per-spec contract (NFR-007): asking for one spec's gates must never
+//     silently hide that the spec's artifact is broken.
+//   - all-specs path (`slug` omitted): one malformed spec must not abort the
+//     whole aggregate request. A WorkUnitsValidationError from any single spec is
+//     caught, logged once (naming the slug), and skipped so the remaining valid
+//     specs still load. Other errors propagate.
 //
 // The result is sorted by (slug, unit id) for deterministic ordering across
 // calls.
@@ -188,7 +197,19 @@ export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUn
       } catch {
         continue;
       }
-      collect(entry.name);
+      // Per-spec resilience (#802): a single malformed work-units.json must not
+      // abort the whole aggregate gates request. Catch this spec's validation
+      // error, warn once naming the slug, and skip it so the valid specs load.
+      // Non-validation errors still propagate.
+      try {
+        collect(entry.name);
+      } catch (err) {
+        if (err instanceof WorkUnitsValidationError) {
+          console.warn(`Skipping spec "${err.slug}" in cross-spec gates load: ${err.message}`);
+          continue;
+        }
+        throw err;
+      }
     }
   }
 
