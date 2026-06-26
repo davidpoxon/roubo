@@ -153,6 +153,7 @@ Genuinely still open (for breakdown / implementers):
 
 - [ ] Bootstrap **root-key custody and recovery** (the prior signing key was lost in #750): where the root private key lives and the recovery story if it is lost (the one event that still needs an app release).
 - [ ] Whether the plugins repo keeps an in-repo `file:` workspace path for first-party SDK dev alongside the published-version path, and how the two stay in sync.
+- [ ] Whether `@roubo/shared-github` needs to be a published package at all. Unlike `@roubo/plugin-sdk` (public contract) and `@roubo/shared` (consumed by host and plugins), it is plugin-internal: only `github-com` and `ghe` import it, the host keeps its own copy of the parser (`server/services/alert-external-id.ts`), and `tsup` inlines it into each plugin's `dist`. Once #769 relocates the plugins it can become an in-repo workspace package there and drop out of the publish set (and out of #790's trusted-publisher registration). Decide: keep publishing it, or fold it into the plugins repo.
 - [ ] Exact tarball normalization recipe needed for byte-stable digests across CI runs (sorted entries, fixed mtime, stripped pack metadata, pinned toolchain).
 
 ## Out of scope
