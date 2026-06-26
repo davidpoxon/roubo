@@ -14,7 +14,7 @@
           "directory": "plugins/database"
         },
         "provenance": "roubo/plugins@database",
-        "integrity": "sha256-1122fc13e5b93a7c48932c5135fcb18298b601db5db4190909efdb3f0fcd8be1",
+        "integrity": "sha256-b34b8d3490cea4b6b3ab16b4c5ee1ae8a39a3c07cee77e46648ef4df72862bbb",
         "verified": true
       },
       {
@@ -29,7 +29,7 @@
           "directory": "plugins/process"
         },
         "provenance": "roubo/plugins@process",
-        "integrity": "sha256-884a258cb5c2747b8973cb74f9187a0eda1914bf0421e0c8a6f37c2de1698823",
+        "integrity": "sha256-0de24038bc69cd662f2d3a368b030ea15f9e4728129bebab1a14757bbb99e01b",
         "verified": true
       },
       {
@@ -59,7 +59,7 @@
           "directory": "plugins/github-com"
         },
         "provenance": "roubo/plugins@github-com",
-        "integrity": "sha256-ca69673c81ed6c42a5b4ff4a5137455d4f33d6b6fc9dff4b1a430920b3f846c4",
+        "integrity": "sha256-5f06349f7564272af6a21cf6431da8fd166ef73c18e40afbe8a8d1f4aeb54be7",
         "verified": true
       },
       {
@@ -74,7 +74,7 @@
           "directory": "plugins/ghe"
         },
         "provenance": "roubo/plugins@ghe",
-        "integrity": "sha256-5bafcc8d081b2ed7c2bbe90652c5e8bee80d6837ec2bb33f496a3abdec948287",
+        "integrity": "sha256-fc33496c73550d5c8d0ec14c91319b7d56543b7afd280d1bb17f4911085c1d53",
         "verified": true
       },
       {
@@ -89,7 +89,7 @@
           "directory": "plugins/jira-self-hosted"
         },
         "provenance": "roubo/plugins@jira-self-hosted",
-        "integrity": "sha256-663399fb33573bc258603e3689f1811d2732e6bed82847152b23386111156ad9",
+        "integrity": "sha256-c4aad57599abd594dfc1c0f46cb5ba4b355687da593281f97ddd24cd03fa4512",
         "verified": true
       },
       {
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "signature": "VVMdV/OcXOiJGekfjl0fr0mxqAcaO0EHLniXjwhHMKBM7uB5w040ELSHwLAWzsYHZqZxM7ImIw3NTTq+mvLQCw=="
+  "signature": "/Pa87lOqs12je7hk1BeD4LmGy3OCkLU9aJBj8pvOOrJYcgzoP9FbAxXrOk/KZu58I5+Liz3De6JVxB0JdTwWAw=="
 }

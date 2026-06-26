@@ -16,7 +16,7 @@
     "build": "tsc --noEmit && tsup"
   },
   "dependencies": {
-    "@roubo/plugin-sdk": "file:../../plugin-sdk"
+    "@roubo/plugin-sdk": "0.1.0"
   },
   "devDependencies": {
     "tsup": "8.5.1",

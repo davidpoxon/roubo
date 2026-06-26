@@ -11,9 +11,9 @@
     "build": "tsup && tsc --build"
   },
   "dependencies": {
-    "@roubo/plugin-sdk": "*",
-    "@roubo/shared": "*",
-    "@roubo/shared-github": "*",
+    "@roubo/plugin-sdk": "0.1.0",
+    "@roubo/shared": "0.1.0",
+    "@roubo/shared-github": "0.1.0",
     "octokit": "5.0.5"
   },
   "devDependencies": {

@@ -16,7 +16,7 @@ on:
 
 jobs:
   publish:
-    name: publish @roubo/plugin-sdk
+    name: publish @roubo/plugin-sdk + shared + shared-github
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -33,7 +33,7 @@ jobs:
           cache: npm
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Verify tag matches package version
+      - name: Verify tag matches package versions
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag_name || github.ref_name }}
         run: |
@@ -43,22 +43,40 @@ jobs:
             exit 1
           fi
           expected="${RELEASE_TAG#sdk-v}"
-          actual="$(jq -r '.version' plugin-sdk/package.json)"
-          if [[ "${expected}" != "${actual}" ]]; then
-            echo "::error::Tag version '${expected}' does not match plugin-sdk/package.json version '${actual}'"
-            exit 1
-          fi
-          echo "Tag and package.json version match: ${actual}"
+          # The three packages version in lockstep: every one must match the tag.
+          for pkg in plugin-sdk shared plugins/_shared-github; do
+            actual="$(jq -r '.version' "${pkg}/package.json")"
+            if [[ "${expected}" != "${actual}" ]]; then
+              echo "::error::Tag version '${expected}' does not match ${pkg}/package.json version '${actual}'"
+              exit 1
+            fi
+            echo "Tag and ${pkg}/package.json version match: ${actual}"
+          done
 
       - run: npm ci
 
       - name: Ensure npm CLI supports trusted publishing
         run: npm install -g npm@latest
 
+      # Build in dependency order: plugin-sdk first, then shared-github (which
+      # bundles plugin-sdk via tsup). @roubo/shared publishes its raw .ts
+      # sources, so it has no build step.
       - run: npm run build -w plugin-sdk
+
+      - run: npm run build -w plugins/_shared-github
 
       - run: npx vitest run plugin-sdk/
 
-      - name: Publish to npm (trusted publisher / OIDC)
+      # Publish in dependency order so each package's pinned dependencies are
+      # already on the registry when the next one resolves.
+      - name: Publish @roubo/plugin-sdk (trusted publisher / OIDC)
         working-directory: plugin-sdk
+        run: npm publish --provenance
+
+      - name: Publish @roubo/shared (trusted publisher / OIDC)
+        working-directory: shared
+        run: npm publish --provenance
+
+      - name: Publish @roubo/shared-github (trusted publisher / OIDC)
+        working-directory: plugins/_shared-github
         run: npm publish --provenance
