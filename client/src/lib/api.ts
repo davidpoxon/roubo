@@ -498,6 +498,11 @@ export interface GateState {
   status: GateStatus;
   unresolvedCaseIds: string[];
   coveringUnitIds: string[];
+  // Whether the gate's batch is signed off, derived from the gate's tracker-issue
+  // state on the server (issue #830). True only when a `passed` gate's tracker
+  // issue is closed; a non-passed gate (or one with no active integration / no
+  // tracker ref) is `false` by definition.
+  signedOff: boolean;
 }
 
 // The list endpoint returns one GateState per verify unit; the single endpoint
@@ -579,6 +584,26 @@ export function splitGate(
 // externally-authored work-units.json gates.
 export function resetGateOverrides(projectId: string): Promise<void> {
   return requestVoid(`/projects/${projectId}/gates/overrides`, { method: "DELETE" });
+}
+
+// Sign off a passed batch (#830, FR-007/FR-008). Closes the gate's tracker issue
+// via the active integration plugin and returns the updated GateState with
+// `signedOff: true`. A 409 means the gate is not passed (fail-closed) or has no
+// tracker issue / no active integration; a 422 means the active plugin lacks the
+// capability. The caller surfaces the error message.
+export function signOffGate(projectId: string, gateId: string): Promise<GateState> {
+  return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}/sign-off`, {
+    method: "POST",
+  });
+}
+
+// Reopen a signed-off batch (#830, US-005). Reopens the gate's tracker issue and
+// returns the updated GateState with `signedOff: false`. A 409 means the gate has
+// no tracker issue / no active integration.
+export function reopenGate(projectId: string, gateId: string): Promise<GateState> {
+  return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}/sign-off`, {
+    method: "DELETE",
+  });
 }
 
 // PUT /testbench/focus: re-point an active TestBench to a different focused spec

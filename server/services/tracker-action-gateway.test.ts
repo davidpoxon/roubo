@@ -5,6 +5,7 @@ import {
   addBlockedBy,
   closeGate,
   createIssue,
+  reopenGate,
   type TrackerActionGatewayDeps,
 } from "./tracker-action-gateway.js";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
@@ -40,21 +41,24 @@ function makeDeps(overrides: Partial<TrackerActionGatewayDeps> = {}): {
   audit: TrackerActionAuditLog;
   invoke: ReturnType<typeof vi.fn>;
   onGatePassed: ReturnType<typeof vi.fn>;
+  onGateReopened: ReturnType<typeof vi.fn>;
 } {
   const audit = new TrackerActionAuditLog();
   const invoke = vi.fn();
   const onGatePassed = vi.fn(async () => undefined);
+  const onGateReopened = vi.fn(async () => undefined);
   const deps: TrackerActionGatewayDeps = {
     invoke: invoke as unknown as TrackerActionGatewayDeps["invoke"],
     resolveActivePlugin: () => ({ pluginId: PLUGIN, integrationId: PLUGIN, pageSize: 50 }),
     getCapabilities: () => ({ supportsCreateIssue: true, supportsBlockingLinks: true }),
     hasConsent: () => true,
     onGatePassed: onGatePassed as unknown as TrackerActionGatewayDeps["onGatePassed"],
+    onGateReopened: onGateReopened as unknown as TrackerActionGatewayDeps["onGateReopened"],
     recordAudit: (entry) => audit.record(entry),
     now: () => "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
-  return { deps, audit, invoke, onGatePassed };
+  return { deps, audit, invoke, onGatePassed, onGateReopened };
 }
 
 describe("TrackerActionGateway: consented + declared success (TC-047)", () => {
@@ -129,6 +133,31 @@ describe("TrackerActionGateway: consented + declared success (TC-047)", () => {
     expect(onGatePassed).not.toHaveBeenCalled();
     expect(audit.query()[0]).toMatchObject({ action: "closeGate", outcome: "skipped" });
   });
+
+  it("reopenGate delegates to onGateReopened and records an 'applied' audit entry (#830)", async () => {
+    const { deps, audit, onGateReopened } = makeDeps();
+    const gate = makeGate("o/r#451");
+
+    await reopenGate(PROJECT, gate, deps);
+
+    expect(onGateReopened).toHaveBeenCalledWith(PROJECT, gate, PLUGIN);
+    const entries = audit.query();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      action: "reopenGate",
+      outcome: "applied",
+      refs: { gateId: "WU-040", trackerRef: "o/r#451" },
+    });
+  });
+
+  it("reopenGate skips and records 'skipped' for an unfiled gate (#830)", async () => {
+    const { deps, audit, onGateReopened } = makeDeps();
+
+    await reopenGate(PROJECT, makeGate(null), deps);
+
+    expect(onGateReopened).not.toHaveBeenCalled();
+    expect(audit.query()[0]).toMatchObject({ action: "reopenGate", outcome: "skipped" });
+  });
 });
 
 describe("TrackerActionGateway: unconsented call is blocked (TC-048)", () => {
@@ -159,6 +188,15 @@ describe("TrackerActionGateway: unconsented call is blocked (TC-048)", () => {
       code: "not-consented",
     });
     expect(onGatePassed).not.toHaveBeenCalled();
+  });
+
+  it("refuses reopenGate when the plugin is not consented, without reopening (#830)", async () => {
+    const { deps, onGateReopened } = makeDeps({ hasConsent: () => false });
+
+    await expect(reopenGate(PROJECT, makeGate(), deps)).rejects.toMatchObject({
+      code: "not-consented",
+    });
+    expect(onGateReopened).not.toHaveBeenCalled();
   });
 });
 
@@ -198,6 +236,14 @@ describe("TrackerActionGateway: missing capability degrades, never a silent no-o
     await closeGate(PROJECT, makeGate(), deps);
 
     expect(onGatePassed).toHaveBeenCalled();
+  });
+
+  it("reopenGate does not require a capability flag (reuses applyTransition) (#830)", async () => {
+    const { deps, onGateReopened } = makeDeps({ getCapabilities: () => ({}) });
+
+    await reopenGate(PROJECT, makeGate(), deps);
+
+    expect(onGateReopened).toHaveBeenCalled();
   });
 
   it("throws no-active-integration when no plugin is configured", async () => {

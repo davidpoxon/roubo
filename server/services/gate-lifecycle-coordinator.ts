@@ -88,9 +88,10 @@ function defaultDeps(): GateLifecycleDeps {
 /**
  * Whether a normalized issue is in a terminal/done state (idempotency check). An
  * issue whose `currentState` is already done needs no transition; closing it
- * again would be a redundant privileged call.
+ * again would be a redundant privileged call. Exported so the gate-read path can
+ * derive a `signedOff` signal from the tracker issue's state (issue #830).
  */
-function isDone(issue: NormalizedIssue): boolean {
+export function isDone(issue: NormalizedIssue): boolean {
   return DONE_STATUSES.has(issue.currentState.toLowerCase());
 }
 
@@ -118,6 +119,29 @@ export function pickDoneTransition(issue: NormalizedIssue): string | undefined {
   // workflow whose transition is literally named "Closed"/"Done").
   const stateMatch = transitions.find((t) => DONE_STATUSES.has(t.toLowerCase()));
   if (stateMatch) return stateMatch;
+
+  return undefined;
+}
+
+/**
+ * Pick a reopen-bound transition from a done issue's `allowedTransitions` (issue
+ * #830). The GitHub / GHE plugins expose exactly `["reopen"]` for a closed issue
+ * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
+ * selection mirrors `pickDoneTransition`: tolerant of casing and of trackers
+ * whose transition names embed a reopen-ish verb. When no transition can be
+ * determined, the caller surfaces a clear error rather than guessing.
+ */
+export function pickReopenTransition(issue: NormalizedIssue): string | undefined {
+  const transitions = issue.allowedTransitions;
+  if (transitions.length === 0) return undefined;
+
+  // Verbs that name a reopen-bound transition, in preference order. `reopen` is
+  // the GitHub/GHE transition; `open` covers trackers that name the target state.
+  const openVerbs = ["reopen", "open"];
+  for (const verb of openVerbs) {
+    const match = transitions.find((t) => t.toLowerCase().includes(verb));
+    if (match) return match;
+  }
 
   return undefined;
 }
@@ -201,5 +225,81 @@ export async function onGatePassed(
     trackerRef,
     transitionName,
     outcome: "closed",
+  });
+}
+
+/**
+ * Reopen a signed-off gate's tracker issue so the gate can be edited again or
+ * re-verified (issue #830). The mirror of `onGatePassed`: hand this a gate whose
+ * tracker issue the operator wants reopened. The flow is:
+ *
+ *   1. Resolve the gate's tracker issue ref (`gate.tracker.ref`). A gate with no
+ *      filed tracker is a no-op (nothing to reopen).
+ *   2. Fetch the issue via the plugin's `getIssue` RPC.
+ *   3. If the issue is NOT done, it is already open: return without acting
+ *      (idempotent no-op) and record an `already-open` audit entry.
+ *   4. Otherwise pick a reopen-bound transition from `allowedTransitions` and
+ *      apply it via the plugin's `applyTransition` RPC, then record a `reopened`
+ *      audit entry.
+ *
+ * Any plugin RPC rejection propagates: no audit entry is recorded for the failed
+ * call and the issue stays closed, so the gate is never left half-reopened.
+ *
+ * @param projectId the project the gate belongs to.
+ * @param gate      the verify unit; `tracker.ref` names the issue to reopen.
+ * @param pluginId  the active integration plugin to route the reopen through.
+ * @param deps      injectable seams (plugin invoke, audit sink, clock).
+ */
+export async function onGateReopened(
+  projectId: string,
+  gate: VerifyUnit,
+  pluginId: string,
+  deps: GateLifecycleDeps = defaultDeps(),
+): Promise<void> {
+  const trackerRef = gate.tracker?.ref;
+  // A gate with no filed tracker issue has nothing to reopen.
+  if (!trackerRef) return;
+
+  const issue = await deps.invoke<NormalizedIssue>(pluginId, "getIssue", {
+    externalId: trackerRef,
+  });
+
+  // Idempotent no-op: an already-open gate issue is left untouched. The skip is
+  // still audit-logged so the privileged check is observable (NFR-001).
+  if (!isDone(issue)) {
+    deps.recordAudit({
+      ts: deps.now(),
+      projectId,
+      pluginId,
+      gateId: gate.id,
+      trackerRef,
+      outcome: "already-open",
+    });
+    return;
+  }
+
+  const transitionName = pickReopenTransition(issue);
+  if (!transitionName) {
+    throw new Error(
+      `Cannot reopen gate ${gate.id}: tracker issue ${trackerRef} exposes no reopen-bound transition ` +
+        `(allowedTransitions=[${issue.allowedTransitions.join(", ")}]).`,
+    );
+  }
+
+  // Apply the transition. A plugin rejection propagates: nothing below runs, so
+  // no audit entry is recorded and the issue stays closed.
+  await deps.invoke<NormalizedIssue>(pluginId, "applyTransition", {
+    externalId: trackerRef,
+    transitionName,
+  });
+
+  deps.recordAudit({
+    ts: deps.now(),
+    projectId,
+    pluginId,
+    gateId: gate.id,
+    trackerRef,
+    transitionName,
+    outcome: "reopened",
   });
 }

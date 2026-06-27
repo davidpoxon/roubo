@@ -11,6 +11,9 @@
 //   GET    /:projectId/gates/:gateId    -> 200 GateState / 404 (unknown gate id)
 //   POST   /:projectId/gates/merge      -> 200 (record a merge op) / 400 / 409
 //   POST   /:projectId/gates/split      -> 200 (record a split op) / 400 / 409
+//   POST   /:projectId/gates/:gateId/sign-off   -> 200 (close the gate's tracker
+//                                                  issue) / 404 / 409 / 422
+//   DELETE /:projectId/gates/:gateId/sign-off   -> 200 (reopen it) / 404 / 409
 //   DELETE /:projectId/gates/overrides  -> 204 (reset all operator regroupings)
 //
 // Merge / split do NOT mutate the externally-authored work-units.json; they
@@ -47,7 +50,11 @@ import {
   type GateOverridesFile,
 } from "@roubo/shared/gate-overrides-contract";
 import { EmptyNotesError, fileFixIssueAndBlock } from "../services/fix-issue-filer.js";
-import { TrackerActionError } from "../services/tracker-action-gateway.js";
+import { TrackerActionError, closeGate, reopenGate } from "../services/tracker-action-gateway.js";
+import { resolveActivePlugin } from "../services/active-plugin.js";
+import { isDone } from "../services/gate-lifecycle-coordinator.js";
+import * as pluginManager from "../services/plugin-manager.js";
+import type { NormalizedIssue } from "@roubo/shared";
 import { RouteError } from "./helpers.js";
 
 const router = Router();
@@ -179,6 +186,42 @@ function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateSta
   return { gateId: unit.id, ...state };
 }
 
+// A gate response with the derived `signedOff` signal attached (issue #830).
+// Source of truth is the gate's tracker-issue state, NOT a Roubo-owned marker.
+type SignedOffGateStateResponse = GateStateResponse & { signedOff: boolean };
+
+// Derive the `signedOff` signal for a gate from its tracker-issue state and
+// attach it to the projected response (issue #830, FR-007 AC). To bound plugin
+// RPCs, only a `passed` gate is ever checked: a non-passed gate is signed-off =
+// false by definition, and a passed gate with no filed tracker issue (or no
+// active integration) is likewise false. For a passed, filed gate the gate's
+// tracker issue is fetched and `signedOff` is whether that issue is done. The
+// `getIssue` RPC is fail-closed: a tracker hiccup yields `signedOff = false`
+// rather than 500-ing a read (NFR-005, fail-closed: never report a gate as
+// signed off on uncertain state).
+async function withSignedOff(
+  projectId: string,
+  loaded: LoadedVerifyUnit,
+  response: GateStateResponse,
+): Promise<SignedOffGateStateResponse> {
+  const trackerRef = loaded.unit.tracker?.ref;
+  if (response.status !== "passed" || !trackerRef) {
+    return { ...response, signedOff: false };
+  }
+  const active = resolveActivePlugin(projectId);
+  if (!active) {
+    return { ...response, signedOff: false };
+  }
+  try {
+    const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
+      externalId: trackerRef,
+    });
+    return { ...response, signedOff: isDone(issue) };
+  } catch {
+    return { ...response, signedOff: false };
+  }
+}
+
 // Build the WU- -> test_case_ids map a split needs, for every spec the loaded
 // gates span. WU- ids are numbered per spec, so they are spec-scoped in
 // practice and cross-spec collisions are not expected. This flat union is
@@ -218,11 +261,16 @@ function effectiveGates(repoPath: string, projectId: string): LoadedVerifyUnit[]
 router.get(
   "/:projectId/gates",
   gateReadRateLimiter,
-  (req: Request<{ projectId: string }>, res: Response) => {
+  async (req: Request<{ projectId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const gates = effectiveGates(repoPath, req.params.projectId);
-      res.json(gates.map((loaded) => evaluateLoadedGate(repoPath, loaded)));
+      const states = await Promise.all(
+        gates.map((loaded) =>
+          withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+        ),
+      );
+      res.json(states);
     } catch (err) {
       handleError(res, err);
     }
@@ -235,7 +283,7 @@ router.get(
 router.get(
   "/:projectId/gates/:gateId",
   gateReadRateLimiter,
-  (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
+  async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const gates = effectiveGates(repoPath, req.params.projectId);
@@ -243,7 +291,9 @@ router.get(
       if (loaded === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
       }
-      res.json(evaluateLoadedGate(repoPath, loaded));
+      res.json(
+        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+      );
     } catch (err) {
       handleError(res, err);
     }
@@ -251,8 +301,9 @@ router.get(
 );
 
 // Guard (AC3): merge / split is prevented when any gate it involves currently
-// evaluates to `passed` (the in-scope "signed-off" signal; tracker-issue closure
-// is Phase 4 / out of scope). Throws a 409 RouteError with a clear message.
+// evaluates to `passed` (a passed gate is sign-off-eligible; its tracker issue
+// may already be closed via the sign-off route, issue #830). Throws a 409
+// RouteError with a clear message; the operator must reopen it first.
 function assertNoneSignedOff(
   repoPath: string,
   effective: readonly LoadedVerifyUnit[],
@@ -279,7 +330,12 @@ function assertNoneSignedOff(
 // non-partitioning split, cross-slug merge): surface a 400 with the reason and
 // do NOT persist. On success persist the document and return the recomputed
 // effective gate list.
-function recordOp(repoPath: string, projectId: string, op: GateOverrideOp, res: Response): void {
+async function recordOp(
+  repoPath: string,
+  projectId: string,
+  op: GateOverrideOp,
+  res: Response,
+): Promise<void> {
   const loaded = workUnitLoader.loadVerifyUnits(repoPath);
   const caseMap = buildCaseMap(repoPath, loaded);
   const existing = gateOverrideStore.loadOverrides(projectId);
@@ -303,7 +359,10 @@ function recordOp(repoPath: string, projectId: string, op: GateOverrideOp, res: 
   }
 
   gateOverrideStore.saveOverrides(projectId, validation.data);
-  res.json(applied.gates.map((g) => evaluateLoadedGate(repoPath, g)));
+  const states = await Promise.all(
+    applied.gates.map((g) => withSignedOff(projectId, g, evaluateLoadedGate(repoPath, g))),
+  );
+  res.json(states);
 }
 
 // POST /:projectId/gates/merge { gateIds } -> 200 GateState[] (the recomputed
@@ -311,7 +370,7 @@ function recordOp(repoPath: string, projectId: string, op: GateOverrideOp, res: 
 router.post(
   "/:projectId/gates/merge",
   gateWriteRateLimiter,
-  (req: Request<{ projectId: string }>, res: Response) => {
+  async (req: Request<{ projectId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const gateIds = req.body?.gateIds;
@@ -324,7 +383,7 @@ router.post(
       }
       const effective = effectiveGates(repoPath, req.params.projectId);
       assertNoneSignedOff(repoPath, effective, gateIds);
-      recordOp(repoPath, req.params.projectId, { op: "merge", gateIds }, res);
+      await recordOp(repoPath, req.params.projectId, { op: "merge", gateIds }, res);
     } catch (err) {
       handleError(res, err);
     }
@@ -336,7 +395,7 @@ router.post(
 router.post(
   "/:projectId/gates/split",
   gateWriteRateLimiter,
-  (req: Request<{ projectId: string }>, res: Response) => {
+  async (req: Request<{ projectId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const { gateId, parts } = req.body ?? {};
@@ -345,7 +404,7 @@ router.post(
       }
       const effective = effectiveGates(repoPath, req.params.projectId);
       assertNoneSignedOff(repoPath, effective, [gateId]);
-      recordOp(repoPath, req.params.projectId, { op: "split", gateId, parts }, res);
+      await recordOp(repoPath, req.params.projectId, { op: "split", gateId, parts }, res);
     } catch (err) {
       handleError(res, err);
     }
@@ -465,6 +524,94 @@ router.post(
       });
 
       res.status(record.linkStatus === "complete" ? 201 : 207).json(record);
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
+
+// POST /:projectId/gates/:gateId/sign-off -> sign off a passed batch by closing
+// the gate's tracker issue through the active integration plugin (issue #830,
+// FR-007/FR-008, US-005, NFR-001). Returns the updated GateState with
+// `signedOff: true`.
+//
+// Fail-closed (AC): the close runs ONLY when the gate's evaluated status is
+// `passed`; any other status is a 409 (the guard is load-bearing server-side,
+// not just a disabled button). When the gate has no filed tracker issue the
+// request degrades loudly with a 409 rather than a silent no-op that appears to
+// succeed (FR-011, NFR-005). The privileged close is audit-logged by the
+// gateway. TrackerActionError from the gateway maps via handleError (422
+// capability-absent, 409 no-active-integration / not-consented).
+router.post(
+  "/:projectId/gates/:gateId/sign-off",
+  gateWriteRateLimiter,
+  async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
+    try {
+      const repoPath = resolveRepoPath(req.params.projectId);
+      const gates = effectiveGates(repoPath, req.params.projectId);
+      const loaded = gates.find((g) => g.unit.id === req.params.gateId);
+      if (loaded === undefined) {
+        throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
+      }
+
+      // Fail-closed guard: refuse sign-off unless the gate's evaluated status is
+      // passed. This is the load-bearing rejection, not just the disabled button.
+      const state = evaluateLoadedGate(repoPath, loaded);
+      if (state.status !== "passed") {
+        throw new RouteError(
+          409,
+          `Gate '${req.params.gateId}' cannot be signed off: its status is '${state.status}', not 'passed'. Resolve every gating case first.`,
+        );
+      }
+
+      // A gate with no filed tracker issue has no close target: degrade loudly
+      // (FR-011) rather than a silent no-op that would appear to succeed.
+      if (!loaded.unit.tracker?.ref) {
+        throw new RouteError(
+          409,
+          `Gate '${req.params.gateId}' has no tracker issue, so it cannot be signed off.`,
+        );
+      }
+
+      await closeGate(req.params.projectId, loaded.unit);
+      res.json(
+        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+      );
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
+
+// DELETE /:projectId/gates/:gateId/sign-off -> reopen a signed-off gate by
+// reopening its tracker issue through the active integration plugin (issue #830,
+// US-005). Returns the updated GateState with `signedOff: false`. Reopen does
+// NOT require status === passed (a signed-off gate whose plan later changed may
+// no longer evaluate passed yet must still be reopenable). When the gate has no
+// filed tracker issue the request degrades loudly with a 409.
+router.delete(
+  "/:projectId/gates/:gateId/sign-off",
+  gateWriteRateLimiter,
+  async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
+    try {
+      const repoPath = resolveRepoPath(req.params.projectId);
+      const gates = effectiveGates(repoPath, req.params.projectId);
+      const loaded = gates.find((g) => g.unit.id === req.params.gateId);
+      if (loaded === undefined) {
+        throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
+      }
+
+      if (!loaded.unit.tracker?.ref) {
+        throw new RouteError(
+          409,
+          `Gate '${req.params.gateId}' has no tracker issue, so it cannot be reopened.`,
+        );
+      }
+
+      await reopenGate(req.params.projectId, loaded.unit);
+      res.json(
+        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+      );
     } catch (err) {
       handleError(res, err);
     }

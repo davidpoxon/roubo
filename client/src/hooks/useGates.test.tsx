@@ -15,6 +15,8 @@ import {
   useMergeGates,
   useSplitGate,
   useResetGateOverrides,
+  useSignOffGate,
+  useReopenGate,
   gatesQueryKey,
   gateQueryKey,
 } from "./useGates";
@@ -136,6 +138,43 @@ describe("useResetGateOverrides", () => {
       await result.current.mutateAsync();
     });
     expect(mockedApi.resetGateOverrides).toHaveBeenCalledWith("p1");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+// #830 (FR-007/FR-008): sign-off closes the gate's tracker issue; reopen reopens
+// it. Both invalidate the open gate AND the overview list so the button re-reads
+// the server's `signedOff` signal.
+describe("useSignOffGate", () => {
+  it("calls the sign-off endpoint and invalidates the gate + gates queries on success", async () => {
+    mockedApi.signOffGate.mockResolvedValue({
+      ...gate,
+      status: "passed",
+      signedOff: true,
+    } as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useSignOffGate("p1"), { queryClient });
+    await act(async () => {
+      await result.current.mutateAsync("WU-099");
+    });
+    expect(mockedApi.signOffGate).toHaveBeenCalledWith("p1", "WU-099");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gate", "p1", "WU-099"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+describe("useReopenGate", () => {
+  it("calls the reopen endpoint and invalidates the gate + gates queries on success", async () => {
+    mockedApi.reopenGate.mockResolvedValue({ ...gate, signedOff: false } as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useReopenGate("p1"), { queryClient });
+    await act(async () => {
+      await result.current.mutateAsync("WU-099");
+    });
+    expect(mockedApi.reopenGate).toHaveBeenCalledWith("p1", "WU-099");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gate", "p1", "WU-099"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
   });
 });

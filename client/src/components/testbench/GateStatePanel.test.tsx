@@ -24,6 +24,7 @@ const nonPassed: GateState = {
   status: "failed",
   unresolvedCaseIds: ["TC-001", "TC-002"],
   coveringUnitIds: ["WU-010"],
+  signedOff: false,
 };
 
 describe("GateStatePanel", () => {
@@ -43,7 +44,13 @@ describe("GateStatePanel", () => {
   it("shows no unresolved/covering ids for a passed gate", () => {
     render(
       <GateStatePanel
-        gate={{ gateId: "WU-099", status: "passed", unresolvedCaseIds: [], coveringUnitIds: [] }}
+        gate={{
+          gateId: "WU-099",
+          status: "passed",
+          unresolvedCaseIds: [],
+          coveringUnitIds: [],
+          signedOff: false,
+        }}
       />,
     );
     expect(screen.getByText("Passed")).toBeTruthy();
