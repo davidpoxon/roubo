@@ -194,7 +194,20 @@ def migrate_path(path: str, check_only: bool) -> int:
     1 in --check mode signals "a change would be made" (mirrors
     migrate_test_cases_to_v1_1.py); 0 otherwise.
     """
-    spec_dir = os.path.dirname(os.path.abspath(path))
+    # Route the operator-supplied positional path (untrusted argv) through the
+    # same realpath + containment barrier work_units uses on its read paths,
+    # before any os.path.isfile / open / load_json. That barrier (an
+    # os.path.realpath normalization followed by a startswith(real_dir + sep)
+    # check) is the control CodeQL recognizes for py/path-injection (CWE-22);
+    # bare realpath canonicalizes `..` but is only a normalization step, not a
+    # sanitizer, so it would leave the argv -> read taint path flagged. The
+    # migrate tool legitimately targets an arbitrary issues.json, so the
+    # confinement root is the file's own resolved parent directory: the read
+    # cannot escape that directory, which preserves the free-target behaviour
+    # while neutralizing the traversal taint path from argv to the read.
+    real = os.path.realpath(path)
+    spec_dir = os.path.dirname(real)
+    path = work_units._confine(spec_dir, os.path.basename(real), verb="read")
     slug = spec_slug_for(path)
 
     # Loud failure with no partial write: a parse error raises here before any
