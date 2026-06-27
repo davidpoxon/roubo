@@ -4,7 +4,7 @@
   "specSlug": "component-plugins-hosted-marketplace",
   "cases": [
     {
-      "id": "TC-001",
+      "id": "CPHM-TC-001",
       "title": "App fetches hosted catalog and verifies its signature on launch",
       "area": "marketplace-catalog",
       "level": 1,
@@ -60,12 +60,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "happy-path", "critical-path"],
-      "linked_requirement_ids": ["FR-001"],
-      "linked_user_story_ids": ["US-003", "US-004"]
+      "tags": [
+        "smoke",
+        "happy-path",
+        "critical-path"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-003",
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-002",
+      "id": "CPHM-TC-002",
       "title": "Browse screen filters verified catalog entries by Integrations and Components",
       "area": "marketplace-catalog",
       "level": 1,
@@ -106,12 +115,19 @@
           ]
         }
       ],
-      "tags": ["happy-path", "browse"],
-      "linked_requirement_ids": ["FR-001"],
-      "linked_user_story_ids": ["US-003"]
+      "tags": [
+        "happy-path",
+        "browse"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-003"
+      ]
     },
     {
-      "id": "TC-003",
+      "id": "CPHM-TC-003",
       "title": "Maintainer CI builds, signs, digests, and publishes a plugin plus regenerated signed catalog",
       "area": "marketplace-catalog",
       "level": 2,
@@ -169,12 +185,20 @@
           ]
         }
       ],
-      "tags": ["publish", "ci", "regression"],
-      "linked_requirement_ids": ["FR-006"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "publish",
+        "ci",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-006"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-004",
+      "id": "CPHM-TC-004",
       "title": "Maintainer revokes a catalog entry and clients block it at next refresh",
       "area": "marketplace-catalog",
       "level": 2,
@@ -219,12 +243,20 @@
           ]
         }
       ],
-      "tags": ["revocation", "regression"],
-      "linked_requirement_ids": ["FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "revocation",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-005",
+      "id": "CPHM-TC-005",
       "title": "Maintainer rotates the signing key without an app release and clients accept the new key",
       "area": "marketplace-catalog",
       "level": 2,
@@ -269,12 +301,20 @@
           ]
         }
       ],
-      "tags": ["key-rotation", "regression"],
-      "linked_requirement_ids": ["FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "key-rotation",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-006",
+      "id": "CPHM-TC-006",
       "title": "Catalog with a tampered or invalid signature is rejected",
       "area": "marketplace-catalog",
       "level": 3,
@@ -309,12 +349,21 @@
           ]
         }
       ],
-      "tags": ["negative", "signature", "security"],
-      "linked_requirement_ids": ["FR-001", "NFR-004"],
-      "linked_user_story_ids": ["US-003"]
+      "tags": [
+        "negative",
+        "signature",
+        "security"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-003"
+      ]
     },
     {
-      "id": "TC-007",
+      "id": "CPHM-TC-007",
       "title": "A revoked entry cannot be installed even via direct action",
       "area": "marketplace-catalog",
       "level": 3,
@@ -345,12 +394,20 @@
           ]
         }
       ],
-      "tags": ["negative", "revocation"],
-      "linked_requirement_ids": ["FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "revocation"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-008",
+      "id": "CPHM-TC-008",
       "title": "Catalog signed by a key not present in the key-ring is rejected",
       "area": "marketplace-catalog",
       "level": 3,
@@ -385,12 +442,21 @@
           ]
         }
       ],
-      "tags": ["negative", "key-rotation", "security"],
-      "linked_requirement_ids": ["FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "key-rotation",
+        "security"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-009",
+      "id": "CPHM-TC-009",
       "title": "Tampered key-ring not signed by the embedded root key is rejected",
       "area": "marketplace-catalog",
       "level": 4,
@@ -425,12 +491,21 @@
           ]
         }
       ],
-      "tags": ["edge_case", "key-ring", "security"],
-      "linked_requirement_ids": ["FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge_case",
+        "key-ring",
+        "security"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-010",
+      "id": "CPHM-TC-010",
       "title": "Catalog exceeding the size budget is handled without crashing",
       "area": "marketplace-catalog",
       "level": 4,
@@ -464,12 +539,20 @@
           ]
         }
       ],
-      "tags": ["edge_case", "size-budget", "reliability"],
-      "linked_requirement_ids": ["FR-001"],
-      "linked_user_story_ids": ["US-003"]
+      "tags": [
+        "edge_case",
+        "size-budget",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-003"
+      ]
     },
     {
-      "id": "TC-011",
+      "id": "CPHM-TC-011",
       "title": "Signing key never appears in CI logs or published artifacts, and revocation propagates without an app release",
       "area": "marketplace-catalog",
       "level": 2,
@@ -510,12 +593,22 @@
           ]
         }
       ],
-      "tags": ["security", "supply-chain", "secret-scan", "revocation"],
-      "linked_requirement_ids": ["NFR-004", "FR-007"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "security",
+        "supply-chain",
+        "secret-scan",
+        "revocation"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-004",
+        "CPHM-FR-007"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-012",
+      "id": "CPHM-TC-012",
       "title": "Published artifact digest mismatch is detected and install blocked",
       "area": "marketplace-catalog",
       "level": 3,
@@ -546,12 +639,22 @@
           ]
         }
       ],
-      "tags": ["security", "supply-chain", "negative", "digest"],
-      "linked_requirement_ids": ["FR-006", "NFR-004"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "security",
+        "supply-chain",
+        "negative",
+        "digest"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-006",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-013",
+      "id": "CPHM-TC-013",
       "title": "Add a new catalog entry without an app release and clients see it at next refresh",
       "area": "marketplace-catalog",
       "level": 2,
@@ -586,12 +689,20 @@
           ]
         }
       ],
-      "tags": ["catalog-update", "regression"],
-      "linked_requirement_ids": ["FR-007", "FR-001"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "catalog-update",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-FR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-014",
+      "id": "CPHM-TC-014",
       "title": "End-to-end: maintainer publishes then revokes a plugin and a client reflects both at next refresh",
       "area": "marketplace-catalog",
       "level": 2,
@@ -667,12 +778,25 @@
           ]
         }
       ],
-      "tags": ["e2e", "publish", "revocation", "smoke"],
-      "linked_requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
-      "linked_user_story_ids": ["US-003", "US-004"]
+      "tags": [
+        "e2e",
+        "publish",
+        "revocation",
+        "smoke"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-006",
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-003",
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-015",
+      "id": "CPHM-TC-015",
       "title": "Installed plugin runs from dist/index.js with no build step",
       "area": "artifact-install",
       "level": 1,
@@ -707,12 +831,19 @@
           ]
         }
       ],
-      "tags": ["smoke", "happy-path"],
-      "linked_requirement_ids": ["FR-002"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "smoke",
+        "happy-path"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-002"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-016",
+      "id": "CPHM-TC-016",
       "title": "Full download to install happy path produces a runnable plugin",
       "area": "artifact-install",
       "level": 2,
@@ -767,12 +898,21 @@
           ]
         }
       ],
-      "tags": ["happy-path", "regression"],
-      "linked_requirement_ids": ["FR-002", "FR-003"],
-      "linked_user_story_ids": ["US-001", "US-005"]
+      "tags": [
+        "happy-path",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-017",
+      "id": "CPHM-TC-017",
       "title": "End-to-end install journey from marketplace listing to running plugin",
       "area": "artifact-install",
       "level": 2,
@@ -857,12 +997,22 @@
           ]
         }
       ],
-      "tags": ["e2e", "happy-path", "smoke"],
-      "linked_requirement_ids": ["FR-002", "FR-003"],
-      "linked_user_story_ids": ["US-001", "US-005"]
+      "tags": [
+        "e2e",
+        "happy-path",
+        "smoke"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-018",
+      "id": "CPHM-TC-018",
       "title": "Digest mismatch on built artifact is rejected fail-closed",
       "area": "artifact-install",
       "level": 3,
@@ -897,12 +1047,21 @@
           ]
         }
       ],
-      "tags": ["negative", "fail-closed", "regression"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "fail-closed",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-019",
+      "id": "CPHM-TC-019",
       "title": "Bad catalog signature is rejected before any download or install",
       "area": "artifact-install",
       "level": 3,
@@ -936,12 +1095,21 @@
           ]
         }
       ],
-      "tags": ["negative", "fail-closed", "regression"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "fail-closed",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-020",
+      "id": "CPHM-TC-020",
       "title": "Zip-slip / path-escaping tarball entry is rejected during unpack",
       "area": "artifact-install",
       "level": 3,
@@ -975,12 +1143,21 @@
           ]
         }
       ],
-      "tags": ["negative", "security", "fail-closed"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "security",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-021",
+      "id": "CPHM-TC-021",
       "title": "Oversized tarball exceeding size/entry-count limits is rejected",
       "area": "artifact-install",
       "level": 3,
@@ -1014,12 +1191,21 @@
           ]
         }
       ],
-      "tags": ["negative", "limits", "fail-closed"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "limits",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-022",
+      "id": "CPHM-TC-022",
       "title": "Tampered artifact is rejected with zero unverified execution (no-network tamper test)",
       "area": "artifact-install",
       "level": 3,
@@ -1054,12 +1240,22 @@
           ]
         }
       ],
-      "tags": ["security", "tamper", "no-network", "fail-closed"],
-      "linked_requirement_ids": ["NFR-001", "FR-003"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "security",
+        "tamper",
+        "no-network",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-001",
+        "CPHM-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-023",
+      "id": "CPHM-TC-023",
       "title": "Tampered catalog is rejected with zero unverified execution (no-network tamper test)",
       "area": "artifact-install",
       "level": 3,
@@ -1094,12 +1290,22 @@
           ]
         }
       ],
-      "tags": ["security", "tamper", "no-network", "fail-closed"],
-      "linked_requirement_ids": ["NFR-001", "FR-003"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "security",
+        "tamper",
+        "no-network",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-001",
+        "CPHM-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-024",
+      "id": "CPHM-TC-024",
       "title": "Tamper rejection demo aborts the install at the digest step",
       "area": "artifact-install",
       "level": 3,
@@ -1133,12 +1339,22 @@
           ]
         }
       ],
-      "tags": ["security", "tamper", "prototype", "fail-closed"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "security",
+        "tamper",
+        "prototype",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-025",
+      "id": "CPHM-TC-025",
       "title": "Truncated download is rejected and nothing is installed",
       "area": "artifact-install",
       "level": 4,
@@ -1172,12 +1388,21 @@
           ]
         }
       ],
-      "tags": ["edge", "reliability", "fail-closed"],
-      "linked_requirement_ids": ["FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge",
+        "reliability",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-026",
+      "id": "CPHM-TC-026",
       "title": "Partial unpack failure rolls back staging leaving install root untouched",
       "area": "artifact-install",
       "level": 4,
@@ -1211,12 +1436,24 @@
           ]
         }
       ],
-      "tags": ["edge", "reliability", "atomicity", "fail-closed"],
-      "linked_requirement_ids": ["FR-002", "FR-003", "NFR-001"],
-      "linked_user_story_ids": ["US-001", "US-005"]
+      "tags": [
+        "edge",
+        "reliability",
+        "atomicity",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003",
+        "CPHM-NFR-001"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-027",
+      "id": "CPHM-TC-027",
       "title": "Reinstall over an existing plugin is atomic and never exposes a half-written dist",
       "area": "artifact-install",
       "level": 4,
@@ -1251,12 +1488,22 @@
           ]
         }
       ],
-      "tags": ["edge", "atomicity", "reliability"],
-      "linked_requirement_ids": ["FR-002", "FR-003"],
-      "linked_user_story_ids": ["US-001", "US-005"]
+      "tags": [
+        "edge",
+        "atomicity",
+        "reliability"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-028",
+      "id": "CPHM-TC-028",
       "title": "Fresh launch yields exactly the three seeded plugins, usable with no network",
       "area": "seed-cache",
       "level": 1,
@@ -1310,17 +1557,30 @@
           ]
         }
       ],
-      "tags": ["smoke", "happy-path", "offline", "first-run"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001", "US-002"]
+      "tags": [
+        "smoke",
+        "happy-path",
+        "offline",
+        "first-run"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-029",
+      "id": "CPHM-TC-029",
       "title": "First-run seed installs offline and surfaces the confirmation toast",
       "area": "seed-cache",
       "level": 1,
       "type": "functional",
-      "preconditions": ["Clean machine with no seed idempotency marker", "Network disabled"],
+      "preconditions": [
+        "Clean machine with no seed idempotency marker",
+        "Network disabled"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -1337,12 +1597,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "first-run", "offline"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "smoke",
+        "first-run",
+        "offline"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-030",
+      "id": "CPHM-TC-030",
       "title": "Seeded plugins verify against the bundled signed seed catalog",
       "area": "seed-cache",
       "level": 2,
@@ -1372,12 +1640,21 @@
           ]
         }
       ],
-      "tags": ["integration", "verification", "offline"],
-      "linked_requirement_ids": ["FR-004", "NFR-002"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "integration",
+        "verification",
+        "offline"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-NFR-002"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-031",
+      "id": "CPHM-TC-031",
       "title": "ghe installs on demand from the marketplace after seeding",
       "area": "seed-cache",
       "level": 2,
@@ -1413,12 +1690,21 @@
           ]
         }
       ],
-      "tags": ["functional", "marketplace", "on-demand"],
-      "linked_requirement_ids": ["FR-005", "FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "functional",
+        "marketplace",
+        "on-demand"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-005",
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-032",
+      "id": "CPHM-TC-032",
       "title": "jira-self-hosted installs on demand from the marketplace",
       "area": "seed-cache",
       "level": 2,
@@ -1444,12 +1730,20 @@
           ]
         }
       ],
-      "tags": ["functional", "marketplace", "on-demand"],
-      "linked_requirement_ids": ["FR-005"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "functional",
+        "marketplace",
+        "on-demand"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-033",
+      "id": "CPHM-TC-033",
       "title": "Seed runs only once: second launch is idempotent and does not re-seed",
       "area": "seed-cache",
       "level": 3,
@@ -1484,12 +1778,20 @@
           ]
         }
       ],
-      "tags": ["negative", "idempotency", "regression"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "idempotency",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-034",
+      "id": "CPHM-TC-034",
       "title": "Marketplace-managed update to a seeded plugin is not clobbered by re-seed",
       "area": "seed-cache",
       "level": 3,
@@ -1514,12 +1816,20 @@
           ]
         }
       ],
-      "tags": ["negative", "idempotency", "marketplace"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "idempotency",
+        "marketplace"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-035",
+      "id": "CPHM-TC-035",
       "title": "Corrupt seed artifact is rejected fail-closed (not installed)",
       "area": "seed-cache",
       "level": 3,
@@ -1558,12 +1868,22 @@
           ]
         }
       ],
-      "tags": ["security", "fail-closed", "negative", "verification"],
-      "linked_requirement_ids": ["FR-004", "NFR-002"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "security",
+        "fail-closed",
+        "negative",
+        "verification"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-NFR-002"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-036",
+      "id": "CPHM-TC-036",
       "title": "ghe and jira-self-hosted are NOT present in the seed on a clean install",
       "area": "seed-cache",
       "level": 3,
@@ -1597,12 +1917,21 @@
           ]
         }
       ],
-      "tags": ["negative", "marketplace-only", "offline"],
-      "linked_requirement_ids": ["FR-005", "FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "marketplace-only",
+        "offline"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-005",
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-037",
+      "id": "CPHM-TC-037",
       "title": "Missing or empty bundled seed directory does not block app readiness",
       "area": "seed-cache",
       "level": 3,
@@ -1627,12 +1956,20 @@
           ]
         }
       ],
-      "tags": ["negative", "edge_case", "resilience"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "edge_case",
+        "resilience"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-038",
+      "id": "CPHM-TC-038",
       "title": "Partial seed interrupted then resumed completes to exactly three verified plugins",
       "area": "seed-cache",
       "level": 4,
@@ -1681,12 +2018,21 @@
           ]
         }
       ],
-      "tags": ["edge_case", "reliability", "resume", "idempotency"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "edge_case",
+        "reliability",
+        "resume",
+        "idempotency"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-039",
+      "id": "CPHM-TC-039",
       "title": "Concurrent launches do not double-seed or race the idempotency marker",
       "area": "seed-cache",
       "level": 4,
@@ -1717,12 +2063,20 @@
           ]
         }
       ],
-      "tags": ["edge_case", "concurrency", "idempotency"],
-      "linked_requirement_ids": ["FR-004"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "edge_case",
+        "concurrency",
+        "idempotency"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-040",
+      "id": "CPHM-TC-040",
       "title": "First-run readiness < 5s offline, catalog payload < 256 KB, single install p95 < 10s @ 10 Mbps",
       "area": "seed-cache",
       "level": 2,
@@ -1768,12 +2122,20 @@
           ]
         }
       ],
-      "tags": ["performance", "offline", "benchmark"],
-      "linked_requirement_ids": ["NFR-002"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "performance",
+        "offline",
+        "benchmark"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-002"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-041",
+      "id": "CPHM-TC-041",
       "title": "E2E first-run journey: fresh launch to three seeded plugins, usable offline",
       "area": "seed-cache",
       "level": 1,
@@ -1841,12 +2203,23 @@
           ]
         }
       ],
-      "tags": ["e2e_flow", "first-run", "offline", "happy-path"],
-      "linked_requirement_ids": ["FR-004", "FR-005"],
-      "linked_user_story_ids": ["US-001", "US-002"]
+      "tags": [
+        "e2e_flow",
+        "first-run",
+        "offline",
+        "happy-path"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-042",
+      "id": "CPHM-TC-042",
       "title": "App loads seeded and previously-installed plugins with the marketplace unreachable",
       "area": "offline-reliability",
       "level": 1,
@@ -1892,12 +2265,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "offline", "critical-path"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "smoke",
+        "offline",
+        "critical-path"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-043",
+      "id": "CPHM-TC-043",
       "title": "Catalog degrades to the last-known cached envelope and shows the offline banner",
       "area": "offline-reliability",
       "level": 2,
@@ -1941,12 +2323,21 @@
           ]
         }
       ],
-      "tags": ["offline", "happy-path", "catalog"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "happy-path",
+        "catalog"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-044",
+      "id": "CPHM-TC-044",
       "title": "On a network fetch failure the catalog-client returns the cached envelope",
       "area": "offline-reliability",
       "level": 2,
@@ -1975,12 +2366,21 @@
           ]
         }
       ],
-      "tags": ["offline", "integration", "catalog-client"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "integration",
+        "catalog-client"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-045",
+      "id": "CPHM-TC-045",
       "title": "Attempting to install a new plugin offline fails with a clear message and no crash",
       "area": "offline-reliability",
       "level": 3,
@@ -2020,12 +2420,21 @@
           ]
         }
       ],
-      "tags": ["offline", "negative", "install"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "negative",
+        "install"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-046",
+      "id": "CPHM-TC-046",
       "title": "A cached catalog with a bad signature is not trusted and verification stays fail-closed",
       "area": "offline-reliability",
       "level": 3,
@@ -2068,12 +2477,22 @@
           ]
         }
       ],
-      "tags": ["offline", "security", "fail-closed", "signature"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "security",
+        "fail-closed",
+        "signature"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-047",
+      "id": "CPHM-TC-047",
       "title": "Offline catalog degradation never falls to zero plugins",
       "area": "offline-reliability",
       "level": 3,
@@ -2108,12 +2527,21 @@
           ]
         }
       ],
-      "tags": ["offline", "negative", "never-zero"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "negative",
+        "never-zero"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-048",
+      "id": "CPHM-TC-048",
       "title": "Corrupt or empty on-disk cache falls through to the seed catalog",
       "area": "offline-reliability",
       "level": 4,
@@ -2142,12 +2570,21 @@
           ]
         }
       ],
-      "tags": ["offline", "edge", "corrupt-cache"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "edge",
+        "corrupt-cache"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-049",
+      "id": "CPHM-TC-049",
       "title": "Catalog fetch returning a bad-signature payload falls back to the cached catalog",
       "area": "offline-reliability",
       "level": 4,
@@ -2176,12 +2613,22 @@
           ]
         }
       ],
-      "tags": ["offline", "edge", "signature", "fail-closed"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "edge",
+        "signature",
+        "fail-closed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-050",
+      "id": "CPHM-TC-050",
       "title": "Reliability: seeded and installed plugins load 100% offline and new installs fail gracefully",
       "area": "offline-reliability",
       "level": 2,
@@ -2235,12 +2682,21 @@
           ]
         }
       ],
-      "tags": ["offline", "reliability", "availability"],
-      "linked_requirement_ids": ["NFR-003", "FR-009"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "reliability",
+        "availability"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-003",
+        "CPHM-FR-009"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-051",
+      "id": "CPHM-TC-051",
       "title": "End-to-end offline journey: go offline, seeded plugins still work, new install fails clearly",
       "area": "offline-reliability",
       "level": 2,
@@ -2314,12 +2770,21 @@
           ]
         }
       ],
-      "tags": ["offline", "e2e", "journey"],
-      "linked_requirement_ids": ["FR-009", "NFR-003"],
-      "linked_user_story_ids": ["US-002"]
+      "tags": [
+        "offline",
+        "e2e",
+        "journey"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-002"
+      ]
     },
     {
-      "id": "TC-052",
+      "id": "CPHM-TC-052",
       "title": "Packaged app contains no plugin source dirs, only resources/seed built artifacts",
       "area": "de-bundle-migration",
       "level": 1,
@@ -2368,12 +2833,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "structural", "packaging", "de-bundle"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "smoke",
+        "structural",
+        "packaging",
+        "de-bundle"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-053",
+      "id": "CPHM-TC-053",
       "title": "Functional proof: app ships no executable plugin source, seed install provides the three defaults",
       "area": "de-bundle-migration",
       "level": 1,
@@ -2417,12 +2891,21 @@
           ]
         }
       ],
-      "tags": ["smoke", "functional", "seed", "de-bundle"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "smoke",
+        "functional",
+        "seed",
+        "de-bundle"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-054",
+      "id": "CPHM-TC-054",
       "title": "Upgrade drops prior bundled installs and the seed provides the three defaults fresh",
       "area": "de-bundle-migration",
       "level": 2,
@@ -2472,12 +2955,22 @@
           ]
         }
       ],
-      "tags": ["upgrade", "integration", "clean-break", "seed"],
-      "linked_requirement_ids": ["FR-008", "NFR-005"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "upgrade",
+        "integration",
+        "clean-break",
+        "seed"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008",
+        "CPHM-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-055",
+      "id": "CPHM-TC-055",
       "title": "A non-seeded plugin removed by the clean break is reinstallable from the marketplace",
       "area": "de-bundle-migration",
       "level": 2,
@@ -2519,12 +3012,21 @@
           ]
         }
       ],
-      "tags": ["upgrade", "integration", "marketplace", "reinstall"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "upgrade",
+        "integration",
+        "marketplace",
+        "reinstall"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-056",
+      "id": "CPHM-TC-056",
       "title": "Regression/parity: seeded github-com behaves identically to the previously-bundled build",
       "area": "de-bundle-migration",
       "level": 3,
@@ -2559,12 +3061,21 @@
           ]
         }
       ],
-      "tags": ["regression", "parity", "no-regression", "github-com"],
-      "linked_requirement_ids": ["NFR-005"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "regression",
+        "parity",
+        "no-regression",
+        "github-com"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-057",
+      "id": "CPHM-TC-057",
       "title": "Config-load regression: existing roubo.yaml with process/database bindings loads and starts identically",
       "area": "de-bundle-migration",
       "level": 3,
@@ -2609,12 +3120,22 @@
           ]
         }
       ],
-      "tags": ["regression", "config-load", "no-regression", "process", "database"],
-      "linked_requirement_ids": ["NFR-005"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "regression",
+        "config-load",
+        "no-regression",
+        "process",
+        "database"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-058",
+      "id": "CPHM-TC-058",
       "title": "No config/instance migration occurs by design on upgrade",
       "area": "de-bundle-migration",
       "level": 3,
@@ -2649,12 +3170,20 @@
           ]
         }
       ],
-      "tags": ["negative", "clean-break", "no-migration"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "negative",
+        "clean-break",
+        "no-migration"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-059",
+      "id": "CPHM-TC-059",
       "title": "Edge: a user who had ghe bundled before upgrade finds it gone and reinstallable from the marketplace",
       "area": "de-bundle-migration",
       "level": 4,
@@ -2695,12 +3224,21 @@
           ]
         }
       ],
-      "tags": ["edge_case", "clean-break", "ghe", "reinstall"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "edge_case",
+        "clean-break",
+        "ghe",
+        "reinstall"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-060",
+      "id": "CPHM-TC-060",
       "title": "Edge: re-running the upgrade/seed twice is idempotent and does not re-drop or re-seed",
       "area": "de-bundle-migration",
       "level": 4,
@@ -2734,12 +3272,20 @@
           ]
         }
       ],
-      "tags": ["edge_case", "idempotent", "seed-marker"],
-      "linked_requirement_ids": ["FR-008"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "edge_case",
+        "idempotent",
+        "seed-marker"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-061",
+      "id": "CPHM-TC-061",
       "title": "e2e upgrade journey: bundled dropped, seed provides three defaults, a removed plugin reinstalled from marketplace",
       "area": "de-bundle-migration",
       "level": 2,
@@ -2785,7 +3331,7 @@
           "observations": [
             {
               "id": "S004-O01",
-              "expected": "The config loads with no migration and the process/database components start identically to the prior bundled build (NFR-005)"
+              "expected": "The config loads with no migration and the process/database components start identically to the prior bundled build (CPHM-NFR-005)"
             }
           ]
         },
@@ -2810,12 +3356,24 @@
           ]
         }
       ],
-      "tags": ["e2e", "upgrade", "happy-path", "clean-break", "seed", "marketplace"],
-      "linked_requirement_ids": ["FR-008", "NFR-005"],
-      "linked_user_story_ids": ["US-001"]
+      "tags": [
+        "e2e",
+        "upgrade",
+        "happy-path",
+        "clean-break",
+        "seed",
+        "marketplace"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-008",
+        "CPHM-NFR-005"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-001"
+      ]
     },
     {
-      "id": "TC-062",
+      "id": "CPHM-TC-062",
       "title": "Plugin in the separate repo builds resolving @roubo/plugin-sdk from the registry",
       "area": "repo-split",
       "level": 1,
@@ -2865,12 +3423,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "critical-path", "automated"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "smoke",
+        "critical-path",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-063",
+      "id": "CPHM-TC-063",
       "title": "Integration plugin resolves @roubo/shared and @roubo/shared-github and bundles a self-contained dist",
       "area": "repo-split",
       "level": 2,
@@ -2925,12 +3491,20 @@
           ]
         }
       ],
-      "tags": ["happy-path", "integration", "automated"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "happy-path",
+        "integration",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-064",
+      "id": "CPHM-TC-064",
       "title": "Dependency audit finds no new runtime crypto or supply-chain dependency in the host",
       "area": "repo-split",
       "level": 3,
@@ -2975,12 +3549,21 @@
           ]
         }
       ],
-      "tags": ["regression", "nfr", "supply-chain", "automated"],
-      "linked_requirement_ids": ["NFR-006"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "regression",
+        "nfr",
+        "supply-chain",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-065",
+      "id": "CPHM-TC-065",
       "title": "Building against a stale or missing SDK version fails the plugin build clearly",
       "area": "repo-split",
       "level": 3,
@@ -3014,12 +3597,20 @@
           ]
         }
       ],
-      "tags": ["negative", "error-handling", "automated"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "negative",
+        "error-handling",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-066",
+      "id": "CPHM-TC-066",
       "title": "Building the same plugin twice in CI yields the same sha256 digest",
       "area": "repo-split",
       "level": 3,
@@ -3064,12 +3655,20 @@
           ]
         }
       ],
-      "tags": ["reproducibility", "structural", "automated"],
-      "linked_requirement_ids": ["NFR-006"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "reproducibility",
+        "structural",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-067",
+      "id": "CPHM-TC-067",
       "title": "Publish-gate self-check rejects a digest that does not match the catalog entry",
       "area": "repo-split",
       "level": 3,
@@ -3104,12 +3703,22 @@
           ]
         }
       ],
-      "tags": ["reproducibility", "publish-gate", "negative", "automated"],
-      "linked_requirement_ids": ["NFR-006", "FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "reproducibility",
+        "publish-gate",
+        "negative",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-NFR-006",
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-068",
+      "id": "CPHM-TC-068",
       "title": "SDK major bump incompatible with HOST_API_VERSION is rejected at load",
       "area": "repo-split",
       "level": 4,
@@ -3154,12 +3763,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "compatibility", "exploratory", "automated"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "compatibility",
+        "exploratory",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-069",
+      "id": "CPHM-TC-069",
       "title": "Pinned SDK version mismatch between two plugins in the repo does not cross-contaminate builds",
       "area": "repo-split",
       "level": 4,
@@ -3190,12 +3808,21 @@
           ]
         }
       ],
-      "tags": ["edge-case", "isolation", "exploratory", "automated"],
-      "linked_requirement_ids": ["FR-011"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "edge-case",
+        "isolation",
+        "exploratory",
+        "automated"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-070",
+      "id": "CPHM-TC-070",
       "title": "Author journey: build in separate repo against published SDK, CI builds and signs and publishes reproducibly, catalog digest matches",
       "area": "repo-split",
       "level": 2,
@@ -3277,12 +3904,23 @@
           ]
         }
       ],
-      "tags": ["e2e", "author-journey", "reproducibility", "supply-chain", "manual"],
-      "linked_requirement_ids": ["FR-011", "NFR-006"],
-      "linked_user_story_ids": ["US-004"]
+      "tags": [
+        "e2e",
+        "author-journey",
+        "reproducibility",
+        "supply-chain",
+        "manual"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-011",
+        "CPHM-NFR-006"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-004"
+      ]
     },
     {
-      "id": "TC-071",
+      "id": "CPHM-TC-071",
       "title": "Components editor shows no legacy Role (Process/Database) toggle",
       "area": "components-ui",
       "level": 1,
@@ -3321,12 +3959,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "regression", "components-editor"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "smoke",
+        "regression",
+        "components-editor"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-006"
+      ]
     },
     {
-      "id": "TC-072",
+      "id": "CPHM-TC-072",
       "title": "Errored component plugin surfaces its real lastError in the banner",
       "area": "components-ui",
       "level": 1,
@@ -3365,12 +4011,20 @@
           ]
         }
       ],
-      "tags": ["smoke", "regression", "errored-banner"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "smoke",
+        "regression",
+        "errored-banner"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-073",
+      "id": "CPHM-TC-073",
       "title": "Add a component by binding an installed component plugin and its schema fields render",
       "area": "components-ui",
       "level": 2,
@@ -3419,12 +4073,20 @@
           ]
         }
       ],
-      "tags": ["regression", "components-editor", "plugin-binding"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "regression",
+        "components-editor",
+        "plugin-binding"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-006"
+      ]
     },
     {
-      "id": "TC-074",
+      "id": "CPHM-TC-074",
       "title": "Switching the bound component plugin re-renders schema-driven fields",
       "area": "components-ui",
       "level": 2,
@@ -3459,12 +4121,20 @@
           ]
         }
       ],
-      "tags": ["regression", "components-editor", "plugin-binding"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "regression",
+        "components-editor",
+        "plugin-binding"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-006"
+      ]
     },
     {
-      "id": "TC-075",
+      "id": "CPHM-TC-075",
       "title": "Errored integration plugin banner keeps the issue-snapshot line; component plugin omits it",
       "area": "components-ui",
       "level": 2,
@@ -3503,12 +4173,20 @@
           ]
         }
       ],
-      "tags": ["regression", "errored-banner", "plugin-kind"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "regression",
+        "errored-banner",
+        "plugin-kind"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-076",
+      "id": "CPHM-TC-076",
       "title": "Add-component selector lists only installed component plugins (cannot configure an uninstalled type)",
       "area": "components-ui",
       "level": 3,
@@ -3543,17 +4221,27 @@
           ]
         }
       ],
-      "tags": ["negative", "components-editor", "plugin-binding"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "negative",
+        "components-editor",
+        "plugin-binding"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-006"
+      ]
     },
     {
-      "id": "TC-077",
+      "id": "CPHM-TC-077",
       "title": "Component plugin banner never renders the issue-snapshot line",
       "area": "components-ui",
       "level": 3,
       "type": "negative",
-      "preconditions": ["A component plugin is in an errored state with a real lastError"],
+      "preconditions": [
+        "A component plugin is in an errored state with a real lastError"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -3570,12 +4258,20 @@
           ]
         }
       ],
-      "tags": ["negative", "errored-banner", "plugin-kind"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "errored-banner",
+        "plugin-kind"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-078",
+      "id": "CPHM-TC-078",
       "title": "Banner never shows '3 restart attempts' when the real error is missing-entry",
       "area": "components-ui",
       "level": 3,
@@ -3603,12 +4299,20 @@
           ]
         }
       ],
-      "tags": ["negative", "errored-banner", "regression"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "negative",
+        "errored-banner",
+        "regression"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-079",
+      "id": "CPHM-TC-079",
       "title": "Banner with a long, multi-line lastError renders without breaking layout",
       "area": "components-ui",
       "level": 4,
@@ -3636,17 +4340,27 @@
           ]
         }
       ],
-      "tags": ["edge-case", "errored-banner", "layout"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge-case",
+        "errored-banner",
+        "layout"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-080",
+      "id": "CPHM-TC-080",
       "title": "Component with an empty/absent lastError shows no errored banner",
       "area": "components-ui",
       "level": 4,
       "type": "edge_case",
-      "preconditions": ["A component is bound to a healthy component plugin with no lastError set"],
+      "preconditions": [
+        "A component is bound to a healthy component plugin with no lastError set"
+      ],
       "steps": [
         {
           "id": "S001",
@@ -3663,12 +4377,19 @@
           ]
         }
       ],
-      "tags": ["edge-case", "errored-banner"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "edge-case",
+        "errored-banner"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     },
     {
-      "id": "TC-081",
+      "id": "CPHM-TC-081",
       "title": "End-to-end: open project settings, add a component, bind an installed plugin, configure, and save",
       "area": "components-ui",
       "level": 2,
@@ -3742,12 +4463,21 @@
           ]
         }
       ],
-      "tags": ["e2e", "components-editor", "plugin-binding", "happy-path"],
-      "linked_requirement_ids": ["FR-010"],
-      "linked_user_story_ids": ["US-006"]
+      "tags": [
+        "e2e",
+        "components-editor",
+        "plugin-binding",
+        "happy-path"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-006"
+      ]
     },
     {
-      "id": "TC-082",
+      "id": "CPHM-TC-082",
       "title": "End-to-end: an errored component plugin guides recovery via real lastError and Reinstall",
       "area": "components-ui",
       "level": 2,
@@ -3802,9 +4532,17 @@
           ]
         }
       ],
-      "tags": ["e2e", "errored-banner", "recovery"],
-      "linked_requirement_ids": ["FR-012"],
-      "linked_user_story_ids": ["US-005"]
+      "tags": [
+        "e2e",
+        "errored-banner",
+        "recovery"
+      ],
+      "linked_requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "linked_user_story_ids": [
+        "CPHM-US-005"
+      ]
     }
   ]
 }

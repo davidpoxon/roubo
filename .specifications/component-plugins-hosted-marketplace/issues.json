@@ -5,12 +5,23 @@
     "title": "Verify integrity over the built plugin artifact",
     "type": "feature",
     "milestone": "Hosted marketplace: M1 Foundation",
-    "labels": ["feature", "P0"],
+    "labels": [
+      "feature",
+      "P0"
+    ],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-003", "NFR-006"],
+      "requirement_ids": [
+        "CPHM-FR-003",
+        "CPHM-NFR-006"
+      ],
       "user_story_ids": [],
-      "test_case_ids": ["TC-015", "TC-016", "TC-008", "TC-009"]
+      "test_case_ids": [
+        "CPHM-TC-015",
+        "CPHM-TC-016",
+        "CPHM-TC-008",
+        "CPHM-TC-009"
+      ]
     }
   },
   {
@@ -19,12 +30,23 @@
     "title": "Publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds",
     "type": "task",
     "milestone": "Hosted marketplace: M1 Foundation",
-    "labels": ["task", "P1"],
+    "labels": [
+      "task",
+      "P1"
+    ],
     "blocked_by": [],
     "implements": {
-      "requirement_ids": ["FR-011"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-062", "TC-063", "TC-064"]
+      "requirement_ids": [
+        "CPHM-FR-011"
+      ],
+      "user_story_ids": [
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-062",
+        "CPHM-TC-063",
+        "CPHM-TC-064"
+      ]
     }
   },
   {
@@ -33,12 +55,27 @@
     "title": "Remove the vestigial Role toggle from the Components editor",
     "type": "task",
     "milestone": "Hosted marketplace: M5 UI cleanup",
-    "labels": ["task", "P1"],
-    "blocked_by": [787],
+    "labels": [
+      "task",
+      "P1"
+    ],
+    "blocked_by": [
+      787
+    ],
     "implements": {
-      "requirement_ids": ["FR-010"],
-      "user_story_ids": ["US-006"],
-      "test_case_ids": ["TC-071", "TC-073", "TC-074", "TC-076", "TC-081"]
+      "requirement_ids": [
+        "CPHM-FR-010"
+      ],
+      "user_story_ids": [
+        "CPHM-US-006"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-071",
+        "CPHM-TC-073",
+        "CPHM-TC-074",
+        "CPHM-TC-076",
+        "CPHM-TC-081"
+      ]
     }
   },
   {
@@ -47,12 +84,29 @@
     "title": "ErroredBanner surfaces the plugin's real lastError",
     "type": "bug",
     "milestone": "Hosted marketplace: M5 UI cleanup",
-    "labels": ["bug", "P2"],
-    "blocked_by": [787],
+    "labels": [
+      "bug",
+      "P2"
+    ],
+    "blocked_by": [
+      787
+    ],
     "implements": {
-      "requirement_ids": ["FR-012"],
-      "user_story_ids": ["US-005"],
-      "test_case_ids": ["TC-072", "TC-075", "TC-077", "TC-078", "TC-079", "TC-080", "TC-082"]
+      "requirement_ids": [
+        "CPHM-FR-012"
+      ],
+      "user_story_ids": [
+        "CPHM-US-005"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-072",
+        "CPHM-TC-075",
+        "CPHM-TC-077",
+        "CPHM-TC-078",
+        "CPHM-TC-079",
+        "CPHM-TC-080",
+        "CPHM-TC-082"
+      ]
     }
   },
   {
@@ -61,12 +115,25 @@
     "title": "Create roubo-plugins repo and move plugins there",
     "type": "task",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["task", "P0"],
-    "blocked_by": [766, 784],
+    "labels": [
+      "task",
+      "P0"
+    ],
+    "blocked_by": [
+      766,
+      784
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-011"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-001"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-011"
+      ],
+      "user_story_ids": [
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-001"
+      ]
     }
   },
   {
@@ -75,12 +142,31 @@
     "title": "CI build/sign/publish pipeline with reproducible digest",
     "type": "feature",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["feature", "P0"],
-    "blocked_by": [765, 769, 784],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      765,
+      769,
+      784
+    ],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-006", "NFR-006"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-065", "TC-066", "TC-003", "TC-012", "TC-067"]
+      "requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-006",
+        "CPHM-NFR-006"
+      ],
+      "user_story_ids": [
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-065",
+        "CPHM-TC-066",
+        "CPHM-TC-003",
+        "CPHM-TC-012",
+        "CPHM-TC-067"
+      ]
     }
   },
   {
@@ -89,12 +175,32 @@
     "title": "Signed catalog on Pages + signed key-ring + revocation",
     "type": "feature",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["feature", "P0"],
-    "blocked_by": [770, 784],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      770,
+      784
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-007", "NFR-004"],
-      "user_story_ids": ["US-003", "US-004"],
-      "test_case_ids": ["TC-004", "TC-005", "TC-011", "TC-013", "TC-009", "TC-008"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "user_story_ids": [
+        "CPHM-US-003",
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-004",
+        "CPHM-TC-005",
+        "CPHM-TC-011",
+        "CPHM-TC-013",
+        "CPHM-TC-009",
+        "CPHM-TC-008"
+      ]
     }
   },
   {
@@ -103,12 +209,32 @@
     "title": "catalog-client: fetch, verify, cache, offline-degrade",
     "type": "feature",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["feature", "P0"],
-    "blocked_by": [771, 785],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      771,
+      785
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-009", "NFR-003", "NFR-002"],
-      "user_story_ids": ["US-002"],
-      "test_case_ids": ["TC-042", "TC-043", "TC-051", "TC-006", "TC-007", "TC-048"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-009",
+        "CPHM-NFR-003",
+        "CPHM-NFR-002"
+      ],
+      "user_story_ids": [
+        "CPHM-US-002"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-042",
+        "CPHM-TC-043",
+        "CPHM-TC-051",
+        "CPHM-TC-006",
+        "CPHM-TC-007",
+        "CPHM-TC-048"
+      ]
     }
   },
   {
@@ -117,12 +243,35 @@
     "title": "plugin-installer: download, verify, unpack a built artifact",
     "type": "feature",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["feature", "P0"],
-    "blocked_by": [765, 771, 785],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      765,
+      771,
+      785
+    ],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-003", "NFR-001", "NFR-002"],
-      "user_story_ids": ["US-001", "US-005"],
-      "test_case_ids": ["TC-017", "TC-018", "TC-019", "TC-020", "TC-021", "TC-022", "TC-023"]
+      "requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003",
+        "CPHM-NFR-001",
+        "CPHM-NFR-002"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-017",
+        "CPHM-TC-018",
+        "CPHM-TC-019",
+        "CPHM-TC-020",
+        "CPHM-TC-021",
+        "CPHM-TC-022",
+        "CPHM-TC-023"
+      ]
     }
   },
   {
@@ -131,12 +280,28 @@
     "title": "marketplace.ts network source + revocation enforcement",
     "type": "task",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["task", "P1"],
-    "blocked_by": [772, 785],
+    "labels": [
+      "task",
+      "P1"
+    ],
+    "blocked_by": [
+      772,
+      785
+    ],
     "implements": {
-      "requirement_ids": ["FR-007", "NFR-001"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-001", "TC-002", "TC-007", "TC-010"]
+      "requirement_ids": [
+        "CPHM-FR-007",
+        "CPHM-NFR-001"
+      ],
+      "user_story_ids": [
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-001",
+        "CPHM-TC-002",
+        "CPHM-TC-007",
+        "CPHM-TC-010"
+      ]
     }
   },
   {
@@ -145,12 +310,28 @@
     "title": "app-packaging seed bundle; remove BUNDLED_PLUGIN_IDS source-copy",
     "type": "feature",
     "milestone": "Hosted marketplace: M4 De-bundle + seed",
-    "labels": ["feature", "P0"],
-    "blocked_by": [770, 773, 786],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      770,
+      773,
+      786
+    ],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-005"],
-      "user_story_ids": ["US-001"],
-      "test_case_ids": ["TC-052", "TC-053", "TC-009"]
+      "requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-005"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-052",
+        "CPHM-TC-053",
+        "CPHM-TC-009"
+      ]
     }
   },
   {
@@ -159,20 +340,33 @@
     "title": "plugin-manager first-run seed + clean-break upgrade",
     "type": "feature",
     "milestone": "Hosted marketplace: M4 De-bundle + seed",
-    "labels": ["feature", "P0"],
-    "blocked_by": [775, 786],
+    "labels": [
+      "feature",
+      "P0"
+    ],
+    "blocked_by": [
+      775,
+      786
+    ],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-008", "NFR-005", "NFR-002"],
-      "user_story_ids": ["US-001"],
+      "requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-008",
+        "CPHM-NFR-005",
+        "CPHM-NFR-002"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001"
+      ],
       "test_case_ids": [
-        "TC-028",
-        "TC-029",
-        "TC-041",
-        "TC-054",
-        "TC-055",
-        "TC-056",
-        "TC-061",
-        "TC-040"
+        "CPHM-TC-028",
+        "CPHM-TC-029",
+        "CPHM-TC-041",
+        "CPHM-TC-054",
+        "CPHM-TC-055",
+        "CPHM-TC-056",
+        "CPHM-TC-061",
+        "CPHM-TC-040"
       ]
     }
   },
@@ -183,14 +377,36 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [770, 771],
-    "verified_by": ["TC-014"],
-    "covers": [770, 771],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      770,
+      771
+    ],
+    "verified_by": [
+      "CPHM-TC-014"
+    ],
+    "covers": [
+      770,
+      771
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
-      "user_story_ids": ["US-003", "US-004"],
-      "test_case_ids": ["TC-014"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-006",
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "user_story_ids": [
+        "CPHM-US-003",
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-014"
+      ]
     }
   },
   {
@@ -200,14 +416,32 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [773],
-    "verified_by": ["TC-017"],
-    "covers": [773],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      773
+    ],
+    "verified_by": [
+      "CPHM-TC-017"
+    ],
+    "covers": [
+      773
+    ],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-003"],
-      "user_story_ids": ["US-001", "US-005"],
-      "test_case_ids": ["TC-017"]
+      "requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-005"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-017"
+      ]
     }
   },
   {
@@ -217,14 +451,34 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M4 De-bundle + seed",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [775, 776],
-    "verified_by": ["TC-041"],
-    "covers": [775, 776],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      775,
+      776
+    ],
+    "verified_by": [
+      "CPHM-TC-041"
+    ],
+    "covers": [
+      775,
+      776
+    ],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-005"],
-      "user_story_ids": ["US-001", "US-002"],
-      "test_case_ids": ["TC-041"]
+      "requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-005"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-002"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-041"
+      ]
     }
   },
   {
@@ -234,14 +488,31 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [772],
-    "verified_by": ["TC-051"],
-    "covers": [772],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      772
+    ],
+    "verified_by": [
+      "CPHM-TC-051"
+    ],
+    "covers": [
+      772
+    ],
     "implements": {
-      "requirement_ids": ["FR-009", "NFR-003"],
-      "user_story_ids": ["US-002"],
-      "test_case_ids": ["TC-051"]
+      "requirement_ids": [
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "user_story_ids": [
+        "CPHM-US-002"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-051"
+      ]
     }
   },
   {
@@ -251,14 +522,33 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M4 De-bundle + seed",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [775, 776],
-    "verified_by": ["TC-061"],
-    "covers": [775, 776],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      775,
+      776
+    ],
+    "verified_by": [
+      "CPHM-TC-061"
+    ],
+    "covers": [
+      775,
+      776
+    ],
     "implements": {
-      "requirement_ids": ["FR-008", "NFR-005"],
-      "user_story_ids": ["US-001"],
-      "test_case_ids": ["TC-061"]
+      "requirement_ids": [
+        "CPHM-FR-008",
+        "CPHM-NFR-005"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-061"
+      ]
     }
   },
   {
@@ -268,14 +558,35 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [766, 769, 770],
-    "verified_by": ["TC-070"],
-    "covers": [766, 769, 770],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      766,
+      769,
+      770
+    ],
+    "verified_by": [
+      "CPHM-TC-070"
+    ],
+    "covers": [
+      766,
+      769,
+      770
+    ],
     "implements": {
-      "requirement_ids": ["FR-011", "NFR-006"],
-      "user_story_ids": ["US-004"],
-      "test_case_ids": ["TC-070"]
+      "requirement_ids": [
+        "CPHM-FR-011",
+        "CPHM-NFR-006"
+      ],
+      "user_story_ids": [
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-070"
+      ]
     }
   },
   {
@@ -285,14 +596,36 @@
     "type": "task",
     "kind": "e2e",
     "milestone": "Hosted marketplace: M5 UI cleanup",
-    "labels": ["task", "e2e", "P1"],
-    "blocked_by": [767, 768],
-    "verified_by": ["TC-081", "TC-082"],
-    "covers": [767, 768],
+    "labels": [
+      "task",
+      "e2e",
+      "P1"
+    ],
+    "blocked_by": [
+      767,
+      768
+    ],
+    "verified_by": [
+      "CPHM-TC-081",
+      "CPHM-TC-082"
+    ],
+    "covers": [
+      767,
+      768
+    ],
     "implements": {
-      "requirement_ids": ["FR-010", "FR-012"],
-      "user_story_ids": ["US-005", "US-006"],
-      "test_case_ids": ["TC-081", "TC-082"]
+      "requirement_ids": [
+        "CPHM-FR-010",
+        "CPHM-FR-012"
+      ],
+      "user_story_ids": [
+        "CPHM-US-005",
+        "CPHM-US-006"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-081",
+        "CPHM-TC-082"
+      ]
     }
   },
   {
@@ -302,14 +635,42 @@
     "type": "task",
     "kind": "verify",
     "milestone": "Hosted marketplace: M1 Foundation",
-    "labels": ["task", "verify", "P0"],
-    "blocked_by": [765, 766],
-    "verified_by": ["TC-015", "TC-016", "TC-062", "TC-063"],
-    "covers": [765, 766],
+    "labels": [
+      "task",
+      "verify",
+      "P0"
+    ],
+    "blocked_by": [
+      765,
+      766
+    ],
+    "verified_by": [
+      "CPHM-TC-015",
+      "CPHM-TC-016",
+      "CPHM-TC-062",
+      "CPHM-TC-063"
+    ],
+    "covers": [
+      765,
+      766
+    ],
     "implements": {
-      "requirement_ids": ["FR-002", "FR-003", "FR-011"],
-      "user_story_ids": ["US-001", "US-004", "US-005"],
-      "test_case_ids": ["TC-015", "TC-016", "TC-062", "TC-063"]
+      "requirement_ids": [
+        "CPHM-FR-002",
+        "CPHM-FR-003",
+        "CPHM-FR-011"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-004",
+        "CPHM-US-005"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-015",
+        "CPHM-TC-016",
+        "CPHM-TC-062",
+        "CPHM-TC-063"
+      ]
     }
   },
   {
@@ -319,14 +680,48 @@
     "type": "task",
     "kind": "verify",
     "milestone": "Hosted marketplace: M2 Marketplace repo",
-    "labels": ["task", "verify", "P0"],
-    "blocked_by": [769, 770, 771],
-    "verified_by": ["TC-001", "TC-003", "TC-004", "TC-005", "TC-011", "TC-013"],
-    "covers": [769, 770, 771],
+    "labels": [
+      "task",
+      "verify",
+      "P0"
+    ],
+    "blocked_by": [
+      769,
+      770,
+      771
+    ],
+    "verified_by": [
+      "CPHM-TC-001",
+      "CPHM-TC-003",
+      "CPHM-TC-004",
+      "CPHM-TC-005",
+      "CPHM-TC-011",
+      "CPHM-TC-013"
+    ],
+    "covers": [
+      769,
+      770,
+      771
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-006", "FR-007", "NFR-004"],
-      "user_story_ids": ["US-003", "US-004"],
-      "test_case_ids": ["TC-001", "TC-003", "TC-004", "TC-005", "TC-011", "TC-013"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-006",
+        "CPHM-FR-007",
+        "CPHM-NFR-004"
+      ],
+      "user_story_ids": [
+        "CPHM-US-003",
+        "CPHM-US-004"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-001",
+        "CPHM-TC-003",
+        "CPHM-TC-004",
+        "CPHM-TC-005",
+        "CPHM-TC-011",
+        "CPHM-TC-013"
+      ]
     }
   },
   {
@@ -336,14 +731,52 @@
     "type": "task",
     "kind": "verify",
     "milestone": "Hosted marketplace: M3 App client",
-    "labels": ["task", "verify", "P0"],
-    "blocked_by": [772, 773, 774],
-    "verified_by": ["TC-001", "TC-002", "TC-017", "TC-042", "TC-043", "TC-051"],
-    "covers": [772, 773, 774],
+    "labels": [
+      "task",
+      "verify",
+      "P0"
+    ],
+    "blocked_by": [
+      772,
+      773,
+      774
+    ],
+    "verified_by": [
+      "CPHM-TC-001",
+      "CPHM-TC-002",
+      "CPHM-TC-017",
+      "CPHM-TC-042",
+      "CPHM-TC-043",
+      "CPHM-TC-051"
+    ],
+    "covers": [
+      772,
+      773,
+      774
+    ],
     "implements": {
-      "requirement_ids": ["FR-001", "FR-002", "FR-003", "FR-009", "NFR-003"],
-      "user_story_ids": ["US-001", "US-002", "US-003", "US-004", "US-005"],
-      "test_case_ids": ["TC-001", "TC-002", "TC-017", "TC-042", "TC-043", "TC-051"]
+      "requirement_ids": [
+        "CPHM-FR-001",
+        "CPHM-FR-002",
+        "CPHM-FR-003",
+        "CPHM-FR-009",
+        "CPHM-NFR-003"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-002",
+        "CPHM-US-003",
+        "CPHM-US-004",
+        "CPHM-US-005"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-001",
+        "CPHM-TC-002",
+        "CPHM-TC-017",
+        "CPHM-TC-042",
+        "CPHM-TC-043",
+        "CPHM-TC-051"
+      ]
     }
   },
   {
@@ -353,22 +786,49 @@
     "type": "task",
     "kind": "verify",
     "milestone": "Hosted marketplace: M4 De-bundle + seed",
-    "labels": ["task", "verify", "P0"],
-    "blocked_by": [775, 776],
-    "verified_by": ["TC-028", "TC-029", "TC-041", "TC-052", "TC-053", "TC-054", "TC-055", "TC-061"],
-    "covers": [775, 776],
+    "labels": [
+      "task",
+      "verify",
+      "P0"
+    ],
+    "blocked_by": [
+      775,
+      776
+    ],
+    "verified_by": [
+      "CPHM-TC-028",
+      "CPHM-TC-029",
+      "CPHM-TC-041",
+      "CPHM-TC-052",
+      "CPHM-TC-053",
+      "CPHM-TC-054",
+      "CPHM-TC-055",
+      "CPHM-TC-061"
+    ],
+    "covers": [
+      775,
+      776
+    ],
     "implements": {
-      "requirement_ids": ["FR-004", "FR-005", "FR-008", "NFR-005"],
-      "user_story_ids": ["US-001", "US-002"],
+      "requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-005",
+        "CPHM-FR-008",
+        "CPHM-NFR-005"
+      ],
+      "user_story_ids": [
+        "CPHM-US-001",
+        "CPHM-US-002"
+      ],
       "test_case_ids": [
-        "TC-028",
-        "TC-029",
-        "TC-041",
-        "TC-052",
-        "TC-053",
-        "TC-054",
-        "TC-055",
-        "TC-061"
+        "CPHM-TC-028",
+        "CPHM-TC-029",
+        "CPHM-TC-041",
+        "CPHM-TC-052",
+        "CPHM-TC-053",
+        "CPHM-TC-054",
+        "CPHM-TC-055",
+        "CPHM-TC-061"
       ]
     }
   },
@@ -379,14 +839,46 @@
     "type": "task",
     "kind": "verify",
     "milestone": "Hosted marketplace: M5 UI cleanup",
-    "labels": ["task", "verify", "P0"],
-    "blocked_by": [767, 768],
-    "verified_by": ["TC-071", "TC-072", "TC-073", "TC-074", "TC-075", "TC-081", "TC-082"],
-    "covers": [767, 768],
+    "labels": [
+      "task",
+      "verify",
+      "P0"
+    ],
+    "blocked_by": [
+      767,
+      768
+    ],
+    "verified_by": [
+      "CPHM-TC-071",
+      "CPHM-TC-072",
+      "CPHM-TC-073",
+      "CPHM-TC-074",
+      "CPHM-TC-075",
+      "CPHM-TC-081",
+      "CPHM-TC-082"
+    ],
+    "covers": [
+      767,
+      768
+    ],
     "implements": {
-      "requirement_ids": ["FR-010", "FR-012"],
-      "user_story_ids": ["US-005", "US-006"],
-      "test_case_ids": ["TC-071", "TC-072", "TC-073", "TC-074", "TC-075", "TC-081", "TC-082"]
+      "requirement_ids": [
+        "CPHM-FR-010",
+        "CPHM-FR-012"
+      ],
+      "user_story_ids": [
+        "CPHM-US-005",
+        "CPHM-US-006"
+      ],
+      "test_case_ids": [
+        "CPHM-TC-071",
+        "CPHM-TC-072",
+        "CPHM-TC-073",
+        "CPHM-TC-074",
+        "CPHM-TC-075",
+        "CPHM-TC-081",
+        "CPHM-TC-082"
+      ]
     }
   }
 ]
