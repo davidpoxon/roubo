@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   onGatePassed,
+  onGateReopened,
   pickDoneTransition,
+  pickReopenTransition,
+  isDone,
   GateAuditLog,
   type GateLifecycleDeps,
 } from "./gate-lifecycle-coordinator.js";
@@ -205,6 +208,107 @@ describe("onGatePassed: a gate with no filed tracker is a no-op (FR-007)", () =>
 
     expect(invoke).not.toHaveBeenCalled();
     expect(audit.query()).toEqual([]);
+  });
+});
+
+// ── onGateReopened: reopen a signed-off gate's tracker issue (issue #830) ──
+
+describe("onGateReopened: reopens a signed-off gate via the plugin transition (#830)", () => {
+  it("applies a reopen-bound transition through the plugin and audit-logs the reopen", async () => {
+    const closedIssue = makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] });
+    const { deps, audit, applyTransitionCalls, invoke } = makeDeps({ issue: closedIssue });
+
+    await onGateReopened("proj-1", makeGate("451"), "github-com", deps);
+
+    // Routed through applyTransition with the reopen transition from allowedTransitions.
+    expect(applyTransitionCalls).toEqual([{ externalId: "451", transitionName: "reopen" }]);
+    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "451" });
+
+    const entries = audit.query();
+    expect(entries).toEqual<GateAuditEntry[]>([
+      {
+        ts: "2026-06-22T00:00:00.000Z",
+        projectId: "proj-1",
+        pluginId: "github-com",
+        gateId: "WU-040",
+        trackerRef: "451",
+        transitionName: "reopen",
+        outcome: "reopened",
+      },
+    ]);
+  });
+
+  it("is an idempotent no-op when the tracker issue is already open", async () => {
+    const { deps, audit, applyTransitionCalls } = makeDeps({ issue: makeIssue() });
+
+    await onGateReopened("proj-1", makeGate("451"), "github-com", deps);
+
+    expect(applyTransitionCalls).toEqual([]);
+    expect(audit.query()[0]?.outcome).toBe("already-open");
+  });
+
+  it("propagates an applyTransition rejection and records no audit entry", async () => {
+    const { deps, audit } = makeDeps({
+      issue: makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] }),
+      applyTransitionError: new Error("permission denied"),
+    });
+
+    await expect(onGateReopened("proj-1", makeGate("451"), "github-com", deps)).rejects.toThrow(
+      "permission denied",
+    );
+    expect(audit.query()).toEqual([]);
+  });
+
+  it("throws a clear error when the closed issue exposes no reopen-bound transition", async () => {
+    const { deps, audit } = makeDeps({
+      issue: makeIssue({ currentState: "closed", allowedTransitions: ["close"] }),
+    });
+
+    await expect(onGateReopened("proj-1", makeGate("451"), "github-com", deps)).rejects.toThrow(
+      /no reopen-bound transition/,
+    );
+    expect(audit.query()).toEqual([]);
+  });
+
+  it("does nothing when the gate has no tracker.ref", async () => {
+    const { deps, audit, invoke } = makeDeps({ issue: makeIssue() });
+
+    await onGateReopened("proj-1", makeGate(null), "github-com", deps);
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(audit.query()).toEqual([]);
+  });
+});
+
+// ── pickReopenTransition (issue #830) ──
+
+describe("pickReopenTransition", () => {
+  it("picks the GitHub reopen transition", () => {
+    expect(pickReopenTransition(makeIssue({ allowedTransitions: ["reopen"] }))).toBe("reopen");
+  });
+
+  it("matches a reopen-ish verb case-insensitively", () => {
+    expect(pickReopenTransition(makeIssue({ allowedTransitions: ["Reopen Issue"] }))).toBe(
+      "Reopen Issue",
+    );
+    expect(pickReopenTransition(makeIssue({ allowedTransitions: ["Open"] }))).toBe("Open");
+  });
+
+  it("returns undefined when no transition is reopen-bound", () => {
+    expect(pickReopenTransition(makeIssue({ allowedTransitions: ["close"] }))).toBeUndefined();
+    expect(pickReopenTransition(makeIssue({ allowedTransitions: [] }))).toBeUndefined();
+  });
+});
+
+// ── isDone (issue #830) ──
+
+describe("isDone", () => {
+  it("treats every DONE_STATUSES value (case-insensitively) as done, others as not", () => {
+    for (const state of ["done", "Closed", "ARCHIVED", "cancelled"]) {
+      expect(isDone(makeIssue({ currentState: state }))).toBe(true);
+    }
+    expect(isDone(makeIssue({ currentState: "open" }))).toBe(false);
+    expect(isDone(makeIssue({ currentState: "in_progress" }))).toBe(false);
   });
 });
 

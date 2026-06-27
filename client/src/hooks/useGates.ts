@@ -90,6 +90,37 @@ export function useSplitGate(projectId: string) {
   });
 }
 
+// Sign off a passed batch (#830, FR-007/FR-008). On success the gate's tracker
+// issue is closed, so both the open gate's state and the overview list are
+// invalidated to re-read the server's `signedOff` signal. The server rejects a
+// non-passed gate (409, fail-closed) and a gate with no tracker / no active
+// integration (409), and a plugin lacking the capability (422); the caller
+// surfaces the error.
+export function useSignOffGate(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gateId: string) => api.signOffGate(projectId, gateId),
+    onSuccess: (_data, gateId) => {
+      queryClient.invalidateQueries({ queryKey: gateQueryKey(projectId, gateId) });
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
+}
+
+// Reopen a signed-off batch (#830, US-005). On success the gate's tracker issue
+// is reopened; both the gate and the overview list are invalidated so the button
+// re-reads `signedOff: false` from the server.
+export function useReopenGate(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gateId: string) => api.reopenGate(projectId, gateId),
+    onSuccess: (_data, gateId) => {
+      queryClient.invalidateQueries({ queryKey: gateQueryKey(projectId, gateId) });
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
+}
+
 // Reset all operator regroupings (#703); the effective gates revert to the
 // externally-authored work-units.json gates.
 export function useResetGateOverrides(projectId: string) {

@@ -3,7 +3,7 @@ import { Button } from "react-aria-components";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../../lib/api";
-import { useGate, useInvalidateGates } from "../../hooks/useGates";
+import { useGate, useInvalidateGates, useSignOffGate, useReopenGate } from "../../hooks/useGates";
 import { testbenchPlanQueryKey } from "../../hooks/useTestbenchPlan";
 import { buildRollup, flattenRollup } from "./rollup";
 import CaseList from "./CaseList";
@@ -17,11 +17,14 @@ import Spinner from "../Spinner";
 // the list and live-updates as cases are marked (AC2), driven by re-fetching the
 // gate via React Query after each mark settle (SSE push is out of scope).
 //
-// Sign-off (AC3) is a UI guard only, NOT a privileged tracker close (that is
-// FR-007, a separate issue): the action is disabled and, if invoked, rejected
-// whenever the gate's evaluated status is anything other than `passed`. So a
-// batch with a still-failing (or pending / stale) gating case cannot be signed
-// off here.
+// Sign-off (AC3, FR-007/FR-008, issue #830) is now a real, persisted action: it
+// closes the gate's tracker issue through the active integration plugin (the
+// server enforces the same load-bearing guard, rejecting sign-off whenever the
+// gate's evaluated status is anything other than `passed`). The button's state is
+// sourced from the SERVER (`gate.signedOff`, derived from the tracker-issue
+// state), not local React state, so it survives navigation: a signed-off batch
+// reads back as signed off. A signed-off gate can be reopened (the button toggles
+// to "Reopen"), which reopens its tracker issue.
 //
 // A phase (gate) with no gating cases after the subset filter is elided with a
 // clear label, never an unlabelled empty card (AC2): the case list is replaced
@@ -39,8 +42,9 @@ export default function BatchView({
 }) {
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [signOffError, setSignOffError] = useState<string | null>(null);
-  const [signedOff, setSignedOff] = useState(false);
   const { invalidateGate } = useInvalidateGates();
+  const signOffMutation = useSignOffGate(projectId);
+  const reopenMutation = useReopenGate(projectId);
 
   // The gate's evaluated state, re-fetched after each mark so the panel and the
   // sign-off guard reflect the live status (AC2/AC3).
@@ -78,11 +82,14 @@ export default function BatchView({
 
   const gate = gateQuery.data;
   const canSignOff = gate?.status === "passed";
+  // Server-sourced sign-off signal (issue #830): derived from the gate's
+  // tracker-issue state, not local React state, so it survives navigation.
+  const signedOff = gate?.signedOff ?? false;
 
   const handleSignOff = () => {
     // Guard (AC3): refuse sign-off unless the gate's evaluated status is passed.
-    // This is the load-bearing rejection, not just the disabled button: even if
-    // the action fires (stale UI), it is rejected with a clear reason.
+    // The server enforces the same guard (the load-bearing rejection); this is the
+    // client-side mirror so a stale UI never fires a doomed request.
     if (gate?.status !== "passed") {
       setSignOffError(
         "This batch cannot be signed off: its gate has not passed. Resolve every gating case first.",
@@ -90,7 +97,18 @@ export default function BatchView({
       return;
     }
     setSignOffError(null);
-    setSignedOff(true);
+    signOffMutation.mutate(gateId, {
+      onError: (err) =>
+        setSignOffError(err instanceof Error ? err.message : "The batch could not be signed off."),
+    });
+  };
+
+  const handleReopen = () => {
+    setSignOffError(null);
+    reopenMutation.mutate(gateId, {
+      onError: (err) =>
+        setSignOffError(err instanceof Error ? err.message : "The batch could not be reopened."),
+    });
   };
 
   const header = (
@@ -103,11 +121,11 @@ export default function BatchView({
         Back to batches
       </Button>
       <Button
-        onPress={handleSignOff}
-        isDisabled={!canSignOff || signedOff}
+        onPress={signedOff ? handleReopen : handleSignOff}
+        isDisabled={signedOff ? reopenMutation.isPending : !canSignOff || signOffMutation.isPending}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
       >
-        {signedOff ? "Signed off" : "Sign off batch"}
+        {signedOff ? "Reopen" : "Sign off batch"}
       </Button>
     </div>
   );

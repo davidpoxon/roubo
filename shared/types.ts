@@ -744,8 +744,11 @@ export interface GateAuditEntry {
   /**
    * "closed" when a done-bound transition was applied; "already-done" when the
    * issue was already in a done state and the close was an idempotent no-op.
+   * "reopened" when a reopen-bound transition was applied to a signed-off gate;
+   * "already-open" when the issue was already open and the reopen was an
+   * idempotent no-op.
    */
-  outcome: "closed" | "already-done";
+  outcome: "closed" | "already-done" | "reopened" | "already-open";
 }
 
 /**
@@ -773,7 +776,7 @@ export interface TrackerActionAuditEntry {
   /** The integration plugin the action was routed through. */
   pluginId: string;
   /** The privileged op attempted. */
-  action: "createIssue" | "addBlockedBy" | "closeGate";
+  action: "createIssue" | "addBlockedBy" | "closeGate" | "reopenGate";
   /**
    * Whether the privileged op was performed ("applied"; for close-gate this also
    * covers the case where `onGatePassed` found the issue already done, an

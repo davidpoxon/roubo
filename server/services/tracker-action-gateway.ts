@@ -1,8 +1,9 @@
 // Tracker-action gateway (#705, FR-011, NFR-001, NFR-005; spike #704).
 //
-// The single wrapper around `pluginManager.invoke` for the three new privileged
-// tracker ops: create an issue, register an "is blocked by" link, and close a
-// gate's tracker issue. Centralizing them here (architecture.md:66) means the
+// The single wrapper around `pluginManager.invoke` for the privileged tracker
+// ops: create an issue, register an "is blocked by" link, close a gate's tracker
+// issue, and reopen a signed-off gate's tracker issue (issue #830). Centralizing
+// them here (architecture.md:66) means the
 // capability gating, consent gating, and audit logging live in exactly one
 // place, ships GitHub-first, and is testable in isolation.
 //
@@ -30,12 +31,12 @@ import type { CreateIssueResult } from "@roubo/plugin-sdk";
 import type { TrackerActionAuditEntry } from "@roubo/shared";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
 import { resolveActivePlugin } from "./active-plugin.js";
-import { onGatePassed } from "./gate-lifecycle-coordinator.js";
+import { onGatePassed, onGateReopened } from "./gate-lifecycle-coordinator.js";
 import { hasConsent } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 
 /** The privileged ops the gateway gates. */
-export type TrackerAction = "createIssue" | "addBlockedBy" | "closeGate";
+export type TrackerAction = "createIssue" | "addBlockedBy" | "closeGate" | "reopenGate";
 
 /** The capability flag each create/link op requires (close reuses transition). */
 const REQUIRED_CAPABILITY = {
@@ -115,6 +116,8 @@ export interface TrackerActionGatewayDeps {
   hasConsent: (pluginId: string) => boolean;
   /** Close a passed gate's tracker issue. Defaults to `onGatePassed`. */
   onGatePassed: typeof onGatePassed;
+  /** Reopen a signed-off gate's tracker issue. Defaults to `onGateReopened`. */
+  onGateReopened: typeof onGateReopened;
   /** Record one privileged tracker-action call. Defaults to the global log. */
   recordAudit: (entry: TrackerActionAuditEntry) => void;
   /** Clock for the audit timestamp. Defaults to `() => new Date().toISOString()`. */
@@ -139,6 +142,7 @@ function defaultDeps(): TrackerActionGatewayDeps {
     getCapabilities: defaultGetCapabilities,
     hasConsent,
     onGatePassed,
+    onGateReopened,
     recordAudit: (entry) => trackerActionAuditLog.record(entry),
     now: () => new Date().toISOString(),
   };
@@ -330,6 +334,59 @@ export async function closeGate(
     projectId,
     pluginId,
     action: "closeGate",
+    outcome: "applied",
+    refs,
+  });
+}
+
+/**
+ * Reopen a signed-off gate's tracker issue (issue #830). The mirror of
+ * `closeGate`: gated on consent (reopen reuses the existing `applyTransition`
+ * capability, so there is no create/link flag); audit-logged through the
+ * tracker-action log around the `onGateReopened` coordinator path. The
+ * tracker-action ledger records "skipped" only when there is nothing to reopen
+ * (a gate with no filed tracker issue); a gate that does have a filed issue
+ * records "applied" once `onGateReopened` runs. `onGateReopened` returns void, so
+ * the gateway cannot observe its already-open idempotent no-op here; that nuance
+ * is captured at the gate granularity by `onGateReopened`'s own `GateAuditLog`
+ * entry (`outcome: "already-open"`), not duplicated in this unified ledger.
+ */
+export async function reopenGate(
+  projectId: string,
+  gate: VerifyUnit,
+  deps: TrackerActionGatewayDeps = defaultDeps(),
+): Promise<void> {
+  const pluginId = requireActivePlugin(projectId, deps);
+  const refs: Record<string, string> = { gateId: gate.id };
+  const trackerRef = gate.tracker?.ref;
+  if (trackerRef) refs.trackerRef = trackerRef;
+  enforceGuards(projectId, pluginId, "reopenGate", refs, deps);
+
+  // A gate with no filed tracker issue has nothing to reopen: record a skip so
+  // the privileged check is observable, then return (mirrors onGateReopened).
+  if (!trackerRef) {
+    deps.recordAudit({
+      ts: deps.now(),
+      projectId,
+      pluginId,
+      action: "reopenGate",
+      outcome: "skipped",
+      reason: "gate has no filed tracker issue",
+      refs,
+    });
+    return;
+  }
+
+  // onGateReopened owns the fetch / open-check / transition. A plugin rejection
+  // propagates: no "applied" entry is recorded, so the log never shows a reopen
+  // that did not happen.
+  await deps.onGateReopened(projectId, gate, pluginId);
+
+  deps.recordAudit({
+    ts: deps.now(),
+    projectId,
+    pluginId,
+    action: "reopenGate",
     outcome: "applied",
     refs,
   });
