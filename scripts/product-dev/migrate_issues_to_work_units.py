@@ -208,7 +208,14 @@ def migrate_path(path: str, check_only: bool) -> int:
     work_units.validate_structural(envelope)
 
     n = len(envelope["units"])
-    out_path = os.path.join(spec_dir, work_units.WORK_UNITS_NAME)
+    # Confine the target inside spec_dir before any filesystem access: realpath
+    # normalization + a containment prefix check (the same sanitizer the sibling
+    # write path uses via work_units.write_envelope). An escaping path (`..`, an
+    # absolute path, or a symlinked dir pointing out) raises InputError, which
+    # main()'s `except work_units.InputError` maps to the exit-1 clean-stderr
+    # convention. Resolves the py/path-injection finding on the existence check
+    # and read below.
+    out_path = work_units._resolve_in_dir(spec_dir, work_units.WORK_UNITS_NAME)
     new_bytes = _envelope_bytes(envelope)
 
     existing_bytes = None
