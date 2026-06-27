@@ -363,18 +363,46 @@ def _confine(spec_dir, name, verb="access"):
          WUAAVG-NFR-001).
 
     A path failing EITHER containment is refused before any fs access. The
-    returned value is the symlink-resolved, trusted-root-checked real path, so
-    the value reaching `os.path.isfile` / `open` is the sanitized one: an
-    `os.path.realpath` normalization followed by a `startswith(trusted_root +
-    sep)` containment check, which is the control CodeQL recognizes. `verb` only
-    tunes the refusal text ("read" / "write" / "access").
+    supplied leaf is normalized with `os.path.normpath` FIRST (the normalize step
+    the rule documents for CWE-22, applied to the operator-supplied `name`
+    directly, not only to the joined candidate, which is what makes the supplied
+    --test-results value a CodeQL-recognized sanitized form), then symlink-
+    resolved with `os.path.realpath` and prefix-checked against the trusted root
+    and the spec dir, so the value reaching `os.path.isfile` / `open` is the
+    sanitized, contained real path. Containment is judged AFTER symlink
+    resolution so the comparison is symlink-consistent: an absolute in-spec leaf
+    whose ancestor crosses a symlink (`/var` resolving to `/private/var` on
+    macOS) is not wrongly refused, while a traversal, an out-of-tree absolute
+    path, or a symlink escape still fails the check. `verb` only tunes the
+    refusal text ("read" / "write" / "access").
     """
     trusted_root = _trusted_root()
     real_dir = os.path.realpath(spec_dir)
-    candidate = name if os.path.isabs(name) else os.path.join(real_dir, name)
+    # Normalize the operator-supplied leaf FIRST with os.path.normpath: the
+    # normalize half of the normalize-then-contain control the py/path-injection
+    # rule documents. This strips any internal `..` / `.` segments out of the
+    # tainted `name` before it is joined or resolved. Normalizing the leaf
+    # directly (not only the joined candidate) gives the supplied --test-results
+    # flow a CodeQL-recognized sanitized form; the realpath pass below adds
+    # symlink resolution, and the containment checks below are the contain half.
+    normalized_name = os.path.normpath(name)
+    if os.path.isabs(normalized_name):
+        candidate = normalized_name
+    else:
+        candidate = os.path.normpath(os.path.join(real_dir, normalized_name))
+    # Resolve symlinks BEFORE the containment checks so every prefix comparison is
+    # symlink-consistent. `candidate` can still carry an unresolved ancestor (an
+    # absolute supplied leaf keeps the operator's `/var` prefix, itself a symlink
+    # to `/private/var` on macOS), whereas `trusted_root` and `real_dir` are
+    # already realpath-resolved; comparing an unresolved candidate against a
+    # resolved root would wrongly refuse a legitimate in-spec path, so resolve
+    # first, then judge containment on the resolved value.
     real_path = os.path.realpath(candidate)
-    # (1) Trusted-root containment: the non-argv bound CodeQL recognizes as the
-    #     sanitizer. The checked value is what flows on to the fs call.
+    # (1) Trusted-root containment: the non-argv-derived bound that sanitizes the
+    #     argv-supplied path for py/path-injection (CWE-22). The normpath on the
+    #     supplied leaf above is the normalize step; this realpath + startswith
+    #     containment is the contain step, and the checked value (`real_path`) is
+    #     exactly what flows on to os.path.isfile / open.
     if real_path != trusted_root and not real_path.startswith(trusted_root + os.sep):
         raise InputError(
             "refusing to %s outside the trusted root: %s resolves to %s "
@@ -1667,6 +1695,16 @@ def _selftest():
         in_tree = _confine(spec_w, TEST_RESULTS_NAME, verb="read")
         check("read in-tree name stays under dir",
               in_tree.startswith(os.path.realpath(spec_w) + os.sep), True)
+        # A LEGITIMATE absolute in-spec name (the absolute form of an in-tree
+        # results path, carrying the unresolved CWD prefix a shell or mkdtemp
+        # yields, e.g. `/var/...` for `/private/var/...` on macOS) must still be
+        # ACCEPTED, not refused: containment is judged after symlink resolution,
+        # so a `/var` versus `/private/var` prefix never wrongly refuses an
+        # in-spec path. Regression guard for the absolute-supplied branch.
+        abs_in_spec = _confine(spec_w, os.path.join(spec_w, TEST_RESULTS_NAME),
+                               verb="read")
+        check("read absolute in-spec name accepted",
+              abs_in_spec.startswith(os.path.realpath(spec_w) + os.sep), True)
 
         # --- trusted-root barrier (the new bound, CWD-rooted) ---
         # A spec dir OUTSIDE the trusted root (the chdir'd CWD) is refused even
@@ -1680,11 +1718,21 @@ def _selftest():
         finally:
             shutil.rmtree(ext_root, ignore_errors=True)
 
-        # --- drift_report: an escaping --test-results path is refused before
-        # any os.path.isfile / open touches the filesystem ---
+        # --- drift_report: a malicious supplied --test-results is refused before
+        # any os.path.isfile / open touches the filesystem (py/path-injection,
+        # CWE-22). A relative `..` traversal, an ABSOLUTE path inside the trusted
+        # root but outside the spec dir, and an absolute path outside the trusted
+        # root entirely all fail the normalize-then-contain barrier, so neither
+        # os.path.isfile (sink) nor load_json / open sees the tainted value. ---
         check_raises("drift refuses escaping test-results",
                      lambda: drift_report(
                          spec_a, os.path.join("..", "outside", "passwd")))
+        check_raises("drift refuses absolute in-root escaping test-results",
+                     lambda: drift_report(
+                         spec_a, os.path.join(outside, "passwd")))
+        check_raises("drift refuses out-of-root test-results",
+                     lambda: drift_report(
+                         spec_a, os.path.join(os.sep, "etc", "passwd")))
         # An EXPLICITLY supplied --test-results that resolves in-tree to a
         # missing file is a loud InputError, never a silent "no drift" skip ...
         check_raises("drift errors on supplied-but-missing test-results",
