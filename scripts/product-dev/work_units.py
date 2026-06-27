@@ -767,6 +767,7 @@ def drift_report(spec_dir, test_results_path=None):
     # Resolve the results path (default: alongside the spec folder), then confine
     # it inside spec_dir before any os.path.isfile / open: the operator-supplied
     # --test-results value is untrusted argv (py/path-injection barrier).
+    supplied = test_results_path is not None
     if test_results_path is None:
         test_results_path = _confine(spec_dir, TEST_RESULTS_NAME, verb="read")
     else:
@@ -775,6 +776,15 @@ def drift_report(spec_dir, test_results_path=None):
     empty = {"gating_set_drift": [], "stale_gates": [], "orphaned_results": []}
 
     if not os.path.isfile(test_results_path):
+        # An absent DEFAULT results file is the common case (15/15 specs today):
+        # a CLEAN skip, exit 0 (WUAAVG-FR-014, TC-043). But an EXPLICITLY supplied
+        # --test-results that resolves to a missing file is an input error, never
+        # a silent "no drift": the operator named a results file we could not
+        # read, so surface it loudly rather than masking it as a clean pass.
+        if supplied:
+            raise InputError(
+                "%s not found or not a file: %s"
+                % (TEST_RESULTS_NAME, test_results_path))
         result = dict(empty)
         result["skipped"] = True
         result["note"] = (
@@ -1611,6 +1621,13 @@ def _selftest():
         check_raises("drift refuses escaping test-results",
                      lambda: drift_report(
                          spec_a, os.path.join("..", "outside", "passwd")))
+        # An EXPLICITLY supplied --test-results that resolves in-tree to a
+        # missing file is a loud InputError, never a silent "no drift" skip ...
+        check_raises("drift errors on supplied-but-missing test-results",
+                     lambda: drift_report(spec_a, "no-such-results.json"))
+        # ... while an absent DEFAULT results file stays a clean skip (exit 0).
+        check("drift default-absent clean-skips",
+              drift_report(spec_a).get("skipped"), True)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
