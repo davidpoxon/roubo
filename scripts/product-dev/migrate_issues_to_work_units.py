@@ -195,16 +195,18 @@ def migrate_path(path: str, check_only: bool) -> int:
     migrate_test_cases_to_v1_1.py); 0 otherwise.
     """
     # Route the operator-supplied positional path (untrusted argv) through the
-    # same realpath + containment barrier work_units uses on its read paths,
-    # before any os.path.isfile / open / load_json. That barrier (an
-    # os.path.realpath normalization followed by a startswith(real_dir + sep)
-    # check) is the control CodeQL recognizes for py/path-injection (CWE-22);
-    # bare realpath canonicalizes `..` but is only a normalization step, not a
-    # sanitizer, so it would leave the argv -> read taint path flagged. The
-    # migrate tool legitimately targets an arbitrary issues.json, so the
-    # confinement root is the file's own resolved parent directory: the read
-    # cannot escape that directory, which preserves the free-target behaviour
-    # while neutralizing the traversal taint path from argv to the read.
+    # shared realpath + containment barrier before any os.path.isfile / open /
+    # load_json. work_units._confine binds the resolved read path inside a
+    # TRUSTED, non-argv root (the resolved CWD): these tools target an in-tree
+    # .specifications/<slug>/issues.json run from the repo root, so the read
+    # cannot escape that root. That trusted-root bound (NOT the file's own
+    # parent directory, which would be a tautology that never refuses anything)
+    # is the control CodeQL recognizes for py/path-injection (CWE-22): an
+    # os.path.realpath normalization followed by a startswith(trusted_root + sep)
+    # containment check, with the sanitized value flowing on to the read. Bare
+    # realpath canonicalizes `..` but is only normalization, not a sanitizer, so
+    # it would leave the argv -> read taint path flagged. `spec_dir` is also the
+    # write target's folder (resolved below) and the slug source.
     real = os.path.realpath(path)
     spec_dir = os.path.dirname(real)
     path = work_units._confine(spec_dir, os.path.basename(real), verb="read")

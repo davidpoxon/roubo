@@ -236,8 +236,11 @@ def load(spec_dir):
     because the caller cannot tell "no work" from "wrong folder / nothing read".
     """
     # Normalize-and-confine each spec-dir-relative read before it reaches
-    # os.path.isfile / open, so a traversing or absolute spec_dir cannot escape
-    # the folder (py/path-injection barrier, WUAAVG-NFR-001).
+    # os.path.isfile / open. `_confine` binds the resolved read path inside the
+    # TRUSTED, non-argv root (the resolved CWD), so an argv-supplied `spec_dir`
+    # that resolves out of tree (or traverses / is absolute) is refused and the
+    # sanitized value is what flows onward (py/path-injection barrier; the
+    # trusted root, not `spec_dir` itself, is the bound, WUAAVG-NFR-001).
     wu_path = _confine(spec_dir, WORK_UNITS_NAME, verb="read")
     issues_path = _confine(spec_dir, ISSUES_NAME, verb="read")
 
@@ -319,25 +322,65 @@ def validate_structural(envelope):
 # Writing (atomic, never-delete-issues.json, in-folder only; WUAAVG-NFR-001)
 # --------------------------------------------------------------------------
 
+def _trusted_root():
+    """The trusted, non-argv containment root for operator-supplied read paths.
+
+    These product-dev tools are always invoked from the repo root, with the spec
+    folder named as an in-tree path (`.specifications/<slug>/`), so the resolved
+    current working directory is a root that does NOT derive from `sys.argv`.
+    Confining every argv-derived path within this fixed root is what makes the
+    containment a genuine bound rather than a tautology: a user-supplied
+    `spec_dir` cannot be its own containment root (confining a constant filename
+    inside a tainted `spec_dir` leaves the read path still fully dependent on the
+    tainted value, which is why the prior barrier left the alert firing).
+
+    Resolved through `os.path.realpath` so the comparison prefix is fully
+    symlink-normalized, matching the normalize-then-contain shape CodeQL
+    recognizes as the py/path-injection (CWE-22) sanitizer.
+    """
+    return os.path.realpath(os.getcwd())
+
+
 def _confine(spec_dir, name, verb="access"):
-    """Resolve `name` to a real path confined inside `spec_dir`, or refuse.
+    """Resolve `name` to a real path confined inside a TRUSTED root, or refuse.
 
     The shared normalize-and-confine barrier for BOTH the read and the write
     side. Mirrors apply_doc.py's `resolve_in_root`: the symlink-resolved real
-    path MUST sit inside the real spec_dir, even when the leaf file does not yet
-    exist (a create), so a path escaping the folder (`..`, an absolute path, or a
-    symlinked dir pointing out) is refused before any fs access (WUAAVG-NFR-001).
+    path must satisfy two containments before it is handed to any filesystem
+    call, even when the leaf file does not yet exist (a create):
 
-    This is the control CodeQL recognizes for `py/path-injection` (CWE-22): an
-    `os.path.realpath` normalization followed by a `startswith(real_dir + sep)`
-    containment check. Routing every operator-supplied, spec-dir-relative path
-    through it before `open()` / `os.path.isfile()` neutralizes path traversal on
-    the read path the same way `write_envelope` already guards the write path.
-    `verb` only tunes the refusal text ("read" / "write" / "access").
+      1. it MUST sit inside the TRUSTED root (`_trusted_root()`, the resolved
+         CWD), a NON-argv-derived bound. This is the containment that actually
+         sanitizes an argv-supplied `spec_dir` for `py/path-injection` (CWE-22),
+         because the prefix it is compared against does not itself derive from
+         `sys.argv`. (Confining a constant filename inside a user-controlled
+         `spec_dir` left the read path still fully dependent on the tainted
+         value, so the alert kept firing; a fixed, trusted root breaks the
+         taint.)
+      2. it MUST sit inside `spec_dir` itself: defence-in-depth so a `..`, an
+         absolute path, or a symlinked dir pointing out still cannot escape the
+         spec folder (preserves the established in-folder refusal semantics,
+         WUAAVG-NFR-001).
+
+    A path failing EITHER containment is refused before any fs access. The
+    returned value is the symlink-resolved, trusted-root-checked real path, so
+    the value reaching `os.path.isfile` / `open` is the sanitized one: an
+    `os.path.realpath` normalization followed by a `startswith(trusted_root +
+    sep)` containment check, which is the control CodeQL recognizes. `verb` only
+    tunes the refusal text ("read" / "write" / "access").
     """
+    trusted_root = _trusted_root()
     real_dir = os.path.realpath(spec_dir)
     candidate = name if os.path.isabs(name) else os.path.join(real_dir, name)
     real_path = os.path.realpath(candidate)
+    # (1) Trusted-root containment: the non-argv bound CodeQL recognizes as the
+    #     sanitizer. The checked value is what flows on to the fs call.
+    if real_path != trusted_root and not real_path.startswith(trusted_root + os.sep):
+        raise InputError(
+            "refusing to %s outside the trusted root: %s resolves to %s "
+            "(trusted root %s; run these tools from the repo root)"
+            % (verb, name, real_path, trusted_root))
+    # (2) Spec-dir containment: defence-in-depth in-folder refusal (unchanged).
     if real_path != real_dir and not real_path.startswith(real_dir + os.sep):
         raise InputError(
             "refusing to %s outside spec dir: %s resolves to %s (dir %s)"
@@ -765,8 +808,11 @@ def drift_report(spec_dir, test_results_path=None):
     exit 0 (WUAAVG-FR-014, TC-043).
     """
     # Resolve the results path (default: alongside the spec folder), then confine
-    # it inside spec_dir before any os.path.isfile / open: the operator-supplied
-    # --test-results value is untrusted argv (py/path-injection barrier).
+    # it through `_confine` before any os.path.isfile / open: the operator-
+    # supplied --test-results value (and the argv-derived spec_dir) are untrusted
+    # argv, so the resolved read path is bound inside the TRUSTED, non-argv root
+    # (the resolved CWD) and the sanitized value flows onward (py/path-injection
+    # barrier).
     supplied = test_results_path is not None
     if test_results_path is None:
         test_results_path = _confine(spec_dir, TEST_RESULTS_NAME, verb="read")
@@ -1525,7 +1571,13 @@ def _selftest():
         {**valid_envelope, "units": [{"id": "WU-003"}]}))
 
     work = tempfile.mkdtemp(prefix="work-units-selftest-")
+    prev_cwd = os.getcwd()
     try:
+        # The trusted root `_confine` enforces is the resolved CWD, so run the
+        # filesystem fixtures from inside the temp dir: the in-tree spec folders
+        # below then sit under the trusted root (mirroring real in-repo use),
+        # while a sibling dir created OUTSIDE it exercises the new bound.
+        os.chdir(work)
         spec_a = os.path.join(work, "spec-a")
         os.makedirs(spec_a)
 
@@ -1616,6 +1668,18 @@ def _selftest():
         check("read in-tree name stays under dir",
               in_tree.startswith(os.path.realpath(spec_w) + os.sep), True)
 
+        # --- trusted-root barrier (the new bound, CWD-rooted) ---
+        # A spec dir OUTSIDE the trusted root (the chdir'd CWD) is refused even
+        # for a constant in-folder name: the read path no longer depends only on
+        # the user-supplied spec_dir, it must also resolve inside the trusted
+        # root. An in-tree spec dir under the trusted root stays accepted.
+        ext_root = tempfile.mkdtemp(prefix="work-units-selftest-ext-")
+        try:
+            check_raises("read outside trusted root refused", lambda: _confine(
+                ext_root, WORK_UNITS_NAME, verb="read"))
+        finally:
+            shutil.rmtree(ext_root, ignore_errors=True)
+
         # --- drift_report: an escaping --test-results path is refused before
         # any os.path.isfile / open touches the filesystem ---
         check_raises("drift refuses escaping test-results",
@@ -1629,6 +1693,7 @@ def _selftest():
         check("drift default-absent clean-skips",
               drift_report(spec_a).get("skipped"), True)
     finally:
+        os.chdir(prev_cwd)
         shutil.rmtree(work, ignore_errors=True)
 
     # ----------------------------------------------------------------------
@@ -1710,7 +1775,11 @@ def _selftest():
     # drift_report fixtures (WUAAVG-FR-014/-FR-015): report-only, no auto-fix.
     # ----------------------------------------------------------------------
     drift_work = tempfile.mkdtemp(prefix="wu-drift-selftest-")
+    drift_prev_cwd = os.getcwd()
     try:
+        # Run from inside the temp dir so these spec folders sit under the
+        # trusted root `_confine`/`drift_report` enforce (the resolved CWD).
+        os.chdir(drift_work)
         # Absent test-results.json -> clean skip (empty report + note).
         sk = os.path.join(drift_work, "skip")
         os.makedirs(sk)
@@ -1784,6 +1853,7 @@ def _selftest():
         check("drift no-drift stale", rep_nd["stale_gates"], [])
         check("drift no-drift orphaned", rep_nd["orphaned_results"], [])
     finally:
+        os.chdir(drift_prev_cwd)
         shutil.rmtree(drift_work, ignore_errors=True)
 
     # ----------------------------------------------------------------------
