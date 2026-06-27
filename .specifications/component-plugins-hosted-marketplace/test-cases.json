@@ -2822,7 +2822,7 @@
       "type": "functional",
       "preconditions": [
         "@roubo/plugin-sdk is published to the registry at a pinned version",
-        "A plugin project lives in the separate plugins repo (outside the Roubo monorepo)",
+        "A plugin project is set up outside the Roubo monorepo workspace (a sandbox project that consumes the published SDK)",
         "The plugin's package.json depends on @roubo/plugin-sdk by pinned version, not by a file: workspace ref"
       ],
       "steps": [
@@ -2877,7 +2877,7 @@
       "type": "functional",
       "preconditions": [
         "@roubo/shared and @roubo/shared-github are published to the registry at pinned versions",
-        "An integration plugin in the separate repo depends on @roubo/plugin-sdk, @roubo/shared, and @roubo/shared-github by pinned version"
+        "An integration plugin built outside the Roubo monorepo workspace depends on @roubo/plugin-sdk, @roubo/shared, and @roubo/shared-github by pinned version"
       ],
       "steps": [
         {
