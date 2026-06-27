@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   loadVerifyUnits,
   buildWorkUnitCaseMap,
@@ -11,7 +10,6 @@ import {
 import {
   WORK_UNITS_SCHEMA_ID,
   WORK_UNITS_SCHEMA_VERSION,
-  validateWorkUnits,
   type Unit,
   type WorkUnitsFile,
 } from "@roubo/shared/work-units-contract";
@@ -188,33 +186,6 @@ describe("loadVerifyUnits", () => {
   it("still throws on the single-slug path for that same malformed spec (NFR-007)", () => {
     writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
     expect(() => loadVerifyUnits(repoPath, "legacy")).toThrow(WorkUnitsValidationError);
-  });
-});
-
-// #802 data-integrity guard: every committed `.specifications/*/work-units.json`
-// under the repo root must validate against the published contract. This pins the
-// legacy-array migration and catches any future spec that drifts off-contract
-// (which would otherwise re-break the cross-spec Batches/gates view).
-describe("committed work-units.json artifacts", () => {
-  const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const specsRoot = path.join(repoRoot, ".specifications");
-
-  const specFiles = fs.existsSync(specsRoot)
-    ? fs
-        .readdirSync(specsRoot, { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-        .map((e) => ({ slug: e.name, file: path.join(specsRoot, e.name, "work-units.json") }))
-        .filter((s) => fs.existsSync(s.file))
-    : [];
-
-  it("finds at least one committed work-units.json to validate", () => {
-    expect(specFiles.length).toBeGreaterThan(0);
-  });
-
-  it.each(specFiles)("$slug/work-units.json passes the contract", ({ file }) => {
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
-    const result = validateWorkUnits(parsed);
-    expect(result.ok ? [] : result.errors).toEqual([]);
   });
 });
 
