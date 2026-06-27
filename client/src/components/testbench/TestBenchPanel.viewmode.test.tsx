@@ -133,4 +133,27 @@ describe("TestBenchPanel Cases/Batches view (#359)", () => {
     expect(batchesShown()).toBe(true);
     expect(casesShown()).toBe(false);
   });
+
+  it("does not leak or clobber the view when benchId changes on a surviving instance", () => {
+    // The bench route is keyless, so navigating bench 1 -> bench 2 reuses the same
+    // panel instance with a new benchId prop (no unmount/remount). Bench 1
+    // remembers Cases; bench 2 has no remembered view, so the surviving instance
+    // must show bench 2's Batches default, and bench 2's storage must not be
+    // clobbered with bench 1's view. (A useState mirror would keep bench 1's
+    // "cases" here and bleed/clobber it, the #359 per-bench-isolation regression.)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ "p1:1": { testbenchViewMode: "cases" } }));
+
+    const { rerender } = render(<TestBenchPanel projectId="p1" benchId={1} />);
+    expect(casesShown()).toBe(true);
+
+    // Same instance, new benchId prop.
+    rerender(<TestBenchPanel projectId="p1" benchId={2} />);
+    expect(batchesShown()).toBe(true);
+    expect(casesShown()).toBe(false);
+
+    // Bench 2's entry was not written, and bench 1's remembered view is intact.
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(stored["p1:2"]?.testbenchViewMode).toBeUndefined();
+    expect(stored["p1:1"].testbenchViewMode).toBe("cases");
+  });
 });

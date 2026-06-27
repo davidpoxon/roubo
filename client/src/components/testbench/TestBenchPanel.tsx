@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
 import { FileText, Pencil, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { BenchStatus } from "@roubo/shared";
@@ -84,21 +84,20 @@ export default function TestBenchPanel({
   } = useBenchViewState(projectId, benchId);
 
   // View mode (#702/#359): the existing whole-spec case review ("cases") or the
-  // verify-gate batch surface ("batches"). Initialised from the per-bench
-  // persisted value, defaulting to "batches" on first visit (no remembered view,
-  // #359). The batches surface lists one gate per phase (GatesOverview); opening
-  // a gate switches to its BatchView, scoped to the gate's gating subset.
-  // `openGateId` tracks the open batch within the batches mode (null = the
-  // overview list). Gates are project-level, so the batches surface does not
-  // depend on this bench's plan query.
-  const [viewMode, setViewMode] = useState<"cases" | "batches">(testbenchViewMode ?? "batches");
+  // verify-gate batch surface ("batches"). Derived directly from the per-bench
+  // persisted value (no local mirror), defaulting to "batches" on first visit
+  // (no remembered view, #359). Reading straight from the hook each render is
+  // deliberate: the bench route is keyless, so navigating to another bench reuses
+  // this panel instance with a new benchId, and a useState mirror would keep the
+  // previous bench's view (its initialiser never re-runs on a prop change) and
+  // bleed/clobber it across benches. The toggle writes the choice back per bench,
+  // mirroring testbenchCaseListCollapsed. The batches surface lists one gate per
+  // phase (GatesOverview); opening a gate switches to its BatchView, scoped to
+  // the gate's gating subset. `openGateId` tracks the open batch within the
+  // batches mode (null = the overview list). Gates are project-level, so the
+  // batches surface does not depend on this bench's plan query.
+  const viewMode = testbenchViewMode ?? "batches";
   const [openGateId, setOpenGateId] = useState<string | null>(null);
-
-  // Persist the active Cases/Batches view per bench so it restores after
-  // navigating away (another tab, or another bench entirely) and back (#359).
-  useEffect(() => {
-    if (viewMode !== testbenchViewMode) setTestbenchViewMode(viewMode);
-  }, [viewMode, testbenchViewMode, setTestbenchViewMode]);
 
   // Reconcile (#422/#413, FR-016/FR-017, NFR-003). The server computes staleness
   // and the add/changed/orphan classification; this panel only renders them and
@@ -232,7 +231,7 @@ export default function TestBenchPanel({
           key={mode}
           aria-pressed={viewMode === mode}
           onPress={() => {
-            setViewMode(mode);
+            setTestbenchViewMode(mode);
             if (mode === "cases") setOpenGateId(null);
           }}
           className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
