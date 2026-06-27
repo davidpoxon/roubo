@@ -1,0 +1,659 @@
+{
+  "$schema": "https://roubo.dev/schema/work-units/v1.0.0.json",
+  "schemaVersion": "1.0.0",
+  "specSlug": "component-plugins-hosted-marketplace",
+  "units": [
+    {
+      "id": "CPHM-WU-001",
+      "title": "Verify integrity over the built plugin artifact",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M1 Foundation",
+      "labels": ["feature", "P0"],
+      "depends_on": [],
+      "description": "Verify integrity over the built plugin artifact",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-003", "CPHM-NFR-006"],
+        "user_story_ids": [],
+        "test_case_ids": ["CPHM-TC-064"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "765",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/299",
+        "node_id": "I_kwDOSiX_888AAAABGrt8hA",
+        "blocked_by_refs": []
+      }
+    },
+    {
+      "id": "CPHM-WU-002",
+      "title": "Publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds",
+      "type": "task",
+      "milestone": "Hosted marketplace: M1 Foundation",
+      "labels": ["task", "P1"],
+      "depends_on": [],
+      "description": "Publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-011"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "766",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/300",
+        "node_id": "I_kwDOSiX_888AAAABGrt9bg",
+        "blocked_by_refs": []
+      }
+    },
+    {
+      "id": "CPHM-WU-003",
+      "title": "Remove the vestigial Role toggle from the Components editor",
+      "type": "task",
+      "milestone": "Hosted marketplace: M5 UI cleanup",
+      "labels": ["task", "P1"],
+      "depends_on": ["CPHM-WU-023"],
+      "description": "Remove the vestigial Role toggle from the Components editor",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-010"],
+        "user_story_ids": ["CPHM-US-006"],
+        "test_case_ids": ["CPHM-TC-071", "CPHM-TC-073", "CPHM-TC-074", "CPHM-TC-076", "CPHM-TC-081"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "767",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/301",
+        "node_id": "I_kwDOSiX_888AAAABGrt-Og",
+        "blocked_by_refs": ["787"]
+      }
+    },
+    {
+      "id": "CPHM-WU-004",
+      "title": "ErroredBanner surfaces the plugin's real lastError",
+      "type": "bug",
+      "milestone": "Hosted marketplace: M5 UI cleanup",
+      "labels": ["bug", "P2"],
+      "depends_on": ["CPHM-WU-023"],
+      "description": "ErroredBanner surfaces the plugin's real lastError",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-012"],
+        "user_story_ids": ["CPHM-US-005"],
+        "test_case_ids": [
+          "CPHM-TC-072",
+          "CPHM-TC-075",
+          "CPHM-TC-077",
+          "CPHM-TC-078",
+          "CPHM-TC-079",
+          "CPHM-TC-080",
+          "CPHM-TC-082"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "768",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/302",
+        "node_id": "I_kwDOSiX_888AAAABGrt-_g",
+        "blocked_by_refs": ["787"]
+      }
+    },
+    {
+      "id": "CPHM-WU-005",
+      "title": "Create roubo-plugins repo and move plugins there",
+      "type": "task",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["task", "P0"],
+      "depends_on": ["CPHM-WU-002", "CPHM-WU-020"],
+      "description": "Create roubo-plugins repo and move plugins there",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-011"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-001"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "769",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/303",
+        "node_id": "I_kwDOSiX_888AAAABGrt_0g",
+        "blocked_by_refs": ["766", "784"]
+      }
+    },
+    {
+      "id": "CPHM-WU-006",
+      "title": "CI build/sign/publish pipeline with reproducible digest",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-001", "CPHM-WU-005", "CPHM-WU-020"],
+      "description": "CI build/sign/publish pipeline with reproducible digest",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-006", "CPHM-FR-011", "CPHM-NFR-006"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-065", "CPHM-TC-066", "CPHM-TC-003", "CPHM-TC-012", "CPHM-TC-067"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "770",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/304",
+        "node_id": "I_kwDOSiX_888AAAABGruAkw",
+        "blocked_by_refs": ["765", "769", "784"]
+      }
+    },
+    {
+      "id": "CPHM-WU-007",
+      "title": "Signed catalog on Pages + signed key-ring + revocation",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-006", "CPHM-WU-020"],
+      "description": "Signed catalog on Pages + signed key-ring + revocation",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-007", "CPHM-NFR-004"],
+        "user_story_ids": ["CPHM-US-003", "CPHM-US-004"],
+        "test_case_ids": [
+          "CPHM-TC-004",
+          "CPHM-TC-005",
+          "CPHM-TC-011",
+          "CPHM-TC-013",
+          "CPHM-TC-009",
+          "CPHM-TC-008"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "771",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/305",
+        "node_id": "I_kwDOSiX_888AAAABGruBhw",
+        "blocked_by_refs": ["770", "784"]
+      }
+    },
+    {
+      "id": "CPHM-WU-008",
+      "title": "catalog-client: fetch, verify, cache, offline-degrade",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-007", "CPHM-WU-021"],
+      "description": "catalog-client: fetch, verify, cache, offline-degrade",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-009", "CPHM-NFR-003", "CPHM-NFR-002"],
+        "user_story_ids": ["CPHM-US-002"],
+        "test_case_ids": [
+          "CPHM-TC-042",
+          "CPHM-TC-043",
+          "CPHM-TC-051",
+          "CPHM-TC-006",
+          "CPHM-TC-048",
+          "CPHM-TC-044",
+          "CPHM-TC-050"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "772",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/306",
+        "node_id": "I_kwDOSiX_888AAAABGruCVw",
+        "blocked_by_refs": ["771", "785"]
+      }
+    },
+    {
+      "id": "CPHM-WU-009",
+      "title": "plugin-installer: download, verify, unpack a built artifact",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-001", "CPHM-WU-007", "CPHM-WU-021"],
+      "description": "plugin-installer: download, verify, unpack a built artifact",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-NFR-001", "CPHM-NFR-002"],
+        "user_story_ids": ["CPHM-US-001", "CPHM-US-005"],
+        "test_case_ids": [
+          "CPHM-TC-015",
+          "CPHM-TC-016",
+          "CPHM-TC-017",
+          "CPHM-TC-018",
+          "CPHM-TC-019",
+          "CPHM-TC-020",
+          "CPHM-TC-021",
+          "CPHM-TC-022",
+          "CPHM-TC-023"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "773",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/307",
+        "node_id": "I_kwDOSiX_888AAAABGruDKQ",
+        "blocked_by_refs": ["765", "771", "785"]
+      }
+    },
+    {
+      "id": "CPHM-WU-010",
+      "title": "marketplace.ts network source + revocation enforcement",
+      "type": "task",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["task", "P1"],
+      "depends_on": ["CPHM-WU-008", "CPHM-WU-021"],
+      "description": "marketplace.ts network source + revocation enforcement",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-007", "CPHM-NFR-001"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-001", "CPHM-TC-002", "CPHM-TC-007", "CPHM-TC-010"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "774",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/308",
+        "node_id": "I_kwDOSiX_888AAAABGruEBw",
+        "blocked_by_refs": ["772", "785"]
+      }
+    },
+    {
+      "id": "CPHM-WU-011",
+      "title": "app-packaging seed bundle; remove BUNDLED_PLUGIN_IDS source-copy",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M4 De-bundle + seed",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-006", "CPHM-WU-009", "CPHM-WU-022"],
+      "description": "app-packaging seed bundle; remove BUNDLED_PLUGIN_IDS source-copy",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008"],
+        "user_story_ids": ["CPHM-US-001"],
+        "test_case_ids": ["CPHM-TC-031", "CPHM-TC-032", "CPHM-TC-052", "CPHM-TC-053"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "775",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/309",
+        "node_id": "I_kwDOSiX_888AAAABGruExA",
+        "blocked_by_refs": ["770", "773", "786"]
+      }
+    },
+    {
+      "id": "CPHM-WU-012",
+      "title": "plugin-manager first-run seed + clean-break upgrade",
+      "type": "feature",
+      "milestone": "Hosted marketplace: M4 De-bundle + seed",
+      "labels": ["feature", "P0"],
+      "depends_on": ["CPHM-WU-011", "CPHM-WU-022"],
+      "description": "plugin-manager first-run seed + clean-break upgrade",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-008", "CPHM-NFR-005", "CPHM-NFR-002"],
+        "user_story_ids": ["CPHM-US-001"],
+        "test_case_ids": [
+          "CPHM-TC-028",
+          "CPHM-TC-029",
+          "CPHM-TC-030",
+          "CPHM-TC-041",
+          "CPHM-TC-054",
+          "CPHM-TC-055",
+          "CPHM-TC-056",
+          "CPHM-TC-061",
+          "CPHM-TC-040"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "776",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/310",
+        "node_id": "I_kwDOSiX_888AAAABGruFoQ",
+        "blocked_by_refs": ["775", "786"]
+      }
+    },
+    {
+      "id": "CPHM-WU-013",
+      "title": "E2E: maintainer publishes then revokes a plugin, client reflects both at next refresh",
+      "type": "task",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-006", "CPHM-WU-007"],
+      "description": "E2E: maintainer publishes then revokes a plugin, client reflects both at next refresh",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-006", "CPHM-FR-007", "CPHM-NFR-004"],
+        "user_story_ids": ["CPHM-US-003", "CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-014"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "777",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/311",
+        "node_id": "I_kwDOSiX_888AAAABGru0dw",
+        "blocked_by_refs": ["770", "771"]
+      },
+      "kind": "e2e",
+      "covers": ["770", "771"]
+    },
+    {
+      "id": "CPHM-WU-014",
+      "title": "E2E: install a plugin from the marketplace listing to a running plugin",
+      "type": "task",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-009"],
+      "description": "E2E: install a plugin from the marketplace listing to a running plugin",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003"],
+        "user_story_ids": ["CPHM-US-001", "CPHM-US-005"],
+        "test_case_ids": ["CPHM-TC-017"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "778",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/312",
+        "node_id": "I_kwDOSiX_888AAAABGru1TQ",
+        "blocked_by_refs": ["773"]
+      },
+      "kind": "e2e",
+      "covers": ["773"]
+    },
+    {
+      "id": "CPHM-WU-015",
+      "title": "E2E: fresh launch yields the three seeded plugins, usable offline",
+      "type": "task",
+      "milestone": "Hosted marketplace: M4 De-bundle + seed",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-011", "CPHM-WU-012"],
+      "description": "E2E: fresh launch yields the three seeded plugins, usable offline",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005"],
+        "user_story_ids": ["CPHM-US-001", "CPHM-US-002"],
+        "test_case_ids": ["CPHM-TC-041"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "779",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/313",
+        "node_id": "I_kwDOSiX_888AAAABGru2HA",
+        "blocked_by_refs": ["775", "776"]
+      },
+      "kind": "e2e",
+      "covers": ["775", "776"]
+    },
+    {
+      "id": "CPHM-WU-016",
+      "title": "E2E: go offline, seeded plugins still work, a new install fails clearly",
+      "type": "task",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-008"],
+      "description": "E2E: go offline, seeded plugins still work, a new install fails clearly",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+        "user_story_ids": ["CPHM-US-002"],
+        "test_case_ids": ["CPHM-TC-051"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "780",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/314",
+        "node_id": "I_kwDOSiX_888AAAABGru2tA",
+        "blocked_by_refs": ["772"]
+      },
+      "kind": "e2e",
+      "covers": ["772"]
+    },
+    {
+      "id": "CPHM-WU-017",
+      "title": "E2E: upgrade drops bundled installs, seed provides defaults, a removed plugin reinstalls",
+      "type": "task",
+      "milestone": "Hosted marketplace: M4 De-bundle + seed",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-011", "CPHM-WU-012"],
+      "description": "E2E: upgrade drops bundled installs, seed provides defaults, a removed plugin reinstalls",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-008", "CPHM-NFR-005"],
+        "user_story_ids": ["CPHM-US-001"],
+        "test_case_ids": ["CPHM-TC-061"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "781",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/315",
+        "node_id": "I_kwDOSiX_888AAAABGru3fg",
+        "blocked_by_refs": ["775", "776"]
+      },
+      "kind": "e2e",
+      "covers": ["775", "776"]
+    },
+    {
+      "id": "CPHM-WU-018",
+      "title": "E2E: author builds against the published SDK, CI publishes reproducibly, digest matches",
+      "type": "task",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-002", "CPHM-WU-005", "CPHM-WU-006"],
+      "description": "E2E: author builds against the published SDK, CI publishes reproducibly, digest matches",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-011", "CPHM-NFR-006"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-070"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "782",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/316",
+        "node_id": "I_kwDOSiX_888AAAABGru4ZQ",
+        "blocked_by_refs": ["766", "769", "770"]
+      },
+      "kind": "e2e",
+      "covers": ["766", "769", "770"]
+    },
+    {
+      "id": "CPHM-WU-019",
+      "title": "E2E: configure a component via plugin binding; errored banner guides recovery",
+      "type": "task",
+      "milestone": "Hosted marketplace: M5 UI cleanup",
+      "labels": ["task", "e2e", "P1"],
+      "depends_on": ["CPHM-WU-003", "CPHM-WU-004"],
+      "description": "E2E: configure a component via plugin binding; errored banner guides recovery",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-010", "CPHM-FR-012"],
+        "user_story_ids": ["CPHM-US-005", "CPHM-US-006"],
+        "test_case_ids": ["CPHM-TC-081", "CPHM-TC-082"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "783",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/317",
+        "node_id": "I_kwDOSiX_888AAAABGru5RQ",
+        "blocked_by_refs": ["767", "768"]
+      },
+      "kind": "e2e",
+      "covers": ["767", "768"]
+    },
+    {
+      "id": "CPHM-WU-020",
+      "title": "Verify gate: Hosted marketplace: M1 Foundation",
+      "type": "task",
+      "milestone": "Hosted marketplace: M1 Foundation",
+      "labels": ["task", "verify", "P0"],
+      "depends_on": ["CPHM-WU-001", "CPHM-WU-002"],
+      "description": "Verify gate: Hosted marketplace: M1 Foundation",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-011"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "784",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/318",
+        "node_id": "I_kwDOSiX_888AAAABGru5_g",
+        "blocked_by_refs": ["765", "766"]
+      },
+      "kind": "verify",
+      "covers": ["765", "766"]
+    },
+    {
+      "id": "CPHM-WU-021",
+      "title": "Verify gate: Hosted marketplace: M2 Marketplace repo",
+      "type": "task",
+      "milestone": "Hosted marketplace: M2 Marketplace repo",
+      "labels": ["task", "verify", "P0"],
+      "depends_on": ["CPHM-WU-005", "CPHM-WU-006", "CPHM-WU-007"],
+      "description": "Verify gate: Hosted marketplace: M2 Marketplace repo",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-006", "CPHM-FR-007", "CPHM-NFR-004"],
+        "user_story_ids": ["CPHM-US-003", "CPHM-US-004"],
+        "test_case_ids": [
+          "CPHM-TC-001",
+          "CPHM-TC-003",
+          "CPHM-TC-004",
+          "CPHM-TC-005",
+          "CPHM-TC-011",
+          "CPHM-TC-013"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "785",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/319",
+        "node_id": "I_kwDOSiX_888AAAABGru6wA",
+        "blocked_by_refs": ["769", "770", "771"]
+      },
+      "kind": "verify",
+      "covers": ["769", "770", "771"]
+    },
+    {
+      "id": "CPHM-WU-022",
+      "title": "Verify gate: Hosted marketplace: M3 App client",
+      "type": "task",
+      "milestone": "Hosted marketplace: M3 App client",
+      "labels": ["task", "verify", "P0"],
+      "depends_on": ["CPHM-WU-008", "CPHM-WU-009", "CPHM-WU-010"],
+      "description": "Verify gate: Hosted marketplace: M3 App client",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": [
+          "CPHM-FR-001",
+          "CPHM-FR-002",
+          "CPHM-FR-003",
+          "CPHM-FR-009",
+          "CPHM-NFR-003"
+        ],
+        "user_story_ids": [
+          "CPHM-US-001",
+          "CPHM-US-002",
+          "CPHM-US-003",
+          "CPHM-US-004",
+          "CPHM-US-005"
+        ],
+        "test_case_ids": [
+          "CPHM-TC-001",
+          "CPHM-TC-002",
+          "CPHM-TC-015",
+          "CPHM-TC-016",
+          "CPHM-TC-017",
+          "CPHM-TC-042",
+          "CPHM-TC-043",
+          "CPHM-TC-044",
+          "CPHM-TC-050",
+          "CPHM-TC-051"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "786",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/320",
+        "node_id": "I_kwDOSiX_888AAAABGru8JA",
+        "blocked_by_refs": ["772", "773", "774"]
+      },
+      "kind": "verify",
+      "covers": ["772", "773", "774"]
+    },
+    {
+      "id": "CPHM-WU-023",
+      "title": "Verify gate: Hosted marketplace: M4 De-bundle + seed",
+      "type": "task",
+      "milestone": "Hosted marketplace: M4 De-bundle + seed",
+      "labels": ["task", "verify", "P0"],
+      "depends_on": ["CPHM-WU-011", "CPHM-WU-012"],
+      "description": "Verify gate: Hosted marketplace: M4 De-bundle + seed",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": [
+          "CPHM-FR-004",
+          "CPHM-FR-005",
+          "CPHM-FR-008",
+          "CPHM-NFR-002",
+          "CPHM-NFR-005"
+        ],
+        "user_story_ids": ["CPHM-US-001", "CPHM-US-002"],
+        "test_case_ids": [
+          "CPHM-TC-028",
+          "CPHM-TC-029",
+          "CPHM-TC-030",
+          "CPHM-TC-031",
+          "CPHM-TC-032",
+          "CPHM-TC-040",
+          "CPHM-TC-041",
+          "CPHM-TC-052",
+          "CPHM-TC-053",
+          "CPHM-TC-054",
+          "CPHM-TC-055",
+          "CPHM-TC-061"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "787",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/321",
+        "node_id": "I_kwDOSiX_888AAAABGru84g",
+        "blocked_by_refs": ["775", "776"]
+      },
+      "kind": "verify",
+      "covers": ["775", "776"]
+    },
+    {
+      "id": "CPHM-WU-024",
+      "title": "Verify gate: Hosted marketplace: M5 UI cleanup",
+      "type": "task",
+      "milestone": "Hosted marketplace: M5 UI cleanup",
+      "labels": ["task", "verify", "P0"],
+      "depends_on": ["CPHM-WU-003", "CPHM-WU-004"],
+      "description": "Verify gate: Hosted marketplace: M5 UI cleanup",
+      "acceptance_criteria": [],
+      "implements": {
+        "requirement_ids": ["CPHM-FR-010", "CPHM-FR-012"],
+        "user_story_ids": ["CPHM-US-005", "CPHM-US-006"],
+        "test_case_ids": [
+          "CPHM-TC-071",
+          "CPHM-TC-072",
+          "CPHM-TC-073",
+          "CPHM-TC-074",
+          "CPHM-TC-075",
+          "CPHM-TC-081",
+          "CPHM-TC-082"
+        ]
+      },
+      "tracker": {
+        "system": "github",
+        "ref": "788",
+        "url": "https://github.com/davidpoxon/roubo-development/issues/322",
+        "node_id": "I_kwDOSiX_888AAAABGru9wA",
+        "blocked_by_refs": ["767", "768"]
+      },
+      "kind": "verify",
+      "covers": ["767", "768"]
+    }
+  ]
+}
