@@ -235,8 +235,11 @@ def load(spec_dir):
     carries NEITHER file: a neither-file folder is never an empty-set success,
     because the caller cannot tell "no work" from "wrong folder / nothing read".
     """
-    wu_path = os.path.join(spec_dir, WORK_UNITS_NAME)
-    issues_path = os.path.join(spec_dir, ISSUES_NAME)
+    # Normalize-and-confine each spec-dir-relative read before it reaches
+    # os.path.isfile / open, so a traversing or absolute spec_dir cannot escape
+    # the folder (py/path-injection barrier, WUAAVG-NFR-001).
+    wu_path = _confine(spec_dir, WORK_UNITS_NAME, verb="read")
+    issues_path = _confine(spec_dir, ISSUES_NAME, verb="read")
 
     if os.path.isfile(wu_path):
         units = _units_from_envelope(load_json(wu_path, WORK_UNITS_NAME))
@@ -316,25 +319,39 @@ def validate_structural(envelope):
 # Writing (atomic, never-delete-issues.json, in-folder only; WUAAVG-NFR-001)
 # --------------------------------------------------------------------------
 
-def _resolve_in_dir(spec_dir, name):
+def _confine(spec_dir, name, verb="access"):
     """Resolve `name` to a real path confined inside `spec_dir`, or refuse.
 
-    Mirrors apply_doc.py's `resolve_in_root`: the symlink-resolved real path MUST
-    sit inside the real spec_dir, even when the leaf file does not yet exist (a
-    create), so a path escaping the folder (`..`, an absolute path, or a
+    The shared normalize-and-confine barrier for BOTH the read and the write
+    side. Mirrors apply_doc.py's `resolve_in_root`: the symlink-resolved real
+    path MUST sit inside the real spec_dir, even when the leaf file does not yet
+    exist (a create), so a path escaping the folder (`..`, an absolute path, or a
     symlinked dir pointing out) is refused before any fs access (WUAAVG-NFR-001).
-    Used to confine both writes (write_envelope) and reads (the migration's
-    existence check + read), so untrusted input cannot reach an out-of-folder
-    path.
+
+    This is the control CodeQL recognizes for `py/path-injection` (CWE-22): an
+    `os.path.realpath` normalization followed by a `startswith(real_dir + sep)`
+    containment check. Routing every operator-supplied, spec-dir-relative path
+    through it before `open()` / `os.path.isfile()` neutralizes path traversal on
+    the read path the same way `write_envelope` already guards the write path.
+    `verb` only tunes the refusal text ("read" / "write" / "access").
     """
     real_dir = os.path.realpath(spec_dir)
     candidate = name if os.path.isabs(name) else os.path.join(real_dir, name)
     real_path = os.path.realpath(candidate)
     if real_path != real_dir and not real_path.startswith(real_dir + os.sep):
         raise InputError(
-            "refusing to access path outside spec dir: %s resolves to %s (dir %s)"
-            % (name, real_path, real_dir))
+            "refusing to %s outside spec dir: %s resolves to %s (dir %s)"
+            % (verb, name, real_path, real_dir))
     return real_path
+
+
+def _resolve_in_dir(spec_dir, name):
+    """Confine a WRITE target inside `spec_dir`, or refuse (WUAAVG-NFR-001).
+
+    A thin write-side alias over `_confine` so the refusal text stays write
+    specific; the containment logic itself lives in one place.
+    """
+    return _confine(spec_dir, name, verb="write")
 
 
 def _atomic_write_json(path, obj):
@@ -747,9 +764,13 @@ def drift_report(spec_dir, test_results_path=None):
     is a CLEAN skip, never an error: an empty report plus a one-line info note,
     exit 0 (WUAAVG-FR-014, TC-043).
     """
-    # Resolve the results path (default: alongside the spec folder).
+    # Resolve the results path (default: alongside the spec folder), then confine
+    # it inside spec_dir before any os.path.isfile / open: the operator-supplied
+    # --test-results value is untrusted argv (py/path-injection barrier).
     if test_results_path is None:
-        test_results_path = os.path.join(spec_dir, TEST_RESULTS_NAME)
+        test_results_path = _confine(spec_dir, TEST_RESULTS_NAME, verb="read")
+    else:
+        test_results_path = _confine(spec_dir, test_results_path, verb="read")
 
     empty = {"gating_set_drift": [], "stale_gates": [], "orphaned_results": []}
 
@@ -768,7 +789,7 @@ def drift_report(spec_dir, test_results_path=None):
     # test-cases.json: needed for the gating-set recompute, the plan hash, and the
     # orphaned-result membership test. Its absence is an input error (a folder with
     # results but no test-cases cannot be drift-checked).
-    tc_path = os.path.join(spec_dir, TEST_CASES_NAME)
+    tc_path = _confine(spec_dir, TEST_CASES_NAME, verb="read")
     tc_doc = load_json(tc_path, TEST_CASES_NAME)
     if isinstance(tc_doc, dict):
         test_cases = [c for c in (tc_doc.get("cases") or []) if isinstance(c, dict)]
@@ -1567,15 +1588,29 @@ def _selftest():
         os.makedirs(outside)
         check_raises("path-escape refusal", lambda: _resolve_in_dir(
             spec_w, os.path.join("..", "outside", "x.json")))
-        # An absolute name pointing out of the spec dir is refused too (the read
-        # path the migration now routes through, py/path-injection alert #190).
-        check_raises("path-escape refusal (absolute)", lambda: _resolve_in_dir(
-            spec_w, os.path.join(outside, "x.json")))
-        # A contained name resolves to a real path inside the spec dir, so the
-        # sanitizer confines without breaking the in-folder read/write target.
-        check("contained resolves inside spec dir",
-              _resolve_in_dir(spec_w, WORK_UNITS_NAME),
-              os.path.join(os.path.realpath(spec_w), WORK_UNITS_NAME))
+
+        # --- read-side confinement barrier (py/path-injection, CWE-22) ---
+        # The same realpath + containment control now guards the read path.
+        # A `..` traversal, an absolute path, and a symlinked dir pointing out
+        # are all refused; an in-tree relative name resolves cleanly.
+        check_raises("read traversal refusal", lambda: _confine(
+            spec_w, os.path.join("..", "outside", "x.json"), verb="read"))
+        check_raises("read absolute-path refusal", lambda: _confine(
+            spec_w, os.path.join(outside, "x.json"), verb="read"))
+        escape_link = os.path.join(spec_w, "escape")
+        os.symlink(outside, escape_link)
+        check_raises("read symlink-escape refusal", lambda: _confine(
+            spec_w, os.path.join("escape", "x.json"), verb="read"))
+        os.unlink(escape_link)
+        in_tree = _confine(spec_w, TEST_RESULTS_NAME, verb="read")
+        check("read in-tree name stays under dir",
+              in_tree.startswith(os.path.realpath(spec_w) + os.sep), True)
+
+        # --- drift_report: an escaping --test-results path is refused before
+        # any os.path.isfile / open touches the filesystem ---
+        check_raises("drift refuses escaping test-results",
+                     lambda: drift_report(
+                         spec_a, os.path.join("..", "outside", "passwd")))
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

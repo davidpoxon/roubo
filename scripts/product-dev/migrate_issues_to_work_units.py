@@ -194,7 +194,14 @@ def migrate_path(path: str, check_only: bool) -> int:
     1 in --check mode signals "a change would be made" (mirrors
     migrate_test_cases_to_v1_1.py); 0 otherwise.
     """
-    spec_dir = os.path.dirname(os.path.abspath(path))
+    # Normalize the operator-supplied positional path (untrusted argv) with
+    # os.path.realpath before any os.path.isfile / open, so traversal sequences
+    # are collapsed to a canonical path ahead of the read (py/path-injection,
+    # CWE-22). The migrate tool legitimately targets an arbitrary issues.json, so
+    # there is no enclosing root to confine against; canonicalization is the
+    # barrier here.
+    path = os.path.realpath(path)
+    spec_dir = os.path.dirname(path)
     slug = spec_slug_for(path)
 
     # Loud failure with no partial write: a parse error raises here before any
