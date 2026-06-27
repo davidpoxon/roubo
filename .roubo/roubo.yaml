@@ -1,36 +1,13 @@
 project:
   name: roubo
   displayName: Roubo
-  type: web
   repo: davidpoxon/roubo
   github:
     project: 1
 layout:
   type: single-repo
-components:
-  server:
-    plugin:
-      id: process
-    config:
-      command: npx tsx watch server/index.ts
-      env:
-        ROUBO_PORT: "{{ports.server}}"
-  client:
-    plugin:
-      id: process
-    dependsOn:
-      - server
-    config:
-      command: npm run dev
-      env:
-        DEV_PORT: "{{ports.client}}"
-        DEV_API_PORT: "{{ports.server}}"
-      directory: client
-ports:
-  server:
-    base: 4100
-  client:
-    base: 4200
+components: {}
+ports: {}
 tools:
   - type: browser
     name: Web App
