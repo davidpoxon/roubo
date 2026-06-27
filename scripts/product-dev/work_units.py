@@ -322,14 +322,17 @@ def _resolve_in_dir(spec_dir, name):
     Mirrors apply_doc.py's `resolve_in_root`: the symlink-resolved real path MUST
     sit inside the real spec_dir, even when the leaf file does not yet exist (a
     create), so a path escaping the folder (`..`, an absolute path, or a
-    symlinked dir pointing out) is refused before any fs write (WUAAVG-NFR-001).
+    symlinked dir pointing out) is refused before any fs access (WUAAVG-NFR-001).
+    Used to confine both writes (write_envelope) and reads (the migration's
+    existence check + read), so untrusted input cannot reach an out-of-folder
+    path.
     """
     real_dir = os.path.realpath(spec_dir)
     candidate = name if os.path.isabs(name) else os.path.join(real_dir, name)
     real_path = os.path.realpath(candidate)
     if real_path != real_dir and not real_path.startswith(real_dir + os.sep):
         raise InputError(
-            "refusing to write outside spec dir: %s resolves to %s (dir %s)"
+            "refusing to access path outside spec dir: %s resolves to %s (dir %s)"
             % (name, real_path, real_dir))
     return real_path
 
@@ -1564,6 +1567,15 @@ def _selftest():
         os.makedirs(outside)
         check_raises("path-escape refusal", lambda: _resolve_in_dir(
             spec_w, os.path.join("..", "outside", "x.json")))
+        # An absolute name pointing out of the spec dir is refused too (the read
+        # path the migration now routes through, py/path-injection alert #190).
+        check_raises("path-escape refusal (absolute)", lambda: _resolve_in_dir(
+            spec_w, os.path.join(outside, "x.json")))
+        # A contained name resolves to a real path inside the spec dir, so the
+        # sanitizer confines without breaking the in-folder read/write target.
+        check("contained resolves inside spec dir",
+              _resolve_in_dir(spec_w, WORK_UNITS_NAME),
+              os.path.join(os.path.realpath(spec_w), WORK_UNITS_NAME))
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
