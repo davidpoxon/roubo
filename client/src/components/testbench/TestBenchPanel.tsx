@@ -73,24 +73,31 @@ export default function TestBenchPanel({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const setFocus = useSetTestbenchFocus();
 
-  // View mode (#702): the existing whole-spec case review ("cases") or the
-  // verify-gate batch surface ("batches"). The batches surface lists one gate per
-  // phase (GatesOverview); opening a gate switches to its BatchView, scoped to the
-  // gate's gating subset. `openGateId` tracks the open batch within the batches
-  // mode (null = the overview list). Gates are project-level, so the batches
-  // surface does not depend on this bench's plan query.
-  const [viewMode, setViewMode] = useState<"cases" | "batches">("cases");
-  const [openGateId, setOpenGateId] = useState<string | null>(null);
+  // Per-bench UI state, persisted via localStorage so it survives tab/bench
+  // navigation and reload: the case-list collapse (#524) and the Cases/Batches
+  // view (#359).
+  const {
+    testbenchCaseListCollapsed,
+    setTestbenchCaseListCollapsed,
+    testbenchViewMode,
+    setTestbenchViewMode,
+  } = useBenchViewState(projectId, benchId);
 
-  // Case-list collapse (#524). Collapsing the list hands its width to the
-  // case-detail pane, which (combined with the sidebar collapse) is what lets the
-  // detail pane grow wide enough to show the inline notes rail. Persisted per
-  // bench. Only meaningful while a case is selected; with no selection the list
-  // already spans the full width, so the collapsed strip is never shown then.
-  const { testbenchCaseListCollapsed, setTestbenchCaseListCollapsed } = useBenchViewState(
-    projectId,
-    benchId,
-  );
+  // View mode (#702/#359): the existing whole-spec case review ("cases") or the
+  // verify-gate batch surface ("batches"). Derived directly from the per-bench
+  // persisted value (no local mirror), defaulting to "batches" on first visit
+  // (no remembered view, #359). Reading straight from the hook each render is
+  // deliberate: the bench route is keyless, so navigating to another bench reuses
+  // this panel instance with a new benchId, and a useState mirror would keep the
+  // previous bench's view (its initialiser never re-runs on a prop change) and
+  // bleed/clobber it across benches. The toggle writes the choice back per bench,
+  // mirroring testbenchCaseListCollapsed. The batches surface lists one gate per
+  // phase (GatesOverview); opening a gate switches to its BatchView, scoped to
+  // the gate's gating subset. `openGateId` tracks the open batch within the
+  // batches mode (null = the overview list). Gates are project-level, so the
+  // batches surface does not depend on this bench's plan query.
+  const viewMode = testbenchViewMode ?? "batches";
+  const [openGateId, setOpenGateId] = useState<string | null>(null);
 
   // Reconcile (#422/#413, FR-016/FR-017, NFR-003). The server computes staleness
   // and the add/changed/orphan classification; this panel only renders them and
@@ -219,12 +226,12 @@ export default function TestBenchPanel({
       aria-label="TestBench view"
       className="inline-flex self-start rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 p-0.5"
     >
-      {(["cases", "batches"] as const).map((mode) => (
+      {(["batches", "cases"] as const).map((mode) => (
         <Button
           key={mode}
           aria-pressed={viewMode === mode}
           onPress={() => {
-            setViewMode(mode);
+            setTestbenchViewMode(mode);
             if (mode === "cases") setOpenGateId(null);
           }}
           className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${

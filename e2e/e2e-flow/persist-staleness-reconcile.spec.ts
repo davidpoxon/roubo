@@ -5,6 +5,7 @@ import {
   registerFixtureProject,
   resetWithScenario,
   rewriteSpecTestCases,
+  showTestBenchCasesView,
 } from "./_support/scenario.js";
 import {
   TC_043_OWNING_SLICES,
@@ -162,6 +163,11 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   await test.step("Precondition: open the TestBench tab with the three seeded cases", async () => {
     await page.getByRole("tab", { name: /^TestBench/ }).click();
     const panel = page.getByRole("tabpanel");
+    // The view toggle now opens on the "Batches" surface by default (#359);
+    // switch to the Cases review this journey asserts on (overall rollup +
+    // cases + recorded marks). The choice is remembered per bench, so the later
+    // TestBench-tab visits in this spec stay on Cases without re-switching.
+    await showTestBenchCasesView(page);
     await expect(panel.getByText("Overall"), TC_043_OWNING_SLICES.reviewPanel).toBeVisible();
     for (const id of ["TC-A", "TC-B", "TC-C"]) {
       await expect(

@@ -77,6 +77,13 @@ function setData(data: Partial<TestbenchPlanResponse> & { plan: TestCasesPlan })
 const VIEWPORT = 400;
 beforeEach(() => {
   mockUseTestbenchPlan.mockReset();
+  // The panel now defaults to the Batches view on first visit (#359); these
+  // cases assert the Cases view, so seed the persisted per-bench view to "cases".
+  localStorage.clear();
+  localStorage.setItem(
+    "roubo-bench-view-state",
+    JSON.stringify({ "p1:1": { testbenchViewMode: "cases" } }),
+  );
   Object.defineProperty(HTMLElement.prototype, "clientHeight", {
     configurable: true,
     get() {

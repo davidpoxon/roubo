@@ -1,5 +1,10 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
+import {
+  loadAppShell,
+  registerFixtureProject,
+  resetWithScenario,
+  showTestBenchCasesView,
+} from "./_support/scenario.js";
 import { OWNING_SLICES, TC_001_PLAN, TESTBENCH_SPEC_SLUG } from "./_support/testbench-plan.js";
 
 // E2E (#438): the authoritative `e2e_flow` drift guard for the
@@ -219,6 +224,9 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
     await tablist.getByRole("tab", { name: /^TestBench/ }).click();
     const testBenchPanel = page.getByRole("tabpanel");
     await expect(testBenchPanel).toBeVisible();
+    // The view toggle now opens on the "Batches" surface by default (#359);
+    // switch to the Cases review this step asserts on (overall rollup + cases).
+    await showTestBenchCasesView(page);
     // Focused spec identity: slug + the full path to its test-cases.json.
     await expect(
       testBenchPanel.getByText(TESTBENCH_SPEC_SLUG, { exact: true }),

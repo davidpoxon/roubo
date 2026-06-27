@@ -73,6 +73,13 @@ const CLASSIFICATION: ReconcileClassification = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The panel now defaults to the Batches view on first visit (#359); this suite
+  // exercises the Cases view, so seed the persisted per-bench view to "cases".
+  localStorage.clear();
+  localStorage.setItem(
+    "roubo-bench-view-state",
+    JSON.stringify({ "p1:1": { testbenchViewMode: "cases" } }),
+  );
 });
 
 describe("TestBenchPanel reconcile wiring (#440)", () => {
