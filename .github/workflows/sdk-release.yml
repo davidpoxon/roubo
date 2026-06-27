@@ -16,7 +16,7 @@ on:
 
 jobs:
   publish:
-    name: publish @roubo/plugin-sdk + shared + shared-github
+    name: publish @roubo/plugin-sdk + shared
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -43,8 +43,8 @@ jobs:
             exit 1
           fi
           expected="${RELEASE_TAG#sdk-v}"
-          # The three packages version in lockstep: every one must match the tag.
-          for pkg in plugin-sdk shared plugins/_shared-github; do
+          # The two packages version in lockstep: every one must match the tag.
+          for pkg in plugin-sdk shared; do
             actual="$(jq -r '.version' "${pkg}/package.json")"
             if [[ "${expected}" != "${actual}" ]]; then
               echo "::error::Tag version '${expected}' does not match ${pkg}/package.json version '${actual}'"
@@ -58,12 +58,9 @@ jobs:
       - name: Ensure npm CLI supports trusted publishing
         run: npm install -g npm@latest
 
-      # Build in dependency order: plugin-sdk first, then shared-github (which
-      # bundles plugin-sdk via tsup). @roubo/shared publishes its raw .ts
+      # Build plugin-sdk before publishing. @roubo/shared publishes its raw .ts
       # sources, so it has no build step.
       - run: npm run build -w plugin-sdk
-
-      - run: npm run build -w plugins/_shared-github
 
       - run: npx vitest run plugin-sdk/
 
@@ -77,13 +74,9 @@ jobs:
         working-directory: shared
         run: npm publish --provenance
 
-      - name: Publish @roubo/shared-github (trusted publisher / OIDC)
-        working-directory: plugins/_shared-github
-        run: npm publish --provenance
-
   # Automated AC2 gate for #766: prove a real plugin builds in a standalone
-  # (out-of-monorepo) checkout that resolves @roubo/plugin-sdk, @roubo/shared,
-  # and @roubo/shared-github from the LIVE npm registry at their just-published
+  # (out-of-monorepo) checkout that resolves @roubo/plugin-sdk and @roubo/shared
+  # from the LIVE npm registry at their just-published
   # versions, with no surviving file:/workspace ref. This replaces the manual
   # maintainer check #766 left behind, so a broken standalone build fails the
   # release rather than being discovered later by hand.
@@ -153,7 +146,7 @@ jobs:
           }
           JSON
 
-          # Standalone package.json: pin all three published packages at the tag
+          # Standalone package.json: pin both published packages at the tag
           # version so install can only succeed from the live registry. Tooling
           # versions mirror the database plugin and the monorepo root.
           cat > "${SMOKE_DIR}/package.json" <<JSON
@@ -167,8 +160,7 @@ jobs:
             },
             "dependencies": {
               "@roubo/plugin-sdk": "${VERSION}",
-              "@roubo/shared": "${VERSION}",
-              "@roubo/shared-github": "${VERSION}"
+              "@roubo/shared": "${VERSION}"
             },
             "devDependencies": {
               "@types/node": "25.9.1",
@@ -201,7 +193,7 @@ jobs:
           import { readFileSync } from 'node:fs';
           const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
           const expected = process.env.VERSION_EXPECTED;
-          const pkgs = ['@roubo/plugin-sdk', '@roubo/shared', '@roubo/shared-github'];
+          const pkgs = ['@roubo/plugin-sdk', '@roubo/shared'];
           let failed = false;
           for (const name of pkgs) {
             const entry = lock.packages?.[`node_modules/${name}`];
