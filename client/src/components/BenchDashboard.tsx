@@ -169,6 +169,19 @@ export default function BenchDashboard() {
     for (let i = 1; i <= maxBenches; i++) {
       positions.push({ position: i, bench: benchMap.get(i) });
     }
+    // Surface out-of-range benches as their own clearable cards (davidpoxon/roubo-development#21).
+    // A bench whose id is < 1 or > maxBenches is orphaned: this happens when
+    // benches.max in roubo.yaml is lowered after a higher-id bench was created,
+    // leaving that bench persisted in state.json but outside the 1..maxBenches
+    // grid. Without this pass the orphan never renders, so it cannot be cleared,
+    // and the project can never be unregistered (the server-side guard still
+    // counts it). An out-of-range id can never collide with an in-range slot, so
+    // appending it as its own position is safe.
+    for (const bench of benches ?? []) {
+      if (bench.id < 1 || bench.id > maxBenches) {
+        positions.push({ position: bench.id, bench });
+      }
+    }
     return positions;
   }, [projectId, maxBenches, benches]);
 

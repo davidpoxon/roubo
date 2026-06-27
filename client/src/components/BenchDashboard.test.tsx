@@ -587,6 +587,23 @@ describe("BenchDashboard", () => {
       expect(screen.getAllByTestId("empty-bench-card")).toHaveLength(2);
     });
 
+    it("surfaces an out-of-range bench (id > maxBenches) as a clearable card (davidpoxon/roubo-development#21)", () => {
+      // max=3, but a bench with id 5 is persisted (e.g. benches.max was lowered
+      // after bench 5 was created). It must still render so it can be cleared,
+      // otherwise the project can never be unregistered.
+      stubDefaults({
+        projects: [makeProject()], // max=3
+        benches: [makeBench({ id: 1 }), makeBench({ id: 5 })],
+      });
+      renderDashboard("/projects/proj-1");
+      const cards = screen.getAllByTestId("bench-card");
+      // In-range bench 1 and the out-of-range bench 5 both render.
+      expect(cards.map((c) => c.textContent)).toEqual(expect.arrayContaining(["1", "5"]));
+      expect(cards).toHaveLength(2);
+      // The two remaining in-range slots (2 and 3) still render as empty.
+      expect(screen.getAllByTestId("empty-bench-card")).toHaveLength(2);
+    });
+
     it("renders Set up bench button", () => {
       stubDefaults({ projects: [makeProject()], benches: [] });
       renderDashboard("/projects/proj-1");
