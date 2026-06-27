@@ -423,6 +423,56 @@ describe("unregisterProject", () => {
     expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
     expect(registryModule.getProject("test-project")).toBeUndefined();
   });
+
+  it("is blocked by an out-of-range bench, then succeeds once it is cleared (davidpoxon/roubo-development#21)", () => {
+    // makeConfig sets benches.max = 5, but a bench with id 7 is persisted (its
+    // id fell out of range after benches.max was lowered). The guard counts
+    // every persisted bench regardless of range, so unregister is blocked until
+    // the orphan is surfaced in the UI and cleared.
+    const config = makeConfig();
+    mockedParseConfig.mockReturnValue({ valid: true, config });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    registryModule.registerProject("/repos/test-project");
+
+    // The state mocks accumulate calls across tests in this file (only the
+    // cut-list mocks are reset in beforeEach), so clear the ones asserted below.
+    mockedRemoveProject.mockClear();
+    mockedRemoveBench.mockClear();
+
+    mockedGetPersistedBenches.mockReturnValue([
+      {
+        id: 7,
+        projectId: "test-project",
+        branch: "feature",
+        workspacePath: "/workspace/7",
+        ports: {},
+        createdAt: "now",
+      },
+    ]);
+
+    try {
+      registryModule.unregisterProject("test-project");
+      expect.unreachable("expected unregisterProject to throw HAS_BENCHES");
+    } catch (e) {
+      expect(e).toBeInstanceOf(registryModule.ProjectRegistryError);
+      expect((e as InstanceType<typeof registryModule.ProjectRegistryError>).code).toBe(
+        "HAS_BENCHES",
+      );
+    }
+    expect(mockedRemoveProject).not.toHaveBeenCalled();
+    expect(cutListMocks.evictProject).not.toHaveBeenCalled();
+
+    // The user clears the orphan via the normal Clear action, which removes its
+    // state.json record. With no persisted benches left, unregister succeeds.
+    mockedGetPersistedBenches.mockReturnValue([]);
+
+    registryModule.unregisterProject("test-project");
+
+    expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
+    expect(registryModule.getProject("test-project")).toBeUndefined();
+    expect(cutListMocks.evictProject).toHaveBeenCalledWith("test-project");
+  });
 });
 
 describe("getProjects", () => {
