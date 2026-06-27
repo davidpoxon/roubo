@@ -184,7 +184,15 @@
       "implements": {
         "requirement_ids": ["CPHM-FR-001", "CPHM-FR-009", "CPHM-NFR-003", "CPHM-NFR-002"],
         "user_story_ids": ["CPHM-US-002"],
-        "test_case_ids": ["CPHM-TC-042", "CPHM-TC-043", "CPHM-TC-051", "CPHM-TC-006", "CPHM-TC-048"]
+        "test_case_ids": [
+          "CPHM-TC-042",
+          "CPHM-TC-043",
+          "CPHM-TC-051",
+          "CPHM-TC-006",
+          "CPHM-TC-048",
+          "CPHM-TC-044",
+          "CPHM-TC-050"
+        ]
       },
       "tracker": {
         "system": "github",
@@ -260,7 +268,7 @@
       "implements": {
         "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008"],
         "user_story_ids": ["CPHM-US-001"],
-        "test_case_ids": ["CPHM-TC-052", "CPHM-TC-053"]
+        "test_case_ids": ["CPHM-TC-031", "CPHM-TC-032", "CPHM-TC-052", "CPHM-TC-053"]
       },
       "tracker": {
         "system": "github",
@@ -285,6 +293,7 @@
         "test_case_ids": [
           "CPHM-TC-028",
           "CPHM-TC-029",
+          "CPHM-TC-030",
           "CPHM-TC-041",
           "CPHM-TC-054",
           "CPHM-TC-055",
@@ -556,6 +565,8 @@
           "CPHM-TC-017",
           "CPHM-TC-042",
           "CPHM-TC-043",
+          "CPHM-TC-044",
+          "CPHM-TC-050",
           "CPHM-TC-051"
         ]
       },
@@ -590,6 +601,9 @@
         "test_case_ids": [
           "CPHM-TC-028",
           "CPHM-TC-029",
+          "CPHM-TC-030",
+          "CPHM-TC-031",
+          "CPHM-TC-032",
           "CPHM-TC-040",
           "CPHM-TC-041",
           "CPHM-TC-052",
