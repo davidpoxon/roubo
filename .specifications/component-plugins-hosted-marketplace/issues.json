@@ -10,7 +10,7 @@
     "implements": {
       "requirement_ids": ["CPHM-FR-003", "CPHM-NFR-006"],
       "user_story_ids": [],
-      "test_case_ids": ["CPHM-TC-008", "CPHM-TC-009"]
+      "test_case_ids": ["CPHM-TC-064"]
     }
   },
   {
@@ -24,7 +24,7 @@
     "implements": {
       "requirement_ids": ["CPHM-FR-011"],
       "user_story_ids": ["CPHM-US-004"],
-      "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063", "CPHM-TC-064"]
+      "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
     }
   },
   {
@@ -86,7 +86,7 @@
     "labels": ["feature", "P0"],
     "blocked_by": [765, 769, 784],
     "implements": {
-      "requirement_ids": ["CPHM-FR-002", "CPHM-FR-006", "CPHM-NFR-006"],
+      "requirement_ids": ["CPHM-FR-002", "CPHM-FR-006", "CPHM-FR-011", "CPHM-NFR-006"],
       "user_story_ids": ["CPHM-US-004"],
       "test_case_ids": ["CPHM-TC-065", "CPHM-TC-066", "CPHM-TC-003", "CPHM-TC-012", "CPHM-TC-067"]
     }
@@ -123,14 +123,7 @@
     "implements": {
       "requirement_ids": ["CPHM-FR-001", "CPHM-FR-009", "CPHM-NFR-003", "CPHM-NFR-002"],
       "user_story_ids": ["CPHM-US-002"],
-      "test_case_ids": [
-        "CPHM-TC-042",
-        "CPHM-TC-043",
-        "CPHM-TC-051",
-        "CPHM-TC-006",
-        "CPHM-TC-007",
-        "CPHM-TC-048"
-      ]
+      "test_case_ids": ["CPHM-TC-042", "CPHM-TC-043", "CPHM-TC-051", "CPHM-TC-006", "CPHM-TC-048"]
     }
   },
   {
@@ -166,7 +159,7 @@
     "labels": ["task", "P1"],
     "blocked_by": [772, 785],
     "implements": {
-      "requirement_ids": ["CPHM-FR-007", "CPHM-NFR-001"],
+      "requirement_ids": ["CPHM-FR-001", "CPHM-FR-007", "CPHM-NFR-001"],
       "user_story_ids": ["CPHM-US-004"],
       "test_case_ids": ["CPHM-TC-001", "CPHM-TC-002", "CPHM-TC-007", "CPHM-TC-010"]
     }
@@ -180,9 +173,9 @@
     "labels": ["feature", "P0"],
     "blocked_by": [770, 773, 786],
     "implements": {
-      "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005"],
+      "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008"],
       "user_story_ids": ["CPHM-US-001"],
-      "test_case_ids": ["CPHM-TC-052", "CPHM-TC-053", "CPHM-TC-009"]
+      "test_case_ids": ["CPHM-TC-052", "CPHM-TC-053"]
     }
   },
   {
@@ -428,6 +421,7 @@
     "verified_by": [
       "CPHM-TC-028",
       "CPHM-TC-029",
+      "CPHM-TC-040",
       "CPHM-TC-041",
       "CPHM-TC-052",
       "CPHM-TC-053",
@@ -437,11 +431,18 @@
     ],
     "covers": [775, 776],
     "implements": {
-      "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008", "CPHM-NFR-005"],
+      "requirement_ids": [
+        "CPHM-FR-004",
+        "CPHM-FR-005",
+        "CPHM-FR-008",
+        "CPHM-NFR-002",
+        "CPHM-NFR-005"
+      ],
       "user_story_ids": ["CPHM-US-001", "CPHM-US-002"],
       "test_case_ids": [
         "CPHM-TC-028",
         "CPHM-TC-029",
+        "CPHM-TC-040",
         "CPHM-TC-041",
         "CPHM-TC-052",
         "CPHM-TC-053",
