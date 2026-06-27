@@ -14,7 +14,7 @@
           "directory": "plugins/database"
         },
         "provenance": "roubo/plugins@database",
-        "integrity": "sha256-b34b8d3490cea4b6b3ab16b4c5ee1ae8a39a3c07cee77e46648ef4df72862bbb",
+        "integrity": "sha256-2adcbcd67289d0b6895e6f0ed19768f09e6e298739cd34e3414bdb9f80b1d67f",
         "verified": true
       },
       {
@@ -29,7 +29,7 @@
           "directory": "plugins/process"
         },
         "provenance": "roubo/plugins@process",
-        "integrity": "sha256-0de24038bc69cd662f2d3a368b030ea15f9e4728129bebab1a14757bbb99e01b",
+        "integrity": "sha256-fe70bb9823f1cc5652f48bee3e715be2015454fcec21fc12f67ae90439d50be2",
         "verified": true
       },
       {
@@ -59,7 +59,7 @@
           "directory": "plugins/github-com"
         },
         "provenance": "roubo/plugins@github-com",
-        "integrity": "sha256-5f06349f7564272af6a21cf6431da8fd166ef73c18e40afbe8a8d1f4aeb54be7",
+        "integrity": "sha256-35dd2a2a83c82ff5022dc54e6a87128edf11be43320e06e037631553157f36b1",
         "verified": true
       },
       {
@@ -74,7 +74,7 @@
           "directory": "plugins/ghe"
         },
         "provenance": "roubo/plugins@ghe",
-        "integrity": "sha256-fc33496c73550d5c8d0ec14c91319b7d56543b7afd280d1bb17f4911085c1d53",
+        "integrity": "sha256-49a6f33fb74ddec613a545091b3cf040fed4b66e615f67a993a548d46691365f",
         "verified": true
       },
       {
@@ -89,7 +89,7 @@
           "directory": "plugins/jira-self-hosted"
         },
         "provenance": "roubo/plugins@jira-self-hosted",
-        "integrity": "sha256-c4aad57599abd594dfc1c0f46cb5ba4b355687da593281f97ddd24cd03fa4512",
+        "integrity": "sha256-2700c56c517d7d8eaab26c11fb389db53c7cf1b18418de97f445b32c123c55a8",
         "verified": true
       },
       {
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "signature": "/Pa87lOqs12je7hk1BeD4LmGy3OCkLU9aJBj8pvOOrJYcgzoP9FbAxXrOk/KZu58I5+Liz3De6JVxB0JdTwWAw=="
+  "signature": "mkTM7hgdKN28Mx+1F9LU2qMDdERxjfw9XFkXLmyDzVXqUNv+27ukirmcFBnoYu+/zyL6gKhROTvZnq2cwrZKCw=="
 }
