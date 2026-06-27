@@ -10,6 +10,11 @@ type BenchViewEntry = {
   // TestBench case-list collapse (#524). Persisted per bench so reclaiming
   // horizontal space for the case-detail pane survives navigation and reload.
   testbenchCaseListCollapsed?: boolean;
+  // TestBench Cases/Batches view (#359). Persisted per bench so the active view
+  // survives tab and bench navigation. Left undefined until the user picks a
+  // view; an unset value is the first-visit signal the panel reads to default
+  // to Batches.
+  testbenchViewMode?: "cases" | "batches";
   // BenchDetail header collapse (#805). Persisted per bench so reclaiming
   // vertical space (hiding metadata + tabs, keeping the title row + actions)
   // survives navigation and reload.
@@ -81,6 +86,14 @@ export function useBenchViewState(projectId: string, benchId: number) {
     [benchKey, bump],
   );
 
+  const setTestbenchViewMode = useCallback(
+    (mode: "cases" | "batches") => {
+      writeEntry(benchKey, { testbenchViewMode: mode });
+      bump();
+    },
+    [benchKey, bump],
+  );
+
   const setHeaderCollapsed = useCallback(
     (collapsed: boolean) => {
       writeEntry(benchKey, { headerCollapsed: collapsed });
@@ -96,6 +109,10 @@ export function useBenchViewState(projectId: string, benchId: number) {
     setActiveTerminalSessionId,
     testbenchCaseListCollapsed: entry.testbenchCaseListCollapsed ?? false,
     setTestbenchCaseListCollapsed,
+    // Raw (possibly undefined): the panel needs to tell "no remembered view"
+    // (first visit -> default Batches) apart from an explicit "cases".
+    testbenchViewMode: entry.testbenchViewMode,
+    setTestbenchViewMode,
     headerCollapsed: entry.headerCollapsed ?? false,
     setHeaderCollapsed,
   };
