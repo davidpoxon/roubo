@@ -10,7 +10,7 @@
     "implements": {
       "requirement_ids": ["CPHM-FR-003", "CPHM-NFR-006"],
       "user_story_ids": [],
-      "test_case_ids": ["CPHM-TC-015", "CPHM-TC-016", "CPHM-TC-008", "CPHM-TC-009"]
+      "test_case_ids": ["CPHM-TC-008", "CPHM-TC-009"]
     }
   },
   {
@@ -145,6 +145,8 @@
       "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-NFR-001", "CPHM-NFR-002"],
       "user_story_ids": ["CPHM-US-001", "CPHM-US-005"],
       "test_case_ids": [
+        "CPHM-TC-015",
+        "CPHM-TC-016",
         "CPHM-TC-017",
         "CPHM-TC-018",
         "CPHM-TC-019",
@@ -334,12 +336,12 @@
     "milestone": "Hosted marketplace: M1 Foundation",
     "labels": ["task", "verify", "P0"],
     "blocked_by": [765, 766],
-    "verified_by": ["CPHM-TC-015", "CPHM-TC-016", "CPHM-TC-062", "CPHM-TC-063"],
+    "verified_by": ["CPHM-TC-062", "CPHM-TC-063"],
     "covers": [765, 766],
     "implements": {
-      "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-FR-011"],
-      "user_story_ids": ["CPHM-US-001", "CPHM-US-004", "CPHM-US-005"],
-      "test_case_ids": ["CPHM-TC-015", "CPHM-TC-016", "CPHM-TC-062", "CPHM-TC-063"]
+      "requirement_ids": ["CPHM-FR-011"],
+      "user_story_ids": ["CPHM-US-004"],
+      "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
     }
   },
   {
@@ -385,6 +387,8 @@
     "verified_by": [
       "CPHM-TC-001",
       "CPHM-TC-002",
+      "CPHM-TC-015",
+      "CPHM-TC-016",
       "CPHM-TC-017",
       "CPHM-TC-042",
       "CPHM-TC-043",
@@ -403,6 +407,8 @@
       "test_case_ids": [
         "CPHM-TC-001",
         "CPHM-TC-002",
+        "CPHM-TC-015",
+        "CPHM-TC-016",
         "CPHM-TC-017",
         "CPHM-TC-042",
         "CPHM-TC-043",
