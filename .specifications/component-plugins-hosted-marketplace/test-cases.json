@@ -60,18 +60,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path",
-        "critical-path"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-003",
-        "CPHM-US-004"
-      ]
+      "tags": ["smoke", "happy-path", "critical-path"],
+      "linked_requirement_ids": ["CPHM-FR-001"],
+      "linked_user_story_ids": ["CPHM-US-003", "CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-002",
@@ -115,16 +106,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path",
-        "browse"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-003"
-      ]
+      "tags": ["happy-path", "browse"],
+      "linked_requirement_ids": ["CPHM-FR-001"],
+      "linked_user_story_ids": ["CPHM-US-003"]
     },
     {
       "id": "CPHM-TC-003",
@@ -185,17 +169,9 @@
           ]
         }
       ],
-      "tags": [
-        "publish",
-        "ci",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-006"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["publish", "ci", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-006"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-004",
@@ -243,17 +219,9 @@
           ]
         }
       ],
-      "tags": [
-        "revocation",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["revocation", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-005",
@@ -301,17 +269,9 @@
           ]
         }
       ],
-      "tags": [
-        "key-rotation",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["key-rotation", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-006",
@@ -349,18 +309,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "signature",
-        "security"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-001",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-003"
-      ]
+      "tags": ["negative", "signature", "security"],
+      "linked_requirement_ids": ["CPHM-FR-001", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-003"]
     },
     {
       "id": "CPHM-TC-007",
@@ -394,17 +345,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "revocation"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["negative", "revocation"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-008",
@@ -442,18 +385,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "key-rotation",
-        "security"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["negative", "key-rotation", "security"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-009",
@@ -491,18 +425,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "key-ring",
-        "security"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["edge_case", "key-ring", "security"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-010",
@@ -539,17 +464,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "size-budget",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-003"
-      ]
+      "tags": ["edge_case", "size-budget", "reliability"],
+      "linked_requirement_ids": ["CPHM-FR-001"],
+      "linked_user_story_ids": ["CPHM-US-003"]
     },
     {
       "id": "CPHM-TC-011",
@@ -593,19 +510,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "supply-chain",
-        "secret-scan",
-        "revocation"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-004",
-        "CPHM-FR-007"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["security", "supply-chain", "secret-scan", "revocation"],
+      "linked_requirement_ids": ["CPHM-NFR-004", "CPHM-FR-007"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-012",
@@ -639,19 +546,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "supply-chain",
-        "negative",
-        "digest"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-006",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["security", "supply-chain", "negative", "digest"],
+      "linked_requirement_ids": ["CPHM-FR-006", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-013",
@@ -689,17 +586,9 @@
           ]
         }
       ],
-      "tags": [
-        "catalog-update",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-007",
-        "CPHM-FR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["catalog-update", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-007", "CPHM-FR-001"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-014",
@@ -778,22 +667,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "publish",
-        "revocation",
-        "smoke"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-001",
-        "CPHM-FR-006",
-        "CPHM-FR-007",
-        "CPHM-NFR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-003",
-        "CPHM-US-004"
-      ]
+      "tags": ["e2e", "publish", "revocation", "smoke"],
+      "linked_requirement_ids": ["CPHM-FR-001", "CPHM-FR-006", "CPHM-FR-007", "CPHM-NFR-004"],
+      "linked_user_story_ids": ["CPHM-US-003", "CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-015",
@@ -831,16 +707,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-002"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["smoke", "happy-path"],
+      "linked_requirement_ids": ["CPHM-FR-002"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-016",
@@ -898,18 +767,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-002",
-        "CPHM-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-005"
-      ]
+      "tags": ["happy-path", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-002", "CPHM-FR-003"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-017",
@@ -997,19 +857,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "happy-path",
-        "smoke"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-002",
-        "CPHM-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-005"
-      ]
+      "tags": ["e2e", "happy-path", "smoke"],
+      "linked_requirement_ids": ["CPHM-FR-002", "CPHM-FR-003"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-018",
@@ -1047,18 +897,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "fail-closed",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "fail-closed", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-019",
@@ -1095,18 +936,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "fail-closed",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "fail-closed", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-020",
@@ -1143,18 +975,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "security",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "security", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-021",
@@ -1191,18 +1014,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "limits",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "limits", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-022",
@@ -1240,19 +1054,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "tamper",
-        "no-network",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-001",
-        "CPHM-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["security", "tamper", "no-network", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-NFR-001", "CPHM-FR-003"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-023",
@@ -1290,19 +1094,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "tamper",
-        "no-network",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-001",
-        "CPHM-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["security", "tamper", "no-network", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-NFR-001", "CPHM-FR-003"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-024",
@@ -1339,19 +1133,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "tamper",
-        "prototype",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["security", "tamper", "prototype", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-025",
@@ -1388,18 +1172,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge",
-        "reliability",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["edge", "reliability", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-026",
@@ -1436,21 +1211,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge",
-        "reliability",
-        "atomicity",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-002",
-        "CPHM-FR-003",
-        "CPHM-NFR-001"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-005"
-      ]
+      "tags": ["edge", "reliability", "atomicity", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-NFR-001"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-027",
@@ -1488,19 +1251,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge",
-        "atomicity",
-        "reliability"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-002",
-        "CPHM-FR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-005"
-      ]
+      "tags": ["edge", "atomicity", "reliability"],
+      "linked_requirement_ids": ["CPHM-FR-002", "CPHM-FR-003"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-028",
@@ -1557,19 +1310,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "happy-path",
-        "offline",
-        "first-run"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-002"
-      ]
+      "tags": ["smoke", "happy-path", "offline", "first-run"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-029",
@@ -1577,10 +1320,7 @@
       "area": "seed-cache",
       "level": 1,
       "type": "functional",
-      "preconditions": [
-        "Clean machine with no seed idempotency marker",
-        "Network disabled"
-      ],
+      "preconditions": ["Clean machine with no seed idempotency marker", "Network disabled"],
       "steps": [
         {
           "id": "S001",
@@ -1597,17 +1337,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "first-run",
-        "offline"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["smoke", "first-run", "offline"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-030",
@@ -1640,18 +1372,9 @@
           ]
         }
       ],
-      "tags": [
-        "integration",
-        "verification",
-        "offline"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004",
-        "CPHM-NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["integration", "verification", "offline"],
+      "linked_requirement_ids": ["CPHM-FR-004", "CPHM-NFR-002"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-031",
@@ -1690,18 +1413,9 @@
           ]
         }
       ],
-      "tags": [
-        "functional",
-        "marketplace",
-        "on-demand"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-005",
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["functional", "marketplace", "on-demand"],
+      "linked_requirement_ids": ["CPHM-FR-005", "CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-032",
@@ -1730,17 +1444,9 @@
           ]
         }
       ],
-      "tags": [
-        "functional",
-        "marketplace",
-        "on-demand"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["functional", "marketplace", "on-demand"],
+      "linked_requirement_ids": ["CPHM-FR-005"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-033",
@@ -1778,17 +1484,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "idempotency",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["negative", "idempotency", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-034",
@@ -1816,17 +1514,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "idempotency",
-        "marketplace"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["negative", "idempotency", "marketplace"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-035",
@@ -1868,19 +1558,9 @@
           ]
         }
       ],
-      "tags": [
-        "security",
-        "fail-closed",
-        "negative",
-        "verification"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004",
-        "CPHM-NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["security", "fail-closed", "negative", "verification"],
+      "linked_requirement_ids": ["CPHM-FR-004", "CPHM-NFR-002"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-036",
@@ -1917,18 +1597,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "marketplace-only",
-        "offline"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-005",
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["negative", "marketplace-only", "offline"],
+      "linked_requirement_ids": ["CPHM-FR-005", "CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-037",
@@ -1956,17 +1627,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "edge_case",
-        "resilience"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["negative", "edge_case", "resilience"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-038",
@@ -2018,18 +1681,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "reliability",
-        "resume",
-        "idempotency"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["edge_case", "reliability", "resume", "idempotency"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-039",
@@ -2063,17 +1717,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "concurrency",
-        "idempotency"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["edge_case", "concurrency", "idempotency"],
+      "linked_requirement_ids": ["CPHM-FR-004"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-040",
@@ -2122,17 +1768,9 @@
           ]
         }
       ],
-      "tags": [
-        "performance",
-        "offline",
-        "benchmark"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-002"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["performance", "offline", "benchmark"],
+      "linked_requirement_ids": ["CPHM-NFR-002"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-041",
@@ -2203,20 +1841,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e_flow",
-        "first-run",
-        "offline",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-004",
-        "CPHM-FR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001",
-        "CPHM-US-002"
-      ]
+      "tags": ["e2e_flow", "first-run", "offline", "happy-path"],
+      "linked_requirement_ids": ["CPHM-FR-004", "CPHM-FR-005"],
+      "linked_user_story_ids": ["CPHM-US-001", "CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-042",
@@ -2265,18 +1892,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "offline",
-        "critical-path"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["smoke", "offline", "critical-path"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-043",
@@ -2323,18 +1941,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "happy-path",
-        "catalog"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "happy-path", "catalog"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-044",
@@ -2366,18 +1975,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "integration",
-        "catalog-client"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "integration", "catalog-client"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-045",
@@ -2420,18 +2020,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "negative",
-        "install"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "negative", "install"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-046",
@@ -2477,19 +2068,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "security",
-        "fail-closed",
-        "signature"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "security", "fail-closed", "signature"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-047",
@@ -2527,18 +2108,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "negative",
-        "never-zero"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "negative", "never-zero"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-048",
@@ -2570,18 +2142,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "edge",
-        "corrupt-cache"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "edge", "corrupt-cache"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-049",
@@ -2613,19 +2176,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "edge",
-        "signature",
-        "fail-closed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "edge", "signature", "fail-closed"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-050",
@@ -2682,18 +2235,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "reliability",
-        "availability"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-003",
-        "CPHM-FR-009"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "reliability", "availability"],
+      "linked_requirement_ids": ["CPHM-NFR-003", "CPHM-FR-009"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-051",
@@ -2770,18 +2314,9 @@
           ]
         }
       ],
-      "tags": [
-        "offline",
-        "e2e",
-        "journey"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-009",
-        "CPHM-NFR-003"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-002"
-      ]
+      "tags": ["offline", "e2e", "journey"],
+      "linked_requirement_ids": ["CPHM-FR-009", "CPHM-NFR-003"],
+      "linked_user_story_ids": ["CPHM-US-002"]
     },
     {
       "id": "CPHM-TC-052",
@@ -2833,18 +2368,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "structural",
-        "packaging",
-        "de-bundle"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["smoke", "structural", "packaging", "de-bundle"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-053",
@@ -2891,18 +2417,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "functional",
-        "seed",
-        "de-bundle"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["smoke", "functional", "seed", "de-bundle"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-054",
@@ -2955,19 +2472,9 @@
           ]
         }
       ],
-      "tags": [
-        "upgrade",
-        "integration",
-        "clean-break",
-        "seed"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008",
-        "CPHM-NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["upgrade", "integration", "clean-break", "seed"],
+      "linked_requirement_ids": ["CPHM-FR-008", "CPHM-NFR-005"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-055",
@@ -3012,18 +2519,9 @@
           ]
         }
       ],
-      "tags": [
-        "upgrade",
-        "integration",
-        "marketplace",
-        "reinstall"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["upgrade", "integration", "marketplace", "reinstall"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-056",
@@ -3061,18 +2559,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "parity",
-        "no-regression",
-        "github-com"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["regression", "parity", "no-regression", "github-com"],
+      "linked_requirement_ids": ["CPHM-NFR-005"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-057",
@@ -3120,19 +2609,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "config-load",
-        "no-regression",
-        "process",
-        "database"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["regression", "config-load", "no-regression", "process", "database"],
+      "linked_requirement_ids": ["CPHM-NFR-005"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-058",
@@ -3170,17 +2649,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "clean-break",
-        "no-migration"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["negative", "clean-break", "no-migration"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-059",
@@ -3224,18 +2695,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "clean-break",
-        "ghe",
-        "reinstall"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["edge_case", "clean-break", "ghe", "reinstall"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-060",
@@ -3272,17 +2734,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge_case",
-        "idempotent",
-        "seed-marker"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["edge_case", "idempotent", "seed-marker"],
+      "linked_requirement_ids": ["CPHM-FR-008"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-061",
@@ -3356,21 +2810,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "upgrade",
-        "happy-path",
-        "clean-break",
-        "seed",
-        "marketplace"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-008",
-        "CPHM-NFR-005"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-001"
-      ]
+      "tags": ["e2e", "upgrade", "happy-path", "clean-break", "seed", "marketplace"],
+      "linked_requirement_ids": ["CPHM-FR-008", "CPHM-NFR-005"],
+      "linked_user_story_ids": ["CPHM-US-001"]
     },
     {
       "id": "CPHM-TC-062",
@@ -3423,17 +2865,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "critical-path",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["smoke", "critical-path", "automated"],
+      "linked_requirement_ids": ["CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-063",
@@ -3491,17 +2925,9 @@
           ]
         }
       ],
-      "tags": [
-        "happy-path",
-        "integration",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["happy-path", "integration", "automated"],
+      "linked_requirement_ids": ["CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-064",
@@ -3549,18 +2975,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "nfr",
-        "supply-chain",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["regression", "nfr", "supply-chain", "automated"],
+      "linked_requirement_ids": ["CPHM-NFR-006"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-065",
@@ -3597,17 +3014,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "error-handling",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["negative", "error-handling", "automated"],
+      "linked_requirement_ids": ["CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-066",
@@ -3655,17 +3064,9 @@
           ]
         }
       ],
-      "tags": [
-        "reproducibility",
-        "structural",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["reproducibility", "structural", "automated"],
+      "linked_requirement_ids": ["CPHM-NFR-006"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-067",
@@ -3703,19 +3104,9 @@
           ]
         }
       ],
-      "tags": [
-        "reproducibility",
-        "publish-gate",
-        "negative",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-NFR-006",
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["reproducibility", "publish-gate", "negative", "automated"],
+      "linked_requirement_ids": ["CPHM-NFR-006", "CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-068",
@@ -3763,18 +3154,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "compatibility",
-        "exploratory",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["edge-case", "compatibility", "exploratory", "automated"],
+      "linked_requirement_ids": ["CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-069",
@@ -3808,18 +3190,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "isolation",
-        "exploratory",
-        "automated"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["edge-case", "isolation", "exploratory", "automated"],
+      "linked_requirement_ids": ["CPHM-FR-011"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-070",
@@ -3904,20 +3277,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "author-journey",
-        "reproducibility",
-        "supply-chain",
-        "manual"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-011",
-        "CPHM-NFR-006"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-004"
-      ]
+      "tags": ["e2e", "author-journey", "reproducibility", "supply-chain", "manual"],
+      "linked_requirement_ids": ["CPHM-FR-011", "CPHM-NFR-006"],
+      "linked_user_story_ids": ["CPHM-US-004"]
     },
     {
       "id": "CPHM-TC-071",
@@ -3959,17 +3321,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "regression",
-        "components-editor"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-006"
-      ]
+      "tags": ["smoke", "regression", "components-editor"],
+      "linked_requirement_ids": ["CPHM-FR-010"],
+      "linked_user_story_ids": ["CPHM-US-006"]
     },
     {
       "id": "CPHM-TC-072",
@@ -4011,17 +3365,9 @@
           ]
         }
       ],
-      "tags": [
-        "smoke",
-        "regression",
-        "errored-banner"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["smoke", "regression", "errored-banner"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-073",
@@ -4073,17 +3419,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "components-editor",
-        "plugin-binding"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-006"
-      ]
+      "tags": ["regression", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["CPHM-FR-010"],
+      "linked_user_story_ids": ["CPHM-US-006"]
     },
     {
       "id": "CPHM-TC-074",
@@ -4121,17 +3459,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "components-editor",
-        "plugin-binding"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-006"
-      ]
+      "tags": ["regression", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["CPHM-FR-010"],
+      "linked_user_story_ids": ["CPHM-US-006"]
     },
     {
       "id": "CPHM-TC-075",
@@ -4173,17 +3503,9 @@
           ]
         }
       ],
-      "tags": [
-        "regression",
-        "errored-banner",
-        "plugin-kind"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["regression", "errored-banner", "plugin-kind"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-076",
@@ -4221,17 +3543,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "components-editor",
-        "plugin-binding"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-006"
-      ]
+      "tags": ["negative", "components-editor", "plugin-binding"],
+      "linked_requirement_ids": ["CPHM-FR-010"],
+      "linked_user_story_ids": ["CPHM-US-006"]
     },
     {
       "id": "CPHM-TC-077",
@@ -4239,9 +3553,7 @@
       "area": "components-ui",
       "level": 3,
       "type": "negative",
-      "preconditions": [
-        "A component plugin is in an errored state with a real lastError"
-      ],
+      "preconditions": ["A component plugin is in an errored state with a real lastError"],
       "steps": [
         {
           "id": "S001",
@@ -4258,17 +3570,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "errored-banner",
-        "plugin-kind"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "errored-banner", "plugin-kind"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-078",
@@ -4299,17 +3603,9 @@
           ]
         }
       ],
-      "tags": [
-        "negative",
-        "errored-banner",
-        "regression"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["negative", "errored-banner", "regression"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-079",
@@ -4340,17 +3636,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "errored-banner",
-        "layout"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["edge-case", "errored-banner", "layout"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-080",
@@ -4358,9 +3646,7 @@
       "area": "components-ui",
       "level": 4,
       "type": "edge_case",
-      "preconditions": [
-        "A component is bound to a healthy component plugin with no lastError set"
-      ],
+      "preconditions": ["A component is bound to a healthy component plugin with no lastError set"],
       "steps": [
         {
           "id": "S001",
@@ -4377,16 +3663,9 @@
           ]
         }
       ],
-      "tags": [
-        "edge-case",
-        "errored-banner"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["edge-case", "errored-banner"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     },
     {
       "id": "CPHM-TC-081",
@@ -4463,18 +3742,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "components-editor",
-        "plugin-binding",
-        "happy-path"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-010"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-006"
-      ]
+      "tags": ["e2e", "components-editor", "plugin-binding", "happy-path"],
+      "linked_requirement_ids": ["CPHM-FR-010"],
+      "linked_user_story_ids": ["CPHM-US-006"]
     },
     {
       "id": "CPHM-TC-082",
@@ -4532,17 +3802,9 @@
           ]
         }
       ],
-      "tags": [
-        "e2e",
-        "errored-banner",
-        "recovery"
-      ],
-      "linked_requirement_ids": [
-        "CPHM-FR-012"
-      ],
-      "linked_user_story_ids": [
-        "CPHM-US-005"
-      ]
+      "tags": ["e2e", "errored-banner", "recovery"],
+      "linked_requirement_ids": ["CPHM-FR-012"],
+      "linked_user_story_ids": ["CPHM-US-005"]
     }
   ]
 }

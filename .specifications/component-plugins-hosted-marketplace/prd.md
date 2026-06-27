@@ -82,18 +82,18 @@ _Dropped as N/A: accessibility (a UI deletion, no new UI), scalability (tiny sin
 
 ### Leading
 
-| Indicator                                                                                                             | Baseline          | Target | Source                    | Validates              |
-| --------------------------------------------------------------------------------------------------------------------- | ----------------- | ------ | ------------------------- | ---------------------- |
+| Indicator                                                                                                             | Baseline          | Target | Source                    | Validates                             |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------- | ------ | ------------------------- | ------------------------------------- |
 | Fresh-machine component success rate (% of clean installs that run a process/database component with no manual build) | 0% (broken today) | 100%   | install telemetry / QA    | CPHM-US-001, CPHM-FR-002, CPHM-FR-004 |
-| First-run offline readiness (% of first launches usable offline with the 3-plugin seed set)                           | n/a               | 100%   | QA / telemetry            | CPHM-US-002, CPHM-FR-004         |
-| Catalog updates shipped without an app release                                                                        | 0                 | >= 1   | marketplace repo releases | CPHM-US-003, CPHM-FR-007         |
+| First-run offline readiness (% of first launches usable offline with the 3-plugin seed set)                           | n/a               | 100%   | QA / telemetry            | CPHM-US-002, CPHM-FR-004              |
+| Catalog updates shipped without an app release                                                                        | 0                 | >= 1   | marketplace repo releases | CPHM-US-003, CPHM-FR-007              |
 
 ### Lagging
 
 | Indicator                                                                                  | Baseline                      | Target           | Source                                                                 | Validates   |
 | ------------------------------------------------------------------------------------------ | ----------------------------- | ---------------- | ---------------------------------------------------------------------- | ----------- |
 | "Plugin won't start" issue volume for component plugins                                    | nonzero (the bug this closes) | ~0 after rollout | GitHub issues                                                          | the feature |
-| Non-seeded / third-party plugin installs (ghe, jira, community) via the hosted marketplace | 0                             | growing          | GitHub Release download counts (lens A ships no first-party telemetry) | CPHM-US-004      |
+| Non-seeded / third-party plugin installs (ghe, jira, community) via the hosted marketplace | 0                             | growing          | GitHub Release download counts (lens A ships no first-party telemetry) | CPHM-US-004 |
 
 ## Dependencies & assumptions
 
