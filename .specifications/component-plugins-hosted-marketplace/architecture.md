@@ -143,7 +143,9 @@ PRD-supplied invariants: every artifact is integrity-verified over the **built**
 
 ## Supersedes / PRD deltas
 
-None. Lens A satisfies every PRD FR/NFR as written, including FR-007 (rotation without an app release, via the key-ring) and the NFR-004 revocation target ("blocked at the next catalog refresh").
+- **CPHM-FR-003 / CPHM-NFR-001 (catalog-signature verification key):** the PRD originally stated the catalog signature is verified against a single key the app holds. This design refines that: the catalog is signed by a rotating operational key resolved from a signed key-ring, and the app embeds only the long-lived bootstrap root key that anchors the ring (only a root-key change requires an app release). A single embedded catalog key cannot satisfy FR-007 (rotation without an app release), so the key-ring model supersedes the app-held-key wording for these two IDs; the PRD text for FR-003 / NFR-001 has been updated to match.
+
+Otherwise, Lens A satisfies every PRD FR/NFR as written, including FR-007 (rotation without an app release, via the key-ring) and the NFR-004 revocation target ("blocked at the next catalog refresh").
 
 ## Open questions
 

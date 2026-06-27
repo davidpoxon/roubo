@@ -15,7 +15,7 @@
       "implements": {
         "requirement_ids": ["CPHM-FR-003", "CPHM-NFR-006"],
         "user_story_ids": [],
-        "test_case_ids": ["CPHM-TC-015", "CPHM-TC-016", "CPHM-TC-008", "CPHM-TC-009"]
+        "test_case_ids": ["CPHM-TC-064"]
       },
       "tracker": {
         "system": "github",
@@ -37,7 +37,7 @@
       "implements": {
         "requirement_ids": ["CPHM-FR-011"],
         "user_story_ids": ["CPHM-US-004"],
-        "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063", "CPHM-TC-064"]
+        "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
       },
       "tracker": {
         "system": "github",
@@ -131,7 +131,7 @@
       "description": "CI build/sign/publish pipeline with reproducible digest",
       "acceptance_criteria": [],
       "implements": {
-        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-006", "CPHM-NFR-006"],
+        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-006", "CPHM-FR-011", "CPHM-NFR-006"],
         "user_story_ids": ["CPHM-US-004"],
         "test_case_ids": ["CPHM-TC-065", "CPHM-TC-066", "CPHM-TC-003", "CPHM-TC-012", "CPHM-TC-067"]
       },
@@ -189,8 +189,9 @@
           "CPHM-TC-043",
           "CPHM-TC-051",
           "CPHM-TC-006",
-          "CPHM-TC-007",
-          "CPHM-TC-048"
+          "CPHM-TC-048",
+          "CPHM-TC-044",
+          "CPHM-TC-050"
         ]
       },
       "tracker": {
@@ -214,6 +215,8 @@
         "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-NFR-001", "CPHM-NFR-002"],
         "user_story_ids": ["CPHM-US-001", "CPHM-US-005"],
         "test_case_ids": [
+          "CPHM-TC-015",
+          "CPHM-TC-016",
           "CPHM-TC-017",
           "CPHM-TC-018",
           "CPHM-TC-019",
@@ -241,7 +244,7 @@
       "description": "marketplace.ts network source + revocation enforcement",
       "acceptance_criteria": [],
       "implements": {
-        "requirement_ids": ["CPHM-FR-007", "CPHM-NFR-001"],
+        "requirement_ids": ["CPHM-FR-001", "CPHM-FR-007", "CPHM-NFR-001"],
         "user_story_ids": ["CPHM-US-004"],
         "test_case_ids": ["CPHM-TC-001", "CPHM-TC-002", "CPHM-TC-007", "CPHM-TC-010"]
       },
@@ -263,9 +266,9 @@
       "description": "app-packaging seed bundle; remove BUNDLED_PLUGIN_IDS source-copy",
       "acceptance_criteria": [],
       "implements": {
-        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005"],
+        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008"],
         "user_story_ids": ["CPHM-US-001"],
-        "test_case_ids": ["CPHM-TC-052", "CPHM-TC-053", "CPHM-TC-009"]
+        "test_case_ids": ["CPHM-TC-031", "CPHM-TC-032", "CPHM-TC-052", "CPHM-TC-053"]
       },
       "tracker": {
         "system": "github",
@@ -290,6 +293,7 @@
         "test_case_ids": [
           "CPHM-TC-028",
           "CPHM-TC-029",
+          "CPHM-TC-030",
           "CPHM-TC-041",
           "CPHM-TC-054",
           "CPHM-TC-055",
@@ -484,9 +488,9 @@
       "description": "Verify gate: Hosted marketplace: M1 Foundation",
       "acceptance_criteria": [],
       "implements": {
-        "requirement_ids": ["CPHM-FR-002", "CPHM-FR-003", "CPHM-FR-011"],
-        "user_story_ids": ["CPHM-US-001", "CPHM-US-004", "CPHM-US-005"],
-        "test_case_ids": ["CPHM-TC-015", "CPHM-TC-016", "CPHM-TC-062", "CPHM-TC-063"]
+        "requirement_ids": ["CPHM-FR-011"],
+        "user_story_ids": ["CPHM-US-004"],
+        "test_case_ids": ["CPHM-TC-062", "CPHM-TC-063"]
       },
       "tracker": {
         "system": "github",
@@ -556,9 +560,13 @@
         "test_case_ids": [
           "CPHM-TC-001",
           "CPHM-TC-002",
+          "CPHM-TC-015",
+          "CPHM-TC-016",
           "CPHM-TC-017",
           "CPHM-TC-042",
           "CPHM-TC-043",
+          "CPHM-TC-044",
+          "CPHM-TC-050",
           "CPHM-TC-051"
         ]
       },
@@ -582,11 +590,21 @@
       "description": "Verify gate: Hosted marketplace: M4 De-bundle + seed",
       "acceptance_criteria": [],
       "implements": {
-        "requirement_ids": ["CPHM-FR-004", "CPHM-FR-005", "CPHM-FR-008", "CPHM-NFR-005"],
+        "requirement_ids": [
+          "CPHM-FR-004",
+          "CPHM-FR-005",
+          "CPHM-FR-008",
+          "CPHM-NFR-002",
+          "CPHM-NFR-005"
+        ],
         "user_story_ids": ["CPHM-US-001", "CPHM-US-002"],
         "test_case_ids": [
           "CPHM-TC-028",
           "CPHM-TC-029",
+          "CPHM-TC-030",
+          "CPHM-TC-031",
+          "CPHM-TC-032",
+          "CPHM-TC-040",
           "CPHM-TC-041",
           "CPHM-TC-052",
           "CPHM-TC-053",
