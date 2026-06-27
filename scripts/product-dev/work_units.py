@@ -236,11 +236,11 @@ def load(spec_dir):
     because the caller cannot tell "no work" from "wrong folder / nothing read".
     """
     # Normalize-and-confine each spec-dir-relative read before it reaches
-    # os.path.isfile / open. `_confine` binds the resolved read path inside the
-    # TRUSTED, non-argv root (the resolved CWD), so an argv-supplied `spec_dir`
-    # that resolves out of tree (or traverses / is absolute) is refused and the
-    # sanitized value is what flows onward (py/path-injection barrier; the
-    # trusted root, not `spec_dir` itself, is the bound, WUAAVG-NFR-001).
+    # os.path.isfile / open. `_confine` normalizes the joined path and checks the
+    # spec-dir prefix on the same value it returns (the CodeQL-recognized
+    # py/path-injection barrier), so an argv-supplied `spec_dir` that traverses,
+    # is absolute, or resolves out of tree is refused and the sanitized value is
+    # what flows onward (WUAAVG-NFR-001).
     wu_path = _confine(spec_dir, WORK_UNITS_NAME, verb="read")
     issues_path = _confine(spec_dir, ISSUES_NAME, verb="read")
 
@@ -323,97 +323,92 @@ def validate_structural(envelope):
 # --------------------------------------------------------------------------
 
 def _trusted_root():
-    """The trusted, non-argv containment root for operator-supplied read paths.
+    """The trusted, non-argv containment root for the defence-in-depth check.
 
     These product-dev tools are always invoked from the repo root, with the spec
     folder named as an in-tree path (`.specifications/<slug>/`), so the resolved
     current working directory is a root that does NOT derive from `sys.argv`.
-    Confining every argv-derived path within this fixed root is what makes the
-    containment a genuine bound rather than a tautology: a user-supplied
-    `spec_dir` cannot be its own containment root (confining a constant filename
-    inside a tainted `spec_dir` leaves the read path still fully dependent on the
-    tainted value, which is why the prior barrier left the alert firing).
 
     Resolved through `os.path.realpath` so the comparison prefix is fully
-    symlink-normalized, matching the normalize-then-contain shape CodeQL
-    recognizes as the py/path-injection (CWE-22) sanitizer.
+    symlink-normalized. NOTE: this realpath value feeds ONLY the symlink-aware
+    defence-in-depth refusal in `_confine`; it never flows to a filesystem call,
+    so it does not re-taint the sanitized value the sinks consume.
     """
     return os.path.realpath(os.getcwd())
 
 
 def _confine(spec_dir, name, verb="access"):
-    """Resolve `name` to a real path confined inside a TRUSTED root, or refuse.
+    """Resolve `name` to a path confined inside `spec_dir`, or refuse.
 
-    The shared normalize-and-confine barrier for BOTH the read and the write
-    side. Mirrors apply_doc.py's `resolve_in_root`: the symlink-resolved real
-    path must satisfy two containments before it is handed to any filesystem
-    call, even when the leaf file does not yet exist (a create):
+    The shared normalize-then-contain barrier for BOTH the read and the write
+    side, written in the EXACT shape CodeQL recognizes as the py/path-injection
+    (CWE-22) sanitizer (see the published query help: normalize with
+    `os.path.normpath`, then check the normalized value has the safe-root prefix,
+    then use THAT SAME value):
 
-      1. it MUST sit inside the TRUSTED root (`_trusted_root()`, the resolved
-         CWD), a NON-argv-derived bound. This is the containment that actually
-         sanitizes an argv-supplied `spec_dir` for `py/path-injection` (CWE-22),
-         because the prefix it is compared against does not itself derive from
-         `sys.argv`. (Confining a constant filename inside a user-controlled
-         `spec_dir` left the read path still fully dependent on the tainted
-         value, so the alert kept firing; a fixed, trusted root breaks the
-         taint.)
-      2. it MUST sit inside `spec_dir` itself: defence-in-depth so a `..`, an
-         absolute path, or a symlinked dir pointing out still cannot escape the
-         spec folder (preserves the established in-folder refusal semantics,
-         WUAAVG-NFR-001).
+        candidate = os.path.normpath(os.path.join(base, name))
+        if not candidate.startswith(base + os.sep):
+            raise ...
+        return candidate
 
-    A path failing EITHER containment is refused before any fs access. The
-    supplied leaf is normalized with `os.path.normpath` FIRST (the normalize step
-    the rule documents for CWE-22, applied to the operator-supplied `name`
-    directly, not only to the joined candidate, which is what makes the supplied
-    --test-results value a CodeQL-recognized sanitized form), then symlink-
-    resolved with `os.path.realpath` and prefix-checked against the trusted root
-    and the spec dir, so the value reaching `os.path.isfile` / `open` is the
-    sanitized, contained real path. Containment is judged AFTER symlink
-    resolution so the comparison is symlink-consistent: an absolute in-spec leaf
-    whose ancestor crosses a symlink (`/var` resolving to `/private/var` on
-    macOS) is not wrongly refused, while a traversal, an out-of-tree absolute
-    path, or a symlink escape still fails the check. `verb` only tunes the
-    refusal text ("read" / "write" / "access").
+    Two properties make this the recognized barrier, and both were missing from
+    the prior realpath-based attempts (#813/#817/#820/#823/#826), which is why
+    the alert kept firing:
+
+      1. The guard is a SINGLE `candidate.startswith(...)` check whose TRUE
+         (fall-through) branch is the only way to reach the `return`. CodeQL's
+         `StartswithCall` safe-access guard sanitizes the object of `.startswith`
+         on its true branch only; the prior `X != root and not
+         X.startswith(...)` form left a disjunctive fall-through (`X == root OR
+         X.startswith(...)`) on which CodeQL could not prove the prefix held, so
+         the barrier never applied.
+      2. The value that is guarded (`candidate`) is byte-for-byte the value
+         returned to the sinks, with NO `os.path.realpath` minted between the
+         guard and the sink. realpath is taint-propagating, not sanitizing, so a
+         realpath node returned to the caller re-opened the flow CodeQL tracks.
+
+    `base` is `os.path.abspath(spec_dir)` so a relative or empty `spec_dir` (e.g.
+    the migration's bare-filename case) is anchored to an absolute, normalized
+    root; both `base` and `candidate` stay in the same normalization space (no
+    realpath), so a `/var` versus `/private/var` symlink prefix on macOS never
+    wrongly refuses a legitimate in-spec path.
+
+    A second, realpath-based pass is kept purely as runtime defence-in-depth: it
+    rejects a symlink inside the spec dir that resolves out of the spec folder or
+    out of the trusted root. It operates on throwaway values (`real_*`) that are
+    NEVER returned, so it adds a refusal without re-tainting the sanitized
+    `candidate` the sinks receive. `verb` only tunes the refusal text.
     """
+    base = os.path.abspath(spec_dir)
+    # Normalize the joined candidate (the normalize step CWE-22 documents), then
+    # require the normalized value to carry the spec-dir prefix (the contain
+    # step). This single startswith is the CodeQL-recognized safe-access guard,
+    # and `candidate` is exactly what flows on to os.path.isfile / open / mkstemp.
+    candidate = os.path.normpath(os.path.join(base, name))
+    if not candidate.startswith(base + os.sep):
+        raise InputError(
+            "refusing to %s outside spec dir: %s resolves to %s (dir %s)"
+            % (verb, name, candidate, base))
+    # Defence-in-depth (runtime only, NOT the CodeQL barrier): resolve symlinks
+    # and re-check containment so an in-tree symlink that points out of the spec
+    # folder, or a spec dir outside the trusted (CWD) root, is still refused.
+    # These realpath values are throwaway: they gate a refusal but never reach a
+    # sink, so the sanitized `candidate` above stays the value the caller uses.
+    real_base = os.path.realpath(base)
+    real_candidate = os.path.realpath(candidate)
+    if (real_candidate != real_base
+            and not real_candidate.startswith(real_base + os.sep)):
+        raise InputError(
+            "refusing to %s outside spec dir: %s resolves to %s (dir %s)"
+            % (verb, name, real_candidate, real_base))
     trusted_root = _trusted_root()
-    real_dir = os.path.realpath(spec_dir)
-    # Normalize the operator-supplied leaf FIRST with os.path.normpath: the
-    # normalize half of the normalize-then-contain control the py/path-injection
-    # rule documents. This strips any internal `..` / `.` segments out of the
-    # tainted `name` before it is joined or resolved. Normalizing the leaf
-    # directly (not only the joined candidate) gives the supplied --test-results
-    # flow a CodeQL-recognized sanitized form; the realpath pass below adds
-    # symlink resolution, and the containment checks below are the contain half.
-    normalized_name = os.path.normpath(name)
-    if os.path.isabs(normalized_name):
-        candidate = normalized_name
-    else:
-        candidate = os.path.normpath(os.path.join(real_dir, normalized_name))
-    # Resolve symlinks BEFORE the containment checks so every prefix comparison is
-    # symlink-consistent. `candidate` can still carry an unresolved ancestor (an
-    # absolute supplied leaf keeps the operator's `/var` prefix, itself a symlink
-    # to `/private/var` on macOS), whereas `trusted_root` and `real_dir` are
-    # already realpath-resolved; comparing an unresolved candidate against a
-    # resolved root would wrongly refuse a legitimate in-spec path, so resolve
-    # first, then judge containment on the resolved value.
-    real_path = os.path.realpath(candidate)
-    # (1) Trusted-root containment: the non-argv-derived bound that sanitizes the
-    #     argv-supplied path for py/path-injection (CWE-22). The normpath on the
-    #     supplied leaf above is the normalize step; this realpath + startswith
-    #     containment is the contain step, and the checked value (`real_path`) is
-    #     exactly what flows on to os.path.isfile / open.
-    if real_path != trusted_root and not real_path.startswith(trusted_root + os.sep):
+    if (real_candidate != trusted_root
+            and not real_candidate.startswith(trusted_root + os.sep)):
         raise InputError(
             "refusing to %s outside the trusted root: %s resolves to %s "
             "(trusted root %s; run these tools from the repo root)"
-            % (verb, name, real_path, trusted_root))
-    # (2) Spec-dir containment: defence-in-depth in-folder refusal (unchanged).
-    if real_path != real_dir and not real_path.startswith(real_dir + os.sep):
-        raise InputError(
-            "refusing to %s outside spec dir: %s resolves to %s (dir %s)"
-            % (verb, name, real_path, real_dir))
-    return real_path
+            % (verb, name, real_candidate, trusted_root))
+    return candidate
 
 
 def _resolve_in_dir(spec_dir, name):
@@ -458,22 +453,27 @@ def write_envelope(spec_dir, envelope):
     """
     validate_structural(envelope)
 
-    # Existence guard: a missing spec dir is operator input, not a crash. Catch it
-    # here as an InputError so it maps to the documented exit-1 clean-stderr
-    # contract rather than an uncaught FileNotFoundError from `tempfile.mkstemp`.
-    if not os.path.isdir(spec_dir):
+    # Containment guard first: the confined, normalized target is what every
+    # filesystem call below consumes (py/path-injection barrier at the single
+    # chokepoint `_confine`). Refuse an out-of-folder target before touching fs.
+    target = _resolve_in_dir(spec_dir, WORK_UNITS_NAME)
+
+    # Existence guard via the CONFINED parent dir, not the raw argv `spec_dir`, so
+    # the os.path.isdir sink also consumes a sanitized value. A missing spec dir
+    # is operator input, not a crash: catch it as an InputError so it maps to the
+    # documented exit-1 clean-stderr contract rather than an uncaught
+    # FileNotFoundError from `tempfile.mkstemp`.
+    if not os.path.isdir(os.path.dirname(target)):
         raise InputError("spec dir does not exist or is not a directory: %s"
                          % spec_dir)
-
-    # Containment guard first: refuse an out-of-folder target before touching fs.
-    target = _resolve_in_dir(spec_dir, WORK_UNITS_NAME)
 
     # Never-delete / never-overwrite guard: the writer only ever names
     # work-units.json. Assert it can never resolve onto issues.json (a defensive
     # invariant: even a future refactor that passed a different name in cannot
-    # clobber the legacy file through this function).
-    issues_real = os.path.realpath(os.path.join(spec_dir, ISSUES_NAME))
-    if target == issues_real:
+    # clobber the legacy file through this function). Compare in the same confined
+    # normalization space as `target` so the guard stays meaningful.
+    issues_target = _resolve_in_dir(spec_dir, ISSUES_NAME)
+    if target == issues_target:
         raise InputError(
             "refusing to overwrite %s: the work-unit writer never touches the "
             "legacy file (additive migration, WUAAVG-NFR-001)" % ISSUES_NAME)
@@ -838,9 +838,9 @@ def drift_report(spec_dir, test_results_path=None):
     # Resolve the results path (default: alongside the spec folder), then confine
     # it through `_confine` before any os.path.isfile / open: the operator-
     # supplied --test-results value (and the argv-derived spec_dir) are untrusted
-    # argv, so the resolved read path is bound inside the TRUSTED, non-argv root
-    # (the resolved CWD) and the sanitized value flows onward (py/path-injection
-    # barrier).
+    # argv, so `_confine` normalizes the joined path and checks the spec-dir
+    # prefix on the same value it returns, and the sanitized value flows onward
+    # (the CodeQL-recognized py/path-injection barrier).
     supplied = test_results_path is not None
     if test_results_path is None:
         test_results_path = _confine(spec_dir, TEST_RESULTS_NAME, verb="read")
@@ -1680,9 +1680,11 @@ def _selftest():
             spec_w, os.path.join("..", "outside", "x.json")))
 
         # --- read-side confinement barrier (py/path-injection, CWE-22) ---
-        # The same realpath + containment control now guards the read path.
-        # A `..` traversal, an absolute path, and a symlinked dir pointing out
-        # are all refused; an in-tree relative name resolves cleanly.
+        # The normalize-then-prefix-check control now guards the read path, and
+        # `_confine` returns the SAME normalized value the sinks consume (no
+        # intervening realpath). A `..` traversal, an absolute path, and a
+        # symlinked dir pointing OUT of the spec folder are all refused; an
+        # in-tree relative name resolves cleanly.
         check_raises("read traversal refusal", lambda: _confine(
             spec_w, os.path.join("..", "outside", "x.json"), verb="read"))
         check_raises("read absolute-path refusal", lambda: _confine(
@@ -1694,17 +1696,32 @@ def _selftest():
         os.unlink(escape_link)
         in_tree = _confine(spec_w, TEST_RESULTS_NAME, verb="read")
         check("read in-tree name stays under dir",
-              in_tree.startswith(os.path.realpath(spec_w) + os.sep), True)
+              in_tree.startswith(os.path.abspath(spec_w) + os.sep), True)
+        # A symlink INSIDE the spec dir that resolves to an IN-TREE target (still
+        # under the spec folder) must be ACCEPTED, not refused: the realpath
+        # defence-in-depth pass resolves it to a contained location. This is the
+        # macOS `/var` -> `/private/var` family of in-tree symlinks, proving the
+        # realpath pass does not over-refuse a legitimately contained path.
+        real_sub = os.path.join(spec_w, "realsub")
+        os.makedirs(real_sub)
+        in_link = os.path.join(spec_w, "inlink")
+        os.symlink(real_sub, in_link)
+        in_tree_link = _confine(spec_w, os.path.join("inlink", "x.json"),
+                                verb="read")
+        check("read in-tree symlink accepted",
+              in_tree_link.startswith(os.path.abspath(spec_w) + os.sep), True)
+        os.unlink(in_link)
         # A LEGITIMATE absolute in-spec name (the absolute form of an in-tree
         # results path, carrying the unresolved CWD prefix a shell or mkdtemp
         # yields, e.g. `/var/...` for `/private/var/...` on macOS) must still be
-        # ACCEPTED, not refused: containment is judged after symlink resolution,
-        # so a `/var` versus `/private/var` prefix never wrongly refuses an
-        # in-spec path. Regression guard for the absolute-supplied branch.
+        # ACCEPTED, not refused: `base` and `candidate` share the same
+        # normalization space (no realpath), so a `/var` versus `/private/var`
+        # prefix never wrongly refuses an in-spec path. Regression guard for the
+        # absolute-supplied branch.
         abs_in_spec = _confine(spec_w, os.path.join(spec_w, TEST_RESULTS_NAME),
                                verb="read")
         check("read absolute in-spec name accepted",
-              abs_in_spec.startswith(os.path.realpath(spec_w) + os.sep), True)
+              abs_in_spec.startswith(os.path.abspath(spec_w) + os.sep), True)
 
         # --- trusted-root barrier (the new bound, CWD-rooted) ---
         # A spec dir OUTSIDE the trusted root (the chdir'd CWD) is refused even
