@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canonicalize,
   computePackageDigest,
@@ -254,5 +255,79 @@ describe("catalog integrity digests bind to the built artifact (reconciles #689 
     // Inject a file into the unpacked artifact after the digest was pinned.
     await writeFile(path.join(dir, "dist", "payload.js"), "console.log('injected');\n");
     expect(await verifyPackageIntegrity(dir, integrity)).toBe(false);
+  });
+});
+
+describe("committed catalog digests match the live plugin subdirs (drift guard, issue #818)", () => {
+  // Regression guard for issue #818. The synthetic-fixture guard above (added by
+  // #765) proves the verifyPackageIntegrity property in the abstract, but it
+  // never recomputes a committed catalog `integrity` over the real plugin source
+  // it claims to digest, so it could not catch a real-world drift: in #818 a
+  // dependency bump (#790, commit 6debe7f) edited package.json in every
+  // installable plugin subdir AFTER the catalog was last signed, leaving every
+  // recorded `integrity` stale and breaking the happy-path install (the catalog
+  // still verified its ed25519 signature, because that drift never altered the
+  // payload). The install path digests the staged `source.directory` subdir
+  // (plugins/<id>) and compares it to the recorded `integrity`, so this guard
+  // recomputes computePackageDigest over each live subdir and asserts equality.
+  // It also re-asserts the committed signature, so any plugin-content change that
+  // is not followed by a catalog re-sign fails CI here rather than at install.
+  // No network is used: the subdirs and catalog are read from the working tree.
+  //
+  // NOTE on the #765 built-artifact direction: #765 retargets the digest to the
+  // unpacked BUILT artifact (dist/) and notes catalog regeneration is moving to
+  // external roubo-plugins CI. Until that download/unpack install path and the
+  // external catalog generation land, the production install path (and this
+  // catalog's recorded digests) bind to the live source subdir, which is what
+  // this guard checks. When the built-artifact install path lands, this guard's
+  // digest target moves with it; the property it protects (a recorded catalog
+  // digest must equal a real digest of the artifact the installer verifies) is
+  // unchanged.
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+  async function loadCatalog(): Promise<{
+    payload: { entries: CatalogFileEntry[] };
+    signature: string;
+  }> {
+    return (await import("./marketplace-catalog.json", { with: { type: "json" } })).default as {
+      payload: { entries: CatalogFileEntry[] };
+      signature: string;
+    };
+  }
+
+  interface CatalogFileEntry {
+    id: string;
+    integrity: string;
+    revoked?: boolean;
+    source: { directory?: string };
+  }
+
+  it("recomputes each non-revoked entry's digest over its live plugins/<id> subdir and matches", async () => {
+    const catalog = await loadCatalog();
+    const installable = catalog.payload.entries.filter(
+      (e) => !e.revoked && typeof e.source.directory === "string",
+    );
+    // Sanity: the catalog still carries the expected installable set.
+    expect(installable.map((e) => e.id).sort()).toEqual([
+      "database",
+      "ghe",
+      "github-com",
+      "jira-self-hosted",
+      "process",
+    ]);
+    for (const entry of installable) {
+      const subdir = path.resolve(repoRoot, entry.source.directory as string);
+      const live = await computePackageDigest(subdir);
+      expect(
+        live,
+        `catalog integrity for "${entry.id}" is stale: live ${live} != recorded ${entry.integrity}. Recompute the digest and re-sign the catalog (server/scripts/sign-marketplace-catalog.ts).`,
+      ).toBe(entry.integrity);
+      expect(await verifyPackageIntegrity(subdir, entry.integrity)).toBe(true);
+    }
+  });
+
+  it("the committed catalog signature still verifies against the bundled public key", async () => {
+    const catalog = await loadCatalog();
+    expect(verifyCatalogSignature(catalog.payload, catalog.signature)).toBe(true);
   });
 });
