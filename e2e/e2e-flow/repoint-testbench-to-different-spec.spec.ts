@@ -1,5 +1,10 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
+import {
+  loadAppShell,
+  registerFixtureProject,
+  resetWithScenario,
+  showTestBenchCasesView,
+} from "./_support/scenario.js";
 import {
   OWNING_SLICES_TC007,
   TC_007_PLAN_A,
@@ -196,6 +201,10 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
     await tablist.getByRole("tab", { name: /^TestBench/ }).click();
     const panel = page.getByRole("tabpanel");
     await expect(panel).toBeVisible();
+    // The view toggle now opens on the "Batches" surface by default (#359);
+    // switch to the Cases review this step asserts on (overall rollup + result).
+    // The choice is remembered per bench, so later panel reads stay on Cases.
+    await showTestBenchCasesView(page);
     await expect(
       panel.getByText(TC_007_SPEC_A_SLUG, { exact: true }),
       `${OWNING_SLICES_TC007.reviewPanel}: spec-A is the focused spec in the header`,

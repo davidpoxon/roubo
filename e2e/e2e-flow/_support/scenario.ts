@@ -89,6 +89,25 @@ export async function loadAppShell(page: Page): Promise<void> {
 }
 
 /**
+ * Switch the open TestBench panel to the whole-spec "Cases" review.
+ *
+ * The view toggle defaults to the verify-gate "Batches" surface on a bench's
+ * first visit (#359), but these journeys assert on the Cases review (the
+ * Overall rollup, the case list, recorded results). Press "Cases" so those
+ * assertions see the right surface. The choice is remembered per bench (#359),
+ * so this holds across later tab navigation and reloads within the same bench;
+ * the helper is idempotent (a no-op when Cases is already active). Call it after
+ * the TestBench tab is open and its panel is rendered.
+ */
+export async function showTestBenchCasesView(page: Page): Promise<void> {
+  const cases = page.getByRole("tabpanel").getByRole("button", { name: "Cases", exact: true });
+  if ((await cases.getAttribute("aria-pressed")) !== "true") {
+    await cases.click();
+  }
+  await expect(cases, "TestBench Cases view is active").toHaveAttribute("aria-pressed", "true");
+}
+
+/**
  * Assert that, inside `scope`, the `ConnectionStatusPill` is visible and is
  * carrying the expected `data-state` value. WU-064 (TC-168/TC-169): the pill
  * is the testable surface for connection-status placement assertions; callers
