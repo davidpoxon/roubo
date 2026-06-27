@@ -195,21 +195,17 @@ def migrate_path(path: str, check_only: bool) -> int:
     migrate_test_cases_to_v1_1.py); 0 otherwise.
     """
     # Route the operator-supplied positional path (untrusted argv) through the
-    # shared realpath + containment barrier before any os.path.isfile / open /
-    # load_json. work_units._confine binds the resolved read path inside a
-    # TRUSTED, non-argv root (the resolved CWD): these tools target an in-tree
-    # .specifications/<slug>/issues.json run from the repo root, so the read
-    # cannot escape that root. That trusted-root bound (NOT the file's own
-    # parent directory, which would be a tautology that never refuses anything)
-    # is the control CodeQL recognizes for py/path-injection (CWE-22): an
-    # os.path.realpath normalization followed by a startswith(trusted_root + sep)
-    # containment check, with the sanitized value flowing on to the read. Bare
-    # realpath canonicalizes `..` but is only normalization, not a sanitizer, so
-    # it would leave the argv -> read taint path flagged. `spec_dir` is also the
-    # write target's folder (resolved below) and the slug source.
-    real = os.path.realpath(path)
-    spec_dir = os.path.dirname(real)
-    path = work_units._confine(spec_dir, os.path.basename(real), verb="read")
+    # shared normalize-then-contain barrier before any os.path.isfile / open /
+    # load_json. work_units._confine normalizes the joined path with
+    # os.path.normpath and checks the spec-dir prefix on the SAME value it
+    # returns (the CodeQL-recognized py/path-injection barrier, CWE-22), with no
+    # os.path.realpath minted between the guard and the read. Derive the dir and
+    # leaf with os.path.normpath (not os.path.realpath) so no realpath value
+    # reaches a sink. `spec_dir` is also the write target's folder (resolved
+    # below) and the slug source.
+    norm = os.path.normpath(path)
+    spec_dir = os.path.dirname(norm)
+    path = work_units._confine(spec_dir, os.path.basename(norm), verb="read")
     slug = spec_slug_for(path)
 
     # Loud failure with no partial write: a parse error raises here before any
@@ -223,13 +219,13 @@ def migrate_path(path: str, check_only: bool) -> int:
     work_units.validate_structural(envelope)
 
     n = len(envelope["units"])
-    # Confine the target inside spec_dir before any filesystem access: realpath
-    # normalization + a containment prefix check (the same sanitizer the sibling
-    # write path uses via work_units.write_envelope). An escaping path (`..`, an
-    # absolute path, or a symlinked dir pointing out) raises InputError, which
-    # main()'s `except work_units.InputError` maps to the exit-1 clean-stderr
-    # convention. Resolves the py/path-injection finding on the existence check
-    # and read below.
+    # Confine the target inside spec_dir before any filesystem access: the same
+    # normalize-then-prefix-check sanitizer the sibling write path uses via
+    # work_units.write_envelope, returning the normalized value the sinks below
+    # consume. An escaping path (`..`, an absolute path, or a symlinked dir
+    # pointing out) raises InputError, which main()'s `except
+    # work_units.InputError` maps to the exit-1 clean-stderr convention. Resolves
+    # the py/path-injection finding on the existence check and read below.
     out_path = work_units._resolve_in_dir(spec_dir, work_units.WORK_UNITS_NAME)
     new_bytes = _envelope_bytes(envelope)
 
