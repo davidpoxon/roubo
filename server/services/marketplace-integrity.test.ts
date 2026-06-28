@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { generateKeyPairSync, sign, createPublicKey, type KeyObject } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 import {
   canonicalize,
   computePackageDigest,
+  fingerprintKeyId,
+  resolveActiveKey,
   verifyCatalogSignature,
+  verifyKeyRing,
   verifyPackageIntegrity,
 } from "./marketplace-integrity.js";
 
@@ -99,6 +102,154 @@ describe("verifyCatalogSignature", () => {
       entries: [...catalog.payload.entries, { id: "evil-injected" }],
     };
     expect(verifyCatalogSignature(tampered, catalog.signature)).toBe(false);
+  });
+});
+
+// Key-ring trust chain (CPHM-FR-007 / NFR-001, issue #306): the client mirrors
+// the producer publish gate (roubo-plugins scripts/release/verify-keyring.mjs).
+// Verification is exercised against an independent generated root + operational
+// keypair, never the embedded bootstrap root (whose private half is held out of
+// band), plus the fail-closed paths.
+
+function spkiPem(publicKey: KeyObject): string {
+  return publicKey.export({ type: "spki", format: "pem" }).toString();
+}
+
+function signEnvelope(
+  payload: unknown,
+  privateKey: KeyObject,
+): { payload: unknown; signature: string } {
+  const signature = sign(null, Buffer.from(canonicalize(payload), "utf8"), privateKey).toString(
+    "base64",
+  );
+  return { payload, signature };
+}
+
+describe("fingerprintKeyId", () => {
+  it("derives a stable ed25519-prefixed 16-hex-char fingerprint", () => {
+    const { publicKey } = generateKeyPairSync("ed25519");
+    const id = fingerprintKeyId(publicKey);
+    expect(id).toMatch(/^ed25519-[0-9a-f]{16}$/);
+    // Deterministic: the same key fingerprints identically.
+    expect(fingerprintKeyId(createPublicKey(spkiPem(publicKey)))).toBe(id);
+  });
+
+  it("derives distinct fingerprints for distinct keys", () => {
+    const a = fingerprintKeyId(generateKeyPairSync("ed25519").publicKey);
+    const b = fingerprintKeyId(generateKeyPairSync("ed25519").publicKey);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("verifyKeyRing", () => {
+  it("returns the keys map for a ring signed by the root key", () => {
+    const root = generateKeyPairSync("ed25519");
+    const op = generateKeyPairSync("ed25519");
+    const keyId = fingerprintKeyId(op.publicKey);
+    const envelope = signEnvelope(
+      {
+        keys: [{ keyId, publicKeyPem: spkiPem(op.publicKey), status: "active" }],
+        generatedAt: "t",
+      },
+      root.privateKey,
+    );
+    const ring = verifyKeyRing(envelope, spkiPem(root.publicKey));
+    expect(ring).not.toBeNull();
+    expect(ring?.get(keyId)?.status).toBe("active");
+  });
+
+  it("rejects a ring whose payload was tampered after signing (fail closed)", () => {
+    const root = generateKeyPairSync("ed25519");
+    const op = generateKeyPairSync("ed25519");
+    const envelope = signEnvelope(
+      { keys: [{ keyId: "a", publicKeyPem: spkiPem(op.publicKey), status: "active" }] },
+      root.privateKey,
+    ) as { payload: { keys: { status: string }[] }; signature: string };
+    // Flip the key status after signing: the signature no longer covers it.
+    envelope.payload.keys[0].status = "revoked";
+    expect(verifyKeyRing(envelope, spkiPem(root.publicKey))).toBeNull();
+  });
+
+  it("rejects a ring signed by a different (non-root) key (fail closed)", () => {
+    const root = generateKeyPairSync("ed25519");
+    const foreign = generateKeyPairSync("ed25519");
+    const op = generateKeyPairSync("ed25519");
+    const envelope = signEnvelope(
+      { keys: [{ keyId: "a", publicKeyPem: spkiPem(op.publicKey), status: "active" }] },
+      foreign.privateKey,
+    );
+    expect(verifyKeyRing(envelope, spkiPem(root.publicKey))).toBeNull();
+  });
+
+  it("rejects a structurally malformed envelope without throwing", () => {
+    const root = generateKeyPairSync("ed25519");
+    const rootPem = spkiPem(root.publicKey);
+    expect(verifyKeyRing(null, rootPem)).toBeNull();
+    expect(verifyKeyRing({ payload: { keys: [] } }, rootPem)).toBeNull();
+    expect(verifyKeyRing({ signature: "x" }, rootPem)).toBeNull();
+    expect(verifyKeyRing({ payload: { keys: "nope" }, signature: "x" }, rootPem)).toBeNull();
+  });
+});
+
+describe("resolveActiveKey", () => {
+  function ringWith(entries: { keyId: string; publicKeyPem: string; status: string }[]) {
+    const root = generateKeyPairSync("ed25519");
+    const envelope = signEnvelope({ keys: entries }, root.privateKey);
+    const ring = verifyKeyRing(envelope, spkiPem(root.publicKey));
+    if (!ring) throw new Error("expected a verifiable ring");
+    return ring;
+  }
+
+  it("returns the active key's PEM when its fingerprint matches the keyId", () => {
+    const op = generateKeyPairSync("ed25519");
+    const keyId = fingerprintKeyId(op.publicKey);
+    const pem = spkiPem(op.publicKey);
+    const ring = ringWith([{ keyId, publicKeyPem: pem, status: "active" }]);
+    expect(resolveActiveKey(ring, keyId)).toBe(pem);
+  });
+
+  it("rejects a revoked key (fail closed)", () => {
+    const op = generateKeyPairSync("ed25519");
+    const keyId = fingerprintKeyId(op.publicKey);
+    const ring = ringWith([{ keyId, publicKeyPem: spkiPem(op.publicKey), status: "revoked" }]);
+    expect(resolveActiveKey(ring, keyId)).toBeNull();
+  });
+
+  it("rejects an unknown keyId (signed by an unknown key)", () => {
+    const op = generateKeyPairSync("ed25519");
+    const keyId = fingerprintKeyId(op.publicKey);
+    const ring = ringWith([{ keyId, publicKeyPem: spkiPem(op.publicKey), status: "active" }]);
+    expect(resolveActiveKey(ring, "ed25519-0000000000000000")).toBeNull();
+  });
+
+  it("rejects a key filed under a keyId that does not match its fingerprint", () => {
+    const op = generateKeyPairSync("ed25519");
+    const mislabeled = "ed25519-deadbeefdeadbeef";
+    const ring = ringWith([
+      { keyId: mislabeled, publicKeyPem: spkiPem(op.publicKey), status: "active" },
+    ]);
+    expect(resolveActiveKey(ring, mislabeled)).toBeNull();
+  });
+});
+
+describe("verifyCatalogSignature with an explicit operational key", () => {
+  it("verifies a catalog signed by the resolved operational key", () => {
+    const op = generateKeyPairSync("ed25519");
+    const payload = { schemaVersion: 1, keyId: fingerprintKeyId(op.publicKey), entries: [] };
+    const sig = sign(null, Buffer.from(canonicalize(payload), "utf8"), op.privateKey).toString(
+      "base64",
+    );
+    expect(verifyCatalogSignature(payload, sig, spkiPem(op.publicKey))).toBe(true);
+  });
+
+  it("rejects a catalog signed by a different key than the one supplied (fail closed)", () => {
+    const op = generateKeyPairSync("ed25519");
+    const other = generateKeyPairSync("ed25519");
+    const payload = { entries: [] };
+    const sig = sign(null, Buffer.from(canonicalize(payload), "utf8"), op.privateKey).toString(
+      "base64",
+    );
+    expect(verifyCatalogSignature(payload, sig, spkiPem(other.publicKey))).toBe(false);
   });
 });
 

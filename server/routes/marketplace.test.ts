@@ -4,7 +4,6 @@ import request from "supertest";
 import type { MarketplaceListing } from "@roubo/shared";
 
 vi.mock("../services/marketplace.js", () => ({
-  CATALOG_VERIFIED: true,
   listCatalog: vi.fn(),
   resolveEntry: vi.fn(),
   install: vi.fn(),
@@ -23,9 +22,21 @@ vi.mock("../services/plugin-installer.js", () => {
   return { InstallError };
 });
 
+vi.mock("../services/catalog-client.js", () => {
+  class CatalogUnverifiedError extends Error {
+    readonly code = "catalog-unverified" as const;
+    constructor(message = "The plugin catalog could not be verified and was rejected.") {
+      super(message);
+      this.name = "CatalogUnverifiedError";
+    }
+  }
+  return { CatalogUnverifiedError };
+});
+
 import router from "./marketplace.js";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 const listCatalog = vi.mocked(marketplace.listCatalog);
 const resolveEntry = vi.mocked(marketplace.resolveEntry);
@@ -66,11 +77,12 @@ const PREVIEW = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resolveEntry.mockResolvedValue(ENTRY);
 });
 
 describe("GET /api/marketplace/plugins", () => {
   it("returns the curated catalog", async () => {
-    listCatalog.mockReturnValue([LISTING]);
+    listCatalog.mockResolvedValue([LISTING]);
     const res = await request(makeApp()).get("/api/marketplace/plugins");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ curated: true, listings: [LISTING] });
@@ -78,39 +90,38 @@ describe("GET /api/marketplace/plugins", () => {
   });
 
   it("passes through q and a valid kind", async () => {
-    listCatalog.mockReturnValue([]);
+    listCatalog.mockResolvedValue([]);
     await request(makeApp()).get("/api/marketplace/plugins?q=red&kind=component");
     expect(listCatalog).toHaveBeenCalledWith({ q: "red", kind: "component" });
   });
 
   it("ignores an invalid kind", async () => {
-    listCatalog.mockReturnValue([]);
+    listCatalog.mockResolvedValue([]);
     await request(makeApp()).get("/api/marketplace/plugins?kind=bogus");
     expect(listCatalog).toHaveBeenCalledWith({ q: undefined, kind: undefined });
   });
 
-  // CP-TC-118 / AC-3: when the catalog signature did not verify the route fails
-  // closed with a typed catalog-unverified error and zero listings, rather than
-  // a silent empty success.
+  // CP-TC-118 / CPHM-TC-006: when even the seed fails verification the service
+  // throws CatalogUnverifiedError; the route fails closed with a typed 502 and
+  // no listings.
   it("returns 502 catalog-unverified with no listings when the catalog is unverified", async () => {
-    const mp = marketplace as unknown as { CATALOG_VERIFIED: boolean };
-    const prev = mp.CATALOG_VERIFIED;
-    mp.CATALOG_VERIFIED = false;
-    try {
-      const res = await request(makeApp()).get("/api/marketplace/plugins");
-      expect(res.status).toBe(502);
-      expect(res.body.code).toBe("catalog-unverified");
-      expect(res.body.listings).toBeUndefined();
-      expect(listCatalog).not.toHaveBeenCalled();
-    } finally {
-      mp.CATALOG_VERIFIED = prev;
-    }
+    listCatalog.mockRejectedValue(new CatalogUnverifiedError());
+    const res = await request(makeApp()).get("/api/marketplace/plugins");
+    expect(res.status).toBe(502);
+    expect(res.body.code).toBe("catalog-unverified");
+    expect(res.body.listings).toBeUndefined();
+  });
+
+  it("returns 500 on an unexpected error", async () => {
+    listCatalog.mockRejectedValue(new Error("boom"));
+    const res = await request(makeApp()).get("/api/marketplace/plugins");
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe("internal");
   });
 });
 
 describe("POST /api/marketplace/plugins/:id/install", () => {
   it("returns the install preview for a known catalog id", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     install.mockResolvedValue(PREVIEW);
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(200);
@@ -125,33 +136,29 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
   });
 
   it("returns 404 for an unknown catalog id", async () => {
-    resolveEntry.mockReturnValue(null);
+    resolveEntry.mockResolvedValue(null);
     const res = await request(makeApp()).post("/api/marketplace/plugins/ghost/install");
     expect(res.status).toBe(404);
     expect(install).not.toHaveBeenCalled();
   });
 
   it("maps an InstallError code to its status", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     install.mockRejectedValue(new pluginInstaller.InstallError("clone-failed", "nope"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("clone-failed");
   });
 
-  // CP-TC-107/108: a tampered/unsigned package fails the integrity check;
-  // the route maps integrity-failed to 422.
+  // CP-TC-107/108: a tampered/unsigned package fails the integrity check; 422.
   it("maps integrity-failed to 422", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     install.mockRejectedValue(new pluginInstaller.InstallError("integrity-failed", "tampered"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("integrity-failed");
   });
 
-  // CP-TC-109: a revoked entry is rejected; the route maps revoked to 410 Gone.
+  // CP-TC-109: a revoked entry is rejected; 410 Gone.
   it("maps revoked to 410", async () => {
-    resolveEntry.mockReturnValue({ ...ENTRY, revoked: true });
     install.mockRejectedValue(new pluginInstaller.InstallError("revoked", "withdrawn"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(410);
@@ -175,11 +182,29 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("unpack-failed");
   });
+
+  // CPHM-TC-045/050/051: a new install while the marketplace is unreachable is
+  // paused; the route maps marketplace-unreachable to 503.
+  it("maps marketplace-unreachable to 503", async () => {
+    install.mockRejectedValue(
+      new pluginInstaller.InstallError("marketplace-unreachable", "offline"),
+    );
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("marketplace-unreachable");
+  });
+
+  it("maps a CatalogUnverifiedError from resolveEntry to 502", async () => {
+    resolveEntry.mockRejectedValue(new CatalogUnverifiedError());
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
+    expect(res.status).toBe(502);
+    expect(res.body.code).toBe("catalog-unverified");
+    expect(install).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/marketplace/plugins/:id/update", () => {
   it("returns the update preview for a known catalog id", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     update.mockResolvedValue(PREVIEW);
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(200);
@@ -193,35 +218,41 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
   });
 
   it("returns 404 for an unknown catalog id", async () => {
-    resolveEntry.mockReturnValue(null);
+    resolveEntry.mockResolvedValue(null);
     const res = await request(makeApp()).post("/api/marketplace/plugins/ghost/update");
     expect(res.status).toBe(404);
     expect(update).not.toHaveBeenCalled();
   });
 
   it("maps update-target-missing to 404", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     update.mockRejectedValue(new pluginInstaller.InstallError("update-target-missing", "gone"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("update-target-missing");
   });
 
-  // CP-TC-112: a tampered update package fails integrity; mapped to 422.
+  // CP-TC-112: a tampered update package fails integrity; 422.
   it("maps integrity-failed to 422 on update", async () => {
-    resolveEntry.mockReturnValue(ENTRY);
     update.mockRejectedValue(new pluginInstaller.InstallError("integrity-failed", "tampered"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("integrity-failed");
   });
 
-  // CP-TC-109: a revoked entry cannot be updated; mapped to 410.
+  // CP-TC-109: a revoked entry cannot be updated; 410.
   it("maps revoked to 410 on update", async () => {
-    resolveEntry.mockReturnValue({ ...ENTRY, revoked: true });
     update.mockRejectedValue(new pluginInstaller.InstallError("revoked", "withdrawn"));
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(410);
     expect(res.body.code).toBe("revoked");
+  });
+
+  it("maps marketplace-unreachable to 503 on update", async () => {
+    update.mockRejectedValue(
+      new pluginInstaller.InstallError("marketplace-unreachable", "offline"),
+    );
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("marketplace-unreachable");
   });
 });

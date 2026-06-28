@@ -40,6 +40,7 @@ import migrationRouter from "./routes/migration.js";
 import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
 import * as pluginManager from "./services/plugin-manager.js";
+import * as catalogClient from "./services/catalog-client.js";
 import * as githubService from "./services/github.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
@@ -284,6 +285,13 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   }
 
   void detectClaudeAutoMode();
+
+  // Fetch + verify the hosted marketplace catalog on launch so the first
+  // Plugins-view open serves a fresh, verified catalog and the on-disk cache is
+  // warmed for offline degrade (CPHM-FR-001 / FR-009). Fire-and-forget: the
+  // client degrades to cache/seed internally and never throws, so this must not
+  // block or crash boot.
+  void catalogClient.prefetch();
 
   let closed = false;
   const shutdown = async () => {

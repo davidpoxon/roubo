@@ -7,6 +7,7 @@ import type {
 } from "@roubo/shared";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 // Marketplace routes (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
 // CP-FR-021 / CP-US-011, issue #622).
@@ -20,12 +21,13 @@ import * as pluginInstaller from "../services/plugin-installer.js";
 // step (the same consent flow component installs already use). There is no
 // third-party submission route here: the catalog is first-party curated only.
 //
-// Channel integrity (issue #622): when the static catalog's signature did not
-// verify the server fails closed. GET /plugins returns a typed
-// catalog-unverified error (502) with no listings rather than a silent empty
-// success, so the client can distinguish a verified-but-empty catalog from an
-// unverified one and render no plugin cards. Install/update map the new
-// integrity-failed (422) and revoked (410) codes.
+// Channel integrity (issue #622) + hosted catalog (issue #306): the catalog is
+// fetched + verified per request via the catalog-client, which degrades
+// NETWORK -> CACHE -> SEED so the listing is never zero. GET /plugins surfaces a
+// typed catalog-unverified error (502) only when even the bundled seed fails
+// verification (CatalogUnverifiedError); otherwise it always serves a verified
+// catalog. Install/update map integrity-failed (422), revoked (410), and the new
+// marketplace-unreachable (503, the catalog is degraded to cache/seed) codes.
 
 const router = Router();
 
@@ -59,6 +61,10 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "integrity-failed":
     case "unpack-failed":
       return 422;
+    // The marketplace is unreachable (catalog served from cache/seed), so a new
+    // install/update is paused: 503 Service Unavailable.
+    case "marketplace-unreachable":
+      return 503;
     // An unverified catalog should never reach an install/update (those reject
     // on the empty catalog first), but map it defensively to 502 Bad Gateway.
     case "catalog-unverified":
@@ -83,24 +89,30 @@ function parseKind(raw: unknown): MarketplaceKind | undefined {
   return raw === "component" || raw === "integration" ? raw : undefined;
 }
 
-router.get("/plugins", (req, res) => {
-  // Fail closed: if the static catalog's signature did not verify, surface a
-  // typed catalog-unverified error (502) with no listings so the client renders
-  // an error and zero plugin cards (CP-TC-118, AC-3), rather than a silent empty
-  // success that looks like a verified-but-empty catalog.
-  if (!marketplace.CATALOG_VERIFIED) {
-    const body: MarketplaceCatalogErrorBody = {
-      error: "The plugin catalog could not be verified and was rejected.",
-      code: "catalog-unverified",
-    };
-    res.status(502).json(body);
-    return;
-  }
+function sendCatalogUnverified(res: Parameters<Parameters<typeof router.get>[1]>[1]): void {
+  // Fail closed: even the bundled seed failed verification, so surface a typed
+  // catalog-unverified error (502) with no listings (CP-TC-118, CPHM-TC-006).
+  const body: MarketplaceCatalogErrorBody = {
+    error: "The plugin catalog could not be verified and was rejected.",
+    code: "catalog-unverified",
+  };
+  res.status(502).json(body);
+}
+
+router.get("/plugins", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
   const kind = parseKind(req.query.kind);
-  const listings = marketplace.listCatalog({ q, kind });
-  const body: MarketplaceCatalogResponse = { curated: true, listings };
-  res.json(body);
+  try {
+    const listings = await marketplace.listCatalog({ q, kind });
+    const body: MarketplaceCatalogResponse = { curated: true, listings };
+    res.json(body);
+  } catch (err) {
+    if (err instanceof CatalogUnverifiedError) {
+      sendCatalogUnverified(res);
+      return;
+    }
+    res.status(500).json({ error: (err as Error).message, code: "internal" });
+  }
 });
 
 router.post("/plugins/:id/install", async (req, res) => {
@@ -109,14 +121,18 @@ router.post("/plugins/:id/install", async (req, res) => {
     res.status(400).json({ error: "Invalid plugin id", code: "invalid-input" });
     return;
   }
-  if (!marketplace.resolveEntry(id)) {
-    res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
-    return;
-  }
   try {
+    if (!(await marketplace.resolveEntry(id))) {
+      res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
+      return;
+    }
     const preview = await marketplace.install(id);
     res.status(200).json(preview);
   } catch (err) {
+    if (err instanceof CatalogUnverifiedError) {
+      sendCatalogUnverified(res);
+      return;
+    }
     sendInstallError(res, err);
   }
 });
@@ -127,14 +143,18 @@ router.post("/plugins/:id/update", async (req, res) => {
     res.status(400).json({ error: "Invalid plugin id", code: "invalid-input" });
     return;
   }
-  if (!marketplace.resolveEntry(id)) {
-    res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
-    return;
-  }
   try {
+    if (!(await marketplace.resolveEntry(id))) {
+      res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
+      return;
+    }
     const preview = await marketplace.update(id);
     res.status(200).json(preview);
   } catch (err) {
+    if (err instanceof CatalogUnverifiedError) {
+      sendCatalogUnverified(res);
+      return;
+    }
     sendInstallError(res, err);
   }
 });

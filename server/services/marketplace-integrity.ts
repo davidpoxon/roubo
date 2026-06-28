@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -38,6 +38,29 @@ MCowBQYDK2VwAyEAWk7+soWCgnhP6l8MCGBW0poQu7vmmw77eo5QiVieVIk=
 -----END PUBLIC KEY-----`;
 
 /**
+ * Embedded bootstrap ROOT public key (ed25519, SPKI PEM) that anchors the
+ * hosted-marketplace trust chain. The matching private key signs the published
+ * key-ring (held out of band, in the roubo-plugins release CI secret); the app
+ * verifies the fetched key-ring against this key, then resolves the catalog's
+ * operational key through the ring. Only a ROOT-key change requires an app
+ * release; operational keys rotate via the signed key-ring (CPHM-FR-007 /
+ * CPHM-NFR-004).
+ *
+ * IMPORTANT: this is a bootstrap PLACEHOLDER. The real bootstrap root public key
+ * (whose private half signs the published key-ring) is not yet committed in
+ * roubo-plugins (`marketplace/key-ring.config.json` has an empty `keys` array
+ * and no root key exists, the prior signing key was lost per the architecture's
+ * open "root-key custody and recovery" question). Until the real root key is
+ * minted and embedded here, no live key-ring verifies, so the catalog-client
+ * stays fail-closed and degrades to the on-disk cache / bundled seed (the plugin
+ * list never drops to zero). Replacing this constant with the published root
+ * public key is the app-release step that activates network fetch.
+ */
+export const CATALOG_ROOT_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAV4JQIJCaYuxWuUlxXLVDoQ+as2KMgqCA2LXhETovBGs=
+-----END PUBLIC KEY-----`;
+
+/**
  * Deterministically canonicalize a JSON value: object keys are sorted
  * recursively and there is no insignificant whitespace. The signature is
  * computed over these bytes, so the signing script and the verifier must agree
@@ -62,21 +85,124 @@ export function canonicalPayloadBytes(payload: unknown): Buffer {
 
 /**
  * Verify a detached ed25519 signature (base64) over a JSON payload's canonical
- * bytes against the bundled public key. Returns true only on a valid signature;
- * any malformed input (bad base64, wrong key, tampered payload) returns false.
- * Never throws: the caller fails closed on a false result.
+ * bytes. `publicKeyPem` defaults to the bundled first-party key (the seed /
+ * legacy single-key path); the hosted catalog passes the operational key
+ * resolved from the signed key-ring (see `resolveActiveKey`). Returns true only
+ * on a valid signature; any malformed input (bad base64, wrong key, tampered
+ * payload, unparseable key) returns false. Never throws: the caller fails closed
+ * on a false result.
  */
-export function verifyCatalogSignature(payload: unknown, signatureBase64: string): boolean {
+export function verifyCatalogSignature(
+  payload: unknown,
+  signatureBase64: string,
+  publicKeyPem: string = CATALOG_PUBLIC_KEY_PEM,
+): boolean {
   if (typeof signatureBase64 !== "string" || signatureBase64.length === 0) {
     return false;
   }
   try {
-    const key = createPublicKey(CATALOG_PUBLIC_KEY_PEM);
+    const key = createPublicKey(publicKeyPem);
     const sig = Buffer.from(signatureBase64, "base64");
     return verify(null, canonicalPayloadBytes(payload), key, sig);
   } catch {
     return false;
   }
+}
+
+/**
+ * One key-ring entry as resolved from a verified key-ring. This mirrors
+ * `KeyRingEntry` in `@roubo/shared`, but is declared locally so this host
+ * verifier imports `node:` builtins only and pulls in no non-builtin module
+ * (the zero-dependency invariant, CPHM-NFR-006, asserted by the publish e2e).
+ */
+export interface KeyRingKey {
+  keyId: string;
+  publicKeyPem: string;
+  status: "active" | "revoked";
+}
+
+/**
+ * Stable key id: `ed25519-` + the first 16 hex chars of the sha256 of the
+ * public key's SPKI DER. This MUST match the producer-side derivation in
+ * roubo-plugins (`scripts/release/keys.mjs#fingerprintKeyId`), because a
+ * catalog's `payload.keyId` and a key-ring entry's `keyId` are both produced by
+ * that scheme and resolved against each other here. Do not change the prefix,
+ * the hash, or the truncation without a coordinated cross-repo change.
+ */
+export function fingerprintKeyId(publicKey: KeyObject): string {
+  const der = publicKey.export({ type: "spki", format: "der" });
+  return `ed25519-${createHash("sha256").update(der).digest("hex").slice(0, 16)}`;
+}
+
+/**
+ * Verify a signed key-ring envelope (`{ payload: { keys }, signature }`) against
+ * the embedded bootstrap ROOT public key, fail-closed. On a valid signature
+ * returns the ring's keys indexed by `keyId`; on any malformed envelope, bad
+ * signature, or unparseable root key returns null (never throws). This mirrors,
+ * on the client, step 1 of the producer publish gate
+ * (roubo-plugins `scripts/release/verify-keyring.mjs`).
+ *
+ * `rootPublicKeyPem` defaults to the embedded bootstrap root key; it is a
+ * parameter only so tests can anchor a throwaway ring to a generated root.
+ */
+export function verifyKeyRing(
+  envelope: unknown,
+  rootPublicKeyPem: string = CATALOG_ROOT_PUBLIC_KEY_PEM,
+): Map<string, KeyRingKey> | null {
+  if (envelope === null || typeof envelope !== "object") return null;
+  const { payload, signature } = envelope as { payload?: unknown; signature?: unknown };
+  if (typeof signature !== "string" || signature.length === 0) return null;
+  if (payload === null || typeof payload !== "object") return null;
+  const keys = (payload as { keys?: unknown }).keys;
+  if (!Array.isArray(keys)) return null;
+
+  let ringSignatureValid: boolean;
+  try {
+    const root = createPublicKey(rootPublicKeyPem);
+    ringSignatureValid = verify(
+      null,
+      canonicalPayloadBytes(payload),
+      root,
+      Buffer.from(signature, "base64"),
+    );
+  } catch {
+    return null;
+  }
+  if (!ringSignatureValid) return null;
+
+  const ring = new Map<string, KeyRingKey>();
+  for (const raw of keys) {
+    if (raw === null || typeof raw !== "object") continue;
+    const { keyId, publicKeyPem, status } = raw as Partial<KeyRingKey>;
+    if (
+      typeof keyId === "string" &&
+      typeof publicKeyPem === "string" &&
+      (status === "active" || status === "revoked")
+    ) {
+      ring.set(keyId, { keyId, publicKeyPem, status });
+    }
+  }
+  return ring;
+}
+
+/**
+ * Resolve a catalog's `keyId` to its operational signing key's PEM, fail-closed.
+ * Returns the `publicKeyPem` only when the ring holds a matching key whose
+ * `status` is `active` AND whose own fingerprint equals the `keyId` it is filed
+ * under (so a root-signed ring that mislabels a key, or a catalog naming an
+ * unknown or revoked key, is rejected). Returns null otherwise. Mirrors step 2
+ * of the producer publish gate.
+ */
+export function resolveActiveKey(ring: Map<string, KeyRingKey>, keyId: string): string | null {
+  if (typeof keyId !== "string" || keyId.length === 0) return null;
+  const entry = ring.get(keyId);
+  if (!entry || entry.status !== "active") return null;
+  try {
+    if (fingerprintKeyId(createPublicKey(entry.publicKeyPem)) !== keyId) return null;
+  } catch {
+    return null;
+  }
+  return entry.publicKeyPem;
 }
 
 /**

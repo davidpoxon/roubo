@@ -4,48 +4,30 @@ import type {
   MarketplaceCatalogEntry,
   MarketplaceKind,
   MarketplaceListing,
-  SignedMarketplaceCatalog,
 } from "@roubo/shared";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginInstaller from "./plugin-installer.js";
-import { verifyCatalogSignature } from "./marketplace-integrity.js";
-import catalog from "./marketplace-catalog.json";
+import * as catalogClient from "./catalog-client.js";
+import type { VerifiedCatalog } from "./catalog-client.js";
 
 // Marketplace catalog service (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
-// CP-FR-021 / CP-US-011, issue #622).
+// CP-FR-021 / CP-US-011, issue #622; hosted-marketplace catalog-client,
+// CPHM-FR-001 / FR-009, issue #306).
 //
-// The curated catalog is a static, checked-in SIGNED manifest. This service
-// verifies its detached ed25519 signature at load against the bundled
-// first-party public key and FAILS CLOSED: an invalid, missing, or tampered
-// signature yields zero listings, so the route surfaces a catalog-unverified
-// error and the client renders no plugin cards (CP-TC-118, AC-3). The service
-// reads the verified payload, cross-references the installed plugin set to
-// annotate each entry's install / update state, and supports search + kind
-// filtering. Install and update REUSE the existing plugin-installer staging ->
-// consent -> commit flow; the expected per-entry integrity digest is threaded
-// through so the installer can reject a tampered package before commit
-// (CP-TC-107/108/112). Revoked entries are filtered from listings and rejected
-// at install/update (CP-TC-109).
-
-interface RawSignedCatalog extends SignedMarketplaceCatalog {
-  $comment?: string;
-}
-
-const RAW = catalog as RawSignedCatalog;
-
-/**
- * Whether the static catalog's signature verified at load. When false the
- * marketplace fails closed: ENTRIES is empty and every install/update is
- * rejected (the catalog cannot be trusted to source executable code).
- */
-export const CATALOG_VERIFIED: boolean = verifyCatalogSignature(RAW.payload, RAW.signature);
-
-const ENTRIES: readonly MarketplaceCatalogEntry[] = CATALOG_VERIFIED
-  ? (RAW.payload.entries ?? [])
-  : [];
-
-/** The id-indexed catalog (verified entries only), for resolveEntry / install / update. */
-const ENTRY_BY_ID = new Map<string, MarketplaceCatalogEntry>(ENTRIES.map((e) => [e.id, e]));
+// The catalog is no longer an embedded module-load constant: entries come from
+// the `catalog-client`, which fetches the signed catalog + key-ring over HTTPS,
+// verifies them fail-closed against the embedded bootstrap root key, caches the
+// last verified envelope, and degrades NETWORK -> CACHE -> SEED so the listing
+// is never zero. This service reads those verified entries, cross-references the
+// installed plugin set to annotate each entry's install / update state, and
+// supports search + kind filtering. Install and update REUSE the existing
+// plugin-installer staging -> consent -> commit flow; the expected per-entry
+// integrity digest is threaded so the installer can reject a tampered package
+// before commit. Revoked entries are filtered from listings and rejected at
+// install/update (CP-TC-109). When the catalog is being served from the cache
+// or the seed (the marketplace was unreachable), a NEW install/update is paused
+// with a clear `marketplace-unreachable` error (CPHM-TC-045/050/051); seeded and
+// already-installed plugins are unaffected.
 
 export interface ListCatalogParams {
   q?: string;
@@ -91,15 +73,20 @@ function matchesQuery(listing: MarketplaceListing, q: string): boolean {
 /**
  * Return the curated catalog, annotated with install/update state, filtered by
  * an optional free-text query (name / id / summary, case-insensitive) and an
- * optional kind. Revoked entries are filtered out (CP-TC-109). When the catalog
- * signature did not verify, ENTRIES is empty so this returns []; callers should
- * consult `CATALOG_VERIFIED` to distinguish a verified-but-empty catalog from an
- * unverified one (the route maps the latter to a catalog-unverified error).
+ * optional kind. Revoked entries are filtered out (CP-TC-109). Serves the most
+ * recently resolved catalog (the catalog-client refreshes it from the network at
+ * most once per its short memo TTL: fetch-on-marketplace-open, NFR-004),
+ * degrading to cache then seed; the list is never zero. Filtering runs in memory,
+ * so search-as-you-type does not force a fetch + signature verify per keystroke.
+ * Throws `CatalogUnverifiedError` only when even the bundled seed fails
+ * verification (the route maps that to 502).
  */
-export function listCatalog(params: ListCatalogParams = {}): MarketplaceListing[] {
+export async function listCatalog(params: ListCatalogParams = {}): Promise<MarketplaceListing[]> {
+  const { entries } = await catalogClient.getVerifiedCatalog();
   const q = params.q?.trim().toLowerCase() ?? "";
   const kind = params.kind;
-  return ENTRIES.filter((e) => e.revoked !== true)
+  return entries
+    .filter((e) => e.revoked !== true)
     .map(annotate)
     .filter(
       (listing) =>
@@ -110,15 +97,18 @@ export function listCatalog(params: ListCatalogParams = {}): MarketplaceListing[
 
 /**
  * Resolve a catalog entry by id, or null when it is not in the verified
- * catalog. Revoked entries are still returned here so install/update can emit a
- * specific `revoked` error rather than a generic unknown-id error.
+ * catalog. Reuses the most recently resolved catalog (the one the open
+ * Plugins view fetched) rather than forcing another network round-trip. Revoked
+ * entries are still returned here so install/update can emit a specific
+ * `revoked` error rather than a generic unknown-id error.
  */
-export function resolveEntry(id: string): MarketplaceCatalogEntry | null {
-  return ENTRY_BY_ID.get(id) ?? null;
+export async function resolveEntry(id: string): Promise<MarketplaceCatalogEntry | null> {
+  const { entries } = await catalogClient.getVerifiedCatalog();
+  return entries.find((e) => e.id === id) ?? null;
 }
 
-function assertInstallable(id: string): MarketplaceCatalogEntry {
-  const entry = resolveEntry(id);
+function assertInstallable(catalog: VerifiedCatalog, id: string): MarketplaceCatalogEntry {
+  const entry = catalog.entries.find((e) => e.id === id) ?? null;
   if (!entry) {
     throw new pluginInstaller.InstallError("invalid-input", `Unknown catalog plugin: ${id}`);
   }
@@ -128,6 +118,16 @@ function assertInstallable(id: string): MarketplaceCatalogEntry {
       `Plugin "${id}" has been revoked and can no longer be installed or updated.`,
     );
   }
+  if (catalog.source !== "network") {
+    // Degraded to cache / seed: the marketplace is unreachable, so a new
+    // install/update is paused with a clear message rather than attempting (and
+    // failing) a fetch (CPHM-TC-045/050/051). Seeded and already-installed
+    // plugins keep working.
+    throw new pluginInstaller.InstallError(
+      "marketplace-unreachable",
+      `Can't install "${id}" while the marketplace is unreachable. Seeded and already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
+    );
+  }
   return entry;
 }
 
@@ -135,12 +135,14 @@ function assertInstallable(id: string): MarketplaceCatalogEntry {
  * Stage an install of a catalog entry, delegating to the plugin-installer git
  * flow. Returns an InstallPreview (staging token + manifest) the client drives
  * through the existing consent + confirm endpoints. Throws when the id is not in
- * the curated catalog (`invalid-input`) or has been revoked (`revoked`). The
- * entry's expected integrity digest is threaded to the installer so a tampered
- * package is rejected before commit (CP-TC-107/108).
+ * the curated catalog (`invalid-input`), has been revoked (`revoked`), or the
+ * marketplace is unreachable (`marketplace-unreachable`). The entry's expected
+ * integrity digest is threaded to the installer so a tampered package is
+ * rejected before commit (CP-TC-107/108).
  */
 export async function install(id: string): Promise<InstallPreview> {
-  const entry = assertInstallable(id);
+  const catalog = await catalogClient.getVerifiedCatalog();
+  const entry = assertInstallable(catalog, id);
   return pluginInstaller.previewFromGitUrl(
     entry.source.url,
     entry.integrity,
@@ -152,12 +154,14 @@ export async function install(id: string): Promise<InstallPreview> {
  * Stage an update of an already-installed catalog entry, delegating to the
  * plugin-installer update flow (which replaces the installed copy at commit
  * time). Returns an InstallPreview. Throws when the id is not in the catalog
- * (`invalid-input`) or has been revoked (`revoked`). The expected integrity
- * digest is threaded so a tampered package is rejected before commit, leaving
- * the existing version intact (CP-TC-112).
+ * (`invalid-input`), has been revoked (`revoked`), or the marketplace is
+ * unreachable (`marketplace-unreachable`). The expected integrity digest is
+ * threaded so a tampered package is rejected before commit, leaving the
+ * existing version intact (CP-TC-112).
  */
 export async function update(id: string): Promise<InstallPreview> {
-  const entry = assertInstallable(id);
+  const catalog = await catalogClient.getVerifiedCatalog();
+  const entry = assertInstallable(catalog, id);
   return pluginInstaller.previewUpdateFromGitUrl(
     entry.source.url,
     entry.id,
