@@ -113,6 +113,16 @@ vi.mock("../services/cut-list-query-service.js", () => ({
   },
 }));
 
+// #314 (CPHM-TC-051): the catalog-client seam the /test/__set-marketplace-reachable
+// route flips and /test/__reset restores. Mocked so the unit suite asserts the
+// route wiring without running the real client (ed25519 keygen + a cache write).
+// The fake echoes the resolved source so the route's surfaced `source` is testable.
+vi.mock("../services/catalog-client.js", () => ({
+  __setE2EMarketplaceReachable: vi.fn(async (reachable: boolean) =>
+    reachable ? "network" : "seed",
+  ),
+}));
+
 import router from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -123,6 +133,7 @@ import * as state from "../services/state.js";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
+import * as catalogClient from "../services/catalog-client.js";
 import { BUNDLED_PLUGIN_IDS, ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 
 const app = express();
@@ -250,6 +261,10 @@ describe("POST /test/__reset", () => {
     // prior spec's /test/__set-cut-list-disk-cache toggle cannot leak the warm
     // path into the next spec.
     expect(cutListQueryService.restoreBypassDefault).toHaveBeenCalledTimes(1);
+    // #314 (CPHM-TC-051): the marketplace catalog client is restored to its
+    // reachable (network) default so a prior spec's offline toggle cannot leak an
+    // "unreachable" state into the next spec.
+    expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(true);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
     // No body: setE2EConfig still fires with null/null so any prior pinning is
     // cleared on a plain reset.
@@ -583,6 +598,67 @@ describe("POST /test/__set-cut-list-disk-cache", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "enabled must be a boolean" });
     expect(cutListQueryService.setDiskCacheEnabled).not.toHaveBeenCalled();
+  });
+});
+
+// #314 (CPHM-TC-051): flip the marketplace catalog client between reachable
+// (network) and unreachable (degrade to cache/seed) so the offline-journey e2e
+// can walk offline -> install-paused -> reconnect without real network.
+describe("POST /test/__set-marketplace-reachable", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app)
+      .post("/test/__set-marketplace-reachable")
+      .send({ reachable: false });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(catalogClient.__setE2EMarketplaceReachable).not.toHaveBeenCalled();
+  });
+
+  it("flips to unreachable and surfaces the resolved source when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__set-marketplace-reachable")
+      .send({ reachable: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, reachable: false, source: "seed" });
+    expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(false);
+  });
+
+  it("flips back to reachable and surfaces the network source", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__set-marketplace-reachable")
+      .send({ reachable: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, reachable: true, source: "network" });
+    expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(true);
+  });
+
+  it("returns 400 when reachable is not a boolean", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__set-marketplace-reachable")
+      .send({ reachable: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "reachable must be a boolean" });
+    expect(catalogClient.__setE2EMarketplaceReachable).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when reachable is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__set-marketplace-reachable").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "reachable must be a boolean" });
+    expect(catalogClient.__setE2EMarketplaceReachable).not.toHaveBeenCalled();
   });
 });
 

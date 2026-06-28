@@ -379,3 +379,63 @@ describe("prefetch", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+// ── ROUBO_E2E offline-journey seam (issue #314, CPHM-TC-051) ──────────────────
+// The seam (the ROUBO_E2E branch in getDefaultClient plus __setE2EMarketplaceReachable
+// and its helpers) is what the marketplace-offline-journey e2e flips to walk
+// offline -> install-paused -> reconnect. Unlike the dependency-injection tests
+// above, it drives the MODULE-LEVEL default client, which resolves its cache dir
+// from getRouboDir(); so these tests redirect getRouboDir() at a throwaway tmp dir
+// and re-import the module fresh per test (vi.resetModules) so the cached default
+// client and the generated-keypair seam are rebuilt under the pinned ROUBO_E2E.
+describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", () => {
+  const originalE2E = process.env.ROUBO_E2E;
+  let cacheHome: string;
+
+  beforeEach(async () => {
+    cacheHome = await mkdtemp(path.join(tmpdir(), "catalog-seam-"));
+    vi.resetModules();
+    vi.doMock("./state.js", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("./state.js")>();
+      return { ...actual, getRouboDir: () => cacheHome };
+    });
+  });
+
+  afterEach(async () => {
+    vi.doUnmock("./state.js");
+    vi.resetModules();
+    if (originalE2E === undefined) delete process.env.ROUBO_E2E;
+    else process.env.ROUBO_E2E = originalE2E;
+    await rm(cacheHome, { recursive: true, force: true });
+  });
+
+  it("is a no-op (returns null) outside the ROUBO_E2E gate", async () => {
+    delete process.env.ROUBO_E2E;
+    const mod = await import("./catalog-client.js");
+    expect(await mod.__setE2EMarketplaceReachable(true)).toBeNull();
+    expect(await mod.__setE2EMarketplaceReachable(false)).toBeNull();
+  });
+
+  it("resolves the live 'network' source when reachable under ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    const mod = await import("./catalog-client.js");
+    expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
+  });
+
+  it("degrades to the bundled seed when unreachable with no warmed cache", async () => {
+    process.env.ROUBO_E2E = "1";
+    const mod = await import("./catalog-client.js");
+    expect(await mod.__setE2EMarketplaceReachable(false)).toBe("seed");
+  });
+
+  it("degrades off network to the warmed cache, then restores on reconnect", async () => {
+    process.env.ROUBO_E2E = "1";
+    const mod = await import("./catalog-client.js");
+    // Reachable first warms the on-disk cache via the injected network fetch.
+    expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
+    // Unreachable degrades off network to that last-verified cache (not the seed).
+    expect(await mod.__setE2EMarketplaceReachable(false)).toBe("cache");
+    // Reconnecting restores the live network source (the install-pause lifts).
+    expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
+  });
+});
