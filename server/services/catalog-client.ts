@@ -72,6 +72,9 @@ const DEFAULT_CATALOG_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.
 const DEFAULT_KEY_RING_URL = "https://davidpoxon.github.io/roubo-plugins/key-ring.json";
 const FETCH_TIMEOUT_MS = 5000;
 const CACHE_FILENAME = "catalog-cache.json";
+// In-memory memo TTL: bound network refreshes (and search-as-you-type filtering)
+// to at most one fetch + verify per window, rather than one per listCatalog call.
+const MEMO_TTL_MS = 60_000;
 
 export interface CatalogClientOptions {
   catalogUrl?: string;
@@ -86,14 +89,22 @@ export interface CatalogClientOptions {
   fetchImpl?: typeof fetch;
   /** Degrade-event logger; defaults to console.warn. Tests inject a sink. */
   log?: (message: string) => void;
+  /**
+   * In-memory memo TTL (ms): repeated getVerifiedCatalog() calls without
+   * forceRefresh reuse the last resolved result for this long before the degrade
+   * chain re-runs. Bounds fetch-on-marketplace-open and search-as-you-type to one
+   * refresh per window. Defaults to MEMO_TTL_MS.
+   */
+  memoTtlMs?: number;
 }
 
 export interface CatalogClient {
   /**
    * Resolve the verified catalog via the NETWORK -> CACHE -> SEED degrade chain.
    * `forceRefresh` re-runs the chain (a fresh network fetch); otherwise the last
-   * resolved result is reused in-memory. Throws `CatalogUnverifiedError` only
-   * when even the bundled seed fails verification.
+   * resolved result is reused in-memory for a short TTL (memoTtlMs) before the
+   * chain re-runs. Throws `CatalogUnverifiedError` only when even the bundled
+   * seed fails verification.
    */
   getVerifiedCatalog(opts?: { forceRefresh?: boolean }): Promise<VerifiedCatalog>;
   /** Launch-time warm fetch: refresh the catalog and warm the cache. Never throws. */
@@ -111,8 +122,10 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   const seed = options.seed ?? (seedCatalog as SignedMarketplaceCatalog);
   const doFetch = options.fetchImpl ?? globalThis.fetch;
   const log = options.log ?? ((message: string) => console.warn(message));
+  const memoTtlMs = options.memoTtlMs ?? MEMO_TTL_MS;
 
   let lastVerified: VerifiedCatalog | null = null;
+  let lastVerifiedAt = 0;
 
   /**
    * The full fail-closed verification of a catalog + key-ring envelope pair:
@@ -228,19 +241,24 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
 
   const client: CatalogClient = {
     async getVerifiedCatalog(opts = {}) {
-      if (!opts.forceRefresh && lastVerified) return lastVerified;
+      if (!opts.forceRefresh && lastVerified && Date.now() - lastVerifiedAt < memoTtlMs) {
+        return lastVerified;
+      }
       const fromNetwork = await tryNetwork();
       if (fromNetwork) {
         lastVerified = fromNetwork;
+        lastVerifiedAt = Date.now();
         return fromNetwork;
       }
       const fromCache = await tryCache();
       if (fromCache) {
         lastVerified = fromCache;
+        lastVerifiedAt = Date.now();
         return fromCache;
       }
       const fromSeed = trySeed();
       lastVerified = fromSeed;
+      lastVerifiedAt = Date.now();
       return fromSeed;
     },
     async prefetch() {

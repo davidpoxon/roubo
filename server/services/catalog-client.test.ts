@@ -214,6 +214,21 @@ describe("getVerifiedCatalog network path", () => {
     expect(again.source).toBe("network");
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(calls);
   });
+
+  it("re-runs the degrade chain on a plain call once the memo TTL has elapsed", async () => {
+    const keys = makeKeys();
+    const fetchImpl = fetchReturning(buildCatalog(keys, sampleEntries()), buildKeyRing(keys));
+    // memoTtlMs: 0 makes the in-memory memo immediately stale, so the next plain
+    // (non-forceRefresh) call re-fetches rather than reusing the prior result.
+    const client = clientWith({ rootPublicKeyPem: spkiPem(keys.rootPub), fetchImpl, memoTtlMs: 0 });
+    await client.getVerifiedCatalog({ forceRefresh: true });
+    const calls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+    const again = await client.getVerifiedCatalog();
+    expect(again.source).toBe("network");
+    expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
+      calls,
+    );
+  });
 });
 
 describe("getVerifiedCatalog cache degrade", () => {

@@ -147,9 +147,14 @@ describe("isNewerVersion", () => {
 });
 
 describe("listCatalog", () => {
-  it("forces a fresh catalog fetch (fetch-on-marketplace-open)", async () => {
+  it("serves the memoized catalog without forcing a per-call network refresh", async () => {
     await marketplace.listCatalog();
-    expect(getVerifiedCatalog).toHaveBeenCalledWith({ forceRefresh: true });
+    // listCatalog must NOT force a refresh on every call: with no debounce on the
+    // client search field, that would issue a fresh fetch + signature verify per
+    // keystroke. The catalog-client refreshes on its own short memo TTL instead
+    // (fetch-on-marketplace-open), so filtering runs in memory.
+    expect(getVerifiedCatalog).toHaveBeenCalled();
+    expect(getVerifiedCatalog).not.toHaveBeenCalledWith({ forceRefresh: true });
   });
 
   it("returns both component and integration entries with verified + version", async () => {

@@ -73,13 +73,16 @@ function matchesQuery(listing: MarketplaceListing, q: string): boolean {
 /**
  * Return the curated catalog, annotated with install/update state, filtered by
  * an optional free-text query (name / id / summary, case-insensitive) and an
- * optional kind. Revoked entries are filtered out (CP-TC-109). Forces a fresh
- * catalog fetch (fetch-on-marketplace-open, NFR-004), degrading to cache then
- * seed; the list is never zero. Throws `CatalogUnverifiedError` only when even
- * the bundled seed fails verification (the route maps that to 502).
+ * optional kind. Revoked entries are filtered out (CP-TC-109). Serves the most
+ * recently resolved catalog (the catalog-client refreshes it from the network at
+ * most once per its short memo TTL: fetch-on-marketplace-open, NFR-004),
+ * degrading to cache then seed; the list is never zero. Filtering runs in memory,
+ * so search-as-you-type does not force a fetch + signature verify per keystroke.
+ * Throws `CatalogUnverifiedError` only when even the bundled seed fails
+ * verification (the route maps that to 502).
  */
 export async function listCatalog(params: ListCatalogParams = {}): Promise<MarketplaceListing[]> {
-  const { entries } = await catalogClient.getVerifiedCatalog({ forceRefresh: true });
+  const { entries } = await catalogClient.getVerifiedCatalog();
   const q = params.q?.trim().toLowerCase() ?? "";
   const kind = params.kind;
   return entries
