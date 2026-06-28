@@ -17,6 +17,7 @@ import { ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
+import * as catalogClient from "../services/catalog-client.js";
 import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
 
@@ -362,6 +363,11 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // spec, breaking 10x determinism (NFR-018). wipePersistedTestState already
     // wiped issue-snapshots/, so the next warm spec starts from a clean disk.
     cutListQueryService.restoreBypassDefault();
+    // #314 (CPHM-TC-051): restore the marketplace catalog client to its
+    // reachable (network) default so the offline-journey toggle
+    // (POST /test/__set-marketplace-reachable) never leaks an "unreachable"
+    // state into a later spec (NFR-018). No-op outside ROUBO_E2E.
+    await catalogClient.__setE2EMarketplaceReachable(true);
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
     projectRegistry.__test.reset();
@@ -477,6 +483,35 @@ router.post("/__set-cut-list-disk-cache", (req: Request, res: Response) => {
   }
   cutListQueryService.setDiskCacheEnabled(body.enabled);
   res.status(200).json({ ok: true, enabled: body.enabled });
+});
+
+// POST /test/__set-marketplace-reachable (#314, CPHM-TC-051): flip the catalog
+// client between reachable (network source) and unreachable (degrade to
+// cache/seed) at runtime, so the marketplace-offline-journey e2e can walk the
+// offline -> install-blocked -> reconnect path without real network. The toggle
+// busts the catalog memo so the served source flips on the next read; the
+// response carries the freshly resolved `source` so the spec can assert the
+// degrade/reconnect at the catalog-client boundary. /test/__reset restores
+// reachable:true so the toggle never leaks into a later spec (NFR-018). Gated by
+// ROUBO_E2E; production builds 404 the URL.
+//
+// Body: { reachable: boolean }.
+router.post("/__set-marketplace-reachable", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { reachable?: unknown };
+  if (typeof body.reachable !== "boolean") {
+    return res.status(400).json({ error: "reachable must be a boolean" });
+  }
+  try {
+    const source = await catalogClient.__setE2EMarketplaceReachable(body.reachable);
+    res.status(200).json({ ok: true, reachable: body.reachable, source });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__set-marketplace-reachable failed:", message);
+    res.status(500).json({ error: message });
+  }
 });
 
 // POST /test/__register-fixture-project (#232): create a throwaway project

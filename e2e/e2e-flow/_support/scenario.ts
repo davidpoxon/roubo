@@ -142,6 +142,27 @@ export async function setCutListDiskCacheEnabled(
 }
 
 /**
+ * #314 (CPHM-TC-051): flip the marketplace catalog client between reachable
+ * (network source) and unreachable (degrade to cache/seed) for the duration of
+ * one offline-journey step, via the ROUBO_E2E-gated
+ * `/test/__set-marketplace-reachable` endpoint. The toggle busts the catalog
+ * memo so the served source flips on the next read, and the response carries the
+ * freshly resolved source so the spec can assert the degrade/reconnect at the
+ * catalog-client boundary. `/test/__reset` restores reachable:true so the toggle
+ * never leaks into a later spec (NFR-018). Returns the resolved catalog source
+ * ("network" | "cache" | "seed").
+ */
+export async function setMarketplaceReachable(
+  request: APIRequestContext,
+  reachable: boolean,
+): Promise<string> {
+  const res = await request.post("/test/__set-marketplace-reachable", { data: { reachable } });
+  expect(res.status(), `toggle marketplace reachable=${reachable}`).toBe(200);
+  const body = (await res.json()) as { source: string };
+  return body.source;
+}
+
+/**
  * Register a throwaway project for the duration of one spec, pinned to the
  * requested plugin via an integration override. The fixture is torn down by
  * the next `/test/__reset` call (see #232), so specs that need a registered
