@@ -46,18 +46,16 @@ MCowBQYDK2VwAyEAWk7+soWCgnhP6l8MCGBW0poQu7vmmw77eo5QiVieVIk=
  * release; operational keys rotate via the signed key-ring (CPHM-FR-007 /
  * CPHM-NFR-004).
  *
- * IMPORTANT: this is a bootstrap PLACEHOLDER. The real bootstrap root public key
- * (whose private half signs the published key-ring) is not yet committed in
- * roubo-plugins (`marketplace/key-ring.config.json` has an empty `keys` array
- * and no root key exists, the prior signing key was lost per the architecture's
- * open "root-key custody and recovery" question). Until the real root key is
- * minted and embedded here, no live key-ring verifies, so the catalog-client
- * stays fail-closed and degrades to the on-disk cache / bundled seed (the plugin
- * list never drops to zero). Replacing this constant with the published root
- * public key is the app-release step that activates network fetch.
+ * This is the real published bootstrap root public key (davidpoxon/roubo-development#368).
+ * Its private half is held only in the roubo-plugins release CI secret
+ * (`MARKETPLACE_ROOT_SIGNING_KEY`) and signs the published key-ring; it is never
+ * committed. With the real key embedded, the fetched key-ring verifies and the
+ * catalog-client activates hosted network fetch (rather than staying pinned to
+ * the on-disk cache / bundled seed). Rotating this key is the one marketplace
+ * change that requires a new app release.
  */
 export const CATALOG_ROOT_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAV4JQIJCaYuxWuUlxXLVDoQ+as2KMgqCA2LXhETovBGs=
+MCowBQYDK2VwAyEAa/6jBpbpxY+6fxdDdrz4hOeNpB+3TRwnFLB62yfWsNM=
 -----END PUBLIC KEY-----`;
 
 /**
