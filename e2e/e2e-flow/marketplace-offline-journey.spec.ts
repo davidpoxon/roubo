@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
+import type { MarketplaceCatalogSource, MarketplaceListing, PluginRecord } from "@roubo/shared";
 import {
   fetchPluginRecord,
   loadAppShell,
@@ -35,14 +35,16 @@ import {
 // install gate, so it is the localization target for every step here.
 //
 // Two reconciliations against the literal CPHM-TC-051 script, both deliberate:
-//   - S003 names an "offline warning banner" surface. The Marketplace UI has no
-//     such banner today (the GET /api/marketplace/plugins response carries no
-//     degraded/source signal for the client to render): implementing it is app
-//     behaviour, out of scope for this test issue (issue #314 hard gates are
-//     AC1/AC2/AC3, not the banner verbatim). S003 is instead verified at the
-//     catalog-client boundary (the served source degrades to cache/seed). The
-//     missing banner is a divergence owned by the M3 App-client banner slice
-//     (the #306 chain), reported here rather than built.
+//   - S003 names an "offline warning banner" surface. That banner is now built
+//     (client/src/components/marketplace/MarketplaceOfflineBanner.tsx, issue
+//     #372): GET /api/marketplace/plugins surfaces the served catalog's `source`
+//     and `fetchedAt`, and the Plugins view renders the banner when
+//     `source !== "network"`. Its rendered copy (unreachable, last-verified shown,
+//     fetched-Nh-ago, installs paused) is asserted by the React unit + a11y tests
+//     (Marketplace.test.tsx / Marketplace.a11y.test.tsx). This Playwright leg
+//     verifies S003 at the API data-contract boundary the banner renders from:
+//     the GET /plugins response degrades `source` to cache/seed and carries a
+//     `fetchedAt`, which IS the "last verified catalog (fetched ...) shown" state.
 //   - S005 names "Jira" as the new install. But jira-self-hosted is a SEEDED
 //     (bundled) catalog entry, so it cannot be the non-seeded install subject.
 //     The block applies to ANY non-network install, so this walks it with
@@ -80,6 +82,11 @@ interface InstallErrorBody {
 interface CatalogResponse {
   curated?: boolean;
   listings?: MarketplaceListing[];
+  // The served catalog's provenance, surfaced for the offline / staleness banner
+  // (issue #372): `source` degrades off "network" and `fetchedAt` is the cached
+  // fetch timestamp (or null for the seed).
+  source?: MarketplaceCatalogSource;
+  fetchedAt?: string | null;
 }
 
 test.beforeEach(async ({ request }) => {
@@ -121,16 +128,28 @@ test("CPHM-TC-051: offline marketplace journey: seeded plugins keep running, a n
 
   // ---- S003: the offline indicator. The literal CPHM-TC-051 step reads an
   // "offline warning banner (marketplace unreachable, last verified catalog
-  // shown, new installs paused)". No such banner surface exists in the
-  // Marketplace UI today (see the header note): rather than build app behaviour
-  // under a test issue, S003 is verified at the catalog-client boundary: the
-  // listing is served from the last-verified cache or the bundled seed, which IS
-  // the "last verified catalog shown" state the banner would describe.
+  // shown, new installs paused)". That banner is now built (issue #372): the
+  // GET /api/marketplace/plugins response surfaces the `source` / `fetchedAt`
+  // the Plugins view renders the banner from. The rendered copy is asserted by
+  // the React unit + a11y tests; here we verify the API data contract that feeds
+  // it: the offline listing degrades to the last-verified cache or the bundled
+  // seed (the "last verified catalog shown" state), and the response carries that
+  // source plus a fetchedAt key (the "fetched 2h ago" staleness the banner shows).
   expect(
     ["cache", "seed"],
     `S003 diverged: expected the offline listing to come from the last-verified ` +
       `cache or the bundled seed but the source was "${offlineSource}"; owning slice ${CATALOG_SLICE}`,
   ).toContain(offlineSource);
+  expect(
+    ["cache", "seed"],
+    `S003 diverged: expected GET /plugins to surface a degraded source (cache/seed) ` +
+      `for the offline banner but the body source was "${s002Body.source}"; owning slice ${CATALOG_SLICE}`,
+  ).toContain(s002Body.source);
+  expect(
+    "fetchedAt" in s002Body,
+    `S003 diverged: expected GET /plugins to surface a fetchedAt field for the ` +
+      `offline banner's staleness but it was absent; owning slice ${CATALOG_SLICE}`,
+  ).toBe(true);
 
   // ---- S004: the seeded plugin is operational offline.
   // Expected: GET /api/plugins shows the bundled github-com plugin running

@@ -338,10 +338,28 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   updateAvailable: boolean;
 }
 
-/** Response shape for `GET /api/marketplace/plugins`. */
+/**
+ * Where the served catalog came from, surfaced so the Plugins view can render an
+ * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue #372). The
+ * catalog-client degrades NETWORK -> CACHE -> SEED fail-closed; `cache` and
+ * `seed` both mean the hosted marketplace was unreachable and the last verified
+ * catalog is being shown. The server-side `CatalogSource` (catalog-client.ts)
+ * aliases this single definition so the value behaviour stays identical.
+ */
+export type MarketplaceCatalogSource = "network" | "cache" | "seed";
+
+/**
+ * Response shape for `GET /api/marketplace/plugins`. `source` and `fetchedAt`
+ * carry the served catalog's provenance to the client: when `source !== "network"`
+ * the marketplace was unreachable and the Plugins view shows the offline /
+ * staleness banner. `fetchedAt` is the ISO timestamp the served envelope was
+ * fetched (network / cache), or `null` for the bundled seed (no fetch happened).
+ */
 export interface MarketplaceCatalogResponse {
   curated: true;
   listings: MarketplaceListing[];
+  source: MarketplaceCatalogSource;
+  fetchedAt: string | null;
 }
 
 /**

@@ -87,16 +87,22 @@ function preview(): InstallPreview {
   } as unknown as InstallPreview;
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+function setCatalogData(source: "network" | "cache" | "seed", fetchedAt: string | null) {
   mockedCatalog.mockReturnValue({
     data: {
       curated: true,
       listings: [listing(), listing({ id: "github-com", kind: "integration" })],
+      source,
+      fetchedAt,
     },
     isLoading: false,
     error: null,
   } as unknown as ReturnType<typeof _useCatalog>);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  setCatalogData("network", null);
   mockedInstallPreview.mockReturnValue(mutationStub());
   mockedUpdatePreview.mockReturnValue(mutationStub());
   mockedConfirm.mockReturnValue(mutationStub());
@@ -106,6 +112,16 @@ beforeEach(() => {
 describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
   it("has no axe violations in the catalog grid", async () => {
     const { baseElement } = render(<Marketplace />);
+    const results = await axe(baseElement);
+    expect(results).toHaveNoViolations();
+  });
+
+  // CPHM-NFR-007 + issue #372: the offline / staleness banner (shown when the
+  // catalog degraded off the network) must also be accessible.
+  it("has no axe violations with the offline / staleness banner shown", async () => {
+    setCatalogData("cache", new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
+    const { baseElement, getByTestId } = render(<Marketplace />);
+    expect(getByTestId("marketplace-offline-banner")).toBeInTheDocument();
     const results = await axe(baseElement);
     expect(results).toHaveNoViolations();
   });

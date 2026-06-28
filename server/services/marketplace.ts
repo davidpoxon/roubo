@@ -2,6 +2,7 @@ import semver from "semver";
 import type {
   InstallPreview,
   MarketplaceCatalogEntry,
+  MarketplaceCatalogSource,
   MarketplaceKind,
   MarketplaceListing,
 } from "@roubo/shared";
@@ -32,6 +33,20 @@ import type { VerifiedCatalog } from "./catalog-client.js";
 export interface ListCatalogParams {
   q?: string;
   kind?: MarketplaceKind;
+}
+
+/**
+ * The annotated, filtered catalog plus the served catalog's provenance. `source`
+ * and `fetchedAt` come straight from the catalog-client's degrade chain so the
+ * route can forward them to the client, which renders the offline / staleness
+ * banner when `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, issue #372).
+ * `fetchedAt` is the ISO fetch timestamp (network / cache), or `null` for the
+ * bundled seed.
+ */
+export interface CatalogResult {
+  listings: MarketplaceListing[];
+  source: MarketplaceCatalogSource;
+  fetchedAt: string | null;
 }
 
 /**
@@ -80,12 +95,17 @@ function matchesQuery(listing: MarketplaceListing, q: string): boolean {
  * so search-as-you-type does not force a fetch + signature verify per keystroke.
  * Throws `CatalogUnverifiedError` only when even the bundled seed fails
  * verification (the route maps that to 502).
+ *
+ * Returns the served catalog's provenance (`source` / `fetchedAt`) alongside the
+ * listings so the route can forward it: when the catalog was served from the
+ * cache or the seed (the marketplace was unreachable), the client renders the
+ * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue #372).
  */
-export async function listCatalog(params: ListCatalogParams = {}): Promise<MarketplaceListing[]> {
-  const { entries } = await catalogClient.getVerifiedCatalog();
+export async function listCatalog(params: ListCatalogParams = {}): Promise<CatalogResult> {
+  const { entries, source, fetchedAt } = await catalogClient.getVerifiedCatalog();
   const q = params.q?.trim().toLowerCase() ?? "";
   const kind = params.kind;
-  return entries
+  const listings = entries
     .filter((e) => e.revoked !== true)
     .map(annotate)
     .filter(
@@ -93,6 +113,7 @@ export async function listCatalog(params: ListCatalogParams = {}): Promise<Marke
         (kind === undefined || listing.kind === kind) &&
         (q.length === 0 || matchesQuery(listing, q)),
     );
+  return { listings, source, fetchedAt };
 }
 
 /**

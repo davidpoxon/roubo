@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { MarketplaceListing } from "@roubo/shared";
+import type { MarketplaceCatalogSource, MarketplaceListing } from "@roubo/shared";
 import { ApiError } from "../../lib/api";
 
 vi.mock("../../hooks/useMarketplace");
@@ -81,12 +81,22 @@ function mutationStub<T>(extra: Record<string, unknown> = {}) {
   } as unknown as T;
 }
 
-function setCatalog(listings: MarketplaceListing[]) {
+function setCatalog(
+  listings: MarketplaceListing[],
+  source: MarketplaceCatalogSource = "network",
+  fetchedAt: string | null = null,
+) {
   mockedCatalog.mockReturnValue({
-    data: { curated: true, listings },
+    data: { curated: true, listings, source, fetchedAt },
     isLoading: false,
     error: null,
   } as unknown as ReturnType<typeof _useCatalog>);
+}
+
+// An ISO timestamp two hours in the past, so the banner's relative formatter
+// renders "fetched 2h ago" (CPHM-TC-043 S002-O02).
+function twoHoursAgo(): string {
+  return new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 }
 
 function setCatalogError(error: unknown) {
@@ -256,6 +266,50 @@ describe("Marketplace catalog", () => {
       "roubo/plugins@redis",
     );
     expect(screen.getByTestId("marketplace-drawer-sandbox")).toHaveTextContent("Unsandboxed");
+  });
+
+  // CPHM-TC-043 (S001/S002) + CPHM-TC-051 (S003), issue #372: the offline /
+  // staleness banner. It is absent on a live network catalog and present when the
+  // catalog degraded to the last-known cache or the bundled seed, while the
+  // (cached) entries still render.
+  describe("offline / staleness banner (CPHM-TC-043 / CPHM-TC-051)", () => {
+    it("does not render the banner when the catalog is live (source network)", () => {
+      setCatalog(CATALOG, "network");
+      render(<Marketplace />);
+      expect(screen.queryByTestId("marketplace-offline-banner")).not.toBeInTheDocument();
+      // It must NOT reuse the shared testbench staleness-banner testid.
+      expect(screen.queryByTestId("staleness-banner")).not.toBeInTheDocument();
+    });
+
+    it("renders the cache banner with the staleness, and cached entries still render (S001/S002)", () => {
+      setCatalog(CATALOG, "cache", twoHoursAgo());
+      render(<Marketplace />);
+      const banner = screen.getByTestId("marketplace-offline-banner");
+      // (a) marketplace unreachable + last verified catalog shown (S002-O01).
+      expect(banner).toHaveTextContent(/marketplace is unreachable/i);
+      expect(banner).toHaveTextContent(/last verified catalog/i);
+      // (b) staleness from fetchedAt: "fetched 2h ago" (S002-O02).
+      expect(banner).toHaveTextContent(/fetched 2h ago/i);
+      // (c) seeded/installed remain available, new installs paused (S002-O03).
+      expect(banner).toHaveTextContent(/seeded and installed plugins remain available/i);
+      expect(banner).toHaveTextContent(/new installs are paused/i);
+      // The cached catalog entries still render (S001-O01/O02): the grid is shown.
+      expect(screen.getByTestId("marketplace-grid")).toBeInTheDocument();
+      expect(screen.getAllByTestId("marketplace-card")).toHaveLength(3);
+    });
+
+    it("renders the seed banner without a fetch timestamp (seed fetchedAt is null)", () => {
+      setCatalog(CATALOG, "seed", null);
+      render(<Marketplace />);
+      const banner = screen.getByTestId("marketplace-offline-banner");
+      expect(banner).toHaveTextContent(/marketplace is unreachable/i);
+      expect(banner).toHaveTextContent(/last verified catalog/i);
+      // Seed has no fetch timestamp, so no "fetched ... ago" clause.
+      expect(banner).not.toHaveTextContent(/fetched/i);
+      expect(banner).toHaveTextContent(/new installs are paused/i);
+      // Seeded entries still render.
+      expect(screen.getByTestId("marketplace-grid")).toBeInTheDocument();
+    });
   });
 
   it("has no third-party submission affordance anywhere", () => {
