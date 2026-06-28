@@ -423,6 +423,30 @@ describe("POST /install", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("duplicate-id");
   });
+
+  // Built-artifact install codes (issue #773): download-failed mirrors
+  // clone-failed (400), unpack-failed mirrors integrity-failed (422).
+  it("maps download-failed to 400", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError("download-failed", "HTTP 404"),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("download-failed");
+  });
+
+  it("maps unpack-failed to 422", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError("unpack-failed", "zip-slip"),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("unpack-failed");
+  });
 });
 
 describe("POST /install/:token/confirm", () => {

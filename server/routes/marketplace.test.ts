@@ -157,6 +157,24 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.status).toBe(410);
     expect(res.body.code).toBe("revoked");
   });
+
+  // Built-artifact install codes (issue #773): download-failed maps to 400,
+  // unpack-failed to 422.
+  it("maps download-failed to 400", async () => {
+    resolveEntry.mockReturnValue(ENTRY);
+    install.mockRejectedValue(new pluginInstaller.InstallError("download-failed", "HTTP 404"));
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("download-failed");
+  });
+
+  it("maps unpack-failed to 422", async () => {
+    resolveEntry.mockReturnValue(ENTRY);
+    install.mockRejectedValue(new pluginInstaller.InstallError("unpack-failed", "zip-slip"));
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("unpack-failed");
+  });
 });
 
 describe("POST /api/marketplace/plugins/:id/update", () => {

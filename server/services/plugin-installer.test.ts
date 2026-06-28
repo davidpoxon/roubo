@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import * as tar from "tar";
 import type { PluginRecord } from "@roubo/shared";
 
 vi.mock("./exec.js", () => ({
@@ -17,9 +19,14 @@ vi.mock("./plugin-manager.js", () => ({
   uninstallForUpdate: vi.fn(),
 }));
 
+vi.mock("undici", () => ({
+  fetch: vi.fn(),
+}));
+
 import * as pluginInstaller from "./plugin-installer.js";
 import * as exec from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { fetch } from "undici";
 import { resolveWithin } from "../lib/safe-path.js";
 
 const ECHO_MANIFEST = `id: echo
@@ -60,6 +67,14 @@ permissions:
 `;
 
 let pluginsRoot: string;
+// Temp directories created by the tarball fixtures, cleaned up after each test.
+const tmpDirs: string[] = [];
+
+async function trackTmp(prefix: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
 
 beforeEach(async () => {
   pluginInstaller.__test.reset();
@@ -67,6 +82,7 @@ beforeEach(async () => {
   vi.mocked(pluginManager.getUserPluginsRoot).mockReturnValue(pluginsRoot);
   vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
   vi.mocked(exec.runCommand).mockReset();
+  vi.mocked(fetch).mockReset();
   vi.mocked(pluginManager.registerInstalled).mockReset();
   vi.mocked(pluginManager.uninstall).mockReset();
   vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
@@ -76,6 +92,10 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(pluginsRoot, { recursive: true, force: true });
+  for (const dir of tmpDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
+  tmpDirs.length = 0;
 });
 
 async function listStaging(): Promise<string[]> {
@@ -515,6 +535,227 @@ describe("cancel", () => {
     await expect(
       pluginInstaller.cancel("00000000-0000-0000-0000-000000000000"),
     ).resolves.toBeUndefined();
+  });
+});
+
+// --- Built-artifact (Release asset) install path (issue #773) ----------------
+
+const ASSET_URL = "https://example.com/echo.tgz";
+
+type FetchResult = Awaited<ReturnType<typeof fetch>>;
+
+// Build a real gzipped tarball on disk from a flat list of files, returning its
+// path. Each file's `path` is its location inside the archive.
+async function makeTarball(files: { path: string; content: string }[]): Promise<string> {
+  const src = await trackTmp("roubo-asset-src-");
+  const entries: string[] = [];
+  for (const f of files) {
+    const abs = path.join(src, f.path);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, f.content, "utf8");
+    if (!entries.includes(f.path)) entries.push(f.path);
+  }
+  const out = await trackTmp("roubo-asset-tgz-");
+  const tgz = path.join(out, "asset.tgz");
+  await tar.c({ gzip: true, file: tgz, cwd: src }, entries);
+  return tgz;
+}
+
+// A tarball with a path-traversing (`../`) entry, the zip-slip vector. preservePaths
+// is required: tar.c strips `..` entries by default.
+async function makeZipSlipTarball(): Promise<string> {
+  const wrap = await trackTmp("roubo-zipslip-");
+  const pkg = path.join(wrap, "pkg");
+  await mkdir(pkg, { recursive: true });
+  await writeFile(path.join(wrap, "evil.txt"), "owned", "utf8");
+  await writeFile(path.join(pkg, "roubo-plugin.yaml"), ECHO_MANIFEST, "utf8");
+  const out = await trackTmp("roubo-asset-tgz-");
+  const tgz = path.join(out, "asset.tgz");
+  await tar.c({ gzip: true, file: tgz, cwd: pkg, preservePaths: true }, [
+    "../evil.txt",
+    "roubo-plugin.yaml",
+  ]);
+  return tgz;
+}
+
+// A tarball carrying a symlink entry (an unsupported entry type).
+async function makeSymlinkTarball(): Promise<string> {
+  const src = await trackTmp("roubo-symlink-");
+  await writeFile(path.join(src, "roubo-plugin.yaml"), ECHO_MANIFEST, "utf8");
+  await symlink("/etc/passwd", path.join(src, "link"));
+  const out = await trackTmp("roubo-asset-tgz-");
+  const tgz = path.join(out, "asset.tgz");
+  await tar.c({ gzip: true, file: tgz, cwd: src }, ["roubo-plugin.yaml", "link"]);
+  return tgz;
+}
+
+// Mock undici.fetch to stream the given tarball; a fresh read stream per call so
+// the body can be consumed more than once across re-staging.
+function fakeDownload(tgzPath: string) {
+  vi.mocked(fetch).mockImplementation(
+    async () =>
+      ({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: createReadStream(tgzPath),
+      }) as unknown as FetchResult,
+  );
+}
+
+function fakeDownloadStatus(status: number) {
+  vi.mocked(fetch).mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => null },
+    body: null,
+  } as unknown as FetchResult);
+}
+
+describe("previewFromRelease (issue #773)", () => {
+  it("downloads, unpacks, and stages a built artifact with a runnable dist/index.js (no build step)", async () => {
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "dist/index.js", content: "module.exports = {};\n" },
+      ]),
+    );
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL);
+    expect(preview.manifest.id).toBe("echo");
+    expect(preview.source).toEqual({ type: "release", assetUrl: ASSET_URL });
+    expect(pluginInstaller.isValidStagingToken(preview.stagingToken)).toBe(true);
+
+    const staging = await listStaging();
+    expect(staging).toContain(preview.stagingToken);
+    // The temp tarball is removed once unpacked; only the staged dir remains.
+    expect(staging.some((n) => n.endsWith(".tgz"))).toBe(false);
+    const stagingDir = resolveWithin(pluginInstaller.__test.stagingRoot(), preview.stagingToken);
+    expect((await stat(resolveWithin(stagingDir, "dist/index.js"))).isFile()).toBe(true);
+  });
+
+  it("commit moves the unpacked artifact into the plugins dir atomically (runnable dist present)", async () => {
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "dist/index.js", content: "module.exports = {};\n" },
+      ]),
+    );
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL);
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    const record = await pluginInstaller.commit(preview.stagingToken);
+    expect(record.id).toBe("echo");
+    const target = path.join(pluginsRoot, "echo");
+    expect((await stat(resolveWithin(target, "dist/index.js"))).isFile()).toBe(true);
+    expect(await listStaging()).not.toContain(preview.stagingToken);
+  });
+
+  it("rejects a tampered artifact (integrity-failed) and removes staging (nothing written)", async () => {
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    await expect(
+      pluginInstaller.previewFromRelease(ASSET_URL, "sha256-wrong"),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("accepts an artifact whose digest matches the expected catalog digest", async () => {
+    const tgz = await makeTarball([
+      { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+      { path: "dist/index.js", content: "module.exports = {};\n" },
+    ]);
+    // Stage once with no expected digest to learn the unpacked digest, then
+    // re-stage with that exact digest as the expectation.
+    fakeDownload(tgz);
+    const probe = await pluginInstaller.previewFromRelease(ASSET_URL);
+    const stagingDir = resolveWithin(pluginInstaller.__test.stagingRoot(), probe.stagingToken);
+    const { computePackageDigest } = await import("./marketplace-integrity.js");
+    const digest = await computePackageDigest(stagingDir);
+    await pluginInstaller.cancel(probe.stagingToken);
+
+    fakeDownload(tgz);
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL, digest);
+    expect(preview.manifest.id).toBe("echo");
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+
+  it("rejects a zip-slip / path-escaping entry (unpack-failed); nothing is written outside staging", async () => {
+    fakeDownload(await makeZipSlipTarball());
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "unpack-failed",
+    });
+    // The escape target would land in the staging root's parent had extraction
+    // run; the validation pass rejects before any write, so staging is empty.
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a symlink entry (unsupported entry type) fail-closed", async () => {
+    fakeDownload(await makeSymlinkTarball());
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "unpack-failed",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects an over-entry-count tarball fail-closed", async () => {
+    pluginInstaller.__test.setLimits({ maxTarballEntries: 2 });
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "a.txt", content: "a" },
+        { path: "b.txt", content: "b" },
+      ]),
+    );
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "unpack-failed",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects an over-size (unpacked bytes) tarball fail-closed", async () => {
+    pluginInstaller.__test.setLimits({ maxUnpackedBytes: 10 });
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "unpack-failed",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a download whose body exceeds the download limit (streaming guard)", async () => {
+    pluginInstaller.__test.setLimits({ maxDownloadBytes: 10 });
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "download-failed",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("maps a non-200 download to download-failed and leaves no staging dir", async () => {
+    fakeDownloadStatus(404);
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "download-failed",
+    });
+    expect(fetch).toHaveBeenCalled();
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a non-http(s) or empty asset URL without fetching", async () => {
+    await expect(
+      pluginInstaller.previewFromRelease("ftp://example.com/x.tgz"),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    await expect(pluginInstaller.previewFromRelease("   ")).rejects.toMatchObject({
+      code: "invalid-input",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an artifact with no manifest (missing-manifest) and cleans up staging", async () => {
+    fakeDownload(await makeTarball([{ path: "README.md", content: "no manifest" }]));
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "missing-manifest",
+    });
+    expect(await listStaging()).toEqual([]);
   });
 });
 
