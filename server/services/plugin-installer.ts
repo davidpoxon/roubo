@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
@@ -414,53 +414,66 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
   let entryCount = 0;
   let totalBytes = 0;
   let violation: string | null = null;
+  // Stream the tarball through a list pass that validates every entry header
+  // before a single byte is written, and abort the parse the moment a cap or a
+  // path/type rule is violated (issue #773). Aborting early matters: only the
+  // on-the-wire download is capped, so without a mid-stream abort a tar/gzip
+  // bomb within that cap could fully decompress before any limit is enforced.
+  // `parser.abort` sets the parser's aborted flag (it stops consuming further
+  // chunks) and rejects via the `error` listener below; we also destroy the
+  // source so no more of the file is read.
   try {
-    await tar.t({
-      file: tarballPath,
-      onentry: (entry) => {
-        entryCount += 1;
-        totalBytes += typeof entry.size === "number" ? entry.size : 0;
-        if (violation === null) {
-          const entryPath = String(entry.path);
-          if (entry.type !== "File" && entry.type !== "Directory") {
-            // Only plain files and directories belong in a built plugin
-            // artifact: reject symlinks, hardlinks, devices, and FIFOs.
-            violation = `unsupported entry type "${entry.type}" at "${entryPath}"`;
-          } else if (path.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes("..")) {
-            violation = `absolute or traversing path "${entryPath}"`;
-          } else {
-            // Zip-slip containment barrier: the entry must resolve inside destDir.
-            try {
-              resolveWithin(destDir, entryPath);
-            } catch {
-              violation = `path "${entryPath}" escapes the staging directory`;
+    await new Promise<void>((resolve, reject) => {
+      const source = createReadStream(tarballPath);
+      const parser = tar.t({
+        onentry: (entry) => {
+          entryCount += 1;
+          totalBytes += typeof entry.size === "number" ? entry.size : 0;
+          if (violation === null) {
+            const entryPath = String(entry.path);
+            if (entry.type !== "File" && entry.type !== "Directory") {
+              // Only plain files and directories belong in a built plugin
+              // artifact: reject symlinks, hardlinks, devices, and FIFOs.
+              violation = `unsupported entry type "${entry.type}" at "${entryPath}"`;
+            } else if (path.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes("..")) {
+              violation = `absolute or traversing path "${entryPath}"`;
+            } else {
+              // Zip-slip containment barrier: the entry must resolve inside destDir.
+              try {
+                resolveWithin(destDir, entryPath);
+              } catch {
+                violation = `path "${entryPath}" escapes the staging directory`;
+              }
             }
           }
-        }
-        // Drain the entry's data so the parser advances to the next header.
-        entry.resume();
-      },
+          if (violation === null && entryCount > maxTarballEntries) {
+            violation = `over the ${maxTarballEntries}-entry limit`;
+          }
+          if (violation === null && totalBytes > maxUnpackedBytes) {
+            violation = `unpacks to over the ${maxUnpackedBytes}-byte limit`;
+          }
+          if (violation !== null) {
+            // Abort now: stop decompressing the rest of the archive.
+            parser.abort(new Error(violation));
+            source.destroy();
+            return;
+          }
+          // Drain this entry's data so the parser advances to the next header.
+          entry.resume();
+        },
+      });
+      source.on("error", reject);
+      parser.on("error", reject);
+      parser.on("end", () => resolve());
+      source.pipe(parser);
     });
   } catch (err) {
+    if (violation !== null) {
+      throw new InstallError("unpack-failed", `Rejected tarball: ${violation}`);
+    }
     throw new InstallError(
       "unpack-failed",
       `Could not read the release asset tarball: ${(err as Error).message}`,
-    );
-  }
-
-  if (violation !== null) {
-    throw new InstallError("unpack-failed", `Rejected tarball entry: ${violation}`);
-  }
-  if (entryCount > maxTarballEntries) {
-    throw new InstallError(
-      "unpack-failed",
-      `Tarball has ${entryCount} entries, over the ${maxTarballEntries}-entry limit`,
-    );
-  }
-  if (totalBytes > maxUnpackedBytes) {
-    throw new InstallError(
-      "unpack-failed",
-      `Tarball unpacks to ${totalBytes} bytes, over the ${maxUnpackedBytes}-byte limit`,
     );
   }
 
