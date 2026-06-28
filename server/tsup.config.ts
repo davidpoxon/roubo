@@ -35,6 +35,7 @@ export default defineConfig({
     "yaml",
     "octokit",
     "semver",
+    "tar",
     "tree-kill",
     "undici",
     "vscode-jsonrpc",
