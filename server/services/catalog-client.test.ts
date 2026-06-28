@@ -152,11 +152,34 @@ describe("getVerifiedCatalog network path", () => {
     expect(cached.catalog.payload.entries.map((e) => e.id)).toEqual(["ghe"]);
   });
 
-  it("uses the configured catalog/key-ring URLs from the environment when no option is given", async () => {
+  it("fetches the catalog/key-ring from the configured option URLs", async () => {
     const keys = makeKeys();
     const fetchImpl = fetchReturning(buildCatalog(keys, sampleEntries()), buildKeyRing(keys));
-    process.env.ROUBO_MARKETPLACE_CATALOG_URL = "https://pages.example/catalog.json";
-    process.env.ROUBO_MARKETPLACE_KEY_RING_URL = "https://pages.example/key-ring.json";
+    const client = createCatalogClient({
+      catalogUrl: "https://pages.example/catalog.json",
+      keyRingUrl: "https://pages.example/key-ring.json",
+      cacheDir,
+      seed: SEED,
+      log: vi.fn(),
+      rootPublicKeyPem: spkiPem(keys.rootPub),
+      fetchImpl,
+    });
+    await client.getVerifiedCatalog({ forceRefresh: true });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://pages.example/catalog.json",
+      expect.any(Object),
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://pages.example/key-ring.json",
+      expect.any(Object),
+    );
+  });
+
+  it("ignores the environment for the fetch target (no env URL override; SSRF hardening)", async () => {
+    const keys = makeKeys();
+    const fetchImpl = fetchReturning(buildCatalog(keys, sampleEntries()), buildKeyRing(keys));
+    process.env.ROUBO_MARKETPLACE_CATALOG_URL = "https://evil.example/catalog.json";
+    process.env.ROUBO_MARKETPLACE_KEY_RING_URL = "https://evil.example/key-ring.json";
     try {
       const client = createCatalogClient({
         cacheDir,
@@ -166,14 +189,12 @@ describe("getVerifiedCatalog network path", () => {
         fetchImpl,
       });
       await client.getVerifiedCatalog({ forceRefresh: true });
-      expect(fetchImpl).toHaveBeenCalledWith(
-        "https://pages.example/catalog.json",
-        expect.any(Object),
+      const urls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c) => c[0] as string,
       );
-      expect(fetchImpl).toHaveBeenCalledWith(
-        "https://pages.example/key-ring.json",
-        expect.any(Object),
-      );
+      expect(urls.some((u) => u.includes("evil.example"))).toBe(false);
+      expect(urls).toContain("https://davidpoxon.github.io/roubo-plugins/catalog.json");
+      expect(urls).toContain("https://davidpoxon.github.io/roubo-plugins/key-ring.json");
     } finally {
       delete process.env.ROUBO_MARKETPLACE_CATALOG_URL;
       delete process.env.ROUBO_MARKETPLACE_KEY_RING_URL;

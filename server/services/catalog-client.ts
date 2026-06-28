@@ -35,8 +35,10 @@ import seedCatalog from "./marketplace-catalog.json";
 // key) is the always-available floor.
 //
 // node:crypto + Node fetch primitives only; adds no crypto/supply-chain
-// dependency (CPHM-NFR-006). The fetch URLs are overridable via env so the
-// hosted location can move without an app release.
+// dependency (CPHM-NFR-006). The fetch URLs point at a fixed hosted feed and are
+// overridable only via createCatalogClient options (tests / embedding), never
+// from the environment: an env-derived outbound-request URL is the classic
+// request-forgery (SSRF) shape, so the environment cannot redirect the fetch.
 
 /** Where the served catalog came from. */
 export type CatalogSource = "network" | "cache" | "seed";
@@ -77,7 +79,9 @@ const CACHE_FILENAME = "catalog-cache.json";
 const MEMO_TTL_MS = 60_000;
 
 export interface CatalogClientOptions {
+  /** Catalog feed URL override (tests / embedding); defaults to the hosted feed. Not env-overridable. */
   catalogUrl?: string;
+  /** Key-ring feed URL override (tests / embedding); defaults to the hosted feed. Not env-overridable. */
   keyRingUrl?: string;
   /** Directory the cache file lives in. Defaults to `<rouboDir>/marketplace`. */
   cacheDir?: string;
@@ -112,10 +116,12 @@ export interface CatalogClient {
 }
 
 export function createCatalogClient(options: CatalogClientOptions = {}): CatalogClient {
-  const catalogUrl =
-    options.catalogUrl ?? process.env.ROUBO_MARKETPLACE_CATALOG_URL ?? DEFAULT_CATALOG_URL;
-  const keyRingUrl =
-    options.keyRingUrl ?? process.env.ROUBO_MARKETPLACE_KEY_RING_URL ?? DEFAULT_KEY_RING_URL;
+  // The fetch target is a fixed hosted feed. It is overridable only via options
+  // (tests / embedding), never from the environment: an env-derived URL flowing
+  // into an outbound fetch is the classic request-forgery (SSRF) shape, so we do
+  // not let an environment value redirect the request.
+  const catalogUrl = options.catalogUrl ?? DEFAULT_CATALOG_URL;
+  const keyRingUrl = options.keyRingUrl ?? DEFAULT_KEY_RING_URL;
   const cacheDir = options.cacheDir ?? path.join(getRouboDir(), "marketplace");
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   const rootPublicKeyPem = options.rootPublicKeyPem;
