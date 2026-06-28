@@ -165,7 +165,7 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.body.code).toBe("revoked");
   });
 
-  // Built-artifact install codes (issue #773): download-failed maps to 400,
+  // Built-artifact install codes (issue #370): download-failed maps to 400,
   // unpack-failed to 422.
   it("maps download-failed to 400", async () => {
     resolveEntry.mockReturnValue(ENTRY);

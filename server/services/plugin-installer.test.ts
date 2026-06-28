@@ -538,7 +538,7 @@ describe("cancel", () => {
   });
 });
 
-// --- Built-artifact (Release asset) install path (issue #773) ----------------
+// --- Built-artifact (Release asset) install path (issue #370) ----------------
 
 const ASSET_URL = "https://example.com/echo.tgz";
 
@@ -612,7 +612,7 @@ function fakeDownloadStatus(status: number) {
   } as unknown as FetchResult);
 }
 
-describe("previewFromRelease (issue #773)", () => {
+describe("previewFromRelease (issue #370)", () => {
   it("downloads, unpacks, and stages a built artifact with a runnable dist/index.js (no build step)", async () => {
     fakeDownload(
       await makeTarball([
@@ -755,6 +755,106 @@ describe("previewFromRelease (issue #773)", () => {
     await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
       code: "missing-manifest",
     });
+    expect(await listStaging()).toEqual([]);
+  });
+});
+
+describe("previewUpdateFromRelease (issue #370)", () => {
+  it("downloads, unpacks, and stages an update for an installed plugin without a duplicate error", async () => {
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "dist/index.js", content: "module.exports = {};\n" },
+      ]),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo");
+    expect(preview.manifest.id).toBe("echo");
+    expect(preview.source).toEqual({ type: "release", assetUrl: ASSET_URL });
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+
+  it("commit swaps in the staged release copy via uninstallForUpdate, leaving no backup", async () => {
+    // The installed copy must exist on disk: commit moves it aside as a backup
+    // before swapping in the staged copy (no data loss).
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "dist/index.js", content: "module.exports = {};\n" },
+      ]),
+    );
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo");
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    const record = await pluginInstaller.commit(preview.stagingToken);
+    // The update tears down via uninstallForUpdate (no active-integration guard,
+    // no directory delete), never the plain uninstall.
+    expect(pluginManager.uninstallForUpdate).toHaveBeenCalledWith("echo");
+    expect(pluginManager.uninstall).not.toHaveBeenCalled();
+    expect(record.id).toBe("echo");
+    // The staged built artifact is now at the target (its dist replaced OLD).
+    expect((await stat(path.join(target, "dist", "index.js"))).isFile()).toBe(true);
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects update-target-missing when the plugin is not installed, without fetching", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
+    await expect(pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo")).rejects.toMatchObject(
+      { code: "update-target-missing" },
+    );
+    // The installed-plugin guard runs before any download.
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses to update a bundled plugin, without fetching", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "bundled" }),
+    ]);
+    await expect(pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo")).rejects.toMatchObject(
+      { code: "update-target-missing" },
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unpacked manifest whose id differs from the catalog id", async () => {
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "other", source: "user" }),
+    ]);
+    await expect(
+      pluginInstaller.previewUpdateFromRelease(ASSET_URL, "other"),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a tampered update artifact and leaves the existing version intact (integrity-failed)", async () => {
+    // The installed copy stays on disk: the update is rejected at the preview
+    // stage, before commit ever runs, so the existing version is never touched.
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    await expect(
+      pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo", "sha256-wrong"),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+
+    // The existing copy and its sentinel survive; nothing is left in staging.
+    expect((await stat(path.join(target, "OLD"))).isFile()).toBe(true);
     expect(await listStaging()).toEqual([]);
   });
 });

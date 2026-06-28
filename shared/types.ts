@@ -165,7 +165,7 @@ export type InstallSource =
   | { type: "git"; url: string; directory?: string }
   // A built-artifact install: the installer streams the Release asset tarball
   // named by `assetUrl`, unpacks it under containment + size limits, and
-  // verifies the unpacked artifact's digest before commit (issue #773). No git
+  // verifies the unpacked artifact's digest before commit (issue #370). No git
   // clone and no build step run on the user's machine.
   | { type: "release"; assetUrl: string }
   | { type: "local"; path: string };
@@ -186,11 +186,11 @@ export type InstallErrorCode =
   | "update-target-missing"
   // The Release asset could not be downloaded (non-200 response, network error,
   // or it exceeded the maximum download size) on the built-artifact install path
-  // (issue #773). Nothing is written or executed.
+  // (issue #370). Nothing is written or executed.
   | "download-failed"
   // The downloaded tarball could not be safely unpacked: a path-escaping
   // (zip-slip) entry, a symlink/hardlink/device entry, or an over-size /
-  // over-entry-count tarball (issue #773). Fails closed: nothing is written
+  // over-entry-count tarball (issue #370). Fails closed: nothing is written
   // outside staging.
   | "unpack-failed"
   // The staged package's content digest did not match the expected digest from
@@ -238,12 +238,15 @@ export type MarketplaceKind = "component" | "integration";
 
 /**
  * One curated catalog entry as authored in the static manifest. The `source`
- * is the git URL the install/update flow clones from; its optional `directory`
- * names the subdirectory of the cloned repository that holds the plugin package
- * (the monorepo-subdir source model, issue #750), so a component published
- * inside a monorepo (e.g. `plugins/process`) stages and installs just that
- * subdirectory rather than the whole repo. `verified` is the display-only
- * first-party curation flag.
+ * is a discriminated union (mirroring the installer's InstallSource) naming where
+ * the install/update flow stages the plugin from: a `git` source is cloned (its
+ * optional `directory` names the subdirectory of the cloned repository that holds
+ * the plugin package, the monorepo-subdir source model, issue #750, so a component
+ * published inside a monorepo, e.g. `plugins/process`, stages and installs just
+ * that subdirectory rather than the whole repo); a `release` source is a built
+ * artifact whose tarball is downloaded from `assetUrl` and unpacked (its optional
+ * `sha256` is the reproducible asset digest the publish gate self-checks, issue
+ * #370). `verified` is the display-only first-party curation flag.
  *
  * `integrity` is the expected content digest of the staged package
  * (`sha256-<hex>`); after staging and before commit, the installer recomputes
@@ -258,7 +261,9 @@ export interface MarketplaceCatalogEntry {
   kind: MarketplaceKind;
   version: string;
   summary: string;
-  source: { type: "git"; url: string; directory?: string };
+  source:
+    | { type: "git"; url: string; directory?: string }
+    | { type: "release"; assetUrl: string; sha256?: string };
   provenance: string;
   integrity: string;
   revoked?: boolean;

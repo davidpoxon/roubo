@@ -424,7 +424,7 @@ describe("POST /install", () => {
     expect(res.body.code).toBe("duplicate-id");
   });
 
-  // Built-artifact install codes (issue #773): download-failed mirrors
+  // Built-artifact install codes (issue #370): download-failed mirrors
   // clone-failed (400), unpack-failed mirrors integrity-failed (422).
   it("maps download-failed to 400", async () => {
     vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(

@@ -41,7 +41,7 @@ function installErrorStatus(code: InstallErrorCode): number {
   switch (code) {
     case "invalid-input":
     case "clone-failed":
-    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#773)
+    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#370)
     case "missing-manifest":
     case "invalid-manifest":
     case "incompatible-host":
@@ -57,7 +57,7 @@ function installErrorStatus(code: InstallErrorCode): number {
     // A tampered package whose digest does not match the signed catalog entry:
     // 422 Unprocessable Entity (the request was well-formed but the content
     // failed verification). unpack-failed (zip-slip / bad entry / over limit) is
-    // the same unprocessable-content class (#773).
+    // the same unprocessable-content class (#370).
     case "integrity-failed":
     case "unpack-failed":
       return 422;
