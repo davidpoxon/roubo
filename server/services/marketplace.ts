@@ -132,17 +132,22 @@ function assertInstallable(catalog: VerifiedCatalog, id: string): MarketplaceCat
 }
 
 /**
- * Stage an install of a catalog entry, delegating to the plugin-installer git
- * flow. Returns an InstallPreview (staging token + manifest) the client drives
- * through the existing consent + confirm endpoints. Throws when the id is not in
- * the curated catalog (`invalid-input`), has been revoked (`revoked`), or the
- * marketplace is unreachable (`marketplace-unreachable`). The entry's expected
- * integrity digest is threaded to the installer so a tampered package is
- * rejected before commit (CP-TC-107/108).
+ * Stage an install of a catalog entry, delegating to the plugin-installer preview
+ * matching the entry's source: a `git` source clones (`previewFromGitUrl`), a
+ * `release` source downloads + unpacks the built artifact (`previewFromRelease`,
+ * issue #370). Returns an InstallPreview (staging token + manifest) the client
+ * drives through the existing consent + confirm endpoints. Throws when the id is
+ * not in the curated catalog (`invalid-input`), has been revoked (`revoked`), or
+ * the marketplace is unreachable (`marketplace-unreachable`). The entry's expected
+ * integrity digest is threaded to the installer so a tampered package is rejected
+ * before commit (CP-TC-107/108).
  */
 export async function install(id: string): Promise<InstallPreview> {
   const catalog = await catalogClient.getVerifiedCatalog();
   const entry = assertInstallable(catalog, id);
+  if (entry.source.type === "release") {
+    return pluginInstaller.previewFromRelease(entry.source.assetUrl, entry.integrity);
+  }
   return pluginInstaller.previewFromGitUrl(
     entry.source.url,
     entry.integrity,
@@ -152,16 +157,25 @@ export async function install(id: string): Promise<InstallPreview> {
 
 /**
  * Stage an update of an already-installed catalog entry, delegating to the
- * plugin-installer update flow (which replaces the installed copy at commit
- * time). Returns an InstallPreview. Throws when the id is not in the catalog
- * (`invalid-input`), has been revoked (`revoked`), or the marketplace is
- * unreachable (`marketplace-unreachable`). The expected integrity digest is
- * threaded so a tampered package is rejected before commit, leaving the
+ * plugin-installer update preview matching the entry's source: a `git` source
+ * re-clones (`previewUpdateFromGitUrl`), a `release` source downloads + unpacks
+ * the new built artifact (`previewUpdateFromRelease`, issue #370). Either replaces
+ * the installed copy at commit time. Returns an InstallPreview. Throws when the id
+ * is not in the catalog (`invalid-input`), has been revoked (`revoked`), or the
+ * marketplace is unreachable (`marketplace-unreachable`). The expected integrity
+ * digest is threaded so a tampered package is rejected before commit, leaving the
  * existing version intact (CP-TC-112).
  */
 export async function update(id: string): Promise<InstallPreview> {
   const catalog = await catalogClient.getVerifiedCatalog();
   const entry = assertInstallable(catalog, id);
+  if (entry.source.type === "release") {
+    return pluginInstaller.previewUpdateFromRelease(
+      entry.source.assetUrl,
+      entry.id,
+      entry.integrity,
+    );
+  }
   return pluginInstaller.previewUpdateFromGitUrl(
     entry.source.url,
     entry.id,

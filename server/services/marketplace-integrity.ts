@@ -20,7 +20,7 @@ import path from "node:path";
 //      artifact (issue #765). Wiring the production install path to recompute
 //      the digest over the unpacked artifact (rather than the cloned-source
 //      staging tree it digests today) lands with the download/unpack installer
-//      in #773; until then the installed digest input is unchanged.
+//      in #370; until then the installed digest input is unchanged.
 //
 // Verification uses node:crypto only (no third-party crypto dependency). The
 // private signing key is held out of band by maintainers; only the public key
@@ -213,7 +213,7 @@ export function resolveActiveKey(ring: Map<string, KeyRingKey>, keyId: string): 
  * contract and these primitives' tests bind to that built artifact. The
  * production install path still hands this function its cloned-source staging
  * tree; pointing it at the unpacked artifact lands with the download/unpack
- * installer in #773.
+ * installer in #370.
  *
  * The digest is normalized and deterministic: relative paths are sorted, path
  * separators normalized to "/", and the `.git` directory is excluded (it is

@@ -25,7 +25,7 @@ const STAGING_TOKEN_RE = UUID_RE;
 
 const GIT_CLONE_TIMEOUT_MS = 5 * 60 * 1000;
 
-// Built-artifact install limits (issue #773). A Release asset tarball is
+// Built-artifact install limits (issue #370). A Release asset tarball is
 // untrusted input, so the download and unpack steps are bounded to fail closed
 // on a runaway asset or a tar bomb. NFR-002 (p95 < 10s @ 10 Mbps) implies real
 // artifacts are a few MB; these caps are conservative headroom, not tight
@@ -345,7 +345,7 @@ async function clonePackageInto(
 // Stream a Release asset to `destFile`, failing closed on a non-200 response, a
 // network error, or a body that exceeds the download cap. The size guard runs
 // both up front (declared content-length) and as bytes flow (a server may lie
-// about or omit content-length), so the cap holds either way (issue #773).
+// about or omit content-length), so the cap holds either way (issue #370).
 async function downloadAssetToFile(assetUrl: string, destFile: string): Promise<void> {
   let res: Awaited<ReturnType<typeof fetch>>;
   try {
@@ -404,7 +404,7 @@ async function downloadAssetToFile(assetUrl: string, destFile: string): Promise<
 }
 
 // Unpack a downloaded tarball into `destDir` under untrusted-input mitigations
-// (issue #773): a first list pass validates every entry header before a single
+// (issue #370): a first list pass validates every entry header before a single
 // byte is written, so a malicious or oversized archive is rejected fail-closed
 // with nothing left outside staging. The tar header carries each entry's
 // declared (uncompressed) size, so a tar bomb is caught here, before extraction.
@@ -416,7 +416,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
   let violation: string | null = null;
   // Stream the tarball through a list pass that validates every entry header
   // before a single byte is written, and abort the parse the moment a cap or a
-  // path/type rule is violated (issue #773). Aborting early matters: only the
+  // path/type rule is violated (issue #370). Aborting early matters: only the
   // on-the-wire download is capped, so without a mid-stream abort a tar/gzip
   // bomb within that cap could fully decompress before any limit is enforced.
   // `parser.abort` sets the parser's aborted flag (it stops consuming further
@@ -506,21 +506,19 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
   }
 }
 
-/**
- * Stage a built-artifact install from a Release asset tarball (issue #773): the
- * download/unpack/verify front half of the install pipeline, joining the shared
- * staging tail (manifest read, host-compat, integrity, duplicate check) that the
- * git and local paths already use. `assetUrl` is streamed into a staging temp
- * file, unpacked with zip-slip containment plus size/entry-count limits, and the
- * unpacked artifact's digest is verified against `expectedIntegrity` (from the
- * signed catalog) BEFORE the staging entry is recorded, so verify-before-execute
- * holds. No git clone and no build step run on the user's machine. The atomic
- * commit (stage -> rename) is `commit()`, unchanged.
- */
-export async function previewFromRelease(
+// Download and unpack a Release asset tarball into a fresh staging directory: the
+// shared front half of the built-artifact install and update flows (issue #370).
+// `assetUrl` is validated, streamed into a staging temp file under the download
+// cap, unpacked with zip-slip containment plus size/entry-count limits, and the
+// temp archive removed. On any failure the partial staging directory and the temp
+// archive are removed before the error propagates, so nothing is left outside
+// staging. No git clone and no build step run on the user's machine. Returns the
+// staging token, the unpacked staging dir, and the validated asset URL so each
+// caller can run its own staging tail (manifest read, host-compat, integrity,
+// and either the duplicate check or the update id/replace handling).
+async function stageReleaseAsset(
   assetUrl: string,
-  expectedIntegrity?: string | null,
-): Promise<InstallPreview> {
+): Promise<{ token: string; stagingDir: string; safeUrl: string }> {
   const safeUrl = validateAssetUrl(assetUrl);
   await ensureStagingRoot();
   const token = randomUUID();
@@ -540,6 +538,25 @@ export async function previewFromRelease(
   // The artifact is fully unpacked into stagingDir; the temp archive must not
   // linger in the staging root.
   await rmStaging(tarballPath);
+  return { token, stagingDir, safeUrl };
+}
+
+/**
+ * Stage a built-artifact install from a Release asset tarball (issue #370): the
+ * download/unpack/verify front half of the install pipeline, joining the shared
+ * staging tail (manifest read, host-compat, integrity, duplicate check) that the
+ * git and local paths already use. `assetUrl` is streamed into a staging temp
+ * file, unpacked with zip-slip containment plus size/entry-count limits, and the
+ * unpacked artifact's digest is verified against `expectedIntegrity` (from the
+ * signed catalog) BEFORE the staging entry is recorded, so verify-before-execute
+ * holds. No git clone and no build step run on the user's machine. The atomic
+ * commit (stage -> rename) is `commit()`, unchanged.
+ */
+export async function previewFromRelease(
+  assetUrl: string,
+  expectedIntegrity?: string | null,
+): Promise<InstallPreview> {
+  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl);
 
   try {
     const manifest = await readStagingManifest(stagingDir);
@@ -548,6 +565,65 @@ export async function previewFromRelease(
     assertNotDuplicate(manifest.id);
     const source: InstallSource = { type: "release", assetUrl: safeUrl };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
+    return { stagingToken: token, manifest, source };
+  } catch (err) {
+    await rmStaging(stagingDir);
+    throw err;
+  }
+}
+
+/**
+ * Stage an update for an already-installed plugin from a Release asset tarball
+ * (the marketplace built-artifact update flow, issue #370). Mirrors
+ * `previewUpdateFromGitUrl` (the update-target-missing guard, the bundled-rejected
+ * guard, the manifest id must equal `expectedId`, integrity verified before the
+ * staging entry is recorded, and NO duplicate-id rejection: the staged copy
+ * replaces the existing one at `commit` time via `replaceId`), but uses the
+ * download/unpack front half of `previewFromRelease` instead of a git clone. The
+ * installed-plugin guard runs before any download, so an unknown or bundled target
+ * is rejected without fetching. Throws `update-target-missing` if no updatable
+ * plugin with `expectedId` is installed, or `invalid-input` if the unpacked
+ * manifest id does not match `expectedId`.
+ */
+export async function previewUpdateFromRelease(
+  assetUrl: string,
+  expectedId: string,
+  expectedIntegrity?: string | null,
+): Promise<InstallPreview> {
+  const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
+  if (!existing) {
+    throw new InstallError(
+      "update-target-missing",
+      `No installed plugin with id "${expectedId}" to update`,
+    );
+  }
+  if (existing.source === "bundled") {
+    throw new InstallError(
+      "update-target-missing",
+      `Bundled plugin "${expectedId}" cannot be updated in place`,
+    );
+  }
+
+  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl);
+
+  try {
+    const manifest = await readStagingManifest(stagingDir);
+    assertCompatible(manifest);
+    if (manifest.id !== expectedId) {
+      throw new InstallError(
+        "invalid-input",
+        `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
+      );
+    }
+    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    const source: InstallSource = { type: "release", assetUrl: safeUrl };
+    staged.set(token, {
+      stagingDir,
+      source,
+      manifest,
+      createdAt: Date.now(),
+      replaceId: expectedId,
+    });
     return { stagingToken: token, manifest, source };
   } catch (err) {
     await rmStaging(stagingDir);

@@ -19,6 +19,8 @@ vi.mock("./plugin-installer.js", () => {
     InstallError,
     previewFromGitUrl: vi.fn(),
     previewUpdateFromGitUrl: vi.fn(),
+    previewFromRelease: vi.fn(),
+    previewUpdateFromRelease: vi.fn(),
   };
 });
 
@@ -34,6 +36,8 @@ import * as catalogClient from "./catalog-client.js";
 const listInstalled = vi.mocked(pluginManager.listInstalled);
 const previewFromGitUrl = vi.mocked(pluginInstaller.previewFromGitUrl);
 const previewUpdateFromGitUrl = vi.mocked(pluginInstaller.previewUpdateFromGitUrl);
+const previewFromRelease = vi.mocked(pluginInstaller.previewFromRelease);
+const previewUpdateFromRelease = vi.mocked(pluginInstaller.previewUpdateFromRelease);
 const getVerifiedCatalog = vi.mocked(catalogClient.getVerifiedCatalog);
 
 const ENTRIES: MarketplaceCatalogEntry[] = [
@@ -72,6 +76,26 @@ const ENTRIES: MarketplaceCatalogEntry[] = [
     verified: true,
   },
 ];
+
+// A `release`-type (built-artifact) entry: the hosted catalog serves these, and
+// install/update must route to the download/unpack preview, not the git clone
+// (issue #370). The asset digest lives on source.sha256; the host's expected
+// package digest is the entry's `integrity`.
+const RELEASE_ENTRY: MarketplaceCatalogEntry = {
+  id: "image-optimizer",
+  name: "Image Optimizer",
+  kind: "component",
+  version: "1.2.0",
+  summary: "An image-optimizing component published as a built artifact",
+  source: {
+    type: "release",
+    assetUrl: "https://releases.example.invalid/image-optimizer-1.2.0.tgz",
+    sha256: "sha256-io-asset",
+  },
+  provenance: "roubo/plugins@image-optimizer",
+  integrity: "sha256-io",
+  verified: true,
+};
 
 function setCatalog(
   source: CatalogSource = "network",
@@ -247,7 +271,7 @@ describe("resolveEntry", () => {
 });
 
 describe("install", () => {
-  it("delegates to previewFromGitUrl with the entry's source", async () => {
+  it("delegates a git-type entry to previewFromGitUrl with the entry's source", async () => {
     const entry = ENTRIES[0];
     previewFromGitUrl.mockResolvedValue({
       stagingToken: "t",
@@ -255,15 +279,37 @@ describe("install", () => {
     } as Awaited<ReturnType<typeof pluginInstaller.previewFromGitUrl>>);
     await marketplace.install(entry.id);
     expect(previewFromGitUrl).toHaveBeenCalledWith(
-      entry.source.url,
+      // Narrow for the test: ENTRIES[0] is a git-type source.
+      (entry.source as { type: "git"; url: string; directory?: string }).url,
       entry.integrity,
-      entry.source.directory,
+      (entry.source as { type: "git"; url: string; directory?: string }).directory,
     );
+    // A git entry never touches the release preview.
+    expect(previewFromRelease).not.toHaveBeenCalled();
+  });
+
+  // Issue #370: a `release`-type catalog entry must route to the download/unpack
+  // preview (with assetUrl + the entry integrity), never the git clone path that
+  // throws "Git URL is required" for a source with no `url`.
+  it("routes a release-type entry to previewFromRelease with the asset URL and integrity (issue #370)", async () => {
+    setCatalog("network", [...ENTRIES, RELEASE_ENTRY]);
+    previewFromRelease.mockResolvedValue({
+      stagingToken: "t",
+      source: RELEASE_ENTRY.source,
+    } as Awaited<ReturnType<typeof pluginInstaller.previewFromRelease>>);
+    await marketplace.install(RELEASE_ENTRY.id);
+    expect(previewFromRelease).toHaveBeenCalledWith(
+      (RELEASE_ENTRY.source as { type: "release"; assetUrl: string }).assetUrl,
+      RELEASE_ENTRY.integrity,
+    );
+    // The git clone path is not taken, so "Git URL is required" never throws.
+    expect(previewFromGitUrl).not.toHaveBeenCalled();
   });
 
   it("throws invalid-input for an unknown id", async () => {
     await expect(marketplace.install("nope")).rejects.toMatchObject({ code: "invalid-input" });
     expect(previewFromGitUrl).not.toHaveBeenCalled();
+    expect(previewFromRelease).not.toHaveBeenCalled();
   });
 
   // CP-TC-109: a revoked id is rejected with a specific `revoked` error.
@@ -292,7 +338,7 @@ describe("install", () => {
 });
 
 describe("update", () => {
-  it("delegates to previewUpdateFromGitUrl with the entry's source and id", async () => {
+  it("delegates a git-type entry to previewUpdateFromGitUrl with the entry's source and id", async () => {
     const entry = ENTRIES[0];
     previewUpdateFromGitUrl.mockResolvedValue({
       stagingToken: "t",
@@ -300,16 +346,35 @@ describe("update", () => {
     } as Awaited<ReturnType<typeof pluginInstaller.previewUpdateFromGitUrl>>);
     await marketplace.update(entry.id);
     expect(previewUpdateFromGitUrl).toHaveBeenCalledWith(
-      entry.source.url,
+      (entry.source as { type: "git"; url: string; directory?: string }).url,
       entry.id,
       entry.integrity,
-      entry.source.directory,
+      (entry.source as { type: "git"; url: string; directory?: string }).directory,
     );
+    expect(previewUpdateFromRelease).not.toHaveBeenCalled();
+  });
+
+  // Issue #370: a `release`-type entry's update routes to previewUpdateFromRelease
+  // (asset URL + the entry id + integrity), never the git update path.
+  it("routes a release-type entry to previewUpdateFromRelease with the asset URL, id, and integrity (issue #370)", async () => {
+    setCatalog("network", [...ENTRIES, RELEASE_ENTRY]);
+    previewUpdateFromRelease.mockResolvedValue({
+      stagingToken: "t",
+      source: RELEASE_ENTRY.source,
+    } as Awaited<ReturnType<typeof pluginInstaller.previewUpdateFromRelease>>);
+    await marketplace.update(RELEASE_ENTRY.id);
+    expect(previewUpdateFromRelease).toHaveBeenCalledWith(
+      (RELEASE_ENTRY.source as { type: "release"; assetUrl: string }).assetUrl,
+      RELEASE_ENTRY.id,
+      RELEASE_ENTRY.integrity,
+    );
+    expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
   });
 
   it("throws invalid-input for an unknown id", async () => {
     await expect(marketplace.update("nope")).rejects.toMatchObject({ code: "invalid-input" });
     expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
+    expect(previewUpdateFromRelease).not.toHaveBeenCalled();
   });
 
   it("rejects a revoked id with a revoked error (CP-TC-109)", async () => {
