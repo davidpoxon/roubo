@@ -55,6 +55,9 @@ vi.mock("./services/plugin-manager.js", () => ({
   listInstalled: vi.fn(() => []),
   registerComponentPluginHooks: vi.fn(),
 }));
+vi.mock("./services/catalog-client.js", () => ({
+  prefetch: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("./services/migrate.js", () => ({
   run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
   seedOnlyToDoNotice: vi.fn(() => null),
@@ -236,6 +239,9 @@ describe.sequential("startServer", () => {
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
       }));
+      vi.doMock("./services/catalog-client.js", () => ({
+        prefetch: vi.fn(() => Promise.resolve()),
+      }));
       vi.doMock("./services/migrate.js", () => ({
         run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
         seedOnlyToDoNotice: vi.fn(() => null),
@@ -261,6 +267,7 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/version-check.js");
       vi.doUnmock("./services/claude-version.js");
       vi.doUnmock("./services/plugin-manager.js");
+      vi.doUnmock("./services/catalog-client.js");
       vi.doUnmock("./services/migrate.js");
       vi.doUnmock("./services/github.js");
       vi.resetModules();

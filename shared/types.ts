@@ -202,6 +202,11 @@ export type InstallErrorCode =
   // The static catalog failed signature verification (CP-FR-021): a tampered,
   // missing, or unsigned catalog. The marketplace fails closed (zero listings).
   | "catalog-unverified"
+  // The hosted marketplace could not be reached / verified, so the catalog is
+  // being served from the on-disk cache or the bundled seed (CPHM-FR-009). A new
+  // install/update is paused with a clear message until the marketplace is
+  // reachable again; seeded and already-installed plugins keep working.
+  | "marketplace-unreachable"
   | "internal";
 
 export interface InstallErrorBody {
@@ -261,14 +266,57 @@ export interface MarketplaceCatalogEntry {
 }
 
 /**
+ * The signed catalog payload. The hosted-marketplace catalog carries
+ * `schemaVersion` / `generatedAt` / `keyId` (the `keyId` resolves the
+ * operational signing key through the signed key-ring, CPHM-FR-007); the legacy
+ * bundled seed catalog omits them and is verified directly against the bundled
+ * first-party key. Both shapes are accepted, so these provenance fields are
+ * optional.
+ */
+export interface SignedMarketplaceCatalogPayload {
+  entries: MarketplaceCatalogEntry[];
+  schemaVersion?: number;
+  generatedAt?: string;
+  keyId?: string;
+}
+
+/**
  * The signed catalog envelope as authored in the static manifest. `signature`
  * is a base64-encoded detached ed25519 signature over the canonical bytes of
  * `payload` (see the server's marketplace-integrity service). The server
- * verifies the signature at load and fails closed (zero listings) on any
- * mismatch.
+ * verifies the signature (against the key-ring-resolved operational key for the
+ * hosted catalog, or the bundled key for the seed) and fails closed (zero
+ * listings) on any mismatch.
  */
 export interface SignedMarketplaceCatalog {
-  payload: { entries: MarketplaceCatalogEntry[] };
+  payload: SignedMarketplaceCatalogPayload;
+  signature: string;
+}
+
+/**
+ * One operational signing key as listed in the signed key-ring. `keyId` is the
+ * stable fingerprint of `publicKeyPem` (`ed25519-<sha256(spki der) first 16
+ * hex>`); `status` distinguishes a currently-active operational key from a
+ * rotated-out (revoked) one. A catalog's `payload.keyId` resolves to one of
+ * these entries.
+ */
+export interface KeyRingEntry {
+  keyId: string;
+  publicKeyPem: string;
+  status: "active" | "revoked";
+}
+
+/**
+ * The signed key-ring envelope served alongside the hosted catalog.
+ * `signature` is a base64 detached ed25519 signature over the canonical bytes
+ * of `payload`, made by the long-lived bootstrap ROOT key the app embeds. The
+ * app verifies the ring against the root key, then resolves a catalog's `keyId`
+ * to an `active` ring entry and verifies the catalog against that operational
+ * key, so operational keys rotate and revoke without an app release
+ * (CPHM-FR-007 / CPHM-NFR-004).
+ */
+export interface SignedKeyRing {
+  payload: { keys: KeyRingEntry[]; generatedAt?: string };
   signature: string;
 }
 

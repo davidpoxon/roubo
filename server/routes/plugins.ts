@@ -61,6 +61,8 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "integrity-failed":
     case "unpack-failed":
       return 422;
+    case "marketplace-unreachable":
+      return 503;
     case "catalog-unverified":
       return 502;
     case "internal":
