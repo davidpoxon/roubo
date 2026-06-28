@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { createWriteStream } from "node:fs";
 import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import semver from "semver";
+import { fetch } from "undici";
+import * as tar from "tar";
 import {
   parseManifest,
   type InstallErrorCode,
@@ -19,6 +24,20 @@ const STAGING_DIR_NAME = ".staging";
 const STAGING_TOKEN_RE = UUID_RE;
 
 const GIT_CLONE_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Built-artifact install limits (issue #773). A Release asset tarball is
+// untrusted input, so the download and unpack steps are bounded to fail closed
+// on a runaway asset or a tar bomb. NFR-002 (p95 < 10s @ 10 Mbps) implies real
+// artifacts are a few MB; these caps are conservative headroom, not tight
+// budgets. They are `let` (not `const`) only so tests can shrink them via
+// `__test.setLimits`; the production install path never mutates them.
+const DEFAULT_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024; // 50 MB on the wire
+const DEFAULT_MAX_UNPACKED_BYTES = 100 * 1024 * 1024; // 100 MB unpacked
+const DEFAULT_MAX_TARBALL_ENTRIES = 10_000;
+
+let maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES;
+let maxUnpackedBytes = DEFAULT_MAX_UNPACKED_BYTES;
+let maxTarballEntries = DEFAULT_MAX_TARBALL_ENTRIES;
 
 interface StagedInstall {
   stagingDir: string;
@@ -189,6 +208,29 @@ function validateGitUrl(url: string): string {
   return trimmed;
 }
 
+// Validate the Release asset URL before it reaches `fetch`. Only http(s) is
+// allowed (the built-artifact install fetches over HTTP, no file:// or other
+// schemes), control characters are rejected, and the value must parse as a URL.
+function validateAssetUrl(url: string): string {
+  if (typeof url !== "string" || url.trim().length === 0) {
+    throw new InstallError("invalid-input", "Release asset URL is required");
+  }
+  const trimmed = url.trim();
+  if (containsControlChar(trimmed)) {
+    throw new InstallError("invalid-input", "Release asset URL contains control characters");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new InstallError("invalid-input", "Release asset URL is not a valid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new InstallError("invalid-input", "Release asset URL must be an http(s) URL");
+  }
+  return trimmed;
+}
+
 function validateLocalPath(absPath: string): string {
   if (typeof absPath !== "string" || absPath.trim().length === 0) {
     throw new InstallError("invalid-input", "Local path is required");
@@ -297,6 +339,206 @@ async function clonePackageInto(
     await cp(pkgRoot, stagingDir, { recursive: true });
   } finally {
     await rmStaging(cloneDir);
+  }
+}
+
+// Stream a Release asset to `destFile`, failing closed on a non-200 response, a
+// network error, or a body that exceeds the download cap. The size guard runs
+// both up front (declared content-length) and as bytes flow (a server may lie
+// about or omit content-length), so the cap holds either way (issue #773).
+async function downloadAssetToFile(assetUrl: string, destFile: string): Promise<void> {
+  let res: Awaited<ReturnType<typeof fetch>>;
+  try {
+    res = await fetch(assetUrl, { redirect: "follow" });
+  } catch (err) {
+    throw new InstallError(
+      "download-failed",
+      `Could not download the release asset: ${(err as Error).message}`,
+    );
+  }
+  if (!res.ok || res.status !== 200 || res.body === null) {
+    throw new InstallError(
+      "download-failed",
+      `Release asset download failed with HTTP status ${res.status}`,
+    );
+  }
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxDownloadBytes) {
+    throw new InstallError(
+      "download-failed",
+      `Release asset is ${declared} bytes, over the ${maxDownloadBytes}-byte download limit`,
+    );
+  }
+  let received = 0;
+  const limiter = new Transform({
+    transform(chunk: Buffer, _enc, cb) {
+      received += chunk.length;
+      if (received > maxDownloadBytes) {
+        cb(
+          new InstallError(
+            "download-failed",
+            `Release asset exceeds the ${maxDownloadBytes}-byte download limit`,
+          ),
+        );
+        return;
+      }
+      cb(null, chunk);
+    },
+  });
+  // undici's body is a WHATWG ReadableStream; a Node Readable (the test double)
+  // exposes `.pipe`. Normalise to a Node stream either way.
+  const body = res.body as unknown;
+  const source =
+    typeof (body as { pipe?: unknown }).pipe === "function"
+      ? (body as Readable)
+      : Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
+  try {
+    await pipeline(source, limiter, createWriteStream(destFile));
+  } catch (err) {
+    if (err instanceof InstallError) throw err;
+    throw new InstallError(
+      "download-failed",
+      `Could not download the release asset: ${(err as Error).message}`,
+    );
+  }
+}
+
+// Unpack a downloaded tarball into `destDir` under untrusted-input mitigations
+// (issue #773): a first list pass validates every entry header before a single
+// byte is written, so a malicious or oversized archive is rejected fail-closed
+// with nothing left outside staging. The tar header carries each entry's
+// declared (uncompressed) size, so a tar bomb is caught here, before extraction.
+async function unpackTarball(tarballPath: string, destDir: string): Promise<void> {
+  await mkdir(destDir, { recursive: true });
+
+  let entryCount = 0;
+  let totalBytes = 0;
+  let violation: string | null = null;
+  try {
+    await tar.t({
+      file: tarballPath,
+      onentry: (entry) => {
+        entryCount += 1;
+        totalBytes += typeof entry.size === "number" ? entry.size : 0;
+        if (violation === null) {
+          const entryPath = String(entry.path);
+          if (entry.type !== "File" && entry.type !== "Directory") {
+            // Only plain files and directories belong in a built plugin
+            // artifact: reject symlinks, hardlinks, devices, and FIFOs.
+            violation = `unsupported entry type "${entry.type}" at "${entryPath}"`;
+          } else if (path.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes("..")) {
+            violation = `absolute or traversing path "${entryPath}"`;
+          } else {
+            // Zip-slip containment barrier: the entry must resolve inside destDir.
+            try {
+              resolveWithin(destDir, entryPath);
+            } catch {
+              violation = `path "${entryPath}" escapes the staging directory`;
+            }
+          }
+        }
+        // Drain the entry's data so the parser advances to the next header.
+        entry.resume();
+      },
+    });
+  } catch (err) {
+    throw new InstallError(
+      "unpack-failed",
+      `Could not read the release asset tarball: ${(err as Error).message}`,
+    );
+  }
+
+  if (violation !== null) {
+    throw new InstallError("unpack-failed", `Rejected tarball entry: ${violation}`);
+  }
+  if (entryCount > maxTarballEntries) {
+    throw new InstallError(
+      "unpack-failed",
+      `Tarball has ${entryCount} entries, over the ${maxTarballEntries}-entry limit`,
+    );
+  }
+  if (totalBytes > maxUnpackedBytes) {
+    throw new InstallError(
+      "unpack-failed",
+      `Tarball unpacks to ${totalBytes} bytes, over the ${maxUnpackedBytes}-byte limit`,
+    );
+  }
+
+  // Pass 2: extract. Pass 1 validated every entry, so this writes only a safe
+  // file set. The filter and `preservePaths: false` are defence in depth.
+  try {
+    await tar.x({
+      file: tarballPath,
+      cwd: destDir,
+      preservePaths: false,
+      filter: (entryPath, entry) => {
+        // In extract mode `entry` is a ReadEntry (it carries `type`); the typed
+        // union also admits a create-mode `Stats`, which has no `type`.
+        if (!("type" in entry)) return false;
+        if (entry.type !== "File" && entry.type !== "Directory") return false;
+        if (path.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes("..")) return false;
+        try {
+          resolveWithin(destDir, entryPath);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    });
+  } catch (err) {
+    throw new InstallError(
+      "unpack-failed",
+      `Could not unpack the release asset tarball: ${(err as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Stage a built-artifact install from a Release asset tarball (issue #773): the
+ * download/unpack/verify front half of the install pipeline, joining the shared
+ * staging tail (manifest read, host-compat, integrity, duplicate check) that the
+ * git and local paths already use. `assetUrl` is streamed into a staging temp
+ * file, unpacked with zip-slip containment plus size/entry-count limits, and the
+ * unpacked artifact's digest is verified against `expectedIntegrity` (from the
+ * signed catalog) BEFORE the staging entry is recorded, so verify-before-execute
+ * holds. No git clone and no build step run on the user's machine. The atomic
+ * commit (stage -> rename) is `commit()`, unchanged.
+ */
+export async function previewFromRelease(
+  assetUrl: string,
+  expectedIntegrity?: string | null,
+): Promise<InstallPreview> {
+  const safeUrl = validateAssetUrl(assetUrl);
+  await ensureStagingRoot();
+  const token = randomUUID();
+  assertSafeIdentifier(token, UUID_RE, "stagingToken");
+  const stagingDir = resolveWithin(stagingRoot(), token);
+  const tarballPath = resolveWithin(stagingRoot(), `${token}.tgz`);
+
+  try {
+    await downloadAssetToFile(safeUrl, tarballPath);
+    await unpackTarball(tarballPath, stagingDir);
+  } catch (err) {
+    await rmStaging(stagingDir);
+    await rmStaging(tarballPath);
+    if (err instanceof InstallError) throw err;
+    throw new InstallError("download-failed", (err as Error).message);
+  }
+  // The artifact is fully unpacked into stagingDir; the temp archive must not
+  // linger in the staging root.
+  await rmStaging(tarballPath);
+
+  try {
+    const manifest = await readStagingManifest(stagingDir);
+    assertCompatible(manifest);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    assertNotDuplicate(manifest.id);
+    const source: InstallSource = { type: "release", assetUrl: safeUrl };
+    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
+    return { stagingToken: token, manifest, source };
+  } catch (err) {
+    await rmStaging(stagingDir);
+    throw err;
   }
 }
 
@@ -659,9 +901,23 @@ export async function cancel(stagingToken: string): Promise<void> {
 export const __test = {
   reset(): void {
     staged.clear();
+    maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES;
+    maxUnpackedBytes = DEFAULT_MAX_UNPACKED_BYTES;
+    maxTarballEntries = DEFAULT_MAX_TARBALL_ENTRIES;
   },
   listTokens(): string[] {
     return Array.from(staged.keys());
   },
   stagingRoot,
+  // Shrink the built-artifact limits so the over-size / over-entry-count paths
+  // can be exercised without producing huge fixtures. Reset by `reset()`.
+  setLimits(limits: {
+    maxDownloadBytes?: number;
+    maxUnpackedBytes?: number;
+    maxTarballEntries?: number;
+  }): void {
+    if (limits.maxDownloadBytes !== undefined) maxDownloadBytes = limits.maxDownloadBytes;
+    if (limits.maxUnpackedBytes !== undefined) maxUnpackedBytes = limits.maxUnpackedBytes;
+    if (limits.maxTarballEntries !== undefined) maxTarballEntries = limits.maxTarballEntries;
+  },
 };

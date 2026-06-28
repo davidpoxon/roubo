@@ -163,6 +163,11 @@ export interface InstallPreview {
 
 export type InstallSource =
   | { type: "git"; url: string; directory?: string }
+  // A built-artifact install: the installer streams the Release asset tarball
+  // named by `assetUrl`, unpacks it under containment + size limits, and
+  // verifies the unpacked artifact's digest before commit (issue #773). No git
+  // clone and no build step run on the user's machine.
+  | { type: "release"; assetUrl: string }
   | { type: "local"; path: string };
 
 /**
@@ -179,6 +184,15 @@ export type InstallErrorCode =
   | "duplicate-id"
   | "unknown-token"
   | "update-target-missing"
+  // The Release asset could not be downloaded (non-200 response, network error,
+  // or it exceeded the maximum download size) on the built-artifact install path
+  // (issue #773). Nothing is written or executed.
+  | "download-failed"
+  // The downloaded tarball could not be safely unpacked: a path-escaping
+  // (zip-slip) entry, a symlink/hardlink/device entry, or an over-size /
+  // over-entry-count tarball (issue #773). Fails closed: nothing is written
+  // outside staging.
+  | "unpack-failed"
   // The staged package's content digest did not match the expected digest from
   // the signed catalog entry (CP-FR-021): a tampered or substituted package.
   | "integrity-failed"

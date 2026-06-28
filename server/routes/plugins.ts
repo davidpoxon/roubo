@@ -41,6 +41,7 @@ function installErrorStatus(code: InstallErrorCode): number {
   switch (code) {
     case "invalid-input":
     case "clone-failed":
+    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#773)
     case "missing-manifest":
     case "invalid-manifest":
     case "incompatible-host":
@@ -55,7 +56,10 @@ function installErrorStatus(code: InstallErrorCode): number {
     // switch must stay exhaustive over InstallErrorCode.
     case "revoked":
       return 410;
+    // integrity-failed (tampered digest) and unpack-failed (zip-slip / bad entry
+    // / over limit, #773) are both unprocessable-content: 422.
     case "integrity-failed":
+    case "unpack-failed":
       return 422;
     case "catalog-unverified":
       return 502;

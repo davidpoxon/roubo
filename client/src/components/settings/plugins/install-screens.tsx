@@ -34,6 +34,7 @@ const STRINGS = {
     "This plugin is requesting the following permissions. Review them carefully before continuing.",
   sourceLabelGit: "Git URL",
   sourceLabelLocal: "Local path",
+  sourceLabelRelease: "Release asset",
   cancel: "Cancel",
   installing: "Installing...",
   installAndEnable: "Install and enable",
@@ -221,8 +222,20 @@ export function PermissionsScreen({
 
       <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
         <SourceRow
-          label={source.type === "git" ? STRINGS.sourceLabelGit : STRINGS.sourceLabelLocal}
-          value={source.type === "git" ? source.url : source.path}
+          label={
+            source.type === "git"
+              ? STRINGS.sourceLabelGit
+              : source.type === "release"
+                ? STRINGS.sourceLabelRelease
+                : STRINGS.sourceLabelLocal
+          }
+          value={
+            source.type === "git"
+              ? source.url
+              : source.type === "release"
+                ? source.assetUrl
+                : source.path
+          }
         />
 
         <PermissionsList manifest={manifest} />
