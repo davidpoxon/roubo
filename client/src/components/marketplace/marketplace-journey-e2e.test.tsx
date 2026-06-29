@@ -377,7 +377,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
       TC101_STEPS.ackEnablesInstall,
       "ticking marketplace-consent-ack flips marketplace-consent-confirm to aria-disabled false",
       async () => {
-        await user.click(getByTestId("marketplace-consent-ack"));
+        await user.click(within(getByTestId("marketplace-consent-ack")).getByRole("checkbox"));
         await waitFor(() => {
           expect(getByTestId("marketplace-consent-confirm").getAttribute("aria-disabled")).toBe(
             "false",
@@ -488,7 +488,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         // After confirming the update, the reloaded catalog shows v1.4.0 installed.
         redisState = redisListing({ installed: true, installedVersion: "1.4.0", version: "1.4.0" });
 
-        await user.click(getByTestId("marketplace-consent-ack"));
+        await user.click(within(getByTestId("marketplace-consent-ack")).getByRole("checkbox"));
         await waitFor(() => {
           expect(getByTestId("marketplace-consent-confirm").getAttribute("aria-disabled")).toBe(
             "false",

@@ -6,7 +6,7 @@
 // trap, amber focus rings, aria-disabled gating that stays keyboard reachable).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
@@ -147,7 +147,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     expect(confirm.getAttribute("aria-disabled")).toBe("true");
 
     // Ticking the acknowledgement enables the confirm control.
-    await user.click(getByTestId("marketplace-consent-ack"));
+    await user.click(within(getByTestId("marketplace-consent-ack")).getByRole("checkbox"));
     await waitFor(() => {
       expect(getByTestId("marketplace-consent-confirm").getAttribute("aria-disabled")).toBe(
         "false",

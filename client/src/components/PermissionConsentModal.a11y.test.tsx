@@ -7,7 +7,7 @@
 // dialog semantics and keyboard reachability of the gated confirm control.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
@@ -83,7 +83,7 @@ describe("PermissionConsentModal: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
         onConsented={() => {}}
       />,
     );
-    await user.click(getByTestId("permission-consent-ack"));
+    await user.click(within(getByTestId("permission-consent-ack")).getByRole("checkbox"));
     await waitFor(() => {
       expect(getByTestId("permission-consent-confirm").getAttribute("aria-disabled")).toBe("false");
     });
