@@ -363,8 +363,11 @@ function userPluginsRoot(): string {
 // the github-com integration plus the two component plugins.
 export const SEED_PLUGIN_IDS = ["github-com", "process", "database"] as const;
 
-// Bump if the shipped seed set must re-run on an existing install. The marker
-// file under the user plugins root records the seed version already applied.
+// The seed-set version applied, recorded in the marker (.seed-version.json) for
+// forward compatibility and diagnostics. The seed gate is existence-only: the
+// marker's presence alone short-circuits a re-seed and the recorded version is
+// not compared, so changing this constant does not by itself re-seed an existing
+// install (a marketplace update of a seeded plugin is therefore never clobbered).
 const SEED_VERSION = 1;
 const SEED_MARKER_FILE = ".seed-version.json";
 
