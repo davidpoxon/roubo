@@ -459,7 +459,18 @@ async function readSeedCatalog(): Promise<Map<string, SeedCatalogEntry> | null> 
 }
 
 async function writeSeedMarker(seededIds: string[]): Promise<void> {
+  // `root` derives from userPluginsRoot(), which reads the ROUBO_USER_PLUGINS_DIR
+  // env override. CodeQL models process.env as a user-controlled source for
+  // js/path-injection, so run the same inline path.relative containment barrier
+  // discoverRoot uses before the mkdir sink: a value that isn't a well-formed
+  // absolute path is rejected rather than created.
   const root = path.resolve(userPluginsRoot());
+  const rel = path.relative(path.parse(root).root, root);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(
+      `plugin-manager: plugins root "${root}" is not a valid absolute path; rejecting`,
+    );
+  }
   await mkdir(root, { recursive: true });
   const marker = {
     seedVersion: SEED_VERSION,
