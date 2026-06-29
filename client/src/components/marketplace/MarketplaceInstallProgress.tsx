@@ -1,6 +1,11 @@
 import { Check, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { INSTALL_STAGE_COUNT, type StageStatus } from "./marketplace-install-stages";
+import type { InstallErrorCode } from "@roubo/shared";
+import {
+  INSTALL_STAGE_COUNT,
+  stageFailMessage,
+  type StageStatus,
+} from "./marketplace-install-stages";
 
 // The 4-step install/update progress surface (issue #374, CPHM-TC-017 S002-O01).
 // It mirrors the prototype's labelled steps
@@ -17,15 +22,6 @@ const STAGE_LABELS = [
   "Verify catalog signature",
   "Verify artifact digest",
   "Unpack & install",
-] as const;
-
-// Fail-closed messages shown when a stage fails ("nothing written, nothing
-// executed" framing): the install is refused on the matching stage.
-const STAGE_FAIL_MESSAGES = [
-  "Download failed: nothing written, nothing executed.",
-  "Catalog signature unverified: install refused, nothing written.",
-  "Digest mismatch: nothing written, nothing executed.",
-  "Install failed: nothing written, nothing executed.",
 ] as const;
 
 const BADGE_CLASS: Record<StageStatus, string> = {
@@ -58,9 +54,19 @@ interface Props {
   pluginId: string;
   // The "Download built artifact" stage's meta line (the artifact filename).
   artifactLabel: string;
+  // The error code of the failure (if any), so the failed stage's message is
+  // accurate when several codes route to the same stage (e.g. unpack-failed vs
+  // integrity-failed both surface on the digest stage). Optional: when absent the
+  // stage's default fail-closed message is used.
+  errorCode?: InstallErrorCode;
 }
 
-export default function MarketplaceInstallProgress({ statuses, pluginId, artifactLabel }: Props) {
+export default function MarketplaceInstallProgress({
+  statuses,
+  pluginId,
+  artifactLabel,
+  errorCode,
+}: Props) {
   const metas = [artifactLabel, "ed25519", "sha256", `~/.roubo/plugins/${pluginId}`];
 
   return (
@@ -94,7 +100,7 @@ export default function MarketplaceInstallProgress({ statuses, pluginId, artifac
                   data-testid={`marketplace-install-step-${index}-error`}
                   className="mt-0.5 text-[12px] text-red-600 dark:text-red-400"
                 >
-                  {STAGE_FAIL_MESSAGES[index]}
+                  {stageFailMessage(index, errorCode)}
                 </p>
               )}
             </div>

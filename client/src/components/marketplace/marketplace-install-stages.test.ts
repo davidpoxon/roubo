@@ -10,6 +10,7 @@ import {
   INSTALL_STAGE_INDEX,
   deriveStageStatuses,
   describeArtifact,
+  stageFailMessage,
   stageIndexForErrorCode,
   type StageStatusInput,
 } from "./marketplace-install-stages";
@@ -50,6 +51,54 @@ describe("stageIndexForErrorCode", () => {
     ];
     for (const code of others) {
       expect(stageIndexForErrorCode(code)).toBe(INSTALL_STAGE_INDEX.unpackInstall);
+    }
+  });
+});
+
+describe("stageFailMessage", () => {
+  it("returns the download stage message", () => {
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.download)).toMatch(/^Download failed:/);
+  });
+
+  it("returns the signature failure message for a signature failure on the catalog-signature stage", () => {
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.catalogSignature, "catalog-unverified")).toMatch(
+      /^Catalog signature unverified:/,
+    );
+    // Default (no code) keeps the signature wording.
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.catalogSignature)).toMatch(
+      /^Catalog signature unverified:/,
+    );
+  });
+
+  it("does NOT call an unreachable marketplace a signature failure", () => {
+    const message = stageFailMessage(
+      INSTALL_STAGE_INDEX.catalogSignature,
+      "marketplace-unreachable",
+    );
+    expect(message).toMatch(/^Marketplace unreachable:/);
+    expect(message).not.toMatch(/signature/i);
+  });
+
+  it("returns the digest mismatch message for an integrity failure (and by default)", () => {
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "integrity-failed")).toMatch(
+      /^Digest mismatch:/,
+    );
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest)).toMatch(/^Digest mismatch:/);
+  });
+
+  it("does NOT call an unpack containment rejection a digest mismatch (issue #374 corr-1)", () => {
+    const message = stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "unpack-failed");
+    expect(message).toMatch(/could not be safely unpacked/i);
+    expect(message).not.toMatch(/digest mismatch/i);
+  });
+
+  it("returns the generic install-failed message for the Unpack & install stage", () => {
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.unpackInstall)).toMatch(/^Install failed:/);
+  });
+
+  it("keeps the fail-closed framing on every message", () => {
+    for (let i = 0; i < 4; i += 1) {
+      expect(stageFailMessage(i)).toMatch(/nothing written/i);
     }
   });
 });

@@ -8,12 +8,18 @@
 
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import type { InstallErrorCode } from "@roubo/shared";
 import type { StageStatus } from "./marketplace-install-stages";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
 
-function renderWidget(statuses: StageStatus[]) {
+function renderWidget(statuses: StageStatus[], errorCode?: InstallErrorCode) {
   return render(
-    <MarketplaceInstallProgress statuses={statuses} pluginId="ghe" artifactLabel="ghe-0.2.0.tgz" />,
+    <MarketplaceInstallProgress
+      statuses={statuses}
+      pluginId="ghe"
+      artifactLabel="ghe-0.2.0.tgz"
+      errorCode={errorCode}
+    />,
   );
 }
 
@@ -75,6 +81,22 @@ describe("MarketplaceInstallProgress", () => {
     expect(within(failed).queryByText("sha256")).not.toBeInTheDocument();
     // The numbered badge is gone (a cross is shown instead).
     expect(within(failed).queryByText("3")).not.toBeInTheDocument();
+  });
+
+  it("shows a code-accurate failure message: an unpack containment rejection is not a digest mismatch (issue #374 corr-1)", () => {
+    renderWidget(["done", "done", "failed", "pending"], "unpack-failed");
+    const failed = screen.getByTestId("marketplace-install-step-2");
+    const failMessage = within(failed).getByTestId("marketplace-install-step-2-error");
+    expect(failMessage).toHaveTextContent(/could not be safely unpacked/i);
+    expect(failMessage).not.toHaveTextContent(/digest mismatch/i);
+  });
+
+  it("keeps the digest mismatch wording for an integrity failure on the digest stage", () => {
+    renderWidget(["done", "done", "failed", "pending"], "integrity-failed");
+    const failed = screen.getByTestId("marketplace-install-step-2");
+    expect(within(failed).getByTestId("marketplace-install-step-2-error")).toHaveTextContent(
+      /digest mismatch/i,
+    );
   });
 
   it("defaults a missing status entry to pending", () => {

@@ -47,6 +47,30 @@ export function stageIndexForErrorCode(code: InstallErrorCode | undefined): numb
   }
 }
 
+// The fail-closed message ("nothing written, nothing executed" framing) shown on
+// a failed stage. More than one error code can route to the same stage with
+// different meanings, so the message keys on the specific code where the stage
+// has multiple causes, and falls back to the stage's default otherwise: an
+// unpack containment rejection (zip-slip / symlink / oversize) is not a digest
+// mismatch, and an unreachable marketplace is not a failed signature, even
+// though both share a stage with the digest / signature failure respectively.
+export function stageFailMessage(stageIndex: number, code?: InstallErrorCode): string {
+  switch (stageIndex) {
+    case INSTALL_STAGE_INDEX.download:
+      return "Download failed: nothing written, nothing executed.";
+    case INSTALL_STAGE_INDEX.catalogSignature:
+      return code === "marketplace-unreachable"
+        ? "Marketplace unreachable: install paused, nothing written."
+        : "Catalog signature unverified: install refused, nothing written.";
+    case INSTALL_STAGE_INDEX.artifactDigest:
+      return code === "unpack-failed"
+        ? "Artifact could not be safely unpacked: nothing written, nothing executed."
+        : "Digest mismatch: nothing written, nothing executed.";
+    default:
+      return "Install failed: nothing written, nothing executed.";
+  }
+}
+
 export interface StageStatusInput {
   // The preview (staging) mutation is in flight: stages 1-3 run as an active
   // group inside this single atomic request.

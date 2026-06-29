@@ -369,6 +369,7 @@ export default function Marketplace() {
                   })}
                   pluginId={staging.listing.id}
                   artifactLabel={describeArtifact(staging.listing.source, staging.listing)}
+                  errorCode={staging.errorCode}
                 />
               </div>
 
