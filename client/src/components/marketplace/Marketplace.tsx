@@ -14,6 +14,7 @@ import { useToast } from "../../hooks/useToast";
 import MarketplaceCard from "./MarketplaceCard";
 import MarketplaceDrawer from "./MarketplaceDrawer";
 import MarketplaceConsentModal from "./MarketplaceConsentModal";
+import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
 // Marketplace catalog view (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621).
 // First-party curated: there is deliberately NO third-party submission
@@ -191,6 +192,12 @@ export default function Marketplace() {
       </div>
 
       <div className="mt-7">
+        {data && data.source !== "network" && (
+          <div className="mb-5">
+            <MarketplaceOfflineBanner source={data.source} fetchedAt={data.fetchedAt} />
+          </div>
+        )}
+
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
             <Loader2 size={14} className="animate-spin" />

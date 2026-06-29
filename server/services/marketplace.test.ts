@@ -142,7 +142,7 @@ function installedRecord(
 }
 
 async function annotatedById(id: string) {
-  const found = (await marketplace.listCatalog()).find((l) => l.id === id);
+  const found = (await marketplace.listCatalog()).listings.find((l) => l.id === id);
   if (!found) throw new Error(`expected listing ${id}`);
   return found;
 }
@@ -182,7 +182,7 @@ describe("listCatalog", () => {
   });
 
   it("returns both component and integration entries with verified + version", async () => {
-    const listings = await marketplace.listCatalog();
+    const { listings } = await marketplace.listCatalog();
     expect(listings.length).toBeGreaterThan(0);
     expect(listings.some((l) => l.kind === "component")).toBe(true);
     expect(listings.some((l) => l.kind === "integration")).toBe(true);
@@ -193,19 +193,19 @@ describe("listCatalog", () => {
   });
 
   it("filters by kind", async () => {
-    const components = await marketplace.listCatalog({ kind: "component" });
+    const { listings: components } = await marketplace.listCatalog({ kind: "component" });
     expect(components.length).toBeGreaterThan(0);
     expect(components.every((l) => l.kind === "component")).toBe(true);
 
-    const integrations = await marketplace.listCatalog({ kind: "integration" });
+    const { listings: integrations } = await marketplace.listCatalog({ kind: "integration" });
     expect(integrations.every((l) => l.kind === "integration")).toBe(true);
   });
 
   it("filters by free-text query over name, id, and summary (case-insensitive)", async () => {
-    const byName = await marketplace.listCatalog({ q: "DATABASE" });
+    const { listings: byName } = await marketplace.listCatalog({ q: "DATABASE" });
     expect(byName.some((l) => l.id === "database")).toBe(true);
 
-    const none = await marketplace.listCatalog({ q: "zzz-not-a-real-plugin-zzz" });
+    const { listings: none } = await marketplace.listCatalog({ q: "zzz-not-a-real-plugin-zzz" });
     expect(none).toHaveLength(0);
   });
 
@@ -248,15 +248,46 @@ describe("listCatalog", () => {
 
   // CP-TC-109: a revoked entry is removed from the catalog grid.
   it("filters out revoked entries (CP-TC-109)", async () => {
-    const listings = await marketplace.listCatalog();
+    const { listings } = await marketplace.listCatalog();
     expect(listings.some((l) => l.id === "worker-queue")).toBe(false);
   });
 
   // CPHM-FR-009: even on the seed-degraded path the list is non-zero.
   it("still lists entries when the catalog is served from the seed (never zero)", async () => {
     setCatalog("seed");
-    const listings = await marketplace.listCatalog();
+    const { listings } = await marketplace.listCatalog();
     expect(listings.length).toBeGreaterThan(0);
+  });
+
+  // CPHM-FR-009 / CPHM-NFR-003 (issue #372): the served catalog's provenance is
+  // threaded through so the route can forward it and the client can render the
+  // offline / staleness banner. A live network fetch reports source "network"
+  // with a fetch timestamp.
+  it("threads through the network source and fetch timestamp (issue #372)", async () => {
+    setCatalog("network");
+    const result = await marketplace.listCatalog();
+    expect(result.source).toBe("network");
+    expect(result.fetchedAt).toBe("2026-06-28T00:00:00.000Z");
+  });
+
+  // CPHM-TC-043: degraded to the last-known cache (marketplace unreachable):
+  // source "cache" with the cached fetch timestamp, entries still rendered.
+  it("threads through the cache source and the cached fetch timestamp (CPHM-TC-043)", async () => {
+    setCatalog("cache");
+    const result = await marketplace.listCatalog();
+    expect(result.source).toBe("cache");
+    expect(result.fetchedAt).toBe("2026-06-28T00:00:00.000Z");
+    expect(result.listings.length).toBeGreaterThan(0);
+  });
+
+  // CPHM-FR-009: degraded to the bundled seed: source "seed" with a null
+  // fetchedAt (the seed was never fetched), entries still rendered.
+  it("threads through the seed source with a null fetch timestamp (CPHM-FR-009)", async () => {
+    setCatalog("seed");
+    const result = await marketplace.listCatalog();
+    expect(result.source).toBe("seed");
+    expect(result.fetchedAt).toBeNull();
+    expect(result.listings.length).toBeGreaterThan(0);
   });
 });
 

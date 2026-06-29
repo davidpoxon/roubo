@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   KeyRingEntry,
   MarketplaceCatalogEntry,
+  MarketplaceCatalogSource,
   SignedKeyRing,
   SignedMarketplaceCatalog,
 } from "@roubo/shared";
@@ -44,8 +45,13 @@ import seedCatalog from "./marketplace-catalog.json";
 // from the environment: an env-derived outbound-request URL is the classic
 // request-forgery (SSRF) shape, so the environment cannot redirect the fetch.
 
-/** Where the served catalog came from. */
-export type CatalogSource = "network" | "cache" | "seed";
+/**
+ * Where the served catalog came from. A re-export of the shared
+ * `MarketplaceCatalogSource` (the single source-of-truth union, surfaced on
+ * `MarketplaceCatalogResponse` so the client can render the offline / staleness
+ * banner, issue #372); the value behaviour is unchanged.
+ */
+export type CatalogSource = MarketplaceCatalogSource;
 
 /** A verified catalog plus provenance: the entries to list and where they came from. */
 export interface VerifiedCatalog {
