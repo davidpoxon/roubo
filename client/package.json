@@ -38,7 +38,7 @@
     "@xterm/xterm": "6.0.0",
     "lucide-react": "1.17.0",
     "react": "19.2.6",
-    "react-aria-components": "1.17.0",
+    "react-aria-components": "1.18.0",
     "react-dom": "19.2.6",
     "react-router-dom": "7.16.0",
     "yaml": "2.9.0"

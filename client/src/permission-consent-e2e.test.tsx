@@ -257,7 +257,7 @@ describe("Permission-consent E2E (CP-TC-076): consumer reviews declared permissi
       TC076_STEPS.ackEnables,
       "ticking permission-consent-ack flips permission-consent-confirm to aria-disabled false",
       async () => {
-        await user.click(getByTestId("permission-consent-ack"));
+        await user.click(within(getByTestId("permission-consent-ack")).getByRole("checkbox"));
         expect(getByTestId("permission-consent-confirm").getAttribute("aria-disabled")).toBe(
           "false",
         );

@@ -131,7 +131,7 @@ describe("PermissionConsentModal", () => {
     expect(mockedGrant).not.toHaveBeenCalled();
     expect(onConsented).not.toHaveBeenCalled();
 
-    await user.click(getByTestId("permission-consent-ack"));
+    await user.click(within(getByTestId("permission-consent-ack")).getByRole("checkbox"));
     expect(getByTestId("permission-consent-confirm").getAttribute("aria-disabled")).toBe("false");
 
     await user.click(getByTestId("permission-consent-confirm"));
@@ -154,7 +154,7 @@ describe("PermissionConsentModal", () => {
         onConsented={() => {}}
       />,
     );
-    await user.click(getByTestId("permission-consent-ack"));
+    await user.click(within(getByTestId("permission-consent-ack")).getByRole("checkbox"));
     await user.click(getByTestId("permission-consent-confirm"));
     await waitFor(() => {
       expect(getByTestId("permission-consent-error")).toHaveTextContent(

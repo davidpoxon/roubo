@@ -408,7 +408,7 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
 
     await user.click(screen.getByTestId("marketplace-card-install"));
     await screen.findByTestId("marketplace-consent-modal");
-    await user.click(screen.getByTestId("marketplace-consent-ack"));
+    await user.click(within(screen.getByTestId("marketplace-consent-ack")).getByRole("checkbox"));
     await user.click(screen.getByTestId("marketplace-consent-confirm"));
 
     expect(confirm).toHaveBeenCalledWith("staging-1.3.0", expect.anything());
@@ -445,7 +445,7 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
 
     await user.click(screen.getByTestId("marketplace-card-install"));
     await screen.findByTestId("marketplace-consent-modal");
-    await user.click(screen.getByTestId("marketplace-consent-ack"));
+    await user.click(within(screen.getByTestId("marketplace-consent-ack")).getByRole("checkbox"));
     await user.click(screen.getByTestId("marketplace-consent-confirm"));
 
     const modal = screen.getByTestId("marketplace-consent-modal");

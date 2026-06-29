@@ -6,7 +6,7 @@
 // pass). Opening a card invokes onOpenGate. axe-clean.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { renderWithProviders } from "../../test/renderWithProviders";
@@ -101,7 +101,7 @@ describe("GatesOverview", () => {
     renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
-    const checkbox = screen.getAllByTestId("gate-merge-checkbox")[0];
+    const checkbox = within(screen.getAllByTestId("gate-merge-checkbox")[0]).getByRole("checkbox");
     fireEvent.click(checkbox);
     // Selection reflected on the card; the gate did not open.
     await waitFor(() =>
@@ -170,8 +170,8 @@ describe("GatesOverview - operator merge (TC-022)", () => {
 
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
     const checkboxes = screen.getAllByTestId("gate-merge-checkbox");
-    fireEvent.click(checkboxes[0]);
-    fireEvent.click(checkboxes[1]);
+    fireEvent.click(within(checkboxes[0]).getByRole("checkbox"));
+    fireEvent.click(within(checkboxes[1]).getByRole("checkbox"));
     fireEvent.click(screen.getByTestId("merge-confirm"));
 
     await waitFor(() =>
@@ -192,8 +192,8 @@ describe("GatesOverview - operator merge (TC-022)", () => {
 
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
     const checkboxes = screen.getAllByTestId("gate-merge-checkbox");
-    fireEvent.click(checkboxes[0]);
-    fireEvent.click(checkboxes[1]);
+    fireEvent.click(within(checkboxes[0]).getByRole("checkbox"));
+    fireEvent.click(within(checkboxes[1]).getByRole("checkbox"));
     fireEvent.click(screen.getByTestId("merge-confirm"));
 
     await waitFor(() =>
