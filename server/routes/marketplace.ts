@@ -103,8 +103,11 @@ router.get("/plugins", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
   const kind = parseKind(req.query.kind);
   try {
-    const listings = await marketplace.listCatalog({ q, kind });
-    const body: MarketplaceCatalogResponse = { curated: true, listings };
+    const { listings, source, fetchedAt } = await marketplace.listCatalog({ q, kind });
+    // Forward the served catalog's provenance so the client can render the
+    // offline / staleness banner when the marketplace was unreachable (the
+    // catalog degraded to cache/seed, source !== "network"; issue #372).
+    const body: MarketplaceCatalogResponse = { curated: true, listings, source, fetchedAt };
     res.json(body);
   } catch (err) {
     if (err instanceof CatalogUnverifiedError) {

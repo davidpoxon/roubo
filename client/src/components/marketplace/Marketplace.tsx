@@ -1,7 +1,22 @@
 import { useMemo, useState } from "react";
-import { Input, Radio, RadioGroup, SearchField } from "react-aria-components";
+import {
+  Button,
+  Dialog,
+  Heading,
+  Input,
+  Modal,
+  ModalOverlay,
+  Radio,
+  RadioGroup,
+  SearchField,
+} from "react-aria-components";
 import { Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
-import type { InstallPreview, MarketplaceKind, MarketplaceListing } from "@roubo/shared";
+import type {
+  InstallErrorCode,
+  InstallPreview,
+  MarketplaceKind,
+  MarketplaceListing,
+} from "@roubo/shared";
 import { ApiError } from "../../lib/api";
 import {
   useMarketplaceCatalog,
@@ -14,6 +29,9 @@ import { useToast } from "../../hooks/useToast";
 import MarketplaceCard from "./MarketplaceCard";
 import MarketplaceDrawer from "./MarketplaceDrawer";
 import MarketplaceConsentModal from "./MarketplaceConsentModal";
+import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
+import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
+import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
 // Marketplace catalog view (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621).
 // First-party curated: there is deliberately NO third-party submission
@@ -37,6 +55,11 @@ const STRINGS = {
   installedToast: (name: string) => `Installed ${name}.`,
   updatedToast: (name: string) => `Updated ${name}.`,
   installFailed: "Install failed.",
+  stagingInstallTitle: (name: string) => `Installing ${name}`,
+  stagingUpdateTitle: (name: string) => `Updating ${name}`,
+  stagingFailed:
+    "The install was refused before anything was written. Nothing ran on your machine.",
+  stagingClose: "Close",
 };
 
 const KIND_TABS: { id: "all" | MarketplaceKind; label: string }[] = [
@@ -51,6 +74,17 @@ interface PendingConsent {
   preview: InstallPreview;
 }
 
+// The active install/update during the staging (preview) phase, before the
+// consent modal opens. It drives the 4-step progress surface so a staging-phase
+// signature/digest failure is visible on its own stage, not only as a toast
+// (issue #374).
+interface ActiveStaging {
+  mode: "install" | "update";
+  listing: MarketplaceListing;
+  failed: boolean;
+  errorCode?: InstallErrorCode;
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
@@ -63,6 +97,7 @@ export default function Marketplace() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingConsent | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [staging, setStaging] = useState<ActiveStaging | null>(null);
 
   const queryKind = kind === "all" ? undefined : kind;
   const { data, isLoading, error } = useMarketplaceCatalog({
@@ -84,20 +119,42 @@ export default function Marketplace() {
 
   const stagingPending = installPreview.isPending || updatePreview.isPending;
 
+  function stagingErrorCode(err: unknown): InstallErrorCode | undefined {
+    return err instanceof ApiError ? (err.code as InstallErrorCode | undefined) : undefined;
+  }
+
   function beginInstall(listing: MarketplaceListing) {
     setConsentError(null);
+    setStaging({ mode: "install", listing, failed: false });
     installPreview.mutate(listing.id, {
-      onSuccess: (preview) => setPending({ mode: "install", listing, preview }),
-      onError: (err) => addToast(errorMessage(err, STRINGS.installFailed)),
+      onSuccess: (preview) => {
+        setStaging(null);
+        setPending({ mode: "install", listing, preview });
+      },
+      onError: (err) => {
+        setStaging({ mode: "install", listing, failed: true, errorCode: stagingErrorCode(err) });
+        addToast(errorMessage(err, STRINGS.installFailed));
+      },
     });
   }
 
   function beginUpdate(listing: MarketplaceListing) {
     setConsentError(null);
+    setStaging({ mode: "update", listing, failed: false });
     updatePreview.mutate(listing.id, {
-      onSuccess: (preview) => setPending({ mode: "update", listing, preview }),
-      onError: (err) => addToast(errorMessage(err, STRINGS.installFailed)),
+      onSuccess: (preview) => {
+        setStaging(null);
+        setPending({ mode: "update", listing, preview });
+      },
+      onError: (err) => {
+        setStaging({ mode: "update", listing, failed: true, errorCode: stagingErrorCode(err) });
+        addToast(errorMessage(err, STRINGS.installFailed));
+      },
     });
+  }
+
+  function dismissStaging() {
+    setStaging(null);
   }
 
   function handleConsentCancel() {
@@ -105,6 +162,7 @@ export default function Marketplace() {
     cancelMutation.mutate(pending.preview.stagingToken);
     setPending(null);
     setConsentError(null);
+    setStaging(null);
   }
 
   function handleConsentConfirm() {
@@ -119,6 +177,7 @@ export default function Marketplace() {
         );
         setPending(null);
         setConsentError(null);
+        setStaging(null);
         setDetailId(null);
       },
       onError: (err) => setConsentError(errorMessage(err, STRINGS.installFailed)),
@@ -191,6 +250,12 @@ export default function Marketplace() {
       </div>
 
       <div className="mt-7">
+        {data && data.source !== "network" && (
+          <div className="mb-5">
+            <MarketplaceOfflineBanner source={data.source} fetchedAt={data.fetchedAt} />
+          </div>
+        )}
+
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
             <Loader2 size={14} className="animate-spin" />
@@ -262,6 +327,74 @@ export default function Marketplace() {
           onCancel={handleConsentCancel}
           onConfirm={handleConsentConfirm}
         />
+      )}
+
+      {staging && (
+        <ModalOverlay
+          isOpen
+          onOpenChange={(open) => {
+            if (!open && staging.failed) dismissStaging();
+          }}
+          isDismissable={staging.failed}
+          isKeyboardDismissDisabled={!staging.failed}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        >
+          <Modal className="w-full max-w-lg mx-4">
+            <Dialog
+              data-testid="marketplace-install-progress-modal"
+              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none p-5"
+            >
+              <Heading
+                slot="title"
+                className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              >
+                {staging.mode === "update"
+                  ? STRINGS.stagingUpdateTitle(staging.listing.name)
+                  : STRINGS.stagingInstallTitle(staging.listing.name)}
+              </Heading>
+              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                <span className="font-mono">{staging.listing.id}</span> · {staging.listing.kind}{" "}
+                plugin · v{staging.listing.version}
+              </p>
+
+              <div className="mt-4">
+                <MarketplaceInstallProgress
+                  statuses={deriveStageStatuses({
+                    stagingPending: !staging.failed,
+                    stagingSettled: false,
+                    confirmPending: false,
+                    confirmSettled: false,
+                    failedPhase: staging.failed ? "staging" : undefined,
+                    errorCode: staging.errorCode,
+                  })}
+                  pluginId={staging.listing.id}
+                  artifactLabel={describeArtifact(staging.listing.source, staging.listing)}
+                  errorCode={staging.errorCode}
+                />
+              </div>
+
+              {staging.failed && (
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <p
+                    role="alert"
+                    data-testid="marketplace-install-progress-failed"
+                    className="text-xs text-red-700 dark:text-red-300"
+                  >
+                    {STRINGS.stagingFailed}
+                  </p>
+                  <Button
+                    autoFocus
+                    onPress={dismissStaging}
+                    data-testid="marketplace-install-progress-close"
+                    className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  >
+                    {STRINGS.stagingClose}
+                  </Button>
+                </div>
+              )}
+            </Dialog>
+          </Modal>
+        </ModalOverlay>
       )}
     </section>
   );

@@ -256,6 +256,10 @@ beforeEach(() => {
     Promise.resolve({
       curated: true,
       listings: currentListings().filter((l) => matchesQuery(l, params?.q)),
+      // The browse/install/update journey is the online (live network) path, so
+      // the offline / staleness banner stays absent (issue #372).
+      source: "network",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
     }),
   );
   mockedInstall.mockResolvedValue(installPreview("1.3.0"));

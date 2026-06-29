@@ -69,6 +69,19 @@ const LISTING: MarketplaceListing = {
   updateAvailable: false,
 };
 
+const FETCHED_AT = "2026-06-28T00:00:00.000Z";
+
+// The CatalogResult shape listCatalog now resolves to: listings plus the served
+// catalog's provenance (source / fetchedAt), forwarded by GET /plugins so the
+// client can render the offline / staleness banner (issue #372).
+function catalogResult(
+  listings: MarketplaceListing[],
+  source: "network" | "cache" | "seed" = "network",
+  fetchedAt: string | null = FETCHED_AT,
+): Awaited<ReturnType<typeof marketplace.listCatalog>> {
+  return { listings, source, fetchedAt };
+}
+
 const PREVIEW = {
   stagingToken: "11111111-1111-1111-1111-111111111111",
   source: ENTRY.source,
@@ -81,22 +94,49 @@ beforeEach(() => {
 });
 
 describe("GET /api/marketplace/plugins", () => {
-  it("returns the curated catalog", async () => {
-    listCatalog.mockResolvedValue([LISTING]);
+  it("returns the curated catalog with the network source and fetch timestamp", async () => {
+    listCatalog.mockResolvedValue(catalogResult([LISTING], "network"));
     const res = await request(makeApp()).get("/api/marketplace/plugins");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ curated: true, listings: [LISTING] });
+    expect(res.body).toEqual({
+      curated: true,
+      listings: [LISTING],
+      source: "network",
+      fetchedAt: FETCHED_AT,
+    });
     expect(listCatalog).toHaveBeenCalledWith({ q: undefined, kind: undefined });
   });
 
+  // CPHM-TC-043 (issue #372): when the marketplace is unreachable the catalog
+  // degrades to the last-known cache; the route forwards source "cache" + the
+  // cached fetch timestamp so the client can render the offline banner.
+  it("forwards the cache source and fetch timestamp when degraded to the cache", async () => {
+    listCatalog.mockResolvedValue(catalogResult([LISTING], "cache"));
+    const res = await request(makeApp()).get("/api/marketplace/plugins");
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe("cache");
+    expect(res.body.fetchedAt).toBe(FETCHED_AT);
+    expect(res.body.listings).toHaveLength(1);
+  });
+
+  // CPHM-FR-009 (issue #372): degraded to the bundled seed: source "seed" with a
+  // null fetchedAt (the seed was never fetched).
+  it("forwards the seed source and a null fetch timestamp when degraded to the seed", async () => {
+    listCatalog.mockResolvedValue(catalogResult([LISTING], "seed", null));
+    const res = await request(makeApp()).get("/api/marketplace/plugins");
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe("seed");
+    expect(res.body.fetchedAt).toBeNull();
+  });
+
   it("passes through q and a valid kind", async () => {
-    listCatalog.mockResolvedValue([]);
+    listCatalog.mockResolvedValue(catalogResult([]));
     await request(makeApp()).get("/api/marketplace/plugins?q=red&kind=component");
     expect(listCatalog).toHaveBeenCalledWith({ q: "red", kind: "component" });
   });
 
   it("ignores an invalid kind", async () => {
-    listCatalog.mockResolvedValue([]);
+    listCatalog.mockResolvedValue(catalogResult([]));
     await request(makeApp()).get("/api/marketplace/plugins?kind=bogus");
     expect(listCatalog).toHaveBeenCalledWith({ q: undefined, kind: undefined });
   });

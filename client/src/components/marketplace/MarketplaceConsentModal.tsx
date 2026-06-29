@@ -20,6 +20,8 @@ import {
   type PermissionCategory,
   type PluginPermissions,
 } from "@roubo/shared";
+import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
+import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 
 // Install/update consent for a marketplace catalog entry (CP-FR-020, issue
 // #621). Mirrors PermissionConsentModal: it shows every permission category the
@@ -38,8 +40,10 @@ const STRINGS = {
   acknowledge:
     "I understand this plugin runs with my privileges and acknowledge the access listed above.",
   errorFallback: "Couldn't complete the install.",
+  progressHeading: "Install & verify",
   cancel: "Cancel",
-  working: "Working…",
+  installing: "Installing…",
+  updating: "Updating…",
   confirmInstall: "Install plugin",
   confirmUpdate: "Update plugin",
 };
@@ -126,6 +130,28 @@ export default function MarketplaceConsentModal({
   const canConfirm = acknowledged && !isPending;
   const ConfirmIcon = mode === "update" ? RefreshCw : Download;
 
+  // While the confirm mutation is pending, the button reflects the in-flight
+  // commit (the 4-step widget shows stage 4 active), replacing the bare
+  // "Working…" label (issue #374).
+  function resolveConfirmLabel(): string {
+    if (isPending) return mode === "update" ? STRINGS.updating : STRINGS.installing;
+    return mode === "update" ? STRINGS.confirmUpdate : STRINGS.confirmInstall;
+  }
+  const confirmLabel = resolveConfirmLabel();
+
+  // The modal is the permission gate between stage 3 (done after staging) and
+  // stage 4 (committed on confirm), so stages 1-3 are always done here: stage 4
+  // advances to active while the confirm mutation is pending and lands on failed
+  // (fail-closed) if the confirm errors. The success end state is the toast, by
+  // which point this modal has already closed (issue #374).
+  const stageStatuses = deriveStageStatuses({
+    stagingPending: false,
+    stagingSettled: true,
+    confirmPending: isPending,
+    confirmSettled: false,
+    failedPhase: error ? "confirm" : undefined,
+  });
+
   function handleCancel() {
     if (isPending) return;
     onCancel();
@@ -175,6 +201,17 @@ export default function MarketplaceConsentModal({
               <span>
                 <span className="font-semibold">Verified, first-party.</span> {STRINGS.trust}
               </span>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                {STRINGS.progressHeading}
+              </p>
+              <MarketplaceInstallProgress
+                statuses={stageStatuses}
+                pluginId={manifest.id}
+                artifactLabel={describeArtifact(preview.source, manifest)}
+              />
             </div>
 
             {categories.length === 0 ? (
@@ -261,11 +298,7 @@ export default function MarketplaceConsentModal({
               }`}
             >
               <ConfirmIcon size={13} />
-              {isPending
-                ? STRINGS.working
-                : mode === "update"
-                  ? STRINGS.confirmUpdate
-                  : STRINGS.confirmInstall}
+              {confirmLabel}
             </Button>
           </div>
         </Dialog>
