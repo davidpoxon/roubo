@@ -859,6 +859,105 @@ describe("previewUpdateFromRelease (issue #370)", () => {
   });
 });
 
+// Compute the digest installSeedArtifact will verify against: unpack the
+// tarball exactly as the installer does and digest the unpacked tree.
+async function digestOfTarball(tgz: string): Promise<string> {
+  const out = await trackTmp("roubo-seed-digest-");
+  await tar.x({ file: tgz, cwd: out });
+  const { computePackageDigest } = await import("./marketplace-integrity.js");
+  return computePackageDigest(out);
+}
+
+describe("installSeedArtifact (first-run seed, davidpoxon/roubo-development#310)", () => {
+  it("verifies the digest and places the built artifact in the user root (no register/spawn)", async () => {
+    const tgz = await makeTarball([
+      { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+      { path: "dist/index.js", content: "module.exports = {};\n" },
+    ]);
+    const digest = await digestOfTarball(tgz);
+
+    const result = await pluginInstaller.installSeedArtifact(tgz, "echo", digest);
+    expect(result).toEqual({ installed: true });
+
+    const target = path.join(pluginsRoot, "echo");
+    expect((await stat(path.join(target, "roubo-plugin.yaml"))).isFile()).toBe(true);
+    expect((await stat(path.join(target, "dist", "index.js"))).isFile()).toBe(true);
+    // The seed path never registers/spawns; the user-root discovery pass owns that.
+    expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("is offline: it performs no network fetch", async () => {
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]);
+    const digest = await digestOfTarball(tgz);
+    await pluginInstaller.installSeedArtifact(tgz, "echo", digest);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on a digest mismatch and writes nothing (CPHM-NFR-001)", async () => {
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]);
+    await expect(
+      pluginInstaller.installSeedArtifact(tgz, "echo", "sha256-wrong"),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    await expect(stat(path.join(pluginsRoot, "echo"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("fails closed when a null/empty digest is supplied (seed always requires one)", async () => {
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]);
+    await expect(pluginInstaller.installSeedArtifact(tgz, "echo", "")).rejects.toMatchObject({
+      code: "integrity-failed",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("fails closed when the manifest id does not match the seed catalog id", async () => {
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]);
+    const digest = await digestOfTarball(tgz);
+    await expect(
+      pluginInstaller.installSeedArtifact(tgz, "github-com", digest),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    await expect(stat(path.join(pluginsRoot, "github-com"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("no-clobber: leaves an already-installed plugin untouched and reports installed:false", async () => {
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "UPDATED"), "marketplace", "utf8");
+
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]);
+    const digest = await digestOfTarball(tgz);
+    const result = await pluginInstaller.installSeedArtifact(tgz, "echo", digest);
+
+    expect(result).toEqual({ installed: false });
+    // The existing (e.g. marketplace-updated) copy and its sentinel survive.
+    expect((await stat(path.join(target, "UPDATED"))).isFile()).toBe(true);
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects an incompatible seed artifact (host-API mismatch) fail-closed", async () => {
+    const tgz = await makeTarball([{ path: "roubo-plugin.yaml", content: INCOMPATIBLE_MANIFEST }]);
+    const digest = await digestOfTarball(tgz);
+    await expect(
+      pluginInstaller.installSeedArtifact(tgz, "incompatible", digest),
+    ).rejects.toMatchObject({ code: "incompatible-host" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a missing seed artifact path (invalid-input)", async () => {
+    await expect(
+      pluginInstaller.installSeedArtifact(
+        path.join(pluginsRoot, "does-not-exist.tgz"),
+        "echo",
+        "sha256-x",
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+  });
+});
+
 function mockRecord(overrides: Partial<PluginRecord>): PluginRecord {
   return {
     id: "echo",
