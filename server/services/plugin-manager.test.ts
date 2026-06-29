@@ -1,8 +1,10 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { mkdtemp, rm, symlink, writeFile, mkdir, stat } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import os, { tmpdir } from "node:os";
 import path from "node:path";
+import * as tar from "tar";
 import { fileURLToPath } from "node:url";
+import { computePackageDigest } from "./marketplace-integrity.js";
 import type { BrokerContext, PluginEnableState, PluginRecord } from "@roubo/shared";
 import type { ConnectionStatus } from "@roubo/plugin-sdk";
 
@@ -274,6 +276,290 @@ describe("discovery", () => {
       expect(echo.status).toBe("enabled");
     } finally {
       await rm(path.join(cwd, "roubo-rel-plugins-test"), { recursive: true, force: true });
+    }
+  });
+});
+
+// First-run seed + clean-break upgrade (issue davidpoxon/roubo-development#310,
+// CPHM-FR-004 / FR-008 / NFR-002 / NFR-005). On first launch the three default
+// plugins are auto-installed from the bundled seed cache into the user root,
+// verified against the seed catalog with no network, idempotent via a marker;
+// on upgrade the app no longer discovers a bundled plugin source dir.
+function seedIntegrationManifest(id: string, roubo = "^1.3.0"): string {
+  return [
+    `id: ${id}`,
+    `name: ${id} seed fixture`,
+    "version: 1.0.0",
+    "description: Seed integration fixture",
+    "kind: integration",
+    `roubo: ${roubo}`,
+    "entry: ./dist/index.js",
+    "permissions:",
+    "  network:",
+    "    hosts: []",
+    "  credentials:",
+    "    slots: []",
+    "  filesystem:",
+    "    paths: []",
+    "  processes: false",
+    "",
+  ].join("\n");
+}
+
+function seedComponentManifest(id: string, roubo = "^1.3.0"): string {
+  return [
+    `id: ${id}`,
+    `name: ${id} seed fixture`,
+    "version: 1.0.0",
+    "description: Seed component fixture",
+    "kind: component",
+    `roubo: ${roubo}`,
+    "contractVersion: 1",
+    "entry: ./dist/index.js",
+    "permissions:",
+    "  network:",
+    "    hosts: []",
+    "  credentials:",
+    "    slots: []",
+    "  filesystem:",
+    "    paths: []",
+    "  processes: false",
+    "  ports:",
+    "    names:",
+    "      - http",
+    "  docker: false",
+    "",
+  ].join("\n");
+}
+
+interface SeedSpec {
+  id: string;
+  manifest: string;
+  version?: string;
+}
+
+// Build a fixture seed bundle on disk (resources/seed/) with one built tarball
+// per spec plus a catalog.json pinning each unpacked-artifact digest, and point
+// ROUBO_SEED_DIR / ROUBO_USER_PLUGINS_DIR at it. ROUBO_BUNDLED_PLUGINS_DIR is
+// cleared so the bundle exercises the production (clean-break) configuration.
+async function makeSeedBundle(
+  specs: SeedSpec[],
+  opts: { badDigestFor?: string } = {},
+): Promise<Sandbox & { seedDir: string }> {
+  const root = await mkdtemp(path.join(tmpdir(), "roubo-seed-test-"));
+  const seedDir = path.join(root, "seed");
+  const userDir = path.join(root, "user");
+  await mkdir(seedDir, { recursive: true });
+  await mkdir(userDir, { recursive: true });
+
+  const entries: Array<{ id: string; version: string; integrity: string }> = [];
+  for (const spec of specs) {
+    const version = spec.version ?? "1.0.0";
+    const src = await mkdtemp(path.join(tmpdir(), "roubo-seed-src-"));
+    await writeFile(path.join(src, "roubo-plugin.yaml"), spec.manifest, "utf8");
+    await mkdir(path.join(src, "dist"), { recursive: true });
+    await writeFile(path.join(src, "dist", "index.js"), "module.exports = {};\n", "utf8");
+    const tgz = path.join(seedDir, `${spec.id}-${version}.tgz`);
+    await tar.c({ gzip: true, file: tgz, cwd: src }, ["roubo-plugin.yaml", "dist"]);
+    // The catalog digest targets the UNPACKED built artifact; the source dir's
+    // layout round-trips through tar, so its digest equals the unpacked digest.
+    const realDigest = await computePackageDigest(src);
+    await rm(src, { recursive: true, force: true });
+    const integrity = opts.badDigestFor === spec.id ? "sha256-deadbeefdeadbeef" : realDigest;
+    entries.push({ id: spec.id, version, integrity });
+  }
+  await writeFile(
+    path.join(seedDir, "catalog.json"),
+    JSON.stringify({
+      payload: { schemaVersion: 1, generatedAt: "2026-01-01T00:00:00.000Z", entries },
+    }),
+    "utf8",
+  );
+
+  process.env.ROUBO_SEED_DIR = seedDir;
+  process.env.ROUBO_USER_PLUGINS_DIR = userDir;
+  delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+
+  return {
+    bundledDir: "",
+    userDir,
+    seedDir,
+    cleanup: async () => {
+      await pluginManager.__test.flushLogs();
+      delete process.env.ROUBO_SEED_DIR;
+      delete process.env.ROUBO_USER_PLUGINS_DIR;
+      await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+async function listUserPluginDirs(userDir: string): Promise<string[]> {
+  const dirents = await readdir(userDir, { withFileTypes: true });
+  return dirents
+    .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+    .map((d) => d.name)
+    .sort();
+}
+
+const ALL_SEED_SPECS: SeedSpec[] = [
+  { id: "github-com", manifest: seedIntegrationManifest("github-com") },
+  { id: "process", manifest: seedComponentManifest("process") },
+  { id: "database", manifest: seedComponentManifest("database") },
+];
+
+describe("first-run seed (issue #310, CPHM-FR-004 / NFR-002)", () => {
+  it("seeds exactly github-com/process/database into the user root, verified and offline", async () => {
+    const bundle = await makeSeedBundle(ALL_SEED_SPECS);
+    sandbox = bundle;
+
+    await pluginManager.seedFromBundled();
+
+    expect(await listUserPluginDirs(bundle.userDir)).toEqual(["database", "github-com", "process"]);
+    for (const id of pluginManager.SEED_PLUGIN_IDS) {
+      const yaml = await readFile(path.join(bundle.userDir, id, "roubo-plugin.yaml"), "utf8");
+      expect(yaml).toContain(`id: ${id}`);
+      expect((await stat(path.join(bundle.userDir, id, "dist", "index.js"))).isFile()).toBe(true);
+    }
+    // The marker is written so a re-launch is a no-op (the plugins live in the
+    // user root exactly where roubo.yaml bindings + discovery resolve them).
+    expect((await stat(pluginManager.__test.seedMarkerPath())).isFile()).toBe(true);
+  });
+
+  it("is idempotent: the marker prevents a re-seed on the next launch", async () => {
+    const bundle = await makeSeedBundle(ALL_SEED_SPECS);
+    sandbox = bundle;
+
+    await pluginManager.seedFromBundled();
+    // Simulate the user removing a seeded plugin after first run.
+    await rm(path.join(bundle.userDir, "process"), { recursive: true, force: true });
+
+    await pluginManager.seedFromBundled();
+    // The marker short-circuits the whole pass; the removed plugin is NOT re-seeded.
+    await expect(stat(path.join(bundle.userDir, "process"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("never clobbers a plugin the user updated from the marketplace", async () => {
+    const bundle = await makeSeedBundle(ALL_SEED_SPECS);
+    sandbox = bundle;
+
+    // A plugin already present before the first seed pass (e.g. a marketplace
+    // update of a default), with sentinel content the seed must not overwrite.
+    const ghDir = path.join(bundle.userDir, "github-com");
+    await mkdir(ghDir, { recursive: true });
+    await writeFile(path.join(ghDir, "UPDATED"), "newer-than-seed", "utf8");
+
+    await pluginManager.seedFromBundled();
+
+    expect((await stat(path.join(ghDir, "UPDATED"))).isFile()).toBe(true);
+    // The other two are still seeded.
+    expect((await stat(path.join(bundle.userDir, "process", "roubo-plugin.yaml"))).isFile()).toBe(
+      true,
+    );
+    expect((await stat(path.join(bundle.userDir, "database", "roubo-plugin.yaml"))).isFile()).toBe(
+      true,
+    );
+  });
+
+  it("fails closed on a tampered seed artifact and still seeds the rest (CPHM-NFR-001)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const bundle = await makeSeedBundle(ALL_SEED_SPECS, { badDigestFor: "github-com" });
+    sandbox = bundle;
+
+    await pluginManager.seedFromBundled();
+
+    // The tampered artifact is not installed; the verified ones are.
+    await expect(stat(path.join(bundle.userDir, "github-com"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect((await stat(path.join(bundle.userDir, "process", "roubo-plugin.yaml"))).isFile()).toBe(
+      true,
+    );
+    expect((await stat(path.join(bundle.userDir, "database", "roubo-plugin.yaml"))).isFile()).toBe(
+      true,
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('failed to seed "github-com"'),
+      expect.anything(),
+    );
+    warn.mockRestore();
+  });
+
+  it("does not write the marker when no seed bundle is shipped, so a later build still seeds", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "roubo-seed-empty-"));
+    const seedDir = path.join(root, "seed");
+    const userDir = path.join(root, "user");
+    await mkdir(seedDir, { recursive: true });
+    await mkdir(userDir, { recursive: true });
+    process.env.ROUBO_SEED_DIR = seedDir;
+    process.env.ROUBO_USER_PLUGINS_DIR = userDir;
+    delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    sandbox = {
+      bundledDir: "",
+      userDir,
+      cleanup: async () => {
+        await pluginManager.__test.flushLogs();
+        delete process.env.ROUBO_SEED_DIR;
+        delete process.env.ROUBO_USER_PLUGINS_DIR;
+        await rm(root, { recursive: true, force: true });
+      },
+    };
+
+    await pluginManager.seedFromBundled();
+    await expect(stat(pluginManager.__test.seedMarkerPath())).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await listUserPluginDirs(userDir)).toEqual([]);
+  });
+
+  it("runs at initialize() and the seeded plugins are discovered from the user root as 'user' source", async () => {
+    const bundle = await makeSeedBundle(ALL_SEED_SPECS);
+    sandbox = bundle;
+    // Pin the seeded ids to "disabled" so discovery registers them (proving the
+    // seed lands them in the user root where roubo.yaml bindings + discovery
+    // resolve them, CPHM-NFR-005) WITHOUT spawning a child process, keeping the
+    // unit test silent. The seed itself requires host-compatible artifacts, so
+    // they cannot be made incompatible to suppress spawn.
+    enableStateMocks.loadEnableState.mockReturnValue({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "github-com": "disabled", process: "disabled", database: "disabled" },
+    });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const installed = mgr.listInstalled();
+    for (const id of pluginManager.SEED_PLUGIN_IDS) {
+      const record = findRecord(installed, id);
+      expect(record.source).toBe("user");
+      expect(record.status).toBe("disabled");
+      expect(record.pid).toBeNull();
+    }
+    // Clean break: nothing was discovered from a bundled root.
+    expect(installed.some((r) => r.source === "bundled")).toBe(false);
+  });
+});
+
+describe("clean break: bundled discovery dropped (issue #310, CPHM-FR-008 / NFR-005)", () => {
+  it("returns no app-bundled plugin root in production (no ROUBO_BUNDLED_PLUGINS_DIR)", () => {
+    const prev = process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    try {
+      expect(pluginManager.__test.bundledRoot()).toBeNull();
+    } finally {
+      if (prev !== undefined) process.env.ROUBO_BUNDLED_PLUGINS_DIR = prev;
+    }
+  });
+
+  it("still honours an explicit ROUBO_BUNDLED_PLUGINS_DIR override (test/diagnostic seam)", () => {
+    const prev = process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    process.env.ROUBO_BUNDLED_PLUGINS_DIR = path.join(tmpdir(), "some-bundled-root");
+    try {
+      expect(pluginManager.__test.bundledRoot()).toBe(path.join(tmpdir(), "some-bundled-root"));
+    } finally {
+      if (prev === undefined) delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+      else process.env.ROUBO_BUNDLED_PLUGINS_DIR = prev;
     }
   });
 });
