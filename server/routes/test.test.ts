@@ -1,8 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { resolveWithin, resolveWithinRoots } from "../lib/safe-path.js";
 
 // Redirect getRouboDir() away from the user's real `~/.roubo` (or
 // `~/.roubo-dev/<bench>`) so wipePersistedTestState() targets a throwaway
@@ -684,19 +686,31 @@ describe("POST /test/__seed-fresh-launch", () => {
   // the block rms them (the route also tracks them for /__reset cleanup).
   const sandboxDirs: string[] = [];
 
+  // Launder the env-derived sandbox path (the throwaway tmp user root / seed dir
+  // the route minted under os.tmpdir() and exported via ROUBO_USER_PLUGINS_DIR /
+  // ROUBO_SEED_DIR) through the repo's path-containment sanitizer before it
+  // reaches an fs sink. Reading process.env back is a tainted source to CodeQL's
+  // js/path-injection suite; resolveWithinRoots confines the value to os.tmpdir()
+  // and re-derives it through resolveWithin, the barrier shape CodeQL recognises.
+  // Returns null when the value is unset or escapes the tmp root.
+  function sanitizeSandboxDir(raw: string | undefined): string | null {
+    if (!raw) return null;
+    return resolveWithinRoots([os.tmpdir()], raw);
+  }
+
   // Simulate plugin-manager.seedFromBundled: install the three defaults into the
   // env-pointed tmp user root and write the idempotency marker, unless the marker
   // already exists (idempotent: a relaunch is a no-op that leaves it untouched).
   function simulateSeed(): void {
-    const root = process.env.ROUBO_USER_PLUGINS_DIR;
+    const root = sanitizeSandboxDir(process.env.ROUBO_USER_PLUGINS_DIR);
     if (!root) return;
-    const markerPath = path.join(root, ".seed-version.json");
+    const markerPath = resolveWithin(root, ".seed-version.json");
     if (fs.existsSync(markerPath)) return;
     for (const id of ["github-com", "process", "database"]) {
-      const dir = path.join(root, id);
-      fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
-      fs.writeFileSync(path.join(dir, "roubo-plugin.yaml"), `id: ${id}\n`, "utf-8");
-      fs.writeFileSync(path.join(dir, "dist", "index.js"), "module.exports = {};\n", "utf-8");
+      const dir = resolveWithin(root, id);
+      fs.mkdirSync(resolveWithin(dir, "dist"), { recursive: true });
+      fs.writeFileSync(resolveWithin(dir, "roubo-plugin.yaml"), `id: ${id}\n`, "utf-8");
+      fs.writeFileSync(resolveWithin(dir, "dist", "index.js"), "module.exports = {};\n", "utf-8");
     }
     fs.writeFileSync(
       markerPath,
@@ -711,8 +725,8 @@ describe("POST /test/__seed-fresh-launch", () => {
 
   beforeEach(() => {
     vi.mocked(pluginManager.seedFromBundled).mockImplementation(async () => {
-      const userRoot = process.env.ROUBO_USER_PLUGINS_DIR;
-      const seedDir = process.env.ROUBO_SEED_DIR;
+      const userRoot = sanitizeSandboxDir(process.env.ROUBO_USER_PLUGINS_DIR);
+      const seedDir = sanitizeSandboxDir(process.env.ROUBO_SEED_DIR);
       if (userRoot) sandboxDirs.push(userRoot);
       if (seedDir) sandboxDirs.push(seedDir);
       simulateSeed();
