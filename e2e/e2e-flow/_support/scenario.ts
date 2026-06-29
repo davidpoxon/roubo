@@ -213,6 +213,12 @@ export async function registerFixtureProject(
     // start-gate ON at the project level (no reliance on the global default).
     // The start-gate e2e drives the blocked -> allowed journey against it.
     enforceIssueDependencies?: boolean;
+    // CP-TC-028 (#626): optional id of a component plugin to bind a `deploy`
+    // component to in the fixture roubo.yaml (alongside the default `app`
+    // process component). The route writes both bindings, so a spec can model
+    // an existing roubo.yaml that binds process + a second component plugin
+    // (e.g. CPHM-TC-061 binding process + database).
+    componentPlugin?: string;
   },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });
