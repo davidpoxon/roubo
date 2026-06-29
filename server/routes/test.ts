@@ -1,11 +1,13 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
+import * as tar from "tar";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { BUNDLED_PLUGIN_IDS, DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
+import { computePackageDigest } from "../services/marketplace-integrity.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -345,6 +347,10 @@ router.post("/__reset", async (req: Request, res: Response) => {
       cleanupFixtureProject(entry);
     }
     fixtureProjects.clear();
+    // #313 (CPHM-TC-041): drop any throwaway fresh-launch seed sandbox left by
+    // the fresh-launch-seed-journey drift guard so its tmp user root + seed
+    // bundle never leak into a later spec (NFR-018). No-op when no sandbox exists.
+    cleanupFreshLaunchState();
     // WU-069: also wipe persisted project + bench + integration-override state
     // on disk before initialize() re-reads it. This covers anything a
     // Playwright spec registered directly via /api/projects (i.e. without
@@ -511,6 +517,284 @@ router.post("/__set-marketplace-reachable", async (req: Request, res: Response) 
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__set-marketplace-reachable failed:", message);
     res.status(500).json({ error: message });
+  }
+});
+
+// #313 (CPHM-TC-041): the fresh-launch first-run seed drift guard drives a
+// GENUINE offline seed pass (plugin-manager.seedFromBundled) rather than the
+// bundled-overlay stand-in the rest of the e2e harness models seeded plugins as
+// (ensureBundledPluginsEnabled). The harness wires github-com as a bundled
+// overlay and does not carry process/database at all, so asserting "exactly the
+// three defaults seeded into the user root (source 'user'), ghe/jira un-seeded,
+// idempotent relaunch" needs the real seed service exercised end-to-end.
+//
+// The seam isolates the seed into throwaway tmp dirs: a tmp user root and a tmp
+// seed bundle synthesised here (three host-compatible stub artifacts + a seed
+// catalog.json, mirroring `makeSeedBundle` in plugin-manager.test.ts). It
+// temporarily points ROUBO_USER_PLUGINS_DIR / ROUBO_SEED_DIR at those tmp dirs
+// around the `seedFromBundled()` call and restores them in a finally, so the
+// live plugin-manager and any later spec are untouched (NFR-018). Deliberately
+// NOT wired via playwright.config's ROUBO_SEED_DIR: a global seed dir would make
+// the server's boot seed install into the committed e2e/fixtures user-plugins
+// dir, polluting it and colliding with the harness's stub-plugin discovery.
+interface FreshLaunchState {
+  userRoot: string;
+  seedDir: string;
+}
+let freshLaunchState: FreshLaunchState | null = null;
+
+const SEED_FIXTURE_VERSION = "1.0.0";
+
+// Synthesise a host-compatible seed manifest (mirrors `seedIntegrationManifest`
+// / `seedComponentManifest` in plugin-manager.test.ts). `roubo: ^1.3.0` matches
+// pluginManager.HOST_API_VERSION so installSeedArtifact's assertCompatible
+// passes; the stub never spawns (the seed lands in a tmp root the live manager
+// never discovers), so the artifact body is a placeholder.
+function seedFixtureManifest(id: string, kind: "integration" | "component"): string {
+  const lines = [
+    `id: ${id}`,
+    `name: ${id} seed fixture`,
+    `version: ${SEED_FIXTURE_VERSION}`,
+    `description: Seed ${kind} fixture`,
+    `kind: ${kind}`,
+    "roubo: ^1.3.0",
+    "entry: ./dist/index.js",
+  ];
+  if (kind === "component") {
+    lines.push("contractVersion: 1");
+  }
+  lines.push(
+    "permissions:",
+    "  network:",
+    "    hosts: []",
+    "  credentials:",
+    "    slots: []",
+    "  filesystem:",
+    "    paths: []",
+    "  processes: false",
+  );
+  if (kind === "component") {
+    lines.push("  ports:", "    names:", "      - http", "  docker: false");
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+// Build a throwaway seed bundle on disk under `seedDir`: one gzip tarball per
+// seed plugin plus a catalog.json pinning each unpacked-artifact digest. The
+// digest is computed over the same source tree that is packed, so it equals the
+// digest installSeedArtifact recomputes over the unpacked staging tree, and the
+// fail-closed integrity check (CPHM-NFR-001) passes for an untampered artifact.
+async function buildFreshLaunchSeedBundle(seedDir: string): Promise<void> {
+  const specs: Array<{ id: string; kind: "integration" | "component" }> = [
+    { id: "github-com", kind: "integration" },
+    { id: "process", kind: "component" },
+    { id: "database", kind: "component" },
+  ];
+  const entries: Array<{ id: string; version: string; integrity: string }> = [];
+  for (const spec of specs) {
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-e2e-seed-src-"));
+    try {
+      fs.writeFileSync(
+        path.join(src, "roubo-plugin.yaml"),
+        seedFixtureManifest(spec.id, spec.kind),
+        "utf-8",
+      );
+      fs.mkdirSync(path.join(src, "dist"), { recursive: true });
+      fs.writeFileSync(path.join(src, "dist", "index.js"), "module.exports = {};\n", "utf-8");
+      const tgz = path.join(seedDir, `${spec.id}-${SEED_FIXTURE_VERSION}.tgz`);
+      await tar.c({ gzip: true, file: tgz, cwd: src }, ["roubo-plugin.yaml", "dist"]);
+      const integrity = await computePackageDigest(src);
+      entries.push({ id: spec.id, version: SEED_FIXTURE_VERSION, integrity });
+    } finally {
+      fs.rmSync(src, { recursive: true, force: true });
+    }
+  }
+  fs.writeFileSync(
+    path.join(seedDir, "catalog.json"),
+    JSON.stringify({
+      payload: { schemaVersion: 1, generatedAt: "2026-01-01T00:00:00.000Z", entries },
+    }),
+    "utf-8",
+  );
+}
+
+interface SeedPluginSnapshot {
+  // The directory name under the user root (the installed plugin id).
+  id: string;
+  // The `id:` declared by the installed roubo-plugin.yaml, proving a real,
+  // host-compatible manifest landed on disk (the "usable offline" proof for
+  // S004: discovery + spawn pick this up unchanged, CPHM-NFR-005).
+  manifestId: string | null;
+  // Whether the installed artifact's entry script is present on disk.
+  hasEntry: boolean;
+}
+
+// Read the `id:` an installed plugin's roubo-plugin.yaml declares, or null when
+// the manifest is missing or carries no id line.
+function readSeedManifestId(pluginDir: string): string | null {
+  try {
+    const text = fs.readFileSync(path.join(pluginDir, "roubo-plugin.yaml"), "utf-8");
+    const match = /^id:\s*(\S+)/m.exec(text);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Snapshot the seeded user root: one entry per installed plugin directory, with
+// the manifest id it declares and whether its entry script is present. Sorted by
+// id for a stable assertion order.
+function readSeededRoot(userRoot: string): SeedPluginSnapshot[] {
+  let dirents: fs.Dirent[];
+  try {
+    dirents = fs.readdirSync(userRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: SeedPluginSnapshot[] = [];
+  for (const dirent of dirents) {
+    if (!dirent.isDirectory() || dirent.name.startsWith(".")) continue;
+    const dir = path.join(userRoot, dirent.name);
+    out.push({
+      id: dirent.name,
+      manifestId: readSeedManifestId(dir),
+      hasEntry: fs.existsSync(path.join(dir, "dist", "index.js")),
+    });
+  }
+  out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return out;
+}
+
+interface SeedMarkerSnapshot {
+  present: boolean;
+  seedVersion: number | null;
+  seededIds: string[];
+  seededAt: string | null;
+}
+
+// Read + parse the idempotency marker (.seed-version.json) the seed pass writes
+// into the user root. `present: false` (with empty fields) when no marker exists.
+function readSeedMarker(markerPath: string): SeedMarkerSnapshot {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(markerPath, "utf-8")) as {
+      seedVersion?: unknown;
+      seededIds?: unknown;
+      seededAt?: unknown;
+    };
+    return {
+      present: true,
+      seedVersion: typeof parsed.seedVersion === "number" ? parsed.seedVersion : null,
+      seededIds: Array.isArray(parsed.seededIds)
+        ? parsed.seededIds.filter((x): x is string => typeof x === "string")
+        : [],
+      seededAt: typeof parsed.seededAt === "string" ? parsed.seededAt : null,
+    };
+  } catch {
+    return { present: false, seedVersion: null, seededIds: [], seededAt: null };
+  }
+}
+
+function restoreEnvVar(key: string, prev: string | undefined): void {
+  if (prev === undefined) {
+    // Reflect.deleteProperty (not the `delete` operator on a computed key) to
+    // satisfy @typescript-eslint/no-dynamic-delete.
+    Reflect.deleteProperty(process.env, key);
+  } else {
+    process.env[key] = prev;
+  }
+}
+
+function cleanupFreshLaunchState(): void {
+  if (!freshLaunchState) return;
+  for (const dir of [freshLaunchState.userRoot, freshLaunchState.seedDir]) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Best-effort: tolerate a missing dir or a transient unlink failure.
+    }
+  }
+  freshLaunchState = null;
+}
+
+// POST /test/__seed-fresh-launch (#313, CPHM-TC-041): drive a genuine offline
+// first-run seed of the default plugins and report the result, so the
+// fresh-launch-seed-journey drift guard can assert the integrated seed run
+// matches the authoritative case. Gated by ROUBO_E2E; production builds 404 the
+// URL.
+//
+// Body: { relaunch?: boolean }. `relaunch: false` (the default) is a fresh first
+// launch: a new clean tmp user root + a freshly synthesised tmp seed bundle, then
+// `seedFromBundled()`. `relaunch: true` reuses the same sandbox from the prior
+// fresh launch and runs `seedFromBundled()` again to prove the marker makes the
+// second launch a no-op (idempotent). Returns the seed set, whether this pass
+// actually seeded (`seededNow`: true on the genuine first run, false on an
+// idempotent relaunch), the installed-plugin snapshot, and the idempotency
+// marker.
+router.post("/__seed-fresh-launch", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { relaunch?: unknown };
+  let relaunch = false;
+  if (body.relaunch !== undefined) {
+    if (typeof body.relaunch !== "boolean") {
+      return res.status(400).json({ error: "relaunch must be a boolean" });
+    }
+    relaunch = body.relaunch;
+  }
+  if (relaunch && !freshLaunchState) {
+    return res
+      .status(409)
+      .json({ error: "no prior fresh launch to relaunch; call with relaunch:false first" });
+  }
+
+  const prevUserDir = process.env.ROUBO_USER_PLUGINS_DIR;
+  const prevSeedDir = process.env.ROUBO_SEED_DIR;
+  try {
+    let sandbox: FreshLaunchState;
+    if (relaunch) {
+      sandbox = freshLaunchState as FreshLaunchState;
+    } else {
+      // Drop any prior sandbox so each first launch starts from a truly clean
+      // machine (no marker, no installed plugins).
+      cleanupFreshLaunchState();
+      const userRoot = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-e2e-fresh-user-"));
+      const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-e2e-fresh-seed-"));
+      await buildFreshLaunchSeedBundle(seedDir);
+      sandbox = { userRoot, seedDir };
+      freshLaunchState = sandbox;
+    }
+
+    process.env.ROUBO_USER_PLUGINS_DIR = sandbox.userRoot;
+    process.env.ROUBO_SEED_DIR = sandbox.seedDir;
+
+    // Whether the idempotency marker already existed BEFORE this pass: false on a
+    // genuine first launch (the seed installs), true on a relaunch (the seed
+    // short-circuits). seedMarkerPath() reads the env override set just above.
+    const markerPath = pluginManager.__test.seedMarkerPath();
+    const markerExistedBefore = fs.existsSync(markerPath);
+
+    await pluginManager.seedFromBundled();
+
+    const installed = readSeededRoot(sandbox.userRoot);
+    const marker = readSeedMarker(markerPath);
+
+    res.status(200).json({
+      seedSet: [...pluginManager.SEED_PLUGIN_IDS],
+      seededNow: !markerExistedBefore,
+      installed,
+      marker,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__seed-fresh-launch failed:", message);
+    res.status(500).json({ error: message });
+  } finally {
+    // Restore the env so the override never leaks into the live plugin-manager
+    // or a later spec (NFR-018).
+    restoreEnvVar("ROUBO_USER_PLUGINS_DIR", prevUserDir);
+    restoreEnvVar("ROUBO_SEED_DIR", prevSeedDir);
   }
 });
 

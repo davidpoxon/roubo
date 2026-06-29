@@ -34,12 +34,24 @@ vi.mock("express-rate-limit", () => ({
 vi.mock("../services/plugin-manager.js", () => ({
   shutdown: vi.fn().mockResolvedValue(undefined),
   initialize: vi.fn().mockResolvedValue(undefined),
+  // #313 (CPHM-TC-041): the genuine offline first-run seed the
+  // /test/__seed-fresh-launch route drives. Mocked so the unit suite asserts the
+  // route wiring (env override, snapshot, idempotency) without running the real
+  // installer; per-test impls simulate a seed install into the env-pointed tmp
+  // user root.
+  seedFromBundled: vi.fn().mockResolvedValue(undefined),
+  SEED_PLUGIN_IDS: ["github-com", "process", "database"],
   __test: {
     resetConnectionStatusCache: vi.fn(),
     resetE2EConnectionStateLogTap: vi.fn(),
     getE2EConnectionStateLogTap: vi.fn(() => []),
     setE2EConfig: vi.fn(),
     crashRunningPlugin: vi.fn(() => ({ pid: 12345 })),
+    // Resolve the marker path under whatever ROUBO_USER_PLUGINS_DIR the route set
+    // (the throwaway tmp user root), mirroring the real seedMarkerPath().
+    seedMarkerPath: vi.fn(() =>
+      path.join(process.env.ROUBO_USER_PLUGINS_DIR ?? "", ".seed-version.json"),
+    ),
   },
 }));
 
@@ -659,6 +671,156 @@ describe("POST /test/__set-marketplace-reachable", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "reachable must be a boolean" });
     expect(catalogClient.__setE2EMarketplaceReachable).not.toHaveBeenCalled();
+  });
+});
+
+// #313 (CPHM-TC-041): drive a genuine offline first-run seed of the default
+// plugins and report the installed set + idempotency marker, so the
+// fresh-launch-seed-journey drift guard can assert the integrated seed run
+// matches the authoritative case.
+describe("POST /test/__seed-fresh-launch", () => {
+  const SEED_IDS_SORTED = ["database", "github-com", "process"];
+  // Tmp user roots / seed dirs the route minted, captured from the seed mock so
+  // the block rms them (the route also tracks them for /__reset cleanup).
+  const sandboxDirs: string[] = [];
+
+  // Simulate plugin-manager.seedFromBundled: install the three defaults into the
+  // env-pointed tmp user root and write the idempotency marker, unless the marker
+  // already exists (idempotent: a relaunch is a no-op that leaves it untouched).
+  function simulateSeed(): void {
+    const root = process.env.ROUBO_USER_PLUGINS_DIR;
+    if (!root) return;
+    const markerPath = path.join(root, ".seed-version.json");
+    if (fs.existsSync(markerPath)) return;
+    for (const id of ["github-com", "process", "database"]) {
+      const dir = path.join(root, id);
+      fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "roubo-plugin.yaml"), `id: ${id}\n`, "utf-8");
+      fs.writeFileSync(path.join(dir, "dist", "index.js"), "module.exports = {};\n", "utf-8");
+    }
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({
+        seedVersion: 1,
+        seededAt: "2026-01-01T00:00:00.000Z",
+        seededIds: ["github-com", "process", "database"],
+      }),
+      "utf-8",
+    );
+  }
+
+  beforeEach(() => {
+    vi.mocked(pluginManager.seedFromBundled).mockImplementation(async () => {
+      const userRoot = process.env.ROUBO_USER_PLUGINS_DIR;
+      const seedDir = process.env.ROUBO_SEED_DIR;
+      if (userRoot) sandboxDirs.push(userRoot);
+      if (seedDir) sandboxDirs.push(seedDir);
+      simulateSeed();
+    });
+  });
+
+  afterEach(() => {
+    while (sandboxDirs.length > 0) {
+      const dir = sandboxDirs.pop();
+      if (dir) {
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    }
+  });
+
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).post("/test/__seed-fresh-launch");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(pluginManager.seedFromBundled).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when relaunch is not a boolean", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-fresh-launch").send({ relaunch: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/relaunch/);
+    expect(pluginManager.seedFromBundled).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when relaunch is requested without a prior fresh launch", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-fresh-launch").send({ relaunch: true });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no prior fresh launch/);
+    expect(pluginManager.seedFromBundled).not.toHaveBeenCalled();
+  });
+
+  it("seeds exactly the three defaults on a fresh launch and restores the env", async () => {
+    process.env.ROUBO_E2E = "1";
+    const prevUserDir = process.env.ROUBO_USER_PLUGINS_DIR;
+    const prevSeedDir = process.env.ROUBO_SEED_DIR;
+
+    const res = await request(app).post("/test/__seed-fresh-launch").send({});
+
+    expect(res.status).toBe(200);
+    expect([...res.body.seedSet].sort()).toEqual(SEED_IDS_SORTED);
+    expect(res.body.seededNow).toBe(true);
+    expect(res.body.installed.map((p: { id: string }) => p.id)).toEqual(SEED_IDS_SORTED);
+    for (const record of res.body.installed) {
+      expect(record.manifestId).toBe(record.id);
+      expect(record.hasEntry).toBe(true);
+    }
+    expect(res.body.marker.present).toBe(true);
+    expect(res.body.marker.seedVersion).toBe(1);
+    expect([...res.body.marker.seededIds].sort()).toEqual(SEED_IDS_SORTED);
+
+    // The env override never leaks past the call (NFR-018).
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe(prevUserDir);
+    expect(process.env.ROUBO_SEED_DIR).toBe(prevSeedDir);
+  });
+
+  it("does not re-seed on a relaunch (idempotent: marker present and unchanged)", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const first = await request(app).post("/test/__seed-fresh-launch").send({});
+    expect(first.status).toBe(200);
+    expect(first.body.seededNow).toBe(true);
+
+    const relaunch = await request(app).post("/test/__seed-fresh-launch").send({ relaunch: true });
+
+    expect(relaunch.status).toBe(200);
+    expect(relaunch.body.seededNow).toBe(false);
+    expect(relaunch.body.marker.present).toBe(true);
+    expect(relaunch.body.marker.seededAt).toBe(first.body.marker.seededAt);
+    expect(relaunch.body.installed.map((p: { id: string }) => p.id)).toEqual(SEED_IDS_SORTED);
+  });
+
+  it("returns 500, logs, and restores the env when the seed throws", async () => {
+    process.env.ROUBO_E2E = "1";
+    const prevUserDir = process.env.ROUBO_USER_PLUGINS_DIR;
+    const prevSeedDir = process.env.ROUBO_SEED_DIR;
+    vi.mocked(pluginManager.seedFromBundled).mockImplementationOnce(async () => {
+      const userRoot = process.env.ROUBO_USER_PLUGINS_DIR;
+      const seedDir = process.env.ROUBO_SEED_DIR;
+      if (userRoot) sandboxDirs.push(userRoot);
+      if (seedDir) sandboxDirs.push(seedDir);
+      throw new Error("seed boom");
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await request(app).post("/test/__seed-fresh-launch").send({});
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("seed boom");
+    expect(consoleSpy).toHaveBeenCalledWith("/test/__seed-fresh-launch failed:", "seed boom");
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe(prevUserDir);
+    expect(process.env.ROUBO_SEED_DIR).toBe(prevSeedDir);
+    consoleSpy.mockRestore();
   });
 });
 
