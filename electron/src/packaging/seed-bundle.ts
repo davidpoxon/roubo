@@ -9,7 +9,8 @@ import path from "node:path";
 // tarballs) plus the signed catalog snapshot into `electron/resources/seed/`.
 // The first-run seed step (issue davidpoxon/roubo-development#10, out of scope
 // here) later installs those three tarballs into `~/.roubo/plugins`, re-verifying
-// each against the shipped signed catalog.
+// each artifact's sha256 digest fail-closed against the shipped seed-catalog
+// snapshot (digest only; it does NOT re-check the catalog's ed25519 signature).
 //
 // Seeded set: github-com, process, database. ghe and jira-self-hosted are
 // deliberately marketplace-only and are NOT seeded.
@@ -18,10 +19,13 @@ import path from "node:path";
 // downloaded tarball's sha256 is recomputed with node:crypto and matched against
 // the catalog entry's asset digest. A mismatch (or a missing/revoked/non-release
 // entry, or a version that drifts from the pin) aborts the build with nothing
-// written. The signed catalog envelope is persisted verbatim, so its ed25519
-// signature travels with the seed bundle and the first-run seed step re-verifies
-// it; the roubo-plugins publish gate is the catalog-signature backstop at package
-// time. node:crypto only; no third-party crypto or supply-chain dependency.
+// written. The signed catalog envelope is persisted verbatim so the seed bundle
+// is self-describing, but the first-run seed step verifies ONLY each artifact's
+// sha256 digest against this snapshot (fail-closed, offline); it does NOT
+// re-verify the catalog's ed25519 signature at seed time. The signed/notarized
+// app package is the seed-time signature trust anchor, and the roubo-plugins
+// publish gate is the catalog-signature backstop at package time. node:crypto
+// only; no third-party crypto or supply-chain dependency.
 
 /** One pinned seed plugin: a stable id at a fixed version (reproducible build). */
 export interface SeedPin {
@@ -121,9 +125,11 @@ export async function seedBundle({
     await writeFile(path.join(seedDir, `${pin.id}-${pin.version}.tgz`), bytes);
   }
 
-  // Ship the signed catalog envelope verbatim. Its ed25519 signature stays valid
-  // (the runtime verifier re-canonicalizes the payload), so the first-run seed
-  // step can re-verify the signature and each artifact's integrity.
+  // Ship the signed catalog envelope verbatim so the seed bundle is
+  // self-describing. The first-run seed step verifies each artifact's sha256
+  // digest fail-closed against this snapshot offline; it does NOT re-verify the
+  // catalog's ed25519 signature (the signed/notarized app package is the
+  // seed-time signature trust anchor).
   await writeFile(
     path.join(seedDir, "catalog.json"),
     `${JSON.stringify(catalog, null, 2)}\n`,
