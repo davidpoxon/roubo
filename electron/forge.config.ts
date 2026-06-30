@@ -35,11 +35,12 @@ const config: ForgeConfig = {
     executableName: "roubo",
     icon: "./build/icon",
     asar: { unpack: "**/node_modules/node-pty/**" },
-    // Plugins must live outside the asar so the plugin manager can spawn their
-    // dist/index.js as a child process (Node's child-process resolver does not
-    // understand asar archives). main.ts expects them at
-    // `path.join(process.resourcesPath, "plugins")`.
-    extraResource: ["./resources/plugins"],
+    // The first-run seed cache must live outside the asar: the plugin manager
+    // reads resources/seed/ (the signed catalog plus the built tarballs) at
+    // runtime to seed the default plugins on first launch, and Node's fs
+    // resolver does not read through asar archives. main.ts points
+    // ROUBO_SEED_DIR at `path.join(process.resourcesPath, "seed")`.
+    extraResource: ["./resources/seed"],
     prune: false, // npm-workspaces hoisting breaks flora-colossus's Walker; see electron/package.json `prepackage:deps`
     protocols: [{ name: "Roubo", schemes: ["roubo"] }],
     ...(shouldSign

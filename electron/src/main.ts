@@ -225,12 +225,14 @@ if (!app.requestSingleInstanceLock()) {
         ? new URL("../resources/server/dist/index.js", import.meta.url).href
         : new URL("../../server/dist/index.js", import.meta.url).href;
 
-      if (app.isPackaged && !process.env.ROUBO_BUNDLED_PLUGINS_DIR) {
-        // Packaged builds stage plugins under resources/plugins/ (see
-        // electron/src/packaging/copy-resources.ts). Point the plugin manager
-        // at that location directly so it does not have to derive the path
-        // from the bundled server file's location.
-        process.env.ROUBO_BUNDLED_PLUGINS_DIR = path.join(process.resourcesPath, "plugins");
+      if (app.isPackaged && !process.env.ROUBO_SEED_DIR) {
+        // Packaged builds stage the first-run seed cache under resources/seed/
+        // (the signed catalog plus the built tarballs; see
+        // electron/src/packaging/seed-bundle.ts). Point the plugin manager at
+        // that location directly so seedRoot() does not have to derive the path
+        // from the bundled server file's location, which mis-resolves in a
+        // packaged build.
+        process.env.ROUBO_SEED_DIR = path.join(process.resourcesPath, "seed");
       }
 
       const result = await resolveBootstrap({
