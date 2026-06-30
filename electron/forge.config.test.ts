@@ -11,6 +11,12 @@ describe("forge.config", () => {
     expect(names).toContain("auto-unpack-natives");
   });
 
+  it("ships the first-run seed cache (resources/seed) as an extraResource, not the removed resources/plugins", () => {
+    const pc = config.packagerConfig as { extraResource?: string[] };
+    expect(pc.extraResource).toEqual(["./resources/seed"]);
+    expect(pc.extraResource).not.toContain("./resources/plugins");
+  });
+
   it("includes maker-dmg for darwin only", () => {
     type Maker = { name: string; platforms?: string[] };
     const dmg = ((config.makers as Maker[]) ?? []).find(
