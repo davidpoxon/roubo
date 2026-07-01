@@ -44,7 +44,7 @@ export interface SeedPin {
 export const SEED_PLUGIN_PINS: readonly SeedPin[] = [
   { id: "github-com", version: "0.1.0" },
   { id: "process", version: "0.1.0" },
-  { id: "database", version: "0.1.0" },
+  { id: "database", version: "0.1.1" },
 ] as const;
 
 /** Hosted signed catalog feed (GitHub Pages). Overridable for tests / embedding. */
