@@ -87,7 +87,7 @@ function buildCatalog(entries: unknown[], opts: CatalogOpts = {}) {
  */
 function fullCatalogEntries() {
   return [
-    releaseEntry("database", "0.1.0"),
+    releaseEntry("database", "0.1.1"),
     releaseEntry("process", "0.1.0"),
     releaseEntry("github-com", "0.1.0"),
     releaseEntry("ghe", "0.1.0"),
@@ -129,7 +129,7 @@ describe("seedBundle", () => {
 
     const files = (await readdir(seedDir())).sort();
     expect(files).toEqual(
-      ["catalog.json", "database-0.1.0.tgz", "github-com-0.1.0.tgz", "process-0.1.0.tgz"].sort(),
+      ["catalog.json", "database-0.1.1.tgz", "github-com-0.1.0.tgz", "process-0.1.0.tgz"].sort(),
     );
   });
 
@@ -168,14 +168,14 @@ describe("seedBundle", () => {
 
   it("accepts a bare-hex asset digest (no sha256- prefix)", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0", { digestPrefix: "" }),
+      releaseEntry("database", "0.1.1", { digestPrefix: "" }),
       releaseEntry("process", "0.1.0", { digestPrefix: "sha256:" }),
       releaseEntry("github-com", "0.1.0"),
     ];
     await run(buildCatalog(entries));
 
     const files = await readdir(seedDir());
-    expect(files).toContain("database-0.1.0.tgz");
+    expect(files).toContain("database-0.1.1.tgz");
     expect(files).toContain("process-0.1.0.tgz");
   });
 
@@ -185,7 +185,7 @@ describe("seedBundle", () => {
 
     const files = (await readdir(seedDir())).sort();
     expect(files).toEqual(
-      ["catalog.json", "database-0.1.0.tgz", "github-com-0.1.0.tgz", "process-0.1.0.tgz"].sort(),
+      ["catalog.json", "database-0.1.1.tgz", "github-com-0.1.0.tgz", "process-0.1.0.tgz"].sort(),
     );
   });
 
@@ -200,7 +200,7 @@ describe("seedBundle", () => {
 
   it("fails closed when a seed entry version drifts from the pin", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0"),
+      releaseEntry("database", "0.1.1"),
       releaseEntry("process", "0.1.0"),
       releaseEntry("github-com", "0.2.0", { version: "0.2.0" }),
     ];
@@ -208,7 +208,7 @@ describe("seedBundle", () => {
   });
 
   it("fails closed when a seed entry is missing from the catalog", async () => {
-    const entries = [releaseEntry("database", "0.1.0"), releaseEntry("process", "0.1.0")];
+    const entries = [releaseEntry("database", "0.1.1"), releaseEntry("process", "0.1.0")];
     await expect(run(buildCatalog(entries))).rejects.toThrow(
       /no catalog entry for seed plugin "github-com"/,
     );
@@ -216,7 +216,7 @@ describe("seedBundle", () => {
 
   it("fails closed when a seed entry is revoked", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0", { revoked: true }),
+      releaseEntry("database", "0.1.1", { revoked: true }),
       releaseEntry("process", "0.1.0"),
       releaseEntry("github-com", "0.1.0"),
     ];
@@ -225,7 +225,7 @@ describe("seedBundle", () => {
 
   it("fails closed when a seed entry is a git source, not a built release", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0", {
+      releaseEntry("database", "0.1.1", {
         source: {
           type: "git",
           url: "https://github.com/davidpoxon/roubo.git",
@@ -240,7 +240,7 @@ describe("seedBundle", () => {
 
   it("fails closed when a release entry has no asset URL", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0", { source: { type: "release", sha256: "sha256-abc" } }),
+      releaseEntry("database", "0.1.1", { source: { type: "release", sha256: "sha256-abc" } }),
       releaseEntry("process", "0.1.0"),
       releaseEntry("github-com", "0.1.0"),
     ];
@@ -249,8 +249,8 @@ describe("seedBundle", () => {
 
   it("fails closed when a release entry has no asset digest", async () => {
     const entries = [
-      releaseEntry("database", "0.1.0", {
-        source: { type: "release", assetUrl: assetUrlFor("database", "0.1.0") },
+      releaseEntry("database", "0.1.1", {
+        source: { type: "release", assetUrl: assetUrlFor("database", "0.1.1") },
       }),
       releaseEntry("process", "0.1.0"),
       releaseEntry("github-com", "0.1.0"),
