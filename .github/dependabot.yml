@@ -30,6 +30,11 @@ updates:
       include:
         - "*"
     groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
       dev-dependencies:
         dependency-type: "development"
         update-types:
