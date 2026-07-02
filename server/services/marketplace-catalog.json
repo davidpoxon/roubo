@@ -6,7 +6,7 @@
         "id": "database",
         "name": "Database",
         "kind": "component",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "summary": "Docker-backed databases via compose, with migrations and connection-string templating.",
         "source": {
           "type": "git",
@@ -14,7 +14,7 @@
           "directory": "plugins/database"
         },
         "provenance": "roubo/plugins@database",
-        "integrity": "sha256-2adcbcd67289d0b6895e6f0ed19768f09e6e298739cd34e3414bdb9f80b1d67f",
+        "integrity": "sha256-912cf5a93441cd348a5e3e834a9c0839a85ddab5174b3fe9df6e0300c795d4aa",
         "verified": true
       },
       {
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "signature": "mkTM7hgdKN28Mx+1F9LU2qMDdERxjfw9XFkXLmyDzVXqUNv+27ukirmcFBnoYu+/zyL6gKhROTvZnq2cwrZKCw=="
+  "signature": "g1oEjpbCHZ1C/IcNPh+4MYa6FjIiDzwH/QHG06IcFzOGRsZpz/VzqqZPja8H81W3stU7xpI3xwV8IZX2OdIWBA=="
 }
