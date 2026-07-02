@@ -173,15 +173,6 @@ export default function ComponentRowEditor({
   const editEnvValue = (i: number, v: string) =>
     updateEnvDraft(envDraft.map((e, idx) => (idx === i ? { ...e, v } : e)));
 
-  const setRole = (role: ComponentType) => {
-    if (role === component.type) return;
-    if (role === "database") {
-      onUpdate({ type: "database", command: undefined, setup: undefined, directory: undefined });
-    } else {
-      onUpdate({ type: "process", docker: undefined });
-    }
-  };
-
   const toggleDep = (name: string) => {
     const current = component.dependsOn ?? [];
     const next = current.includes(name) ? current.filter((d) => d !== name) : [...current, name];
@@ -261,39 +252,7 @@ export default function ComponentRowEditor({
       {isExpanded && (
         <div className="ml-[21px] pl-4 pr-4 pt-3 pb-4 border-l-2 border-amber-500/35 bg-stone-50 dark:bg-stone-900/40 rounded-b-md">
           <div className="space-y-5">
-            <div>
-              <span className={FIELD_LABEL}>Role</span>
-              <div
-                role="group"
-                aria-label="Role"
-                className="inline-flex gap-0.5 rounded-md bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 p-0.5"
-              >
-                {(["process", "database"] as const).map((r) => {
-                  const on = component.type === r;
-                  return (
-                    <Button
-                      key={r}
-                      onPress={() => setRole(r)}
-                      className={
-                        "px-3 py-1 rounded text-xs font-medium transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 " +
-                        (on
-                          ? "bg-stone-200 dark:bg-stone-800 text-stone-900 dark:text-stone-100"
-                          : "text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300")
-                      }
-                    >
-                      {r === "process" ? "Process" : "Database"}
-                    </Button>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-600">
-                {component.type === "database"
-                  ? "Runs via docker compose when the bench starts."
-                  : "A long-lived process launched when the bench starts."}
-              </p>
-            </div>
-
-            {component.type === "process" ? (
+            {component.type === "process" && (
               <div>
                 <TextField
                   value={component.command ?? ""}
@@ -307,7 +266,9 @@ export default function ComponentRowEditor({
                   Runs in the bench workspace when the bench starts.
                 </p>
               </div>
-            ) : (
+            )}
+
+            {component.type === "database" && (
               <div className="space-y-1">
                 <div className="grid grid-cols-5 gap-3">
                   <div className="col-span-3">

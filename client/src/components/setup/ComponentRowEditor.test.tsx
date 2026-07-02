@@ -121,60 +121,27 @@ describe("ComponentRowEditor: collapsed row", () => {
     render(<ComponentRowEditor {...makeProps({ component: dbComp })} />);
     expect(screen.getByText("Database")).toBeInTheDocument();
   });
+
+  it("shows Plugin badge for a typeless (plugin-bound) component", () => {
+    render(<ComponentRowEditor {...makeProps({ component: {} })} />);
+    expect(screen.getByText("Plugin")).toBeInTheDocument();
+  });
 });
 
 describe("ComponentRowEditor: expanded panel", () => {
-  it("shows role toggle group with Process and Database options", () => {
+  it("does not render a Role/Process/Database toggle (AC #1)", () => {
     render(<ComponentRowEditor {...makeProps({ isExpanded: true })} />);
-    const group = screen.getByRole("group", { name: /role/i });
-    expect(group).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^process$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^database$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /role/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^process$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^database$/i })).not.toBeInTheDocument();
   });
 
-  it("calls onUpdate stripping process fields when switched to database", async () => {
-    const onUpdate = vi.fn();
-    render(
-      <ComponentRowEditor
-        {...makeProps({
-          component: { type: "process", command: "npm run dev", setup: "npm install" },
-          isExpanded: true,
-          onUpdate,
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /^database$/i }));
-    expect(onUpdate).toHaveBeenCalledWith({
-      type: "database",
-      command: undefined,
-      setup: undefined,
-      directory: undefined,
-    });
-  });
-
-  it("calls onUpdate stripping docker fields when switched to process", async () => {
-    const onUpdate = vi.fn();
-    render(
-      <ComponentRowEditor
-        {...makeProps({
-          component: {
-            type: "database",
-            docker: { composeFile: "docker-compose.yml", service: "pg" },
-          },
-          isExpanded: true,
-          onUpdate,
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /^process$/i }));
-    expect(onUpdate).toHaveBeenCalledWith({ type: "process", docker: undefined });
-  });
-
-  it("does not call onUpdate when current role button clicked", async () => {
-    const onUpdate = vi.fn();
-    render(<ComponentRowEditor {...makeProps({ isExpanded: true, onUpdate })} />);
-    await userEvent.click(screen.getByRole("button", { name: /^process$/i }));
-    expect(onUpdate).not.toHaveBeenCalled();
+  it("renders no command, docker, or role fields for a typeless (plugin-bound) component", () => {
+    render(<ComponentRowEditor {...makeProps({ component: {}, isExpanded: true })} />);
+    expect(screen.queryByRole("group", { name: /role/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^command$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/docker compose file/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more options/i })).not.toBeInTheDocument();
   });
 
   it("shows Command field for process type", () => {

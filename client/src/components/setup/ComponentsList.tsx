@@ -1,12 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
 import { Plus } from "lucide-react";
-import type {
-  ComponentConfig,
-  ComponentType,
-  PortConfig,
-  ConfigValidationResult,
-} from "@roubo/shared";
+import type { ComponentConfig, PortConfig, ConfigValidationResult } from "@roubo/shared";
 import { nextAvailablePort, type WizardAction } from "./wizardReducer";
 import { useProjectBenches } from "../../hooks/useBenches";
 import ComponentRowEditor from "./ComponentRowEditor";
@@ -21,14 +16,11 @@ interface Props {
   dispatch: React.Dispatch<WizardAction>;
 }
 
-function newComponentDefaults(role: ComponentType): ComponentConfig {
-  if (role === "database") {
-    return {
-      type: "database",
-      docker: { composeFile: "docker-compose.yml", service: "" },
-    };
-  }
-  return { type: "process", command: "" };
+// A newly added component is plugin-agnostic: it carries no legacy `type`
+// (#301). The binding to an installed component plugin is set elsewhere; the
+// editor never seeds the deprecated `component.type` field.
+function newComponentDefaults(): ComponentConfig {
+  return {};
 }
 
 function allocateUniqueKey(base: string, components: Record<string, ComponentConfig>): string {
@@ -69,10 +61,9 @@ export default function ComponentsList({
 
   const addComponent = () => {
     const key = allocateUniqueKey("component", components);
-    const role: ComponentType = "process";
     dispatch({
       type: "ADD_COMPONENT",
-      payload: { key, component: newComponentDefaults(role) },
+      payload: { key, component: newComponentDefaults() },
     });
     dispatch({
       type: "ADD_PORT",

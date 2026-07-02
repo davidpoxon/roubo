@@ -74,12 +74,12 @@ describe("ComponentsList", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "ADD_PORT" }));
   });
 
-  it("new component defaults to process type", async () => {
+  it("new component carries no component.type (AC #4)", async () => {
     const dispatch = vi.fn();
     render(<ComponentsList {...baseProps} dispatch={dispatch} />);
     await userEvent.click(screen.getByRole("button", { name: /add component/i }));
     const addCall = dispatch.mock.calls.find(([a]) => a?.type === "ADD_COMPONENT")?.[0];
-    expect(addCall?.payload.component.type).toBe("process");
+    expect(addCall?.payload.component.type).toBeUndefined();
   });
 
   it("allocates a unique key when 'component' already exists", async () => {
