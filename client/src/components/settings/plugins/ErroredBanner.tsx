@@ -1,9 +1,14 @@
 import { Button } from "react-aria-components";
 import { AlertCircle } from "lucide-react";
+import type { PluginError, PluginManifest } from "@roubo/shared";
 import { useRestartPlugin } from "../../../hooks/usePlugins";
 
 const STRINGS = {
-  body: "Plugin failed to start after 3 restart attempts. Showing your last successful issue snapshot.",
+  // Shown only for integration plugins, which fall back to a cached snapshot
+  // when their process cannot start. Component plugins have no such fallback.
+  snapshotNotice: "Showing your last successful issue snapshot.",
+  // Defensive fallback for an errored plugin with no structured lastError.
+  genericError: "Plugin failed to start.",
   restart: "Restart",
   restarting: "Restarting...",
   viewLogs: "View logs",
@@ -11,10 +16,12 @@ const STRINGS = {
 
 interface Props {
   pluginId: string;
+  lastError: PluginError | null;
+  kind: PluginManifest["kind"] | undefined;
   onViewLogs: () => void;
 }
 
-export default function ErroredBanner({ pluginId, onViewLogs }: Props) {
+export default function ErroredBanner({ pluginId, lastError, kind, onViewLogs }: Props) {
   const restart = useRestartPlugin();
   return (
     <div
@@ -24,7 +31,25 @@ export default function ErroredBanner({ pluginId, onViewLogs }: Props) {
     >
       <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] text-red-800 dark:text-red-300 leading-relaxed">{STRINGS.body}</p>
+        {lastError ? (
+          <div className="min-w-0">
+            <span className="inline-block rounded bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 font-mono text-[11px] text-red-800 dark:text-red-200 break-all">
+              {lastError.code}
+            </span>
+            <p className="mt-1.5 text-[13px] text-red-800 dark:text-red-300 leading-relaxed break-words whitespace-pre-wrap">
+              {lastError.message}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[13px] text-red-800 dark:text-red-300 leading-relaxed">
+            {STRINGS.genericError}
+          </p>
+        )}
+        {kind === "integration" && (
+          <p className="mt-1.5 text-[13px] text-red-700 dark:text-red-400 leading-relaxed">
+            {STRINGS.snapshotNotice}
+          </p>
+        )}
         <div className="mt-2 flex items-center gap-2">
           <Button
             isDisabled={restart.isPending}

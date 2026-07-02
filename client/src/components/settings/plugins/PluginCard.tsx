@@ -133,7 +133,12 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
 
       {plugin.status === "errored" && (
         <div className="mt-3">
-          <ErroredBanner pluginId={plugin.id} onViewLogs={() => setLogsOpen(true)} />
+          <ErroredBanner
+            pluginId={plugin.id}
+            lastError={plugin.lastError}
+            kind={plugin.manifest?.kind}
+            onViewLogs={() => setLogsOpen(true)}
+          />
         </div>
       )}
 
