@@ -27,6 +27,7 @@ vi.mock("./services/bench-manager.js", () => ({
   sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
   handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
   handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
+  handleComponentPluginBudgetExhausted: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./services/process-manager.js", () => ({
   stopAllProcesses: vi.fn(() => Promise.resolve()),
@@ -224,6 +225,7 @@ describe.sequential("startServer", () => {
         sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
         handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
         handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
+        handleComponentPluginBudgetExhausted: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/process-manager.js", () => ({
         stopAllProcesses: vi.fn(() => Promise.resolve()),

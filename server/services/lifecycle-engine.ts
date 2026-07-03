@@ -250,8 +250,13 @@ async function runDocker(
     );
     // runProcess buffered the migration output under `migrationId`, which the
     // logs route never reads (it keys on the component id). Forward it into the
-    // component log store so migration output surfaces too (AC1, #397).
-    forwardLines(ctx, pm.getProcessLogLines(migrationId));
+    // component log store so migration output surfaces too (AC1, #397). Only read
+    // the buffered lines back when a log sink is wired: forwardLines is a no-op
+    // without ctx.reportLog, so fetching them otherwise is discarded work (and
+    // lets a pure-status unit test omit getProcessLogLines from its mock).
+    if (ctx.reportLog) {
+      forwardLines(ctx, pm.getProcessLogLines(migrationId));
+    }
     if (exitCode !== 0) {
       throw new Error(`migration failed with exit code ${exitCode}`);
     }
