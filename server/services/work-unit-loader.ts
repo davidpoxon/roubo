@@ -53,6 +53,26 @@ export interface LoadedVerifyUnit {
   unit: VerifyUnit;
 }
 
+// A spec folder whose `work-units.json` EXISTS but failed JSON parse or contract
+// validation, so it was skipped by the all-specs load (#371). Carries the slug
+// and the human-readable validation errors so the route layer can surface the
+// skip to the operator (a warning naming the spec + the failure) instead of the
+// error only reaching the server console. This is the reporting side of the #802
+// per-spec resilience: one broken spec is still skipped, but no longer silently.
+export interface InvalidSpec {
+  slug: string;
+  errors: string[];
+}
+
+// The all-specs load result: the loaded verify units plus any specs whose
+// `work-units.json` was present-but-invalid (skipped, with their errors). For the
+// single-slug path `invalidSpecs` is always empty: that path stays fail-closed
+// and throws rather than collecting a diagnostic.
+export interface VerifyUnitsDiagnostics {
+  loaded: LoadedVerifyUnit[];
+  invalidSpecs: InvalidSpec[];
+}
+
 // Read + validate the `work-units.json` for a single slug, returning its verify
 // units. Returns [] when the file is absent (fail-open). Throws
 // WorkUnitsValidationError when the file exists but is not valid JSON or fails
@@ -154,13 +174,20 @@ export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string
 //     silently hide that the spec's artifact is broken.
 //   - all-specs path (`slug` omitted): one malformed spec must not abort the
 //     whole aggregate request. A WorkUnitsValidationError from any single spec is
-//     caught, logged once (naming the slug), and skipped so the remaining valid
-//     specs still load. Other errors propagate.
+//     caught, logged once (naming the slug), COLLECTED into `invalidSpecs`, and
+//     skipped so the remaining valid specs still load. Other errors propagate.
 //
-// The result is sorted by (slug, unit id) for deterministic ordering across
-// calls.
-export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUnit[] {
+// Returns both the loaded gates and the collected `invalidSpecs` so the route can
+// surface the skipped specs to the operator (#371) rather than the error only
+// reaching the server console. The single-slug path leaves `invalidSpecs` empty
+// (it throws instead of collecting). `loaded` is sorted by (slug, unit id) and
+// `invalidSpecs` by slug, for deterministic ordering across calls.
+export function loadVerifyUnitsWithDiagnostics(
+  repoPath: string,
+  slug?: string,
+): VerifyUnitsDiagnostics {
   const loaded: LoadedVerifyUnit[] = [];
+  const invalidSpecs: InvalidSpec[] = [];
 
   const collect = (specSlug: string): void => {
     for (const unit of loadVerifyUnitsForSlug(repoPath, specSlug)) {
@@ -175,7 +202,7 @@ export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUn
     try {
       specsRoot = resolveWithin(repoPath, ".specifications");
     } catch {
-      return [];
+      return { loaded, invalidSpecs };
     }
 
     let entries: fs.Dirent[];
@@ -183,7 +210,7 @@ export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUn
       entries = fs.readdirSync(specsRoot, { withFileTypes: true });
     } catch {
       // No `.specifications/` directory (or unreadable): no gates to load.
-      return [];
+      return { loaded, invalidSpecs };
     }
 
     for (const entry of entries) {
@@ -199,13 +226,14 @@ export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUn
       }
       // Per-spec resilience (#802): a single malformed work-units.json must not
       // abort the whole aggregate gates request. Catch this spec's validation
-      // error, warn once naming the slug, and skip it so the valid specs load.
-      // Non-validation errors still propagate.
+      // error, warn once naming the slug, record it in `invalidSpecs` (#371), and
+      // skip it so the valid specs load. Non-validation errors still propagate.
       try {
         collect(entry.name);
       } catch (err) {
         if (err instanceof WorkUnitsValidationError) {
           console.warn(`Skipping spec "${err.slug}" in cross-spec gates load: ${err.message}`);
+          invalidSpecs.push({ slug: err.slug, errors: err.errors });
           continue;
         }
         throw err;
@@ -214,5 +242,14 @@ export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUn
   }
 
   loaded.sort((a, b) => a.slug.localeCompare(b.slug) || a.unit.id.localeCompare(b.unit.id));
-  return loaded;
+  invalidSpecs.sort((a, b) => a.slug.localeCompare(b.slug));
+  return { loaded, invalidSpecs };
+}
+
+// Load the verify units (gates) for a project, discarding the per-spec
+// diagnostics. A thin delegate over loadVerifyUnitsWithDiagnostics so existing
+// callers that only want the gates are untouched; callers that need to surface
+// skipped-spec errors (the gates route, #371) use the diagnostics variant.
+export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUnit[] {
+  return loadVerifyUnitsWithDiagnostics(repoPath, slug).loaded;
 }

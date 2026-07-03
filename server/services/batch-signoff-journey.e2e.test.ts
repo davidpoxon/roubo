@@ -62,9 +62,18 @@ vi.mock("../services/work-unit-loader.js", async () => {
   const actual = await vi.importActual<typeof import("../services/work-unit-loader.js")>(
     "../services/work-unit-loader.js",
   );
+  const loadVerifyUnits = vi.fn();
+  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#371); delegate to
+  // the mocked loadVerifyUnits with no invalid specs so this journey's overview
+  // reads drive the route unchanged.
+  const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
+    loaded: loadVerifyUnits(repoPath, slug),
+    invalidSpecs: [],
+  }));
   return {
     WorkUnitsValidationError: actual.WorkUnitsValidationError,
-    loadVerifyUnits: vi.fn(),
+    loadVerifyUnits,
+    loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
   };
 });
@@ -332,7 +341,7 @@ async function readOverview(): Promise<Record<string, { status: string; card: st
     `TC-024 overview read diverged (serves S001 and S004): expected GET /${PROJECT_ID}/gates to return 200, got ${res.status}. Owning slice: #701 (gate API routes).`,
   ).toBe(200);
   const byId: Record<string, { status: string; card: string }> = {};
-  for (const entry of res.body as { gateId: string; status: string }[]) {
+  for (const entry of res.body.gates as { gateId: string; status: string }[]) {
     byId[entry.gateId] = { status: entry.status, card: cardStatus(entry.status) };
   }
   return byId;

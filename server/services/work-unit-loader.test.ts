@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   loadVerifyUnits,
+  loadVerifyUnitsWithDiagnostics,
   buildWorkUnitCaseMap,
   WorkUnitsValidationError,
 } from "./work-unit-loader.js";
@@ -188,6 +189,69 @@ describe("loadVerifyUnits", () => {
   it("still throws on the single-slug path for that same malformed spec (NFR-007)", () => {
     writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
     expect(() => loadVerifyUnits(repoPath, "legacy")).toThrow(WorkUnitsValidationError);
+  });
+});
+
+// #371: the diagnostics variant reports the skipped-spec errors the all-specs path
+// used to only console.warn, so the route can surface them to the operator, while
+// still loading the valid specs' gates (the #802/#328 resilience is preserved).
+describe("loadVerifyUnitsWithDiagnostics", () => {
+  it("collects invalidSpecs for a skipped spec while still loading the valid ones", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // A bare top-level array is not the envelope object the contract requires,
+      // so this spec fails validation and is skipped.
+      writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
+      writeWorkUnits(
+        "alpha",
+        JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])),
+      );
+
+      const { loaded, invalidSpecs } = loadVerifyUnitsWithDiagnostics(repoPath);
+      expect(loaded.map((l) => `${l.slug}:${l.unit.id}`)).toEqual(["alpha:WU-100"]);
+      expect(invalidSpecs).toHaveLength(1);
+      expect(invalidSpecs[0].slug).toBe("legacy");
+      expect(invalidSpecs[0].errors.length).toBeGreaterThan(0);
+      // The console.warn side-channel is preserved alongside the collected report.
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reports empty invalidSpecs when every spec is valid", () => {
+    writeWorkUnits("alpha", JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])));
+    const { loaded, invalidSpecs } = loadVerifyUnitsWithDiagnostics(repoPath);
+    expect(loaded).toHaveLength(1);
+    expect(invalidSpecs).toEqual([]);
+  });
+
+  it("reports empty loaded + empty invalidSpecs for a project with no specs", () => {
+    expect(loadVerifyUnitsWithDiagnostics(repoPath)).toEqual({ loaded: [], invalidSpecs: [] });
+  });
+
+  it("sorts invalidSpecs by slug for deterministic ordering", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      writeWorkUnits("zeta", JSON.stringify([{ id: "WU-001" }]));
+      writeWorkUnits("delta", "{ not json");
+      const { invalidSpecs } = loadVerifyUnitsWithDiagnostics(repoPath);
+      expect(invalidSpecs.map((s) => s.slug)).toEqual(["delta", "zeta"]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("leaves invalidSpecs empty on the single-slug path (it throws instead)", () => {
+    writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
+    expect(() => loadVerifyUnitsWithDiagnostics(repoPath, "legacy")).toThrow(
+      WorkUnitsValidationError,
+    );
+  });
+
+  it("loadVerifyUnits delegates to the diagnostics variant, returning just loaded", () => {
+    writeWorkUnits("alpha", JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])));
+    expect(loadVerifyUnits(repoPath)).toEqual(loadVerifyUnitsWithDiagnostics(repoPath).loaded);
   });
 });
 

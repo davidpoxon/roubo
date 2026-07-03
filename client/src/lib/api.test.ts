@@ -950,19 +950,22 @@ describe("fetchTestbenchPlan", () => {
 });
 
 describe("fetchGates / fetchGate (#702)", () => {
-  it("GETs the project's gates", async () => {
-    const gates = [
-      {
-        gateId: "WU-099",
-        status: "pending",
-        unresolvedCaseIds: ["TC-1"],
-        coveringUnitIds: ["WU-1"],
-      },
-    ];
-    mockFetch.mockResolvedValue(jsonResponse(gates));
+  it("GETs the project's gates and invalidSpecs (#371)", async () => {
+    const body = {
+      gates: [
+        {
+          gateId: "WU-099",
+          status: "pending",
+          unresolvedCaseIds: ["TC-1"],
+          coveringUnitIds: ["WU-1"],
+        },
+      ],
+      invalidSpecs: [{ slug: "broken", errors: ["work-units.json is not valid JSON"] }],
+    };
+    mockFetch.mockResolvedValue(jsonResponse(body));
     const result = await fetchGates("p1");
     expect(mockFetch).toHaveBeenCalledWith("/api/projects/p1/gates", expect.objectContaining({}));
-    expect(result).toEqual(gates);
+    expect(result).toEqual(body);
   });
 
   it("GETs one gate by id, url-encoding the id", async () => {

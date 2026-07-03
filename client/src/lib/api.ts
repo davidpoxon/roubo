@@ -534,11 +534,31 @@ export function fetchTestbenchPlan(
   return request(`/projects/${projectId}/benches/${benchId}/testbench/plan${query}`);
 }
 
-// Gate state (#702, FR-012). Gates are PROJECT-level, so both endpoints are keyed
-// by projectId, not by bench: `fetchGates` lists one GateState per verify unit
-// across the project's specs; `fetchGate` returns one (or rejects with a 404
-// ApiError for an unknown gate id).
-export function fetchGates(projectId: string): Promise<GateState[]> {
+// A spec folder whose work-units.json EXISTS but failed contract validation, so
+// it was skipped by the aggregate gates load (#371). Carries the slug plus its
+// human-readable validation errors so the overview can warn the operator by name
+// instead of showing a bare "no verify gates yet". Named distinctly from the
+// specs-picker `InvalidSpec` (which also carries a `path`), since a gate diagnostic
+// has no file path to surface.
+export interface InvalidGateSpec {
+  slug: string;
+  errors: string[];
+}
+
+// The GET /gates payload (#371): the effective gate list plus any specs whose
+// work-units.json was present-but-invalid (skipped, not aborting the load). Both
+// arrays empty is a genuinely-empty project (the normal empty state); a non-empty
+// `invalidSpecs` is a misconfiguration the operator must see.
+export interface GatesResponse {
+  gates: GateState[];
+  invalidSpecs: InvalidGateSpec[];
+}
+
+// Gate state (#702, FR-012; #371). Gates are PROJECT-level, so both endpoints are
+// keyed by projectId, not by bench: `fetchGates` returns the gate list plus any
+// present-but-invalid skipped specs (`invalidSpecs`); `fetchGate` returns one gate
+// (or rejects with a 404 ApiError for an unknown gate id).
+export function fetchGates(projectId: string): Promise<GatesResponse> {
   return request(`/projects/${projectId}/gates`);
 }
 

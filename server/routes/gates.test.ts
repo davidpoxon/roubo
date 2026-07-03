@@ -10,9 +10,19 @@ vi.mock("../services/work-unit-loader.js", async () => {
   const actual = await vi.importActual<typeof import("../services/work-unit-loader.js")>(
     "../services/work-unit-loader.js",
   );
+  const loadVerifyUnits = vi.fn();
+  // By default the diagnostics variant delegates to the mocked loadVerifyUnits and
+  // reports no invalid specs, so every existing test that sets loadVerifyUnits
+  // drives effectiveGates unchanged. The #371 tests override this per call
+  // (mockReturnValueOnce) to inject invalidSpecs without leaking to later tests.
+  const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
+    loaded: loadVerifyUnits(repoPath, slug),
+    invalidSpecs: [],
+  }));
   return {
     WorkUnitsValidationError: actual.WorkUnitsValidationError,
-    loadVerifyUnits: vi.fn(),
+    loadVerifyUnits,
+    loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
   };
 });
@@ -54,7 +64,6 @@ vi.mock("../services/fix-issue-filer.js", async () => {
 import router from "./gates.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
-import { WorkUnitsValidationError } from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
 import * as testbenchStore from "../lib/testbench-store.js";
@@ -151,17 +160,19 @@ describe("GET /:projectId/gates", () => {
     const res = request(app).get("/p1/gates");
     return res.then((r) => {
       expect(r.status).toBe(200);
-      expect(r.body).toHaveLength(2);
-      expect(r.body[0]).toMatchObject({ gateId: "WU-100", status: "passed" });
-      expect(r.body[1]).toMatchObject({ gateId: "WU-200", status: "passed" });
+      expect(r.body.gates).toHaveLength(2);
+      expect(r.body.gates[0]).toMatchObject({ gateId: "WU-100", status: "passed" });
+      expect(r.body.gates[1]).toMatchObject({ gateId: "WU-200", status: "passed" });
+      // All specs valid: no skipped-spec diagnostics (#371).
+      expect(r.body.invalidSpecs).toEqual([]);
     });
   });
 
-  it("returns [] when there are no gates", async () => {
+  it("returns empty gates + empty invalidSpecs when there are no gates", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
     const res = await request(app).get("/p1/gates");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({ gates: [], invalidSpecs: [] });
   });
 
   it("404 when the project is not registered", async () => {
@@ -170,12 +181,28 @@ describe("GET /:projectId/gates", () => {
     expect(res.status).toBe(404);
   });
 
-  it("400 for a present-but-invalid work-units.json", async () => {
-    vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation(() => {
-      throw new WorkUnitsValidationError("alpha", ["bad"]);
+  // #371: a present-but-invalid work-units.json on the all-specs path is no longer
+  // a 400. The load surfaces it as an `invalidSpecs` diagnostic (200) so the client
+  // can warn the operator, while the valid specs' gates still load (the #328/#802
+  // resilience is preserved).
+  it("surfaces invalidSpecs (200, not 400) for a broken spec while valid gates still load", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnitsWithDiagnostics).mockReturnValueOnce({
+      loaded: [loaded("alpha", gate("WU-100", ["TC-001"], ["WU-001"]))],
+      invalidSpecs: [{ slug: "broken", errors: ['work-units.json for spec "broken" failed'] }],
     });
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-001", 1)], {
+          "TC-001": caseResult("passed"),
+        }) as never,
+    );
     const res = await request(app).get("/p1/gates");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.body.gates).toHaveLength(1);
+    expect(res.body.gates[0]).toMatchObject({ gateId: "WU-100", status: "passed" });
+    expect(res.body.invalidSpecs).toEqual([
+      { slug: "broken", errors: ['work-units.json for spec "broken" failed'] },
+    ]);
   });
 });
 
@@ -643,7 +670,7 @@ describe("GET /:projectId/gates with overrides applied", () => {
     );
     const res = await request(app).get("/p1/gates");
     expect(res.status).toBe(200);
-    const ids = res.body.map((g: { gateId: string }) => g.gateId);
+    const ids = res.body.gates.map((g: { gateId: string }) => g.gateId);
     expect(ids).toHaveLength(1);
     expect(ids).not.toContain("PHASE-2");
   });
