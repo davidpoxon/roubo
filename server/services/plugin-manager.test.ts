@@ -846,18 +846,20 @@ describe("component-plugin crash hooks (issue #613)", () => {
   }, 30_000);
 
   it("re-provisions once after all teardowns settle across overlapping crashes within budget (issue #403)", async () => {
-    // Overlapping-crash race (follow-up to #398): `preRestartCleanup` is a single
-    // shared slot, so two SIGKILL crashes within the restart budget leave two
-    // pre-restart teardowns in flight at once. Re-provision must be sequenced
-    // against ALL of them, not just the one captured when the first restart
-    // callback started, or an earlier cycle's `up` overlaps the later cycle's
-    // still in-flight `down -v` on the shared compose project (and the earlier
-    // cycle also re-provisions, doubling up). We drive the two crashes
-    // deterministically with manually-settled (deferred) pre-restart promises and
-    // pid / call-count polling (no fixed-duration sleeps), and assert re-provision
-    // never fires while any teardown is unsettled and fires exactly once after all
-    // of them settle. This exercises the `entry.preRestartCleanup === cleanup`
-    // false branch that the single-crash #398 test never reaches.
+    // Overlapping-crash race (follow-up to #398): within the restart budget two
+    // SIGKILL crashes leave two pre-restart teardowns (each a `docker compose
+    // down -v` on the same deterministic compose project) in flight at once.
+    // Re-provision must be sequenced against ALL of them, not just the latest, or
+    // an earlier crash's `down -v` can still be running when the later one has
+    // settled and destroy the freshly recovered container. We drive the two
+    // crashes deterministically with manually-settled (deferred) pre-restart
+    // promises and pid / call-count polling (no fixed-duration sleeps), and settle
+    // the teardowns OUT OF ORDER (the later crash's teardown first, while the
+    // earlier one is still in flight): this is the reverse ordering that a design
+    // awaiting only the latest teardown would get wrong. We assert re-provision
+    // never fires while any teardown is unsettled and fires exactly once after
+    // every teardown has settled. The single-crash #398 test never reaches this
+    // multiple-in-flight-teardown path.
     type Deferred = { promise: Promise<void>; settle: () => void; settled: boolean };
     const makeDeferred = (): Deferred => {
       let resolveFn: () => void = () => {};
@@ -927,17 +929,19 @@ describe("component-plugin crash hooks (issue #613)", () => {
     // Both teardowns unsettled: re-provision must not have fired.
     expect(restarted).not.toHaveBeenCalled();
 
-    // Settle only the first teardown. The first restart callback drains through
-    // the `preRestartCleanup === cleanup` false branch onto the second teardown
-    // instead of re-provisioning, so re-provision still must not fire while
-    // teardown 1 is in flight.
-    teardowns[0].settle();
+    // Settle the LATER crash's teardown first, while the earlier one is still in
+    // flight (the out-of-order case). A design that awaited only the latest
+    // teardown would re-provision now, overlapping teardown 0's still in-flight
+    // `down -v`. Re-provision must still not fire: the last crash cycle awaits
+    // every in-flight teardown, not just its own.
+    teardowns[1].settle();
     await drainEventLoop();
     expect(restarted).not.toHaveBeenCalled();
 
-    // Settle the last teardown: now the final crash cycle re-provisions, exactly
-    // once, and only after every teardown has settled.
-    teardowns[1].settle();
+    // Settle the remaining (earlier) teardown: now that every teardown has
+    // settled, the final crash cycle re-provisions, exactly once, and only after
+    // all `down -v`s are done.
+    teardowns[0].settle();
     await waitFor(() => restarted.mock.calls.length > 0, 10_000);
     await drainEventLoop();
     expect(restarted).toHaveBeenCalledTimes(1);
