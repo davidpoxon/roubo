@@ -219,6 +219,123 @@ describe("clearEntry", () => {
   });
 });
 
+describe("removeProcess", () => {
+  it("removes one process id but keeps a sibling process on the same entry", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        {
+          pluginId: "plugin-a",
+          benchId: 1,
+          processIds: ["plugin-a:1:web", "plugin-a:1:worker"],
+          composeProjects: [],
+        },
+      ],
+    });
+    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    expect(lastWritten().resourceOwnership).toEqual([
+      { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:worker"], composeProjects: [] },
+    ]);
+  });
+
+  it("drops the entry entirely once its last process and compose project are gone", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+      ],
+    });
+    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    expect(lastWritten().resourceOwnership).toEqual([]);
+  });
+
+  it("keeps the entry when a compose project still remains after the process is removed", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        {
+          pluginId: "plugin-a",
+          benchId: 1,
+          processIds: ["plugin-a:1:db:migration"],
+          composeProjects: ["roubo-p-bench-1"],
+        },
+      ],
+    });
+    ledger.removeProcess("plugin-a", 1, "plugin-a:1:db:migration");
+    expect(lastWritten().resourceOwnership).toEqual([
+      { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+    ]);
+  });
+
+  it("is a no-op (persists an unchanged ledger) when no matching entry exists", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+      ],
+    });
+    ledger.removeProcess("plugin-z", 99, "plugin-z:99:web");
+    expect(lastWritten().resourceOwnership).toEqual([
+      { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+    ]);
+  });
+
+  it("tolerates a state file with no resourceOwnership field", () => {
+    seedState({ benches: [] });
+    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    expect(lastWritten().resourceOwnership).toEqual([]);
+  });
+});
+
+describe("removeComposeProject", () => {
+  it("removes one compose project but keeps sibling rows on the same entry", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        {
+          pluginId: "plugin-a",
+          benchId: 1,
+          processIds: ["plugin-a:1:db:migration"],
+          composeProjects: ["roubo-p-bench-1"],
+        },
+      ],
+    });
+    ledger.removeComposeProject("plugin-a", 1, "roubo-p-bench-1");
+    expect(lastWritten().resourceOwnership).toEqual([
+      {
+        pluginId: "plugin-a",
+        benchId: 1,
+        processIds: ["plugin-a:1:db:migration"],
+        composeProjects: [],
+      },
+    ]);
+  });
+
+  it("drops the entry once its last compose project and process are gone", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+      ],
+    });
+    ledger.removeComposeProject("plugin-a", 1, "roubo-p-bench-1");
+    expect(lastWritten().resourceOwnership).toEqual([]);
+  });
+
+  it("is a no-op when the compose project name is absent from the entry", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [
+        { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+      ],
+    });
+    ledger.removeComposeProject("plugin-a", 1, "roubo-other-bench-9");
+    expect(lastWritten().resourceOwnership).toEqual([
+      { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+    ]);
+  });
+});
+
 describe("getEntry", () => {
   it("returns the entry for (pluginId, benchId) when present", () => {
     seedState({

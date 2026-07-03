@@ -53,6 +53,8 @@ vi.mock("./resource-ownership-ledger.js", () => ({
   clearEntry: vi.fn(),
   recordProcess: vi.fn(),
   recordComposeProject: vi.fn(),
+  removeProcess: vi.fn(),
+  removeComposeProject: vi.fn(),
 }));
 
 vi.mock("./process-manager.js", () => ({
@@ -4439,6 +4441,122 @@ describe("startAllComponents / stopAllComponents", () => {
     }
     // One engine id + one legacy id per component (3 components) and no extras.
     expect(processManager.stopProcess).toHaveBeenCalledTimes(6);
+  });
+
+  // Issue #400 finding #1 (CP-TC-050): a dependsOn cycle has no valid start
+  // order, so the bench must be rejected at start (nothing partially started)
+  // rather than warned-and-broken. Stop must still tear a cyclic config down.
+  const cyclicConfig = () =>
+    makeConfig({
+      components: {
+        a: { type: "process", command: "run-a", dependsOn: ["b"] },
+        b: { type: "process", command: "run-b", dependsOn: ["a"] },
+      },
+      ports: { a: { base: 3000 }, b: { base: 4000 } },
+    });
+
+  it("rejects a dependsOn cycle at bench start without spawning any process (CP-TC-050)", () => {
+    setupExistingBench({ config: cyclicConfig(), ports: { a: 3000, b: 4000 } });
+    setupProcessMocks();
+
+    expect(() => benchManager.startAllComponents("test-project", 1)).toThrow(
+      /[Cc]ircular dependency/,
+    );
+    // Neither component started; no engine process was spawned (S001-O02).
+    expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+
+  it("still tears a cyclic dependsOn config down (unordered) instead of throwing (CP-TC-050)", async () => {
+    setupExistingBench({ config: cyclicConfig(), ports: { a: 3000, b: 4000 } });
+    setupProcessMocks();
+
+    await expect(benchManager.stopAllComponents("test-project", 1)).resolves.toBeUndefined();
+
+    // The unordered fallback still stopped every component's engine process.
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:a");
+    expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:b");
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.components.a.status).toBe("stopped");
+    expect(bench.components.b.status).toBe("stopped");
+  });
+
+  // Issue #400 finding #2 (CP-TC-002 S002-O01): a second start for the same bench
+  // reuses the descriptor cached from the first start rather than re-invoking the
+  // plugin's translate.
+  it("reuses the cached descriptor on a second start and does not re-translate (CP-TC-002)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const translateCalls = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate");
+    expect(translateCalls).toHaveLength(1);
+  });
+
+  it("re-translates on the next start after a container assignment invalidates the cache", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "container-xyz",
+      name: "ext",
+      port: 5999,
+      status: "running",
+    } as never);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    await benchManager.assignContainer("test-project", 1, "backend", "container-xyz");
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const translateCalls = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate");
+    // First start translated; assignment dropped the cache; second start
+    // translated again so the descriptor now reflects the assigned container.
+    expect(translateCalls).toHaveLength(2);
+  });
+
+  // Issue #400 finding #3 (CP-TC-033 S008-O03, CP-TC-056 S002): a normal stop
+  // clears the component's own resource-ownership rows, and a full bench stop
+  // leaves no residual ledger entry for the bench.
+  it("clears the stopped component's own ledger rows on a normal stop (CP-TC-056)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    expect(ledgerService.removeProcess).toHaveBeenCalledWith("process", 1, "process:1:backend");
+    expect(ledgerService.removeProcess).toHaveBeenCalledWith(
+      "process",
+      1,
+      "process:1:backend:migration",
+    );
+    expect(ledgerService.removeProcess).toHaveBeenCalledWith(
+      "process",
+      1,
+      "process:1:backend:setup",
+    );
+  });
+
+  it("clears any residual ledger entries for the bench on a full stop (CP-TC-033 S008-O03)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // A residual bench-scoped row (e.g. a shared compose project) still recorded.
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "database",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+
+    await benchManager.stopAllComponents("test-project", 1);
+
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("database", 1);
   });
 });
 

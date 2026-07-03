@@ -103,10 +103,16 @@ function resolveComponentOrder(components: Record<string, ComponentConfig>): str
   function visit(name: string, ancestors: Set<string>) {
     if (visited.has(name)) return;
     if (ancestors.has(name)) {
-      console.warn(
-        `roubo: circular dependency detected in dependsOn for component '${name}', breaking cycle`,
+      // A dependsOn cycle has no valid start order, so reject the whole plan
+      // rather than silently break the cycle and start components in an
+      // arbitrary order (CP-TC-050). startAllComponents throws before anything
+      // launches, so nothing partially starts; callers that must tear a cyclic
+      // config down (stopAllComponents) catch this and fall back to an unordered
+      // stop, matching the parity matrix ("a cycle is rejected at bench start").
+      throw new BenchError(
+        `Circular dependency detected in dependsOn: component '${name}' depends on itself through a cycle`,
+        "DEPENDENCY_CYCLE",
       );
-      return;
     }
     ancestors.add(name);
     for (const dep of components[name]?.dependsOn ?? []) {
@@ -1052,7 +1058,17 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
   if (!config) return;
   if (!isBenchLive(bench.projectId, bench.id)) return;
 
-  const ordered = getComponentOrder(config.components);
+  let ordered: string[];
+  try {
+    ordered = getComponentOrder(config.components);
+  } catch (err) {
+    // A cyclic dependsOn config cannot be ordered (CP-TC-050). Surface it as a
+    // bench error rather than let it escape this fire-and-forget task as an
+    // unhandled rejection.
+    markBackgroundError(bench, err as Error);
+    notificationService.createNotification(bench, "bench-error");
+    return;
+  }
   bench.provisioningSteps = [
     ...bench.provisioningSteps,
     ...makeStartProvisioningSteps(config, ordered),
@@ -1738,50 +1754,61 @@ async function provisionComponent(
     return;
   }
 
-  // Resolve `{{ports.x}}` / `{{urls.x}}` / `{{components.x}}` template strings in
-  // the opaque config before the plugin's pure translate sees it, preserving the
-  // built-in command/value templating parity (FR-007). Resolution is a host
-  // concern (the host owns ports), keeping translate pure.
-  const resolvedConfig = resolveConfigTemplates(componentConfig.config ?? {}, tplCtx) as Record<
-    string,
-    unknown
-  >;
+  // Reuse the descriptor cached from a prior start (or reconcile) for this bench
+  // rather than re-invoking the plugin's translate every start (CP-TC-002 S002):
+  // translate is a pure config->descriptor mapping, so the cached descriptor is
+  // authoritative until teardown drops the cache or the config's inputs change
+  // (assignContainer / unassignContainer invalidate it explicitly). Imperative
+  // components returned above, so this is the declarative (translate) path only.
+  let rawDescriptor: unknown = componentDescriptors.get(
+    descriptorKindKey(projectId, benchId, componentName),
+  );
 
-  // Merge an externally-assigned container into the opaque config so the
-  // database plugin's translate emits a descriptor that adopts it (AC: container
-  // assignment routes through the plugin path, not a core type === 'database').
-  const assigned = bench.assignedContainers?.[componentName];
-  const translateConfig: Record<string, unknown> = {
-    ...resolvedConfig,
-    ...(assigned ? { assignedContainerId: assigned.containerId } : {}),
-  };
+  if (rawDescriptor === undefined) {
+    // Cache miss: resolve `{{ports.x}}` / `{{urls.x}}` / `{{components.x}}` template
+    // strings in the opaque config before the plugin's pure translate sees it,
+    // preserving the built-in command/value templating parity (FR-007). Resolution
+    // is a host concern (the host owns ports), keeping translate pure.
+    const resolvedConfig = resolveConfigTemplates(componentConfig.config ?? {}, tplCtx) as Record<
+      string,
+      unknown
+    >;
 
-  let rawDescriptor: unknown;
-  try {
-    rawDescriptor = await pluginManager.invoke(binding.pluginId, "translate", {
-      config: translateConfig,
-      context: {
-        projectId,
-        benchId,
-        componentName,
-        workspacePath: bench.workspacePath,
-        ports: tplCtx.ports,
-        env: resolvedEnv,
-      },
-    });
-  } catch (err) {
-    componentStatus.status = "error";
-    componentStatus.error = (err as Error).message;
-    notificationService.createNotification(bench, "component-error");
-    updateBenchStatus(bench);
-    return;
-  }
+    // Merge an externally-assigned container into the opaque config so the
+    // database plugin's translate emits a descriptor that adopts it (AC: container
+    // assignment routes through the plugin path, not a core type === 'database').
+    const assigned = bench.assignedContainers?.[componentName];
+    const translateConfig: Record<string, unknown> = {
+      ...resolvedConfig,
+      ...(assigned ? { assignedContainerId: assigned.containerId } : {}),
+    };
 
-  if (rawDescriptor && typeof rawDescriptor === "object" && "kind" in rawDescriptor) {
-    componentDescriptors.set(
-      descriptorKindKey(projectId, benchId, componentName),
-      rawDescriptor as ProvisionDescriptor,
-    );
+    try {
+      rawDescriptor = await pluginManager.invoke(binding.pluginId, "translate", {
+        config: translateConfig,
+        context: {
+          projectId,
+          benchId,
+          componentName,
+          workspacePath: bench.workspacePath,
+          ports: tplCtx.ports,
+          env: resolvedEnv,
+        },
+      });
+    } catch (err) {
+      componentStatus.status = "error";
+      componentStatus.error = (err as Error).message;
+      notificationService.createNotification(bench, "component-error");
+      updateBenchStatus(bench);
+      return;
+    }
+
+    if (rawDescriptor && typeof rawDescriptor === "object" && "kind" in rawDescriptor) {
+      componentDescriptors.set(
+        descriptorKindKey(projectId, benchId, componentName),
+        rawDescriptor as ProvisionDescriptor,
+      );
+    }
   }
 
   // The per-bench BrokerContext was registered before the translate/imperative
@@ -1948,6 +1975,31 @@ export async function startComponent(
   await runComponentsInOrder(bench, [componentName], project.config);
 }
 
+const LIVE_COMPONENT_STATUSES = new Set(["running", "starting", "stopping"]);
+
+/**
+ * Whether any component OTHER than `excludeName` in the bench is still live
+ * (running / starting / stopping) and bound to `pluginId`. Such a sibling shares
+ * both the (pluginId, benchId) ledger entry and the per-bench compose project
+ * name, so stopping this component must not drop the shared compose-project row
+ * out from under it (FR-015). Uses the resolved binding, matching how the ledger
+ * keys its entries.
+ */
+function benchHasLiveComponentOnPlugin(
+  bench: Bench,
+  projectId: string,
+  pluginId: string,
+  excludeName: string,
+): boolean {
+  for (const [name, status] of Object.entries(bench.components)) {
+    if (name === excludeName) continue;
+    if (!LIVE_COMPONENT_STATUSES.has(status.status)) continue;
+    const binding = resolveBinding(projectId, name);
+    if (!isNotBound(binding) && binding.pluginId === pluginId) return true;
+  }
+  return false;
+}
+
 export async function stopComponent(
   projectId: string,
   benchId: number,
@@ -2016,6 +2068,32 @@ export async function stopComponent(
   componentStatus.statusDetail = undefined;
   componentStatus.statusDetailStartedAt = undefined;
   componentStatus.startedAt = undefined;
+
+  // Drop this component's own resource-ownership rows so a normal stop leaves no
+  // dangling ledger entry for the orphan sweep to re-reap (CP-TC-033 S008-O03,
+  // CP-TC-056 S002). Removal is per-resource, never a whole-entry clear: the
+  // ledger keys on (pluginId, benchId), so a sibling component bound to the same
+  // plugin keeps its rows. The engine records the component's process ids under
+  // `<pluginId>:<benchId>:<name>` plus the `:migration` / `:setup` phase ids.
+  if (!isNotBound(binding)) {
+    const enginePidBase = `${binding.pluginId}:${benchId}:${componentName}`;
+    ledger.removeProcess(binding.pluginId, benchId, enginePidBase);
+    ledger.removeProcess(binding.pluginId, benchId, `${enginePidBase}:migration`);
+    ledger.removeProcess(binding.pluginId, benchId, `${enginePidBase}:setup`);
+    // The compose project name is per bench (one project, many services), so drop
+    // it only when no other still-live component bound to this plugin shares it.
+    if (
+      descriptor?.kind === "docker" &&
+      !bench.assignedContainers?.[componentName] &&
+      !benchHasLiveComponentOnPlugin(bench, projectId, binding.pluginId, componentName)
+    ) {
+      ledger.removeComposeProject(
+        binding.pluginId,
+        benchId,
+        dockerService.getComposeProjectName(projectId, benchId),
+      );
+    }
+  }
 
   updateBenchStatus(bench);
 }
@@ -2125,13 +2203,34 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
   const project = projectRegistry.getProject(projectId);
-  const ordered = project?.config
-    ? getComponentOrder(project.config.components).reverse()
-    : Object.keys(bench.components);
+  let ordered: string[];
+  if (project?.config) {
+    try {
+      ordered = getComponentOrder(project.config.components).reverse();
+    } catch (err) {
+      // A cyclic dependsOn config is rejected at start, but a bench holding
+      // running components must still be tear-downable; order is irrelevant when
+      // stopping everything, so fall back to the unordered component set.
+      if (err instanceof BenchError && err.code === "DEPENDENCY_CYCLE") {
+        ordered = Object.keys(bench.components);
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    ordered = Object.keys(bench.components);
+  }
 
   for (const name of ordered) {
     await stopComponent(projectId, benchId, name);
   }
+
+  // A full bench stop tears down every component, so no bench-scoped resource
+  // remains: clear any residual ledger rows (e.g. a shared compose project a
+  // per-component stop intentionally left in place) so a stopped-then-idle bench
+  // keeps no stale ownership rows (CP-TC-033 S008-O03, CP-TC-056 S002). Mirrors
+  // teardown's clearLedgerForBench.
+  clearLedgerForBench(benchId);
 }
 
 function updateBenchStatus(bench: Bench) {
@@ -2577,6 +2676,12 @@ export async function assignContainer(
 
   bench.ports[componentName] = container.port;
 
+  // A changed container assignment changes the descriptor translate would emit
+  // (it now carries assignedContainerId), so drop any cached descriptor to force
+  // a re-translate on the next start (the cache is otherwise authoritative,
+  // CP-TC-002).
+  componentDescriptors.delete(descriptorKindKey(projectId, benchId, componentName));
+
   // Update component status to reflect external container
   if (bench.components[componentName]) {
     bench.components[componentName].status = container.status === "running" ? "running" : "stopped";
@@ -2612,6 +2717,10 @@ export async function unassignContainer(
     Object.entries(bench.assignedContainers).filter(([key]) => key !== componentName),
   );
   bench.assignedContainers = Object.keys(remaining).length > 0 ? remaining : undefined;
+
+  // Dropping the assignment changes the descriptor translate would emit, so drop
+  // any cached descriptor to force a re-translate on the next start (CP-TC-002).
+  componentDescriptors.delete(descriptorKindKey(projectId, benchId, componentName));
 
   // Restore original allocated port
   const ports = allocatePorts(project.config, benchId);

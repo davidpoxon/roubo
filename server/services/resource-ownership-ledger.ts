@@ -101,6 +101,68 @@ export function clearEntry(pluginId: string, benchId: number): void {
 }
 
 /**
+ * Persists `entries` after a single-resource removal, dropping the now-empty
+ * entry (no processes and no compose projects) so a fully stopped component
+ * leaves no dangling row for the orphan sweep to re-reap.
+ */
+function persistAfterRemoval(
+  data: ReturnType<typeof loadState>,
+  entries: ResourceOwnershipEntry[],
+  entry: ResourceOwnershipEntry,
+): void {
+  data.resourceOwnership =
+    entry.processIds.length === 0 && entry.composeProjects.length === 0
+      ? entries.filter((e) => e !== entry)
+      : entries;
+  saveState(data);
+}
+
+/**
+ * Removes a single process id from the (pluginId, benchId) entry, leaving any
+ * sibling process ids and compose projects on that entry intact. This is the
+ * per-resource counterpart to `clearEntry`: because entries key on
+ * (pluginId, benchId) and NOT per component, two components bound to the same
+ * plugin share one entry, so a normal stop of one must drop only its own rows
+ * (FR-015). The entry itself is dropped once it holds no processes and no
+ * compose projects. A no-op (still persisted) when the entry or id is absent.
+ */
+export function removeProcess(pluginId: string, benchId: number, processId: string): void {
+  const data = loadState();
+  const entries = data.resourceOwnership ?? [];
+  const entry = entries.find((e) => sameKey(e, pluginId, benchId));
+  if (!entry) {
+    data.resourceOwnership = entries;
+    saveState(data);
+    return;
+  }
+  entry.processIds = entry.processIds.filter((id) => id !== processId);
+  persistAfterRemoval(data, entries, entry);
+}
+
+/**
+ * Removes a single compose project name from the (pluginId, benchId) entry,
+ * leaving any sibling rows intact, and drops the entry once it is empty. The
+ * compose-project counterpart to `removeProcess`; see it for the shared-entry
+ * rationale. A no-op (still persisted) when the entry or name is absent.
+ */
+export function removeComposeProject(
+  pluginId: string,
+  benchId: number,
+  composeProject: string,
+): void {
+  const data = loadState();
+  const entries = data.resourceOwnership ?? [];
+  const entry = entries.find((e) => sameKey(e, pluginId, benchId));
+  if (!entry) {
+    data.resourceOwnership = entries;
+    saveState(data);
+    return;
+  }
+  entry.composeProjects = entry.composeProjects.filter((p) => p !== composeProject);
+  persistAfterRemoval(data, entries, entry);
+}
+
+/**
  * Returns the ledger entry for (pluginId, benchId), or undefined when none
  * exists. The returned object is the live in-memory copy from this load; treat
  * it as read-only and re-load before mutating.
