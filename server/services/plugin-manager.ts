@@ -78,6 +78,14 @@ interface PluginEntry {
   legacyRotateChecked: boolean;
   intentionalStop: boolean;
   restartTimer: NodeJS.Timeout | null;
+  // In-flight pre-restart cleanup promise for a crashed component plugin (issue
+  // #398). The supervisor fires `onComponentPluginPreRestart` at the moment of an
+  // unexpected exit and captures its promise here (not fire-and-forget) so the
+  // post-restart re-provision can await it before bringing a new container up.
+  // Without this, the slow teardown's `docker compose down -v` lands after
+  // re-provision and destroys the freshly recovered container. `null` when no
+  // cleanup is in flight.
+  preRestartCleanup: Promise<void> | null;
 }
 
 const plugins = new Map<string, PluginEntry>();
@@ -647,6 +655,7 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
     legacyRotateChecked: false,
     intentionalStop: false,
     restartTimer: null,
+    preRestartCleanup: null,
   };
 }
 
@@ -1331,10 +1340,14 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   // error out on an exhausted budget, so a crash never leaves orphaned processes
   // or compose projects, and a restart never duplicates containers. The cleanup
   // is scoped to this plugin's ledger entries, so sibling components survive
-  // (graceful degradation). Fired as fire-and-forget so a slow or failing
-  // cleanup never blocks the supervisor's budget/backoff bookkeeping below.
+  // (graceful degradation). It does not block the supervisor's budget/backoff
+  // bookkeeping below (still fired now, not awaited here), but its promise is
+  // captured on the entry so the post-restart re-provision can await it (issue
+  // #398): re-provision must not bring a new container up while the teardown's
+  // slow `docker compose down -v` is still in flight, or the late `down`
+  // destroys the freshly recovered container.
   if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginPreRestart) {
-    void invokeComponentHook(
+    entry.preRestartCleanup = invokeComponentHook(
       entry,
       "pre-restart cleanup",
       componentPluginHooks.onComponentPluginPreRestart,
@@ -1374,7 +1387,7 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   entry.restartTimer = setTimeout(() => {
     entry.restartTimer = null;
     if (entry.intentionalStop || !initialized) return;
-    void spawnPlugin(entry).then(() => {
+    void spawnPlugin(entry).then(async () => {
       // Auto-recovery (FR-016): once the plugin is back up, re-provision the
       // components it supervises. Only on a successful respawn; a failed spawn
       // leaves the entry errored and runs no re-provision.
@@ -1383,7 +1396,39 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         entry.record.status === "enabled" &&
         componentPluginHooks.onComponentPluginRestarted
       ) {
-        void invokeComponentHook(
+        // Sequence re-provision after the pre-restart teardown (issue #398). The
+        // cleanup clears its ledger entries and completes its `docker compose
+        // down -v` before we bring any new container up, so the late `down` can
+        // no longer target the freshly recovered container within that single
+        // crash cycle. Guarded so a rejected or slow cleanup (already best-effort
+        // per resource) never blocks recovery indefinitely.
+        //
+        // (Overlapping crashes within the restart budget can still transiently
+        // overlap an earlier cycle's `up` with a later cycle's still-in-flight
+        // `down` on the shared compose project; the end state self-heals as the
+        // last cycle re-provisions last. Robust handling of that case is tracked
+        // in #403.)
+        //
+        // Capture the promise into a local before awaiting: `preRestartCleanup`
+        // is a single shared slot, and within the restart budget a later crash
+        // can reassign it while this callback is still awaiting the older one.
+        // Clear it only when it still holds the promise we awaited, so an earlier
+        // cycle's callback never nulls out a later crash's in-flight cleanup
+        // (which would let that later cycle skip its await and re-provision
+        // mid-teardown, reintroducing the race for that cycle). Awaiting a newer
+        // cleanup than our own cycle is safe: it only ever over-waits.
+        const cleanup = entry.preRestartCleanup;
+        await cleanup?.catch(() => {});
+        if (entry.preRestartCleanup === cleanup) entry.preRestartCleanup = null;
+        // Re-check the guard after the teardown await (issue #398): the ~10-15s
+        // wait is a TOCTOU window in which the plugin may have exhausted its
+        // restart budget (status flips to `errored`) or been intentionally
+        // stopped by the user. Re-provisioning then would bring components up for
+        // a plugin the supervisor has errored or the user has stopped, orphaning
+        // a container with no supervisor. The initial guard above ran before the
+        // await, so re-assert it here.
+        if (entry.intentionalStop || entry.record.status !== "enabled") return;
+        await invokeComponentHook(
           entry,
           "post-restart re-provision",
           componentPluginHooks.onComponentPluginRestarted,
