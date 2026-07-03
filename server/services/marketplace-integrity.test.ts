@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { generateKeyPairSync, sign, createPublicKey, type KeyObject } from "node:crypto";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
   canonicalize,
@@ -420,21 +422,59 @@ describe("committed catalog digests match the live plugin subdirs (drift guard, 
   // still verified its ed25519 signature, because that drift never altered the
   // payload). The install path digests the staged `source.directory` subdir
   // (plugins/<id>) and compares it to the recorded `integrity`, so this guard
-  // recomputes computePackageDigest over each live subdir and asserts equality.
-  // It also re-asserts the committed signature, so any plugin-content change that
-  // is not followed by a catalog re-sign fails CI here rather than at install.
-  // No network is used: the subdirs and catalog are read from the working tree.
+  // recomputes computePackageDigest over each subdir and asserts equality. It
+  // also re-asserts the committed signature, so any plugin-content change that is
+  // not followed by a catalog re-sign fails CI here rather than at install. No
+  // network is used: the subdirs and catalog are read from the working tree.
+  //
+  // SOURCE-ONLY staging (issue #878): computePackageDigest walks whatever
+  // directory it is handed and excludes only `.git`, so any gitignored build
+  // residue in a live subdir (dist/, tsconfig.tsbuildinfo) leaks into the digest.
+  // Because the documented e2e flow (and CI, once `npm run build` runs before the
+  // test job) leaves that residue in the tree, digesting the LIVE subdir made this
+  // guard non-deterministic: it passed on a source-only checkout but failed after
+  // a build with a spurious "catalog integrity is stale" error, even though no
+  // source drifted. To stay deterministic regardless of local/CI build state, this
+  // guard digests a SOURCE-ONLY (git-tracked) staged view of each subdir via
+  // stageSourceOnly() below, reproducing the clean-checkout tree the catalog was
+  // signed over. computePackageDigest itself (the production verification function)
+  // is used unchanged; only the guard's digest INPUT is staged. This does not
+  // weaken the property protected: real source drift (an edited or added tracked
+  // file) still changes the staged digest and fails the guard; only untracked
+  // build output is excluded.
   //
   // NOTE on the #765 built-artifact direction: #765 retargets the digest to the
   // unpacked BUILT artifact (dist/) and notes catalog regeneration is moving to
   // external roubo-plugins CI. Until that download/unpack install path and the
   // external catalog generation land, the production install path (and this
-  // catalog's recorded digests) bind to the live source subdir, which is what
-  // this guard checks. When the built-artifact install path lands, this guard's
-  // digest target moves with it; the property it protects (a recorded catalog
-  // digest must equal a real digest of the artifact the installer verifies) is
-  // unchanged.
+  // catalog's recorded digests) bind to the source subdir, which is what this
+  // guard checks. When the built-artifact install path lands, this guard's digest
+  // target moves with it; the property it protects (a recorded catalog digest must
+  // equal a real digest of the artifact the installer verifies) is unchanged.
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const execFileAsync = promisify(execFile);
+
+  // Stage a SOURCE-ONLY (git-tracked) copy of a plugin subdir into a fresh temp
+  // dir, preserving the relative layout, so computePackageDigest sees exactly the
+  // clean-checkout file set the catalog was signed over: `git ls-files` lists only
+  // tracked files, so gitignored build output (dist/, tsconfig.tsbuildinfo) is
+  // excluded and the recomputed digest is deterministic regardless of local build
+  // state. Returns the staging dir; the caller removes it.
+  async function stageSourceOnly(subdir: string): Promise<string> {
+    const { stdout } = await execFileAsync("git", ["ls-files", "-z", "--", subdir], {
+      cwd: repoRoot,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const tracked = stdout.split("\0").filter((rel) => rel.length > 0);
+    const staging = await mkdtemp(path.join(tmpdir(), "roubo-drift-src-"));
+    for (const rel of tracked) {
+      const srcAbs = path.resolve(repoRoot, rel);
+      const destAbs = path.join(staging, path.relative(subdir, srcAbs));
+      await mkdir(path.dirname(destAbs), { recursive: true });
+      await copyFile(srcAbs, destAbs);
+    }
+    return staging;
+  }
 
   async function loadCatalog(): Promise<{
     payload: { entries: CatalogFileEntry[] };
@@ -453,7 +493,7 @@ describe("committed catalog digests match the live plugin subdirs (drift guard, 
     source: { directory?: string };
   }
 
-  it("recomputes each non-revoked entry's digest over its live plugins/<id> subdir and matches", async () => {
+  it("recomputes each non-revoked entry's digest over a source-only view of its plugins/<id> subdir and matches", async () => {
     const catalog = await loadCatalog();
     const installable = catalog.payload.entries.filter(
       (e) => !e.revoked && typeof e.source.directory === "string",
@@ -468,12 +508,17 @@ describe("committed catalog digests match the live plugin subdirs (drift guard, 
     ]);
     for (const entry of installable) {
       const subdir = path.resolve(repoRoot, entry.source.directory as string);
-      const live = await computePackageDigest(subdir);
-      expect(
-        live,
-        `catalog integrity for "${entry.id}" is stale: live ${live} != recorded ${entry.integrity}. Recompute the digest and re-sign the catalog (server/scripts/sign-marketplace-catalog.ts).`,
-      ).toBe(entry.integrity);
-      expect(await verifyPackageIntegrity(subdir, entry.integrity)).toBe(true);
+      const staged = await stageSourceOnly(subdir);
+      try {
+        const digest = await computePackageDigest(staged);
+        expect(
+          digest,
+          `catalog integrity for "${entry.id}" is stale: source-only digest ${digest} != recorded ${entry.integrity}. Recompute the digest and re-sign the catalog (server/scripts/sign-marketplace-catalog.ts).`,
+        ).toBe(entry.integrity);
+        expect(await verifyPackageIntegrity(staged, entry.integrity)).toBe(true);
+      } finally {
+        await rm(staged, { recursive: true, force: true });
+      }
     }
   });
 

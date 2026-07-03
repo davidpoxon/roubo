@@ -111,6 +111,12 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      # Build before coverage so the test job exercises the same built tree
+      # (dist/ + tsconfig.tsbuildinfo residue) developers have after the
+      # documented e2e flow, matching local `npm run build && npm test` (#878).
+      # The #818 drift guard digests a source-only view, so build residue does
+      # not make it flaky.
+      - run: npm run build
       - run: npm run coverage
 
   e2e:
