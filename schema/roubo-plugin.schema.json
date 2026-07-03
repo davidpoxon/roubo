@@ -34,6 +34,11 @@
       "minimum": 1,
       "description": "Optional ProvisionDescriptor schema version a declarative component plugin emits, so the host can reject a descriptor-schema mismatch."
     },
+    "lifecycle": {
+      "type": "string",
+      "enum": ["long-running", "one-shot"],
+      "description": "Component-plugin lifecycle shape surfaced pre-install in the marketplace detail drawer. Absent means long-running."
+    },
     "entry": {
       "type": "string",
       "minLength": 1,

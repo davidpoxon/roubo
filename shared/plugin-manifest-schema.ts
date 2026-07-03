@@ -122,6 +122,17 @@ export type PluginIcon = z.infer<typeof PluginIconSchema>;
 export const PluginKindSchema = z.enum(["integration", "component"]);
 export type PluginKind = z.infer<typeof PluginKindSchema>;
 
+// A component plugin's static, PRE-INSTALL lifecycle shape (issue #401). A
+// `long-running` component is supervised across start / stop / health / logs; a
+// `one-shot` component's start runs to completion and then reports completed
+// (no long-running supervision). This is a declarative manifest field so the
+// marketplace detail drawer can show the lifecycle before install, distinct from
+// the runtime ProvisionDescriptor's oneshot / docker / process split. Optional:
+// an absent value means long-running (the historical shape every existing
+// component plugin has), so existing manifests validate and render unchanged.
+export const PluginLifecycleSchema = z.enum(["long-running", "one-shot"]);
+export type PluginLifecycle = z.infer<typeof PluginLifecycleSchema>;
+
 // A node-semver-compatible range, used to validate the manifest `roubo` field
 // at schema time so a malformed range is rejected with a clear error (FR-001),
 // rather than only at host-compatibility time. Kept dependency-free (the
@@ -171,6 +182,9 @@ export const PluginManifestSchema = z
     // Component plugins declare the SDK component-contract version they target
     // (FR-001/FR-002); the host validates the registered-method set against it.
     contractVersion: z.number().int().positive().optional(),
+    // Static lifecycle shape surfaced PRE-INSTALL in the marketplace detail
+    // drawer (issue #401). Absent means long-running.
+    lifecycle: PluginLifecycleSchema.optional(),
     // Optional ProvisionDescriptor schema version a declarative component plugin
     // emits, so the host can reject a descriptor-schema mismatch (FR-017).
     descriptorSchemaVersion: z.number().int().positive().optional(),

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { MarketplaceCatalogEntry, PluginRecord } from "@roubo/shared";
+import type {
+  MarketplaceCatalogEntry,
+  PluginLifecycle,
+  PluginPermissions,
+  PluginRecord,
+} from "@roubo/shared";
 import type { CatalogSource, VerifiedCatalog } from "./catalog-client.js";
 
 vi.mock("./plugin-manager.js", () => ({
@@ -139,6 +144,21 @@ function installedRecord(
     restartHistory: [],
     pid: null,
   };
+}
+
+function installedComponentRecord(
+  id: string,
+  opts: { permissions?: PluginPermissions; lifecycle?: PluginLifecycle } = {},
+): PluginRecord {
+  const base = installedRecord(id, "1.0.0");
+  return {
+    ...base,
+    manifest: {
+      ...base.manifest,
+      ...(opts.permissions ? { permissions: opts.permissions } : {}),
+      ...(opts.lifecycle ? { lifecycle: opts.lifecycle } : {}),
+    },
+  } as PluginRecord;
 }
 
 async function annotatedById(id: string) {
@@ -288,6 +308,56 @@ describe("listCatalog", () => {
     expect(result.source).toBe("seed");
     expect(result.fetchedAt).toBeNull();
     expect(result.listings.length).toBeGreaterThan(0);
+  });
+});
+
+// Issue #401: annotate() enriches each listing with PRE-INSTALL provenance the
+// detail drawer renders: the plugin's declared permissions and, for components,
+// its lifecycle. These are derived (not part of the signed catalog payload):
+// preferred from the installed record's manifest, else read from the bundled
+// plugins/<id> source manifest the git+directory entry points at.
+describe("annotate enrichment: declared permissions + lifecycle (issue #401)", () => {
+  const richPermissions: PluginPermissions = {
+    network: { hosts: ["api.example.com"] },
+    credentials: { slots: [] },
+    filesystem: { paths: [] },
+    processes: false,
+    ports: false,
+    docker: {},
+  };
+
+  it("surfaces the installed manifest's lifecycle and declared permissions", async () => {
+    listInstalled.mockReturnValue([
+      installedComponentRecord("database", { permissions: richPermissions, lifecycle: "one-shot" }),
+    ]);
+    const annotated = await annotatedById("database");
+    expect(annotated.lifecycle).toBe("one-shot");
+    expect(annotated.declaredPermissions).toEqual(richPermissions);
+  });
+
+  it("defaults an installed component with no manifest lifecycle to long-running", async () => {
+    listInstalled.mockReturnValue([
+      installedComponentRecord("database", { permissions: richPermissions }),
+    ]);
+    const annotated = await annotatedById("database");
+    expect(annotated.lifecycle).toBe("long-running");
+  });
+
+  it("enriches a NOT-installed bundled component from its plugins/<id> source manifest", async () => {
+    listInstalled.mockReturnValue([]);
+    const annotated = await annotatedById("database");
+    // Read pre-install from the real plugins/database manifest (declares docker).
+    expect(annotated.declaredPermissions).not.toBeNull();
+    expect(annotated.declaredPermissions?.docker).toBeDefined();
+    // The bundled manifest declares no lifecycle field, so it defaults to long-running.
+    expect(annotated.lifecycle).toBe("long-running");
+  });
+
+  it("gives an integration plugin no lifecycle but still surfaces its declared permissions", async () => {
+    listInstalled.mockReturnValue([]);
+    const annotated = await annotatedById("github-com");
+    expect(annotated.lifecycle).toBeNull();
+    expect(annotated.declaredPermissions).not.toBeNull();
   });
 });
 

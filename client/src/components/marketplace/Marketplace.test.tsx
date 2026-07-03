@@ -7,7 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { InstallPreview, MarketplaceCatalogSource, MarketplaceListing } from "@roubo/shared";
+import type {
+  InstallPreview,
+  MarketplaceCatalogSource,
+  MarketplaceListing,
+  PluginPermissions,
+} from "@roubo/shared";
 import { ApiError } from "../../lib/api";
 
 vi.mock("../../hooks/useMarketplace");
@@ -44,6 +49,8 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     installed: false,
     installedVersion: null,
     updateAvailable: false,
+    declaredPermissions: null,
+    lifecycle: null,
     ...over,
   };
 }
@@ -266,6 +273,104 @@ describe("Marketplace catalog", () => {
       "roubo/plugins@redis",
     );
     expect(screen.getByTestId("marketplace-drawer-sandbox")).toHaveTextContent("Unsandboxed");
+  });
+
+  // Lifecycle + Declared permissions in the detail drawer (issue #401,
+  // CP-TC-080 / CP-TC-097 / CP-TC-104). The server derives these onto the listing
+  // pre-install; the drawer renders a Lifecycle row and a Declared permissions
+  // section from them.
+  describe("lifecycle and declared permissions (CP-TC-080 / CP-TC-097 / CP-TC-104)", () => {
+    // A component plugin declaring network + credentials + docker (and nothing
+    // else): declaredCategories() lists exactly those three.
+    const RICH_PERMISSIONS: PluginPermissions = {
+      network: { hosts: ["api.github.com"] },
+      credentials: { slots: [{ slot: "github-token", scope: "read", description: "API token" }] },
+      filesystem: { paths: [] },
+      processes: false,
+      ports: false,
+      docker: {},
+    };
+
+    async function openDrawer(over: Partial<MarketplaceListing>) {
+      setCatalog([listing(over)]);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-detail"));
+      await waitFor(() => {
+        expect(screen.getByTestId("marketplace-drawer")).toBeInTheDocument();
+      });
+    }
+
+    // CP-TC-104 S001-O06: a long-running component shows a Lifecycle row naming
+    // the supervised start / stop / health / logs shape.
+    it("renders a long-running Lifecycle row for a long-running component", async () => {
+      await openDrawer({ lifecycle: "long-running" });
+      const row = screen.getByTestId("marketplace-drawer-lifecycle");
+      expect(row).toHaveTextContent("long-running (start, stop, health, and logs)");
+    });
+
+    // CP-TC-097 S001-O01/O02: a one-shot component shows the one-shot rendering
+    // and NO long-running (start / stop / health / logs) description.
+    it("renders the one-shot Lifecycle rendering and no long-running description", async () => {
+      await openDrawer({ lifecycle: "one-shot" });
+      const row = screen.getByTestId("marketplace-drawer-lifecycle");
+      expect(row).toHaveTextContent("one-shot (start runs to completion, then completed)");
+      expect(row).not.toHaveTextContent("start, stop, health, and logs");
+    });
+
+    // Integration plugins carry no lifecycle: the row is omitted (lifecycle null).
+    it("omits the Lifecycle row when the listing has no lifecycle", async () => {
+      await openDrawer({ lifecycle: null });
+      expect(screen.queryByTestId("marketplace-drawer-lifecycle")).not.toBeInTheDocument();
+    });
+
+    // CP-TC-080 S003-O01 / CP-TC-104 S001-O07: each declared category is listed
+    // with its label and a plain-language description.
+    it("lists each declared permission category with label and detail text", async () => {
+      await openDrawer({ declaredPermissions: RICH_PERMISSIONS });
+      const section = screen.getByTestId("marketplace-drawer-permissions");
+      expect(within(section).getByText("Network access")).toBeInTheDocument();
+      expect(
+        within(section).getByText("Reach external hosts: api.github.com."),
+      ).toBeInTheDocument();
+      expect(within(section).getByText("Stored credentials")).toBeInTheDocument();
+      expect(
+        within(section).getByText("Access stored credentials: github-token."),
+      ).toBeInTheDocument();
+      expect(within(section).getByText("Docker")).toBeInTheDocument();
+    });
+
+    // CP-TC-080 S003-O02: no undeclared category appears. RICH_PERMISSIONS does
+    // not declare filesystem / processes / ports, so none of their labels render.
+    it("renders no undeclared permission category", async () => {
+      await openDrawer({ declaredPermissions: RICH_PERMISSIONS });
+      const section = screen.getByTestId("marketplace-drawer-permissions");
+      expect(within(section).queryByText("Filesystem")).not.toBeInTheDocument();
+      expect(within(section).queryByText("Run processes")).not.toBeInTheDocument();
+      expect(within(section).queryByText("Network ports")).not.toBeInTheDocument();
+    });
+
+    // A plugin that declares no special permissions shows the empty-state copy.
+    it("shows the no-permissions copy when nothing is declared", async () => {
+      const emptyPermissions: PluginPermissions = {
+        network: { hosts: [] },
+        credentials: { slots: [] },
+        filesystem: { paths: [] },
+        processes: false,
+        ports: false,
+        docker: false,
+      };
+      await openDrawer({ declaredPermissions: emptyPermissions });
+      const section = screen.getByTestId("marketplace-drawer-permissions");
+      expect(section).toHaveTextContent("This plugin declares no special permissions.");
+    });
+
+    // When the manifest is unavailable pre-install (declaredPermissions null),
+    // the section is omitted entirely rather than rendered empty.
+    it("omits the Declared permissions section when declaredPermissions is null", async () => {
+      await openDrawer({ declaredPermissions: null });
+      expect(screen.queryByTestId("marketplace-drawer-permissions")).not.toBeInTheDocument();
+    });
   });
 
   // CPHM-TC-043 (S001/S002) + CPHM-TC-051 (S003), issue #372: the offline /
