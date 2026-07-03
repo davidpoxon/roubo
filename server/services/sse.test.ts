@@ -4,6 +4,7 @@ import {
   broadcast,
   broadcastBenchStatus,
   broadcastComponentStatusChange,
+  clearComponentStatusForBench,
   getClientCount,
   _resetClientsForTest,
 } from "./sse.js";
@@ -225,6 +226,39 @@ describe("broadcastComponentStatusChange (#397, CP-TC-074)", () => {
     // `api` running is not a duplicate of `db` running: distinct components.
     const statuses = parseEvents(res).map((e) => `${e.component}:${e.status}`);
     expect(statuses).toEqual(["db:running", "api:running"]);
+    res._trigger("close");
+  });
+
+  it("clearComponentStatusForBench drops a bench's records so a reused id re-emits its first status", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    clearComponentStatusForBench("proj-1", 1);
+    // Without the teardown clear this repeat `running` would be suppressed as a
+    // consecutive duplicate; the clear makes the reused bench's first status
+    // observable again (#397).
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+
+    expect(parseEvents(res).map((e) => e.status)).toEqual(["running", "running"]);
+    res._trigger("close");
+  });
+
+  it("clearComponentStatusForBench only clears the targeted bench id (1 vs 12 prefix)", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 12, "db", "running");
+    clearComponentStatusForBench("proj-1", 1);
+    // Bench 12's record is untouched (not a `proj-1:1:` prefix match), so its
+    // repeated `running` is still suppressed.
+    broadcastComponentStatusChange("proj-1", 12, "db", "running");
+
+    expect(parseEvents(res).map((e) => `${e.benchId}:${e.status}`)).toEqual([
+      "1:running",
+      "12:running",
+    ]);
     res._trigger("close");
   });
 });

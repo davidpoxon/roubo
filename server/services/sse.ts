@@ -105,6 +105,20 @@ export function broadcastComponentStatusChange(
   broadcast({ type: "component-status-change", projectId, benchId, component, status, ts });
 }
 
+/**
+ * Drop every per-component status record for a bench (#397). Called on bench
+ * teardown alongside the other per-bench in-memory clears (clearAuditLog /
+ * unregisterBrokerContextsForBench), so a bench id that is later reused does not
+ * inherit the prior generation's last component status and wrongly suppress the
+ * new bench's first component-status-change as a consecutive duplicate.
+ */
+export function clearComponentStatusForBench(projectId: string, benchId: number): void {
+  const prefix = `${projectId}:${benchId}:`;
+  for (const key of lastComponentStatus.keys()) {
+    if (key.startsWith(prefix)) lastComponentStatus.delete(key);
+  }
+}
+
 export function getClientCount(): number {
   return clients.size;
 }

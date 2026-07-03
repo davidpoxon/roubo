@@ -115,6 +115,7 @@ vi.mock("./sse.js", () => ({
   broadcast: vi.fn(),
   broadcastBenchStatus: vi.fn(),
   broadcastComponentStatusChange: vi.fn(),
+  clearComponentStatusForBench: vi.fn(),
 }));
 
 vi.mock("node:fs", () => ({

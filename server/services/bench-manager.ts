@@ -1146,6 +1146,15 @@ async function runTeardownBackground(
     // (#677) for the same reason.
     clearAuditLog(projectId, benchId);
     unregisterBrokerContextsForBench(projectId, benchId);
+    // Drop this bench's per-component SSE status records (#397) for the same
+    // reason: bench ids are reused, and a stale last-status entry would make the
+    // reused bench's first component-status-change look like a consecutive
+    // duplicate and be suppressed.
+    sseService.clearComponentStatusForBench(projectId, benchId);
+    // Drop this bench's forwarded component logs (#397): this change populates the
+    // component log store on every plugin-backed provision, so on bench-id reuse a
+    // stale compose/init/migration tail would otherwise surface for the new bench.
+    componentLogStore.clearComponentLogsForBench(projectId, benchId);
 
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");

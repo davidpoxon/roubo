@@ -376,12 +376,24 @@ function forwardOutput(
   stderr: string | undefined,
 ): void {
   if (!ctx.reportLog) return;
-  const ts = new Date().toISOString();
+  // Stamp each line with a distinct, increasing timestamp within the batch. The
+  // component log store drops an exact consecutive duplicate (source + text + ts),
+  // so a single shared batch ts would silently collapse a legitimately repeated
+  // consecutive compose/init line (e.g. a wait-loop printing identical output).
+  // A per-line millisecond increment keeps such lines distinct while staying
+  // monotonic (AC1, #397).
+  const base = Date.now();
+  let offset = 0;
   for (const source of ["stdout", "stderr"] as const) {
     const text = (source === "stdout" ? stdout : stderr) ?? "";
     for (const line of text.split("\n")) {
       if (line.length === 0) continue;
-      ctx.reportLog(ctx.componentName, { source, text: line, ts });
+      ctx.reportLog(ctx.componentName, {
+        source,
+        text: line,
+        ts: new Date(base + offset).toISOString(),
+      });
+      offset += 1;
     }
   }
 }
