@@ -1196,6 +1196,18 @@ async function runTeardownBackground(
     clearAuditLog(projectId, benchId);
     unregisterBrokerContextsForBench(projectId, benchId);
 
+    // Drop this bench's cached ProvisionDescriptors (issue #400, CP-TC-002). Now
+    // that provisionComponent trusts the descriptor cache on start rather than
+    // re-translating, a leftover entry keyed on this (projectId, benchId, component)
+    // would be served to a DIFFERENT bench that reuses this id (findNextBenchNumber
+    // returns the lowest free id), launching it with a stale descriptor from the
+    // cleared bench's config. This is the same id-reuse leak the audit-log and
+    // broker-context clears above prevent. Runs after the docker-down loop that
+    // reads these descriptors to tear compose projects down.
+    for (const name of Object.keys(bench.components)) {
+      componentDescriptors.delete(descriptorKindKey(projectId, benchId, name));
+    }
+
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
     extractWorkspacePermissions(bench.projectId, bench.workspacePath);
@@ -1591,8 +1603,27 @@ async function getOrResolveDescriptor(
       (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
       tplCtx,
     );
+
+    // Build the translate config exactly as provisionComponent's cache-miss branch
+    // does: resolve `{{...}}` template strings and merge any externally-assigned
+    // container. provisionComponent now trusts this shared descriptor cache on start
+    // (CP-TC-002), so a descriptor this reconcile path caches must match one a start
+    // would build. Omitting the template resolution or the assignedContainerId merge
+    // here would let the periodic reconcile poison the cache with a descriptor the
+    // next start reuses, defeating the assignContainer / unassignContainer
+    // invalidation (the assigned external container would not be adopted).
+    const resolvedConfig = resolveConfigTemplates(componentConfig.config ?? {}, tplCtx) as Record<
+      string,
+      unknown
+    >;
+    const assigned = bench.assignedContainers?.[componentName];
+    const translateConfig: Record<string, unknown> = {
+      ...resolvedConfig,
+      ...(assigned ? { assignedContainerId: assigned.containerId } : {}),
+    };
+
     const raw = await pluginManager.invoke<unknown>(binding.pluginId, "translate", {
-      config: componentConfig.config ?? {},
+      config: translateConfig,
       context: {
         projectId,
         benchId,

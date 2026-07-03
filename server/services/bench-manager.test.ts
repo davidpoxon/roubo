@@ -4558,6 +4558,70 @@ describe("startAllComponents / stopAllComponents", () => {
 
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("database", 1);
   });
+
+  // Issue #400 review follow-ups: finding #2's switch to trusting the descriptor
+  // cache on start surfaced two cache-staleness paths. Teardown must drop the cache
+  // (bench ids are reused), and the shared reconcile/stop resolver must merge an
+  // assigned container so it cannot re-cache an assignment-omitting descriptor that
+  // the next start would then trust.
+  it("drops the descriptor cache on teardown so a reused bench id re-translates (CP-TC-002)", async () => {
+    const flushBackground = () => new Promise((r) => setTimeout(r, 0));
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    benchManager.teardownBench("test-project", 1, false);
+    await flushBackground();
+
+    // A new bench reusing id 1 (findNextBenchNumber returns the lowest free id) must
+    // NOT inherit the cleared bench's cached descriptor: re-establish bench 1, start
+    // again, and translate should run a second time rather than serve the previous
+    // generation's descriptor.
+    setupExistingBench();
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const translateCalls = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate");
+    expect(translateCalls).toHaveLength(2);
+  });
+
+  it("re-caches the assigned container on reconcile so a later start still adopts it (CP-TC-056)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(dockerService.getContainerInfoById).mockResolvedValue({
+      id: "container-xyz",
+      name: "ext",
+      port: 5999,
+      status: "running",
+    } as never);
+    // reconcile guards: the workspace exists and git tracks the worktree.
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(execModule.runCommand).mockResolvedValue({
+      code: 0,
+      stdout:
+        "workspace /home/.roubo/workspaces/test-project/bench-1\nHEAD abc123\nbranch refs/heads/bench-1\n\n",
+      stderr: "",
+    });
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    await benchManager.assignContainer("test-project", 1, "backend", "container-xyz");
+    // The periodic reconcile fires while the bench is idle. getOrResolveDescriptor
+    // (shared by reconcile and stop) must merge the assignment into its translate, or
+    // it would re-cache an assignment-omitting descriptor that the next start trusts,
+    // defeating the assignContainer cache invalidation.
+    await benchManager.reconcile();
+
+    const reconcileTranslatedWithAssignment = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate")
+      .some((call) => {
+        const params = call[2] as { config?: Record<string, unknown> };
+        return params.config?.assignedContainerId === "container-xyz";
+      });
+    expect(reconcileTranslatedWithAssignment).toBe(true);
+  });
 });
 
 describe("getBench / getBenches", () => {
