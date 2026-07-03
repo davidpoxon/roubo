@@ -2027,8 +2027,10 @@ export async function stopComponent(
  * this bench/component even after a host restart dropped the live context. Each
  * hook is best-effort: a failing hook is logged and teardown still completes, so
  * a misbehaving plugin can never wedge a bench in `stopping`. After cleanup the
- * host clears the ledger for (pluginId, benchId): the plugin has released its
- * resources, so the startup orphan sweep must not later try to reap them.
+ * host clears the ledger for (pluginId, benchId), but only when no sibling
+ * component of this bench still shares the plugin: the ledger has no
+ * per-component attribution, so an eager clear would drop a still-live sibling's
+ * tracked processes (#396, AC4).
  */
 async function stopImperativeComponent(
   projectId: string,
@@ -2078,7 +2080,24 @@ async function stopImperativeComponent(
     );
   }
 
-  ledger.clearEntry(pluginId, benchId);
+  // The ledger keys entries on (pluginId, benchId) with a flat processId array
+  // and no per-component attribution, so clearing it here would drop a SIBLING
+  // component's still-live broker-spawned process ids when two components of one
+  // bench share this imperative plugin (a supported config, see
+  // registerBrokerContextForBench). Only clear the shared entry when no other
+  // component of this bench is still bound to pluginId and not yet stopped; while
+  // a sibling is live its processes must stay tracked so pre-restart crash
+  // cleanup can still reap them (#396, AC4). Full-bench teardown
+  // (clearLedgerForBench) clears the entry once every component is down.
+  const siblingStillLive = Object.keys(bench.components).some((name) => {
+    if (name === componentName) return false;
+    if (bench.components[name]?.status === "stopped") return false;
+    const siblingBinding = resolveBinding(projectId, name);
+    return !isNotBound(siblingBinding) && siblingBinding.pluginId === pluginId;
+  });
+  if (!siblingStillLive) {
+    ledger.clearEntry(pluginId, benchId);
+  }
 }
 
 export function startAllComponents(projectId: string, benchId: number): Bench {

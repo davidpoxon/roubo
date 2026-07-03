@@ -6853,4 +6853,52 @@ describe("imperative component dispatch (#396)", () => {
       code: "COMPONENT_NOT_BOUND",
     });
   });
+
+  // The ResourceOwnershipLedger keys entries on (pluginId, benchId) with no
+  // per-component attribution, so a per-component stop must NOT clear the shared
+  // entry while a sibling bound to the same imperative plugin is still live, or
+  // the sibling's tracked processes would be orphaned from crash cleanup (#396,
+  // AC4).
+  const twoProcessComponents = () =>
+    makeConfig({
+      components: {
+        backend: { plugin: { id: "process" }, config: {} },
+        worker: { plugin: { id: "process" }, config: {} },
+      },
+    });
+
+  it("keeps the shared ledger entry when a sibling on the same plugin is still live (AC4)", async () => {
+    setupExistingBench({ config: twoProcessComponents(), ports: { backend: 5001, worker: 5002 } });
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    // `worker` is still running (its broker-spawned processes are tracked under
+    // the shared (process, bench) ledger entry) when we stop `backend`.
+    const bench = benchManager.getBench("test-project", 1);
+    if (bench) bench.components.worker.status = "running";
+
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    // backend's stop + cleanup still ran, but the shared entry must survive.
+    expect(pluginManager.invoke).toHaveBeenCalledWith("process", "cleanup", expect.anything());
+    expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+  });
+
+  it("clears the shared ledger entry once the last sibling on the plugin is stopped (AC4)", async () => {
+    setupExistingBench({ config: twoProcessComponents(), ports: { backend: 5001, worker: 5002 } });
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    // `worker` is already stopped, so no sibling relies on the shared entry.
+    const bench = benchManager.getBench("test-project", 1);
+    if (bench) bench.components.worker.status = "stopped";
+
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
 });
