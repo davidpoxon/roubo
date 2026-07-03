@@ -1,5 +1,9 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { observe, type JourneyStep } from "./_support/step-runner.js";
+import { makeObserve, type JourneyStep } from "./_support/step-runner.js";
+
+// Bind the FR-020 observer to this guard's case id so its divergence blocks read
+// "CP-TC-028"; the per-observation observe() call sites below are unchanged.
+const observe = makeObserve("CP-TC-028");
 
 // CP-TC-028 (#626) - E2E: author publishes a component plugin; the imperative
 // "deploy" escape-hatch lifecycle runs end to end against the integrated,

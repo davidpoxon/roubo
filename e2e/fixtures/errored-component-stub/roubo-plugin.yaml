@@ -1,0 +1,19 @@
+id: errored-component-stub
+name: Errored Component Stub (CPHM-TC-082)
+version: 0.1.0
+description: Fixture for CPHM-TC-082. The manifest is valid so the host reaches the spawn step, but its entry file (./dist/index.js) is intentionally absent, so plugin-manager's pre-spawn host check (issue #759) fails the plugin closed into status "errored" with a real missing-entry lastError. Force-disabled at boot (see FAILURE_FIXTURE_PLUGIN_IDS in server/routes/test.ts); the errored-banner drift guard enables it on demand to reach the errored state. Not for production.
+kind: component
+roubo: ^1.0.0
+entry: ./dist/index.js
+contractVersion: 1
+configSchema:
+  type: object
+  properties: {}
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
