@@ -140,6 +140,14 @@ export default defineConfig({
         ROUBO_E2E: "1",
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,
         ROUBO_BUNDLED_PLUGINS_DIR: E2E_BUNDLED_PLUGINS_DIR,
+        // Neutralise host-app env inherited by bench terminals (issue #877):
+        // with ROUBO_PRODUCTION set, the server under test would resolve state
+        // to the real ~/.roubo and startServer now refuses to boot alongside
+        // ROUBO_E2E. Every consumer is a truthiness check, so empty strings
+        // override the inherited values (Playwright merges this env over the
+        // parent's).
+        ROUBO_PRODUCTION: "",
+        ROUBO_SEED_DIR: "",
       },
       url: SERVER_BASE_URL,
       reuseExistingServer: !process.env.CI,

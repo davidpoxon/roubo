@@ -109,6 +109,19 @@ describe.sequential("startServer", () => {
     await handle.shutdown();
   });
 
+  it("refuses to start when ROUBO_E2E=1 and ROUBO_PRODUCTION are both set (issue #877)", async () => {
+    vi.stubEnv("ROUBO_E2E", "1");
+    vi.stubEnv("ROUBO_PRODUCTION", "1");
+    try {
+      // The e2e harness must never run against the production ~/.roubo state
+      // (bench terminals inherit ROUBO_PRODUCTION from the app), so the
+      // contradictory combination fails fast instead of half-working.
+      await expect(startServer({ port: 0 })).rejects.toThrow(/ROUBO_E2E.*ROUBO_PRODUCTION/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("specific port: binds to the requested port", async () => {
     const first = await startServer({ port: 0 });
     const knownFreePort = first.port;
