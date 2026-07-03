@@ -68,6 +68,32 @@ describe("validateComponentBindings", () => {
     expect(errors[0].message).toMatch(/unknown/i);
   });
 
+  it("skips (does not flag) an unknown plugin id when ignoreUnknownPlugins is set", () => {
+    // The config-load posture (issue #399): a binding to a not-loaded plugin is
+    // skipped rather than reported, but a loaded plugin's config is still checked.
+    const manifests = [
+      makeManifest({
+        id: "process",
+        configSchema: {
+          type: "object",
+          properties: { command: { type: "string" } },
+          required: ["command"],
+          additionalProperties: false,
+        },
+      }),
+    ];
+    const config = makeComponents({
+      // Bound to a not-loaded plugin: skipped under ignoreUnknownPlugins.
+      db: { plugin: { id: "postgres" }, config: {} },
+      // Bound to a loaded plugin with a bad config: still flagged.
+      api: { plugin: { id: "process" }, config: {} },
+    });
+
+    const errors = validateComponentBindings(config, manifests, { ignoreUnknownPlugins: true });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe("components.api.config.command");
+  });
+
   it("rejects a config block that fails the plugin's configSchema (missing required)", () => {
     const manifests = [
       makeManifest({

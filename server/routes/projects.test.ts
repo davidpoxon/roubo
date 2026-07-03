@@ -628,11 +628,11 @@ describe("GET /:projectId/config", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue({
       id: "project",
       configValid: false,
-      configError: "components.backend.plugin.id: Unknown component plugin 'process'.",
+      configError: "components.backend.config.port: must be number",
       fieldErrors: [
         {
-          path: "components.backend.plugin.id",
-          message: "Unknown component plugin 'process'.",
+          path: "components.backend.config.port",
+          message: "must be number",
         },
       ],
     } as any);
@@ -641,7 +641,7 @@ describe("GET /:projectId/config", () => {
     expect(res.status).toBe(400);
     expect(res.body.configValid).toBe(false);
     expect(res.body.fieldErrors).toEqual([
-      { path: "components.backend.plugin.id", message: "Unknown component plugin 'process'." },
+      { path: "components.backend.config.port", message: "must be number" },
     ]);
   });
 

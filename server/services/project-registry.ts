@@ -36,11 +36,19 @@ function emitConfigLoaded(project: RegisteredProject): void {
 
 /**
  * Plugin-aware second pass over a structurally-valid project config (issue #399,
- * CP-TC-005): validate every component binding against its bound plugin's
- * `configSchema` and, if any binding is invalid, fold the path-keyed
- * `ConfigFieldError`s into the project's config-invalid state so invalid
- * component config surfaces at config-load. A no-op when the project is already
- * invalid (nothing valid to second-guess) or carries no parsed config.
+ * CP-TC-005): validate every component binding whose plugin is loaded against
+ * that plugin's `configSchema` and, if any config block is invalid, fold the
+ * path-keyed `ConfigFieldError`s into the project's config-invalid state so
+ * invalid component config surfaces at config-load. A no-op when the project is
+ * already invalid (nothing valid to second-guess) or carries no parsed config.
+ *
+ * Config-load is deliberately lenient about a binding to a plugin that is not
+ * currently loaded (`ignoreUnknownPlugins`): a roubo.yaml may legitimately name
+ * a component plugin that is disabled, pending install, or absent from this
+ * environment, and that must not brick the whole project (block GET /config,
+ * bench creation, etc.). The "plugin must be present" enforcement belongs at
+ * bench-start, where the component actually has to run (#612). Only a genuine
+ * `configSchema` violation on a LOADED plugin invalidates the config here.
  *
  * This needs the plugin manager initialized to see the installed component
  * manifests. At boot the registry loads before the plugin manager
@@ -52,7 +60,9 @@ function emitConfigLoaded(project: RegisteredProject): void {
  */
 function applyComponentBindingValidation(project: RegisteredProject): void {
   if (!project.configValid || !project.config) return;
-  const errors = validateComponentBindings(project.config, pluginManager.getComponentManifests());
+  const errors = validateComponentBindings(project.config, pluginManager.getComponentManifests(), {
+    ignoreUnknownPlugins: true,
+  });
   if (errors.length === 0) return;
   project.configValid = false;
   project.fieldErrors = errors;
@@ -65,8 +75,10 @@ function applyComponentBindingValidation(project: RegisteredProject): void {
  * initializing: the registry's own `initialize()` runs before plugins are
  * loaded, so component bindings cannot be validated there. This closes that gap
  * by validating them once the component manifests exist, before the HTTP
- * listener binds, so a project whose bound plugin was uninstalled between
- * sessions surfaces its error at boot (issue #399, CP-TC-005).
+ * listener binds, so a project that binds a loaded component plugin with an
+ * invalid config block surfaces that error at boot (issue #399, CP-TC-005). A
+ * binding to a not-loaded plugin is left valid here (see
+ * applyComponentBindingValidation): its presence is enforced at bench-start.
  */
 export function revalidateComponentBindings(): void {
   for (const project of projects.values()) {
