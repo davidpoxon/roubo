@@ -845,6 +845,106 @@ describe("component-plugin crash hooks (issue #613)", () => {
     expect(order).toEqual(["pre-restart:start", "pre-restart:end", "restarted"]);
   }, 30_000);
 
+  it("re-provisions once after all teardowns settle across overlapping crashes within budget (issue #403)", async () => {
+    // Overlapping-crash race (follow-up to #398): `preRestartCleanup` is a single
+    // shared slot, so two SIGKILL crashes within the restart budget leave two
+    // pre-restart teardowns in flight at once. Re-provision must be sequenced
+    // against ALL of them, not just the one captured when the first restart
+    // callback started, or an earlier cycle's `up` overlaps the later cycle's
+    // still in-flight `down -v` on the shared compose project (and the earlier
+    // cycle also re-provisions, doubling up). We drive the two crashes
+    // deterministically with manually-settled (deferred) pre-restart promises and
+    // pid / call-count polling (no fixed-duration sleeps), and assert re-provision
+    // never fires while any teardown is unsettled and fires exactly once after all
+    // of them settle. This exercises the `entry.preRestartCleanup === cleanup`
+    // false branch that the single-crash #398 test never reaches.
+    type Deferred = { promise: Promise<void>; settle: () => void; settled: boolean };
+    const makeDeferred = (): Deferred => {
+      let resolveFn: () => void = () => {};
+      const promise = new Promise<void>((resolve) => {
+        resolveFn = resolve;
+      });
+      const d: Deferred = { promise, settled: false, settle: () => {} };
+      d.settle = () => {
+        d.settled = true;
+        resolveFn();
+      };
+      return d;
+    };
+    // Drain queued microtasks and macrotasks so a mis-sequenced (buggy)
+    // re-provision would have surfaced before we assert it did not: this is an
+    // event-loop flush, not a wall-clock sleep, so it stays deterministic.
+    const drainEventLoop = async () => {
+      for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    };
+
+    const teardowns: Deferred[] = [];
+    const preRestart = vi.fn(async () => {
+      const d = makeDeferred();
+      teardowns.push(d);
+      await d.promise;
+    });
+    // Record how many teardowns were still unsettled each time re-provision fired.
+    // It must always be zero: an `up` may never overlap an in-flight `down -v`.
+    const unsettledWhenRestarted: number[] = [];
+    const restarted = vi.fn(async () => {
+      unsettledWhenRestarted.push(teardowns.filter((d) => !d.settled).length);
+    });
+
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginRestarted: restarted,
+    });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-echo");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+
+    // Crash 1: the supervisor fires pre-restart (teardown 0, held in flight) and
+    // respawns after the backoff. The respawn is independent of the teardown, so
+    // a new pid appears while teardown 0 is still unsettled.
+    const firstPid = need(findRecord(mgr.listInstalled(), "component-echo").pid, "pid");
+    process.kill(firstPid, "SIGKILL");
+    await waitFor(() => teardowns.length === 1, 10_000);
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-echo");
+      return !!r && r.status === "enabled" && r.pid !== null && r.pid !== firstPid;
+    }, 10_000);
+
+    // Crash 2 (still within RESTART_BUDGET = 3): kill the respawned child, so
+    // teardown 1 is now in flight alongside the still-unsettled teardown 0.
+    const secondPid = need(findRecord(getManager().listInstalled(), "component-echo").pid, "pid");
+    process.kill(secondPid, "SIGKILL");
+    await waitFor(() => teardowns.length === 2, 10_000);
+
+    // Both teardowns unsettled: re-provision must not have fired.
+    expect(restarted).not.toHaveBeenCalled();
+
+    // Settle only the first teardown. The first restart callback drains through
+    // the `preRestartCleanup === cleanup` false branch onto the second teardown
+    // instead of re-provisioning, so re-provision still must not fire while
+    // teardown 1 is in flight.
+    teardowns[0].settle();
+    await drainEventLoop();
+    expect(restarted).not.toHaveBeenCalled();
+
+    // Settle the last teardown: now the final crash cycle re-provisions, exactly
+    // once, and only after every teardown has settled.
+    teardowns[1].settle();
+    await waitFor(() => restarted.mock.calls.length > 0, 10_000);
+    await drainEventLoop();
+    expect(restarted).toHaveBeenCalledTimes(1);
+    expect(restarted).toHaveBeenCalledWith("component-echo");
+    expect(unsettledWhenRestarted).toEqual([0]);
+  }, 30_000);
+
   it("does not fire the hooks for a crashing integration plugin", async () => {
     const preRestart = vi.fn();
     const budgetExhausted = vi.fn();
