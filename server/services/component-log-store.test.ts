@@ -4,6 +4,7 @@ import {
   getComponentLogLines,
   hasComponentLogs,
   clearComponentLogs,
+  clearComponentLogsForBench,
   _resetForTest,
 } from "./component-log-store.js";
 import { MAX_LOG_LINES } from "./process-manager.js";
@@ -156,5 +157,31 @@ describe("component-log-store", () => {
     clearComponentLogs(P, B, C);
     expect(hasComponentLogs(P, B, C)).toBe(false);
     expect(getComponentLogLines(P, B, C)).toEqual([]);
+  });
+
+  it("clears every component's logs for a bench on teardown, scoped to that bench id (#397)", () => {
+    appendComponentLog(P, B, C, {
+      source: "stdout",
+      text: "db-line",
+      ts: "2026-06-21T00:00:00.000Z",
+    });
+    appendComponentLog(P, B, "api", {
+      source: "stdout",
+      text: "api-line",
+      ts: "2026-06-21T00:00:00.000Z",
+    });
+    // Bench 12 shares the "proj:1" start but is NOT a "proj:1:" prefix match: it
+    // must survive, guarding against a benchId 1-vs-12 prefix collision.
+    appendComponentLog(P, 12, C, {
+      source: "stdout",
+      text: "other-bench",
+      ts: "2026-06-21T00:00:00.000Z",
+    });
+
+    clearComponentLogsForBench(P, B);
+
+    expect(hasComponentLogs(P, B, C)).toBe(false);
+    expect(hasComponentLogs(P, B, "api")).toBe(false);
+    expect(getComponentLogLines(P, 12, C).map((l) => l.text)).toEqual(["other-bench"]);
   });
 });

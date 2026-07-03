@@ -1179,6 +1179,15 @@ async function runTeardownBackground(
     // (#677) for the same reason.
     clearAuditLog(projectId, benchId);
     unregisterBrokerContextsForBench(projectId, benchId);
+    // Drop this bench's per-component SSE status records (#397) for the same
+    // reason: bench ids are reused, and a stale last-status entry would make the
+    // reused bench's first component-status-change look like a consecutive
+    // duplicate and be suppressed.
+    sseService.clearComponentStatusForBench(projectId, benchId);
+    // Drop this bench's forwarded component logs (#397): this change populates the
+    // component log store on every plugin-backed provision, so on bench-id reuse a
+    // stale compose/init/migration tail would otherwise surface for the new bench.
+    componentLogStore.clearComponentLogsForBench(projectId, benchId);
 
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
@@ -1292,7 +1301,54 @@ function clearLedgerForBench(benchId: number): void {
  * supervised by other plugins, are never touched (graceful degradation). Every
  * stop is best-effort; a single failure is logged and the rest still run.
  */
+/**
+ * Components that were running/starting when their plugin crashed, captured by
+ * the pre-restart hook (#397). Keyed by pluginId; each value is a set of
+ * `benchId:componentName` handles.
+ *
+ * The pre-restart hook pushes the crashing component to `error` so the crash is
+ * observable (AC2) rather than swallowed by the fast restart + re-provision
+ * racing the 5s status poll. But moving the status off `running`/`starting`
+ * would otherwise hide the component from the post-restart recovery hook, which
+ * keys on that snapshot to decide what to re-provision. So the pre-restart hook
+ * records the handles here, and the recovery hook unions this set with the live
+ * status when choosing what to bring back, preserving auto-recovery (FR-016).
+ */
+const pendingComponentRecovery = new Map<string, Set<string>>();
+
+function recoveryHandle(benchId: number, componentName: string): string {
+  return `${benchId}:${componentName}`;
+}
+
 export async function handleComponentPluginPreRestart(pluginId: string): Promise<void> {
+  // AC2 (#397): push the observable crash transition before the ledger-driven
+  // resource cleanup. Mark every component this plugin had running/starting as
+  // `error` and broadcast it, so a client sees the crash instead of it being
+  // hidden by the restart+re-provision beating the 5s status poll. Capture the
+  // handles so the recovery hook still knows what to re-provision.
+  const recoverySet = pendingComponentRecovery.get(pluginId) ?? new Set<string>();
+  for (const bench of benches.values()) {
+    if (bench.status === "clearing" || bench.status === "preparing") continue;
+    const project = projectRegistry.getProject(bench.projectId);
+    if (!project?.config) continue;
+    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+      if (componentConfig.plugin?.id !== pluginId) continue;
+      const current = bench.components[name];
+      if (!current || (current.status !== "running" && current.status !== "starting")) continue;
+      recoverySet.add(recoveryHandle(bench.id, name));
+      buildReportStatus(
+        bench.projectId,
+        bench.id,
+      )({
+        name,
+        status: "error",
+        error: "Component plugin crashed",
+        setupComplete: current.setupComplete ?? true,
+      });
+    }
+  }
+  if (recoverySet.size > 0) pendingComponentRecovery.set(pluginId, recoverySet);
+
   const entries = ledger.getAllEntries().filter((e) => e.pluginId === pluginId);
   for (const entry of entries) {
     for (const processId of entry.processIds) {
@@ -1337,6 +1393,7 @@ export async function handleComponentPluginRestarted(pluginId: string): Promise<
   // a teardown or a half-built bench is never right. The pre-restart cleanup
   // stops processes directly (not via the status-setting stop path), so a
   // crashed-but-running component still reads `running` here.
+  const pending = pendingComponentRecovery.get(pluginId);
   for (const bench of benches.values()) {
     if (bench.status === "clearing" || bench.status === "preparing") continue;
     const project = projectRegistry.getProject(bench.projectId);
@@ -1344,7 +1401,12 @@ export async function handleComponentPluginRestarted(pluginId: string): Promise<
     for (const [name, componentConfig] of Object.entries(project.config.components)) {
       if (componentConfig.plugin?.id !== pluginId) continue;
       const priorStatus = bench.components[name]?.status;
-      if (priorStatus !== "running" && priorStatus !== "starting") continue;
+      // Re-provision a component that was up at crash time. The live status is
+      // the fast path (a crash the pre-restart hook did not observe still reads
+      // `running`); the pending set is the slow path (the pre-restart hook has
+      // since pushed it to `error`, AC2). Either signal means "recover it".
+      const wasPending = pending?.has(recoveryHandle(bench.id, name)) ?? false;
+      if (priorStatus !== "running" && priorStatus !== "starting" && !wasPending) continue;
       await launchComponent(bench.projectId, bench.id, name).catch((err) => {
         console.warn(
           `[bench-manager] post-restart re-provision: launchComponent(${name}) failed for ` +
@@ -1353,6 +1415,59 @@ export async function handleComponentPluginRestarted(pluginId: string): Promise<
       });
     }
   }
+  pendingComponentRecovery.delete(pluginId);
+}
+
+/**
+ * Restart-budget-exhaustion handler for a component plugin (AC4, #397).
+ *
+ * Registered with plugin-manager via `registerComponentPluginHooks` and fired
+ * when the supervisor gives up restarting a crashed `component` plugin (it has
+ * exceeded its restart budget within the window). The plugin-level state is
+ * already `errored` with a `restart-budget-exhausted` lastError, but that never
+ * surfaced at the component level. This drives every component the plugin binds
+ * to `error` with a human-readable statusDetail, emits a component-error
+ * notification, and broadcasts the transition over SSE (via buildReportStatus),
+ * so an operator sees the terminal failure instead of a silently stuck bench.
+ */
+export async function handleComponentPluginBudgetExhausted(pluginId: string): Promise<void> {
+  const detail =
+    "Component plugin exceeded its restart budget; auto-restart disabled. Click Restart to retry.";
+  for (const bench of benches.values()) {
+    if (bench.status === "clearing" || bench.status === "preparing") continue;
+    const project = projectRegistry.getProject(bench.projectId);
+    if (!project?.config) continue;
+    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+      if (componentConfig.plugin?.id !== pluginId) continue;
+      const current = bench.components[name];
+      // Only a component that was live (running/starting) or already crashed
+      // (error) surfaces exhaustion; a user-stopped or one-shot-completed
+      // component is left alone.
+      if (
+        !current ||
+        (current.status !== "running" &&
+          current.status !== "starting" &&
+          current.status !== "error")
+      ) {
+        continue;
+      }
+      buildReportStatus(
+        bench.projectId,
+        bench.id,
+      )({
+        name,
+        status: "error",
+        error: current.error ?? "restart-budget-exhausted",
+        statusDetail: detail,
+        setupComplete: current.setupComplete ?? true,
+      });
+      notificationService.createNotification(bench, "component-error");
+    }
+  }
+  // The plugin will not auto-recover these components; drop any pending-recovery
+  // handles the pre-restart hook captured so a later manual restart's recovery
+  // does not spuriously re-provision them.
+  pendingComponentRecovery.delete(pluginId);
 }
 
 /**
@@ -1796,6 +1911,12 @@ async function provisionComponent(
     workspacePath: bench.workspacePath,
     ports: tplCtx.ports,
     reportStatus: buildReportStatus(projectId, benchId),
+    // Forward the engine-driven compose / init / migration output into the
+    // component log store so a plugin-backed docker component surfaces logs at
+    // GET .../components/:name/logs; a declarative database plugin never calls
+    // reportLog itself because the host, not the plugin, runs that execution
+    // (AC1, #397).
+    reportLog: buildReportLog(projectId, benchId),
     setupComplete: componentStatus.setupComplete,
   };
 
@@ -1965,6 +2086,7 @@ export async function stopComponent(
     throw new BenchError(`Component '${componentName}' not found`, "COMPONENT_NOT_FOUND");
 
   componentStatus.status = "stopping";
+  sseService.broadcastComponentStatusChange(projectId, benchId, componentName, "stopping");
 
   const binding = resolveBinding(projectId, componentName);
 
@@ -2018,6 +2140,10 @@ export async function stopComponent(
   componentStatus.startedAt = undefined;
 
   updateBenchStatus(bench);
+  // Fire the per-component status-change event on the stop transition (#397):
+  // the built-in Stop path mutates the status directly rather than pushing
+  // through buildReportStatus, so broadcast it explicitly here (CP-TC-074).
+  sseService.broadcastComponentStatusChange(projectId, benchId, componentName, "stopped");
 }
 
 /**
@@ -2260,9 +2386,15 @@ export function buildReportStatus(
     const existing = bench.components[status.name];
     // Merge over any existing entry so a partial push (e.g. a phase update that
     // omits pid) never drops a field the previous status carried.
-    bench.components[status.name] = { ...existing, ...status };
+    const merged = { ...existing, ...status };
+    bench.components[status.name] = merged;
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
+    // Also emit the per-component status-change event (#397). Consecutive
+    // duplicates are suppressed and ts is clamped monotonic per component inside
+    // sseService, so re-broadcasting the same status across phases is a no-op on
+    // this stream (CP-TC-074).
+    sseService.broadcastComponentStatusChange(projectId, benchId, status.name, merged.status);
   };
 }
 

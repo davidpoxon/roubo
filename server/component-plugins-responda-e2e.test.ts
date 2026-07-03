@@ -225,6 +225,7 @@ function makeFakeProcessManager(startOrder: string[]): ProcessManagerLike {
       return { pid: 1000 + startOrder.length };
     }),
     runProcess: vi.fn(async () => ({ exitCode: 0 })),
+    getProcessLogLines: vi.fn(() => []),
   };
 }
 

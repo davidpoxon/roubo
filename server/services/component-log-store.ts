@@ -116,6 +116,22 @@ export function clearComponentLogs(
   stores.delete(key(projectId, benchId, componentName));
 }
 
+/**
+ * Drop every component's log history for a bench (#397). Called on bench teardown
+ * alongside the other per-bench in-memory clears (clearLedgerForBench /
+ * clearAuditLog / unregisterBrokerContextsForBench / clearComponentStatusForBench),
+ * so a bench id that is later reused does not inherit the prior generation's
+ * forwarded compose/init/migration logs at GET .../components/:name/logs. This is
+ * the "workspace removal" arm of the store's clearing contract; a Stop -> Start
+ * cycle must NOT call it (history survives a restart, AC4).
+ */
+export function clearComponentLogsForBench(projectId: string, benchId: number): void {
+  const prefix = `${projectId}:${benchId}:`;
+  for (const k of stores.keys()) {
+    if (k.startsWith(prefix)) stores.delete(k);
+  }
+}
+
 /** Test-only reset of the whole store. */
 export function _resetForTest(): void {
   stores.clear();
