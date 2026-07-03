@@ -21,9 +21,18 @@ vi.mock("../services/work-unit-loader.js", async () => {
   const actual = await vi.importActual<typeof import("../services/work-unit-loader.js")>(
     "../services/work-unit-loader.js",
   );
+  const loadVerifyUnits = vi.fn();
+  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#371); delegate to
+  // the mocked loadVerifyUnits with no invalid specs so the existing tests that set
+  // loadVerifyUnits drive the sign-off / reopen / GET handlers unchanged.
+  const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
+    loaded: loadVerifyUnits(repoPath, slug),
+    invalidSpecs: [],
+  }));
   return {
     WorkUnitsValidationError: actual.WorkUnitsValidationError,
-    loadVerifyUnits: vi.fn(),
+    loadVerifyUnits,
+    loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
   };
 });
@@ -349,7 +358,7 @@ describe("GET /:projectId/gates/:gateId derives signedOff from the tracker issue
     vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
     const res = await request(app).get("/p1/gates");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toMatchObject({ gateId: "WU-040", signedOff: true });
+    expect(res.body.gates).toHaveLength(1);
+    expect(res.body.gates[0]).toMatchObject({ gateId: "WU-040", signedOff: true });
   });
 });

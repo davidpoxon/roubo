@@ -7,7 +7,7 @@
 // projected GateState.
 //
 // Endpoints (mounted under /api/projects):
-//   GET    /:projectId/gates            -> 200 GateState[] (one per effective gate)
+//   GET    /:projectId/gates            -> 200 { gates: GateState[], invalidSpecs: InvalidSpec[] }
 //   GET    /:projectId/gates/:gateId    -> 200 GateState / 404 (unknown gate id)
 //   POST   /:projectId/gates/merge      -> 200 (record a merge op) / 400 / 409
 //   POST   /:projectId/gates/split      -> 200 (record a split op) / 400 / 409
