@@ -13,6 +13,7 @@ function makeProcessManager(): ProcessManagerLike {
   return {
     startProcess: vi.fn(async () => ({ pid: 4242 })),
     runProcess: vi.fn(async () => ({ exitCode: 0 })),
+    getProcessLogLines: vi.fn(() => []),
   };
 }
 
@@ -210,6 +211,101 @@ describe("lifecycle-engine runDescriptor", () => {
 
       expect(result.status).toBe("error");
       expect(h.statuses.at(-1)?.error).toMatch(/init boom/);
+    });
+
+    // #397 AC1: the engine forwards the compose / init / migration output it
+    // drives into the component log store (via ctx.reportLog), so a plugin-backed
+    // docker component surfaces logs even though the declarative plugin never
+    // calls host.component.reportLog itself.
+    it("forwards composeUp, init and migration output through reportLog (AC1, #397)", async () => {
+      const reportLog = vi.fn();
+      const h = setup({ reportLog });
+      (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        stdout: "Creating postgres ... done",
+        stderr: "compose-warn",
+      });
+      (h.docker.composeRunInit as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        stdout: "db-init: schema bootstrap complete",
+        stderr: "",
+      });
+      (h.pm.getProcessLogLines as ReturnType<typeof vi.fn>).mockReturnValue([
+        { source: "stdout", text: "migrate: applied 3 migrations", ts: "2026-06-21T00:00:00.000Z" },
+      ]);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        initService: "seed",
+        migration: { command: "npm run migrate" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      const forwarded = reportLog.mock.calls.map((c) => [c[0], c[1].source, c[1].text]);
+      expect(forwarded).toContainEqual(["db", "stdout", "Creating postgres ... done"]);
+      expect(forwarded).toContainEqual(["db", "stderr", "compose-warn"]);
+      expect(forwarded).toContainEqual(["db", "stdout", "db-init: schema bootstrap complete"]);
+      expect(forwarded).toContainEqual(["db", "stdout", "migrate: applied 3 migrations"]);
+      // The migration buffer is read back from process-manager under the side id.
+      expect(h.pm.getProcessLogLines).toHaveBeenCalledWith("db-plugin:3:db:migration");
+    });
+
+    it("forwards failing-compose output before erroring, so diagnostics surface (AC1, #397)", async () => {
+      const reportLog = vi.fn();
+      const h = setup({ reportLog });
+      (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: false,
+        error: "compose boom",
+        stdout: "",
+        stderr: "port already allocated",
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      const forwarded = reportLog.mock.calls.map((c) => [c[1].source, c[1].text]);
+      expect(forwarded).toContainEqual(["stderr", "port already allocated"]);
+    });
+
+    it("does not fail when no reportLog sink is wired (engine stays pure)", async () => {
+      const h = setup(); // no reportLog
+      (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        stdout: "line",
+        stderr: "",
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
     });
 
     it("merges descriptor env into the compose port overrides, with the port override applied last (AC1, CP-TC-035, CP-TC-060)", async () => {

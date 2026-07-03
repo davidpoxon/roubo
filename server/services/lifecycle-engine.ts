@@ -8,7 +8,7 @@ import {
   type ProcessProvisionDescriptor,
   type OneshotProvisionDescriptor,
 } from "@roubo/shared/provision-descriptor-schema";
-import type { ComponentPhase, ComponentStatus } from "@roubo/shared";
+import type { ComponentLogLine, ComponentPhase, ComponentStatus } from "@roubo/shared";
 import { parseCommand } from "./exec.js";
 import * as processManager from "./process-manager.js";
 import * as dockerService from "./docker.js";
@@ -40,7 +40,10 @@ import * as ledger from "./resource-ownership-ledger.js";
  */
 
 /** The subset of process-manager the engine drives. Mirrors the broker's Pick. */
-export type ProcessManagerLike = Pick<typeof processManager, "startProcess" | "runProcess">;
+export type ProcessManagerLike = Pick<
+  typeof processManager,
+  "startProcess" | "runProcess" | "getProcessLogLines"
+>;
 
 /** The subset of the docker facade the engine drives. Mirrors the broker's Pick. */
 export type DockerLike = Pick<
@@ -81,6 +84,15 @@ export interface LifecycleContext {
   ports: Record<string, number>;
   /** Push sink for ComponentStatus updates (never polled, NFR-002). */
   reportStatus: (status: ComponentStatus) => void;
+  /**
+   * Push sink for structured log lines (#397). The engine forwards the
+   * compose / init / migration output it drives here so a plugin-backed docker
+   * component surfaces logs at GET .../components/:name/logs, even though a
+   * declarative database plugin never calls host.component.reportLog itself (the
+   * host owns that execution). Optional so the engine stays pure and unit tests
+   * that only assert status can omit it.
+   */
+  reportLog?: (componentName: string, line: ComponentLogLine) => void;
   /**
    * Whether the component's one-time `setup` has already run on this bench.
    * Lets a Stop -> Start cycle skip re-running setup (FR-007 parity). When
@@ -186,6 +198,9 @@ async function runDocker(
     portOverrides,
     cwd: ctx.workspacePath,
   });
+  // Forward compose output into the component log store (AC1, #397) before the
+  // success gate, so a failed compose surfaces its diagnostic output too.
+  forwardOutput(ctx, up.stdout, up.stderr);
   if (!up.success) {
     throw new Error(up.error ?? "composeUp failed");
   }
@@ -209,6 +224,7 @@ async function runDocker(
       cwd: ctx.workspacePath,
       timeoutMs: INIT_TIMEOUT_MS,
     });
+    forwardOutput(ctx, init.stdout, init.stderr);
     if (!init.success) {
       throw new Error(init.error ?? "init service failed");
     }
@@ -232,6 +248,10 @@ async function runDocker(
       ctx.workspacePath,
       MIGRATION_TIMEOUT_MS,
     );
+    // runProcess buffered the migration output under `migrationId`, which the
+    // logs route never reads (it keys on the component id). Forward it into the
+    // component log store so migration output surfaces too (AC1, #397).
+    forwardLines(ctx, pm.getProcessLogLines(migrationId));
     if (exitCode !== 0) {
       throw new Error(`migration failed with exit code ${exitCode}`);
     }
@@ -342,6 +362,41 @@ async function runOneshot(
 }
 
 // --- helpers ---------------------------------------------------------------
+
+/**
+ * Forward a compose / init command's captured stdout+stderr into the component
+ * log store via ctx.reportLog (AC1, #397). Splits each stream on newlines, drops
+ * empty lines, and stamps each surviving line with its source and a capture
+ * timestamp, matching process-manager's own line-capture shape. A no-op when the
+ * caller wired no reportLog sink (a pure-status unit test).
+ */
+function forwardOutput(
+  ctx: LifecycleContext,
+  stdout: string | undefined,
+  stderr: string | undefined,
+): void {
+  if (!ctx.reportLog) return;
+  const ts = new Date().toISOString();
+  for (const source of ["stdout", "stderr"] as const) {
+    const text = (source === "stdout" ? stdout : stderr) ?? "";
+    for (const line of text.split("\n")) {
+      if (line.length === 0) continue;
+      ctx.reportLog(ctx.componentName, { source, text: line, ts });
+    }
+  }
+}
+
+/**
+ * Forward already-structured log lines (e.g. the migration output process-manager
+ * buffered under a side id) into the component log store via ctx.reportLog. A
+ * no-op when the caller wired no reportLog sink.
+ */
+function forwardLines(ctx: LifecycleContext, lines: ComponentLogLine[]): void {
+  if (!ctx.reportLog) return;
+  for (const line of lines) {
+    ctx.reportLog(ctx.componentName, line);
+  }
+}
 
 function makeDockerPhases(descriptor: DockerProvisionDescriptor): ComponentPhase[] {
   const phases: ComponentPhase[] = [

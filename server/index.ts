@@ -207,6 +207,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   pluginManager.registerComponentPluginHooks({
     onComponentPluginPreRestart: benchManager.handleComponentPluginPreRestart,
     onComponentPluginRestarted: benchManager.handleComponentPluginRestarted,
+    onComponentPluginBudgetExhausted: benchManager.handleComponentPluginBudgetExhausted,
   });
 
   // Run integration backfills after the plugin runtime is up: the github-com

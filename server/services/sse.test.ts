@@ -3,6 +3,7 @@ import {
   addClient,
   broadcast,
   broadcastBenchStatus,
+  broadcastComponentStatusChange,
   getClientCount,
   _resetClientsForTest,
 } from "./sse.js";
@@ -141,6 +142,89 @@ describe("broadcast", () => {
     broadcast(event);
 
     expect(res.write).toHaveBeenCalledWith(`data: ${JSON.stringify(event)}\n\n`);
+    res._trigger("close");
+  });
+});
+
+describe("broadcastComponentStatusChange (#397, CP-TC-074)", () => {
+  function parseEvents(res: Response): Array<Record<string, unknown>> {
+    return vi
+      .mocked(res.write)
+      .mock.calls.map((c) => /^data: (.*)\n\n$/.exec(c[0] as string))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => JSON.parse(m[1]) as Record<string, unknown>)
+      .filter((e) => e.type === "component-status-change");
+  }
+
+  it("emits a component-status-change event carrying component, status and a numeric ts", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+
+    const events = parseEvents(res);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "component-status-change",
+      projectId: "proj-1",
+      benchId: 1,
+      component: "db",
+      status: "running",
+    });
+    expect(typeof events[0].ts).toBe("number");
+    res._trigger("close");
+  });
+
+  it("suppresses a consecutive duplicate (component, status) pair", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+
+    // Only the first `running` is emitted; the poll re-observing `running` is a no-op.
+    expect(parseEvents(res).map((e) => e.status)).toEqual(["running"]);
+    res._trigger("close");
+  });
+
+  it("re-emits a status that recurs after an intervening change (crash round-trip)", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 1, "db", "error");
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+
+    expect(parseEvents(res).map((e) => e.status)).toEqual(["running", "error", "running"]);
+    res._trigger("close");
+  });
+
+  it("clamps ts monotonically increasing per component", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "starting");
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 1, "db", "error");
+
+    const timestamps = parseEvents(res).map((e) => e.ts as number);
+    expect(timestamps).toHaveLength(3);
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i]).toBeGreaterThan(timestamps[i - 1]);
+    }
+    res._trigger("close");
+  });
+
+  it("keeps independent dedup + ts sequences per component", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+
+    broadcastComponentStatusChange("proj-1", 1, "db", "running");
+    broadcastComponentStatusChange("proj-1", 1, "api", "running");
+    // `api` running is not a duplicate of `db` running: distinct components.
+    const statuses = parseEvents(res).map((e) => `${e.component}:${e.status}`);
+    expect(statuses).toEqual(["db:running", "api:running"]);
     res._trigger("close");
   });
 });

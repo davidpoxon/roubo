@@ -114,6 +114,7 @@ vi.mock("./notification.js", () => ({
 vi.mock("./sse.js", () => ({
   broadcast: vi.fn(),
   broadcastBenchStatus: vi.fn(),
+  broadcastComponentStatusChange: vi.fn(),
 }));
 
 vi.mock("node:fs", () => ({
@@ -3672,6 +3673,43 @@ describe("startComponent", () => {
     ]);
   });
 
+  it("surfaces compose and init output on a plugin-backed docker component's logs (AC1, #397)", async () => {
+    const config = makeConfig({
+      components: {
+        db: {
+          type: "database",
+          docker: {
+            composeFile: "docker-compose.yml",
+            service: "db",
+            initService: "db-init",
+          },
+        },
+      },
+      ports: { db: { base: 5432 } },
+    });
+    setupExistingBench({ config, ports: { db: 5432 } });
+    vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
+    vi.mocked(dockerService.composeUp).mockResolvedValue({
+      success: true,
+      stdout: "Creating postgres ... done",
+      stderr: "",
+    });
+    vi.mocked(dockerService.composeRunInit).mockResolvedValue({
+      success: true,
+      stdout: "db-init: schema bootstrap complete",
+      stderr: "",
+    });
+    vi.mocked(dockerService.waitForHealthy).mockResolvedValue(true);
+
+    await benchManager.startComponent("test-project", 1, "db");
+
+    // The declarative database plugin never calls reportLog; the host forwards
+    // the compose/init output it drove, so the logs route is no longer empty.
+    const texts = benchManager.getComponentLogs("test-project", 1, "db").map((l) => l.text);
+    expect(texts).toContain("Creating postgres ... done");
+    expect(texts).toContain("db-init: schema bootstrap complete");
+  });
+
   it("sets startedAt when entering starting state", async () => {
     const config = makeConfig({
       components: {
@@ -4096,6 +4134,26 @@ describe("stopComponent", () => {
     expect(bench.components.backend.statusDetail).toBeUndefined();
     expect(bench.components.backend.statusDetailStartedAt).toBeUndefined();
     expect(bench.components.backend.startedAt).toBeUndefined();
+  });
+
+  it("broadcasts the stopping and stopped component-status-change events (#397, CP-TC-074)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenCalledWith(
+      "test-project",
+      1,
+      "backend",
+      "stopping",
+    );
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenCalledWith(
+      "test-project",
+      1,
+      "backend",
+      "stopped",
+    );
   });
 
   it("throws COMPONENT_NOT_FOUND for unknown component", async () => {
@@ -4572,6 +4630,30 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     report({ name: "backend", status: "running", setupComplete: true });
 
     expect(sseService.broadcastBenchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("also emits the per-component status-change event with the merged status (#397)", () => {
+    seedBench();
+    vi.mocked(sseService.broadcastComponentStatusChange).mockClear();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "starting", setupComplete: true });
+    report({ name: "backend", status: "running", setupComplete: true });
+
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenNthCalledWith(
+      1,
+      "test-project",
+      1,
+      "backend",
+      "starting",
+    );
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenNthCalledWith(
+      2,
+      "test-project",
+      1,
+      "backend",
+      "running",
+    );
   });
 
   it("ignores a status push for a bench that no longer exists", () => {
@@ -6382,6 +6464,134 @@ describe("handleComponentPluginPreRestart", () => {
     await benchManager.handleComponentPluginPreRestart("process");
 
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
+
+  it("pushes the crashing component to error and broadcasts it (AC2, #397)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running", setupComplete: true };
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    // The crash is observable as a pushed error transition, not lost to the poll.
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("error");
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenCalledWith(
+      "test-project",
+      1,
+      "backend",
+      "error",
+    );
+  });
+
+  it("captures the crashed component so recovery still re-provisions it despite the error push (AC2, #397)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running", setupComplete: true };
+
+    await benchManager.handleComponentPluginPreRestart("process");
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("error");
+
+    // Even though the pre-restart hook moved the status off `running`, the
+    // recovery hook still brings the component back (the pre-restart hook
+    // captured it as pending), so auto-recovery is preserved.
+    await benchManager.handleComponentPluginRestarted("process");
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "process:1:backend",
+      "dotnet",
+      ["run", "--project", "src/Api/Api.csproj"],
+      expect.any(Object),
+      expect.any(String),
+    );
+  });
+
+  it("leaves a stopped component untouched (no spurious error push)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.components.backend = { name: "backend", status: "stopped", setupComplete: true };
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("stopped");
+  });
+});
+
+describe("handleComponentPluginBudgetExhausted (#397)", () => {
+  it("marks a live bound component error with a budget statusDetail, notifies, and broadcasts (AC4)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running", setupComplete: true };
+
+    await benchManager.handleComponentPluginBudgetExhausted("process");
+
+    const updated = benchManager.getBench("test-project", 1)?.components.backend;
+    expect(updated?.status).toBe("error");
+    expect(updated?.statusDetail).toMatch(/restart budget/i);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(bench, "component-error");
+    expect(sseService.broadcastComponentStatusChange).toHaveBeenCalledWith(
+      "test-project",
+      1,
+      "backend",
+      "error",
+    );
+  });
+
+  it("surfaces exhaustion on an already-errored component (adds the statusDetail)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.components.backend = {
+      name: "backend",
+      status: "error",
+      error: "plugin crashed",
+      setupComplete: true,
+    };
+
+    await benchManager.handleComponentPluginBudgetExhausted("process");
+
+    const updated = benchManager.getBench("test-project", 1)?.components.backend;
+    expect(updated?.status).toBe("error");
+    expect(updated?.statusDetail).toMatch(/restart budget/i);
+  });
+
+  it("leaves a user-stopped component alone (AC4 scope)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.components.backend = { name: "backend", status: "stopped", setupComplete: true };
+
+    await benchManager.handleComponentPluginBudgetExhausted("process");
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("stopped");
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not touch components bound to a different plugin", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.components.backend = { name: "backend", status: "running", setupComplete: true };
+
+    await benchManager.handleComponentPluginBudgetExhausted("some-other-plugin");
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("running");
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 });
 

@@ -115,6 +115,14 @@ export interface ComponentPluginHooks {
    * re-provisions the components the plugin was supervising (auto-recovery).
    */
   onComponentPluginRestarted?: (pluginId: string) => void | Promise<void>;
+  /**
+   * Fired when a crashed component plugin exhausts its restart budget within the
+   * window, so no further auto-restart is attempted (#397). The host surfaces
+   * the terminal failure at the component level: it marks the plugin's bound
+   * components `error` with a status detail and notifies, instead of leaving the
+   * failure visible only as plugin-level state.
+   */
+  onComponentPluginBudgetExhausted?: (pluginId: string) => void | Promise<void>;
 }
 let componentPluginHooks: ComponentPluginHooks = {};
 
@@ -1373,6 +1381,16 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
       message: `Plugin exited ${recent.length} times within ${RESTART_WINDOW_MS / 1000}s; auto-restart disabled. Click Restart to retry.`,
     };
     writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
+    // Surface the terminal failure at the component level (#397): drive the
+    // plugin's bound components to `error` + statusDetail and notify. Fired
+    // fire-and-forget so a slow handler never blocks the supervisor.
+    if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginBudgetExhausted) {
+      void invokeComponentHook(
+        entry,
+        "budget-exhaustion surface",
+        componentPluginHooks.onComponentPluginBudgetExhausted,
+      );
+    }
     return;
   }
 

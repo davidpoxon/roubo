@@ -823,12 +823,16 @@ describe("component-plugin crash hooks (issue #613)", () => {
 
   it("does not fire the hooks for a crashing integration plugin", async () => {
     const preRestart = vi.fn();
+    const budgetExhausted = vi.fn();
     sandbox = await makeSandbox({ bundled: ["crashy"] });
     mgr = await loadManager();
-    pluginManager.registerComponentPluginHooks({ onComponentPluginPreRestart: preRestart });
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginBudgetExhausted: budgetExhausted,
+    });
     await mgr.initialize();
     // crashy is an integration plugin: it exhausts its budget and errors, but
-    // the component-only hook must never fire for it.
+    // the component-only hooks must never fire for it.
     await waitFor(() => {
       const r = getManager()
         .listInstalled()
@@ -836,6 +840,27 @@ describe("component-plugin crash hooks (issue #613)", () => {
       return !!r && r.status === "errored";
     }, 15_000);
     expect(preRestart).not.toHaveBeenCalled();
+    expect(budgetExhausted).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("fires onComponentPluginBudgetExhausted when a component plugin exhausts its restart budget (#397)", async () => {
+    const budgetExhausted = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-crashy"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginBudgetExhausted: budgetExhausted,
+    });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-crashy");
+      return !!r && r.status === "errored";
+    }, 15_000);
+    const rec = findRecord(mgr.listInstalled(), "component-crashy");
+    expect(rec.lastError?.code).toBe("restart-budget-exhausted");
+    await waitFor(() => budgetExhausted.mock.calls.length > 0, 5_000);
+    expect(budgetExhausted).toHaveBeenCalledWith("component-crashy");
   }, 30_000);
 
   it("still errors with restart-budget-exhausted after fired pre-restart hooks (AC4)", async () => {
