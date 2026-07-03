@@ -777,6 +777,50 @@ describe("component-plugin crash hooks (issue #613)", () => {
     expect(recovered.pid).not.toBeNull();
   }, 30_000);
 
+  it("awaits a slow onComponentPluginPreRestart before firing onComponentPluginRestarted (issue #398)", async () => {
+    // Regression guard for the auto-recovery race: the pre-restart teardown's
+    // `docker compose down -v` (~10-15s) must fully settle before the post-restart
+    // re-provision runs, or the late `down` destroys the freshly recovered
+    // container and the component settles `stopped`. The supervisor fires
+    // pre-restart at exit (t=0) and schedules the respawn after the backoff delay,
+    // so a pre-restart hook slower than that delay would, without sequencing, see
+    // re-provision start first. We assert re-provision only runs once pre-restart
+    // has resolved.
+    const order: string[] = [];
+    let preRestartResolvedWhenRestartedFired = false;
+    const preRestart = vi.fn(async () => {
+      order.push("pre-restart:start");
+      await new Promise((r) => setTimeout(r, 1500));
+      order.push("pre-restart:end");
+    });
+    const restarted = vi.fn(async () => {
+      preRestartResolvedWhenRestartedFired = order.includes("pre-restart:end");
+      order.push("restarted");
+    });
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginRestarted: restarted,
+    });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-echo");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+
+    const rec = findRecord(mgr.listInstalled(), "component-echo");
+    process.kill(need(rec.pid, "pid"), "SIGKILL");
+
+    await waitFor(() => restarted.mock.calls.length > 0, 10_000);
+    // Re-provision must not begin until the pre-restart teardown has fully
+    // settled: the slow cleanup completes before any new container comes up.
+    expect(preRestartResolvedWhenRestartedFired).toBe(true);
+    expect(order).toEqual(["pre-restart:start", "pre-restart:end", "restarted"]);
+  }, 30_000);
+
   it("does not fire the hooks for a crashing integration plugin", async () => {
     const preRestart = vi.fn();
     sandbox = await makeSandbox({ bundled: ["crashy"] });
