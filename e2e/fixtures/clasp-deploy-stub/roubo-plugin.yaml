@@ -7,6 +7,10 @@ roubo: ^1.0.0
 entry: ./dist/index.js
 contractVersion: 1
 descriptorSchemaVersion: 1
+# This is an imperative (escape-hatch) component plugin: it implements the
+# start/stop/health/cleanup hooks, not translate. The host reads componentMode
+# to dispatch the imperative lifecycle instead of calling translate (#396).
+componentMode: imperative
 configSchema:
   type: object
   properties: {}

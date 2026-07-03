@@ -8,6 +8,7 @@ import type {
   BrokerPermissionCategory,
   ComponentLogLine,
   ComponentStatus,
+  ComponentStatusValue,
   ComponentConfig,
   ComponentPhase,
   ProvisioningStep,
@@ -615,6 +616,14 @@ async function runComponentsInOrder(
   bench: Bench,
   componentOrder: string[],
   config?: RouboConfig,
+  // Bench-level Start passes `resilient` so a component whose bound plugin cannot
+  // be dispatched (e.g. its plugin is not installed/running, so provisionComponent
+  // throws COMPONENT_NOT_BOUND) does not abort the whole bench: its error is
+  // recorded and the remaining components still launch (graceful degradation,
+  // #396). Per-component Start leaves it false so the throw still propagates to
+  // the route as an actionable error. A genuine start failure (the component was
+  // dispatched but its lifecycle reported `error`) still halts, resilient or not.
+  resilient = false,
 ): Promise<void> {
   // Bench-level setup (e.g. `npm ci` at the monorepo root). Gated on the
   // `bench-setup` step being seeded onto bench.provisioningSteps, which only
@@ -666,7 +675,25 @@ async function runComponentsInOrder(
     // pushes phases through reportStatus into componentStatus.
     componentStatus.phases = [];
 
-    await launchComponent(bench.projectId, bench.id, name);
+    try {
+      await launchComponent(bench.projectId, bench.id, name);
+    } catch (err) {
+      // provisionComponent throws when the component's plugin cannot be
+      // dispatched (unbound / unconsented / plugin not running). Per-component
+      // Start (resilient=false) rethrows so the route surfaces it; bench-level
+      // Start records the error and continues so a sibling whose plugin IS
+      // available (e.g. a translate-less deploy component) still launches (#396).
+      if (!resilient) throw err;
+      const message = (err as Error).message;
+      updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "error", message);
+      const cs = bench.components[name];
+      if (cs) {
+        cs.status = "error";
+        cs.error = message;
+      }
+      bench.error ??= `Component '${name}' failed to start: ${message}`;
+      continue;
+    }
 
     // Re-read the live status: the engine's reportStatus sink replaces the
     // bench.components[name] object, so the captured reference is now stale.
@@ -678,6 +705,9 @@ async function runComponentsInOrder(
         "error",
         launched.error,
       );
+      // A genuine start failure (the component was dispatched but its lifecycle
+      // reported `error`) halts the bench, resilient or not: the fault is the
+      // component's own, not a missing sibling plugin.
       bench.status = "error";
       bench.error = `Component '${name}' failed to start: ${launched.error ?? "unknown error"}`;
       return;
@@ -997,7 +1027,9 @@ async function runStartAllBackground(
   // Yield so the caller can return the bench with all steps still 'pending'
   await Promise.resolve();
   try {
-    await runComponentsInOrder(bench, componentOrder, config);
+    // Bench-level Start is resilient: a component whose plugin cannot be
+    // dispatched does not abort the launch of the rest (#396).
+    await runComponentsInOrder(bench, componentOrder, config, true);
   } catch (err) {
     markBackgroundError(bench, err as Error);
   }
@@ -1029,7 +1061,8 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
   updateBenchStatus(bench);
 
   try {
-    await runComponentsInOrder(bench, ordered, config);
+    // Auto-start after create is bench-level, so it is resilient too (#396).
+    await runComponentsInOrder(bench, ordered, config, true);
   } catch (err) {
     markBackgroundError(bench, err as Error);
   }
@@ -1589,6 +1622,41 @@ function notBoundMessage(componentName: string, nb: NotBound): string {
 }
 
 /**
+ * Which dispatch path a component's bound plugin uses. An `imperative` plugin
+ * implements the start/stop/health/cleanup hooks and the host invokes them
+ * directly; a `declarative` plugin implements `translate` and the host runs the
+ * emitted ProvisionDescriptor through the LifecycleEngine. The manifest's
+ * `componentMode` is the explicit host-read signal (#396); an absent value (the
+ * common case) defaults to declarative.
+ */
+function getComponentMode(pluginId: string): "imperative" | "declarative" {
+  return pluginManager.getRecord(pluginId)?.manifest?.componentMode === "imperative"
+    ? "imperative"
+    : "declarative";
+}
+
+/** The per-bench BenchContext the host passes to a component plugin's hooks. */
+interface HostBenchContext {
+  projectId: string;
+  benchId: number;
+  componentName: string;
+  workspacePath: string;
+  ports: Record<string, number>;
+  env: Record<string, string>;
+}
+
+function buildBenchContext(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+  workspacePath: string,
+  ports: Record<string, number>,
+  env: Record<string, string>,
+): HostBenchContext {
+  return { projectId, benchId, componentName, workspacePath, ports, env };
+}
+
+/**
  * Resolve the component's bound plugin, ask it to `translate` its opaque config
  * into a ProvisionDescriptor, and run that descriptor through the host
  * LifecycleEngine. This is the single delegation seam that replaces the four
@@ -1596,6 +1664,10 @@ function notBoundMessage(componentName: string, nb: NotBound): string {
  * type or docker-field knowledge; the plugin describes and the host owns the
  * lifecycle. Status is pushed through the engine's `reportStatus` sink into
  * `bench.components` (NFR-002, no polling).
+ *
+ * A translate-less (imperative) plugin takes the escape-hatch branch instead:
+ * the host invokes its start hook directly (#396, AC1), the plugin driving the
+ * broker for the whole lifecycle.
  */
 async function provisionComponent(
   projectId: string,
@@ -1633,6 +1705,38 @@ async function provisionComponent(
     (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
     tplCtx,
   );
+
+  // Register the per-bench BrokerContext BEFORE the translate/imperative split so
+  // the broker is live for the WHOLE lifecycle (#396, AC3): an imperative plugin's
+  // start hook drives host.process.* / host.docker.* and pushes
+  // host.component.reportStatus from the first instant, and a declarative
+  // plugin's translate may reach the broker too. The context carries this
+  // component's name so a reportStatus notification (which stamps no name) routes
+  // here. Dropped on bench teardown via unregisterBrokerContextsForBench.
+  registerBrokerContextForBench(projectId, benchId, binding.pluginId, tplCtx.ports, componentName);
+
+  // Imperative (escape-hatch) plugins implement start/stop/health/cleanup; the
+  // host invokes the start hook directly rather than translating a
+  // ProvisionDescriptor (#396, AC1). The manifest's componentMode is the signal.
+  if (getComponentMode(binding.pluginId) === "imperative") {
+    await provisionImperativeComponent(
+      projectId,
+      benchId,
+      componentName,
+      binding.pluginId,
+      bench,
+      buildBenchContext(
+        projectId,
+        benchId,
+        componentName,
+        bench.workspacePath,
+        tplCtx.ports,
+        resolvedEnv,
+      ),
+      componentStatus,
+    );
+    return;
+  }
 
   // Resolve `{{ports.x}}` / `{{urls.x}}` / `{{components.x}}` template strings in
   // the opaque config before the plugin's pure translate sees it, preserving the
@@ -1680,15 +1784,10 @@ async function provisionComponent(
     );
   }
 
-  // Wire the per-bench BrokerContext onto the plugin's live connection (#677).
-  // The broker handlers are registered once per component-plugin connection in
-  // plugin-manager; here we supply the context they resolve against so a
-  // privileged broker call this component's plugin makes accumulates an
-  // AuditEntry into THIS bench's AuditLog (via recordAuditEntry). Registered
-  // before runDescriptor runs so the broker is live for the launch, and dropped
-  // on bench teardown alongside clearAuditLog.
-  registerBrokerContextForBench(projectId, benchId, binding.pluginId, tplCtx.ports);
-
+  // The per-bench BrokerContext was registered before the translate/imperative
+  // split above (#396), so the broker is already live for this launch: a
+  // privileged call this component's plugin makes accumulates an AuditEntry into
+  // THIS bench's AuditLog. Dropped on bench teardown alongside clearAuditLog.
   const lifecycleCtx: LifecycleContext = {
     pluginId: binding.pluginId,
     projectId,
@@ -1723,6 +1822,60 @@ async function provisionComponent(
 
   // Clear the in-flight markers (parity with the built-in launch path), so
   // reconcile resumes managing this component's live state.
+  liveStatus.statusDetail = undefined;
+  liveStatus.statusDetailStartedAt = undefined;
+  liveStatus.startedAt = undefined;
+
+  updateBenchStatus(bench);
+}
+
+/**
+ * Drive a translate-less (imperative) component plugin's `start` hook (#396,
+ * AC1). Unlike the declarative path there is no ProvisionDescriptor and no
+ * LifecycleEngine: the plugin owns the lifecycle and drives the host broker
+ * (host.process.* / host.docker.* / host.ports.*) from inside `start`, pushing
+ * ComponentStatus back through host.component.reportStatus. The BrokerContext was
+ * registered before this call (AC3), so those broker calls and status pushes
+ * route to this bench/component. The invoke resolves once the plugin's `start`
+ * settles; the plugin has already pushed its terminal status by then, so this
+ * just clears the in-flight markers and reconciles bench status.
+ */
+async function provisionImperativeComponent(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+  pluginId: string,
+  bench: Bench,
+  benchContext: HostBenchContext,
+  componentStatus: ComponentStatus,
+): Promise<void> {
+  try {
+    await pluginManager.invoke(pluginId, "start", benchContext);
+  } catch (err) {
+    componentStatus.status = "error";
+    componentStatus.error = (err as Error).message;
+    notificationService.createNotification(bench, "component-error");
+    updateBenchStatus(bench);
+    return;
+  }
+
+  // The plugin pushed its status through reportStatus, which REPLACES
+  // bench.components[name]; re-read the live status rather than the stale local.
+  const liveStatus = bench.components[componentName] ?? componentStatus;
+
+  // Imperative plugins have no host-run one-time setup, so mark setupComplete on
+  // first success for parity with the declarative path (FR-007): a later Stop ->
+  // Start cycle then behaves the same regardless of dispatch path.
+  if (liveStatus.status !== "error" && liveStatus.setupComplete !== true) {
+    liveStatus.setupComplete = true;
+    stateService.updateBench(stateService.toPersistedBench(bench));
+  }
+  if (liveStatus.status === "error") {
+    notificationService.createNotification(bench, "component-error");
+  }
+
+  // Clear the in-flight markers (parity with the declarative launch path) so
+  // refreshComponentStatuses / health resume managing this component.
   liveStatus.statusDetail = undefined;
   liveStatus.statusDetailStartedAt = undefined;
   liveStatus.startedAt = undefined;
@@ -1813,6 +1966,25 @@ export async function stopComponent(
 
   componentStatus.status = "stopping";
 
+  const binding = resolveBinding(projectId, componentName);
+
+  // Imperative (escape-hatch) plugins own their processes/containers, so teardown
+  // means driving their stop then cleanup hooks (#396, AC1) rather than the
+  // descriptor path (which never ran: there is no translate). The plugin reaps
+  // its own resources; the host then clears the ledger for (pluginId, benchId)
+  // so the orphan sweep does not later try to reap released resources.
+  if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") {
+    await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
+    componentStatus.status = "stopped";
+    componentStatus.pid = undefined;
+    componentStatus.error = undefined;
+    componentStatus.statusDetail = undefined;
+    componentStatus.statusDetailStartedAt = undefined;
+    componentStatus.startedAt = undefined;
+    updateBenchStatus(bench);
+    return;
+  }
+
   // Delegate teardown to the plugin path: stop whatever the LifecycleEngine
   // provisioned, driven by the descriptor the plugin emitted (the plugin's
   // output, not a core docker-field branch). A docker component's compose
@@ -1829,7 +2001,6 @@ export async function stopComponent(
     );
   }
 
-  const binding = resolveBinding(projectId, componentName);
   const enginePid = isNotBound(binding)
     ? undefined
     : `${binding.pluginId}:${benchId}:${componentName}`;
@@ -1847,6 +2018,67 @@ export async function stopComponent(
   componentStatus.startedAt = undefined;
 
   updateBenchStatus(bench);
+}
+
+/**
+ * Tear down a translate-less (imperative) component by driving its `stop` then
+ * `cleanup` hooks (#396, AC1). The BrokerContext is re-registered first so a
+ * broker call the hooks make (and their reportStatus pushes) still routes to
+ * this bench/component even after a host restart dropped the live context. Each
+ * hook is best-effort: a failing hook is logged and teardown still completes, so
+ * a misbehaving plugin can never wedge a bench in `stopping`. After cleanup the
+ * host clears the ledger for (pluginId, benchId): the plugin has released its
+ * resources, so the startup orphan sweep must not later try to reap them.
+ */
+async function stopImperativeComponent(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+  pluginId: string,
+  bench: Bench,
+): Promise<void> {
+  const config = projectRegistry.getProject(projectId)?.config;
+  let ports = bench.ports;
+  let resolvedEnv: Record<string, string> = {};
+  if (config) {
+    const componentConfig = config.components[componentName];
+    const tplCtx = buildTemplateContext(config, benchId, bench.workspacePath);
+    ports = tplCtx.ports;
+    resolvedEnv = resolveServiceEnv(
+      (componentConfig?.config?.env as Record<string, string> | undefined) ?? {},
+      tplCtx,
+    );
+  }
+
+  // Keep the broker live for the stop/cleanup hooks (AC3).
+  registerBrokerContextForBench(projectId, benchId, pluginId, ports, componentName);
+  const benchContext = buildBenchContext(
+    projectId,
+    benchId,
+    componentName,
+    bench.workspacePath,
+    ports,
+    resolvedEnv,
+  );
+
+  try {
+    await pluginManager.invoke(pluginId, "stop", benchContext);
+  } catch (err) {
+    console.warn(
+      `[bench-manager] imperative stop hook failed for '${componentName}' ` +
+        `(plugin '${pluginId}', bench ${benchId}): ${(err as Error).message}`,
+    );
+  }
+  try {
+    await pluginManager.invoke(pluginId, "cleanup", benchContext);
+  } catch (err) {
+    console.warn(
+      `[bench-manager] imperative cleanup hook failed for '${componentName}' ` +
+        `(plugin '${pluginId}', bench ${benchId}): ${(err as Error).message}`,
+    );
+  }
+
+  ledger.clearEntry(pluginId, benchId);
 }
 
 export function startAllComponents(projectId: string, benchId: number): Bench {
@@ -2056,6 +2288,7 @@ function registerBrokerContextForBench(
   benchId: number,
   pluginId: string,
   ports: Record<string, number>,
+  componentName: string,
 ): void {
   // Derive the categories the plugin declared from its manifest, so a broker
   // call outside the declared set is denied (and recorded "denied") rather than
@@ -2069,6 +2302,10 @@ function registerBrokerContextForBench(
   const ctx: BrokerContext = {
     pluginId,
     benchId,
+    // The component this context is being registered for. An imperative plugin's
+    // reportStatus notification carries no `name`, so the broker routes that push
+    // to this component (#396).
+    componentName,
     ports,
     reportStatus: buildReportStatus(projectId, benchId),
     // The registry keys a BrokerContext by (pluginId, benchId), so when two
@@ -2117,6 +2354,11 @@ export async function refreshComponentStatuses() {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
     for (const name of Object.keys(project.config.components)) {
+      // An imperative plugin has no ProvisionDescriptor to resolve (there is no
+      // translate), so skip the resolve entirely rather than round-trip a
+      // translate that would only fail with MethodNotFound (#396).
+      const binding = resolveBinding(bench.projectId, name);
+      if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") continue;
       const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
       if (descriptor?.kind === "docker" && bench.components[name]) {
         dockerQueries.push({
@@ -2166,6 +2408,17 @@ export async function refreshComponentStatuses() {
         } else if (componentStatus.status === "running") {
           componentStatus.status = "stopped";
         }
+      } else if (pluginId && getComponentMode(pluginId) === "imperative") {
+        // An imperative plugin owns its process/container handles, so the host
+        // has no host-id process or descriptor to read: pull its status via the
+        // plugin's health hook instead (#396, AC1).
+        await refreshImperativeComponentStatus(
+          bench,
+          name,
+          pluginId,
+          componentStatus,
+          project.config,
+        );
       } else if (pluginId) {
         const procStatus = processManager.getProcessStatus(`${pluginId}:${bench.id}:${name}`);
         if (procStatus.alive && componentStatus.status === "starting") {
@@ -2184,6 +2437,67 @@ export async function refreshComponentStatuses() {
     }
 
     updateBenchStatus(bench);
+  }
+}
+
+const COMPONENT_STATUS_VALUES: readonly ComponentStatusValue[] = [
+  "stopped",
+  "starting",
+  "running",
+  "error",
+  "stopping",
+  "completed",
+];
+
+function isComponentStatusValue(value: unknown): value is ComponentStatusValue {
+  return (
+    typeof value === "string" && (COMPONENT_STATUS_VALUES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Pull an imperative component's status through its plugin `health` hook (#396,
+ * AC1). The host cannot read process/docker state for an imperative plugin (the
+ * plugin owns the handles), so `health` is the sanctioned status query. The
+ * broker is kept live first so a health hook that makes broker calls can route.
+ * Best-effort: a plugin that is not running, or a health call that fails or
+ * returns an unrecognised status, leaves the last pushed reportStatus in place
+ * rather than forcing the component to an inferred state.
+ */
+async function refreshImperativeComponentStatus(
+  bench: Bench,
+  componentName: string,
+  pluginId: string,
+  componentStatus: ComponentStatus,
+  config: RouboConfig,
+): Promise<void> {
+  try {
+    const componentConfig = config.components[componentName];
+    const tplCtx = buildTemplateContext(config, bench.id, bench.workspacePath);
+    const resolvedEnv = resolveServiceEnv(
+      (componentConfig?.config?.env as Record<string, string> | undefined) ?? {},
+      tplCtx,
+    );
+    registerBrokerContextForBench(bench.projectId, bench.id, pluginId, tplCtx.ports, componentName);
+    const health = await pluginManager.invoke<unknown>(
+      pluginId,
+      "health",
+      buildBenchContext(
+        bench.projectId,
+        bench.id,
+        componentName,
+        bench.workspacePath,
+        tplCtx.ports,
+        resolvedEnv,
+      ),
+    );
+    const status = (health as { status?: unknown } | undefined)?.status;
+    if (isComponentStatusValue(status)) {
+      componentStatus.status = status;
+      if (status !== "error") componentStatus.error = undefined;
+    }
+  } catch {
+    // Plugin not running / health failed: keep the last pushed status.
   }
 }
 

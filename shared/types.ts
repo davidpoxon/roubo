@@ -1041,6 +1041,14 @@ export interface BrokerContext {
   pluginId: string;
   /** The bench this broker is scoped to; stamped onto every audit entry. */
   benchId: number;
+  /**
+   * The component whose lifecycle this context was last registered for. An
+   * imperative plugin's `host.component.reportStatus` arrives as a JSON-RPC
+   * notification carrying no `name` (the SDK never stamps one), so the broker
+   * routes that push to this component when the status omits `name` (#396).
+   * Optional: a context registered by the declarative path may leave it unset.
+   */
+  componentName?: string;
   /** Host-allocated ports for this bench, keyed by component name. */
   ports: Record<string, number>;
   /** Push sink invoked by `host.component.reportStatus`. */

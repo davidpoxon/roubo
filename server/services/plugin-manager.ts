@@ -24,6 +24,7 @@ import { cleanEnv } from "./env.js";
 import { CancellationTokenSource, createConnection, type JsonRpcConnection } from "./plugin-rpc.js";
 import { registerHostHandlers } from "./plugin-host-api.js";
 import { registerBrokerHandlers } from "./component-broker.js";
+import * as ledger from "./resource-ownership-ledger.js";
 import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
@@ -1282,6 +1283,10 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
         entry.connection,
         (benchId) => resolveBrokerContext(pluginId, benchId),
         {
+          // Wire the real ResourceOwnershipLedger so a process the broker spawns
+          // on this plugin's behalf is tracked and reaped by crash cleanup / the
+          // startup sweep (#396, AC4).
+          ledger,
           log: (level, text) => {
             writeLog(entry, "host", text, level).catch(() => {});
           },

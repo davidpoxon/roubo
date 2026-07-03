@@ -6677,3 +6677,180 @@ describe("per-bench BrokerContext wiring on provision/teardown (#677)", () => {
     expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
   });
 });
+
+// The host must dispatch a translate-less (imperative) component plugin's
+// start/stop/health/cleanup hooks, not just translate (#396).
+describe("imperative component dispatch (#396)", () => {
+  // A record whose manifest declares componentMode: imperative (plus a schema-
+  // shaped permissions block so the BrokerContext's hasPermission derives cleanly).
+  const imperativeRecord = (id = "process") =>
+    ({
+      id,
+      manifest: {
+        componentMode: "imperative",
+        permissions: {
+          network: { hosts: [] },
+          credentials: { slots: [] },
+          filesystem: { paths: [] },
+          processes: { executables: ["echo"] },
+        },
+      },
+    }) as unknown as ReturnType<typeof pluginManager.getRecord>;
+
+  it("drives the plugin start hook with a BenchContext instead of translate (AC1)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "process",
+      "start",
+      expect.objectContaining({
+        projectId: "test-project",
+        benchId: 1,
+        componentName: "backend",
+        workspacePath: expect.any(String),
+        ports: expect.any(Object),
+        env: expect.any(Object),
+      }),
+    );
+    // The declarative translate path is never taken for an imperative plugin.
+    expect(pluginManager.invoke).not.toHaveBeenCalledWith(
+      "process",
+      "translate",
+      expect.anything(),
+    );
+  });
+
+  it("registers the per-bench BrokerContext with the componentName before start (AC3)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    expect(pluginManager.registerBrokerContext).toHaveBeenCalledWith(
+      "process",
+      1,
+      expect.objectContaining({ pluginId: "process", benchId: 1, componentName: "backend" }),
+    );
+  });
+
+  it("drives the component to error when the start hook throws", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("boom"));
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.status).toBe("error");
+    expect(bench?.components.backend.error).toBe("boom");
+    expect(notificationService.createNotification).toHaveBeenCalled();
+  });
+
+  it("drives stop then cleanup and clears the ledger on stop (AC1)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    vi.mocked(pluginManager.invoke).mockClear();
+
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    const methods = vi.mocked(pluginManager.invoke).mock.calls.map((c) => c[1]);
+    expect(methods).toEqual(["stop", "cleanup"]);
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("stopped");
+  });
+
+  it("completes stop even when the stop hook throws (best-effort teardown)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockImplementation((async (_p: string, method: string) => {
+      if (method === "stop") throw new Error("stop failed");
+      return undefined;
+    }) as typeof pluginManager.invoke);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    await benchManager.stopComponent("test-project", 1, "backend");
+
+    // cleanup still runs and the ledger is still cleared despite the stop failure.
+    expect(pluginManager.invoke).toHaveBeenCalledWith("process", "cleanup", expect.anything());
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("stopped");
+  });
+
+  it("pulls status from the plugin health hook on refresh (AC1)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    vi.mocked(pluginManager.invoke).mockImplementation((async (_p: string, method: string) => {
+      if (method === "health") return { status: "completed" };
+      return undefined;
+    }) as typeof pluginManager.invoke);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    await benchManager.refreshComponentStatuses();
+
+    expect(pluginManager.invoke).toHaveBeenCalledWith("process", "health", expect.anything());
+    expect(benchManager.getBench("test-project", 1)?.components.backend.status).toBe("completed");
+  });
+
+  it("bench-level Start launches a sibling when another component's plugin is unavailable", async () => {
+    // Mirror the CP-TC-028 fixture shape: `app` bound to an unavailable plugin,
+    // `deploy` bound to an available imperative plugin. Bench Start must launch
+    // `deploy` even though `app` cannot be dispatched (graceful degradation, #396).
+    const config = makeConfig({
+      components: {
+        app: { plugin: { id: "process" }, config: {} },
+        deploy: { plugin: { id: "clasp-deploy-stub" }, config: {} },
+      },
+      ports: { app: { base: 5000 } },
+    });
+    setupExistingBench({ config, ports: { app: 5000 } });
+    setupProcessMocks();
+    vi.mocked(componentRegistry.resolveBinding).mockImplementation((_p: string, name: string) =>
+      name === "app"
+        ? { reason: "plugin-unavailable", pluginId: "process" }
+        : { pluginId: "clasp-deploy-stub", connection: {} as never },
+    );
+    vi.mocked(pluginManager.getRecord).mockImplementation((id: string) =>
+      id === "clasp-deploy-stub" ? imperativeRecord("clasp-deploy-stub") : undefined,
+    );
+    vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
+
+    benchManager.startAllComponents("test-project", 1);
+    // Let the background launch loop run (app throws-and-continues, deploy starts).
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "clasp-deploy-stub",
+      "start",
+      expect.objectContaining({ componentName: "deploy" }),
+    );
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.app.status).toBe("error");
+  });
+
+  it("per-component Start still throws when the plugin is unavailable (contract preserved)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(componentRegistry.resolveBinding).mockReturnValue({
+      reason: "plugin-unavailable",
+      pluginId: "process",
+    });
+
+    await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject({
+      code: "COMPONENT_NOT_BOUND",
+    });
+  });
+});
