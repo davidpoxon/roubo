@@ -1,10 +1,17 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import semver from "semver";
+import { parseManifest } from "@roubo/shared";
 import type {
   InstallPreview,
   MarketplaceCatalogEntry,
   MarketplaceCatalogSource,
   MarketplaceKind,
   MarketplaceListing,
+  PluginLifecycle,
+  PluginManifest,
+  PluginRecord,
 } from "@roubo/shared";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginInstaller from "./plugin-installer.js";
@@ -62,6 +69,38 @@ export function isNewerVersion(catalogVersion: string, installedVersion: string)
   return catalogVersion.trim().toLowerCase() !== installedVersion.trim().toLowerCase();
 }
 
+// Repo root relative to this service file (server/services/ -> repo root), used
+// to locate a bundled plugin's `plugins/<id>` source manifest for PRE-INSTALL
+// enrichment (issue #401).
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/**
+ * Read the declared manifest for a catalog entry so the drawer can render its
+ * permissions + lifecycle PRE-INSTALL (issue #401), without baking those fields
+ * into the signed catalog payload (which would need the out-of-band signing key
+ * and would trip the marketplace drift guard). Prefer the installed record's
+ * manifest (authoritative for what is on the machine, always present in
+ * production for a seeded / installed plugin); otherwise read the bundled
+ * `plugins/<id>` source manifest the git+directory catalog entry points at
+ * (available in the source tree and in dev). Returns null when neither is
+ * available (a packaged app with an uninstalled, non-bundled entry), so the
+ * drawer simply omits the provenance rather than failing.
+ */
+function readEntryManifest(
+  entry: MarketplaceCatalogEntry,
+  record: PluginRecord | undefined,
+): PluginManifest | null {
+  if (record?.manifest) return record.manifest;
+  if (entry.source.type !== "git" || entry.source.directory === undefined) return null;
+  const manifestPath = path.resolve(REPO_ROOT, entry.source.directory, "roubo-plugin.yaml");
+  try {
+    const parsed = parseManifest(readFileSync(manifestPath, "utf8"), manifestPath);
+    return parsed.ok ? parsed.manifest : null;
+  } catch {
+    return null;
+  }
+}
+
 function annotate(entry: MarketplaceCatalogEntry): MarketplaceListing {
   const record = pluginManager.listInstalled().find((r) => r.id === entry.id);
   const installed = record !== undefined;
@@ -77,7 +116,22 @@ function annotate(entry: MarketplaceCatalogEntry): MarketplaceListing {
     record?.source !== "bundled" &&
     installedVersion !== null &&
     isNewerVersion(entry.version, installedVersion);
-  return { ...entry, installed, installedVersion, updateAvailable };
+  // PRE-INSTALL provenance the detail drawer renders (issue #401). Lifecycle is a
+  // component-plugin concept: integration plugins have no start/stop lifecycle,
+  // so their drawer omits the row (lifecycle stays null). An absent manifest
+  // `lifecycle` defaults to long-running, the shape every existing component has.
+  const manifest = readEntryManifest(entry, record);
+  const declaredPermissions = manifest?.permissions ?? null;
+  const lifecycle: PluginLifecycle | null =
+    manifest !== null && entry.kind === "component" ? (manifest.lifecycle ?? "long-running") : null;
+  return {
+    ...entry,
+    installed,
+    installedVersion,
+    updateAvailable,
+    declaredPermissions,
+    lifecycle,
+  };
 }
 
 function matchesQuery(listing: MarketplaceListing, q: string): boolean {

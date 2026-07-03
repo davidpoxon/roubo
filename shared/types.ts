@@ -70,6 +70,7 @@ export {
   PluginCapabilitiesSchema,
   PluginDefaultIntegrationConfigSchema,
   PluginIconSchema,
+  PluginLifecycleSchema,
 } from "./plugin-manifest-schema.js";
 
 export type {
@@ -83,6 +84,7 @@ export type {
   PluginCapabilities,
   PluginDefaultIntegrationConfig,
   PluginIcon,
+  PluginLifecycle,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
@@ -142,6 +144,7 @@ import type { CapturedUserId, IntegrationConfig } from "./config-schema.js";
 import type {
   PluginPermissions,
   PluginDefaultIntegrationConfig,
+  PluginLifecycle,
 } from "./plugin-manifest-schema.js";
 import type { IsolationNotice, PluginStatus } from "./plugin-runtime-types.js";
 import type { PluginManifest } from "./plugin-manifest-schema.js";
@@ -336,6 +339,21 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   installed: boolean;
   installedVersion: string | null;
   updateAvailable: boolean;
+  // Derived, PRE-INSTALL provenance the detail drawer renders (issue #401). These
+  // are NOT part of the signed catalog `payload` (changing that requires the
+  // out-of-band signing key and would trip the marketplace drift guard); the
+  // server derives them in `annotate()` by reading the plugin's declared manifest
+  // (the installed record, or the bundled `plugins/<id>` source), the same way
+  // `installed` / `updateAvailable` are derived.
+  //
+  // `declaredPermissions` is the plugin's declared permission set (the drawer
+  // runs `declaredCategories()` over it to list each requested category with a
+  // human-readable label + detail); `null` when the manifest is unavailable
+  // pre-install (a non-bundled or release-sourced, not-yet-installed entry).
+  // `lifecycle` is the component lifecycle shape (long-running / one-shot), or
+  // `null` for integration plugins and when the manifest is unavailable.
+  declaredPermissions: PluginPermissions | null;
+  lifecycle: PluginLifecycle | null;
 }
 
 /**

@@ -55,6 +55,8 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     installed: false,
     installedVersion: null,
     updateAvailable: false,
+    declaredPermissions: null,
+    lifecycle: null,
     ...over,
   };
 }

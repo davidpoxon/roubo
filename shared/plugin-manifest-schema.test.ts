@@ -444,6 +444,27 @@ describe("PluginManifestSchema: contractVersion / descriptorSchemaVersion", () =
   });
 });
 
+describe("PluginManifestSchema: lifecycle (issue #401)", () => {
+  it("accepts a long-running or one-shot lifecycle", () => {
+    for (const lifecycle of ["long-running", "one-shot"] as const) {
+      const result = PluginManifestSchema.safeParse(makeManifest({ kind: "component", lifecycle }));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.lifecycle).toBe(lifecycle);
+    }
+  });
+
+  it("omitting lifecycle still validates (defaults are applied by the reader, not the schema)", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest());
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.lifecycle).toBeUndefined();
+  });
+
+  it("rejects an unknown lifecycle value", () => {
+    const manifest = { ...makeManifest(), lifecycle: "batch" };
+    expect(PluginManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+});
+
 describe("PluginManifestSchema: roubo range validation (FR-001)", () => {
   for (const valid of ["^1.0.0", "~1.2.0", ">=1.3.0", "1.x", "*", "1.2.3 - 2.0.0", "1 || 2"]) {
     it(`accepts a valid roubo range: ${valid}`, () => {
@@ -658,6 +679,15 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     const required = jsonSchema.required as string[];
     expect(required).not.toContain("contractVersion");
     expect(required).not.toContain("descriptorSchemaVersion");
+  });
+
+  it("declares an optional lifecycle enum (lockstep with zod, issue #401)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    expect(properties.lifecycle).toMatchObject({
+      type: "string",
+      enum: ["long-running", "one-shot"],
+    });
+    expect((jsonSchema.required as string[]).includes("lifecycle")).toBe(false);
   });
 
   it("permissions sub-tree declares ports and docker categories (lockstep with zod)", () => {

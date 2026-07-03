@@ -1,6 +1,8 @@
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Check, Download, Package, RefreshCw, ShieldAlert, ShieldCheck, X } from "lucide-react";
-import type { MarketplaceListing } from "@roubo/shared";
+import { declaredCategories } from "@roubo/shared";
+import type { MarketplaceListing, PluginLifecycle } from "@roubo/shared";
+import { CATEGORY_META } from "./permission-categories";
 
 // Detail drawer for one catalog entry (CP-FR-020, issue #621; CP-FR-021, issue
 // #622). A right-side modal panel mirroring the prototype: identity, summary,
@@ -24,9 +26,22 @@ const STRINGS = {
   curation: "Curation",
   sandbox: "Sandbox",
   unsandboxed: "Unsandboxed (v2)",
+  lifecycle: "Lifecycle",
+  permissionsHeading: "Declared permissions",
+  noPermissions: "This plugin declares no special permissions.",
   install: "Install",
   update: "Update",
   installed: "Installed",
+};
+
+// Human-readable lifecycle rendering shown in the Lifecycle row (issue #401,
+// CP-TC-097 / CP-TC-104). The one-shot copy names the run-to-completion shape;
+// the long-running copy names the supervised start / stop / health / logs shape,
+// so a one-shot plugin's drawer shows no long-running (start / stop / health /
+// logs) description (CP-TC-097 S001-O02).
+const LIFECYCLE_DESCRIPTION: Record<PluginLifecycle, string> = {
+  "long-running": "long-running (start, stop, health, and logs)",
+  "one-shot": "one-shot (start runs to completion, then completed)",
 };
 
 interface Props {
@@ -47,6 +62,13 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
 
 export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdate }: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
+  // PRE-INSTALL provenance the server derived onto the listing (issue #401): the
+  // declared permission categories (exactly those the manifest requests, via
+  // `declaredCategories`) and the component lifecycle. Both are null when the
+  // manifest is unavailable pre-install (a non-bundled, not-yet-installed entry),
+  // in which case the corresponding section / row is omitted.
+  const declaredPermissions = listing.declaredPermissions;
+  const permissionCategories = declaredPermissions ? declaredCategories(declaredPermissions) : [];
 
   return (
     <ModalOverlay
@@ -113,6 +135,13 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
                 </span>
               </MetaRow>
               <MetaRow label={STRINGS.kind}>{listing.kind}</MetaRow>
+              {listing.lifecycle !== null && (
+                <MetaRow label={STRINGS.lifecycle}>
+                  <span data-testid="marketplace-drawer-lifecycle" className="font-mono">
+                    {LIFECYCLE_DESCRIPTION[listing.lifecycle]}
+                  </span>
+                </MetaRow>
+              )}
               <MetaRow label={STRINGS.version}>
                 <span className="font-mono">v{listing.version}</span>
               </MetaRow>
@@ -134,6 +163,47 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
                 </span>
               </MetaRow>
             </dl>
+
+            {declaredPermissions !== null && (
+              <div className="mt-6" data-testid="marketplace-drawer-permissions">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                  {STRINGS.permissionsHeading}
+                </p>
+                {permissionCategories.length === 0 ? (
+                  <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                    {STRINGS.noPermissions}
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {permissionCategories.map((category) => {
+                      const meta = CATEGORY_META[category];
+                      const Icon = meta.icon;
+                      return (
+                        <li
+                          key={category}
+                          data-category={category}
+                          className="flex items-start gap-2.5 rounded-lg border border-stone-200 dark:border-stone-800 px-3 py-2"
+                        >
+                          <Icon
+                            size={15}
+                            aria-hidden
+                            className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-stone-900 dark:text-stone-100">
+                              {meta.label}
+                            </p>
+                            <p className="text-xs text-stone-500 dark:text-stone-400 break-words">
+                              {meta.describe(declaredPermissions)}
+                            </p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <div className="mt-6">
               {listing.updateAvailable ? (
