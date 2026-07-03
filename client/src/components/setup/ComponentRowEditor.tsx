@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, TextField, Input, Label } from "react-aria-components";
 import { ChevronRight, Plus, Trash2, X } from "lucide-react";
 import type { ComponentConfig, ComponentType } from "@roubo/shared";
+import { usePlugins } from "../../hooks/usePlugins";
+import Select from "../Select";
+import ConfigSchemaForm from "../ConfigSchemaForm";
 
 interface Props {
   componentKey: string;
@@ -27,6 +30,25 @@ function draftsToRecord(drafts: DraftEnv[]): Record<string, string> {
   for (const { k, v } of drafts) {
     const key = k.trim();
     if (key) out[key] = v;
+  }
+  return out;
+}
+
+// Seed a fresh `config` object for a newly selected component plugin's schema,
+// mirroring PluginConfigureDialog.seedInitialValues: skip array/object
+// properties the inline ConfigSchemaForm cannot edit, so a stale key from a
+// previously selected plugin never rides into the persisted config. Scalars
+// default to their schema `default`, `false` for booleans, or "" otherwise.
+function seedConfigForSchema(schema: Record<string, unknown> | undefined): Record<string, unknown> {
+  const props = (schema as { properties?: Record<string, unknown> } | undefined)?.properties;
+  const out: Record<string, unknown> = {};
+  if (!props) return out;
+  for (const [key, raw] of Object.entries(props)) {
+    const def = (raw ?? {}) as { default?: unknown; type?: string };
+    if (def.type === "array" || def.type === "object") continue;
+    if (def.default !== undefined) out[key] = def.default;
+    else if (def.type === "boolean") out[key] = false;
+    else out[key] = "";
   }
   return out;
 }
@@ -158,6 +180,35 @@ export default function ComponentRowEditor({
 
   const stride = maxBenches > 1 ? maxBenches - 1 : 0;
 
+  // Component-plugin binding (issue #390, CPHM-FR-010). Only `component`-kind
+  // plugins are bindable here; integration plugins are filtered out. Selecting
+  // a plugin sets `plugin: { id }` and re-seeds `config` for that plugin's
+  // schema. The deprecated `component.type` is never written.
+  const { data: pluginsData } = usePlugins();
+  const componentPlugins = useMemo(
+    () =>
+      (pluginsData?.plugins ?? [])
+        .filter((p) => p.manifest?.kind === "component")
+        .map((p) => ({
+          id: p.id,
+          name: p.manifest?.name ?? p.id,
+          configSchema: p.manifest?.configSchema,
+        })),
+    [pluginsData],
+  );
+  const selectedPluginId = component.plugin?.id ?? "";
+  const selectedPlugin = componentPlugins.find((p) => p.id === selectedPluginId);
+  const pluginItems = componentPlugins.map((p) => ({ value: p.id, label: p.name }));
+
+  const handleSelectPlugin = (pluginId: string) => {
+    if (!pluginId || pluginId === selectedPluginId) return;
+    const picked = componentPlugins.find((p) => p.id === pluginId);
+    onUpdate({
+      plugin: { id: pluginId },
+      config: seedConfigForSchema(picked?.configSchema),
+    });
+  };
+
   const updateEnvDraft = (next: DraftEnv[]) => {
     setEnvDraft(next);
     const record = draftsToRecord(next);
@@ -252,6 +303,35 @@ export default function ComponentRowEditor({
       {isExpanded && (
         <div className="ml-[21px] pl-4 pr-4 pt-3 pb-4 border-l-2 border-amber-500/35 bg-stone-50 dark:bg-stone-900/40 rounded-b-md">
           <div className="space-y-5">
+            {component.type === undefined && (
+              <div>
+                <span className={FIELD_LABEL}>Component plugin</span>
+                <div data-testid="component-plugin-select">
+                  <Select
+                    items={pluginItems}
+                    value={selectedPluginId}
+                    onChange={handleSelectPlugin}
+                    placeholder="Select a component plugin"
+                  />
+                </div>
+                {componentPlugins.length === 0 && (
+                  <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-600">
+                    No component plugins are installed. Install one from the Plugins settings to
+                    bind this component.
+                  </p>
+                )}
+                {selectedPlugin && (
+                  <div className="mt-4">
+                    <ConfigSchemaForm
+                      schema={selectedPlugin.configSchema}
+                      values={component.config ?? {}}
+                      onChange={(next) => onUpdate({ config: next })}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {component.type === "process" && (
               <div>
                 <TextField

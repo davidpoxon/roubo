@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { formatDivergence, makeObserve, type JourneyStep } from "./_support/step-runner.js";
+import { registerFixtureProject } from "../e2e-flow/_support/scenario.js";
 
 // CPHM-TC-081 / CPHM-TC-082 (#317) - E2E: configure a component via a plugin
 // binding, and an errored component plugin's banner guides recovery.
@@ -78,12 +79,12 @@ const ENTRY_PATH_FRAGMENT = "dist/index.js";
 // the copy alone never lifts that gate.
 const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 
-// #301 shipped the toggle removal but NOT the editor's plugin-binding UI (no
-// "Component plugin" selector, no schema-driven config fields). This is a
-// client-only editor capability with no server-observable signal, so the guard
-// localises the drift to #301 and marks the editor journey pending. Flip to
-// true (and drive the browser journey below) once #301 ships the selector.
-const COMPONENTS_EDITOR_BINDING_UI_WIRED = false;
+// #390 shipped the editor's plugin-binding UI (the "Component plugin" selector
+// and schema-driven config fields) as a follow-on to #301's toggle removal, so
+// the editor journey below is now drivable end to end. The flag stays as the
+// drift-guard toggle: if the selector regresses, flip it back to false to
+// re-mark the journey pending rather than let it fail opaquely.
+const COMPONENTS_EDITOR_BINDING_UI_WIRED = true;
 
 // #302 shipped the real-lastError banner but NOT TC-082's marketplace-recovery
 // affordances (S003/S004): a Reinstall action that initiates a reinstall. That
@@ -242,27 +243,92 @@ test("CPHM-TC-081: a plugin-bound component persists as plugin:{ id } with no co
   );
 });
 
-test("CPHM-TC-081: the Components editor add, bind, configure, save journey (S001, S002, S004, S005)", async () => {
-  // The persistence contract above is asserted HARD. The browser journey of
-  // driving the editor (open editor -> Add component -> pick a plugin from the
-  // 'Component plugin' selector -> fill the schema-driven fields -> Save) is not
-  // drivable today: #301 removed the Role toggle but did not add the selector or
-  // schema-driven fields, so ComponentRowEditor still renders only name/port/env
-  // and the plugin binding is set outside the editor. Emit the FR-020
-  // attribution and mark the journey pending against #301; when #301 ships the
-  // selector, flip COMPONENTS_EDITOR_BINDING_UI_WIRED and drive the journey here.
-  if (!COMPONENTS_EDITOR_BINDING_UI_WIRED) {
-    const detail = formatDivergence(
-      "CPHM-TC-081",
-      STEPS_081.S002,
-      "S002-O01",
-      "the Add-component panel exposes a 'Component plugin' selector that renders the bound plugin's config-schema fields and persists plugin:{ id }",
-      "the Components editor ships no plugin selector and no schema-driven fields; the plugin binding is set outside the editor",
-    );
-    test.info().annotations.push({ type: "blocked-by", description: detail });
-    test.fixme(true, detail);
-    return;
-  }
+test("CPHM-TC-081: the Components editor add, bind, configure, save journey (S001, S002, S004, S006)", async ({
+  page,
+  request,
+}) => {
+  // The persistence contract above is asserted HARD against a pre-bound fixture.
+  // This test drives the REAL editor journey #390 shipped (open editor -> Add
+  // component -> pick a plugin from the 'Component plugin' selector -> the
+  // schema-driven config fields render -> Save) and proves it persists the same
+  // shape (plugin:{ id }, no component.type). If the selector regresses, flip
+  // COMPONENTS_EDITOR_BINDING_UI_WIRED back to false to re-mark this pending.
+  test.skip(
+    !COMPONENTS_EDITOR_BINDING_UI_WIRED,
+    "Components editor plugin-binding UI not wired (see #390)",
+  );
+
+  // A fresh fixture project: its only pre-existing component is the default
+  // `app`. The fixture is torn down by the next /test/__reset (beforeEach).
+  const { projectId } = await registerFixtureProject(request, {
+    projectId: "cphm-tc-081-editor",
+  });
+
+  // --- S001: open the guided Components editor (the legacy Role toggle is gone). ---
+  await page.goto(`/projects/${projectId}/settings/setup`);
+  const addButton = page.getByRole("button", { name: /add component/i });
+  await expect(addButton).toBeVisible();
+
+  // --- S002: Add a component -> the new row auto-expands and exposes the
+  // "Component plugin" selector. ---
+  await addButton.click();
+  await expect(page.getByText("Component plugin", { exact: true })).toBeVisible();
+  const selector = page.getByTestId("component-plugin-select");
+  await expect(selector).toBeVisible();
+
+  // --- S003: the selector lists the installed component plugin. ---
+  await selector.getByRole("button").click();
+  const option = page.getByRole("option", { name: "Clasp Deploy Stub" });
+  await expect(option).toBeVisible();
+
+  // --- S004: select it -> its config-schema fields render. The stub declares an
+  // empty schema, so the schema-driven form renders its explicit no-fields
+  // notice; either way the render is driven by the selected plugin's schema. ---
+  await option.click();
+  await expect(page.getByText(/does not declare any configuration fields/i)).toBeVisible();
+
+  // --- S006: save through the editor, then assert the persisted component
+  // carries plugin:{ id } and NO component.type. ---
+  const saveButton = page.getByRole("button", { name: "Save setup" });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  const readBoundComponent = async (): Promise<ComponentConfigShape | null> => {
+    const res = await request.get(`/api/projects/${projectId}/config`);
+    if (res.status() !== 200) return null;
+    const body = (await res.json()) as {
+      config: { components?: Record<string, ComponentConfigShape> };
+    };
+    const comps = body.config.components ?? {};
+    return Object.values(comps).find((c) => c.plugin?.id === COMPONENT_PLUGIN_ID) ?? null;
+  };
+
+  // The editor save writes roubo.yaml and reloads the parsed config; poll the
+  // config endpoint until the newly bound component surfaces.
+  await expect.poll(readBoundComponent).not.toBeNull();
+  const bound = await readBoundComponent();
+
+  observe081(
+    STEPS_081.S006,
+    "S006-O03",
+    bound !== null,
+    "the component added through the editor is persisted, bound to the plugin",
+    bound === null ? "no plugin-bound component persisted" : "component present",
+  );
+  observe081(
+    STEPS_081.S006,
+    "S006-O01",
+    bound?.plugin?.id === COMPONENT_PLUGIN_ID,
+    `persisted binding is plugin: { id: "${COMPONENT_PLUGIN_ID}" }`,
+    `plugin.id=${bound?.plugin?.id ?? "absent"}`,
+  );
+  observe081(
+    STEPS_081.S006,
+    "S006-O02",
+    bound !== null && bound.type === undefined,
+    "the deprecated component.type field is not written for the editor-bound component",
+    `component.type=${bound?.type ?? "undefined"}`,
+  );
 });
 
 test("CPHM-TC-082: an errored component plugin surfaces its real lastError (S001, S002)", async ({

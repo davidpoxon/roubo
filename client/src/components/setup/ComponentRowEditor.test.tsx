@@ -1,9 +1,49 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ComponentRowEditor from "./ComponentRowEditor";
 import type { ComponentConfig } from "@roubo/shared";
+
+// The expanded panel derives its "Component plugin" selector from usePlugins.
+// Mock it so the component renders without a QueryClientProvider and so we can
+// assert that only component-kind plugins are offered (#390). Two component
+// plugins (with distinct config schemas) plus one integration plugin that must
+// be filtered out.
+vi.mock("../../hooks/usePlugins", () => ({
+  usePlugins: () => ({
+    data: {
+      plugins: [
+        {
+          id: "alpha-deploy",
+          manifest: {
+            kind: "component",
+            name: "Alpha Deploy",
+            configSchema: {
+              type: "object",
+              properties: {
+                region: { type: "string" },
+                replicas: { type: "integer", default: 1 },
+              },
+            },
+          },
+        },
+        {
+          id: "beta-deploy",
+          manifest: {
+            kind: "component",
+            name: "Beta Deploy",
+            configSchema: { type: "object", properties: { bucket: { type: "string" } } },
+          },
+        },
+        {
+          id: "gh-tracker",
+          manifest: { kind: "integration", name: "GitHub", configSchema: undefined },
+        },
+      ],
+    },
+  }),
+}));
 
 const processComp: ComponentConfig = {
   type: "process",
@@ -331,5 +371,76 @@ describe("ComponentRowEditor: expanded panel", () => {
     render(<ComponentRowEditor {...makeProps({ isExpanded: true, onRequestRemove })} />);
     await userEvent.click(screen.getByRole("button", { name: /remove component/i }));
     expect(onRequestRemove).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ComponentRowEditor: component plugin selector (#390)", () => {
+  it("renders the Component plugin selector for a typeless component", () => {
+    render(<ComponentRowEditor {...makeProps({ component: {}, isExpanded: true })} />);
+    expect(screen.getByText("Component plugin")).toBeInTheDocument();
+    const wrapper = screen.getByTestId("component-plugin-select");
+    expect(within(wrapper).getByRole("button")).toBeInTheDocument();
+  });
+
+  it("does not render the selector for a legacy typed (process) component", () => {
+    render(<ComponentRowEditor {...makeProps({ component: processComp, isExpanded: true })} />);
+    expect(screen.queryByText("Component plugin")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("component-plugin-select")).not.toBeInTheDocument();
+  });
+
+  it("lists only component-kind plugins as options", async () => {
+    render(<ComponentRowEditor {...makeProps({ component: {}, isExpanded: true })} />);
+    const wrapper = screen.getByTestId("component-plugin-select");
+    await userEvent.click(within(wrapper).getByRole("button"));
+    expect(screen.getByRole("option", { name: "Alpha Deploy" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Beta Deploy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "GitHub" })).not.toBeInTheDocument();
+  });
+
+  it("binds plugin:{ id } and seeds config (never component.type) when a plugin is selected", async () => {
+    const onUpdate = vi.fn();
+    render(<ComponentRowEditor {...makeProps({ component: {}, isExpanded: true, onUpdate })} />);
+    const wrapper = screen.getByTestId("component-plugin-select");
+    await userEvent.click(within(wrapper).getByRole("button"));
+    await userEvent.click(screen.getByRole("option", { name: "Alpha Deploy" }));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const arg = onUpdate.mock.calls[0][0];
+    expect(arg).toEqual({
+      plugin: { id: "alpha-deploy" },
+      config: { region: "", replicas: 1 },
+    });
+    expect(arg).not.toHaveProperty("type");
+  });
+
+  it("renders the selected plugin's config-schema fields", () => {
+    render(
+      <ComponentRowEditor
+        {...makeProps({
+          component: { plugin: { id: "alpha-deploy" }, config: {} },
+          isExpanded: true,
+        })}
+      />,
+    );
+    expect(screen.getByTestId("config-field-region")).toBeInTheDocument();
+    expect(screen.getByTestId("config-field-replicas")).toBeInTheDocument();
+  });
+
+  it("re-seeds config and updates the binding when the selection is switched", async () => {
+    const onUpdate = vi.fn();
+    render(
+      <ComponentRowEditor
+        {...makeProps({
+          component: { plugin: { id: "alpha-deploy" }, config: { region: "us-east" } },
+          isExpanded: true,
+          onUpdate,
+        })}
+      />,
+    );
+    const wrapper = screen.getByTestId("component-plugin-select");
+    await userEvent.click(within(wrapper).getByRole("button"));
+    await userEvent.click(screen.getByRole("option", { name: "Beta Deploy" }));
+    const arg = onUpdate.mock.calls.at(-1)?.[0];
+    expect(arg).toEqual({ plugin: { id: "beta-deploy" }, config: { bucket: "" } });
+    expect(arg).not.toHaveProperty("type");
   });
 });
