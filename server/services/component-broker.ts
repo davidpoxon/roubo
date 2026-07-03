@@ -10,6 +10,7 @@ import type {
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import * as processManager from "./process-manager.js";
 import * as dockerService from "./docker.js";
+import * as ledger from "./resource-ownership-ledger.js";
 
 // JSON-RPC server-error range; mirrors the conventions in plugin-host-api.ts so
 // broker errors look identical to the rest of the host surface. The
@@ -70,6 +71,13 @@ export type DockerLike = Pick<
   | "getContainerId"
 >;
 
+/**
+ * The subset of the ResourceOwnershipLedger the broker writes to (FR-015). Every
+ * process the broker spawns on a plugin's behalf is recorded so the pre-restart
+ * crash cleanup and the startup orphan sweep can reap it (#396, AC4).
+ */
+export type LedgerLike = Pick<typeof ledger, "recordProcess">;
+
 export interface BrokerLogger {
   (level: "info" | "warn" | "error", text: string): void;
 }
@@ -77,6 +85,13 @@ export interface BrokerLogger {
 export interface CreateBrokerOptions {
   processManager?: ProcessManagerLike;
   docker?: DockerLike;
+  /**
+   * Ledger the broker records host-spawned processes into. Supplied by the
+   * production caller (plugin-manager) so a broker-spawned process is
+   * ledger-tracked; omitted in unit tests that do not assert ledger writes, in
+   * which case no ledger I/O happens.
+   */
+  ledger?: LedgerLike;
   log?: BrokerLogger;
 }
 
@@ -236,6 +251,9 @@ export function registerBrokerHandlers(
 ): void {
   const pm: ProcessManagerLike = options.processManager ?? processManager;
   const docker: DockerLike = options.docker ?? dockerService;
+  // No default: only the production caller wires a ledger. A test that does not
+  // pass one records nothing (and does no state.json I/O), preserving behaviour.
+  const led: LedgerLike | undefined = options.ledger;
   const log: BrokerLogger = options.log ?? (() => {});
 
   // Accept either a fixed BrokerContext (the unit-test / single-bench shape) or
@@ -261,20 +279,37 @@ export function registerBrokerHandlers(
     return resolved;
   };
 
+  // Resolve the per-bench context for a NOTIFICATION (no id to error back on):
+  // return null on a missing/unroutable benchId rather than throwing, so a
+  // malformed push is dropped (and logged) instead of surfacing an unhandled
+  // rejection on the connection (#396).
+  const resolveCtxLoose = (params: unknown): BrokerContext | null => {
+    const benchId = (params as { benchId?: unknown })?.benchId;
+    if (typeof benchId !== "number" || !Number.isFinite(benchId)) return null;
+    return resolve(benchId);
+  };
+
   // --- host.process.* (delegate to process-manager) -------------------------
 
   connection.onRequest<ProcessStartParams, { pid: number }>(
     "host.process.start",
     async (params) => {
       const method = "host.process.start";
-      enforcePermission(requireCtx(method, params), method, "process", params, log);
+      const ctx = requireCtx(method, params);
+      enforcePermission(ctx, method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
       const env = requireEnv(method, params?.env);
       const cwd = requireString(method, "cwd", params?.cwd);
       try {
-        return await pm.startProcess(id, command, args, env, cwd);
+        const result = await pm.startProcess(id, command, args, env, cwd);
+        // Record the now-running process so crash cleanup / the startup sweep can
+        // reap it (#396, AC4). Recorded after a successful spawn: the process is
+        // live and owned by the host, mirroring the LifecycleEngine's long-lived
+        // process path (lifecycle-engine.ts runProcess).
+        led?.recordProcess(ctx.pluginId, ctx.benchId, id);
+        return result;
       } catch (err) {
         wrapInternal(method, log, err);
       }
@@ -285,7 +320,8 @@ export function registerBrokerHandlers(
     "host.process.run",
     async (params) => {
       const method = "host.process.run";
-      enforcePermission(requireCtx(method, params), method, "process", params, log);
+      const ctx = requireCtx(method, params);
+      enforcePermission(ctx, method, "process", params, log);
       const id = requireString(method, "id", params?.id);
       const command = requireString(method, "command", params?.command);
       const args = requireStringArray(method, "args", params?.args);
@@ -293,6 +329,10 @@ export function registerBrokerHandlers(
       const cwd = requireString(method, "cwd", params?.cwd);
       const timeoutMs =
         params?.timeoutMs === undefined ? 0 : requireNumber(method, "timeoutMs", params.timeoutMs);
+      // Record before the (blocking) run so a host crash mid-run still leaves a
+      // ledger entry the cleanup sweep can reap (#396, AC4), mirroring the
+      // LifecycleEngine's one-shot path (lifecycle-engine.ts runOneshot).
+      led?.recordProcess(ctx.pluginId, ctx.benchId, id);
       try {
         return await pm.runProcess(id, command, args, env, cwd, timeoutMs);
       } catch (err) {
@@ -522,6 +562,42 @@ export function registerBrokerHandlers(
       wrapInternal(method, log, err);
     }
   });
+
+  // The SDK sends `host.component.reportStatus` as a JSON-RPC NOTIFICATION
+  // (component-host-client.ts calls sendNotification), so an imperative plugin's
+  // status pushes never reach the onRequest handler above. Handle the
+  // notification form too (#396, AC2). The notification carries no `name` (the
+  // SDK stamps only `benchId`), so route the push to the component this context
+  // is currently driving when the status omits one. Notifications have no reply,
+  // so a malformed or unroutable push is logged and dropped, never thrown.
+  connection.onNotification<ComponentStatus & { benchId?: unknown }>(
+    "host.component.reportStatus",
+    (params) => {
+      const method = "host.component.reportStatus";
+      if (!params || typeof params !== "object") return;
+      const status = (params as { status?: unknown }).status;
+      if (typeof status !== "string" || status.length === 0) return;
+      const ctx = resolveCtxLoose(params);
+      if (!ctx) {
+        log("warn", `${method} notification dropped: no active bench context`);
+        return;
+      }
+      const rawName = (params as { name?: unknown }).name;
+      const name = typeof rawName === "string" && rawName.length > 0 ? rawName : ctx.componentName;
+      if (typeof name !== "string" || name.length === 0) {
+        log("warn", `${method} notification dropped: no component name`);
+        return;
+      }
+      try {
+        ctx.reportStatus({ ...(params as ComponentStatus), name });
+      } catch (err) {
+        log(
+          "error",
+          `${method} notification failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+  );
 
   connection.onRequest<Partial<ComponentLogLine> & { componentName?: unknown }, null>(
     "host.component.reportLog",

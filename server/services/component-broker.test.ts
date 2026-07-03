@@ -17,20 +17,28 @@ import type { JsonRpcConnection } from "./plugin-rpc.js";
 
 function makeConnection(): JsonRpcConnection & {
   handlers: Map<string, (params: unknown) => unknown>;
+  notifyHandlers: Map<string, (params: unknown) => unknown>;
 } {
   const handlers = new Map<string, (params: unknown) => unknown>();
+  const notifyHandlers = new Map<string, (params: unknown) => unknown>();
   return {
     sendRequest: vi.fn(),
     sendNotification: vi.fn(),
     onRequest: vi.fn((method: string, handler: (params: unknown) => unknown) => {
       handlers.set(method, handler);
     }),
-    onNotification: vi.fn(),
+    onNotification: vi.fn((method: string, handler: (params: unknown) => unknown) => {
+      notifyHandlers.set(method, handler);
+    }),
     onError: vi.fn(),
     onClose: vi.fn(),
     dispose: vi.fn(),
     handlers,
-  } as unknown as JsonRpcConnection & { handlers: Map<string, (params: unknown) => unknown> };
+    notifyHandlers,
+  } as unknown as JsonRpcConnection & {
+    handlers: Map<string, (params: unknown) => unknown>;
+    notifyHandlers: Map<string, (params: unknown) => unknown>;
+  };
 }
 
 function need<T>(value: T | undefined, label: string): T {
@@ -69,9 +77,11 @@ interface Harness {
   assignContainer: ReturnType<typeof vi.fn>;
   hasPermission: ReturnType<typeof vi.fn>;
   recordAudit: ReturnType<typeof vi.fn>;
+  recordProcess: ReturnType<typeof vi.fn>;
   audit: AuditEntry[];
   log: ReturnType<typeof vi.fn>;
   call: (method: string, params?: unknown) => Promise<unknown>;
+  notify: (method: string, params?: unknown) => void;
 }
 
 function setup(
@@ -79,6 +89,8 @@ function setup(
     ports?: Record<string, number>;
     allow?: boolean;
     deny?: BrokerPermissionCategory[];
+    componentName?: string;
+    withLedger?: boolean;
   } = {},
 ): Harness {
   const connection = makeConnection();
@@ -87,6 +99,7 @@ function setup(
   const reportStatus = vi.fn();
   const reportLog = vi.fn();
   const assignContainer = vi.fn();
+  const recordProcess = vi.fn();
   // `deny` (a set of categories to refuse) takes precedence; otherwise fall
   // back to the blanket `allow` flag (default: every category permitted).
   const denied = new Set(opts.deny ?? []);
@@ -101,6 +114,7 @@ function setup(
   const ctx: BrokerContext = {
     pluginId: "plugin-under-test",
     benchId: 7,
+    componentName: opts.componentName,
     ports: opts.ports ?? { web: 3001, db: 5433 },
     reportStatus,
     reportLog,
@@ -108,7 +122,14 @@ function setup(
     hasPermission,
     recordAudit,
   };
-  registerBrokerHandlers(connection, ctx, { processManager: pm, docker, log });
+  registerBrokerHandlers(connection, ctx, {
+    processManager: pm,
+    docker,
+    log,
+    // Only wire a ledger when the test asks for one, so the ledger-tracking
+    // tests can assert recordProcess without every other test doing state I/O.
+    ...(opts.withLedger ? { ledger: { recordProcess } } : {}),
+  });
   // Wrap in an async function so a handler's synchronous throw (validation
   // errors on the sync handlers) surfaces as a rejected promise, exactly as
   // vscode-jsonrpc converts a thrown ResponseError into a JSON-RPC error reply.
@@ -116,12 +137,16 @@ function setup(
   // production SDK stamps it from the in-flight lifecycle call, so the harness
   // stamps the ctx's benchId here for object params unless the test already set
   // one (so a test can pass an explicit/invalid benchId to exercise routing).
-  const call = async (method: string, params?: unknown) => {
-    const withBenchId =
-      params && typeof params === "object" && !Array.isArray(params) && !("benchId" in params)
-        ? { benchId: ctx.benchId, ...params }
-        : params;
-    return need(connection.handlers.get(method), method)(withBenchId);
+  const stampBenchId = (params?: unknown) =>
+    params && typeof params === "object" && !Array.isArray(params) && !("benchId" in params)
+      ? { benchId: ctx.benchId, ...params }
+      : params;
+  const call = async (method: string, params?: unknown) =>
+    need(connection.handlers.get(method), method)(stampBenchId(params));
+  // Dispatch a JSON-RPC NOTIFICATION (no reply), the form the SDK uses for
+  // host.component.reportStatus / reportLog (#396).
+  const notify = (method: string, params?: unknown) => {
+    need(connection.notifyHandlers.get(method), `${method} (notification)`)(stampBenchId(params));
   };
   return {
     connection,
@@ -133,9 +158,11 @@ function setup(
     assignContainer,
     hasPermission,
     recordAudit,
+    recordProcess,
     audit,
     log,
     call,
+    notify,
   };
 }
 
@@ -463,6 +490,101 @@ describe("host.component.report* push (no polling)", () => {
         componentName: "web",
       }),
     ).rejects.toMatchObject({ code: -32602 });
+  });
+});
+
+// The SDK sends host.component.reportStatus as a JSON-RPC NOTIFICATION carrying
+// no `name` (only benchId). An imperative component plugin's status pushes must
+// be receivable this way and routed to the component the context is driving
+// (#396, AC2).
+describe("host.component.reportStatus notification (imperative push, #396)", () => {
+  it("routes a nameless status push to the context's componentName", () => {
+    const h = setup({ componentName: "deploy" });
+    h.notify("host.component.reportStatus", { status: "completed" });
+    expect(h.reportStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "deploy", status: "completed" }),
+    );
+  });
+
+  it("prefers an explicit name in the status over the context componentName", () => {
+    const h = setup({ componentName: "deploy" });
+    h.notify("host.component.reportStatus", { name: "other", status: "running" });
+    expect(h.reportStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "other", status: "running" }),
+    );
+  });
+
+  it("drops (does not throw) a push with no routable bench context", () => {
+    const h = setup({ componentName: "deploy" });
+    // benchId that resolves to no context (the harness resolver is a constant,
+    // so force a non-numeric benchId that resolveCtxLoose rejects).
+    expect(() =>
+      h.connection.notifyHandlers.get("host.component.reportStatus")?.({
+        status: "completed",
+        benchId: "nope",
+      }),
+    ).not.toThrow();
+    expect(h.reportStatus).not.toHaveBeenCalled();
+  });
+
+  it("drops (does not throw) a push carrying no status", () => {
+    const h = setup({ componentName: "deploy" });
+    h.notify("host.component.reportStatus", { pid: 1 });
+    expect(h.reportStatus).not.toHaveBeenCalled();
+  });
+
+  it("drops a nameless push when the context has no componentName", () => {
+    const h = setup();
+    h.notify("host.component.reportStatus", { status: "completed" });
+    expect(h.reportStatus).not.toHaveBeenCalled();
+    expect(h.log).toHaveBeenCalledWith("warn", expect.stringContaining("no component name"));
+  });
+});
+
+// Broker-spawned processes must be ledger-tracked so pre-restart crash cleanup
+// and the startup orphan sweep can reap them (#396, AC4).
+describe("ledger tracking of broker-spawned processes (#396)", () => {
+  it("records a host.process.start process after a successful spawn", async () => {
+    const h = setup({ withLedger: true });
+    await h.call("host.process.start", {
+      id: "svc-1",
+      command: "node",
+      args: ["server.js"],
+      env: {},
+      cwd: "/work",
+    });
+    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", 7, "svc-1");
+  });
+
+  it("records a host.process.run process (before the blocking run)", async () => {
+    const h = setup({ withLedger: true });
+    await h.call("host.process.run", {
+      id: "deploy-1",
+      command: "echo",
+      env: {},
+      cwd: "/work",
+    });
+    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", 7, "deploy-1");
+  });
+
+  it("does not record when no ledger is wired", async () => {
+    const h = setup();
+    await h.call("host.process.start", {
+      id: "svc-1",
+      command: "node",
+      env: {},
+      cwd: "/work",
+    });
+    expect(h.recordProcess).not.toHaveBeenCalled();
+  });
+
+  it("does not record a host.process.start that fails to spawn", async () => {
+    const h = setup({ withLedger: true });
+    vi.mocked(h.pm.startProcess).mockRejectedValueOnce(new Error("spawn EACCES"));
+    await expect(
+      h.call("host.process.start", { id: "svc-1", command: "node", env: {}, cwd: "/work" }),
+    ).rejects.toBeDefined();
+    expect(h.recordProcess).not.toHaveBeenCalled();
   });
 });
 

@@ -188,6 +188,14 @@ export const PluginManifestSchema = z
     // Optional ProvisionDescriptor schema version a declarative component plugin
     // emits, so the host can reject a descriptor-schema mismatch (FR-017).
     descriptorSchemaVersion: z.number().int().positive().optional(),
+    // Which half of the ComponentContract this component plugin implements.
+    // `declarative` (the default when omitted) implements `translate` and the
+    // host drives its ProvisionDescriptor through the LifecycleEngine;
+    // `imperative` implements the `start`/`stop`/`health`/`cleanup` hooks and the
+    // host invokes them directly (the SDK enforces translate XOR hooks). This is
+    // the explicit host-read signal that tells bench-manager which dispatch path
+    // to take, rather than probing the plugin for a `translate` method (#396).
+    componentMode: z.enum(["declarative", "imperative"]).optional(),
   })
   .strict();
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;

@@ -330,6 +330,41 @@ describe("PluginManifestSchema: component kind (FR-001)", () => {
       expect(result.manifest.contractVersion).toBe(1);
     }
   });
+
+  it("accepts componentMode: imperative (the escape-hatch dispatch signal, #396)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "component", contractVersion: 1, componentMode: "imperative" }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.componentMode).toBe("imperative");
+    }
+  });
+
+  it("accepts componentMode: declarative", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "component", contractVersion: 1, componentMode: "declarative" }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("treats an omitted componentMode as valid (declarative is the default)", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest({ kind: "component" }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.componentMode).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown componentMode value", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "component",
+        componentMode: "hybrid" as unknown as "imperative",
+      }),
+    );
+    expectFieldError(result, "componentMode");
+  });
 });
 
 describe("PluginManifestSchema: ports / docker permission categories (FR-001/FR-011)", () => {
