@@ -81,6 +81,35 @@ describe("scanFiles (ComponentTypeKnowledgeGuard, CP-NFR-006)", () => {
     expect(findings).toEqual([]);
   });
 
+  it("flags an injected CONFIG docker-field read in bench-manager (CP-TC-042, #400)", () => {
+    // The blanket bench-manager allowlist let this slip through. Receiver-scoped,
+    // a read whose receiver is a config object (not `descriptor`) is a violation.
+    const findings = scan({
+      "server/services/bench-manager.ts": [
+        "function provision(componentConfig) {",
+        "  const file = componentConfig.docker.composeFile;", // line 2: violation
+        "  return file;",
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].file).toBe("server/services/bench-manager.ts");
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].reason).toMatch(/docker\/compose field read on 'docker'/);
+  });
+
+  it("does NOT flag bench-manager's docker-facade method calls (composeStop / composeDown)", () => {
+    // Facade method calls (a name followed by `(`) are how bench-manager drives
+    // teardown; only field READS on a non-descriptor receiver are violations.
+    const findings = scan({
+      "server/services/bench-manager.ts": [
+        "await dockerService.composeStop(projectName, descriptor.composeFile, cwd, svc);",
+        "await dockerService.composeDown(projectName, descriptor.composeFile, cwd);",
+      ].join("\n"),
+    });
+    expect(findings).toEqual([]);
+  });
+
   it("does NOT flag the descriptor-kind switch in the lifecycle engine", () => {
     const findings = scan({
       "server/services/lifecycle-engine.ts": [

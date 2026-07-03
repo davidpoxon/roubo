@@ -17,10 +17,18 @@
 //      field (composeFile, initService, portEnvVar, composeUp, composeDown,
 //      composeRunInit, composeStop) anywhere in core, EXCEPT the modules that
 //      own container lifecycle: the broker, the docker facade, the lifecycle
-//      engine, the descriptor schema, and bench-manager (which, post-#612,
-//      reads the PLUGIN's cached descriptor, not a config docker-field, to
-//      drive teardown / reconcile). Everywhere else, reading a docker field
-//      means core has regrown container knowledge.
+//      engine, and the descriptor schema. Everywhere else, reading a docker
+//      field means core has regrown container knowledge.
+//
+//      bench-manager is a narrower case (issue #400, CP-TC-042): post-#612 it
+//      reads only the PLUGIN's cached `descriptor` (its typed output, not a
+//      config docker-field) to drive teardown / reconcile, and it calls the
+//      docker facade methods for that teardown. A blanket file allowlist there
+//      let an injected config docker-field read (e.g. componentConfig.docker
+//      .composeFile) slip through undetected. So bench-manager is receiver-
+//      scoped instead: a docker-field READ is allowed only when its receiver is
+//      `descriptor`; facade METHOD calls (dockerService.composeStop(...)) are
+//      allowed; any other receiver (a config object) is still a violation.
 //
 // Both rules match against the comment-stripped source so prose that documents
 // the forbidden patterns (e.g. "no `=== \"database\"` dispatch", or a
@@ -38,16 +46,21 @@ const ROOTS = ["server", "shared"];
 // Modules that legitimately own container-lifecycle knowledge, so a docker
 // field reference there is correct, not a regression. The broker is the
 // privileged choke-point, docker is the compose facade, the lifecycle engine
-// executes descriptors, the schema defines the descriptor union, and
-// bench-manager reads the plugin's cached descriptor (its typed output, not a
-// config docker-field) to down compose projects on teardown / reconcile.
+// executes descriptors, and the schema defines the descriptor union.
 const DOCKER_FIELD_ALLOWLIST = new Set([
   "server/services/component-broker.ts",
   "server/services/docker.ts",
   "server/services/lifecycle-engine.ts",
-  "server/services/bench-manager.ts",
   "shared/provision-descriptor-schema.ts",
 ]);
+
+// Files where a docker-field READ is allowed only on the `descriptor` receiver
+// (the plugin's typed output), not wholesale (issue #400, CP-TC-042). Rule 2
+// runs against these files but flags a docker-field read whose receiver is any
+// object other than `descriptor`; facade method calls are left to the method
+// carve-out below. This is the receiver-scoped middle ground between "fully
+// allowlisted" and "fully checked" the blanket bench-manager allowlist lacked.
+const DOCKER_FIELD_DESCRIPTOR_RECEIVER = new Set(["server/services/bench-manager.ts"]);
 
 // The lifecycle engine switches on the ProvisionDescriptor's own `kind` tag
 // (docker | process | oneshot), which is the engine's domain, not a core
@@ -63,6 +76,20 @@ const TYPE_LITERAL =
 // Rule 2: member access on a docker-only descriptor field.
 const DOCKER_FIELD =
   /\.(composeFile|initService|portEnvVar|composeUp|composeDown|composeRunInit|composeStop)\b/;
+
+// Rule 2 (receiver-scoped variant): a docker-field READ that is NOT a method
+// call, capturing the receiver identifier so a `descriptor`-typed read can be
+// distinguished from a config-object read. The negative lookahead `(?!\s*\()`
+// excludes facade method calls (dockerService.composeStop(...)), leaving only
+// field reads; capture group 1 is the receiver token (e.g. `descriptor`,
+// `componentConfig`, `docker`). Optional chaining (`descriptor?.composeFile`) is
+// tolerated. Global so a line with several reads is fully scanned.
+const DOCKER_FIELD_READ =
+  /([\w$]+)\??\.(composeFile|initService|portEnvVar|composeUp|composeDown|composeRunInit|composeStop)\b(?!\s*\()/g;
+
+// The one receiver a docker-field read may name in a receiver-scoped file: the
+// plugin's typed ProvisionDescriptor output (not a config docker-field).
+const DOCKER_FIELD_ALLOWED_RECEIVER = "descriptor";
 
 const DOCKER_FIELD_NAMES =
   "composeFile, initService, portEnvVar, composeUp, composeDown, composeRunInit, composeStop";
@@ -122,7 +149,28 @@ export function scanFiles(files, readFn) {
     }
 
     // Rule 2: docker/compose field branch outside the owning modules.
-    if (!DOCKER_FIELD_ALLOWLIST.has(file)) {
+    if (DOCKER_FIELD_ALLOWLIST.has(file)) {
+      // Fully owns container-lifecycle knowledge; rule 2 does not apply.
+    } else if (DOCKER_FIELD_DESCRIPTOR_RECEIVER.has(file)) {
+      // Receiver-scoped: a docker-field READ is a violation unless its receiver
+      // is `descriptor` (the plugin's typed output). Facade method calls are
+      // excluded by DOCKER_FIELD_READ's negative lookahead, so they never flag.
+      for (let i = 0; i < codeLines.length; i++) {
+        for (const match of codeLines[i].matchAll(DOCKER_FIELD_READ)) {
+          const receiver = match[1];
+          if (receiver === DOCKER_FIELD_ALLOWED_RECEIVER) continue;
+          findings.push({
+            file,
+            line: i + 1,
+            text: rawLines[i].trim(),
+            reason:
+              `core docker/compose field read on '${receiver}' (${DOCKER_FIELD_NAMES}): ` +
+              `only a '${DOCKER_FIELD_ALLOWED_RECEIVER}'-typed read is allowed here; a config ` +
+              "docker-field read means core has regrown container knowledge (CP-NFR-006).",
+          });
+        }
+      }
+    } else {
       for (let i = 0; i < codeLines.length; i++) {
         if (DOCKER_FIELD.test(codeLines[i])) {
           findings.push({
