@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ComponentsList from "./ComponentsList";
 import type { ComponentConfig, Bench } from "@roubo/shared";
@@ -8,6 +8,25 @@ import * as useBenchesModule from "../../hooks/useBenches";
 
 vi.mock("../../hooks/useBenches", () => ({
   useProjectBenches: vi.fn(() => ({ data: [] as Bench[] })),
+}));
+
+// The nested ComponentRowEditor reads usePlugins for its "Component plugin"
+// selector (#390). Mock it with a single installed component-kind plugin.
+vi.mock("../../hooks/usePlugins", () => ({
+  usePlugins: () => ({
+    data: {
+      plugins: [
+        {
+          id: "alpha-deploy",
+          manifest: {
+            kind: "component",
+            name: "Alpha Deploy",
+            configSchema: { type: "object", properties: {} },
+          },
+        },
+      ],
+    },
+  }),
 }));
 
 const processComp: ComponentConfig = {
@@ -80,6 +99,28 @@ describe("ComponentsList", () => {
     await userEvent.click(screen.getByRole("button", { name: /add component/i }));
     const addCall = dispatch.mock.calls.find(([a]) => a?.type === "ADD_COMPONENT")?.[0];
     expect(addCall?.payload.component.type).toBeUndefined();
+  });
+
+  it("binds a component to a component plugin via the expanded row selector (#390)", async () => {
+    const dispatch = vi.fn();
+    render(
+      <ComponentsList
+        {...baseProps}
+        components={{ api: {} }}
+        ports={{ api: { base: 3000 } }}
+        dispatch={dispatch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /expand/i }));
+    const wrapper = screen.getByTestId("component-plugin-select");
+    await userEvent.click(within(wrapper).getByRole("button"));
+    await userEvent.click(screen.getByRole("option", { name: "Alpha Deploy" }));
+    const updateCall = dispatch.mock.calls.find(([a]) => a?.type === "UPDATE_COMPONENT")?.[0];
+    expect(updateCall?.payload).toEqual({
+      key: "api",
+      component: { plugin: { id: "alpha-deploy" }, config: {} },
+    });
+    expect(updateCall?.payload.component).not.toHaveProperty("type");
   });
 
   it("allocates a unique key when 'component' already exists", async () => {
