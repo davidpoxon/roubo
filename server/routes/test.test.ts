@@ -290,7 +290,7 @@ describe("POST /test/__reset", () => {
     // the project-settings specs can drive the overlay slots.
     // TC-154 (#222): known fixture failure plugins (e.g. broken-plugin) are
     // force-disabled so they don't auto-spawn and crash on every reset.
-    const FAILURE_FIXTURE_IDS = ["broken-plugin"];
+    const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
       BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length,
     );
@@ -426,10 +426,10 @@ describe("POST /test/__reset", () => {
   // force-enabling them, so the project-load Enable-plugin prompt fires for
   // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
   // regardless of the bundledPluginsDisabled flag, so the call count includes
-  // those ids (broken-plugin) as well.
+  // those ids (broken-plugin, errored-component-stub) as well.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
-    const FAILURE_FIXTURE_IDS = ["broken-plugin"];
+    const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
 

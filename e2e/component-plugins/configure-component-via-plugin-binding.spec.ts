@@ -72,8 +72,10 @@ const ERRORED_PLUGIN_ID = "errored-component-stub";
 // The substring of the shipped #759 missing-entry message the banner renders.
 const ENTRY_PATH_FRAGMENT = "dist/index.js";
 // TC-082 S002-O01 expects the message to guide the user to reinstall from the
-// marketplace; the shipped copy does not carry this phrase. Used as the capability
-// probe for the gated marketplace-recovery block so it auto-lifts if the copy ships.
+// marketplace; the shipped copy does not carry this phrase. Its live
+// presence/absence is surfaced in the divergence detail for the deterministically
+// gated marketplace-recovery block below (MARKETPLACE_REINSTALL_AFFORDANCE_WIRED);
+// the copy alone never lifts that gate.
 const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 
 // #301 shipped the toggle removal but NOT the editor's plugin-binding UI (no
@@ -82,6 +84,17 @@ const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 // localises the drift to #301 and marks the editor journey pending. Flip to
 // true (and drive the browser journey below) once #301 ships the selector.
 const COMPONENTS_EDITOR_BINDING_UI_WIRED = false;
+
+// #302 shipped the real-lastError banner but NOT TC-082's marketplace-recovery
+// affordances (S003/S004): a Reinstall action that initiates a reinstall. That
+// action is a client-only affordance with no server-observable signal at this
+// altitude (the banner currently exposes Restart, useRestartPlugin), so the
+// server "reinstall it from the marketplace" copy alone cannot verify it:
+// asserting only on the copy would let this guard pass without ever checking the
+// Reinstall affordance it is named for. The guard therefore localises the drift
+// to #302 and marks the recovery affordances pending. Flip to true (and drive
+// the browser journey) once #302 ships the Reinstall action.
+const MARKETPLACE_REINSTALL_AFFORDANCE_WIRED = false;
 
 interface PluginListEntry {
   id: string;
@@ -306,20 +319,25 @@ test("CPHM-TC-082: the errored banner guides marketplace recovery (S002 copy, S0
   // "reinstall it from the marketplace" copy) and to expose a Reinstall action
   // that initiates a reinstall (S003-O01 / S004-O01). Neither shipped: the
   // missing-entry message says "check its build output exists", and the banner's
-  // recovery action is Restart (useRestartPlugin), not Reinstall. Probe the
-  // server-produced copy so this block auto-lifts if the marketplace-recovery
-  // wording ships; until then, emit the FR-020 attribution and mark the recovery
-  // affordances pending against #302.
-  const marketplaceRecoveryWired = (errored.lastError?.message ?? "").includes(
-    MARKETPLACE_RECOVERY_COPY,
-  );
-  if (!marketplaceRecoveryWired) {
+  // recovery action is Restart (useRestartPlugin), not Reinstall.
+  //
+  // The Reinstall affordance (S003/S004) is a client-only concern with no
+  // server-observable signal at this altitude, so this block stays deterministically
+  // pending against #302 until the affordance ships and is driven at the browser
+  // level. We surface the live "reinstall it from the marketplace" copy state in
+  // the divergence so the pending note stays accurate as #302 evolves, but never
+  // let the copy alone lift the gate (asserting only the copy would pass this
+  // guard without ever checking the Reinstall action it is named for).
+  if (!MARKETPLACE_REINSTALL_AFFORDANCE_WIRED) {
+    const marketplaceRecoveryCopyShipped = (errored.lastError?.message ?? "").includes(
+      MARKETPLACE_RECOVERY_COPY,
+    );
     const detail = formatDivergence(
       "CPHM-TC-082",
       STEPS_082.S003,
       "S003-O01",
       `the banner guides marketplace recovery: message includes "${MARKETPLACE_RECOVERY_COPY}" and a Reinstall action initiates a reinstall`,
-      `message is "${errored.lastError?.message ?? "none"}"; the banner exposes a Restart action (useRestartPlugin), not Reinstall`,
+      `recovery copy ${marketplaceRecoveryCopyShipped ? "present" : "absent"}; the banner exposes a Restart action (useRestartPlugin), not Reinstall`,
     );
     test.info().annotations.push({ type: "blocked-by", description: detail });
     test.fixme(true, detail);
