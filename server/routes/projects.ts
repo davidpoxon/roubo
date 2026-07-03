@@ -377,7 +377,13 @@ router.get("/:projectId/config", (req, res) => {
     return;
   }
   if (!project.configValid) {
-    res.status(400).json({ error: project.configError, configValid: false });
+    // Surface the path-keyed field errors alongside the joined message so an
+    // invalid component binding renders per-path at config-load (issue #399).
+    res.status(400).json({
+      error: project.configError,
+      configValid: false,
+      fieldErrors: project.fieldErrors ?? [],
+    });
     return;
   }
   res.json({ config: project.config, configValid: true });

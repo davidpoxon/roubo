@@ -3,6 +3,7 @@
 import type {
   RouboConfig,
   ComponentConfig,
+  ConfigFieldError,
   LoginConfig,
   ToolConfig,
   JigSettings,
@@ -698,6 +699,11 @@ export interface RegisteredProject {
   config?: RouboConfig;
   configValid: boolean;
   configError?: string;
+  // Path-keyed config errors when the config is invalid. Populated from the zod
+  // parse pass and from the plugin-aware component-binding second pass so
+  // invalid component config surfaces as path-keyed errors at config-load
+  // (issue #399, CP-TC-005).
+  fieldErrors?: ConfigFieldError[];
   settings: ProjectSettings;
 }
 

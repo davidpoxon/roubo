@@ -24,6 +24,11 @@ vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }));
+// Issue #399: Marketplace now calls useGrantConsent. Mock it so this scan needs
+// no QueryClientProvider.
+vi.mock("../../hooks/usePlugins", () => ({
+  useGrantConsent: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 import {
   useMarketplaceCatalog as _useCatalog,

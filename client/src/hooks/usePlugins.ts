@@ -138,7 +138,7 @@ export function useInstallPluginCancel() {
 
 // Issue #615 (CP-FR-011 / CP-FR-012): read the consent status for a plugin
 // (declared permissions, first-party flag, and whether consent has been
-// granted). The PermissionConsentModal consumes this before allowing first run.
+// granted). Consumed before a component plugin is allowed to run.
 const CONSENT_KEY_PREFIX = "plugin-consent";
 
 export function consentQueryKey(pluginId: string): readonly [string, string] {

@@ -19,6 +19,13 @@ vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }));
+// Issue #399: Marketplace mints a ConsentRecord after a successful commit via
+// useGrantConsent. Mock the hook so these tests need no QueryClientProvider and
+// can assert the consent mutation payload.
+const pluginHooks = vi.hoisted(() => ({ grantConsentMutate: vi.fn() }));
+vi.mock("../../hooks/usePlugins", () => ({
+  useGrantConsent: () => ({ mutate: pluginHooks.grantConsentMutate, isPending: false }),
+}));
 
 import {
   useMarketplaceCatalog as _useCatalog,
@@ -517,6 +524,12 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
     await user.click(screen.getByTestId("marketplace-consent-confirm"));
 
     expect(confirm).toHaveBeenCalledWith("staging-1.3.0", expect.anything());
+    // Issue #399 (CP-TC-090): the successful commit mints a ConsentRecord with
+    // the acknowledged (all declared) categories for the installed plugin.
+    expect(pluginHooks.grantConsentMutate).toHaveBeenCalledWith({
+      pluginId: "redis",
+      acknowledgedCategories: ["ports", "docker"],
+    });
     await waitFor(() => {
       expect(screen.queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
     });
@@ -560,6 +573,8 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
         "failed",
       );
     });
+    // Issue #399: a failed commit mints no consent (the plugin never installed).
+    expect(pluginHooks.grantConsentMutate).not.toHaveBeenCalled();
   });
 
   // CPHM-TC-018: a digest mismatch during staging marks the Verify artifact

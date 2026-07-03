@@ -7,8 +7,10 @@ import type {
 } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS, DEFAULT_BENCH_SETTINGS } from "@roubo/shared";
 import { parseConfig } from "./config-parser.js";
+import { validateComponentBindings } from "./component-binding-validator.js";
 import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
 import * as state from "./state.js";
+import * as pluginManager from "./plugin-manager.js";
 import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
 
@@ -29,6 +31,46 @@ function emitConfigLoaded(project: RegisteredProject): void {
     } catch (err) {
       console.warn("[project-registry] config-loaded listener threw: %s", (err as Error).message);
     }
+  }
+}
+
+/**
+ * Plugin-aware second pass over a structurally-valid project config (issue #399,
+ * CP-TC-005): validate every component binding against its bound plugin's
+ * `configSchema` and, if any binding is invalid, fold the path-keyed
+ * `ConfigFieldError`s into the project's config-invalid state so invalid
+ * component config surfaces at config-load. A no-op when the project is already
+ * invalid (nothing valid to second-guess) or carries no parsed config.
+ *
+ * This needs the plugin manager initialized to see the installed component
+ * manifests. At boot the registry loads before the plugin manager
+ * (server/index.ts), so `initialize()` deliberately skips this pass and
+ * `revalidateComponentBindings()` re-runs it for every project once the
+ * component manifests are available, before the HTTP listener binds. The
+ * post-boot config-load paths (`registerProject`, `reloadConfig`) call it inline
+ * because the plugin manager is up by then.
+ */
+function applyComponentBindingValidation(project: RegisteredProject): void {
+  if (!project.configValid || !project.config) return;
+  const errors = validateComponentBindings(project.config, pluginManager.getComponentManifests());
+  if (errors.length === 0) return;
+  project.configValid = false;
+  project.fieldErrors = errors;
+  project.configError = errors.map((e) => `${e.path}: ${e.message}`).join("; ");
+}
+
+/**
+ * Re-run the component-binding second pass against every registered project.
+ * Called once from server/index.ts after the plugin manager finishes
+ * initializing: the registry's own `initialize()` runs before plugins are
+ * loaded, so component bindings cannot be validated there. This closes that gap
+ * by validating them once the component manifests exist, before the HTTP
+ * listener binds, so a project whose bound plugin was uninstalled between
+ * sessions surfaces its error at boot (issue #399, CP-TC-005).
+ */
+export function revalidateComponentBindings(): void {
+  for (const project of projects.values()) {
+    applyComponentBindingValidation(project);
   }
 }
 
@@ -73,9 +115,14 @@ export function initialize() {
         config: undefined,
         configValid: false,
         configError: result.errors?.join("; "),
+        fieldErrors: result.fieldErrors,
         settings,
       };
     }
+    // NOTE: the component-binding second pass is deliberately NOT run here. At
+    // boot the registry loads before the plugin manager, so no component
+    // manifests are available yet; server/index.ts calls
+    // revalidateComponentBindings() once plugins are up (issue #399).
     projects.set(entry.id, project);
     emitConfigLoaded(project);
   }
@@ -131,6 +178,12 @@ export function registerProject(repoPath: string): RegisteredProject {
       worktreeSource: { ...DEFAULT_PROJECT_SETTINGS.worktreeSource },
     },
   };
+
+  // Plugin-aware second pass: an invalid component binding downgrades the
+  // project to config-invalid (issue #399). The plugin manager is up by the
+  // time a project is registered post-boot, so the component manifests are
+  // available here (unlike at initialize()).
+  applyComponentBindingValidation(project);
 
   projects.set(id, project);
   state.addProject({ id, repoPath: safeRepoPath, settings: project.settings });
@@ -188,9 +241,15 @@ export function reloadConfig(projectId: string): RegisteredProject {
     project.config = result.config;
     project.configValid = true;
     project.configError = undefined;
+    project.fieldErrors = undefined;
+    // Re-run the component-binding second pass on the freshly parsed config so a
+    // now-invalid binding (e.g. a plugin uninstalled since the last load)
+    // surfaces on reload (issue #399).
+    applyComponentBindingValidation(project);
   } else {
     project.configValid = false;
     project.configError = result.errors?.join("; ");
+    project.fieldErrors = result.fieldErrors;
   }
 
   emitConfigLoaded(project);
