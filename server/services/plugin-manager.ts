@@ -86,8 +86,22 @@ interface PluginEntry {
   // post-restart re-provision can await it before bringing a new container up.
   // Without this, the slow teardown's `docker compose down -v` lands after
   // re-provision and destroys the freshly recovered container. `null` when no
-  // cleanup is in flight.
-  preRestartCleanup: Promise<void> | null;
+  // cleanup is in flight. This holds ALL the pre-restart teardowns for this plugin
+  // that are currently in flight, not just the latest: within the restart budget
+  // overlapping crashes leave several teardowns (each a `docker compose down -v` on
+  // the same deterministic compose project) running at once, and the post-restart
+  // re-provision must await every one of them before bringing a new container up
+  // (issue #403), or a late `down -v` destroys the freshly recovered container.
+  // Each teardown adds itself here when it starts and removes itself when it
+  // settles. Empty when no cleanup is in flight.
+  preRestartCleanups: Set<Promise<void>>;
+  // Monotonic counter bumped every time a pre-restart cleanup is fired in
+  // `handleChildExit` (issue #403). Overlapping crashes within the restart budget
+  // each spawn a restart-timer callback; the callback captures this at its start
+  // and re-provisions only when it is still the latest after every teardown has
+  // settled, so exactly one cycle (the last crash) re-provisions and never
+  // overlaps a later cycle's still in-flight teardown.
+  preRestartEpoch: number;
 }
 
 const plugins = new Map<string, PluginEntry>();
@@ -665,7 +679,8 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
     legacyRotateChecked: false,
     intentionalStop: false,
     restartTimer: null,
-    preRestartCleanup: null,
+    preRestartCleanups: new Set(),
+    preRestartEpoch: 0,
   };
 }
 
@@ -1361,11 +1376,24 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   // slow `docker compose down -v` is still in flight, or the late `down`
   // destroys the freshly recovered container.
   if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginPreRestart) {
-    entry.preRestartCleanup = invokeComponentHook(
+    // Bump the epoch on each crash so an overlapping crash's restart callback can
+    // tell it has been superseded (issue #403).
+    entry.preRestartEpoch += 1;
+    // Track this teardown alongside any still in flight from an overlapping crash,
+    // and remove it once it settles. The restart-timer callback awaits the whole
+    // set (not just the latest) before re-provisioning, so a late `down -v` can
+    // never land on a freshly recovered container (issue #403).
+    const cleanup = invokeComponentHook(
       entry,
       "pre-restart cleanup",
       componentPluginHooks.onComponentPluginPreRestart,
     );
+    entry.preRestartCleanups.add(cleanup);
+    void cleanup
+      .catch(() => {})
+      .finally(() => {
+        entry.preRestartCleanups.delete(cleanup);
+      });
   }
 
   // Unexpected exit. Record in restart history and decide whether to restart.
@@ -1411,6 +1439,15 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   entry.restartTimer = setTimeout(() => {
     entry.restartTimer = null;
     if (entry.intentionalStop || !initialized) return;
+    // Capture this crash cycle's pre-restart epoch before respawning (issue
+    // #403). The timer fires before this cycle's respawn, and a later crash can
+    // only happen once that respawn has produced a running child, so no later
+    // crash can have bumped the epoch by this point. Capturing here (not after
+    // the async respawn resolves) closes the window where a crash during
+    // `spawnPlugin`'s post-spawn wiring could reassign the slot before this
+    // callback read the epoch, which would let an earlier cycle mistake itself
+    // for the latest and re-provision alongside the true last cycle.
+    const epochAtStart = entry.preRestartEpoch;
     void spawnPlugin(entry).then(async () => {
       // Auto-recovery (FR-016): once the plugin is back up, re-provision the
       // components it supervises. Only on a successful respawn; a failed spawn
@@ -1423,27 +1460,39 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         // Sequence re-provision after the pre-restart teardown (issue #398). The
         // cleanup clears its ledger entries and completes its `docker compose
         // down -v` before we bring any new container up, so the late `down` can
-        // no longer target the freshly recovered container within that single
-        // crash cycle. Guarded so a rejected or slow cleanup (already best-effort
-        // per resource) never blocks recovery indefinitely.
+        // no longer target the freshly recovered container.
         //
-        // (Overlapping crashes within the restart budget can still transiently
-        // overlap an earlier cycle's `up` with a later cycle's still-in-flight
-        // `down` on the shared compose project; the end state self-heals as the
-        // last cycle re-provisions last. Robust handling of that case is tracked
-        // in #403.)
+        // Within the restart budget, overlapping crashes leave SEVERAL teardowns
+        // in flight at once (issue #403), each running the same `docker compose
+        // down -v` on the same deterministic compose project. They can settle in
+        // any order, so awaiting only the latest is not enough: an earlier crash's
+        // `down -v` could still be running when a later one has settled, and
+        // re-provisioning then would let that earlier `down -v` destroy the freshly
+        // recovered container. Two mechanisms cooperate so up and down never
+        // overlap on the shared project name, even across overlapping crashes:
         //
-        // Capture the promise into a local before awaiting: `preRestartCleanup`
-        // is a single shared slot, and within the restart budget a later crash
-        // can reassign it while this callback is still awaiting the older one.
-        // Clear it only when it still holds the promise we awaited, so an earlier
-        // cycle's callback never nulls out a later crash's in-flight cleanup
-        // (which would let that later cycle skip its await and re-provision
-        // mid-teardown, reintroducing the race for that cycle). Awaiting a newer
-        // cleanup than our own cycle is safe: it only ever over-waits.
-        const cleanup = entry.preRestartCleanup;
-        await cleanup?.catch(() => {});
-        if (entry.preRestartCleanup === cleanup) entry.preRestartCleanup = null;
+        //   1. Drain ALL in-flight teardowns: await every teardown in
+        //      `preRestartCleanups` (not just the latest) until the set is empty.
+        //      Loop because a later crash can add another teardown while we await;
+        //      that later crash also bumps the epoch, so the guard below hands
+        //      re-provision to the last cycle. Each teardown removes itself from
+        //      the set when it settles (see `handleChildExit`). Best-effort per
+        //      resource already, so a rejected teardown cannot block recovery
+        //      (`allSettled` never rejects).
+        //   2. Epoch guard (below): only the last crash cycle re-provisions, so
+        //      the overlapping callbacks re-provision exactly once rather than
+        //      once each. `epochAtStart` was captured before the respawn above.
+        while (entry.preRestartCleanups.size > 0) {
+          await Promise.allSettled([...entry.preRestartCleanups]);
+        }
+        // Only the latest crash cycle re-provisions (issue #403). An overlapping
+        // earlier cycle, whose teardown was superseded within the budget, bumped
+        // the epoch when its successor crashed, so it stops here. The last cycle
+        // (its epoch still current after every teardown has settled) re-provisions
+        // exactly once, after all in-flight `down -v`s have completed. This avoids
+        // both the overlap and a double re-provision across the overlapping
+        // callbacks.
+        if (entry.preRestartEpoch !== epochAtStart) return;
         // Re-check the guard after the teardown await (issue #398): the ~10-15s
         // wait is a TOCTOU window in which the plugin may have exhausted its
         // restart budget (status flips to `errored`) or been intentionally
