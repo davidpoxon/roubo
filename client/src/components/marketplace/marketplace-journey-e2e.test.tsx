@@ -6,13 +6,14 @@
 // then updates it when a newer version is published, asserting the authoritative
 // e2e_flow case CP-TC-101 step by step (issue #629).
 //
-// This is the journey's drift guard, mirroring client/src/permission-consent-e2e.test.tsx
-// (the CP-TC-076 / #625 drift guard for the sibling consent journey): it
-// exercises the integrated journey through the already-shipped, real seams of
-// the slices it spans, rather than re-testing any single slice. The slices owned
-// by this work unit are #621 (the catalog browse/search/install/update UI) and
-// #622 (integrity verification). A failing step is localised back to the owning
-// slice(s) via OWNING_SLICES below (FR-020).
+// This is the journey's drift guard: it exercises the integrated journey
+// through the already-shipped, real seams of the slices it spans, rather than
+// re-testing any single slice. The slices owned by this work unit are #621 (the
+// catalog browse/search/install/update UI) and #622 (integrity verification). A
+// failing step is localised back to the owning slice(s) via OWNING_SLICES below
+// (FR-020). (The sibling CP-TC-076 permission-consent journey guard was removed
+// with the orphan PermissionConsentModal in issue #399; the shipped consent
+// journey now runs through this marketplace flow, asserted in S005 / S008.)
 //
 // Hermetic by construction (matching the Marketplace.test.tsx precedent, but at
 // a higher fidelity): a real QueryClientProvider, the REAL Marketplace component,
@@ -20,22 +21,24 @@
 // install/update preview mutations, and the confirm/cancel mutations with their
 // real cache-invalidation seam), with only the `../../lib/api` boundary mocked
 // (fetchMarketplaceCatalog, installFromMarketplace, updateFromMarketplace,
-// confirmInstallPlugin, cancelInstallPlugin). No network, no real server. The
-// useToast hook is mocked so addToast can be captured and emits no console noise.
+// confirmInstallPlugin, cancelInstallPlugin, grantPluginConsent). No network, no
+// real server. The useToast hook is mocked so addToast can be captured and emits
+// no console noise.
 //
 // Integrity verification (CP-FR-021 / #622) is authoritatively server-side
 // (#690: signed ed25519 catalog + per-entry sha256 digests, fail-closed) and has
 // its own server tests. This client journey guard asserts the UI-observable
 // integrity OUTCOMES (S005-O04 / S008-O04: after a successful confirm, no
 // integrity error or signature warning is shown). The mocked confirm boundary
-// resolving successfully represents the server having verified the package,
-// exactly as permission-consent-e2e mocks the grantPluginConsent boundary.
+// resolving successfully represents the server having verified the package, and
+// the mocked grantPluginConsent boundary represents the consent POST that mints
+// the ConsentRecord after the commit (issue #399).
 //
 // FIDELITY NOTE (asserts the real SHIPPED behaviour; changing production strings
 // is explicitly out of scope for this e2e work unit). Three points of CP-TC-101's
 // authoritative prose diverge from the shipped marketplace UX. This guard asserts
 // the shipped behaviour and the divergences are tracked for reconciliation in
-// #693 (mirroring how permission-consent-e2e references #678):
+// #693:
 //   1. Toast text: the shipped Marketplace emits "Installed Redis." / "Updated
 //      Redis." (STRINGS.installedToast = `Installed ${name}.`), NOT TC-101's
 //      "Installed Redis · roubo/redis" / "Updated Redis · roubo/redis"
@@ -72,6 +75,9 @@ vi.mock("../../lib/api", async (importOriginal) => {
     updateFromMarketplace: vi.fn(),
     confirmInstallPlugin: vi.fn(),
     cancelInstallPlugin: vi.fn(),
+    // Issue #399: the real useGrantConsent runs in this journey and POSTs
+    // /consent after a successful commit. Mock only that boundary.
+    grantPluginConsent: vi.fn(),
   };
 });
 
@@ -88,6 +94,7 @@ import {
   updateFromMarketplace,
   confirmInstallPlugin,
   cancelInstallPlugin,
+  grantPluginConsent,
 } from "../../lib/api";
 
 const mockedFetch = vi.mocked(fetchMarketplaceCatalog);
@@ -95,6 +102,7 @@ const mockedInstall = vi.mocked(installFromMarketplace);
 const mockedUpdate = vi.mocked(updateFromMarketplace);
 const mockedConfirm = vi.mocked(confirmInstallPlugin);
 const mockedCancel = vi.mocked(cancelInstallPlugin);
+const mockedGrantConsent = vi.mocked(grantPluginConsent);
 
 // The slices this journey integrates, from #629's covers / blocked-by set.
 // Reported when a step diverges so a failure is attributable to a slice (FR-020).
@@ -201,8 +209,7 @@ function matchesQuery(listing: MarketplaceListing, q: string | undefined): boole
 //
 // The labels are both what each step runs under and the expected order the
 // terminal drift guard asserts against: drop or reorder a step and the recorded
-// run no longer equals TC101_SEQUENCE, so the test fails (mirrors TC076_SEQUENCE
-// in the permission-consent-e2e precedent).
+// run no longer equals TC101_SEQUENCE, so the test fails.
 const TC101_STEPS = {
   browse: "S001 Consumer: the marketplace view renders the full plugin grid",
   search:
@@ -270,6 +277,11 @@ beforeEach(() => {
     ReturnType<typeof confirmInstallPlugin>
   >);
   mockedCancel.mockResolvedValue(undefined);
+  mockedGrantConsent.mockResolvedValue({
+    pluginId: PLUGIN_ID,
+    acknowledgedCategories: ["ports", "docker"],
+    consentedAt: "2026-06-28T00:00:00.000Z",
+  });
 });
 
 describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integrity-verified), and updates", () => {
@@ -411,6 +423,12 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(mockedConfirm).toHaveBeenCalledWith("staging-1.3.0");
         });
+        // Issue #399 (CP-TC-090): the committed install mints a ConsentRecord
+        // with the acknowledged (all declared) categories, so the
+        // component-plugin registry consent gate admits it.
+        await waitFor(() => {
+          expect(mockedGrantConsent).toHaveBeenCalledWith("redis", ["ports", "docker"]);
+        });
         // Dialog closes.
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
@@ -504,6 +522,11 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
 
         await waitFor(() => {
           expect(mockedConfirm).toHaveBeenCalledWith("staging-1.4.0");
+        });
+        // Issue #399 (CP-TC-096): a permission-relevant update refreshes the
+        // ConsentRecord with the re-acknowledged categories.
+        await waitFor(() => {
+          expect(mockedGrantConsent).toHaveBeenCalledWith("redis", ["ports", "docker"]);
         });
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();

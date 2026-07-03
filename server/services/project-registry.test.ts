@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import path from "node:path";
+import type { PluginManifest } from "@roubo/shared";
 import { makeConfig } from "../test/fixtures.js";
 
 vi.mock("./config-parser.js");
 vi.mock("./state.js");
 vi.mock("./port-allocator.js");
+// Issue #399: the registry validates a project's component bindings against the
+// installed component-kind manifests. Mock the plugin-manager boundary so the
+// second pass runs against a controlled manifest set (and to keep the real,
+// heavy plugin-manager module out of these unit tests). The default set carries
+// the "process" component the shared fixture binds to, so makeConfig-based
+// projects stay valid unless a test overrides it.
+const pluginManagerMocks = vi.hoisted(() => ({
+  getComponentManifests: vi.fn<() => PluginManifest[]>(() => []),
+}));
+vi.mock("./plugin-manager.js", () => pluginManagerMocks);
 // FR-004 / NFR-001: unregisterProject evicts the persistent disk cache for the
 // project. Mock the query service so the call-site is asserted without touching
 // the real on-disk cache.
@@ -31,10 +42,31 @@ const mockedGetPersistedBenches = vi.mocked(state.getPersistedBenches);
 
 let registryModule: typeof import("./project-registry.js");
 
+// A minimal component-kind manifest for the "process" plugin the shared fixture
+// binds to. No configSchema, so validateComponentBindings accepts any config
+// block for it: makeConfig-based projects stay valid under the second pass.
+const PROCESS_MANIFEST = { id: "process", kind: "component" } as unknown as PluginManifest;
+
+// The same "process" plugin, but declaring a configSchema that REQUIRES a numeric
+// `port`. The shared fixture's { command } config omits it, so this manifest
+// makes the second pass fail with a path-keyed configSchema error (rule 2). Used
+// by the tests that need the LOADED-plugin invalidation path, since config-load
+// is now lenient about a not-loaded plugin (issue #399).
+const PROCESS_REQUIRES_PORT_MANIFEST = {
+  id: "process",
+  kind: "component",
+  configSchema: {
+    type: "object",
+    required: ["port"],
+    properties: { port: { type: "number" } },
+  },
+} as unknown as PluginManifest;
+
 beforeEach(async () => {
   vi.resetModules();
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
+  pluginManagerMocks.getComponentManifests.mockReset().mockReturnValue([PROCESS_MANIFEST]);
   registryModule = await import("./project-registry.js");
 });
 
@@ -616,5 +648,162 @@ describe("ProjectRegistryError", () => {
     expect(err.code).toBe("TEST_CODE");
     expect(err.message).toBe("test message");
     expect(err).toBeInstanceOf(Error);
+  });
+});
+
+// Issue #399 (CP-TC-005): the plugin-aware component-binding second pass.
+// makeConfig() binds components.backend to plugin { id: "process" } with config
+// { command: "..." }.
+describe("component-binding validation (issue #399)", () => {
+  it("registerProject leaves a project valid when its bound component plugin is not loaded", () => {
+    // Config-load is lenient (issue #399): no installed component manifests, so
+    // the "process" binding is not loaded, but that does NOT brick the project.
+    // The plugin-present check is enforced at bench-start (#612), not here.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([]);
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const project = registryModule.registerProject("/repos/unknown-plugin");
+
+    expect(project.configValid).toBe(true);
+    expect(project.fieldErrors).toBeUndefined();
+  });
+
+  it("registerProject flags component config that violates the plugin configSchema", () => {
+    // The process plugin now declares a configSchema requiring a numeric `port`,
+    // which the fixture's { command } config omits.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([
+      {
+        id: "process",
+        kind: "component",
+        configSchema: {
+          type: "object",
+          required: ["port"],
+          properties: { port: { type: "number" } },
+        },
+      } as unknown as PluginManifest,
+    ]);
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const project = registryModule.registerProject("/repos/bad-config");
+
+    expect(project.configValid).toBe(false);
+    expect(project.fieldErrors?.[0]?.path).toBe("components.backend.config.port");
+  });
+
+  it("registerProject leaves a project valid when every binding validates", () => {
+    // Default beforeEach manifest set (process, no configSchema) accepts the
+    // fixture config.
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const project = registryModule.registerProject("/repos/valid-binding");
+
+    expect(project.configValid).toBe(true);
+    expect(project.fieldErrors).toBeUndefined();
+  });
+
+  it("does not fire config-loaded listeners for a project the second pass invalidates", () => {
+    // A loaded plugin whose configSchema the fixture config violates: the second
+    // pass downgrades the project to invalid, so the listener must not fire.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    const listener = vi.fn();
+    registryModule.onProjectConfigLoaded(listener);
+    registryModule.registerProject("/repos/invalidated");
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("reloadConfig re-runs the second pass and flags a now-invalid config block", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+    expect(registryModule.getProject("p1")?.configValid).toBe(true);
+
+    // The bound plugin now declares a stricter configSchema the fixture config
+    // violates: the reload's second pass must surface it as a path-keyed error.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    const reloaded = registryModule.reloadConfig("p1");
+
+    expect(reloaded.configValid).toBe(false);
+    expect(reloaded.fieldErrors?.[0]?.path).toBe("components.backend.config.port");
+  });
+
+  it("reloadConfig leaves a project valid when the bound plugin is no longer loaded", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+    expect(registryModule.getProject("p1")?.configValid).toBe(true);
+
+    // The bound plugin is uninstalled before the reload. Config-load is lenient
+    // (issue #399): a not-loaded plugin does not invalidate the project.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([]);
+    const reloaded = registryModule.reloadConfig("p1");
+
+    expect(reloaded.configValid).toBe(true);
+    expect(reloaded.fieldErrors).toBeUndefined();
+  });
+
+  it("reloadConfig clears prior field errors when the config becomes valid again", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+
+    // First reload with a configSchema the fixture config violates: invalid.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    registryModule.reloadConfig("p1");
+    expect(registryModule.getProject("p1")?.configValid).toBe(false);
+
+    // Plugin's schema relaxes (accepts the config): the next reload clears the
+    // field errors.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_MANIFEST]);
+    const reloaded = registryModule.reloadConfig("p1");
+    expect(reloaded.configValid).toBe(true);
+    expect(reloaded.fieldErrors).toBeUndefined();
+  });
+
+  it("initialize skips the second pass (plugins load later); revalidate applies it", () => {
+    // A binding whose loaded plugin's configSchema the fixture config violates:
+    // initialize does NOT flag it (the pass is skipped at boot), revalidate does
+    // once the manifests are available.
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+
+    registryModule.initialize();
+    // Boot leaves the project parse-valid: the second pass is deferred.
+    expect(registryModule.getProject("p1")?.configValid).toBe(true);
+
+    registryModule.revalidateComponentBindings();
+    expect(registryModule.getProject("p1")?.configValid).toBe(false);
+    expect(registryModule.getProject("p1")?.fieldErrors?.[0]?.path).toBe(
+      "components.backend.config.port",
+    );
+  });
+
+  it("revalidate leaves projects valid when their bindings resolve", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+
+    // Default manifest set resolves the "process" binding.
+    registryModule.revalidateComponentBindings();
+
+    expect(registryModule.getProject("p1")?.configValid).toBe(true);
+    expect(registryModule.getProject("p1")?.fieldErrors).toBeUndefined();
   });
 });

@@ -199,6 +199,14 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
 
+  // The project registry initialized (above) before the plugin manager, so a
+  // project's component bindings could not be validated against their bound
+  // plugin's configSchema at registry-init time. Re-run that second pass now
+  // that the component manifests are available, still before the HTTP listener
+  // binds, so any invalid component config surfaces at config-load (issue #399,
+  // CP-TC-005).
+  projectRegistry.revalidateComponentBindings();
+
   // Wire the component-plugin crash-cleanup / auto-recovery hooks (issue #613).
   // The supervisor fires these when a `component` plugin crashes: pre-restart
   // reaps the resources the plugin owned (no orphans, no duplicate containers on

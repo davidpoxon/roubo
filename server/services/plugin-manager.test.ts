@@ -39,6 +39,15 @@ const enableStateMocks = vi.hoisted(() => {
 });
 vi.mock("./plugin-enable-state.js", () => enableStateMocks);
 
+// Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord. Mock the
+// consent-state persistence boundary so the uninstall call-site is asserted
+// without touching the real ~/.roubo/plugins-consent.json (the file IO itself is
+// covered by plugin-consent-state.test.ts). uninstallForUpdate must NOT call it.
+const consentStateMocks = vi.hoisted(() => ({
+  removeConsent: vi.fn<(id: string) => void>(),
+}));
+vi.mock("./plugin-consent-state.js", () => consentStateMocks);
+
 // dockerode is lazy-imported by the real isolation probe (#675) and by
 // ensureImage (#740). Mock it so the boot-install and image-pull branches can
 // be exercised without a live daemon. Individual mocks are reassigned per test.
@@ -104,6 +113,7 @@ beforeEach(() => {
     plugins: { [id]: enabled ? "enabled" : "disabled" },
   }));
   enableStateMocks.removePlugin.mockReset();
+  consentStateMocks.removeConsent.mockReset();
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
   childProcessControl.override = null;
@@ -588,6 +598,20 @@ describe("component plugins (issue #608)", () => {
     await mgr.initialize();
     const result = await mgr.invoke<string>("component-echo", "ping", undefined);
     expect(result).toBe("pong");
+  });
+
+  // Issue #399 (CP-TC-005): getComponentManifests exposes only component-kind
+  // manifests, which the project registry uses to validate component bindings.
+  it("getComponentManifests returns only component-kind manifests", async () => {
+    sandbox = await makeSandbox({ bundled: ["component-echo", "echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const manifests = mgr.getComponentManifests();
+    expect(manifests.map((m) => m.id)).toEqual(["component-echo"]);
+    expect(manifests.every((m) => m.kind === "component")).toBe(true);
+    // The integration-kind "echo" plugin is installed but excluded.
+    expect(manifests.some((m) => m.id === "echo")).toBe(false);
   });
 
   it("exposes the live connection for a running component plugin via getConnection", async () => {
@@ -1696,6 +1720,9 @@ permissions:
     // WU-046: uninstall must also drop the plugin from plugins-state.json so
     // a future install of the same id starts from the default.
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-remove");
+    // Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord so a
+    // stale consent does not survive; a re-install must re-acknowledge.
+    expect(consentStateMocks.removeConsent).toHaveBeenCalledWith("to-remove");
     // FR-004 / NFR-001: uninstall evicts the persistent disk cache for the
     // plugin (additive to the in-memory clearSnapshot).
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-remove");
@@ -1816,6 +1843,9 @@ permissions:
     expect(dirStillThere).toBe(true);
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-update");
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-update");
+    // Issue #399 (CP-TC-096): an in-place update keeps the same id, so its
+    // ConsentRecord is preserved. uninstallForUpdate must NOT remove consent.
+    expect(consentStateMocks.removeConsent).not.toHaveBeenCalled();
   });
 
   it("does NOT apply the active-integration guard (an in-use integration is updatable)", async () => {

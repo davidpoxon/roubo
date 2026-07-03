@@ -20,13 +20,36 @@ import type { ConfigFieldError, PluginManifest, RouboConfig } from "@roubo/share
  * pass produces) so callers can surface them uniformly. An empty array means
  * every binding is valid.
  *
+ * Pass `{ ignoreUnknownPlugins: true }` to suppress check (1): a binding whose
+ * plugin id matches no loaded manifest is then skipped rather than reported, so
+ * only genuine `configSchema` violations (2) are returned. This is the
+ * config-load posture (see the option docs below); check (1) stays on for a
+ * caller that needs the plugin present, such as bench-start.
+ *
  * This is a standalone, side-effect-free function. Wiring it into bench-start /
  * a component-plugin registry is the consuming surface's responsibility (that
  * registry does not exist yet); see #612 (F1.11).
  */
+export interface ValidateComponentBindingsOptions {
+  /**
+   * When true, a binding whose `plugin.id` matches no loaded component manifest
+   * is SKIPPED (no error) rather than reported as an unknown-plugin error, while
+   * a loaded plugin's config block is still validated against its `configSchema`.
+   *
+   * This is the config-load posture (issue #399). A roubo.yaml may legitimately
+   * reference a component plugin that is not installed in the current session (a
+   * disabled plugin, one pending install, or one absent from this environment),
+   * and that must not brick the whole project's config-load. The "plugin must be
+   * present" enforcement belongs at bench-start, where the component actually has
+   * to run (#612). Defaults to false (strict: an unknown plugin is an error).
+   */
+  ignoreUnknownPlugins?: boolean;
+}
+
 export function validateComponentBindings(
   config: Pick<RouboConfig, "components">,
   componentManifests: PluginManifest[],
+  options: ValidateComponentBindingsOptions = {},
 ): ConfigFieldError[] {
   const errors: ConfigFieldError[] = [];
 
@@ -55,6 +78,11 @@ export function validateComponentBindings(
 
     const manifest = manifestsById.get(pluginId);
     if (!manifest) {
+      // Config-load posture: a binding to a not-currently-loaded plugin is
+      // skipped rather than flagged (see ValidateComponentBindingsOptions). There
+      // is no configSchema to validate the config block against, and a missing
+      // plugin is a normal, recoverable state, not malformed config.
+      if (options.ignoreUnknownPlugins) continue;
       errors.push({
         path: `components.${name}.plugin.id`,
         message: `Unknown component plugin '${pluginId}'. No loaded component plugin declares this id.`,

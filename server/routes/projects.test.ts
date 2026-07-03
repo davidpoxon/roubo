@@ -618,6 +618,31 @@ describe("GET /:projectId/config", () => {
     const res = await request(app).get("/project/config");
     expect(res.status).toBe(400);
     expect(res.body.configValid).toBe(false);
+    // fieldErrors defaults to an empty array when the project carries none.
+    expect(res.body.fieldErrors).toEqual([]);
+  });
+
+  // Issue #399: an invalid component binding surfaces its path-keyed field
+  // errors on the config-load response.
+  it("returns 400 with path-keyed fieldErrors for an invalid component binding", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "project",
+      configValid: false,
+      configError: "components.backend.config.port: must be number",
+      fieldErrors: [
+        {
+          path: "components.backend.config.port",
+          message: "must be number",
+        },
+      ],
+    } as any);
+
+    const res = await request(app).get("/project/config");
+    expect(res.status).toBe(400);
+    expect(res.body.configValid).toBe(false);
+    expect(res.body.fieldErrors).toEqual([
+      { path: "components.backend.config.port", message: "must be number" },
+    ]);
   });
 
   it("returns 200 with config on success", async () => {

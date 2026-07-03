@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { Button, Checkbox, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { AlertTriangle, Check, Download, RefreshCw, ShieldAlert } from "lucide-react";
-import { declaredCategories, type InstallPreview } from "@roubo/shared";
+import { declaredCategories, type InstallPreview, type PermissionCategory } from "@roubo/shared";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import { CATEGORY_META } from "./permission-categories";
 
 // Install/update consent for a marketplace catalog entry (CP-FR-020, issue
-// #621). Mirrors PermissionConsentModal: it shows every permission category the
-// STAGED manifest declares (the staged preview is authoritative, not the
-// catalog summary) and gates the confirm control behind an acknowledgement.
-// The confirm control uses aria-disabled (not native disabled) plus a guarded
-// no-op onPress so it stays keyboard-operable while gated (NFR-007).
+// #621). It shows every permission category the STAGED manifest declares (the
+// staged preview is authoritative, not the catalog summary) and gates the
+// confirm control behind an acknowledgement. The confirm control uses
+// aria-disabled (not native disabled) plus a guarded no-op onPress so it stays
+// keyboard-operable while gated (NFR-007). On confirm it hands the acknowledged
+// categories to the container, which mints/refreshes the plugin's ConsentRecord
+// after the commit succeeds (issue #399).
 
 const STRINGS = {
   installTitle: (name: string) => `Install ${name}?`,
@@ -37,7 +39,10 @@ interface Props {
   error: string | null;
   isPending: boolean;
   onCancel: () => void;
-  onConfirm: () => void;
+  // Receives the categories the consumer acknowledged (every declared category),
+  // so the container can mint/refresh the plugin's ConsentRecord after the
+  // install/update commits (issue #399, CP-TC-090 / CP-TC-096).
+  onConfirm: (acknowledgedCategories: PermissionCategory[]) => void;
 }
 
 export default function MarketplaceConsentModal({
@@ -84,7 +89,9 @@ export default function MarketplaceConsentModal({
 
   function handleConfirm() {
     if (!canConfirm) return;
-    onConfirm();
+    // Hand the container the acknowledged categories (all declared ones) so it
+    // can POST /consent after the commit succeeds (issue #399).
+    onConfirm(categories);
   }
 
   return (

@@ -40,6 +40,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as pluginInstaller from "./plugin-installer.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
+import * as pluginConsentState from "./plugin-consent-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
@@ -1610,6 +1611,25 @@ export function listInstalled(): PluginRecord[] {
 }
 
 /**
+ * The parsed manifests of every installed `component`-kind plugin. The project
+ * registry reads this to validate a project's component bindings against the
+ * bound plugin's `configSchema` at config-load (issue #399, CP-TC-005): a
+ * binding to an id absent from this list is an unknown-plugin error, and a
+ * binding whose `config` violates the plugin's `configSchema` is a path-keyed
+ * config error. Entries without a parsed manifest (a malformed install) are
+ * skipped rather than surfaced as unknown plugins.
+ */
+export function getComponentManifests(): PluginManifest[] {
+  const manifests: PluginManifest[] = [];
+  for (const entry of plugins.values()) {
+    if (isComponentPlugin(entry) && entry.record.manifest) {
+      manifests.push(entry.record.manifest);
+    }
+  }
+  return manifests;
+}
+
+/**
  * Fetch a single installed plugin's record, or `undefined` if unknown. Returns
  * a defensive copy so callers can't mutate the live entry. Useful for routes
  * that need to branch on `status` without walking `listInstalled()`.
@@ -1819,6 +1839,12 @@ export async function uninstall(pluginId: string): Promise<void> {
   // WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
+  // Issue #399 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
+  // does not survive an uninstall. A re-installed id must re-acknowledge its
+  // declared permissions before the component-plugin registry consent gate
+  // admits it. Deliberately NOT done in uninstallForUpdate: an in-place update
+  // keeps the same id and preserves consent.
+  pluginConsentState.removeConsent(pluginId);
   // FR-014: a re-installed plugin id is a different deployment; previously
   // cached issues should not bleed across the uninstall boundary. Note that
   // we deliberately do *not* clear the snapshot on disable(): FR-014 calls

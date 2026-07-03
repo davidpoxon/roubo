@@ -14,6 +14,9 @@ vi.mock("./services/project-registry.js", () => ({
   getProjects: vi.fn(() => []),
   getProject: vi.fn(),
   onProjectConfigLoaded: vi.fn(),
+  // Issue #399: startServer re-runs the component-binding second pass after the
+  // plugin manager initializes.
+  revalidateComponentBindings: vi.fn(),
 }));
 vi.mock("./services/integration-migrations.js", () => ({
   initializeIntegrationMigrations: vi.fn(),
@@ -215,6 +218,7 @@ describe.sequential("startServer", () => {
       vi.doMock("./services/project-registry.js", () => ({
         initialize: vi.fn(),
         getProjects: vi.fn(() => []),
+        revalidateComponentBindings: vi.fn(),
       }));
       vi.doMock("./services/bench-manager.js", () => ({
         initialize: vi.fn(),

@@ -16,6 +16,7 @@ import type {
   InstallPreview,
   MarketplaceKind,
   MarketplaceListing,
+  PermissionCategory,
 } from "@roubo/shared";
 import { ApiError } from "../../lib/api";
 import {
@@ -25,6 +26,7 @@ import {
   useMarketplaceInstallPreview,
   useMarketplaceUpdatePreview,
 } from "../../hooks/useMarketplace";
+import { useGrantConsent } from "../../hooks/usePlugins";
 import { useToast } from "../../hooks/useToast";
 import MarketplaceCard from "./MarketplaceCard";
 import MarketplaceDrawer from "./MarketplaceDrawer";
@@ -109,6 +111,7 @@ export default function Marketplace() {
   const updatePreview = useMarketplaceUpdatePreview();
   const confirmMutation = useMarketplaceInstallConfirm();
   const cancelMutation = useMarketplaceInstallCancel();
+  const grantConsent = useGrantConsent();
   const { addToast } = useToast();
 
   const listings = useMemo(() => data?.listings ?? [], [data]);
@@ -165,11 +168,21 @@ export default function Marketplace() {
     setStaging(null);
   }
 
-  function handleConsentConfirm() {
+  function handleConsentConfirm(acknowledgedCategories: PermissionCategory[]) {
     if (!pending) return;
     const { mode, listing, preview } = pending;
     confirmMutation.mutate(preview.stagingToken, {
       onSuccess: () => {
+        // The install/update is committed. Mint (install) or refresh (update
+        // across a permissions change) the plugin's ConsentRecord with the
+        // categories the consumer just acknowledged, so the component-plugin
+        // registry consent gate (hasConsent) admits the component (issue #399,
+        // CP-TC-090 / CP-TC-096). The POST is safe for every confirm: an
+        // in-place update that did not change permissions keeps its record
+        // regardless (uninstallForUpdate preserves consent), and a matching
+        // re-mint here is an idempotent upsert. grantConsent surfaces its own
+        // failure toast; the install itself has already succeeded.
+        grantConsent.mutate({ pluginId: preview.manifest.id, acknowledgedCategories });
         addToast(
           mode === "update"
             ? STRINGS.updatedToast(listing.name)
