@@ -29,6 +29,7 @@
     "plugins/ghe",
     "plugins/process",
     "plugins/database",
+    "plugins/clasp-deploy",
     "e2e/fixtures/stubbed-plugin",
     "e2e/fixtures/clasp-deploy-stub"
   ],
@@ -37,7 +38,7 @@
     "dev": "npm run dev --prefix server & npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix plugins/_shared-github && npm run build --prefix plugins/github-com && npm run build --prefix plugins/jira-self-hosted && npm run build --prefix plugins/ghe && npm run build --prefix plugins/process && npm run build --prefix plugins/database && npm run build --prefix e2e/fixtures/stubbed-plugin && npm run build --prefix e2e/fixtures/clasp-deploy-stub",
+    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix plugins/_shared-github && npm run build --prefix plugins/github-com && npm run build --prefix plugins/jira-self-hosted && npm run build --prefix plugins/ghe && npm run build --prefix plugins/process && npm run build --prefix plugins/database && npm run build --prefix plugins/clasp-deploy && npm run build --prefix e2e/fixtures/stubbed-plugin && npm run build --prefix e2e/fixtures/clasp-deploy-stub",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
@@ -54,7 +55,7 @@
     "generate:schema": "tsx scripts/generate-schema.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/jira-self-hosted tsc --noEmit && npx -w plugins/process tsc --noEmit && npx -w plugins/database tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit && npx -w e2e/fixtures/clasp-deploy-stub tsc --noEmit"
+    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/jira-self-hosted tsc --noEmit && npx -w plugins/process tsc --noEmit && npx -w plugins/database tsc --noEmit && npx -w plugins/clasp-deploy tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit && npx -w e2e/fixtures/clasp-deploy-stub tsc --noEmit"
   },
   "dependencies": {
     "@roubo/shared": "file:./shared",

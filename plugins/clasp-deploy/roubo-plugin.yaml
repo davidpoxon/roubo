@@ -1,0 +1,37 @@
+id: clasp-deploy
+name: Clasp Deploy
+version: 0.1.0
+description: One-shot component plugin that runs a deploy command to completion through the host process broker, then reports completed.
+kind: component
+roubo: ^1.0.0
+entry: ./dist/index.js
+contractVersion: 1
+descriptorSchemaVersion: 1
+# Static PRE-INSTALL lifecycle shape (issue #401). `one-shot` tells the
+# marketplace detail drawer this component's start runs to completion and then
+# reports `completed` (no long-running supervision), so the drawer's Lifecycle
+# row reads "one-shot" before install. The host derives this server-side from
+# the manifest; there is no boolean `oneshot` field.
+lifecycle: one-shot
+# Imperative (escape-hatch) component plugin: it implements the
+# start/stop/health/cleanup hooks, not translate. The host reads componentMode
+# to dispatch the imperative lifecycle instead of calling translate (#396).
+componentMode: imperative
+configSchema:
+  type: object
+  properties: {}
+# The deploy runs a single command to completion through the host process
+# broker, so the plugin declares the `processes` category (the executable it
+# drives) and outbound network for a deploy that reaches a remote target. The
+# two declared categories drive the consent gate at install time.
+permissions:
+  network:
+    hosts:
+      - "*"
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes:
+    executables:
+      - echo
