@@ -290,7 +290,14 @@ function ensureBundledPluginsEnabled(): void {
 // EnablePluginPromptModal gate (BenchDashboard.tsx) requires `disabled`, so
 // the failure-path spec needs these to start disabled. Forcing them disabled
 // in /__reset also keeps unrelated specs free of spawn-failure noise.
-const FAILURE_FIXTURE_PLUGIN_IDS = ["broken-plugin"] as const;
+//
+// CPHM-TC-082 (#317): `errored-component-stub` is a component-kind fixture whose
+// entry file (./dist/index.js) is intentionally absent. Left enabled it would
+// fail the #759 pre-spawn host check at every boot and land `errored` in every
+// spec's plugin list; forcing it disabled here keeps it out of unrelated specs.
+// The errored-banner drift guard enables it on demand (POST /api/plugins/
+// errored-component-stub/enable) to drive the real missing-entry errored state.
+const FAILURE_FIXTURE_PLUGIN_IDS = ["broken-plugin", "errored-component-stub"] as const;
 function disableFailureFixturePlugins(): void {
   for (const id of FAILURE_FIXTURE_PLUGIN_IDS) {
     pluginEnableState.setPluginEnabled(id, false);
