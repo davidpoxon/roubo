@@ -74,6 +74,18 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     envInitialized = true;
   }
 
+  // Contradictory flags fail fast, before any state-touching work (issue #877).
+  // ROUBO_E2E=1 means the test harness owns this process, but ROUBO_PRODUCTION
+  // makes resolveRouboDir() point at the real ~/.roubo, which boot would then
+  // mutate (migrate.run() writes state.json even on the no-op path). This
+  // combination arises when the harness is launched from a bench terminal that
+  // inherited the app's env; refusing here beats a half-working harness.
+  if (process.env.ROUBO_E2E === "1" && process.env.ROUBO_PRODUCTION) {
+    throw new Error(
+      "Refusing to start: ROUBO_E2E=1 and ROUBO_PRODUCTION are both set, so the e2e harness would run against the production ~/.roubo state. Unset ROUBO_PRODUCTION (bench terminals inherit it from the app; see issue #877).",
+    );
+  }
+
   const requestedPort = options.port ?? parseInt(initialEnvPort || "3335", 10);
   if (isNaN(requestedPort)) {
     throw new Error(`Invalid port: ${options.port ?? initialEnvPort}`);

@@ -25,6 +25,13 @@ const QUIESCENCE_DEBOUNCE_MS = 2000;
 // purely a fallback for cases Claude Code's Notification hooks don't cover
 // (e.g. AskUserQuestion prompts in plan mode).
 const CLAUDE_QUIESCENCE_DEBOUNCE_MS = 8000;
+// Host-internal env vars that must not leak into bench sessions (issue #877).
+// The packaged app sets ROUBO_PRODUCTION/ROUBO_SEED_DIR on its own process and
+// publishes its bound ROUBO_PORT back into process.env; with ROUBO_PRODUCTION
+// inherited, a dev or e2e server started inside a bench resolves state to the
+// real ~/.roubo and mutates it at boot while the app is running. All three are
+// consumed server-side only, so bench terminals never need them.
+const HOST_INTERNAL_ENV_KEYS = new Set(["ROUBO_PRODUCTION", "ROUBO_SEED_DIR", "ROUBO_PORT"]);
 
 class CircularBuffer<T> {
   private items: (T | undefined)[];
@@ -302,7 +309,9 @@ export function createSession(
       rows: 24,
       cwd: workspacePath,
       env: Object.fromEntries(
-        Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined),
+        Object.entries(process.env).filter(
+          (e): e is [string, string] => e[1] !== undefined && !HOST_INTERNAL_ENV_KEYS.has(e[0]),
+        ),
       ),
     });
   } catch (err) {
