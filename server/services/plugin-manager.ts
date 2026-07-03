@@ -1399,12 +1399,35 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         // Sequence re-provision after the pre-restart teardown (issue #398). The
         // cleanup clears its ledger entries and completes its `docker compose
         // down -v` before we bring any new container up, so the late `down` can
-        // no longer target the recovered container and `up`/`down` never overlap
-        // on the same deterministic compose project name. Guarded so a rejected
-        // or slow cleanup (already best-effort per resource) never blocks
-        // recovery indefinitely.
-        await entry.preRestartCleanup?.catch(() => {});
-        entry.preRestartCleanup = null;
+        // no longer target the freshly recovered container within that single
+        // crash cycle. Guarded so a rejected or slow cleanup (already best-effort
+        // per resource) never blocks recovery indefinitely.
+        //
+        // (Overlapping crashes within the restart budget can still transiently
+        // overlap an earlier cycle's `up` with a later cycle's still-in-flight
+        // `down` on the shared compose project; the end state self-heals as the
+        // last cycle re-provisions last. Robust handling of that case is tracked
+        // in #403.)
+        //
+        // Capture the promise into a local before awaiting: `preRestartCleanup`
+        // is a single shared slot, and within the restart budget a later crash
+        // can reassign it while this callback is still awaiting the older one.
+        // Clear it only when it still holds the promise we awaited, so an earlier
+        // cycle's callback never nulls out a later crash's in-flight cleanup
+        // (which would let that later cycle skip its await and re-provision
+        // mid-teardown, reintroducing the race for that cycle). Awaiting a newer
+        // cleanup than our own cycle is safe: it only ever over-waits.
+        const cleanup = entry.preRestartCleanup;
+        await cleanup?.catch(() => {});
+        if (entry.preRestartCleanup === cleanup) entry.preRestartCleanup = null;
+        // Re-check the guard after the teardown await (issue #398): the ~10-15s
+        // wait is a TOCTOU window in which the plugin may have exhausted its
+        // restart budget (status flips to `errored`) or been intentionally
+        // stopped by the user. Re-provisioning then would bring components up for
+        // a plugin the supervisor has errored or the user has stopped, orphaning
+        // a container with no supervisor. The initial guard above ran before the
+        // await, so re-assert it here.
+        if (entry.intentionalStop || entry.record.status !== "enabled") return;
         await invokeComponentHook(
           entry,
           "post-restart re-provision",
