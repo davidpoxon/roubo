@@ -34,7 +34,7 @@ import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import { WorkUnitsValidationError } from "../services/work-unit-loader.js";
-import type { LoadedVerifyUnit } from "../services/work-unit-loader.js";
+import type { InvalidSpec, LoadedVerifyUnit } from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { GateOverrideStoreError } from "../services/gate-override-store.js";
 import { applyGateOverrides } from "../lib/gate-overrides.js";
@@ -247,30 +247,40 @@ function buildCaseMap(repoPath: string, loaded: readonly LoadedVerifyUnit[]): Wo
 }
 
 // Load the project's gates, apply the operator's recorded overrides, and return
-// the effective (regrouped) loaded gates. Centralised so the GET handlers and the
-// write handlers' guard share the exact same effective view.
-function effectiveGates(repoPath: string, projectId: string): LoadedVerifyUnit[] {
-  const loaded = workUnitLoader.loadVerifyUnits(repoPath);
+// the effective (regrouped) loaded gates plus the specs whose work-units.json was
+// present-but-invalid (skipped, not aborting the load: #371, #802). Centralised so
+// the GET handlers and the write handlers' guard share the exact same effective
+// view. Operator overrides regroup only the valid gates; they never touch
+// `invalidSpecs` (a skipped spec has no gates to merge or split).
+function effectiveGates(
+  repoPath: string,
+  projectId: string,
+): { gates: LoadedVerifyUnit[]; invalidSpecs: InvalidSpec[] } {
+  const { loaded, invalidSpecs } = workUnitLoader.loadVerifyUnitsWithDiagnostics(repoPath);
   const overrides = gateOverrideStore.loadOverrides(projectId);
   const caseMap = buildCaseMap(repoPath, loaded);
-  return applyGateOverrides(loaded, overrides, caseMap).gates;
+  return { gates: applyGateOverrides(loaded, overrides, caseMap).gates, invalidSpecs };
 }
 
-// GET /:projectId/gates -> 200 GateState[] (one per effective gate across the
-// project's specs). An empty array is a valid, normal response (no gates yet).
+// GET /:projectId/gates -> 200 { gates: GateState[]; invalidSpecs: InvalidSpec[] }.
+// `gates` has one entry per effective gate across the project's specs (an empty
+// array is a valid, normal response: no gates yet). `invalidSpecs` names any spec
+// whose work-units.json was present-but-invalid and skipped (#371), so the client
+// can surface a warning instead of an indistinguishable empty state. A genuinely
+// empty project returns both empty.
 router.get(
   "/:projectId/gates",
   gateReadRateLimiter,
   async (req: Request<{ projectId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const gates = effectiveGates(repoPath, req.params.projectId);
+      const { gates, invalidSpecs } = effectiveGates(repoPath, req.params.projectId);
       const states = await Promise.all(
         gates.map((loaded) =>
           withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
         ),
       );
-      res.json(states);
+      res.json({ gates: states, invalidSpecs });
     } catch (err) {
       handleError(res, err);
     }
@@ -286,7 +296,7 @@ router.get(
   async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const gates = effectiveGates(repoPath, req.params.projectId);
+      const { gates } = effectiveGates(repoPath, req.params.projectId);
       const loaded = gates.find((g) => g.unit.id === req.params.gateId);
       if (loaded === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
@@ -381,7 +391,7 @@ router.post(
       ) {
         throw new RouteError(400, "merge requires a gateIds array of at least two gate ids");
       }
-      const effective = effectiveGates(repoPath, req.params.projectId);
+      const { gates: effective } = effectiveGates(repoPath, req.params.projectId);
       assertNoneSignedOff(repoPath, effective, gateIds);
       await recordOp(repoPath, req.params.projectId, { op: "merge", gateIds }, res);
     } catch (err) {
@@ -402,7 +412,7 @@ router.post(
       if (typeof gateId !== "string" || !Array.isArray(parts) || parts.length < 2) {
         throw new RouteError(400, "split requires a gateId and at least two parts");
       }
-      const effective = effectiveGates(repoPath, req.params.projectId);
+      const { gates: effective } = effectiveGates(repoPath, req.params.projectId);
       assertNoneSignedOff(repoPath, effective, [gateId]);
       await recordOp(repoPath, req.params.projectId, { op: "split", gateId, parts }, res);
     } catch (err) {
@@ -453,7 +463,7 @@ router.post(
   async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const gates = effectiveGates(repoPath, req.params.projectId);
+      const { gates } = effectiveGates(repoPath, req.params.projectId);
       const loaded = gates.find((g) => g.unit.id === req.params.gateId);
       if (loaded === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
@@ -548,7 +558,7 @@ router.post(
   async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const gates = effectiveGates(repoPath, req.params.projectId);
+      const { gates } = effectiveGates(repoPath, req.params.projectId);
       const loaded = gates.find((g) => g.unit.id === req.params.gateId);
       if (loaded === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
@@ -595,7 +605,7 @@ router.delete(
   async (req: Request<{ projectId: string; gateId: string }>, res: Response) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const gates = effectiveGates(repoPath, req.params.projectId);
+      const { gates } = effectiveGates(repoPath, req.params.projectId);
       const loaded = gates.find((g) => g.unit.id === req.params.gateId);
       if (loaded === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);

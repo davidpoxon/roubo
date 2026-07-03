@@ -37,6 +37,10 @@ const gate = {
   coveringUnitIds: ["WU-010"],
 };
 
+// fetchGates now resolves the GatesResponse shape ({ gates, invalidSpecs }) rather
+// than a bare array (#371).
+const gatesResponse = { gates: [gate], invalidSpecs: [] };
+
 describe("query keys", () => {
   it("namespaces gates by project and a gate by project + id", () => {
     expect(gatesQueryKey("p1")).toEqual(["gates", "p1"]);
@@ -46,11 +50,11 @@ describe("query keys", () => {
 
 describe("useGates", () => {
   it("fetches the project's gates", async () => {
-    mockedApi.fetchGates.mockResolvedValue([gate] as never);
+    mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
     const { result } = renderHookWithProviders(() => useGates("p1"));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1");
-    expect(result.current.data).toEqual([gate]);
+    expect(result.current.data).toEqual(gatesResponse);
   });
 
   it("does not retry on failure", async () => {
@@ -61,7 +65,7 @@ describe("useGates", () => {
   });
 
   it("does not fire while disabled", () => {
-    mockedApi.fetchGates.mockResolvedValue([gate] as never);
+    mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
     const { result } = renderHookWithProviders(() => useGates("p1", { enabled: false }));
     expect(result.current.fetchStatus).toBe("idle");
     expect(mockedApi.fetchGates).not.toHaveBeenCalled();

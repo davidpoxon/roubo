@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Checkbox, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
-import { ChevronRight, GitMerge, Split, X } from "lucide-react";
-import type { GateState } from "../../lib/api";
+import { AlertTriangle, ChevronRight, GitMerge, Split, X } from "lucide-react";
+import type { GateState, InvalidGateSpec } from "../../lib/api";
 import { ApiError } from "../../lib/api";
 import { useGates, useMergeGates, useSplitGate } from "../../hooks/useGates";
 import GateStateIndicator from "./GateStateIndicator";
@@ -41,7 +41,48 @@ const STRINGS = {
   merging: "Combining…",
   noCovers:
     "This gate exposes no covering work units to split on. Splitting needs at least two assignable units.",
+  invalidTitle: (n: number) =>
+    n === 1
+      ? "1 spec has an invalid work-units.json and was skipped"
+      : `${n} specs have an invalid work-units.json and were skipped`,
 };
+
+// Warning banner for present-but-invalid specs (#371). A spec whose work-units.json
+// exists but fails contract validation is skipped by the aggregate load (the #802
+// per-spec resilience), which previously left the operator with only the bare "no
+// verify gates yet" empty state. This surfaces each skipped spec by slug plus its
+// validation messages so the misconfiguration is actionable, not silent. It is a
+// non-interactive status region (role="alert"), so it uses a styled element in the
+// codebase's amber warning idiom rather than a React Aria interactive component.
+function InvalidSpecsWarning({ invalidSpecs }: { invalidSpecs: InvalidGateSpec[] }) {
+  return (
+    <div
+      role="alert"
+      data-testid="invalid-specs-warning"
+      className="shrink-0 flex flex-col gap-1.5 rounded-lg ring-1 ring-inset ring-amber-500/40 bg-amber-500/10 px-4 py-3"
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangle
+          size={14}
+          aria-hidden
+          className="shrink-0 text-amber-600 dark:text-amber-400"
+        />
+        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+          {STRINGS.invalidTitle(invalidSpecs.length)}
+        </span>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {invalidSpecs.map((spec) => (
+          <li key={spec.slug} className="text-[12px] text-stone-600 dark:text-stone-400">
+            <span className="font-mono text-stone-800 dark:text-stone-200">{spec.slug}</span>
+            {": "}
+            {spec.errors.join("; ")}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function GateCard({
   gate,
@@ -268,7 +309,7 @@ export default function GatesOverview({
   projectId: string;
   onOpenGate: (gateId: string) => void;
 }) {
-  const { data: gates, isLoading, isError, error } = useGates(projectId);
+  const { data, isLoading, isError, error } = useGates(projectId);
   const mergeMutation = useMergeGates(projectId);
   const splitMutation = useSplitGate(projectId);
 
@@ -322,7 +363,7 @@ export default function GatesOverview({
     );
   }
 
-  if (isError || !gates) {
+  if (isError || !data) {
     const message =
       error instanceof Error ? error.message : "Could not load the batches for this project.";
     return (
@@ -332,12 +373,30 @@ export default function GatesOverview({
     );
   }
 
-  if (gates.length === 0) {
+  const gates = data.gates;
+  const invalidSpecs = data.invalidSpecs;
+
+  // Empty state (AC3) fires ONLY when there are genuinely no gates AND no skipped
+  // invalid specs. If a spec's work-units.json was present-but-invalid (#371),
+  // fall through to the warning banner below rather than the misleading "no verify
+  // gates yet", so a misconfiguration is never indistinguishable from an empty
+  // project.
+  if (gates.length === 0 && invalidSpecs.length === 0) {
     return (
       <div className="py-8">
         <p className="text-sm text-stone-500 dark:text-stone-600">
           This project has no verify gates yet.
         </p>
+      </div>
+    );
+  }
+
+  // Gates all dropped because the only verify-unit-bearing spec(s) failed
+  // validation: show the warning naming the spec + failure, not an empty state.
+  if (gates.length === 0) {
+    return (
+      <div className="py-8">
+        <InvalidSpecsWarning invalidSpecs={invalidSpecs} />
       </div>
     );
   }
@@ -388,6 +447,8 @@ export default function GatesOverview({
           </>
         )}
       </div>
+
+      {invalidSpecs.length > 0 && <InvalidSpecsWarning invalidSpecs={invalidSpecs} />}
 
       {actionError && (
         <p
