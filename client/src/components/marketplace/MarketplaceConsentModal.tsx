@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Checkbox, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { AlertTriangle, Check, Download, RefreshCw, ShieldAlert } from "lucide-react";
-import { declaredCategories, type InstallPreview } from "@roubo/shared";
+import { declaredCategories, type InstallPreview, type PermissionCategory } from "@roubo/shared";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import { CATEGORY_META } from "./permission-categories";
