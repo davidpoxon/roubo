@@ -58,4 +58,53 @@ describe("writeResults", () => {
     expect(fs.readdirSync(dir)).toEqual(["test-results.json"]);
     expect(fs.readFileSync(target, "utf8")).toBe("payload");
   });
+
+  // NFR-001 (TC-052): a valid-slug symlink under .specifications/ that points
+  // outside the repo passes the lexical resolveWithin check but is caught by the
+  // realpath barrier at the sink, so nothing is written into the outside dir.
+  it("rejects a symlinked spec-slug dir that escapes the repo and writes nothing outside (TC-052)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "testbench-outside-"));
+    try {
+      const specs = path.join(repo, ".specifications");
+      fs.mkdirSync(specs, { recursive: true });
+      // evil-link is a valid slug (SPEC_SLUG_RE) but a symlink to outside the repo.
+      fs.symlinkSync(outside, path.join(specs, "evil-link"), "dir");
+
+      const before = fs.readdirSync(outside);
+      expect(() => writeResults(repo, "evil-link", JSON.stringify({ evil: true }))).toThrow(
+        UnsafePathError,
+      );
+
+      // Nothing (results or temp) was written into the outside directory.
+      expect(fs.readdirSync(outside)).toEqual(before);
+      expect(fs.existsSync(path.join(outside, "test-results.json"))).toBe(false);
+      expect(fs.existsSync(path.join(outside, "test-results.json.tmp"))).toBe(false);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // Guards against a false-positive rejection: when the repo root legitimately
+  // sits under a symlinked prefix (e.g. macOS /var/folders -> /private/var), the
+  // realpath-to-realpath comparison keeps the write inside the root, so it must
+  // still succeed rather than being wrongly rejected.
+  it("writes successfully when the repo root sits under a symlinked prefix (no false reject)", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "testbench-symroot-"));
+    try {
+      const realParent = path.join(base, "real-parent");
+      fs.mkdirSync(realParent);
+      const linkParent = path.join(base, "link-parent");
+      fs.symlinkSync(realParent, linkParent, "dir");
+      const root = path.join(linkParent, "repo");
+      fs.mkdirSync(root);
+
+      const data = JSON.stringify({ ok: true, count: 1 });
+      const target = writeResults(root, "testbench", data);
+
+      expect(target).toBe(path.join(root, ".specifications", "testbench", "test-results.json"));
+      expect(fs.readFileSync(target, "utf8")).toBe(data);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
 });
