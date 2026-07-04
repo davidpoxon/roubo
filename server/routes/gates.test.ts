@@ -623,8 +623,12 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
   // #427 (mirrors TC-052): a valid-slug `.specifications/<slug>` symlink that
   // points outside the repo passes the lexical resolveWithin check but is caught
   // by the realpath barrier at the evidence sink, so nothing is written into the
-  // outside dir and no issue is filed for the rejected write.
-  it("rejects a symlinked spec dir escaping the repo and writes nothing outside (#427)", async () => {
+  // outside dir and no issue is filed for the rejected write. The evidence value
+  // is MULTI-SEGMENT ("logs/secrets.txt") on purpose: `dir` is then a not-yet-
+  // existing subdirectory under the symlinked slug, so the barrier must run BEFORE
+  // mkdirSync or the recursive mkdir would follow the symlink and create a
+  // directory (`outside/logs`) OUTSIDE repoPath before the check could fire.
+  it("rejects a symlinked spec dir escaping the repo and creates nothing outside (#427)", async () => {
     const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-repo-"));
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-outside-"));
     try {
@@ -641,15 +645,18 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
       const res = await request(app).post("/p1/gates/WU-040/fix-issues").send({
         failedCaseId: "TC-024",
         notes: "Login button is inert.",
-        evidence: "secrets.txt",
+        evidence: "logs/secrets.txt",
       });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/escapes/i);
-      // Nothing (evidence artifact) was written into the outside directory, and no
-      // issue is filed for a rejected write.
+      // Nothing (neither the intermediate `logs` directory nor the evidence file)
+      // was created in the outside directory, and no issue is filed for the
+      // rejected write. `readdirSync(outside)` unchanged proves mkdirSync never ran
+      // outside the repo before the barrier threw.
       expect(fs.readdirSync(outside)).toEqual(before);
-      expect(fs.existsSync(path.join(outside, "secrets.txt"))).toBe(false);
+      expect(fs.existsSync(path.join(outside, "logs"))).toBe(false);
+      expect(fs.existsSync(path.join(outside, "logs", "secrets.txt"))).toBe(false);
       expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });

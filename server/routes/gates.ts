@@ -447,16 +447,22 @@ function repoFullNameFromRef(ref: string): string | null {
 //
 // resolveWithin is lexical, so it cannot see an on-disk symlink whose name is a
 // valid slug. assertRealpathWithin is the SECOND barrier at the sink (mirrors
-// writeResults, #416/#427): after the directory exists it realpaths it and
-// re-asserts containment against the realpath'd repoPath, rejecting a symlinked
-// `.specifications/<slug>` that escapes the repo before anything is written.
+// writeResults, #416/#427): it realpaths the deepest existing ancestor of the
+// evidence dir and re-asserts containment against the realpath'd repoPath,
+// rejecting a symlinked `.specifications/<slug>` that escapes the repo. Unlike
+// writeResults (whose dir is the fixed, already-existing slug folder), `evidence`
+// is a caller-supplied relative path that may add subdirectories, so the barrier
+// MUST run BEFORE mkdirSync: a recursive mkdir follows a symlinked slug and would
+// create a directory OUTSIDE repoPath before the check could fire. realpath-
+// DeepestExisting handles the not-yet-created tail by walking up to the nearest
+// existing ancestor, so the check is valid even though the dir does not exist yet.
 function writeEvidence(repoPath: string, slug: string, evidence: string, notes: string): void {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const specDir = resolveWithin(repoPath, ".specifications", slug);
   const target = resolveWithin(specDir, evidence);
   const dir = path.dirname(target);
-  fs.mkdirSync(dir, { recursive: true });
   assertRealpathWithin(repoPath, dir, "evidence dir");
+  fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(target, notes, "utf8");
 }
 
