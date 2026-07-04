@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ResponseError } from "vscode-jsonrpc/node.js";
 import { createConnection, CancellationTokenSource } from "./plugin-rpc.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +84,39 @@ describe("plugin-rpc", () => {
     );
 
     expect(response).toEqual({ ok: true, result: { value: "got:abc" } });
+    conn.dispose();
+    tokenSource.dispose();
+  });
+
+  it("routes an unregistered method to the star fallback handler end-to-end (#409)", async () => {
+    const proc = spawnCaller();
+    const conn = createConnection(proc);
+    // A single-function registration installs the star/fallback handler that
+    // vscode-jsonrpc invokes for any method without a specific handler. This is
+    // the production path the broker relies on to reply its own descriptive
+    // -32601 instead of the transport's bare one, so exercise the routing
+    // through a real connection (the broker's message content is covered
+    // separately in component-broker.test.ts).
+    conn.onRequest((method) => {
+      throw new ResponseError(-32601, `Method not found: "${method}"`, {
+        code: "method-not-found",
+        method,
+      });
+    });
+
+    const tokenSource = new CancellationTokenSource();
+    const response = await conn.sendRequest<{
+      ok: boolean;
+      error: { code: number; message: string; data: { code: string; method: string } };
+    }>("invokeHost", { method: "host.nope.unregistered", payload: {} }, tokenSource.token);
+
+    expect(response.ok).toBe(false);
+    expect(response.error.code).toBe(-32601);
+    expect(response.error.message).toContain("host.nope.unregistered");
+    expect(response.error.data).toMatchObject({
+      code: "method-not-found",
+      method: "host.nope.unregistered",
+    });
     conn.dispose();
     tokenSource.dispose();
   });
