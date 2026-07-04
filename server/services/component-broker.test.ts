@@ -18,15 +18,29 @@ import type { JsonRpcConnection } from "./plugin-rpc.js";
 function makeConnection(): JsonRpcConnection & {
   handlers: Map<string, (params: unknown) => unknown>;
   notifyHandlers: Map<string, (params: unknown) => unknown>;
+  starHandler?: (method: string, params: unknown) => unknown;
 } {
   const handlers = new Map<string, (params: unknown) => unknown>();
   const notifyHandlers = new Map<string, (params: unknown) => unknown>();
-  return {
+  const conn = {
     sendRequest: vi.fn(),
     sendNotification: vi.fn(),
-    onRequest: vi.fn((method: string, handler: (params: unknown) => unknown) => {
-      handlers.set(method, handler);
-    }),
+    onRequest: vi.fn(
+      (
+        methodOrHandler: string | ((method: string, params: unknown) => unknown),
+        handler?: (params: unknown) => unknown,
+      ) => {
+        // A single function argument is the star/fallback registration
+        // (vscode-jsonrpc's connection.onRequest(handler) form): capture it
+        // separately so it never lands in the per-method handlers map and the
+        // "15 frozen methods" count stays exact (#409).
+        if (typeof methodOrHandler === "function") {
+          conn.starHandler = methodOrHandler;
+          return;
+        }
+        handlers.set(methodOrHandler, handler as (params: unknown) => unknown);
+      },
+    ),
     onNotification: vi.fn((method: string, handler: (params: unknown) => unknown) => {
       notifyHandlers.set(method, handler);
     }),
@@ -35,9 +49,12 @@ function makeConnection(): JsonRpcConnection & {
     dispose: vi.fn(),
     handlers,
     notifyHandlers,
-  } as unknown as JsonRpcConnection & {
+    starHandler: undefined as ((method: string, params: unknown) => unknown) | undefined,
+  };
+  return conn as unknown as JsonRpcConnection & {
     handlers: Map<string, (params: unknown) => unknown>;
     notifyHandlers: Map<string, (params: unknown) => unknown>;
+    starHandler?: (method: string, params: unknown) => unknown;
   };
 }
 
@@ -630,6 +647,50 @@ describe("unknown invoked method (FR-017, CP-TC-009, CP-TC-054)", () => {
     // surfaces as a clean JSON-RPC error, not an exception in the host.
     const err = new ResponseError(-32601, "Method not found");
     expect(err.code).toBe(-32601);
+  });
+
+  it("fallback names a known-but-unregistered method and the minimum host version that provides it (CP-TC-009 S002-O01)", () => {
+    const h = setup();
+    // CP-TC-009 precondition, "simulated by patching the broker": a method that
+    // exists in the surface catalogue (host.docker.assignContainer, part of the
+    // v1 surface) invoked as if this host build never registered it. The star
+    // fallback keeps the -32601 code but now names the method and its
+    // introducedIn version instead of the transport's bare error.
+    const star = need(h.connection.starHandler, "fallback (star) handler");
+    let caught: unknown;
+    try {
+      star("host.docker.assignContainer", { benchId: 7 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ResponseError);
+    const err = caught as ResponseError<{ code: string; method: string; introducedIn?: string }>;
+    expect(err.code).toBe(-32601);
+    expect(err.message).toContain("host.docker.assignContainer");
+    expect(err.message).toContain(BROKER_API_VERSION);
+    expect(err.data).toMatchObject({
+      code: "method-not-found",
+      method: "host.docker.assignContainer",
+      introducedIn: BROKER_API_VERSION,
+    });
+  });
+
+  it("fallback names a truly-unknown method and states it is not part of any known surface", () => {
+    const h = setup();
+    const star = need(h.connection.starHandler, "fallback (star) handler");
+    let caught: unknown;
+    try {
+      star("host.totally.madeUp", {});
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ResponseError);
+    const err = caught as ResponseError<{ code: string; method: string; introducedIn?: string }>;
+    expect(err.code).toBe(-32601);
+    expect(err.message).toContain("host.totally.madeUp");
+    expect(err.message).toMatch(/not part of any known/i);
+    expect(err.data).toMatchObject({ code: "method-not-found", method: "host.totally.madeUp" });
+    expect(err.data?.introducedIn).toBeUndefined();
   });
 });
 

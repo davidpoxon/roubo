@@ -19,6 +19,10 @@ import * as ledger from "./resource-ownership-ledger.js";
 const INVALID_PARAMS_CODE = -32602;
 const INTERNAL_ERROR_CODE = -32603;
 const PERMISSION_DENIED_CODE = -32001;
+// Same code vscode-jsonrpc auto-replies for an unhandled method; the broker
+// keeps the code but replaces the bare "Method not found" text with one that
+// names the method and, when known, its minimum host version (#409, FR-017).
+const METHOD_NOT_FOUND_CODE = -32601;
 
 /**
  * The broker API version. Every method in the v1 surface ships in this version,
@@ -55,6 +59,17 @@ export const BROKER_METHODS: Readonly<Record<string, string>> = Object.freeze({
   "host.component.reportLog": BROKER_API_VERSION,
   "host.capability.query": BROKER_API_VERSION,
 });
+
+/**
+ * Methods introduced in a host API version newer than the current surface
+ * (BROKER_API_VERSION), mapped to the minimum host version that provides each.
+ * This is the forward-compat extension point (#409): when a later additive
+ * change ships a method a running host does not yet register, add it here so the
+ * broker's method-not-found error can still name the version that provides it.
+ * Empty today: BROKER_METHODS is the whole registered v1 surface, so no method
+ * is yet "known but from a newer version".
+ */
+export const FUTURE_BROKER_METHODS: Readonly<Record<string, string>> = Object.freeze({});
 
 export type ProcessManagerLike = Pick<
   typeof processManager,
@@ -118,6 +133,43 @@ function invalidParams(method: string, message: string): never {
   throw new ResponseError(INVALID_PARAMS_CODE, `${method}: ${message}`, {
     code: "invalid-params",
   });
+}
+
+/**
+ * Structured data attached to a method-not-found error so a plugin can react
+ * programmatically: `introducedIn` is present only when the method is in the
+ * known surface catalogue (a newer-version method, or a v1 method this host
+ * build did not register).
+ */
+interface BrokerMethodNotFoundData {
+  code: "method-not-found";
+  method: string;
+  introducedIn?: string;
+}
+
+/**
+ * Build the broker's descriptive method-not-found error (#409, FR-017).
+ * vscode-jsonrpc would otherwise auto-reply a bare -32601 that names nothing;
+ * this keeps the -32601 code but names the method and, when the method is in the
+ * known surface catalogue (FUTURE_BROKER_METHODS for a newer-version method,
+ * unioned with BROKER_METHODS so a v1 method this host build did not register
+ * still resolves), the minimum host version that provides it. A method in
+ * neither catalogue is reported as not part of any known surface.
+ */
+function methodNotFound(method: string): never {
+  const introducedIn = FUTURE_BROKER_METHODS[method] ?? BROKER_METHODS[method];
+  if (introducedIn) {
+    throw new ResponseError<BrokerMethodNotFoundData>(
+      METHOD_NOT_FOUND_CODE,
+      `Method not found: "${method}" is not registered on this host; the minimum host API version that provides it is ${introducedIn}.`,
+      { code: "method-not-found", method, introducedIn },
+    );
+  }
+  throw new ResponseError<BrokerMethodNotFoundData>(
+    METHOD_NOT_FOUND_CODE,
+    `Method not found: "${method}" is not part of any known host API surface.`,
+    { code: "method-not-found", method },
+  );
 }
 
 function wrapInternal(method: string, log: BrokerLogger, err: unknown): never {
@@ -640,4 +692,14 @@ export function registerBrokerHandlers(
       return introducedIn ? { available: true, introducedIn } : { available: false };
     },
   );
+
+  // --- fallback for any method not registered above -------------------------
+
+  // Registered LAST so it catches only methods none of the handlers above
+  // claimed: vscode-jsonrpc routes a request to this star handler only when no
+  // specific handler matched, so every registered method still wins. Without it,
+  // the transport auto-replies a bare -32601 that names nothing; this emits the
+  // broker's own descriptive -32601 that names the method and, when known, the
+  // minimum host version that provides it (#409, FR-017).
+  connection.onRequest((method: string) => methodNotFound(method));
 }
