@@ -337,9 +337,10 @@ describe("getContainerStatus", () => {
 });
 
 describe("getContainerStatuses", () => {
-  it("returns statuses for multiple queries in a single call", async () => {
+  it("returns statuses and container ids for multiple queries in a single call", async () => {
     mockListContainers.mockResolvedValue([
       {
+        Id: "proj-1-container",
         Labels: {
           "com.docker.compose.project": "proj-1",
           "com.docker.compose.service": "db",
@@ -348,6 +349,7 @@ describe("getContainerStatuses", () => {
         Status: "Up 5 minutes (healthy)",
       },
       {
+        Id: "proj-2-container",
         Labels: {
           "com.docker.compose.project": "proj-2",
           "com.docker.compose.service": "db",
@@ -363,14 +365,18 @@ describe("getContainerStatuses", () => {
       { projectName: "proj-3", service: "db" },
     ]);
 
-    expect(results.get("proj-1/db")).toBe("running");
-    expect(results.get("proj-2/db")).toBe("starting");
-    expect(results.get("proj-3/db")).toBe("not_found");
+    // The batch carries the matched container id alongside the status so callers
+    // populate ComponentStatus.containerId without a second docker call
+    // (davidpoxon/roubo-development#410).
+    expect(results.get("proj-1/db")).toEqual({ status: "running", id: "proj-1-container" });
+    expect(results.get("proj-2/db")).toEqual({ status: "starting", id: "proj-2-container" });
+    expect(results.get("proj-3/db")).toEqual({ status: "not_found", id: null });
   });
 
-  it("returns 'unhealthy' for unhealthy containers", async () => {
+  it("returns 'unhealthy' with the container id for unhealthy containers", async () => {
     mockListContainers.mockResolvedValue([
       {
+        Id: "unhealthy-container",
         Labels: {
           "com.docker.compose.project": "proj-1",
           "com.docker.compose.service": "db",
@@ -382,7 +388,25 @@ describe("getContainerStatuses", () => {
 
     const results = await getContainerStatuses([{ projectName: "proj-1", service: "db" }]);
 
-    expect(results.get("proj-1/db")).toBe("unhealthy");
+    expect(results.get("proj-1/db")).toEqual({ status: "unhealthy", id: "unhealthy-container" });
+  });
+
+  it("returns 'stopped' with the container id for a non-running match", async () => {
+    mockListContainers.mockResolvedValue([
+      {
+        Id: "stopped-container",
+        Labels: {
+          "com.docker.compose.project": "proj-1",
+          "com.docker.compose.service": "db",
+        },
+        State: "exited",
+        Status: "Exited (0) 2 minutes ago",
+      },
+    ]);
+
+    const results = await getContainerStatuses([{ projectName: "proj-1", service: "db" }]);
+
+    expect(results.get("proj-1/db")).toEqual({ status: "stopped", id: "stopped-container" });
   });
 });
 

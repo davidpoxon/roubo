@@ -698,7 +698,7 @@ describe("reconcile", () => {
     });
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
     vi.mocked(processManager.getProcessStatus).mockReturnValue({
       alive: false,
@@ -716,6 +716,10 @@ describe("reconcile", () => {
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     expect(bench.components.db.status).toBe("running");
+    // The crash-recovery reconcile populates the container id from the same
+    // batched call, mirroring the pid the process branch tracks
+    // (davidpoxon/roubo-development#410).
+    expect(bench.components.db.containerId).toBe("db-container-xyz");
   });
 
   it("marks bench as error when workspace directory is missing", async () => {
@@ -4439,7 +4443,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(bench.components.frontend.status).toBe("stopped");
   });
 
-  // Closes the CP-TC-033 S008 / CP-TC-034 S005 gap (#668) the hermetic responda
+  // Closes the CP-TC-033 S008 / CP-TC-034 S005 gap (davidpoxon/roubo-development#410) the hermetic responda
   // e2e guard could not assert: that guard drives the startup orphan-reap
   // (sweepOrphanedComposeProjects) instead of the integrated stop path, so it
   // never proves that the recorded PIDs are terminated. stopAllComponents calls
@@ -4875,7 +4879,7 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     ]);
   });
 
-  // Closes the CP-TC-033 S005-O03 gap (#668) that the hermetic responda e2e
+  // Closes the CP-TC-033 S005-O03 gap (davidpoxon/roubo-development#410) that the hermetic responda e2e
   // guard could not assert through the integrated surface: in the real journey
   // the broker resolves a database component's containerId via
   // dockerService.getContainerId(projectName, service) and the plugin surfaces
@@ -4933,7 +4937,7 @@ describe("refreshComponentStatuses", () => {
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
     vi.mocked(processManager.getProcessStatus).mockReturnValue({
       alive: false,
@@ -4945,6 +4949,9 @@ describe("refreshComponentStatuses", () => {
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     expect(bench.components.db.status).toBe("running");
+    // The live refresh carries the container id from the same batched call while
+    // the container runs (davidpoxon/roubo-development#410).
+    expect(bench.components.db.containerId).toBe("db-container-xyz");
   });
 
   it("updates process service status when process dies", async () => {
@@ -4993,7 +5000,7 @@ describe("refreshComponentStatuses", () => {
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
     vi.mocked(processManager.getProcessStatus).mockReturnValue({
       alive: false,
@@ -5028,7 +5035,7 @@ describe("refreshComponentStatuses", () => {
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
 
     await benchManager.refreshComponentStatuses();
@@ -5060,7 +5067,7 @@ describe("refreshComponentStatuses", () => {
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
 
     await benchManager.refreshComponentStatuses();
@@ -5112,16 +5119,20 @@ describe("refreshComponentStatuses", () => {
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     bench.components.db.status = "running";
+    bench.components.db.containerId = "db-container-xyz";
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "unhealthy"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "unhealthy", id: "db-container-xyz" }]]),
     );
 
     await benchManager.refreshComponentStatuses();
 
     expect(bench.components.db.status).toBe("stopped");
     expect(bench.components.db.error).toBe("Container health check failed");
+    // An unhealthy container is no longer running, so the stale id is dropped
+    // (davidpoxon/roubo-development#410).
+    expect(bench.components.db.containerId).toBeUndefined();
   });
 
   it("does not override provisioning status", async () => {
@@ -5218,7 +5229,7 @@ describe("updateBenchStatus (tested implicitly)", () => {
 
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
-      new Map([["roubo-test-project-bench-1/db", "running"]]),
+      new Map([["roubo-test-project-bench-1/db", { status: "running", id: "db-container-xyz" }]]),
     );
     vi.mocked(processManager.getProcessStatus).mockReturnValue({
       alive: true,

@@ -36,15 +36,16 @@
 //     not by poking the store primitive directly.
 //   - the database containerId -> docker.getContainerId(projectName, service), the
 //     same resolution seam the broker uses after composeUp (component-broker.ts).
-//     Asserting the resolved id lands on the integrated ComponentStatus surface
-//     (via buildReportStatus + a registered bench) is out of this hermetic guard's
-//     reach and is tracked in #668.
+//     The engine now attaches the resolved id to the running status push, so the
+//     integrated ComponentStatus surface reports it (davidpoxon/roubo-development#410);
+//     this hermetic guard captures that running push directly.
 //   - teardown -> the REAL bench-manager.sweepOrphanedComposeProjects orphan-reap
 //     seam, which downs every roubo-* compose project the ledger still records and
 //     clears the ledger entry (the zero-orphan invariant, NFR-003 / #612 cleanup).
 //     The integrated normal-stop path (stopComponent/stopAllComponents: status ->
 //     stopped + stopProcess for each recorded PID) needs the integrated bench
-//     registry, out of this hermetic guard's reach; it is tracked in #668.
+//     registry, out of this hermetic guard's reach; it is tracked in
+//     davidpoxon/roubo-development#410.
 //
 // State isolation: ROUBO_PRODUCTION + a mocked os.homedir pin the ~/.roubo state
 // dir (state.json) into a throwaway dir before any state-touching module resolves
@@ -299,7 +300,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
       "S006 the database logs include migration initService lines and docker compose startup lines",
     processLogs: "S007 the first process component's logs include stdout/stderr lines",
     teardown:
-      "S008 teardown: the run recorded the process ids, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition + PID kill is tracked in #668)",
+      "S008 teardown: the run recorded the process ids, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition + PID kill is tracked in davidpoxon/roubo-development#410)",
   } as const;
   const TC033_SEQUENCE = [
     TC033_STEPS.createBench,
@@ -368,6 +369,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // project in the ledger (#605 database plugin, #606 engine, #607 ledger).
     let dbConnection: string | undefined;
     let dbContainerId: string | null = null;
+    let dbRunningStatus: ComponentStatus | undefined;
     await track(
       TC033_STEPS.dbStartingPhases,
       "the database emits starting phases for composeUp, waitForHealthy, init/migration, then running, before any process component",
@@ -401,13 +403,14 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
           RESPONDA_COMPOSE,
         );
-        // The containerId is resolved through the same seam the broker uses after
-        // composeUp: getContainerId(projectName, service), where projectName comes
-        // from the journey's getComposeProjectName. Asserting that the resolved id
-        // lands on the integrated ComponentStatus surface (via buildReportStatus +
-        // a registered bench) is out of this hermetic guard's reach: tracked in #668.
-        const dbProjectName = docker.getComposeProjectName(RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID);
-        dbContainerId = await docker.getContainerId(dbProjectName, dbDescriptor.service);
+        // The engine resolves the containerId through the same seam the broker uses
+        // after composeUp (getContainerId(projectName, service), where projectName
+        // comes from the journey's getComposeProjectName) and attaches it to the
+        // running status push, so the resolved id lands on the integrated
+        // ComponentStatus surface (davidpoxon/roubo-development#410). Capture the
+        // running push here for the S005 assertion.
+        dbRunningStatus = statuses.at(-1);
+        dbContainerId = dbRunningStatus?.containerId ?? null;
       },
     );
 
@@ -447,11 +450,12 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // S005: final bench state. All three running; the database has a connection
     // string resolved with the allocated port (not a placeholder) and a
     // containerId resolved via the broker's getContainerId(projectName, service)
-    // seam (#605 connection templating, #617 status surface). Asserting the id on
-    // the integrated ComponentStatus surface is tracked in #668.
+    // seam (#605 connection templating, #617 status surface). The engine now
+    // attaches that id to the running status push, so it lands on the integrated
+    // ComponentStatus surface (davidpoxon/roubo-development#410).
     await track(
       TC033_STEPS.finalState,
-      "all three components are running; the database connection string is port-resolved and a containerId is resolved via the journey's seam",
+      "all three components are running; the database connection string is port-resolved and the containerId lands on the running ComponentStatus",
       () => {
         expect(results).toEqual({
           [RESPONDA_DB]: "running",
@@ -460,12 +464,15 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         });
         expect(dbConnection).toBe(`postgres://localhost:${RESPONDA_PORTS.db}/app`);
         expect(dbConnection).not.toContain("{{");
-        // The containerId was resolved through the journey's seam with the journey's
-        // args (the derived compose project name + the descriptor's service), and is
-        // a non-empty id, rather than asserting a literal off a direct fake call.
+        // The engine resolved the containerId through the journey's seam with the
+        // journey's args (the derived compose project name + the descriptor's
+        // service) and surfaced it on the running ComponentStatus push, closing the
+        // CP-TC-033 S005-O03 half the plugin path previously left null
+        // (davidpoxon/roubo-development#410).
         expect(docker.getContainerId).toHaveBeenCalledWith(RESPONDA_COMPOSE, dbDescriptor.service);
-        expect(typeof dbContainerId).toBe("string");
-        expect(dbContainerId).toBeTruthy();
+        expect(dbRunningStatus?.status).toBe("running");
+        expect(dbRunningStatus?.containerId).toBe(DB_CONTAINER_ID);
+        expect(dbContainerId).toBe(DB_CONTAINER_ID);
       },
     );
 
@@ -547,7 +554,8 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // reap tracks were genuinely recorded by the run. It does NOT assert the
     // integrated normal-stop path (stopComponent/stopAllComponents: each component
     // status -> stopped + stopProcess for each recorded PID), which needs the
-    // integrated bench registry; that assertion is tracked in #668.
+    // integrated bench registry; that assertion is tracked in
+    // davidpoxon/roubo-development#410.
     await track(
       TC033_STEPS.teardown,
       "the run recorded the process ids; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",
@@ -558,7 +566,8 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         );
         // The run recorded the process ids the reap must account for: the migration
         // under the database plugin, and each process component under the process
-        // plugin (the PIDs an integrated stop, #668, would terminate).
+        // plugin (the PIDs an integrated stop, davidpoxon/roubo-development#410,
+        // would terminate).
         expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.processIds).toContain(
           `${DB_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_DB}:migration`,
         );
@@ -600,7 +609,7 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
     connectionTemplated:
       "S004 the database connection string contains the allocated port, not a placeholder",
     teardown:
-      "S005 teardown: the run recorded the process id, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition is tracked in #668)",
+      "S005 teardown: the run recorded the process id, and after the real orphan sweep no roubo-* compose project survives and the ledger entry is cleared (the integrated stopped-transition is tracked in davidpoxon/roubo-development#410)",
   } as const;
   const TC034_SEQUENCE = [
     TC034_STEPS.createBench,
@@ -700,7 +709,8 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
 
     // S005: teardown via the real orphan sweep; no roubo-* compose project remains.
     // As in CP-TC-033, the integrated stopped-transition + PID kill is tracked in
-    // #668; here we assert the run recorded the process id the reap accounts for.
+    // davidpoxon/roubo-development#410; here we assert the run recorded the process
+    // id the reap accounts for.
     await track(
       TC034_STEPS.teardown,
       "the run recorded the process id; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",

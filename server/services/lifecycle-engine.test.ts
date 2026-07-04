@@ -113,6 +113,31 @@ describe("lifecycle-engine runDescriptor", () => {
 
       const final = h.statuses.at(-1);
       expect(final?.status).toBe("running");
+      // The running push carries the container id resolved from the same seam the
+      // broker uses after composeUp, so the integrated ComponentStatus reports it
+      // while the container is up (davidpoxon/roubo-development#410).
+      expect(h.docker.getContainerId).toHaveBeenCalledWith("roubo-proj1-bench-3", "postgres");
+      expect(final?.containerId).toBe("container-abc123");
+    });
+
+    it("omits the container id on the running push when none can be resolved (davidpoxon/roubo-development#410)", async () => {
+      const h = setup();
+      (h.docker.getContainerId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      expect(h.statuses.at(-1)?.containerId).toBeUndefined();
     });
 
     it("defaults to HOST_PORT and skips optional init/migration when absent (CP-TC-051)", async () => {
@@ -370,6 +395,11 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(h.docker.composeUp).not.toHaveBeenCalled();
       expect(h.docker.waitForHealthy).not.toHaveBeenCalled();
       expect(h.led.recordComposeProject).not.toHaveBeenCalled();
+      // The running push carries the externally-assigned container id (resolved
+      // from the descriptor, not a compose lookup) so the integrated
+      // ComponentStatus reports it (davidpoxon/roubo-development#410).
+      expect(h.statuses.at(-1)?.containerId).toBe("ext-container-123");
+      expect(h.docker.getContainerId).not.toHaveBeenCalled();
     });
 
     it("drives to error when the assigned container is not running (AC3)", async () => {
