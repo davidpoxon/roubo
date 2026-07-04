@@ -15,10 +15,22 @@ import { z } from "zod";
 // ── Versioned schema identifiers (NFR-005) ──
 //
 // Each published file carries a `$schema` URI whose path embeds a semver. A
-// breaking change ships a major bump plus a migration registry entry; additive
+// breaking change ships a major bump plus a documented migration path; additive
 // optional fields (like the reserved targeting fields below) do not bump the
 // version. `TEST_CASES_SCHEMA_VERSION` / `TEST_RESULTS_SCHEMA_VERSION` are the
 // matching `schemaVersion` string values kept consistent with the `$id` semver.
+//
+// The migration history and the versioning rule live in
+// docs/testbench-schema-migrations.md. Two entries there matter for NFR-005:
+//   - test-cases 1.0.0 -> 1.1.0 was a MINOR bump that was in fact breaking
+//     (level string -> integer; area/type/tags/linked_* became required). That
+//     break is recorded as an ACCEPTED retroactive break, not re-tagged to 2.0.0
+//     (re-tagging would rewrite a published `$id` for no practical gain). Going
+//     forward, minor bumps stay additive/optional; a real break takes a major
+//     bump plus a migration entry.
+//   - test-results 1.0.0 -> 2.0.0 flattened the per-bench `benches` map to
+//     top-level caseResults. The store loader detects a prior-major file and
+//     fails open with a version-migration-required signal pointing at that doc.
 
 export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json";
 export const TEST_CASES_SCHEMA_VERSION = "1.1.0";

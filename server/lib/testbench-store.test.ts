@@ -150,6 +150,8 @@ describe("readPlanAndResults", () => {
     const view = readPlanAndResults(repo, SLUG);
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
+    // NFR-005: the recovery reason names WHY it recovered (here: no prior file).
+    expect(view.recoveryReason).toBe("missing");
     expect(view.stale).toBe(false);
     expect(view.planHash).toBe(computePlanHash(planFor()));
   });
@@ -161,21 +163,27 @@ describe("readPlanAndResults", () => {
     const view = readPlanAndResults(repo, SLUG);
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
+    expect(view.recoveryReason).toBe("corrupt-json");
   });
 
   // AC3: a schema-invalid sidecar fails open.
   it("fails open on a schema-invalid sidecar", () => {
     writePlan(planFor());
-    writeRawResults(JSON.stringify({ caseResults: "not-a-record" }));
+    // Same-major (v2) but structurally invalid: falls through to schema
+    // validation, so the reason is schema-invalid, not a version mismatch.
+    writeRawResults(JSON.stringify({ schemaVersion: "2.0.0", caseResults: "not-a-record" }));
     const view = readPlanAndResults(repo, SLUG);
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
+    expect(view.recoveryReason).toBe("schema-invalid");
   });
 
-  // AC3: a legacy v1 file (per-bench `benches` map, no top-level caseResults)
-  // fails open: the strict v2 contract rejects it, so the loader treats it as a
-  // clean slate rather than a lossy round-trip.
-  it("fails open on a legacy per-bench (v1) sidecar", () => {
+  // TC-063 / NFR-005: a prior-major (v1) file (per-bench `benches` map, no
+  // top-level caseResults) is caught by the PAST-major guard BEFORE strict
+  // validation, so it fails open with a legible version-migration-required
+  // signal that points at docs/testbench-schema-migrations.md, not a generic
+  // shape error. Still a clean slate (recovered), never a throw.
+  it("recovers a prior-major (v1) sidecar with a version-migration-required reason", () => {
     writePlan(planFor());
     writeRawResults(
       JSON.stringify({
@@ -188,6 +196,7 @@ describe("readPlanAndResults", () => {
     const view = readPlanAndResults(repo, SLUG);
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
+    expect(view.recoveryReason).toBe("version-migration-required");
   });
 
   // AC3: a future MAJOR schema version fails open (never a lossy round-trip).
@@ -204,6 +213,7 @@ describe("readPlanAndResults", () => {
     const view = readPlanAndResults(repo, SLUG);
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
+    expect(view.recoveryReason).toBe("future-version");
   });
 
   // FR-016: the staleness hash flips when the plan changes after results exist.
@@ -361,6 +371,8 @@ describe("markObservation", () => {
     // The file is now valid and readable.
     const view = readPlanAndResults(repo, SLUG);
     expect(view.recovered).toBe(false);
+    // Happy path carries no recovery reason.
+    expect(view.recoveryReason ?? null).toBeNull();
   });
 });
 
