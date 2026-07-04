@@ -1,0 +1,36 @@
+project:
+  name: e2e-cut-list-milestone-empty
+  displayName: E2E Cut-List Milestone Empty State
+  type: web
+  repo: acme/widgets
+layout:
+  type: single-repo
+components:
+  app:
+    plugin:
+      id: process
+    config:
+      command: "echo noop"
+ports:
+  app:
+    base: 4942
+benches:
+  max: 1
+integration:
+  plugin: e2e-stub
+  # roubo-development#425: a page size comfortably larger than the To Do count so
+  # the two To Do issues provably fit on a single server page (nextCursor stays
+  # null, so the client sees hasNext=false). That single-page shape is what makes
+  # the pager genuinely hide (CLI-TC-065 S001-O03) when a still-offered milestone
+  # matches zero loaded items. This is the deliberate contrast with
+  # cut-list-milestone-project (pageSize 2, five issues), which is multi-page so
+  # hasNext stays true and the pager can never hide there.
+  #
+  # No excludedStatusCategories override: this fixture relies on the stub
+  # manifest's [Done] default (defaultIntegrationConfig in
+  # e2e/fixtures/stubbed-plugin/roubo-plugin.yaml), so the Hardening milestone's
+  # all-Done issues are excluded server-side and never reach the loaded page.
+  pageSize: 10
+  sources:
+    Repository:
+      - "acme/widgets"

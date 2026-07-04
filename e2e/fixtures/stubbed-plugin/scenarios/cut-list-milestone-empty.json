@@ -1,0 +1,113 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "cut-list-milestone-empty",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "acme/widgets",
+        "label": "acme/widgets",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#401",
+      "externalUrl": "https://stub.example/acme/widgets/issues/401",
+      "title": "Plane the tabletop",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "milestone": "Sprint 30 (active)" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#402",
+      "externalUrl": "https://stub.example/acme/widgets/issues/402",
+      "title": "Joint the edge",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "milestone": "Sprint 30 (active)" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#403",
+      "externalUrl": "https://stub.example/acme/widgets/issues/403",
+      "title": "Sand the hardened panel",
+      "body": null,
+      "currentState": "Done",
+      "statusCategory": "Done",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "milestone": "Hardening 1.0 (active)" }
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "acme/widgets#404",
+      "externalUrl": "https://stub.example/acme/widgets/issues/404",
+      "title": "Oil the hardened surface",
+      "body": null,
+      "currentState": "Done",
+      "statusCategory": "Done",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-05-20T00:00:00.000Z",
+      "raw": null,
+      "facetValues": { "milestone": "Hardening 1.0 (active)" }
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": [],
+  "facets": [
+    {
+      "id": "milestone",
+      "label": "Milestone",
+      "type": "enum-async"
+    }
+  ],
+  "facetOptions": {
+    "milestone": [
+      { "value": "Sprint 30 (active)", "label": "Sprint 30 (active)" },
+      { "value": "Hardening 1.0 (active)", "label": "Hardening 1.0 (active)" }
+    ]
+  }
+}
