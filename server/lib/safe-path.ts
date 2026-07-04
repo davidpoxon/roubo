@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
 
@@ -106,6 +107,55 @@ export function isInside(root: string, candidate: string): boolean {
   const resolvedCandidate = path.resolve(candidate);
   const rel = path.relative(resolvedRoot, resolvedCandidate);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+// Resolves symlinks on `absPath` by realpathing its deepest existing ancestor
+// and re-attaching any not-yet-existing trailing segments in order. Mirrors the
+// async precedent resolveRealPath in server/services/plugin-fs.ts, but sync so
+// it can front a synchronous fs sink. A fully-existing path is realpath'd
+// directly; a path whose tail does not exist yet (a write target) walks up to
+// the nearest existing ancestor before resolving.
+function realpathDeepestExisting(absPath: string): string {
+  const target = path.resolve(absPath);
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    let cursor = target;
+    const tail: string[] = [];
+    for (;;) {
+      const parent = path.dirname(cursor);
+      if (parent === cursor) return target;
+      try {
+        const real = fs.realpathSync(parent);
+        const segments = [path.basename(cursor), ...tail.reverse()];
+        return path.join(real, ...segments);
+      } catch {
+        tail.push(path.basename(cursor));
+        cursor = parent;
+      }
+    }
+  }
+}
+
+// Second containment barrier for synchronous fs write sinks. Unlike resolveWithin
+// (which is lexical: path.resolve + path.relative, the shape CodeQL's default
+// js/path-injection suite recognises as a sanitizer, and the documented FIRST
+// check), this follows symlinks on disk: it realpaths the deepest existing
+// ancestor of `target` and realpaths `root`, then throws UnsafePathError unless
+// the real target is `isInside` the real root. This catches an on-disk symlink
+// under the root (e.g. a `.specifications/<slug>` symlink committed to the repo
+// and materialised by `git worktree add`) that the lexical check cannot see.
+// The comparison is realpath-to-realpath (NOT realpath-to-lexical-root) so a
+// legitimately symlinked root prefix (e.g. macOS /var/folders -> /private/var)
+// still passes rather than being falsely rejected.
+export function assertRealpathWithin(root: string, target: string, label = "path"): void {
+  const realRoot = realpathDeepestExisting(root);
+  const realTarget = realpathDeepestExisting(target);
+  if (!isInside(realRoot, realTarget)) {
+    throw new UnsafePathError(
+      `${label} "${target}" escapes root "${root}" after symlink resolution`,
+    );
+  }
 }
 
 // Allowed roots for user-supplied directory paths: the user's home directory

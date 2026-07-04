@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
 import path from "node:path";
-import { homedir } from "node:os";
+import os, { homedir } from "node:os";
 import {
   resolveWithin,
   resolveWithinRoots,
@@ -8,6 +9,7 @@ import {
   normalizeAbsolutePath,
   assertSafeWorkspacePath,
   isInside,
+  assertRealpathWithin,
   assertSafeIdentifier,
   assertSafeMapKey,
   isUnsafeMapKey,
@@ -194,6 +196,57 @@ describe("isInside", () => {
 
   it("returns false for paths outside the root", () => {
     expect(isInside(ROOT, "/etc")).toBe(false);
+  });
+});
+
+describe("assertRealpathWithin", () => {
+  let base: string;
+
+  beforeEach(() => {
+    base = fs.mkdtempSync(path.join(os.tmpdir(), "assert-realpath-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(base, { recursive: true, force: true });
+  });
+
+  it("passes for a real target contained in the root", () => {
+    const root = path.join(base, "root");
+    const child = path.join(root, "a", "b");
+    fs.mkdirSync(child, { recursive: true });
+    expect(() => assertRealpathWithin(root, child)).not.toThrow();
+  });
+
+  it("passes for a target whose final segments do not exist yet", () => {
+    const root = path.join(base, "root");
+    fs.mkdirSync(root);
+    // root/pending/file.json does not exist, but its ancestor (root) does.
+    expect(() => assertRealpathWithin(root, path.join(root, "pending", "file.json"))).not.toThrow();
+  });
+
+  it("throws UnsafePathError when a symlinked parent escapes the root", () => {
+    const root = path.join(base, "root");
+    fs.mkdirSync(root);
+    const outside = path.join(base, "outside");
+    fs.mkdirSync(outside);
+    const link = path.join(root, "escape");
+    fs.symlinkSync(outside, link, "dir");
+    expect(() => assertRealpathWithin(root, path.join(link, "file.json"), "spec dir")).toThrow(
+      UnsafePathError,
+    );
+  });
+
+  it("passes when the root itself sits under a symlinked prefix", () => {
+    const realParent = path.join(base, "real-parent");
+    fs.mkdirSync(realParent);
+    const linkParent = path.join(base, "link-parent");
+    fs.symlinkSync(realParent, linkParent, "dir");
+    const root = path.join(linkParent, "root");
+    const child = path.join(root, "child");
+    fs.mkdirSync(child, { recursive: true });
+    // realRoot resolves to base/real-parent/root; comparing realpath-to-realpath
+    // keeps the child inside, whereas realpath-to-lexical-root would falsely reject.
+    expect(() => assertRealpathWithin(root, child)).not.toThrow();
   });
 });
 
