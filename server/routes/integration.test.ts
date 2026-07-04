@@ -44,6 +44,10 @@ vi.mock("../services/promote-integration.js", async () => {
   return { ...actual, promoteIntegrationToCommitted: vi.fn() };
 });
 
+vi.mock("../services/cut-list-query-service.js", () => ({
+  cutListQueryService: { evictProject: vi.fn() },
+}));
+
 import router from "./integration.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
@@ -51,6 +55,7 @@ import * as credentialStore from "../services/credential-store.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import * as promoteIntegration from "../services/promote-integration.js";
 import { PromoteIntegrationError } from "../services/promote-integration.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 
 const app = express();
 app.use(express.json());
@@ -983,6 +988,63 @@ describe("PUT /:projectId/integration/config", () => {
     expect(res.status).toBe(200);
     const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
     expect(saved.integration.excludedStatusCategories).toEqual(["Done", "In Progress"]);
+  });
+
+  // CLI-TC-005 / CLI-NFR-009: reconfiguring the integration instance evicts the
+  // project's persisted cut-list snapshots for the old instance and logs a
+  // reconfiguration-attributed discard event.
+  it("evicts the cut-list cache with a reconfigure trigger when the instance changes (CLI-NFR-009)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "ghe" }));
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe", instance: "https://ghe-a.example.com" },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ instance: "https://ghe-b.example.com" });
+
+    expect(res.status).toBe(200);
+    expect(cutListQueryService.evictProject).toHaveBeenCalledExactlyOnceWith(
+      "demo",
+      "integration-reconfigured",
+    );
+  });
+
+  // The eviction is gated on an actual instance change: re-sending the same
+  // instance value must not churn the cache.
+  it("does not evict when the instance value is unchanged", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "ghe" }));
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "ghe", instance: "https://ghe-a.example.com" },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ instance: "https://ghe-a.example.com" });
+
+    expect(res.status).toBe(200);
+    expect(cutListQueryService.evictProject).not.toHaveBeenCalled();
+  });
+
+  // A config-only edit (no instance key in the update) must not evict, even
+  // though the override still carries an instance.
+  it("does not evict on a config-only edit that omits the instance", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "jira-self-hosted" }),
+    );
+    vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
+      schemaVersion: 1,
+      integration: { plugin: "jira-self-hosted", instance: "https://jira.example.com" },
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: ["Done"] });
+
+    expect(res.status).toBe(200);
+    expect(cutListQueryService.evictProject).not.toHaveBeenCalled();
   });
 
   it("accepts an empty excludedStatusCategories array (exclude nothing)", async () => {

@@ -111,11 +111,20 @@ export interface DiscardLogEvent {
     | "lru-evicted"
     | "age-swept"
     | "plugin-evicted"
-    | "project-evicted";
+    | "project-evicted"
+    | "integration-reconfigured";
   /** The owning plugin when known; "unknown" for sweeps that could not read the entry. */
   pluginId: string;
   projectId: string;
 }
+
+/**
+ * The attribution a caller may pass to `evictProject`. Both drop the whole
+ * project subtree; they differ only in the discard-log trigger so a
+ * reconfiguration-driven eviction (CLI-NFR-009) is distinguishable from a
+ * project-unregister eviction. Defaults to `"project-evicted"`.
+ */
+export type ProjectEvictReason = "project-evicted" | "integration-reconfigured";
 
 /**
  * Normalise an instance endpoint into the canonical form hashed into
@@ -524,12 +533,16 @@ export class DiskSnapshotStore {
 
   /**
    * Remove every cached entry for `projectId`: a single directory removal,
-   * since each project owns a subdirectory. Exposed for the lifecycle eviction
-   * slice; wiring it to project unregister is out of scope here.
+   * since each project owns a subdirectory. Called by project unregister
+   * (default `"project-evicted"`) and by integration reconfiguration, which
+   * passes `"integration-reconfigured"` so the discard log attributes the
+   * eviction to the reconfigure (CLI-NFR-009). The pluginId stays "unknown":
+   * a directory removal cannot name the owning plugin without reading entries,
+   * and the event carries only trigger + project identity, never a secret.
    */
-  evictProject(projectId: string): void {
+  evictProject(projectId: string, reason: ProjectEvictReason = "project-evicted"): void {
     if (!isSafeProjectId(projectId)) return;
-    this.emit({ trigger: "project-evicted", pluginId: "unknown", projectId });
+    this.emit({ trigger: reason, pluginId: "unknown", projectId });
     try {
       fs.rmSync(this.projectDir(projectId), { recursive: true, force: true });
     } catch {

@@ -17,7 +17,16 @@ export async function getPluginSortFields(pluginId: string): Promise<SortField[]
       timeoutMs: RPC_TIMEOUT_MS,
     });
   } catch (err) {
-    if (isMethodNotFound(err)) return [];
+    if (isMethodNotFound(err)) {
+      // CLI-NFR-009: the degrade-to-default path (the plugin omits getSortFields,
+      // so the host renders no picker and falls back to key-ascending order) is a
+      // silent-until-now degradation. Emit one structured line carrying only the
+      // plugin identity, never issue content or credentials, matching the
+      // cut-list cache's `defaultDiscard` log style. The source intentionally
+      // logs here, so tests spy + assert on it rather than let it leak to stdout.
+      console.info(`[cut-list-sort] degrade getSortFields-unsupported plugin=${pluginId}`);
+      return [];
+    }
     throw err;
   }
 }
