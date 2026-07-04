@@ -548,6 +548,33 @@ describe("PluginConfigureDialog", () => {
       expect(legacy).toBeInTheDocument();
       expect(legacy).toBeChecked();
     });
+
+    // Issue #423 (CLI-TC-052 S002-O01): when discovery reports that this instance
+    // has no native status categories, the section explains that exclusions fall
+    // back to status-name matching.
+    it("renders the status-name fallback note when discovery reports categories unsupported", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery({ supported: false, categories: [] });
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.getByTestId("status-name-fallback-note")).toBeInTheDocument();
+    });
+
+    it("does not render the status-name fallback note when discovery is supported", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery({ supported: true, categories: ["Backlog", "In Review", "Complete"] });
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.queryByTestId("status-name-fallback-note")).not.toBeInTheDocument();
+    });
+
+    it("does not render the status-name fallback note while discovery is unresolved", () => {
+      installMocks({ test: vi.fn(), save: vi.fn() });
+      setDiscovery(undefined);
+      renderDialog({ plugin: jiraPlugin(), effective: { plugin: "jira-self-hosted" } });
+
+      expect(screen.queryByTestId("status-name-fallback-note")).not.toBeInTheDocument();
+    });
   });
 
   it("bails out of Save when the implicit Verify fails, and renders the auth-error strip", async () => {

@@ -110,6 +110,11 @@ const STRINGS = {
   // FR-014 (issue #558): mapping note for plugins with no native status category.
   statusMappingNote:
     "This integration has no In Progress status category, only Open and Closed. The cut list already hides Closed items and shows Open ones; In Progress is not excluded by default.",
+  // CLI-FR-014 / FR-015 (issue #423): shown when live discovery reports that
+  // this instance does not expose native status categories, so the cut list
+  // matches excluded statuses by name instead of by category.
+  statusNameFallbackNote:
+    "This instance does not expose native status categories, so exclusions are matched by status name instead.",
   repositoryLabel: "Repository",
   repositoryPlaceholder: "org/repo-name",
   verify: "Verify",
@@ -709,6 +714,14 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                   <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
                     {STRINGS.statusExclusionHelp}
                   </p>
+                  {statusCategoriesQuery.data?.supported === false && (
+                    <p
+                      data-testid="status-name-fallback-note"
+                      className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed mt-1"
+                    >
+                      {STRINGS.statusNameFallbackNote}
+                    </p>
+                  )}
                 </div>
                 {categoryOptions.map((category) => {
                   const actionable = isActionableCategory(category);
