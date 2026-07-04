@@ -533,13 +533,25 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
         // is not in this hermetic seam; restore the pre-crash running snapshot the real
         // supervisor hands the hook so the integrated recovery decision runs faithfully.
         const before = benchManager.getBench(PROJECT_ID, BENCH_ID);
-        if (before) before.components[DB_COMPONENT].status = "running";
+        if (before) {
+          before.components[DB_COMPONENT].status = "running";
+          // Drop the seeded id so the post-recovery assertion proves the REAL
+          // engine seam (runDocker -> getContainerId -> running push) repopulates
+          // the containerId, not a leftover fixture
+          // (davidpoxon/roubo-development#410).
+          before.components[DB_COMPONENT].containerId = undefined;
+        }
 
         await benchManager.handleComponentPluginRestarted(DB_PLUGIN_ID);
 
         const bench = benchManager.getBench(PROJECT_ID, BENCH_ID);
         expect(bench?.components[DB_COMPONENT].status).toBe("running");
         expect(bench?.components[API_COMPONENT].status).toBe("running");
+        // The re-provision drove the containerId back onto the db ComponentStatus
+        // through the real engine push, closing the CP-TC-061 S001-O01 half that
+        // the pre-fix plugin path left null after a crash-recovery cycle
+        // (davidpoxon/roubo-development#410).
+        expect(bench?.components[DB_COMPONENT].containerId).toBe(DB_CONTAINER_ID);
         // Re-provision re-recorded the compose project in the live ledger.
         expect(ledger.getEntry(DB_PLUGIN_ID, BENCH_ID)?.composeProjects).toContain(COMPOSE_PROJECT);
         expect(liveComposeProjects.has(COMPOSE_PROJECT)).toBe(true);

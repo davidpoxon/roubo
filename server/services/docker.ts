@@ -152,10 +152,22 @@ export async function getContainerStatus(
 
 export type ContainerStatus = "running" | "starting" | "stopped" | "not_found" | "unhealthy";
 
+/**
+ * A batched container-status entry: the classified status plus the resolved
+ * container id (null when no container matched the query). The id lets callers
+ * populate `ComponentStatus.containerId` from the same single listContainers
+ * call, so the reconcile / refresh paths surface the id without a second docker
+ * round-trip (davidpoxon/roubo-development#410).
+ */
+export interface ContainerStatusResult {
+  status: ContainerStatus;
+  id: string | null;
+}
+
 export async function getContainerStatuses(
   queries: Array<{ projectName: string; service: string }>,
-): Promise<Map<string, ContainerStatus>> {
-  const results = new Map<string, ContainerStatus>();
+): Promise<Map<string, ContainerStatusResult>> {
+  const results = new Map<string, ContainerStatusResult>();
   try {
     const containers = await docker.listContainers({ all: true });
     for (const q of queries) {
@@ -166,17 +178,18 @@ export async function getContainerStatuses(
           c.Labels?.["com.docker.compose.service"] === q.service,
       );
       if (!match) {
-        results.set(key, "not_found");
+        results.set(key, { status: "not_found", id: null });
         continue;
       }
       if (match.State === "running") {
-        results.set(key, classifyRunningContainer(match.Status));
+        results.set(key, { status: classifyRunningContainer(match.Status), id: match.Id });
       } else {
-        results.set(key, "stopped");
+        results.set(key, { status: "stopped", id: match.Id });
       }
     }
   } catch {
-    for (const q of queries) results.set(`${q.projectName}/${q.service}`, "not_found");
+    for (const q of queries)
+      results.set(`${q.projectName}/${q.service}`, { status: "not_found", id: null });
   }
   return results;
 }

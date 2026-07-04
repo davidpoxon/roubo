@@ -21,7 +21,7 @@ import type { PermissionCategory } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
 import * as dockerService from "./docker.js";
-import type { ContainerStatus } from "./docker.js";
+import type { ContainerStatusResult } from "./docker.js";
 import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
 import * as pluginManager from "./plugin-manager.js";
@@ -269,7 +269,7 @@ export async function reconcile() {
   const containerStatuses =
     dockerQueries.length > 0
       ? await dockerService.getContainerStatuses(dockerQueries)
-      : new Map<string, ContainerStatus>();
+      : new Map<string, ContainerStatusResult>();
 
   for (const bench of validBenches) {
     const project = projectRegistry.getProject(bench.projectId);
@@ -286,18 +286,24 @@ export async function reconcile() {
       const pluginId = isNotBound(binding) ? undefined : binding.pluginId;
       if (descriptor?.kind === "docker") {
         const projectName = dockerService.getComposeProjectName(bench.projectId, bench.id);
-        const containerStatus =
-          containerStatuses.get(`${projectName}/${descriptor.service}`) ?? "not_found";
+        const entry = containerStatuses.get(`${projectName}/${descriptor.service}`);
+        const containerStatus = entry?.status ?? "not_found";
         const newStatus =
           containerStatus === "running"
             ? "running"
             : containerStatus === "starting"
               ? "starting"
               : ("stopped" as const);
+        // Populate the container id while the container runs, and clear it
+        // otherwise, so a crash-recovery reconcile surfaces the live id (and
+        // drops a stale one) the same way the sibling process branch tracks the
+        // pid (davidpoxon/roubo-development#410).
+        const containerId = newStatus === "running" ? (entry?.id ?? undefined) : undefined;
         if (bench.components[name]) {
           bench.components[name].status = newStatus;
+          bench.components[name].containerId = containerId;
         } else {
-          bench.components[name] = { name, status: newStatus, setupComplete: true };
+          bench.components[name] = { name, status: newStatus, containerId, setupComplete: true };
         }
       } else if (pluginId) {
         const pid = `${pluginId}:${bench.id}:${name}`;
@@ -1160,6 +1166,7 @@ async function runTeardownBackground(
         }
         await processManager.stopProcess(processId(projectId, benchId, name));
         bench.components[name].status = "stopped";
+        bench.components[name].containerId = undefined;
       }
       updateStep(bench.teardownSteps, "stop-components", "done");
     }
@@ -1178,7 +1185,10 @@ async function runTeardownBackground(
           await dockerService.composeDown(projectName, descriptor.composeFile, bench.workspacePath);
           downedComposeFiles.add(descriptor.composeFile);
         }
-        if (bench.components[name]) bench.components[name].status = "stopped";
+        if (bench.components[name]) {
+          bench.components[name].status = "stopped";
+          bench.components[name].containerId = undefined;
+        }
       }
       updateStep(bench.teardownSteps, "docker-down", "done");
     }
@@ -2182,6 +2192,7 @@ export async function stopComponent(
     await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
     componentStatus.status = "stopped";
     componentStatus.pid = undefined;
+    componentStatus.containerId = undefined;
     componentStatus.error = undefined;
     componentStatus.statusDetail = undefined;
     componentStatus.statusDetailStartedAt = undefined;
@@ -2217,6 +2228,7 @@ export async function stopComponent(
   await processManager.stopProcess(processId(projectId, benchId, componentName));
   componentStatus.status = "stopped";
   componentStatus.pid = undefined;
+  componentStatus.containerId = undefined;
   componentStatus.error = undefined;
   componentStatus.statusDetail = undefined;
   componentStatus.statusDetailStartedAt = undefined;
@@ -2653,7 +2665,7 @@ export async function refreshComponentStatuses() {
   const containerStatuses =
     dockerQueries.length > 0
       ? await dockerService.getContainerStatuses(dockerQueries)
-      : new Map<string, ContainerStatus>();
+      : new Map<string, ContainerStatusResult>();
 
   for (const bench of benches.values()) {
     const project = projectRegistry.getProject(bench.projectId);
@@ -2677,17 +2689,24 @@ export async function refreshComponentStatuses() {
 
       if (descriptor?.kind === "docker") {
         const projectName = dockerService.getComposeProjectName(bench.projectId, bench.id);
-        const containerStatus =
-          containerStatuses.get(`${projectName}/${descriptor.service}`) ?? "not_found";
+        const entry = containerStatuses.get(`${projectName}/${descriptor.service}`);
+        const containerStatus = entry?.status ?? "not_found";
+        // Track the container id alongside the live status so the reported
+        // ComponentStatus carries the id while the container runs, and drops it
+        // when the container goes unhealthy or stops out of band
+        // (davidpoxon/roubo-development#410).
         if (containerStatus === "running") {
           componentStatus.status = "running";
+          componentStatus.containerId = entry?.id ?? undefined;
         } else if (containerStatus === "starting") {
           componentStatus.status = "starting";
         } else if (containerStatus === "unhealthy") {
           componentStatus.status = "stopped";
+          componentStatus.containerId = undefined;
           componentStatus.error = "Container health check failed";
         } else if (componentStatus.status === "running") {
           componentStatus.status = "stopped";
+          componentStatus.containerId = undefined;
         }
       } else if (pluginId && getComponentMode(pluginId) === "imperative") {
         // An imperative plugin owns its process/container handles, so the host
@@ -2892,6 +2911,7 @@ export async function unassignContainer(
   // Reset component status since it's no longer backed by a container
   if (bench.components[componentName]) {
     bench.components[componentName].status = "stopped";
+    bench.components[componentName].containerId = undefined;
   }
 
   stateService.updateBench(stateService.toPersistedBench(bench));
