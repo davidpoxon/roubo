@@ -17,14 +17,21 @@ const CONTEXT: BenchContext = {
   env: { DEPLOY_ENV: "stub" },
 };
 
-function makeHost(opts: { capability?: CapabilityQueryResult; run?: ProcessRunResult }): {
+function makeHost(opts: {
+  capability?: CapabilityQueryResult;
+  run?: ProcessRunResult;
+  runReject?: unknown;
+}): {
   host: ComponentHostClient;
   reportStatus: ReturnType<typeof vi.fn>;
   run: ReturnType<typeof vi.fn>;
   query: ReturnType<typeof vi.fn>;
 } {
   const reportStatus = vi.fn<(status: ComponentStatus) => void>();
-  const run = vi.fn(async () => opts.run ?? { exitCode: 0 });
+  const run = vi.fn(async () => {
+    if (opts.runReject !== undefined) throw opts.runReject;
+    return opts.run ?? { exitCode: 0 };
+  });
   const query = vi.fn(async () => opts.capability ?? { available: true });
   const host = {
     process: {
@@ -65,7 +72,7 @@ describe("clasp-deploy-stub contract", () => {
       args: ["deployed"],
       env: CONTEXT.env,
       cwd: CONTEXT.workspacePath,
-      timeoutMs: 10_000,
+      timeoutMs: 5000,
     });
     expect(reportStatus).toHaveBeenLastCalledWith({ status: "completed" });
     expect(contract.health(CONTEXT)).toEqual({ status: "completed" });
@@ -96,6 +103,37 @@ describe("clasp-deploy-stub contract", () => {
       error: "deploy command exited 3",
     });
     expect(contract.health(CONTEXT)).toEqual({ status: "error" });
+  });
+
+  it("start reports a timeout statusDetail when the deploy run times out (CP-TC-068 S004-O01)", async () => {
+    // The host rejects a timed-out run with a typed process-timeout error (#411);
+    // the stub must catch it and name the timeout in statusDetail.
+    const { host, reportStatus } = makeHost({
+      runReject: { data: { code: "process-timeout", timeoutMs: 5000, exitCode: 124 } },
+    });
+    const contract = buildContract(host);
+
+    await contract.start(CONTEXT);
+
+    expect(reportStatus).toHaveBeenLastCalledWith({
+      status: "error",
+      error: "deploy command timed out after 5000ms",
+      statusDetail: "Timed out after 5000ms",
+    });
+    expect(contract.health(CONTEXT)).toEqual({ status: "error" });
+  });
+
+  it("start propagates a non-timeout host.process.run failure unchanged", async () => {
+    // Only a typed process-timeout rejection is handled specially; any other
+    // host.process.run failure propagates so the host drives the component to
+    // error, exactly as before.
+    const boom = new Error("spawn ENOENT");
+    const { host, reportStatus } = makeHost({ runReject: boom });
+    const contract = buildContract(host);
+
+    await expect(contract.start(CONTEXT)).rejects.toThrow("spawn ENOENT");
+    // No error/statusDetail was self-reported; only the initial starting status.
+    expect(reportStatus).toHaveBeenLastCalledWith({ status: "starting" });
   });
 
   it("stop reports stopped and health reflects it", () => {

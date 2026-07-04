@@ -2079,9 +2079,15 @@ async function provisionImperativeComponent(
   }
 
   // Clear the in-flight markers (parity with the declarative launch path) so
-  // refreshComponentStatuses / health resume managing this component.
-  liveStatus.statusDetail = undefined;
-  liveStatus.statusDetailStartedAt = undefined;
+  // refreshComponentStatuses / health resume managing this component. On a
+  // terminal error, preserve statusDetail: an imperative plugin uses it to name
+  // why it failed (e.g. a host.process.run timeout, CP-TC-068 S004-O01), so that
+  // detail must survive to the component surface rather than being wiped as a
+  // transient progress marker.
+  if (liveStatus.status !== "error") {
+    liveStatus.statusDetail = undefined;
+    liveStatus.statusDetailStartedAt = undefined;
+  }
   liveStatus.startedAt = undefined;
 
   updateBenchStatus(bench);
