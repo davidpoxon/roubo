@@ -467,9 +467,21 @@ describe("CaseDetail a11y (TC-036)", () => {
 describe("CaseDetail machine verification provenance", () => {
   const VERIFIED: CaseResult = {
     observationMarks: {
-      o1: { result: "pass", author: { name: "David", email: "david@poxon.au" }, timestamp: "2026-07-04T00:00:00.000Z" },
-      o2: { result: "pass", author: { name: "David", email: "david@poxon.au" }, timestamp: "2026-07-04T00:00:00.000Z" },
-      o3: { result: "pass", author: { name: "David", email: "david@poxon.au" }, timestamp: "2026-07-04T00:00:00.000Z" },
+      o1: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
+      o2: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
+      o3: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
     },
     derivedStatus: "passed",
     notes: [],

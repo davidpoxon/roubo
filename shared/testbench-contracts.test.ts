@@ -238,7 +238,10 @@ describe("validateTestResults", () => {
     results.caseResults["TC-001"].verification = {
       tier: "a",
       confidence: "high",
-      evidence: ["work_units.py merge --spec-dir ... -> written [TC-001]", "verification-report.md#tc-001"],
+      evidence: [
+        "work_units.py merge --spec-dir ... -> written [TC-001]",
+        "verification-report.md#tc-001",
+      ],
       author: { name: "David", email: "david@poxon.au" },
       timestamp: "2026-07-04T00:00:00.000Z",
     };
@@ -258,9 +261,9 @@ describe("validateTestResults", () => {
     const result = validateTestResults(results);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(
-        result.errors.some((e) => e.startsWith("caseResults.TC-001.verification.tier:")),
-      ).toBe(true);
+      expect(result.errors.some((e) => e.startsWith("caseResults.TC-001.verification.tier:"))).toBe(
+        true,
+      );
     }
   });
 
