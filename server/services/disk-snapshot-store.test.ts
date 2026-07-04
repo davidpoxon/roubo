@@ -458,6 +458,18 @@ describe("evictProject / evictPlugin (exposed for the lifecycle slice)", () => {
     expect(() => store.evictProject("../escape")).not.toThrow();
   });
 
+  // CLI-NFR-009: the integration-reconfiguration path passes a custom reason so
+  // the discard log attributes the eviction to the reconfigure, not a project
+  // unregister. The removal itself is identical (drop the project subtree).
+  it("evictProject attributes the discard to the given reason", () => {
+    store.put(buildCacheKey(baseInput), response());
+    store.evictProject("p1", "integration-reconfigured");
+    expect(store.get(buildCacheKey(baseInput))).toBeNull();
+    expect(
+      discards.some((d) => d.trigger === "integration-reconfigured" && d.projectId === "p1"),
+    ).toBe(true);
+  });
+
   it("evictPlugin removes every entry owned by the plugin across projects", () => {
     store.put(buildCacheKey(baseInput), response()); // github-com, p1
     store.put(buildCacheKey({ ...baseInput, projectId: "p2" }), response()); // github-com, p2

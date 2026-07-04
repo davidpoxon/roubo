@@ -33,6 +33,7 @@ import {
 import { awaitPendingIntegrationSetup } from "../services/integration-migrations.js";
 import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 import { getPluginFacetOptions, getPluginFilterFacets } from "../services/plugin-filter-facets.js";
+import { cutListQueryService } from "../services/cut-list-query-service.js";
 
 const router = Router();
 
@@ -448,6 +449,11 @@ router.put("/:projectId/integration/config", (req, res) => {
     // Shallow per-top-level-key replace. Arrays inside `sources` are
     // replaced wholesale, matching the FR-023 contract.
     const nextIntegration: IntegrationConfig = { ...existing.integration };
+    // CLI-FR-004 / CLI-NFR-009: gate the cut-list eviction below on an actual
+    // instance change (jira-a -> jira-b), so a config-only edit (e.g.
+    // excludedStatusCategories) does not needlessly churn the cache.
+    const instanceChanged =
+      update.instance !== undefined && existing.integration.instance !== update.instance;
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
     if (update.sources !== undefined) nextIntegration.sources = update.sources;
     if (update.advanced !== undefined) {
@@ -487,6 +493,15 @@ router.put("/:projectId/integration/config", (req, res) => {
       integration: nextIntegration,
     };
     saveOverride(req.params.projectId, next);
+    // CLI-FR-004 / CLI-NFR-009: when the integration instance actually changed,
+    // evict the project's persisted cut-list snapshots for the old instance and
+    // log a reconfiguration-attributed discard event. The cache key already
+    // folds in the instance hash, so a stale entry can never be served across
+    // instances; this proactively drops it (instead of waiting for an LRU/age
+    // sweep) and makes the reconfiguration observable. Never throws.
+    if (instanceChanged) {
+      cutListQueryService.evictProject(req.params.projectId, "integration-reconfigured");
+    }
     // Any source-bound call after this must re-push to pick up the new
     // instance / sources / advanced settings.
     forgetProjectActivation(req.params.projectId);

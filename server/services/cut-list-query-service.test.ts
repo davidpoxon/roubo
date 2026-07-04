@@ -842,19 +842,33 @@ describe("lifecycle eviction delegates", () => {
     expect(spy).toHaveBeenCalledWith("github-com");
   });
 
-  it("evictProject forwards to the disk store", () => {
+  it("evictProject forwards to the disk store (default reason)", () => {
     const disk = new DiskSnapshotStore({ baseDir });
     const spy = vi.spyOn(disk, "evictProject");
     const svc = new CutListQueryService({ disk, bypassDisk: false, onObserve });
     svc.evictProject("p1");
-    expect(spy).toHaveBeenCalledWith("p1");
+    // No reason passed: the disk store defaults it to "project-evicted".
+    expect(spy).toHaveBeenCalledWith("p1", undefined);
+  });
+
+  // CLI-NFR-009: the integration reconfiguration route passes an explicit reason
+  // so the discard log attributes the eviction to the reconfigure; the delegate
+  // threads it straight through to the disk store.
+  it("evictProject threads a custom reason through to the disk store", () => {
+    const disk = new DiskSnapshotStore({ baseDir });
+    const spy = vi.spyOn(disk, "evictProject");
+    const svc = new CutListQueryService({ disk, bypassDisk: false, onObserve });
+    svc.evictProject("p1", "integration-reconfigured");
+    expect(spy).toHaveBeenCalledWith("p1", "integration-reconfigured");
   });
 });
 
-// CLI-FR-004 / CLI-NFR-001: integration reconfiguration needs no explicit
-// eviction hook. The cache key folds in instanceHash + sources, so changing the
-// configured instance or sources self-invalidates to a cold miss (the prior
-// key's snapshot is never read).
+// CLI-FR-004 / CLI-NFR-001: for correctness, integration reconfiguration needs
+// no explicit eviction hook. The cache key folds in instanceHash + sources, so
+// changing the configured instance or sources self-invalidates to a cold miss
+// (the prior key's snapshot is never read). The config route additionally calls
+// evictProject on an actual instance change for proactive cleanup + an
+// observable discard event (CLI-NFR-009); see routes/integration.test.ts.
 describe("integration reconfiguration self-invalidates via the cache key", () => {
   const input = { cursor: null, pageSize: 50, filters: {} };
 

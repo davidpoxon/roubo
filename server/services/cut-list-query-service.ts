@@ -16,6 +16,7 @@ import {
   buildCacheKey,
   type CacheKey,
   type DiscardLogEvent,
+  type ProjectEvictReason,
 } from "./disk-snapshot-store.js";
 
 /** The active plugin descriptor the route resolves and hands to the service. */
@@ -187,11 +188,12 @@ export class CutListQueryService {
   /**
    * Lifecycle eviction (FR-004 / NFR-001): drop every persisted snapshot for
    * `projectId`. A thin public delegate over the private disk store so
-   * project-registry's unregisterProject can evict without reaching into the
-   * store. Never throws.
+   * project-registry's unregisterProject (default `"project-evicted"`) and the
+   * integration reconfiguration route (`"integration-reconfigured"`, CLI-NFR-009)
+   * can evict without reaching into the store. Never throws.
    */
-  evictProject(projectId: string): void {
-    this.disk.evictProject(projectId);
+  evictProject(projectId: string, reason?: ProjectEvictReason): void {
+    this.disk.evictProject(projectId, reason);
   }
 
   /**
