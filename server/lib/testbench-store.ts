@@ -116,28 +116,46 @@ function parseMajor(version: unknown): number {
   return parseInt(version.split(".")[0], 10);
 }
 
+// The discriminated reason a fail-open load returns, so a recovered read can say
+// WHY it recovered rather than leaving the caller to guess (NFR-005 version
+// mismatch signal). `null` on the happy path. "version-migration-required" is the
+// prior-major case: it points at the documented migration path in
+// docs/testbench-schema-migrations.md instead of a generic shape error.
+export type ResultsRecoveryReason =
+  | "missing"
+  | "corrupt-json"
+  | "future-version"
+  | "version-migration-required"
+  | "schema-invalid";
+
 // ── Fail-open load of the results sidecar (FR-014/FR-015/AC3) ──
 //
-// Returns { file, recovered }. The file is null and recovered is true when the
-// sidecar is missing, unreadable, not valid JSON, fails schema validation, or
+// Returns { file, recovered, reason }. The file is null and recovered is true
+// when the sidecar is missing, unreadable, not valid JSON, carries a PAST-major
+// schema version (a prior major needing migration), fails schema validation, or
 // carries a MAJOR schema version greater than the current one. This never throws
-// for any of those conditions: a corrupt or future-version file must not crash a
-// read. (assertSafeIdentifier/resolveWithin path-safety errors are raised by the
-// caller before loadFile runs, so they cannot surface here.)
+// for any of those conditions: a corrupt, prior-major, or future-version file
+// must not crash a read. `reason` names WHY the load fell open so callers (and
+// NFR-005) can distinguish a version migration from generic corruption; it is
+// null on the happy path. (assertSafeIdentifier/resolveWithin path-safety errors
+// are raised by the caller before loadFile runs, so they cannot surface here.)
 function loadFile(
   rootPath: string,
   slug: string,
-): { file: TestResultsFile | null; recovered: boolean } {
+): {
+  file: TestResultsFile | null;
+  recovered: boolean;
+  reason: ResultsRecoveryReason | null;
+} {
   const target = resultsPath(rootPath, slug);
 
   let raw: string;
   try {
     raw = fs.readFileSync(target, "utf8");
   } catch {
-    // Missing or unreadable: fail open with no recovery flag for the plain
-    // missing case is wrong (we want a recovery signal so the caller can choose
-    // to re-init), so missing IS a recovered state too: there is no prior file.
-    return { file: null, recovered: true };
+    // Missing or unreadable: fail open with a recovery signal so the caller can
+    // choose to re-init. There is no prior file, so missing IS a recovered state.
+    return { file: null, recovered: true, reason: "missing" };
   }
 
   let parsed: unknown;
@@ -145,7 +163,7 @@ function loadFile(
     parsed = JSON.parse(raw);
   } catch {
     // Corrupt JSON: fail open.
-    return { file: null, recovered: true };
+    return { file: null, recovered: true, reason: "corrupt-json" };
   }
 
   // Future MAJOR version: a file written by a newer Roubo could carry fields this
@@ -159,16 +177,28 @@ function loadFile(
       : undefined,
   );
   if (!Number.isNaN(storedMajor) && storedMajor > currentResultsMajor()) {
-    return { file: null, recovered: true };
+    return { file: null, recovered: true, reason: "future-version" };
+  }
+
+  // Past MAJOR version: a prior-major file (e.g. the v1 per-bench `benches`-map
+  // shape before the v2.0.0 flatten) will not match the current strict schema,
+  // and the shape difference is a genuine breaking change with a documented
+  // migration path (see docs/testbench-schema-migrations.md, NFR-005). Surface a
+  // specific version-migration-required signal here, mirroring the future-version
+  // guard's placement BEFORE strict schema validation, so the caller gets a
+  // legible version-mismatch reason rather than a generic shape error. Still
+  // fail-open (never throw): the caller treats the worktree as a clean slate.
+  if (!Number.isNaN(storedMajor) && storedMajor < currentResultsMajor()) {
+    return { file: null, recovered: true, reason: "version-migration-required" };
   }
 
   const validation = validateTestResults(parsed);
   if (!validation.ok) {
     // Schema-invalid: fail open.
-    return { file: null, recovered: true };
+    return { file: null, recovered: true, reason: "schema-invalid" };
   }
 
-  return { file: validation.data, recovered: false };
+  return { file: validation.data, recovered: false, reason: null };
 }
 
 // Persist a results file atomically (same-directory temp+rename, EXDEV-safe) via
@@ -249,6 +279,11 @@ export interface PlanAndResults {
   // True when the sidecar was missing/corrupt/invalid/future-version and the
   // caller should treat results as a clean slate (AC3 recovery signal).
   recovered: boolean;
+  // WHY the sidecar was recovered, when it was (NFR-005 version-mismatch signal).
+  // "version-migration-required" points a prior-major file at the migration path
+  // in docs/testbench-schema-migrations.md, distinct from generic corruption.
+  // Null on a clean read; optional so existing consumers stay compiling.
+  recoveryReason?: ResultsRecoveryReason | null;
 }
 
 // Project the flattened file body ({ ..., caseResults, updatedAt }) down to the
@@ -288,13 +323,13 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
   const plan = planValidation.data;
   const planHash = computePlanHash(plan);
 
-  const { file, recovered } = loadFile(rootPath, slug);
+  const { file, recovered, reason } = loadFile(rootPath, slug);
   if (file === null) {
-    return { plan, results: null, stale: false, planHash, recovered };
+    return { plan, results: null, stale: false, planHash, recovered, recoveryReason: reason };
   }
 
   const stale = file.planHash !== planHash;
-  return { plan, results: fileResults(file), stale, planHash, recovered };
+  return { plan, results: fileResults(file), stale, planHash, recovered, recoveryReason: reason };
 }
 
 // ── Internal mutate helper ──
