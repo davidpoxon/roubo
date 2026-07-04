@@ -359,6 +359,38 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
     expect(annotated.lifecycle).toBeNull();
     expect(annotated.declaredPermissions).not.toBeNull();
   });
+
+  it("derives one-shot lifecycle for a NOT-installed component from a real one-shot manifest (CP-TC-097)", async () => {
+    // CP-TC-097: a one-shot component listing must derive `lifecycle: one-shot`
+    // from its manifest so the detail drawer's Lifecycle row reads "one-shot
+    // (start runs to completion, then completed)". This is the first test to
+    // derive one-shot from a REAL on-disk manifest (a git+directory entry
+    // pointing at the __fixtures__ one-shot component fixture), complementing the
+    // client render test in client/src/components/marketplace/Marketplace.test.tsx.
+    // The fixture lives under server/services/__fixtures__ (a test-only path),
+    // never the shipped seed catalog, so nothing user-visible is introduced.
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        id: "oneshot-deploy",
+        name: "One-shot Deploy",
+        kind: "component",
+        version: "0.1.0",
+        summary: "A one-shot deploy component",
+        source: {
+          type: "git",
+          url: "https://example.invalid/r.git",
+          directory: "server/services/__fixtures__/plugins/component-oneshot",
+        },
+        provenance: "roubo/plugins@oneshot-deploy",
+        integrity: "sha256-oneshot",
+        verified: true,
+      },
+    ]);
+    const annotated = await annotatedById("oneshot-deploy");
+    expect(annotated.lifecycle).toBe("one-shot");
+  });
 });
 
 describe("resolveEntry", () => {
