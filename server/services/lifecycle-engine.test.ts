@@ -12,7 +12,7 @@ import {
 function makeProcessManager(): ProcessManagerLike {
   return {
     startProcess: vi.fn(async () => ({ pid: 4242 })),
-    runProcess: vi.fn(async () => ({ exitCode: 0 })),
+    runProcess: vi.fn(async () => ({ exitCode: 0, timedOut: false })),
     getProcessLogLines: vi.fn(() => []),
   };
 }
@@ -540,9 +540,12 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(final?.status).toBe("completed");
     });
 
-    it("drives to error on a non-zero exit (including a timeoutMs breach)", async () => {
+    it("drives to error on a plain non-zero exit without naming a timeout", async () => {
       const h = setup({ componentName: "deploy", ports: {} });
-      (h.pm.runProcess as ReturnType<typeof vi.fn>).mockResolvedValue({ exitCode: 124 });
+      (h.pm.runProcess as ReturnType<typeof vi.fn>).mockResolvedValue({
+        exitCode: 2,
+        timedOut: false,
+      });
       const descriptor = {
         schemaVersion: 1,
         kind: "oneshot",
@@ -558,7 +561,37 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(result.status).toBe("error");
       const final = h.statuses.at(-1);
       expect(final?.status).toBe("error");
-      expect(final?.error).toMatch(/exited with code 124/);
+      expect(final?.error).toMatch(/exited with code 2/);
+      // A plain failure carries no timeout statusDetail.
+      expect(final?.statusDetail).toBeUndefined();
+    });
+
+    it("names the timeout in both error and statusDetail on a timeoutMs breach (CP-TC-068)", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      // process-manager force-kills a hung run and reports timedOut with exit 124.
+      (h.pm.runProcess as ReturnType<typeof vi.fn>).mockResolvedValue({
+        exitCode: 124,
+        timedOut: true,
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "./deploy.sh",
+        timeoutMs: 5_000,
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("error");
+      const final = h.statuses.at(-1);
+      expect(final?.status).toBe("error");
+      // Both surfaces name the timeout and the configured budget (#411).
+      expect(final?.error).toMatch(/timed out after 5000ms/);
+      expect(final?.statusDetail).toBe("Timed out after 5000ms");
     });
   });
 

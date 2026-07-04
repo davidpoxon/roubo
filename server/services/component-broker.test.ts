@@ -66,7 +66,7 @@ function need<T>(value: T | undefined, label: string): T {
 function makeProcessManager(): ProcessManagerLike {
   return {
     startProcess: vi.fn(async () => ({ pid: 4242 })),
-    runProcess: vi.fn(async () => ({ exitCode: 0 })),
+    runProcess: vi.fn(async () => ({ exitCode: 0, timedOut: false })),
     stopProcess: vi.fn(async () => undefined),
     getProcessStatus: vi.fn(() => ({ alive: true, exitCode: null })),
     getProcessLogs: vi.fn(() => ["line 1", "line 2"]),
@@ -231,6 +231,32 @@ describe("host.process.* delegation (CP-TC-038)", () => {
     const h = setup();
     await h.call("host.process.run", { id: "x", command: "echo", env: {}, cwd: "/work" });
     expect(h.pm.runProcess).toHaveBeenCalledWith("x", "echo", [], {}, "/work", 0);
+  });
+
+  it("host.process.run rejects with a timeout error naming timeoutMs when timedOut (CP-TC-068)", async () => {
+    const h = setup();
+    // process-manager force-kills a hung run and reports timedOut; the broker must
+    // reject (not silently return exit code 124) with a descriptive, typed error
+    // that names the configured budget (#411).
+    vi.mocked(h.pm.runProcess).mockResolvedValueOnce({ exitCode: 124, timedOut: true });
+    let rejected: unknown;
+    try {
+      await h.call("host.process.run", {
+        id: "hang",
+        command: "sleep",
+        args: ["999"],
+        env: {},
+        cwd: "/work",
+        timeoutMs: 5_000,
+      });
+    } catch (err) {
+      rejected = err;
+    }
+    expect(rejected).toBeInstanceOf(ResponseError);
+    const err = rejected as ResponseError<{ code: string; timeoutMs: number; exitCode: number }>;
+    expect(err.message).toContain("5000ms");
+    expect(err.message.toLowerCase()).toContain("timeout");
+    expect(err.data).toEqual({ code: "process-timeout", timeoutMs: 5_000, exitCode: 124 });
   });
 
   it("host.process.stop delegates and returns null", async () => {
