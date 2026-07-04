@@ -16,6 +16,7 @@ import CaseDetail from "./CaseDetail";
 import ProgressBar from "./ProgressBar";
 import SpecPickerModal from "./SpecPickerModal";
 import StalenessBanner from "./StalenessBanner";
+import ResultsRecoveryBanner from "./ResultsRecoveryBanner";
 import ReconcileDialog from "./ReconcileDialog";
 import ArchivedCases from "./ArchivedCases";
 import GatesOverview from "./GatesOverview";
@@ -318,6 +319,7 @@ export default function TestBenchPanel({
 
   return frame(
     <>
+      <ResultsRecoveryBanner recoveryReason={data.recoveryReason} />
       <StalenessBanner stale={data.stale} onReconcile={openReconcile} />
       <div className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3">
         <ProgressBar counts={model.overall} label="Overall" />

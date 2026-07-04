@@ -474,12 +474,27 @@ export function abortInspection(projectId: string, benchId: number): Promise<voi
 // canonical-hash comparison server-side, so a whitespace/format-only source edit
 // never flips `stale` (FR-016, NFR-003). The client renders these as-is; no
 // staleness or classification logic lives in the UI.
+// The discriminated reason the results sidecar recovered (fail-open), mirrored
+// from the server's `ResultsRecoveryReason` (server/lib/testbench-store.ts, #896).
+// `null`/absent and "missing" are the silent clean-slate cases (a fresh bench with
+// no sidecar); the other reasons surface a dismissible recovery prompt (#417).
+export type ResultsRecoveryReason =
+  | "missing"
+  | "corrupt-json"
+  | "future-version"
+  | "version-migration-required"
+  | "schema-invalid";
+
 export interface TestbenchPlanResponse {
   plan: TestCasesPlan;
   results: BenchResults | null;
   stale: boolean;
   planHash: string;
   recovered: boolean;
+  // WHY the sidecar recovered, when it did (#896/#417). Mirrors the server's
+  // optional `recoveryReason`; null on a clean read and absent from an older
+  // server. The UI treats absent / null / "missing" as silent.
+  recoveryReason?: ResultsRecoveryReason | null;
   // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
   // FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
   filteredToGateIds?: string[];
