@@ -1,9 +1,32 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { RegisteredProject, RouboConfig } from "@roubo/shared";
+import type { PluginRecord, RegisteredProject, RouboConfig } from "@roubo/shared";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
+
+// A minimal installed PluginRecord. Only `status` and `manifest.roubo` are read
+// by resolveBinding; the rest satisfies the type. `status` defaults to a healthy
+// value so the existence gate passes and existing consent/connection tests still
+// exercise the binding path.
+function makeRecord(overrides: Partial<PluginRecord> = {}): PluginRecord {
+  return {
+    id: "db-plugin",
+    manifest: { roubo: "^1.0.0" } as PluginRecord["manifest"],
+    manifestPath: "/tmp/plugin/manifest.yaml",
+    pluginDir: "/tmp/plugin",
+    source: "bundled" as PluginRecord["source"],
+    status: "enabled",
+    lastError: null,
+    restartHistory: [],
+    pid: null,
+    ...overrides,
+  };
+}
 
 const pluginManagerMocks = vi.hoisted(() => ({
   getConnection: vi.fn<(id: string) => JsonRpcConnection | null>(() => null),
+  // Default to an installed record so the pre-existing tests clear the existence
+  // gate; the not-installed test overrides this to undefined.
+  getRecord: vi.fn<(id: string) => PluginRecord | undefined>(),
+  HOST_API_VERSION: "1.3.0",
 }));
 vi.mock("./plugin-manager.js", () => pluginManagerMocks);
 
@@ -49,6 +72,7 @@ function makeProject(
 
 beforeEach(() => {
   pluginManagerMocks.getConnection.mockReset().mockReturnValue(null);
+  pluginManagerMocks.getRecord.mockReset().mockReturnValue(makeRecord());
   projectRegistryMocks.getProject.mockReset().mockReturnValue(undefined);
   consentMocks.hasConsent.mockReset().mockReturnValue(true);
 });
@@ -123,6 +147,75 @@ describe("resolveBinding", () => {
     pluginManagerMocks.getConnection.mockReturnValue(null);
     const result = resolveBinding("proj", "db");
     expect(result).toEqual({ reason: "plugin-unavailable", pluginId: "db-plugin" });
+  });
+
+  it("reports not-installed when the bound plugin id has no PluginRecord (issue #408, CP-TC-025)", () => {
+    projectRegistryMocks.getProject.mockReturnValue(
+      makeProject({ components: { ghost: { plugin: { id: "not-a-real-plugin" } } } }),
+    );
+    pluginManagerMocks.getRecord.mockReturnValue(undefined);
+    const result = resolveBinding("proj", "ghost");
+    expect(result).toEqual({ reason: "not-installed", pluginId: "not-a-real-plugin" });
+  });
+
+  it("short-circuits not-installed before the consent gate (issue #408, CP-TC-025)", () => {
+    projectRegistryMocks.getProject.mockReturnValue(
+      makeProject({ components: { ghost: { plugin: { id: "not-a-real-plugin" } } } }),
+    );
+    pluginManagerMocks.getRecord.mockReturnValue(undefined);
+    // Even with consent explicitly absent, an uninstalled id resolves as
+    // not-installed: the existence gate runs first, so hasConsent is never
+    // consulted and the consumer is not told to acknowledge permissions.
+    consentMocks.hasConsent.mockReturnValue(false);
+    const result = resolveBinding("proj", "ghost");
+    expect(result).toEqual({ reason: "not-installed", pluginId: "not-a-real-plugin" });
+    expect(consentMocks.hasConsent).not.toHaveBeenCalled();
+  });
+
+  it("reports incompatible with the required range and host version (issue #408, CP-TC-011)", () => {
+    projectRegistryMocks.getProject.mockReturnValue(
+      makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
+    );
+    // An incompatible plugin is installed but never spawned. resolveBinding must
+    // surface the mismatch rather than a generic "not running".
+    pluginManagerMocks.getRecord.mockReturnValue(
+      makeRecord({
+        status: "incompatible",
+        manifest: { roubo: "^2.0.0" } as PluginRecord["manifest"],
+      }),
+    );
+    pluginManagerMocks.getConnection.mockReturnValue(null);
+    const result = resolveBinding("proj", "db");
+    expect(result).toEqual({
+      reason: "incompatible",
+      pluginId: "db-plugin",
+      requiredRange: "^2.0.0",
+      hostVersion: "1.3.0",
+    });
+  });
+
+  it("surfaces incompatible before the consent gate even when unconsented (issue #408, CP-TC-011)", () => {
+    projectRegistryMocks.getProject.mockReturnValue(
+      makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
+    );
+    // An incompatible plugin the consumer has not consented to must still report
+    // the version mismatch, not "acknowledge permissions": the compatibility gate
+    // runs before the consent gate, so hasConsent is never consulted.
+    pluginManagerMocks.getRecord.mockReturnValue(
+      makeRecord({
+        status: "incompatible",
+        manifest: { roubo: "^2.0.0" } as PluginRecord["manifest"],
+      }),
+    );
+    consentMocks.hasConsent.mockReturnValue(false);
+    const result = resolveBinding("proj", "db");
+    expect(result).toEqual({
+      reason: "incompatible",
+      pluginId: "db-plugin",
+      requiredRange: "^2.0.0",
+      hostVersion: "1.3.0",
+    });
+    expect(consentMocks.hasConsent).not.toHaveBeenCalled();
   });
 
   it("refuses to resolve when the bound plugin has no ConsentRecord (issue #615, AC5)", () => {

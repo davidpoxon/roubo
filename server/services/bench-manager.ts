@@ -1776,8 +1776,12 @@ function notBoundMessage(componentName: string, nb: NotBound): string {
       return `Component '${componentName}' is not defined in roubo.yaml`;
     case "not-bound":
       return `Component '${componentName}' has no plugin binding (bind it to a component plugin in roubo.yaml)`;
+    case "not-installed":
+      return `Component plugin '${nb.pluginId}' for component '${componentName}' is not installed; install it before starting '${componentName}'`;
     case "not-consented":
       return `Component plugin '${nb.pluginId}' has not been consented; acknowledge its permissions before starting '${componentName}'`;
+    case "incompatible":
+      return `Component plugin '${nb.pluginId}' is incompatible with this host (requires roubo '${nb.requiredRange}' but host is ${nb.hostVersion}); cannot start '${componentName}'`;
     case "plugin-unavailable":
       return `Component plugin '${nb.pluginId}' is not running; cannot start '${componentName}'`;
   }
