@@ -7206,6 +7206,33 @@ describe("imperative component dispatch (#396)", () => {
     expect(notificationService.createNotification).toHaveBeenCalled();
   });
 
+  it("preserves an imperative plugin's error statusDetail rather than clearing it (issue #420, CP-TC-068 S004-O01)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
+    // Simulate the plugin's start hook pushing a terminal error with a timeout
+    // statusDetail via host.component.reportStatus (which replaces/mutates the
+    // live component). The tail marker-clear must NOT wipe that detail on error.
+    vi.mocked(pluginManager.invoke).mockImplementation((async (_p: string, method: string) => {
+      if (method === "start") {
+        const live = benchManager.getBench("test-project", 1)?.components.backend;
+        if (live) {
+          live.status = "error";
+          live.error = "deploy command timed out after 5000ms";
+          live.statusDetail = "Timed out after 5000ms";
+        }
+      }
+      return undefined;
+    }) as typeof pluginManager.invoke);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.status).toBe("error");
+    expect(bench?.components.backend.statusDetail).toBe("Timed out after 5000ms");
+    expect(notificationService.createNotification).toHaveBeenCalled();
+  });
+
   it("drives stop then cleanup and clears the ledger on stop (AC1)", async () => {
     setupExistingBench();
     setupProcessMocks();
