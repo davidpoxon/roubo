@@ -9,6 +9,7 @@ import {
   buildWorkUnitCaseMap,
   WorkUnitsValidationError,
 } from "./work-unit-loader.js";
+import { UnsafePathError } from "../lib/safe-path.js";
 import {
   WORK_UNITS_SCHEMA_ID,
   WORK_UNITS_SCHEMA_VERSION,
@@ -190,6 +191,73 @@ describe("loadVerifyUnits", () => {
     writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
     expect(() => loadVerifyUnits(repoPath, "legacy")).toThrow(WorkUnitsValidationError);
   });
+
+  // #427 (mirrors TC-052): a valid-slug `.specifications/<slug>` symlink pointing
+  // outside the repo passes the lexical resolveWithin check. The realpath barrier
+  // now rejects it before the readFileSync. The single-slug path is fail-closed:
+  // it throws UnsafePathError rather than reading a work-units.json outside the repo.
+  it("throws for a symlinked spec dir that escapes the repo on the single-slug path (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "work-unit-loader-outside-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "work-units.json"),
+        JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])),
+      );
+      fs.mkdirSync(path.join(repoPath, ".specifications"), { recursive: true });
+      fs.symlinkSync(outside, path.join(repoPath, ".specifications", "alpha"), "dir");
+
+      expect(() => loadVerifyUnits(repoPath, "alpha")).toThrow(UnsafePathError);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // #427: on the all-specs (no-slug) path, a real in-repo slug dir whose
+  // work-units.json is a symlink escaping the repo must not be read outside. The
+  // per-slug realpath barrier throws, the loop skips that entry (like the
+  // unsafe-slug skip), and the valid in-repo specs still load.
+  it("skips a spec whose work-units.json is a symlink escaping the repo on the all-specs path (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "work-unit-loader-all-outside-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "work-units.json"),
+        JSON.stringify(envelope("evil", [verifyUnit("WU-666", ["TC-999"])])),
+      );
+      // A real slug dir, but its work-units.json points outside the repo.
+      const evilDir = path.join(repoPath, ".specifications", "evil");
+      fs.mkdirSync(evilDir, { recursive: true });
+      fs.symlinkSync(path.join(outside, "work-units.json"), path.join(evilDir, "work-units.json"));
+      writeWorkUnits(
+        "alpha",
+        JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])),
+      );
+
+      const loaded = loadVerifyUnits(repoPath);
+      expect(loaded.map((l) => `${l.slug}:${l.unit.id}`)).toEqual(["alpha:WU-100"]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // #427: a symlinked `.specifications` root that escapes the repo must not be
+  // enumerated. The realpath barrier before readdir rejects it, so the all-specs
+  // load contributes no gates rather than reading a work-units.json outside repoPath.
+  it("does not enumerate a symlinked .specifications root that escapes the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "work-unit-loader-root-outside-"));
+    try {
+      const alphaDir = path.join(outside, "alpha");
+      fs.mkdirSync(alphaDir);
+      fs.writeFileSync(
+        path.join(alphaDir, "work-units.json"),
+        JSON.stringify(envelope("alpha", [verifyUnit("WU-100", ["TC-001"])])),
+      );
+      fs.symlinkSync(outside, path.join(repoPath, ".specifications"), "dir");
+
+      expect(loadVerifyUnits(repoPath)).toEqual([]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 // #371: the diagnostics variant reports the skipped-spec errors the all-specs path
@@ -311,5 +379,24 @@ describe("buildWorkUnitCaseMap", () => {
   it("throws WorkUnitsValidationError for an invalid file", () => {
     writeWorkUnits("alpha", "{ not json");
     expect(() => buildWorkUnitCaseMap(repoPath, "alpha")).toThrow(WorkUnitsValidationError);
+  });
+
+  // #427: buildWorkUnitCaseMap reads through loadAllUnitsForSlug, which is fail-
+  // closed. A valid-slug `.specifications/<slug>` symlink escaping the repo is
+  // rejected by the realpath barrier before the read rather than resolving outside.
+  it("throws for a symlinked spec dir that escapes the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "work-unit-loader-map-outside-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "work-units.json"),
+        JSON.stringify(envelope("alpha", [deliveryUnit("WU-001", ["TC-001"])])),
+      );
+      fs.mkdirSync(path.join(repoPath, ".specifications"), { recursive: true });
+      fs.symlinkSync(outside, path.join(repoPath, ".specifications", "alpha"), "dir");
+
+      expect(() => buildWorkUnitCaseMap(repoPath, "alpha")).toThrow(UnsafePathError);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  assertRealpathWithin,
   assertSafeIdentifier,
   resolveWithin,
   resolveWithinRoots,
@@ -79,9 +80,14 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
 
   let entries: fs.Dirent[];
   try {
+    // resolveWithin is lexical; assertRealpathWithin follows symlinks so a
+    // `.specifications` that is itself a symlink escaping the repo is rejected
+    // before the readdir enumerates outside repoPath (#427). A rejection is
+    // fail-open to empty here, consistent with an unreadable directory.
+    assertRealpathWithin(repoPath, specsRoot, ".specifications dir");
     entries = fs.readdirSync(specsRoot, { withFileTypes: true });
   } catch {
-    // No `.specifications/` directory (or unreadable): nothing to discover.
+    // No `.specifications/` directory (or unreadable/escaping): nothing to discover.
     return empty;
   }
 
@@ -103,6 +109,11 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
     let casesPath: string;
     try {
       casesPath = resolveWithin(repoPath, ".specifications", slug, "test-cases.json");
+      // A real slug dir whose test-cases.json is a symlink escaping the repo passes
+      // the lexical check; the realpath barrier rejects it before the read so the
+      // leaf read never resolves outside repoPath. A throwing entry is skipped,
+      // consistent with the unsafe-slug skip above (#427).
+      assertRealpathWithin(repoPath, casesPath, "spec cases path");
     } catch {
       continue;
     }
@@ -174,6 +185,12 @@ export function resolveFocusedSpec(
   }
   const slug = segments[1];
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
+  // resolveWithinRoots is lexical; a valid-slug `.specifications/<slug>` symlink
+  // escaping the repo passes it. The realpath barrier rejects it fail-closed
+  // (throwing UnsafePathError, matching this function's existing error contract)
+  // so a focused path that resolves outside repoPath through a symlink is refused
+  // before any downstream read (#427).
+  assertRealpathWithin(repoPath, contained, "focusedSpecPath");
   return { slug, resolvedPath: contained };
 }
 
@@ -214,6 +231,11 @@ export function validateManualPath(repoPath: string, rawPath: string): ManualPat
   const slug = segments[1];
   try {
     assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
+    // resolveWithinRoots is lexical; a valid-slug `.specifications/<slug>` symlink
+    // escaping the repo passes it. The realpath barrier rejects it before the read
+    // so the leaf read never resolves outside repoPath, returning the same
+    // { ok: false } shape as the other rejections (#427).
+    assertRealpathWithin(repoPath, contained, "manual spec path");
   } catch (err) {
     return { ok: false, errors: [(err as UnsafePathError).message] };
   }

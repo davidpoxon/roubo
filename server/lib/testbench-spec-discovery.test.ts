@@ -98,6 +98,55 @@ describe("discoverSpecs", () => {
       path.join(repo, ".specifications", "invalid-schema", "test-cases.json"),
     );
   });
+
+  // #427 (mirrors TC-052): when `.specifications` itself is a symlink escaping the
+  // repo, the lexical resolveWithin still yields an in-repo-looking path, but the
+  // realpath barrier before readdir rejects it, so the enumeration never resolves
+  // outside repoPath (a spec dir sitting outside the repo is not surfaced).
+  it("does not enumerate a symlinked .specifications root that escapes the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-discovery-outside-"));
+    try {
+      // A valid, contract-passing spec sits OUTSIDE the repo, reachable only by
+      // following the symlinked `.specifications` root.
+      const goodDir = path.join(outside, "good");
+      fs.mkdirSync(goodDir);
+      fs.writeFileSync(
+        path.join(goodDir, "test-cases.json"),
+        JSON.stringify(planFor("good", ["TC-001"]), null, 2),
+      );
+      fs.symlinkSync(outside, path.join(repo, ".specifications"), "dir");
+
+      // The escaping root is not read: discovery is empty rather than surfacing the
+      // outside spec.
+      expect(discoverSpecs(repo)).toEqual({ specs: [], invalid: [] });
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // #427: a real in-repo slug dir whose `test-cases.json` is a symlink escaping the
+  // repo is skipped by the per-slug realpath barrier before the read, so the leaf
+  // read never resolves outside repoPath.
+  it("skips a spec whose test-cases.json is a symlink escaping the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-discovery-leaf-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "test-cases.json"),
+        JSON.stringify(planFor("evil", ["TC-001"]), null, 2),
+      );
+      // A real slug dir, but its test-cases.json points outside the repo.
+      const evilDir = path.join(repo, ".specifications", "evil");
+      fs.mkdirSync(evilDir, { recursive: true });
+      fs.symlinkSync(path.join(outside, "test-cases.json"), path.join(evilDir, "test-cases.json"));
+      writeSpec("good", planFor("good", ["TC-001"]));
+
+      const { specs, invalid } = discoverSpecs(repo);
+      expect(specs.map((s) => s.slug)).toEqual(["good"]);
+      expect(invalid).toEqual([]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("validateManualPath", () => {
@@ -136,6 +185,26 @@ describe("validateManualPath", () => {
     const result = validateManualPath(repo, ".specifications/bad/test-cases.json");
     expect(result.ok).toBe(false);
   });
+
+  // #427: a valid-slug spec dir that is a symlink escaping the repo is rejected by
+  // the realpath barrier before the file is read, so a plan outside the repo is
+  // never validated as an in-repo manual path.
+  it("rejects a symlinked spec path that escapes the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-manualpath-outside-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "test-cases.json"),
+        JSON.stringify(planFor("evil-link", ["TC-001"]), null, 2),
+      );
+      fs.mkdirSync(path.join(repo, ".specifications"), { recursive: true });
+      fs.symlinkSync(outside, path.join(repo, ".specifications", "evil-link"), "dir");
+
+      const result = validateManualPath(repo, ".specifications/evil-link/test-cases.json");
+      expect(result.ok).toBe(false);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("resolveFocusedSpec", () => {
@@ -156,5 +225,26 @@ describe("resolveFocusedSpec", () => {
 
   it("throws on an empty path", () => {
     expect(() => resolveFocusedSpec(repo, "")).toThrow(UnsafePathError);
+  });
+
+  // #427: a valid-slug spec dir that is a symlink escaping the repo is rejected by
+  // the realpath barrier, so a focused path that resolves outside repoPath through
+  // a symlink is refused fail-closed rather than accepted.
+  it("throws for a symlinked spec path that escapes the repo (#427)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-focused-outside-"));
+    try {
+      fs.writeFileSync(
+        path.join(outside, "test-cases.json"),
+        JSON.stringify(planFor("evil-link", ["TC-001"]), null, 2),
+      );
+      fs.mkdirSync(path.join(repo, ".specifications"), { recursive: true });
+      fs.symlinkSync(outside, path.join(repo, ".specifications", "evil-link"), "dir");
+
+      expect(() => resolveFocusedSpec(repo, ".specifications/evil-link/test-cases.json")).toThrow(
+        UnsafePathError,
+      );
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

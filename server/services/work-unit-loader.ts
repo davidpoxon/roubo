@@ -26,7 +26,13 @@
 // or traversal slug is rejected before any fs call. This module never writes.
 
 import fs from "node:fs";
-import { assertSafeIdentifier, resolveWithin, SPEC_SLUG_RE } from "../lib/safe-path.js";
+import {
+  assertRealpathWithin,
+  assertSafeIdentifier,
+  resolveWithin,
+  SPEC_SLUG_RE,
+  UnsafePathError,
+} from "../lib/safe-path.js";
 import { validateWorkUnits } from "@roubo/shared/work-units-contract";
 import type { Unit } from "@roubo/shared/work-units-contract";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
@@ -83,6 +89,12 @@ export interface VerifyUnitsDiagnostics {
 function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const target = resolveWithin(repoPath, ".specifications", slug, "work-units.json");
+  // resolveWithin is lexical; a valid-slug `.specifications/<slug>` symlink (or a
+  // symlinked work-units.json leaf) escaping the repo passes it. The realpath
+  // barrier rejects it before the read so the read never resolves outside repoPath
+  // (#427). Fail-closed here: the single-slug path throws; the all-specs loop
+  // catches the UnsafePathError and skips the escaping entry.
+  assertRealpathWithin(repoPath, target, "work-units path");
 
   let raw: string;
   try {
@@ -118,6 +130,10 @@ function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
 function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const target = resolveWithin(repoPath, ".specifications", slug, "work-units.json");
+  // Symlink-following barrier before the read, matching loadVerifyUnitsForSlug
+  // (fail-closed): a symlinked spec dir/leaf escaping the repo is rejected before
+  // readFileSync can resolve outside repoPath (#427).
+  assertRealpathWithin(repoPath, target, "work-units path");
 
   let raw: string;
   try {
@@ -207,9 +223,13 @@ export function loadVerifyUnitsWithDiagnostics(
 
     let entries: fs.Dirent[];
     try {
+      // Reject a `.specifications` that is itself a symlink escaping the repo
+      // before the readdir enumerates outside repoPath (#427). Fail-open to empty
+      // here, consistent with an unreadable directory.
+      assertRealpathWithin(repoPath, specsRoot, ".specifications dir");
       entries = fs.readdirSync(specsRoot, { withFileTypes: true });
     } catch {
-      // No `.specifications/` directory (or unreadable): no gates to load.
+      // No `.specifications/` directory (or unreadable/escaping): no gates to load.
       return { loaded, invalidSpecs };
     }
 
@@ -234,6 +254,12 @@ export function loadVerifyUnitsWithDiagnostics(
         if (err instanceof WorkUnitsValidationError) {
           console.warn(`Skipping spec "${err.slug}" in cross-spec gates load: ${err.message}`);
           invalidSpecs.push({ slug: err.slug, errors: err.errors });
+          continue;
+        }
+        // A symlinked spec dir/leaf that escapes the repo (#427): skip it so the
+        // read never resolves outside repoPath, consistent with the unsafe-slug
+        // skip above. The single-slug path stays fail-closed (it throws).
+        if (err instanceof UnsafePathError) {
           continue;
         }
         throw err;
