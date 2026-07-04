@@ -238,7 +238,7 @@ beforeEach(async () => {
       return { pluginId, connection: {} as never };
     },
   );
-  vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0 });
+  vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
   vi.mocked(processManager.startProcess).mockResolvedValue({ pid: 12345 });
   vi.mocked(dockerService.composeUp).mockResolvedValue({
     success: true,
@@ -3669,7 +3669,7 @@ describe("startComponent", () => {
     });
     vi.mocked(processManager.runProcess).mockImplementation(async () => {
       phases.push(getPhase());
-      return { exitCode: 0 };
+      return { exitCode: 0, timedOut: false };
     });
 
     await benchManager.startComponent("test-project", 1, "db");
@@ -6101,7 +6101,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     setupProcessMocks();
     // The engine runs setup via process-manager; a non-zero setup exit drives
     // the component to error before the process is started (#612).
-    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
     benchManager.startAllComponents("test-project", 1);
 
@@ -6229,7 +6229,7 @@ describe("startComponent (per-component Start setup gating)", () => {
     setupProcessMocks();
     // Setup runs through the engine's process-manager now (#612); a non-zero
     // setup exit drives the component to error before the process starts.
-    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
     await benchManager.startComponent("test-project", 1, "backend");
 

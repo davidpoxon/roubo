@@ -44,7 +44,7 @@ const PLUGIN = "component-db";
 function fakeProcessManager(): ProcessManagerLike {
   return {
     startProcess: async () => ({ pid: 1234 }),
-    runProcess: async () => ({ exitCode: 0 }),
+    runProcess: async () => ({ exitCode: 0, timedOut: false }),
     stopProcess: async () => undefined,
     getProcessStatus: () => ({ alive: true, exitCode: null }),
     getProcessLogs: () => [],
