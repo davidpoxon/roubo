@@ -225,6 +225,26 @@ describe("PluginConfigureDialog", () => {
     expect(pill).toHaveAttribute("data-state", "connected");
   });
 
+  it("announces modality: aria-modal on the dialog and an inert background (issue #424)", () => {
+    installMocks({ test: vi.fn(), save: vi.fn() });
+    // A background node present before the modal opens: React Aria's
+    // ariaHideOutside should inert it, and the dialog itself must announce its
+    // modality via aria-modal so assistive tech treats the background as
+    // inert, matching the working visual/focus modality (CLI-NFR-007, TC-055).
+    const background = document.createElement("div");
+    background.setAttribute("data-testid", "outside-424");
+    background.textContent = "background content";
+    document.body.appendChild(background);
+
+    try {
+      renderDialog();
+      expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+      expect(background).toHaveAttribute("aria-hidden", "true");
+    } finally {
+      background.remove();
+    }
+  });
+
   it("renders the declarative source picker for a non-GitHub plugin when connected (FR-019)", () => {
     installMocks({ test: vi.fn(), save: vi.fn() });
     mockedUseSourceCandidates.mockReturnValue({
@@ -1005,6 +1025,12 @@ describe("PluginConfigureDialog (global scope)", () => {
       displayName: "Globally Yours",
     });
     expect(mockedUseSave("demo").mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('exposes aria-modal="true" on the global-scope dialog (issue #424)', () => {
+    installGlobalMocks({ test: vi.fn(), save: vi.fn() });
+    renderGlobalDialog();
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 
   it("omits the manifest's `sources` array property from the Verify snapshot", async () => {
