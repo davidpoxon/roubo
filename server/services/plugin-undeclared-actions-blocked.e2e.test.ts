@@ -252,7 +252,7 @@ function makeDocker(): DockerLike & { composeUp: ReturnType<typeof vi.fn> } {
 function makeProcessManager(): ProcessManagerLike {
   return {
     startProcess: vi.fn(async () => ({ pid: 4242 })),
-    runProcess: vi.fn(async () => ({ exitCode: 0 })),
+    runProcess: vi.fn(async () => ({ exitCode: 0, timedOut: false })),
     stopProcess: vi.fn(async () => undefined),
     getProcessStatus: vi.fn(() => ({ alive: true, exitCode: null })),
     getProcessLogs: vi.fn(() => ["line"]),

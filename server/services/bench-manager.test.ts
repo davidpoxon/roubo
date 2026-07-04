@@ -206,6 +206,8 @@ beforeEach(async () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "debug").mockImplementation(() => {});
+  // pre-restart cleanup now logs a normal-level composeDown success (#411).
+  vi.spyOn(console, "info").mockImplementation(() => {});
 
   benchManager = await import("./bench-manager.js");
   projectRegistry = await import("./project-registry.js");
@@ -236,7 +238,7 @@ beforeEach(async () => {
       return { pluginId, connection: {} as never };
     },
   );
-  vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0 });
+  vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
   vi.mocked(processManager.startProcess).mockResolvedValue({ pid: 12345 });
   vi.mocked(dockerService.composeUp).mockResolvedValue({
     success: true,
@@ -3667,7 +3669,7 @@ describe("startComponent", () => {
     });
     vi.mocked(processManager.runProcess).mockImplementation(async () => {
       phases.push(getPhase());
-      return { exitCode: 0 };
+      return { exitCode: 0, timedOut: false };
     });
 
     await benchManager.startComponent("test-project", 1, "db");
@@ -6099,7 +6101,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     setupProcessMocks();
     // The engine runs setup via process-manager; a non-zero setup exit drives
     // the component to error before the process is started (#612).
-    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
     benchManager.startAllComponents("test-project", 1);
 
@@ -6227,7 +6229,7 @@ describe("startComponent (per-component Start setup gating)", () => {
     setupProcessMocks();
     // Setup runs through the engine's process-manager now (#612); a non-zero
     // setup exit drives the component to error before the process starts.
-    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1 });
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
     await benchManager.startComponent("test-project", 1, "backend");
 
@@ -6614,6 +6616,52 @@ describe("handleComponentPluginPreRestart", () => {
 
     expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
     expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
+    expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
+
+  it("logs a normal-level composeDown success naming the project (CP-TC-073, #411)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(dockerService.composeDownByProject).mockResolvedValue(undefined);
+    const infoSpy = vi.mocked(console.info);
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    // A successful pre-restart teardown is now observable at a normal level.
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[bench-manager] pre-restart cleanup: composeDown(roubo-test-project-bench-1) succeeded for " +
+        "plugin 'process' bench 1",
+    );
+  });
+
+  it("still warns (and does not log success) when composeDown fails (CP-TC-073, #411)", async () => {
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(dockerService.composeDownByProject).mockRejectedValue(new Error("down boom"));
+    const warnSpy = vi.mocked(console.warn);
+    const infoSpy = vi.mocked(console.info);
+
+    await benchManager.handleComponentPluginPreRestart("process");
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "[bench-manager] pre-restart cleanup: composeDown(roubo-test-project-bench-1) failed for",
+      ),
+    );
+    // No success log on the failure path.
+    expect(infoSpy).not.toHaveBeenCalledWith(expect.stringContaining("succeeded for"));
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
   });
 

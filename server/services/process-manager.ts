@@ -73,13 +73,17 @@ export async function startProcess(
 }
 
 /**
- * Run a command to completion and resolve with its exit code. Unlike
- * {@link startProcess}, which tracks a long-lived process, this blocks until the
- * command exits and is the one-shot primitive behind `host.process.run`
- * (architecture.md FR-022). `timeoutMs`, when > 0, force-kills a hung run and
- * resolves with a non-zero exit code rather than rejecting, so a stuck deploy
- * surfaces as a failed run, not an unhandled error. Output is captured into the
- * managed log buffer under `id` so `host.process.logs` can read it afterward.
+ * Run a command to completion and resolve with its exit code and a `timedOut`
+ * flag. Unlike {@link startProcess}, which tracks a long-lived process, this
+ * blocks until the command exits and is the one-shot primitive behind
+ * `host.process.run` (architecture.md FR-022). `timeoutMs`, when > 0,
+ * force-kills a hung run and resolves with a non-zero exit code rather than
+ * rejecting, so a stuck deploy surfaces as a failed run, not an unhandled error.
+ * `timedOut` is set true ONLY on the timer/force-kill path, so callers can name
+ * the timeout at their surface (#411) rather than sniffing `exitCode === 124`
+ * and mislabeling a process that genuinely exits 124. `exitCode` stays 124 on
+ * the timeout path for back-compat. Output is captured into the managed log
+ * buffer under `id` so `host.process.logs` can read it afterward.
  */
 export function runProcess(
   id: string,
@@ -88,7 +92,7 @@ export function runProcess(
   env: Record<string, string>,
   cwd: string,
   timeoutMs = 0,
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number; timedOut: boolean }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
       cwd,
@@ -127,7 +131,7 @@ export function runProcess(
         finish(() => {
           managed.alive = false;
           managed.exitCode = managed.exitCode ?? 124;
-          resolve({ exitCode: managed.exitCode });
+          resolve({ exitCode: managed.exitCode, timedOut: true });
         });
       }, timeoutMs);
     }
@@ -135,7 +139,7 @@ export function runProcess(
     proc.on("close", (code) => {
       managed.alive = false;
       managed.exitCode = code ?? 0;
-      finish(() => resolve({ exitCode: managed.exitCode ?? 0 }));
+      finish(() => resolve({ exitCode: managed.exitCode ?? 0, timedOut: false }));
     });
 
     proc.on("error", (err) => {

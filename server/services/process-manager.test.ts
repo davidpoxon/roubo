@@ -92,7 +92,7 @@ describe("runProcess", () => {
     const promise = runProcess("run-ok", "echo", ["hi"], {}, "/cwd");
     child.emit("close", 0);
 
-    await expect(promise).resolves.toEqual({ exitCode: 0 });
+    await expect(promise).resolves.toEqual({ exitCode: 0, timedOut: false });
     expect(mockSpawn).toHaveBeenCalledWith(
       "echo",
       ["hi"],
@@ -108,7 +108,20 @@ describe("runProcess", () => {
     const promise = runProcess("run-fail", "false", [], {}, "/cwd");
     child.emit("close", 2);
 
-    await expect(promise).resolves.toEqual({ exitCode: 2 });
+    await expect(promise).resolves.toEqual({ exitCode: 2, timedOut: false });
+  });
+
+  it("reports timedOut false when a process genuinely exits 124 (not sniffed)", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+    const { runProcess } = await loadModule();
+
+    // A process may legitimately exit with code 124 on its own; without a timer
+    // firing it must NOT be labeled a timeout (#411).
+    const promise = runProcess("run-124", "cmd", [], {}, "/cwd", 1000);
+    child.emit("close", 124);
+
+    await expect(promise).resolves.toEqual({ exitCode: 124, timedOut: false });
   });
 
   it("captures output into the log buffer readable via getProcessLogs", async () => {
@@ -136,7 +149,7 @@ describe("runProcess", () => {
     await expect(promise).rejects.toThrow("spawn ENOENT");
   });
 
-  it("force-kills and resolves with code 124 when timeoutMs elapses", async () => {
+  it("force-kills and resolves with code 124 and timedOut true when timeoutMs elapses", async () => {
     vi.useFakeTimers();
     const treeKill = (await import("tree-kill")).default;
     const mockTreeKill = vi.mocked(treeKill);
@@ -150,7 +163,8 @@ describe("runProcess", () => {
     vi.advanceTimersByTime(1000);
 
     expect(mockTreeKill).toHaveBeenCalledWith(77777, "SIGKILL", expect.any(Function));
-    await expect(promise).resolves.toEqual({ exitCode: 124 });
+    // timedOut is the explicit signal (#411): set true only on the timer path.
+    await expect(promise).resolves.toEqual({ exitCode: 124, timedOut: true });
   });
 
   it("strips ROUBO_ env vars from the spawned environment", async () => {

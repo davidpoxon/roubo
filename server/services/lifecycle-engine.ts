@@ -356,7 +356,7 @@ async function runOneshot(
   const processId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}`;
   led.recordProcess(ctx.pluginId, ctx.benchId, processId);
 
-  const { exitCode } = await pm.runProcess(
+  const { exitCode, timedOut } = await pm.runProcess(
     processId,
     parts[0],
     parts.slice(1),
@@ -368,6 +368,18 @@ async function runOneshot(
   if (exitCode !== 0) {
     // A non-zero exit (or a timeoutMs breach, which process-manager surfaces as
     // a non-zero exit code) drives the component to error, not completed.
+    if (timedOut) {
+      // Name the timeout at the component surface (#411): a timeoutMs breach is
+      // reported with both an error and a statusDetail that carry the configured
+      // budget, so a killed one-shot is distinguishable from a plain exit(124).
+      const timeoutMs = descriptor.timeoutMs ?? 0;
+      return pushError(
+        ctx,
+        `one-shot timed out after ${timeoutMs}ms and was force-killed (exit code ${exitCode})`,
+        completePhasesError(phases),
+        `Timed out after ${timeoutMs}ms`,
+      );
+    }
     return pushError(ctx, `one-shot exited with code ${exitCode}`, completePhasesError(phases));
   }
 
@@ -550,6 +562,7 @@ function pushError(
   ctx: LifecycleContext,
   message: string,
   phases: ComponentPhase[] = [],
+  statusDetail?: string,
 ): LifecycleResult {
   ctx.reportStatus({
     name: ctx.componentName,
@@ -557,6 +570,7 @@ function pushError(
     error: message,
     phases: phases.length > 0 ? phases.map((p) => ({ ...p })) : undefined,
     setupComplete: ctx.setupComplete ?? true,
+    statusDetail,
   });
   return { status: "error" };
 }

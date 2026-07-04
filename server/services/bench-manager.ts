@@ -1398,12 +1398,23 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
       });
     }
     for (const composeProject of entry.composeProjects) {
-      await dockerService.composeDownByProject(composeProject).catch((err) => {
-        console.warn(
-          `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) failed for ` +
-            `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
-        );
-      });
+      await dockerService
+        .composeDownByProject(composeProject)
+        .then(() => {
+          // Log the successful teardown at a normal level (#411): a silent
+          // success left the pre-restart cleanup's composeDown unobservable. The
+          // existing warn-on-failure below is kept.
+          console.info(
+            `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) succeeded for ` +
+              `plugin '${pluginId}' bench ${entry.benchId}`,
+          );
+        })
+        .catch((err) => {
+          console.warn(
+            `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) failed for ` +
+              `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
+          );
+        });
     }
     ledger.clearEntry(entry.pluginId, entry.benchId);
   }

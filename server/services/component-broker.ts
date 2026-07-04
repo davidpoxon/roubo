@@ -279,6 +279,19 @@ interface ProcessRunParams extends ProcessStartParams {
   timeoutMs?: unknown;
 }
 
+/**
+ * Structured payload on the ResponseError a timed-out `host.process.run` rejects
+ * with (#411). `code: "process-timeout"` lets a caller (or the SDK) distinguish a
+ * timeout kill from a generic internal error, and `timeoutMs` names the configured
+ * budget the run breached so the failure is self-describing on the component
+ * surface rather than an anonymous exit code 124.
+ */
+interface ProcessTimeoutData {
+  code: "process-timeout";
+  timeoutMs: number;
+  exitCode: number;
+}
+
 interface ComposeBaseParams {
   projectName?: unknown;
   composeFile?: unknown;
@@ -385,11 +398,30 @@ export function registerBrokerHandlers(
       // ledger entry the cleanup sweep can reap (#396, AC4), mirroring the
       // LifecycleEngine's one-shot path (lifecycle-engine.ts runOneshot).
       led?.recordProcess(ctx.pluginId, ctx.benchId, id);
+      let result: { exitCode: number; timedOut: boolean };
       try {
-        return await pm.runProcess(id, command, args, env, cwd, timeoutMs);
+        result = await pm.runProcess(id, command, args, env, cwd, timeoutMs);
       } catch (err) {
         wrapInternal(method, log, err);
       }
+      // A timeoutMs breach force-kills the run and resolves exitCode 124; name it
+      // at the component surface instead of returning an anonymous 124 the plugin
+      // cannot distinguish from a genuine exit(124) (#411). Reject with a typed,
+      // descriptive timeout error that carries the configured timeoutMs, which is
+      // what the imperative plugin awaits and propagates into its ComponentStatus.
+      if (result.timedOut) {
+        const message =
+          `${method}: process "${id}" exceeded its ${timeoutMs}ms timeout and was ` +
+          `force-killed (exit code ${result.exitCode})`;
+        log("error", message);
+        throw new ResponseError<ProcessTimeoutData>(INTERNAL_ERROR_CODE, message, {
+          code: "process-timeout",
+          timeoutMs,
+          exitCode: result.exitCode,
+        });
+      }
+      // Leave the non-timeout return shape unchanged: exit code only.
+      return { exitCode: result.exitCode };
     },
   );
 
