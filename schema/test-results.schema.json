@@ -131,6 +131,47 @@
               "additionalProperties": false
             }
           },
+          "verification": {
+            "type": "object",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": ["a", "b", "c", "d"]
+              },
+              "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "author": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "isSentinel": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": ["name", "email"],
+                "additionalProperties": false
+              },
+              "timestamp": {
+                "type": "string"
+              }
+            },
+            "required": ["tier", "confidence", "evidence", "author", "timestamp"],
+            "additionalProperties": false
+          },
           "orphaned": {
             "type": "boolean",
             "const": true

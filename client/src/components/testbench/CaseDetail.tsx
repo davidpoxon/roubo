@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, ToggleButton } from "react-aria-components";
-import { X, ArrowRight, StickyNote, ChevronDown } from "lucide-react";
+import { X, ArrowRight, StickyNote, ChevronDown, Bot } from "lucide-react";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import StatusIndicator from "./StatusIndicator";
 import ObservationMarkControl from "./ObservationMarkControl";
@@ -69,6 +69,16 @@ interface CaseDetailProps {
 const SECTION_LABEL =
   "font-mono text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mt-6 mb-2";
 
+// Human gloss for the machine-verification method ladder (see
+// VerificationSchema in shared/testbench-contracts.ts): the decisive tier that
+// produced the case's derivedStatus when an external engine verified it.
+const TIER_LABELS: Record<string, string> = {
+  a: "drove the running system",
+  b: "suite corroboration",
+  c: "throwaway probe",
+  d: "static inspection",
+};
+
 export default function CaseDetail({
   projectId,
   benchId,
@@ -89,6 +99,7 @@ export default function CaseDetail({
   const showNext = effectiveStatus === "passed" && onNext !== undefined;
 
   const notes = result?.notes ?? [];
+  const verification = result?.verification;
 
   // The left column scrolls independently. React reuses this DOM node across
   // case changes, so without resetting it the panel keeps the prior case's
@@ -182,6 +193,15 @@ export default function CaseDetail({
                   )
                 }
               />
+              {verification && (
+                <span
+                  title={`Machine-verified: ${TIER_LABELS[verification.tier] ?? verification.tier} at ${verification.confidence} confidence`}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2 py-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400"
+                >
+                  <Bot className="w-3 h-3 shrink-0" aria-hidden />
+                  tier {verification.tier} · {verification.confidence}
+                </span>
+              )}
             </div>
           </div>
 
@@ -263,6 +283,34 @@ export default function CaseDetail({
               </li>
             ))}
           </ol>
+
+          {/* Machine verification (external engine, e.g. product-dev:verify):
+              the decisive method tier, confidence, and evidence pointers that
+              produced the derivedStatus. Read-only provenance; marks and
+              overrides above remain the human surface. */}
+          {verification && (
+            <>
+              <div className={SECTION_LABEL}>Machine verification</div>
+              <div className="flex flex-col gap-1.5">
+                <div className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                  tier {verification.tier} ({TIER_LABELS[verification.tier] ?? "unknown tier"}) ·{" "}
+                  {verification.confidence} confidence · {verification.author.name}
+                </div>
+                {verification.evidence.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {verification.evidence.map((pointer, i) => (
+                      <li
+                        key={i}
+                        className="relative pl-4 font-mono text-[11px] text-stone-600 dark:text-stone-400 break-all before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-stone-300 dark:before:bg-stone-600"
+                      >
+                        {pointer}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Inline side rail, only when the pane is wide enough (#524). When

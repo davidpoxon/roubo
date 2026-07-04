@@ -233,6 +233,37 @@ describe("validateTestResults", () => {
     expect(validateTestResults(results).ok).toBe(true);
   });
 
+  it("accepts an optional machine verification block (tier/confidence/evidence)", () => {
+    const results = makeResults();
+    results.caseResults["TC-001"].verification = {
+      tier: "a",
+      confidence: "high",
+      evidence: ["work_units.py merge --spec-dir ... -> written [TC-001]", "verification-report.md#tc-001"],
+      author: { name: "David", email: "david@poxon.au" },
+      timestamp: "2026-07-04T00:00:00.000Z",
+    };
+    expect(validateTestResults(results).ok).toBe(true);
+  });
+
+  it("rejects an out-of-ladder verification tier with a field-named error", () => {
+    const results = makeResults();
+    results.caseResults["TC-001"].verification = {
+      // @ts-expect-error deliberately out-of-contract tier value
+      tier: "e",
+      confidence: "high",
+      evidence: [],
+      author: { name: "David", email: "david@poxon.au" },
+      timestamp: "2026-07-04T00:00:00.000Z",
+    };
+    const result = validateTestResults(results);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some((e) => e.startsWith("caseResults.TC-001.verification.tier:")),
+      ).toBe(true);
+    }
+  });
+
   it("still rejects an unknown key on a case result with a field-named error", () => {
     const results = makeResults();
     (results.caseResults["TC-001"] as unknown as Record<string, unknown>).bogus = true;
