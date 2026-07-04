@@ -463,3 +463,56 @@ describe("CaseDetail a11y (TC-036)", () => {
     expect(results).toHaveNoViolations();
   });
 });
+
+describe("CaseDetail machine verification provenance", () => {
+  const VERIFIED: CaseResult = {
+    observationMarks: {
+      o1: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
+      o2: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
+      o3: {
+        result: "pass",
+        author: { name: "David", email: "david@poxon.au" },
+        timestamp: "2026-07-04T00:00:00.000Z",
+      },
+    },
+    derivedStatus: "passed",
+    notes: [],
+    verification: {
+      tier: "a",
+      confidence: "high",
+      evidence: [
+        "work_units.py merge --spec-dir <fixture> -> written [TC-001]",
+        "verification-report.md#tc-001",
+      ],
+      author: { name: "David", email: "david@poxon.au" },
+      timestamp: "2026-07-04T00:00:00.000Z",
+    },
+  };
+
+  it("renders the tier/confidence badge and the evidence section when verification is present", () => {
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={VERIFIED} />);
+
+    expect(screen.getByText("tier a · high")).toBeInTheDocument();
+    expect(screen.getByText("Machine verification")).toBeInTheDocument();
+    expect(screen.getByText(/drove the running system/)).toBeInTheDocument();
+    expect(
+      screen.getByText("work_units.py merge --spec-dir <fixture> -> written [TC-001]"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("verification-report.md#tc-001")).toBeInTheDocument();
+  });
+
+  it("renders no machine-verification surface when the block is absent", () => {
+    render(<CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />);
+
+    expect(screen.queryByText("Machine verification")).not.toBeInTheDocument();
+    expect(screen.queryByText(/tier a ·/)).not.toBeInTheDocument();
+  });
+});

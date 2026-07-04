@@ -197,6 +197,30 @@ export const NoteSchema = z
   .strict();
 export type Note = z.infer<typeof NoteSchema>;
 
+// Machine verification provenance, written by an external verification engine
+// (product-dev:verify's results-merge engine), never by Roubo itself: the
+// decisive method tier that produced `derivedStatus` (a: drive the running
+// system / b: suite corroboration / c: throwaway probe / d: static inspection),
+// the graded confidence behind it, and evidence pointers (commands run, report
+// anchors) backing the verdict. Additive and optional per the versioning policy
+// above (no schemaVersion bump); absent for purely human-marked cases.
+export const VerificationTierSchema = z.enum(["a", "b", "c", "d"]);
+export type VerificationTier = z.infer<typeof VerificationTierSchema>;
+
+export const VerificationConfidenceSchema = z.enum(["high", "medium", "low"]);
+export type VerificationConfidence = z.infer<typeof VerificationConfidenceSchema>;
+
+export const VerificationSchema = z
+  .object({
+    tier: VerificationTierSchema,
+    confidence: VerificationConfidenceSchema,
+    evidence: z.array(z.string()),
+    author: AuthorSchema,
+    timestamp: z.string(),
+  })
+  .strict();
+export type Verification = z.infer<typeof VerificationSchema>;
+
 export const CaseResultSchema = z
   .object({
     // Keyed by observation id; results reference cases by stable id and never
@@ -205,6 +229,9 @@ export const CaseResultSchema = z
     derivedStatus: CaseStatusSchema,
     statusOverride: StatusOverrideSchema.optional(),
     notes: z.array(NoteSchema),
+    // Machine verification provenance from an external engine (see
+    // VerificationSchema); Roubo reads and re-serializes it verbatim.
+    verification: VerificationSchema.optional(),
     // A removed case's result is marked orphaned and retained, never deleted,
     // and excluded from the rollup (FR-013, FR-017).
     orphaned: z.literal(true).optional(),
