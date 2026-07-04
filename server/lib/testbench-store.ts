@@ -37,6 +37,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import {
+  assertRealpathWithin,
   assertSafeIdentifier,
   isUnsafeMapKey,
   resolveWithin,
@@ -83,15 +84,29 @@ export class MissingPlanError extends Error {
 // is rejected before any path is built, then resolveWithin joins under the fixed
 // root and asserts containment (the CodeQL-recognised sanitizer shape). `rootPath`
 // is the worktree root that contains `.specifications/` (#493).
+//
+// resolveWithin is lexical, so it cannot see an on-disk symlink whose name is a
+// valid slug. assertRealpathWithin is a SECOND barrier (mirrors writeResults,
+// #416/#427): it realpaths the deepest existing ancestor of the target and
+// re-asserts containment against the realpath'd root, so a symlinked
+// `.specifications/<slug>` that escapes the repo is rejected before the read sinks
+// (readFileSync in readPlanAndResults/mutateCaseResult/reconcile/loadFile) can
+// resolve outside rootPath. Folding it here covers all four read call sites in one
+// place. The comparison is realpath-to-realpath, so a legitimately symlinked root
+// prefix (e.g. macOS /var/folders -> /private/var) still passes.
 
 function planPath(rootPath: string, slug: string): string {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
-  return resolveWithin(rootPath, ".specifications", slug, "test-cases.json");
+  const target = resolveWithin(rootPath, ".specifications", slug, "test-cases.json");
+  assertRealpathWithin(rootPath, target, "spec plan path");
+  return target;
 }
 
 function resultsPath(rootPath: string, slug: string): string {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
-  return resolveWithin(rootPath, ".specifications", slug, "test-results.json");
+  const target = resolveWithin(rootPath, ".specifications", slug, "test-results.json");
+  assertRealpathWithin(rootPath, target, "spec results path");
+  return target;
 }
 
 // Compute the staleness hash: sha256 over the deterministic canonical string for

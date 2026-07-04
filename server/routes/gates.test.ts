@@ -1,6 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+// The gate write handlers share a single module-level express-rate-limit instance
+// (limit 20 / 60s, keyed by client IP), and every write request across this whole
+// file counts against that one window since the router is imported once. The
+// suite would otherwise sit at the cap, so adding any write-path test (here: the
+// #427 symlink-escape regressions) would flip a later test to 429. Wrap the real
+// limiter with a high cap so the draft-7 RateLimit headers are still attached
+// (the "rate limiting" describe asserts only that the limiter is mounted) while
+// removing the shared-budget fragility. No test asserts a 429.
+vi.mock("express-rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("express-rate-limit")>("express-rate-limit");
+  const realRateLimit = actual.default;
+  return {
+    ...actual,
+    default: (options: Parameters<typeof realRateLimit>[0]) =>
+      realRateLimit({ ...options, limit: 100_000 }),
+  };
+});
 
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
@@ -597,6 +618,83 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     expect(res.body.error).toMatch(/escapes/i);
     // No issue is filed for a rejected write.
     expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
+  });
+
+  // #427 (mirrors TC-052): a valid-slug `.specifications/<slug>` symlink that
+  // points outside the repo passes the lexical resolveWithin check but is caught
+  // by the realpath barrier at the evidence sink, so nothing is written into the
+  // outside dir and no issue is filed for the rejected write.
+  it("rejects a symlinked spec dir escaping the repo and writes nothing outside (#427)", async () => {
+    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-repo-"));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-outside-"));
+    try {
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        repoPath: repoDir,
+        config: {},
+      } as never);
+      const specs = path.join(repoDir, ".specifications");
+      fs.mkdirSync(specs, { recursive: true });
+      // `alpha` is a valid slug (SPEC_SLUG_RE) but a symlink to outside the repo.
+      fs.symlinkSync(outside, path.join(specs, "alpha"), "dir");
+
+      const before = fs.readdirSync(outside);
+      const res = await request(app).post("/p1/gates/WU-040/fix-issues").send({
+        failedCaseId: "TC-024",
+        notes: "Login button is inert.",
+        evidence: "secrets.txt",
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/escapes/i);
+      // Nothing (evidence artifact) was written into the outside directory, and no
+      // issue is filed for a rejected write.
+      expect(fs.readdirSync(outside)).toEqual(before);
+      expect(fs.existsSync(path.join(outside, "secrets.txt"))).toBe(false);
+      expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(repoDir, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // #427 no-false-reject guard: when the repo root legitimately sits under a
+  // symlinked prefix (e.g. macOS /var/folders -> /private/var), the realpath-to-
+  // realpath comparison keeps the evidence write inside the root, so it must still
+  // succeed rather than being wrongly rejected.
+  it("writes evidence when the repo root sits under a symlinked prefix (no false reject, #427)", async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-symroot-"));
+    try {
+      const realParent = path.join(base, "real-parent");
+      fs.mkdirSync(realParent);
+      const linkParent = path.join(base, "link-parent");
+      fs.symlinkSync(realParent, linkParent, "dir");
+      const repoDir = path.join(linkParent, "repo");
+      fs.mkdirSync(repoDir);
+
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        repoPath: repoDir,
+        config: {},
+      } as never);
+      vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
+        fixIssueRef: "o/r#452",
+        gateRef: "o/r#451",
+        failedCaseId: "TC-024",
+        linkStatus: "complete",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+
+      const res = await request(app).post("/p1/gates/WU-040/fix-issues").send({
+        failedCaseId: "TC-024",
+        notes: "Login button is inert.",
+        evidence: "evidence.txt",
+      });
+
+      expect(res.status).toBe(201);
+      const written = path.join(repoDir, ".specifications", "alpha", "evidence.txt");
+      expect(fs.readFileSync(written, "utf8")).toBe("Login button is inert.");
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it("422 when the active integration plugin lacks the capability (TC-049 degrade)", async () => {

@@ -41,7 +41,12 @@ import { applyGateOverrides } from "../lib/gate-overrides.js";
 import type { WorkUnitCaseMap } from "../lib/gate-overrides.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { MissingPlanError, UnsafePathError } from "../lib/testbench-store.js";
-import { resolveWithin, assertSafeIdentifier, SPEC_SLUG_RE } from "../lib/safe-path.js";
+import {
+  resolveWithin,
+  assertRealpathWithin,
+  assertSafeIdentifier,
+  SPEC_SLUG_RE,
+} from "../lib/safe-path.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
 import type { GateState } from "../lib/gate-evaluator.js";
 import {
@@ -439,11 +444,19 @@ function repoFullNameFromRef(ref: string): string | null {
 // UnsafePathError before any fs call. Confining to the slug folder (not the repo
 // root) is the tighter boundary: a couple of `../` segments must not let an
 // evidence write land elsewhere in the repo, let alone outside it.
+//
+// resolveWithin is lexical, so it cannot see an on-disk symlink whose name is a
+// valid slug. assertRealpathWithin is the SECOND barrier at the sink (mirrors
+// writeResults, #416/#427): after the directory exists it realpaths it and
+// re-asserts containment against the realpath'd repoPath, rejecting a symlinked
+// `.specifications/<slug>` that escapes the repo before anything is written.
 function writeEvidence(repoPath: string, slug: string, evidence: string, notes: string): void {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const specDir = resolveWithin(repoPath, ".specifications", slug);
   const target = resolveWithin(specDir, evidence);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const dir = path.dirname(target);
+  fs.mkdirSync(dir, { recursive: true });
+  assertRealpathWithin(repoPath, dir, "evidence dir");
   fs.writeFileSync(target, notes, "utf8");
 }
 

@@ -601,3 +601,51 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
     expect(view.results?.caseResults["TC-001"].caseCanon).toBe(persistedCanon);
   });
 });
+
+// #427: the read sinks resolve `.specifications/<slug>/…` under repoPath through
+// the lexical resolveWithin guard, which cannot see an on-disk symlink whose name
+// is a valid slug. The path helpers now apply the realpath barrier before the fs
+// read, so a symlinked spec dir cannot make a read resolve outside repoPath.
+describe("path-safety: symlinked spec dir cannot escape repoPath (#427)", () => {
+  // Mirrors TC-052: a valid-slug `.specifications/<slug>` symlink pointing outside
+  // the repo passes the lexical check but is rejected by the realpath barrier
+  // before the plan is read, so a plan sitting outside the repo is never read.
+  it("rejects a symlinked spec dir escaping the repo on read (does not read outside)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "testbench-store-outside-"));
+    try {
+      // A real, valid plan lives OUTSIDE the repo; a followed symlink would reach it.
+      fs.writeFileSync(path.join(outside, "test-cases.json"), JSON.stringify(planFor(), null, 2));
+      const specs = path.join(repo, ".specifications");
+      fs.mkdirSync(specs, { recursive: true });
+      fs.symlinkSync(outside, path.join(specs, SLUG), "dir");
+
+      expect(() => readPlanAndResults(repo, SLUG)).toThrow(UnsafePathError);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // No-false-reject guard: a repo root under a symlinked prefix (e.g. macOS
+  // /var/folders -> /private/var) still reads and writes successfully, because the
+  // barrier compares realpath-to-realpath rather than realpath-to-lexical-root.
+  it("reads and writes successfully when the repo root sits under a symlinked prefix", async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "testbench-store-symroot-"));
+    try {
+      const realParent = path.join(base, "real-parent");
+      fs.mkdirSync(realParent);
+      const linkParent = path.join(base, "link-parent");
+      fs.symlinkSync(realParent, linkParent, "dir");
+      const root = path.join(linkParent, "repo");
+      const dir = path.join(root, ".specifications", SLUG);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "test-cases.json"), JSON.stringify(planFor(), null, 2));
+
+      expect(readPlanAndResults(root, SLUG).plan.cases[0].id).toBe("TC-001");
+      await markObservation(root, SLUG, "TC-001", "O1", "pass");
+      const after = readPlanAndResults(root, SLUG);
+      expect(after.results?.caseResults["TC-001"].observationMarks.O1.result).toBe("pass");
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+});
