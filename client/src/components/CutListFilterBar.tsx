@@ -24,6 +24,17 @@ import Spinner from "./Spinner";
 
 export type { FilterState };
 
+// CLI-FR-014 / FR-015 (issue #423): facets whose closed/archived values are
+// dropped at the source (milestones and epics) carry a footer note in the
+// filter popover explaining why those values never appear as options. The text
+// is fixed per facet id and identical across plugins (github-com/ghe emit the
+// "milestone" facet, jira-self-hosted the "epic" facet), so the note lives here
+// as a client-side id-keyed map rather than a field on FilterFacet.
+const SOURCE_EXCLUSION_NOTES: Record<string, string> = {
+  milestone: "Closed / archived milestones are excluded at the source.",
+  epic: "Closed / resolved epics are excluded at the source.",
+};
+
 interface CutListFilterBarProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
@@ -192,6 +203,13 @@ function FacetSection({
 
   const showEmpty = options.length === 0 && !asyncQuery.isLoading;
 
+  // CLI-FR-014 / FR-015 (issue #423): show the source-exclusion note for facets
+  // whose closed/archived values are dropped at the source, once the section has
+  // settled (not while loading or after a load error).
+  const sourceExclusionNote = SOURCE_EXCLUSION_NOTES[facet.id];
+  const showSourceExclusionNote =
+    sourceExclusionNote !== undefined && !asyncQuery.isLoading && !asyncQuery.isError;
+
   return (
     <div className={isLast ? "" : "border-b border-stone-100 dark:border-stone-800/40"}>
       <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
@@ -252,6 +270,15 @@ function FacetSection({
       {showEmpty && (
         <div className="px-3 py-2 text-[11px] text-stone-400 dark:text-stone-600">
           No options available
+        </div>
+      )}
+
+      {showSourceExclusionNote && (
+        <div
+          data-testid="source-exclusion-note"
+          className="px-3 py-2 text-[11px] text-stone-400 dark:text-stone-600"
+        >
+          {sourceExclusionNote}
         </div>
       )}
     </div>

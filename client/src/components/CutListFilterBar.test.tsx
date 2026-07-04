@@ -162,6 +162,36 @@ describe("CutListFilterBar", () => {
     });
   });
 
+  describe("source-side exclusion note (issue #423, TC-057/058/067)", () => {
+    it("renders the exact milestone note for a milestone facet", async () => {
+      const facets: FilterFacet[] = [{ id: "milestone", label: "Milestone", type: "enum-async" }];
+      renderBar({ facets, derivedOptions: {} });
+      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
+      const note = await screen.findByTestId("source-exclusion-note");
+      // TC-057-S001-O04 asserts this string verbatim.
+      expect(note.textContent).toBe("Closed / archived milestones are excluded at the source.");
+    });
+
+    it("renders the epic note for an epic facet", async () => {
+      const facets: FilterFacet[] = [{ id: "epic", label: "Epic", type: "enum-async" }];
+      renderBar({ facets, derivedOptions: {} });
+      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
+      const note = await screen.findByTestId("source-exclusion-note");
+      expect(note.textContent).toBe("Closed / resolved epics are excluded at the source.");
+    });
+
+    it("renders no source-exclusion note for a non-excluding facet", async () => {
+      renderBar({
+        facets: [{ id: "status", label: "Status", type: "enum" }],
+        derivedOptions: { status: ["Open", "In progress"] },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Filter cut list" }));
+      // The section renders, but carries no source-exclusion footer note.
+      expect(screen.getByRole("option", { name: "Open" })).toBeInTheDocument();
+      expect(screen.queryByTestId("source-exclusion-note")).not.toBeInTheDocument();
+    });
+  });
+
   describe("COMMON_FACET_FALLBACK (TC-126)", () => {
     it("renders Status, Label, Assignee, Type sections when given the fallback set", async () => {
       const fallback: FilterFacet[] = [
