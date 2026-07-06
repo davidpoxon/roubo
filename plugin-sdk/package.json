@@ -39,7 +39,7 @@
     "prepublishOnly": "tsc"
   },
   "dependencies": {
-    "vscode-jsonrpc": "8.2.1"
+    "vscode-jsonrpc": "9.0.0"
   },
   "devDependencies": {
     "typescript": "6.0.3"
