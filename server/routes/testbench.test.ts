@@ -51,9 +51,15 @@ vi.mock("../services/work-unit-loader.js", async () => {
   };
 });
 
-vi.mock("../services/gate-override-store.js", () => ({
-  loadOverrides: vi.fn(),
-}));
+vi.mock("../services/gate-override-store.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/gate-override-store.js")>(
+    "../services/gate-override-store.js",
+  );
+  return {
+    GateOverrideStoreError: actual.GateOverrideStoreError,
+    loadOverrides: vi.fn(),
+  };
+});
 
 import router from "./testbench.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -325,6 +331,20 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
       "TC-003",
     ]);
     expect(res.body.filteredToGateIds).toEqual([mergedId]);
+  });
+
+  // #434: resolving effective gates loads the project's overrides document, which
+  // throws GateOverrideStoreError on a corrupt / invalid persisted doc. That is a
+  // bad-request-shaped misconfiguration (400), not a 500, mirroring gates.ts.
+  it("400 for a corrupt/invalid persisted gate-overrides document in the filter path", async () => {
+    vi.mocked(gateOverrideStore.loadOverrides).mockImplementation(() => {
+      throw new gateOverrideStore.GateOverrideStoreError("corrupt overrides document", "SCHEMA", [
+        "bad",
+      ]);
+    });
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("SCHEMA");
   });
 });
 

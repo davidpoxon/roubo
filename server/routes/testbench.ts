@@ -35,6 +35,7 @@ import { RouteError, parseIntParam } from "./helpers.js";
 import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
+import { GateOverrideStoreError } from "../services/gate-override-store.js";
 import { applyGateOverrides } from "../lib/gate-overrides.js";
 
 const router = Router();
@@ -137,6 +138,13 @@ function handleError(res: import("express").Response, err: unknown): void {
   // bad-request-shaped misconfiguration, not a 500.
   if (err instanceof workUnitLoader.WorkUnitsValidationError) {
     res.status(400).json({ error: err.message, errors: err.errors });
+    return;
+  }
+  // A corrupt / invalid persisted gate-overrides document (loaded in the
+  // ?gateIds= subset path) is likewise bad-request-shaped, not a 500. Mirrors the
+  // sibling gates.ts handler: INVALID_PROJECT_ID / PARSE / SCHEMA all map to 400.
+  if (err instanceof GateOverrideStoreError) {
+    res.status(400).json({ error: err.message, code: err.code, errors: err.errors });
     return;
   }
   res.status(500).json({ error: (err as Error).message });
