@@ -48,7 +48,7 @@ import {
   SPEC_SLUG_RE,
 } from "../lib/safe-path.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
-import type { GateState } from "../lib/gate-evaluator.js";
+import type { GateState, VerifyUnit } from "../lib/gate-evaluator.js";
 import {
   validateGateOverrides,
   type GateOverrideOp,
@@ -195,22 +195,34 @@ function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateSta
 // Source of truth is the gate's tracker-issue state, NOT a Roubo-owned marker.
 type SignedOffGateStateResponse = GateStateResponse & { signedOff: boolean };
 
+// The real filed gates whose tracker issues a sign-off / reopen / signed-off
+// computation acts on (issue #435). A normally-loaded gate is its own single
+// target (it carries its own tracker). An operator-merged gate has no filed issue
+// of its own, so its targets are the source gates it was merged from, each with
+// its real tracker ref: signing off the merged gate = closing every source issue,
+// and it is signed off only when all of them are done.
+function signOffTargets(loaded: LoadedVerifyUnit): readonly VerifyUnit[] {
+  return loaded.mergedFrom ?? [loaded.unit];
+}
+
 // Derive the `signedOff` signal for a gate from its tracker-issue state and
 // attach it to the projected response (issue #830, FR-007 AC). To bound plugin
 // RPCs, only a `passed` gate is ever checked: a non-passed gate is signed-off =
-// false by definition, and a passed gate with no filed tracker issue (or no
-// active integration) is likewise false. For a passed, filed gate the gate's
-// tracker issue is fetched and `signedOff` is whether that issue is done. The
-// `getIssue` RPC is fail-closed: a tracker hiccup yields `signedOff = false`
-// rather than 500-ing a read (NFR-005, fail-closed: never report a gate as
-// signed off on uncertain state).
+// false by definition, and a gate with any target lacking a filed tracker issue
+// (or no active integration) is likewise false. For a passed, fully-filed gate
+// every target's tracker issue is fetched and `signedOff` is whether ALL of them
+// are done (a merged gate is signed off only when every source issue is: issue
+// #435). The `getIssue` RPC is fail-closed: a tracker hiccup yields
+// `signedOff = false` rather than 500-ing a read (NFR-005, fail-closed: never
+// report a gate as signed off on uncertain state).
 async function withSignedOff(
   projectId: string,
   loaded: LoadedVerifyUnit,
   response: GateStateResponse,
 ): Promise<SignedOffGateStateResponse> {
-  const trackerRef = loaded.unit.tracker?.ref;
-  if (response.status !== "passed" || !trackerRef) {
+  const targets = signOffTargets(loaded);
+  const refs = targets.map((t) => t.tracker?.ref);
+  if (response.status !== "passed" || refs.some((ref) => !ref)) {
     return { ...response, signedOff: false };
   }
   const active = resolveActivePlugin(projectId);
@@ -218,10 +230,12 @@ async function withSignedOff(
     return { ...response, signedOff: false };
   }
   try {
-    const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
-      externalId: trackerRef,
-    });
-    return { ...response, signedOff: isDone(issue) };
+    const issues = await Promise.all(
+      (refs as string[]).map((ref) =>
+        pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", { externalId: ref }),
+      ),
+    );
+    return { ...response, signedOff: issues.every((issue) => isDone(issue)) };
   } catch {
     return { ...response, signedOff: false };
   }
@@ -593,16 +607,31 @@ router.post(
         );
       }
 
-      // A gate with no filed tracker issue has no close target: degrade loudly
-      // (FR-011) rather than a silent no-op that would appear to succeed.
-      if (!loaded.unit.tracker?.ref) {
+      // Sign-off closes each target's tracker issue. A normal gate has one target
+      // (itself); a merged gate fans out over its source gates, each carrying its
+      // own filed issue (issue #435). A target with no filed tracker issue has no
+      // close target, so degrade loudly (FR-011) rather than a silent no-op that
+      // would appear to succeed. Guarding before any close keeps a partly-filed
+      // merge from closing some source issues before hitting the missing one.
+      const targets = signOffTargets(loaded);
+      const untracked = targets.filter((t) => !t.tracker?.ref);
+      if (untracked.length > 0) {
         throw new RouteError(
           409,
-          `Gate '${req.params.gateId}' has no tracker issue, so it cannot be signed off.`,
+          loaded.mergedFrom
+            ? `Gate '${req.params.gateId}' cannot be signed off: source gate(s) ${untracked
+                .map((t) => t.id)
+                .join(", ")} have no tracker issue.`
+            : `Gate '${req.params.gateId}' has no tracker issue, so it cannot be signed off.`,
         );
       }
 
-      await closeGate(req.params.projectId, loaded.unit);
+      // Close each source issue in turn. Not atomic: a mid-loop plugin rejection
+      // (TrackerActionError) propagates via handleError, leaving earlier sources
+      // closed (partial progress), mirroring the single-gate 500/409-on-rejection.
+      for (const target of targets) {
+        await closeGate(req.params.projectId, target);
+      }
       res.json(
         await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
       );
@@ -630,14 +659,25 @@ router.delete(
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
       }
 
-      if (!loaded.unit.tracker?.ref) {
+      // Reopen mirrors sign-off: a normal gate reopens its own issue; a merged gate
+      // fans out over its source gates' issues (issue #435). A target with no filed
+      // tracker issue degrades loudly rather than silently no-op'ing.
+      const targets = signOffTargets(loaded);
+      const untracked = targets.filter((t) => !t.tracker?.ref);
+      if (untracked.length > 0) {
         throw new RouteError(
           409,
-          `Gate '${req.params.gateId}' has no tracker issue, so it cannot be reopened.`,
+          loaded.mergedFrom
+            ? `Gate '${req.params.gateId}' cannot be reopened: source gate(s) ${untracked
+                .map((t) => t.id)
+                .join(", ")} have no tracker issue.`
+            : `Gate '${req.params.gateId}' has no tracker issue, so it cannot be reopened.`,
         );
       }
 
-      await reopenGate(req.params.projectId, loaded.unit);
+      for (const target of targets) {
+        await reopenGate(req.params.projectId, target);
+      }
       res.json(
         await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
       );

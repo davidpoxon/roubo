@@ -95,6 +95,7 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
+import { mintMergeGateId } from "../lib/gate-overrides.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { TrackerActionError, closeGate, reopenGate } from "../services/tracker-action-gateway.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
@@ -161,6 +162,33 @@ function passedTrackedGate() {
   ]);
   vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
     planAndResults([planCase("TC-024", 1)], { "TC-024": caseResult("passed") }) as never,
+  );
+}
+
+// The operator-merged gate spanning WU-040 + WU-060 (issue #435). Its synthetic id
+// has no tracker of its own; each SOURCE gate carries a real filed tracker ref, so
+// sign-off / reopen / signed-off fan out over the two sources.
+const MERGED_ID = mintMergeGateId(["WU-040", "WU-060"]); // MERGED:WU-040+WU-060
+const MERGED_PATH = encodeURIComponent(MERGED_ID);
+
+// Seed two tracked source gates plus a recorded merge over them, all cases passing,
+// so the effective merged gate evaluates `passed`. `sources` lets a test drop a
+// source's tracker or vary its cases.
+function passedMergedGate(sources?: VerifyUnit[]) {
+  const units = sources ?? [
+    gateWithTracker("WU-040", "o/r#451", ["TC-024"]),
+    gateWithTracker("WU-060", "o/r#452", ["TC-025"]),
+  ];
+  vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue(units.map((u) => loaded("alpha", u)));
+  vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue({
+    ...emptyGateOverrides(),
+    ops: [{ op: "merge", gateIds: ["WU-040", "WU-060"] }],
+  });
+  vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+    planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+      "TC-024": caseResult("passed"),
+      "TC-025": caseResult("passed"),
+    }) as never,
   );
 }
 
@@ -360,5 +388,113 @@ describe("GET /:projectId/gates/:gateId derives signedOff from the tracker issue
     expect(res.status).toBe(200);
     expect(res.body.gates).toHaveLength(1);
     expect(res.body.gates[0]).toMatchObject({ gateId: "WU-040", signedOff: true });
+  });
+});
+
+describe("merged gate sign-off / reopen / signedOff (issue #435)", () => {
+  it("signs off a passed merged gate by closing EVERY source gate's tracker issue", async () => {
+    passedMergedGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    // withSignedOff re-reads each (now closed) source tracker issue.
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).post(`/p1/gates/${MERGED_PATH}/sign-off`);
+
+    expect(res.status).toBe(200);
+    expect(closeGate).toHaveBeenCalledTimes(2);
+    expect(closeGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-040" }));
+    expect(closeGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-060" }));
+    expect(res.body).toMatchObject({ gateId: MERGED_ID, status: "passed", signedOff: true });
+  });
+
+  it("reopens a merged gate by reopening EVERY source gate's tracker issue", async () => {
+    passedMergedGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "open" } as never);
+
+    const res = await request(app).delete(`/p1/gates/${MERGED_PATH}/sign-off`);
+
+    expect(res.status).toBe(200);
+    expect(reopenGate).toHaveBeenCalledTimes(2);
+    expect(reopenGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-040" }));
+    expect(reopenGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-060" }));
+    expect(res.body).toMatchObject({ gateId: MERGED_ID, signedOff: false });
+  });
+
+  it("GET derives signedOff:true only when ALL source issues are done", async () => {
+    passedMergedGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).get(`/p1/gates/${MERGED_PATH}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "passed", signedOff: true });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "o/r#451",
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "o/r#452",
+    });
+  });
+
+  it("GET derives signedOff:false when only SOME source issues are done", async () => {
+    passedMergedGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    // First source issue closed, second still open -> not fully signed off.
+    vi.mocked(pluginManager.invoke).mockImplementation((_pluginId, _op, params) =>
+      Promise.resolve({
+        currentState:
+          (params as { externalId: string }).externalId === "o/r#451" ? "closed" : "open",
+      } as never),
+    );
+
+    const res = await request(app).get(`/p1/gates/${MERGED_PATH}`);
+    expect(res.status).toBe(200);
+    expect(res.body.signedOff).toBe(false);
+  });
+
+  it("degrades loudly with 409 when a source gate has no tracker issue, without closing any", async () => {
+    passedMergedGate([
+      gateWithTracker("WU-040", "o/r#451", ["TC-024"]),
+      gate("WU-060", ["TC-025"]), // no tracker
+    ]);
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+
+    const res = await request(app).post(`/p1/gates/${MERGED_PATH}/sign-off`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no tracker issue/i);
+    expect(closeGate).not.toHaveBeenCalled();
+  });
+
+  it("is fail-closed: 409 when the merged gate is not passed, without closing any source", async () => {
+    passedMergedGate();
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+        "TC-024": caseResult("passed"),
+        "TC-025": caseResult("not_started"),
+      }) as never,
+    );
+
+    const res = await request(app).post(`/p1/gates/${MERGED_PATH}/sign-off`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/not 'passed'|cannot be signed off/i);
+    expect(closeGate).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a TrackerActionError from a source close (partial progress accepted)", async () => {
+    passedMergedGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    // First source closes, second is refused by the plugin.
+    vi.mocked(closeGate)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new TrackerActionError("not consented", "not-consented"));
+
+    const res = await request(app).post(`/p1/gates/${MERGED_PATH}/sign-off`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("not-consented");
+    expect(closeGate).toHaveBeenCalledTimes(2);
   });
 });

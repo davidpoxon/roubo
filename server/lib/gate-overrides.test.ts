@@ -128,6 +128,42 @@ describe("applyGateOverrides - merge (AC1, TC-022)", () => {
     expect(result.gates).toHaveLength(2);
     expect(result.dropped[0].reason).toContain("across specs");
   });
+
+  it("carries the source units as mergedFrom so sign-off can fan out over them (issue #435)", () => {
+    const loaded = [gate("G1", ["TC-001"]), gate("G2", ["TC-002"])];
+    const result = applyGateOverrides(
+      loaded,
+      doc([{ op: "merge", gateIds: ["G1", "G2"] }]),
+      EMPTY_MAP,
+    );
+    // The synthetic merged unit itself stays tracker-less (it has no filed issue).
+    expect(result.gates[0].unit.tracker).toBeUndefined();
+    // mergedFrom carries the real source units (each would carry its own tracker).
+    expect(result.gates[0].mergedFrom?.map((u) => u.id)).toEqual(["G1", "G2"]);
+  });
+
+  it("flattens a nested merge's mergedFrom to the filed leaf sources (issue #435)", () => {
+    // Merge G1+G2, then merge that synthetic gate with G3: the twice-merged gate's
+    // mergedFrom must be the three real leaves, never the tracker-less intermediate.
+    const loaded = [gate("G1", ["TC-001"]), gate("G2", ["TC-002"]), gate("G3", ["TC-003"])];
+    const firstMergeId = mintMergeGateId(["G1", "G2"]);
+    const result = applyGateOverrides(
+      loaded,
+      doc([
+        { op: "merge", gateIds: ["G1", "G2"] },
+        { op: "merge", gateIds: [firstMergeId, "G3"] },
+      ]),
+      EMPTY_MAP,
+    );
+    expect(result.gates).toHaveLength(1);
+    expect(result.gates[0].mergedFrom?.map((u) => u.id)).toEqual(["G1", "G2", "G3"]);
+  });
+
+  it("leaves mergedFrom absent on a passthrough (non-merged) gate", () => {
+    const loaded = [gate("G1", ["TC-001"])];
+    const result = applyGateOverrides(loaded, emptyGateOverrides(), EMPTY_MAP);
+    expect(result.gates[0].mergedFrom).toBeUndefined();
+  });
 });
 
 describe("applyGateOverrides - split (AC2, TC-023)", () => {
