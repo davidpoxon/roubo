@@ -168,7 +168,13 @@ export default function BatchView({
     );
   }
 
-  const noGatingCases = planQuery.data.plan.cases.length === 0;
+  // A phase has no gating cases either when the subset plan is literally empty, or
+  // when the gate's evaluated status is `no_gating_cases` (its declared cases all
+  // narrow out of the default policy, e.g. all L3/L4). The `?gateIds=` subset uses
+  // the gate's RAW declared ids, so an all-L3/L4 gate still renders case rows here;
+  // driving the elision off the evaluated status makes the notice fire for it too
+  // (issue #436).
+  const noGatingCases = gate.status === "no_gating_cases" || planQuery.data.plan.cases.length === 0;
 
   return frame(
     <>
@@ -183,7 +189,7 @@ export default function BatchView({
         // explicit notice, never an unlabelled empty card.
         <div className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 py-8 px-4">
           <p className="text-sm text-stone-500 dark:text-stone-400">
-            This batch has no gating cases. Nothing to verify here.
+            No gating cases in scope. Nothing to verify here.
           </p>
         </div>
       ) : (

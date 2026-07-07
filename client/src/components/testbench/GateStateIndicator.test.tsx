@@ -13,6 +13,7 @@ const CASES: { status: GateStatus; label: string }[] = [
   { status: "failed", label: "Failed" },
   { status: "pending", label: "Pending" },
   { status: "stale", label: "Stale" },
+  { status: "no_gating_cases", label: "No gating cases" },
 ];
 
 describe("GateStateIndicator", () => {
@@ -24,4 +25,16 @@ describe("GateStateIndicator", () => {
       expect(dot).toBeTruthy();
     });
   }
+
+  // #436: no_gating_cases is not a pass, so it must use the neutral stone token,
+  // never the passed green.
+  it("renders no_gating_cases with a neutral (non-green) token", () => {
+    const { container } = render(<GateStateIndicator status="no_gating_cases" />);
+    const label = screen.getByText("No gating cases");
+    expect(label.className).toContain("stone");
+    expect(label.className).not.toContain("green");
+    const dot = container.querySelector('[aria-hidden="true"]');
+    expect(dot?.className).toContain("stone");
+    expect(dot?.className).not.toContain("green");
+  });
 });

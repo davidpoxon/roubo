@@ -505,8 +505,10 @@ export interface TestbenchPlanResponse {
 // computed status, the unresolved gating case ids, and the covering slice unit
 // ids those cases trace to (the gate's `covers`). For a passed gate both id
 // arrays are empty; per NFR-007 the server never reports a stale/unverified gate
-// as passed.
-export type GateStatus = "passed" | "failed" | "pending" | "stale";
+// as passed. `no_gating_cases` is the structural state for a gate whose narrowed
+// gating set is empty (e.g. all L3/L4, none e2e_flow): kept in sync with the
+// server's `GateStatus` union in `server/lib/gate-evaluator.ts` (issue #436).
+export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
 export interface GateState {
   gateId: string;

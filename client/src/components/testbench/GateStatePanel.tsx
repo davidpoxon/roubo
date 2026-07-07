@@ -14,6 +14,9 @@ import GateStateIndicator from "./GateStateIndicator";
 // as cases are marked, with no local state of its own.
 export default function GateStatePanel({ gate }: { gate: GateState }) {
   const isPassed = gate.status === "passed";
+  // A gate whose (narrowed) gating set is empty is a structural "nothing to gate
+  // on" state, distinct from passed: it must never read as a pass (issue #436).
+  const isNoGatingCases = gate.status === "no_gating_cases";
   const unresolved = gate.unresolvedCaseIds;
   const covering = gate.coveringUnitIds;
 
@@ -33,7 +36,11 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
         <GateStateIndicator status={gate.status} />
       </div>
 
-      {isPassed ? (
+      {isNoGatingCases ? (
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          No gating cases in scope. Nothing to verify here.
+        </p>
+      ) : isPassed ? (
         <p className="text-xs text-stone-500 dark:text-stone-400">
           All gating cases passed. Nothing outstanding.
         </p>
