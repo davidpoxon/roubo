@@ -21,17 +21,22 @@
 // pure transform at read time, so the effective (regrouped) gates are what the
 // GET handlers return and evaluate.
 //
-// Results sourcing (architecture open question "Root-path resolution"): a gate is
-// PROJECT-level, so its plan + results are read from the registered project's
-// repoPath under the gate's own spec slug. When no plan/results exist there yet,
-// the gate reads as `stale`, never `passed` (NFR-007 fail-closed): an unverified
-// gate must never look passable.
+// Results sourcing (architecture open question "Root-path resolution", #432): a
+// gate is PROJECT-level, but the TestBench surface writes its observation marks
+// under the focused bench's OWN worktree (bench.workspacePath, #493), not the
+// project repoPath. So the plan + results are read from the worktree of a live
+// TestBench focused on the gate's slug when one exists (resolveResultsRoot), and
+// otherwise from the registered project's repoPath. Either way, when no
+// plan/results exist at the resolved root yet, the gate reads as `stale`, never
+// `passed` (NFR-007 fail-closed): an unverified gate must never look passable.
 
 import fs from "node:fs";
 import path from "node:path";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
+import * as benchManager from "../services/bench-manager.js";
+import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import { WorkUnitsValidationError } from "../services/work-unit-loader.js";
 import type { InvalidSpec, LoadedVerifyUnit } from "../services/work-unit-loader.js";
@@ -147,20 +152,66 @@ function handleError(res: Response, err: unknown): void {
   res.status(500).json({ error: (err as Error).message });
 }
 
+// Resolve WHERE to read a gate's plan + results from for a given spec slug (#432).
+//
+// A gate is project-level, but the TestBench surface writes observation marks
+// under the focused bench's own worktree (bench.workspacePath, #493), not the
+// project repoPath. If a gate always read the project repo it would never see the
+// operator's in-UI marks, and an all-passed batch would stay pending forever
+// (issue #432). So when a live TestBench is focused on this gate's slug, read from
+// that bench's worktree; otherwise fall back to the project repoPath.
+//
+// The fallback is fail-closed (NFR-007): a project with no focused TestBench (or a
+// worktree that was later cleared) reads the project repo copy, which reads
+// `stale` when no results exist there, never `passed`. Both the plan and the
+// results are read from the SAME resolved root by the caller, so the
+// planHash/freshness comparison stays self-consistent.
+//
+// When more than one TestBench focuses the same slug the first match wins. Benches
+// are enumerated in insertion order, so this is deterministic; multiple benches on
+// one slug is a rare operator configuration, and the first live worktree is a
+// reasonable pick (the repoPath fallback still applies if it is later cleared).
+function resolveResultsRoot(projectId: string, repoPath: string, slug: string): string {
+  for (const bench of benchManager.getBenches(projectId)) {
+    if (bench.variant !== "testbench") continue;
+    const workspacePath = bench.workspacePath;
+    if (typeof workspacePath !== "string" || workspacePath.trim().length === 0) continue;
+    if (bench.focusedSpecPath === undefined) continue;
+    let benchSlug: string;
+    try {
+      benchSlug = resolveFocusedSpec(repoPath, bench.focusedSpecPath).slug;
+    } catch {
+      // A malformed / escaping focusedSpecPath just means this bench contributes
+      // no results root; skip it rather than fail the whole gate read.
+      continue;
+    }
+    if (benchSlug === slug) {
+      return workspacePath;
+    }
+  }
+  return repoPath;
+}
+
 // Evaluate a single loaded gate against its spec's recorded plan + results.
 //
-// The plan + results are read from the project repoPath under the gate's slug.
-// When the spec has no plan (or it is unreadable/invalid), `readPlanAndResults`
-// throws MissingPlanError; per NFR-007 the gate is then read as `stale` with the
-// gate's declared gating set unresolved, NEVER passed. When the plan exists, the
-// pure `evaluateGate` decides: the plan is threaded in so the L3/L4 default-policy
-// narrowing applies (FR-005, AC3).
-function evaluateLoadedGate(repoPath: string, loaded: LoadedVerifyUnit): GateStateResponse {
+// The plan + results are read from the root resolved by `resolveResultsRoot`: the
+// worktree of a TestBench focused on the gate's slug when one exists, else the
+// project repoPath (#432). When the spec has no plan (or it is unreadable/invalid),
+// `readPlanAndResults` throws MissingPlanError; per NFR-007 the gate is then read
+// as `stale` with the gate's declared gating set unresolved, NEVER passed. When the
+// plan exists, the pure `evaluateGate` decides: the plan is threaded in so the
+// L3/L4 default-policy narrowing applies (FR-005, AC3).
+function evaluateLoadedGate(
+  projectId: string,
+  repoPath: string,
+  loaded: LoadedVerifyUnit,
+): GateStateResponse {
   const { slug, unit } = loaded;
+  const resultsRoot = resolveResultsRoot(projectId, repoPath, slug);
 
   let state: GateState;
   try {
-    const { plan, results, planHash, stale } = testbenchStore.readPlanAndResults(repoPath, slug);
+    const { plan, results, planHash, stale } = testbenchStore.readPlanAndResults(resultsRoot, slug);
     // `readPlanAndResults` strips the stored planHash from `results`, exposing the
     // freshness comparison as its `stale` flag instead. The evaluator decides
     // staleness from `results.planHash !== currentPlanHash`, so thread a planHash
@@ -282,7 +333,11 @@ router.get(
       const { gates, invalidSpecs } = effectiveGates(repoPath, req.params.projectId);
       const states = await Promise.all(
         gates.map((loaded) =>
-          withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+          withSignedOff(
+            req.params.projectId,
+            loaded,
+            evaluateLoadedGate(req.params.projectId, repoPath, loaded),
+          ),
         ),
       );
       res.json({ gates: states, invalidSpecs });
@@ -307,7 +362,11 @@ router.get(
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
       }
       res.json(
-        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+        await withSignedOff(
+          req.params.projectId,
+          loaded,
+          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
+        ),
       );
     } catch (err) {
       handleError(res, err);
@@ -320,6 +379,7 @@ router.get(
 // may already be closed via the sign-off route, issue #830). Throws a 409
 // RouteError with a clear message; the operator must reopen it first.
 function assertNoneSignedOff(
+  projectId: string,
   repoPath: string,
   effective: readonly LoadedVerifyUnit[],
   gateIds: readonly string[],
@@ -329,7 +389,7 @@ function assertNoneSignedOff(
     if (loaded === undefined) {
       throw new RouteError(400, `Gate '${gateId}' not found`);
     }
-    const state = evaluateLoadedGate(repoPath, loaded);
+    const state = evaluateLoadedGate(projectId, repoPath, loaded);
     if (state.status === "passed") {
       throw new RouteError(
         409,
@@ -375,7 +435,9 @@ async function recordOp(
 
   gateOverrideStore.saveOverrides(projectId, validation.data);
   const states = await Promise.all(
-    applied.gates.map((g) => withSignedOff(projectId, g, evaluateLoadedGate(repoPath, g))),
+    applied.gates.map((g) =>
+      withSignedOff(projectId, g, evaluateLoadedGate(projectId, repoPath, g)),
+    ),
   );
   res.json(states);
 }
@@ -397,7 +459,7 @@ router.post(
         throw new RouteError(400, "merge requires a gateIds array of at least two gate ids");
       }
       const { gates: effective } = effectiveGates(repoPath, req.params.projectId);
-      assertNoneSignedOff(repoPath, effective, gateIds);
+      assertNoneSignedOff(req.params.projectId, repoPath, effective, gateIds);
       await recordOp(repoPath, req.params.projectId, { op: "merge", gateIds }, res);
     } catch (err) {
       handleError(res, err);
@@ -418,7 +480,7 @@ router.post(
         throw new RouteError(400, "split requires a gateId and at least two parts");
       }
       const { gates: effective } = effectiveGates(repoPath, req.params.projectId);
-      assertNoneSignedOff(repoPath, effective, [gateId]);
+      assertNoneSignedOff(req.params.projectId, repoPath, effective, [gateId]);
       await recordOp(repoPath, req.params.projectId, { op: "split", gateId, parts }, res);
     } catch (err) {
       handleError(res, err);
@@ -585,7 +647,7 @@ router.post(
 
       // Fail-closed guard: refuse sign-off unless the gate's evaluated status is
       // passed. This is the load-bearing rejection, not just the disabled button.
-      const state = evaluateLoadedGate(repoPath, loaded);
+      const state = evaluateLoadedGate(req.params.projectId, repoPath, loaded);
       if (state.status !== "passed") {
         throw new RouteError(
           409,
@@ -604,7 +666,11 @@ router.post(
 
       await closeGate(req.params.projectId, loaded.unit);
       res.json(
-        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+        await withSignedOff(
+          req.params.projectId,
+          loaded,
+          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
+        ),
       );
     } catch (err) {
       handleError(res, err);
@@ -639,7 +705,11 @@ router.delete(
 
       await reopenGate(req.params.projectId, loaded.unit);
       res.json(
-        await withSignedOff(req.params.projectId, loaded, evaluateLoadedGate(repoPath, loaded)),
+        await withSignedOff(
+          req.params.projectId,
+          loaded,
+          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
+        ),
       );
     } catch (err) {
       handleError(res, err);
