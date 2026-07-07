@@ -175,8 +175,14 @@ export function applyGateOverrides(
         id,
         present.map((s) => s.unit),
       );
+      // Carry the real source gates so the route layer can fan sign-off / reopen /
+      // signed-off out over each source's own tracker issue (issue #435): the
+      // synthetic merged unit is deliberately tracker-less (it has no filed issue of
+      // its own). A source that is itself a merged gate contributes ITS filed leaves,
+      // flattening a nested merge so `mergedFrom` never holds a tracker-less synthetic.
+      const mergedFrom = present.flatMap((s) => s.mergedFrom ?? [s.unit]);
       for (const gid of sourceIds) byId.delete(gid);
-      byId.set(id, { slug, unit });
+      byId.set(id, { slug, unit, mergedFrom });
       continue;
     }
 
