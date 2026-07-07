@@ -34,6 +34,36 @@ function emptyPlan(filteredToGateIds: string[]) {
   };
 }
 
+function planWithCase(filteredToGateIds: string[]) {
+  // The ?gateIds= subset uses the gate's RAW declared ids, so an all-L3/L4 gate
+  // still returns a case row here (the #436 batch-view half of the bug).
+  return {
+    plan: {
+      $schema: "x",
+      schemaVersion: "1.0.0",
+      specSlug: "demo",
+      cases: [
+        {
+          id: "TC-L3",
+          title: "An L3 case",
+          area: "demo",
+          level: 3,
+          type: "functional",
+          steps: [],
+          tags: [],
+          linked_requirement_ids: ["FR-001"],
+          linked_user_story_ids: [],
+        },
+      ],
+    },
+    results: null,
+    stale: false,
+    planHash: "h",
+    recovered: false,
+    filteredToGateIds,
+  };
+}
+
 function gateState(overrides: Record<string, unknown>) {
   return {
     gateId: "WU-099",
@@ -67,7 +97,22 @@ describe("BatchView", () => {
     mockedApi.fetchTestbenchPlan.mockResolvedValue(emptyPlan(["WU-099"]) as never);
 
     renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
-    await waitFor(() => expect(screen.getByText(/no gating cases/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/no gating cases/i)).toBeTruthy());
+  });
+
+  it("elides on a no_gating_cases gate even when the subset plan still has case rows (#436)", async () => {
+    // The gate narrows to empty (all L3/L4), so the server reports no_gating_cases,
+    // but the ?gateIds= subset still returns the raw L3 case row. The notice must
+    // fire off the gate status, and the L3 case must NOT render as a case row.
+    mockedApi.fetchGate.mockResolvedValue(gateState({ status: "no_gating_cases" }) as never);
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planWithCase(["WU-099"]) as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    // Both the gate-state panel and the case-list elision notice surface the
+    // "no gating cases in scope" message for a no_gating_cases gate.
+    const notices = await screen.findAllByText(/no gating cases in scope/i);
+    expect(notices.length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("An L3 case")).toBeNull();
   });
 
   it("disables 'Sign off batch' when the gate has not passed (AC3)", async () => {
@@ -96,7 +141,7 @@ describe("BatchView", () => {
     mockedApi.fetchTestbenchPlan.mockResolvedValue(emptyPlan(["WU-099"]) as never);
 
     renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
-    await screen.findByText(/no gating cases/);
+    await screen.findByText(/no gating cases/i);
     const signOff = screen.getByRole("button", { name: "Sign off batch" });
     expect(signOff.getAttribute("data-disabled")).toBeNull();
   });
@@ -115,7 +160,7 @@ describe("BatchView", () => {
     renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
     // Wait for both queries to resolve so the sign-off button is enabled (a
     // disabled React Aria button ignores onPress).
-    await screen.findByText(/no gating cases/);
+    await screen.findByText(/no gating cases/i);
     const signOff = screen.getByRole("button", { name: "Sign off batch" });
     expect(signOff.getAttribute("data-disabled")).toBeNull();
     fireEvent.click(signOff);
@@ -152,7 +197,7 @@ describe("BatchView", () => {
     );
 
     renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
-    await screen.findByText(/no gating cases/);
+    await screen.findByText(/no gating cases/i);
     const signOff = screen.getByRole("button", { name: "Sign off batch" });
     fireEvent.click(signOff);
     await screen.findByText(/no tracker issue/);

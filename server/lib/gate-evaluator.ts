@@ -1,7 +1,8 @@
 // The pure, deterministic verify-gate evaluator (#698, FR-004, FR-005, NFR-007).
 //
-// `evaluateGate` computes a gate's passed / failed / pending / stale state from a
-// worktree's recorded results over the gate's gating set. It is the join point of
+// `evaluateGate` computes a gate's passed / failed / pending / stale /
+// no_gating_cases state from a worktree's recorded results over the gate's gating
+// set. It is the join point of
 // two already-merged contracts:
 //   - the gate is a `kind: "verify"` work unit (VerifyUnit) from
 //     `@roubo/shared/work-units-contract`, whose `implements.test_case_ids` IS the
@@ -40,7 +41,11 @@ import type { Unit } from "@roubo/shared/work-units-contract";
 export type VerifyUnit = Unit & { kind: "verify" };
 
 // The terminal gate states. Order matches the precedence ladder below.
-export type GateStatus = "passed" | "failed" | "pending" | "stale";
+// `no_gating_cases` is the structural state for a gate whose (possibly narrowed)
+// gating set is empty: it is not a pass (nothing was verified), and its guard
+// precedes every results-driven rung so an all-L3/L4 gate never vacuously passes
+// (issue #436, NFR-007 fail-closed).
+export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
 // The computed projection returned by `evaluateGate`. Never persisted.
 //
@@ -134,6 +139,18 @@ export function evaluateGate(
   }
 
   // Precedence ladder (order-sensitive). The first rung that matches wins.
+
+  // (0) NO GATING CASES: the (possibly narrowed) gating set is empty. This is a
+  // structural fact independent of any recorded results, so it must be decided
+  // before the results-driven rungs (including STALE): an empty gating set is not
+  // "must be re-verified", it is "there is nothing to gate on". Crucially it must
+  // never fall through to the PASSED rung, where an empty unresolved set would
+  // read as a vacuous pass (an all-L3/L4 gate narrows to `[]`), violating
+  // NFR-007's fail-closed intent (issue #436). Sign-off stays gated on `passed`,
+  // so a no-gating-cases phase is correctly non-signable.
+  if (gatingCaseIds.length === 0) {
+    return { status: "no_gating_cases", unresolvedCaseIds: [], coveringUnitIds: [] };
+  }
 
   // (1) STALE: results absent, or the results' planHash does not match the live
   // plan hash. The batch must be re-verified; stale never reads as passed.

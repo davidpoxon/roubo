@@ -262,6 +262,48 @@ describe("evaluateGate: default gating policy L1/L2 + e2e_flow (TC-018, FR-005)"
   });
 });
 
+describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (TC-026, #436, NFR-007)", () => {
+  it("an all-L3/L4 gate with a plan narrows to no_gating_cases, never passed", () => {
+    const gate = makeGate(["TC-L3", "TC-L4"], ["WU-10"]);
+    const p = plan([planCase("TC-L3", 3, "functional"), planCase("TC-L4", 4, "functional")]);
+    const state = evaluateGate(
+      gate,
+      results({
+        // Even though every declared case is passed, they all narrow out of the
+        // default policy, so the gate has nothing to gate on: it must NOT read as
+        // a vacuous pass (the #436 bug).
+        "TC-L3": caseResult("passed"),
+        "TC-L4": caseResult("passed"),
+      }),
+      PLAN_HASH,
+      p,
+    );
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.unresolvedCaseIds).toEqual([]);
+    expect(state.coveringUnitIds).toEqual([]);
+  });
+
+  it("the empty-gating-set guard precedes the STALE rung (null results still read as no_gating_cases)", () => {
+    // A gate whose narrowed set is empty AND has no recorded results must read as
+    // no_gating_cases, not stale: an empty gating set is a structural fact
+    // independent of results, so the guard fires before the results-driven ladder.
+    const gate = makeGate(["TC-L3"], ["WU-10"]);
+    const p = plan([planCase("TC-L3", 3, "functional")]);
+    const state = evaluateGate(gate, null, PLAN_HASH, p);
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.unresolvedCaseIds).toEqual([]);
+    expect(state.coveringUnitIds).toEqual([]);
+  });
+
+  it("a gate declaring no cases at all reads as no_gating_cases even without a plan", () => {
+    const gate = makeGate([], ["WU-10"]);
+    const state = evaluateGate(gate, results({}), PLAN_HASH);
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.unresolvedCaseIds).toEqual([]);
+    expect(state.coveringUnitIds).toEqual([]);
+  });
+});
+
 describe("evaluateGate: coveringUnitIds derivation (NFR-004)", () => {
   it("surfaces covers for unresolved cases", () => {
     const gate = makeGate(["TC-1"], ["WU-10", "WU-11"]);

@@ -58,6 +58,25 @@ describe("GateStatePanel", () => {
     expect(screen.getByText(/Nothing outstanding/)).toBeTruthy();
   });
 
+  it("renders a distinct 'no gating cases in scope' message, not the passed message (#436)", () => {
+    render(
+      <GateStatePanel
+        gate={{
+          gateId: "WU-099",
+          status: "no_gating_cases",
+          unresolvedCaseIds: [],
+          coveringUnitIds: [],
+          signedOff: false,
+        }}
+      />,
+    );
+    expect(screen.getByText("No gating cases")).toBeTruthy();
+    expect(screen.getByText(/no gating cases in scope/i)).toBeTruthy();
+    // Never the passed message, and never the unresolved block.
+    expect(screen.queryByText(/All gating cases passed/)).toBeNull();
+    expect(screen.queryByText("Unresolved cases")).toBeNull();
+  });
+
   it("has no axe violations", async () => {
     const { container } = render(<GateStatePanel gate={nonPassed} />);
     expect(await axe(container)).toHaveNoViolations();
