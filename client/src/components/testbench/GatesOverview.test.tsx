@@ -48,6 +48,31 @@ const passedGate = {
   coveringUnitIds: [],
 };
 
+// A gate carrying a phase (milestone) and a full gating set, so the card can title
+// by phase and show the gating-case count (#433).
+const phasedGate = {
+  gateId: "WU-300",
+  status: "pending" as const,
+  milestone: "Phase 2: Routes",
+  unresolvedCaseIds: ["TC-5"],
+  gatingCaseIds: ["TC-5", "TC-6", "TC-7"],
+  coveringUnitIds: ["WU-40"],
+  blockedBy: [],
+  signedOff: false,
+};
+
+// A downstream phase blocked by an upstream verify gate (#433, FR-001).
+const upstreamBlockedGate = {
+  gateId: "WU-400",
+  status: "pending" as const,
+  milestone: "Phase 3: UI",
+  unresolvedCaseIds: ["TC-9"],
+  gatingCaseIds: ["TC-9"],
+  coveringUnitIds: ["WU-50"],
+  blockedBy: ["WU-300"],
+  signedOff: false,
+};
+
 describe("GatesOverview", () => {
   it("lists one card per gate with its status (AC1)", async () => {
     mockedApi.fetchGates.mockResolvedValue(
@@ -69,11 +94,55 @@ describe("GatesOverview", () => {
     expect(screen.getByText("Pending")).toBeTruthy();
   });
 
-  it("names the blocking unit on a blocked card (AC1)", async () => {
+  it("lists the gate's covering units under a Covers label, not a mislabeled Blocked by (#433)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
-    await waitFor(() => expect(screen.getByText(/Blocked by/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Covers/)).toBeTruthy());
     expect(screen.getByText("WU-010")).toBeTruthy();
+    // The covers line is no longer mislabeled as an upstream blocker; a gate with
+    // no upstream blockedBy shows no "Blocked by" line (#433).
+    expect(screen.queryByText(/Blocked by/)).toBeNull();
+  });
+
+  it("titles the card by phase (milestone) with the gate id as a sub-label (#433)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByText("Phase 2: Routes")).toBeTruthy());
+    // The gate id remains visible as a mono sub-label alongside the phase title.
+    expect(screen.getByText("WU-300")).toBeTruthy();
+  });
+
+  it("falls back to the gate id as the title when the gate has no milestone (#433)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId("gate-title").textContent).toBe("WU-099"));
+  });
+
+  it("shows the gating-case count from gatingCaseIds (#433)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId("gate-gating-count")).toBeTruthy());
+    expect(screen.getByTestId("gate-gating-count").textContent).toBe("3 gating cases");
+  });
+
+  it("shows an upstream Blocked by line naming the blocking gate (#433, FR-001)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([upstreamBlockedGate]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId("gate-blocked-by")).toBeTruthy());
+    expect(screen.getByTestId("gate-blocked-by").textContent).toMatch(/Blocked by/);
+    expect(within(screen.getByTestId("gate-blocked-by")).getByText("WU-300")).toBeTruthy();
+    // The card carries the blocked visual treatment while an upstream blocks it.
+    expect(screen.getByTestId("gate-card").dataset.blocked).toBe("true");
+  });
+
+  it("removes the upstream Blocked by line once the upstream gate clears (#433, AC2)", async () => {
+    // Same phase, now with an empty blockedBy (its upstream gate was signed off).
+    const cleared = { ...upstreamBlockedGate, blockedBy: [] };
+    mockedApi.fetchGates.mockResolvedValue(gatesData([cleared]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByText("Phase 3: UI")).toBeTruthy());
+    expect(screen.queryByTestId("gate-blocked-by")).toBeNull();
+    expect(screen.getByTestId("gate-card").dataset.blocked).toBeUndefined();
   });
 
   it("clears the blocking line once the gate passes (AC1)", async () => {

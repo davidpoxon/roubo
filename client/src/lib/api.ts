@@ -514,7 +514,20 @@ export interface GateState {
   gateId: string;
   status: GateStatus;
   unresolvedCaseIds: string[];
+  // The full narrowed gating set (L1/L2 + e2e_flow) the gate evaluates over; its
+  // length is the "N gating cases" count shown on the overview card (issue #433).
+  // Non-empty even for a passed gate, so the count always traces to the same set
+  // the server gates on.
+  gatingCaseIds: string[];
   coveringUnitIds: string[];
+  // The gate's milestone (phase) label, rendered as the card title with the gate
+  // id as a mono sub-label (issue #433). Null/absent when the unit carries none
+  // (e.g. a synthetic merged/split gate); the card then titles by the gate id.
+  milestone?: string | null;
+  // Upstream verify-gate ids this gate's phase depends on that are NOT yet signed
+  // off (issue #433, FR-001). Empty when nothing upstream blocks it; an id clears
+  // from the list once its upstream gate is signed off.
+  blockedBy: string[];
   // Whether the gate's batch is signed off, derived from the gate's tracker-issue
   // state on the server (issue #830). True only when a `passed` gate's tracker
   // issue is closed; a non-passed gate (or one with no active integration / no

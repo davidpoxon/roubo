@@ -132,8 +132,9 @@ function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
 // units (verify and non-verify). Returns [] when the file is absent (fail-open),
 // and throws WorkUnitsValidationError when the file exists but is invalid (same
 // contract as loadVerifyUnitsForSlug). Used to build the WU- -> test_case_ids
-// map a split needs from the non-verify units.
-function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
+// map a split needs from the non-verify units, and by the gates route to derive
+// each gate's upstream `blockedBy` from the local depends_on + covers graph (#433).
+export function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const target = resolveWithin(repoPath, ".specifications", slug, "work-units.json");
   // Symlink-following barrier before the read, matching loadVerifyUnitsForSlug

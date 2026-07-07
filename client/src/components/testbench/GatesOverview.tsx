@@ -25,6 +25,14 @@ import Spinner from "../Spinner";
 // on success (TC-022 S001-O01, TC-023 S001-O01).
 
 const STRINGS = {
+  // The gate's covering work units (what its unresolved cases trace to). This is
+  // NOT the upstream blocker line: it lists the gate's OWN covers (issue #433
+  // relabel, previously mislabeled "Blocked by").
+  covers: "Covers",
+  // The genuine upstream dependency line: verify gates this phase is blocked by
+  // until they are signed off (issue #433, FR-001).
+  blockedByUpstream: "Blocked by",
+  gatingCount: (n: number) => `${n} gating ${n === 1 ? "case" : "cases"}`,
   mergeMode: "Merge",
   mergeCancel: "Cancel",
   mergeHint: "Select two or more gates to combine, then confirm.",
@@ -100,10 +108,24 @@ function GateCard({
   onSplit: (gate: GateState) => void;
 }) {
   const isBlocked = gate.status !== "passed";
-  const blockingUnits = gate.coveringUnitIds;
+  const coveringUnits = gate.coveringUnitIds;
   // Splitting a signed-off gate is rejected server-side (AC3); hide the control
   // for a passed gate, and require at least two covering units to assign.
-  const canSplit = isBlocked && blockingUnits.length >= 2;
+  const canSplit = isBlocked && coveringUnits.length >= 2;
+  // Title by phase (milestone), falling back to the gate id when the unit carries
+  // no milestone (e.g. a synthetic merged/split gate). When a milestone is present
+  // the gate id becomes a mono sub-label; otherwise the id IS the (mono) title, so
+  // it is never rendered twice (issue #433).
+  const title = gate.milestone ?? gate.gateId;
+  const showGateIdSubLabel = title !== gate.gateId;
+  // The full gating-set count for this phase (issue #433). Optional-chained so a
+  // partial fixture without the field renders no count line rather than crashing.
+  const gatingCount = gate.gatingCaseIds?.length ?? 0;
+  // Genuine upstream blockers: verify gates this phase depends on that are not yet
+  // signed off (issue #433, FR-001). Distinct from `coveringUnits` (the gate's own
+  // covers), which the relabeled line below lists.
+  const blockedBy = gate.blockedBy ?? [];
+  const hasUpstreamBlockers = blockedBy.length > 0;
 
   // Whole-card open (#804): the card body and the (decorative) chevron must open
   // the gate, not just the gate-id text. We use the React Aria clickable-card
@@ -117,7 +139,8 @@ function GateCard({
     <div
       data-testid="gate-card"
       data-selected={selected || undefined}
-      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[selected]:ring-amber-500"
+      data-blocked={hasUpstreamBlockers || undefined}
+      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[blocked]:ring-amber-500/50 data-[selected]:ring-amber-500"
     >
       <Button
         onPress={() => (selectable ? onToggleSelected(gate.gateId) : onOpen(gate.gateId))}
@@ -140,9 +163,24 @@ function GateCard({
           ) : (
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
           )}
-          <span className="font-mono text-[11px] text-stone-600 dark:text-stone-300 truncate group-hover:text-stone-900 dark:group-hover:text-stone-100 transition-colors">
-            {gate.gateId}
-          </span>
+          <div className="flex flex-col min-w-0">
+            <span
+              data-testid="gate-title"
+              className={
+                "truncate transition-colors group-hover:text-stone-900 dark:group-hover:text-stone-100 " +
+                (showGateIdSubLabel
+                  ? "text-[13px] font-medium text-stone-800 dark:text-stone-200"
+                  : "font-mono text-[12px] text-stone-600 dark:text-stone-300")
+              }
+            >
+              {title}
+            </span>
+            {showGateIdSubLabel && (
+              <span className="font-mono text-[10px] text-stone-500 dark:text-stone-500 truncate">
+                {gate.gateId}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {canSplit && !selectable && (
@@ -159,11 +197,30 @@ function GateCard({
           <ChevronRight aria-hidden="true" className="w-4 h-4 text-stone-400 dark:text-stone-600" />
         </div>
       </div>
-      {isBlocked && blockingUnits.length > 0 && (
+      {gatingCount > 0 && (
+        <p data-testid="gate-gating-count" className="text-xs text-stone-500 dark:text-stone-400">
+          {STRINGS.gatingCount(gatingCount)}
+        </p>
+      )}
+      {hasUpstreamBlockers && (
+        <p
+          data-testid="gate-blocked-by"
+          className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400"
+        >
+          <AlertTriangle size={12} aria-hidden className="shrink-0" />
+          <span className="min-w-0">
+            {STRINGS.blockedByUpstream}{" "}
+            <span className="font-mono text-amber-800 dark:text-amber-300">
+              {blockedBy.join(", ")}
+            </span>
+          </span>
+        </p>
+      )}
+      {isBlocked && coveringUnits.length > 0 && (
         <p className="text-xs text-stone-500 dark:text-stone-400">
-          Blocked by{" "}
+          {STRINGS.covers}{" "}
           <span className="font-mono text-stone-700 dark:text-stone-300">
-            {blockingUnits.join(", ")}
+            {coveringUnits.join(", ")}
           </span>
         </p>
       )}

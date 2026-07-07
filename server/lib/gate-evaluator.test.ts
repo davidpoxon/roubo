@@ -325,6 +325,71 @@ describe("evaluateGate: coveringUnitIds derivation (NFR-004)", () => {
   });
 });
 
+describe("evaluateGate: gatingCaseIds is the full narrowed gating set (issue #433)", () => {
+  // Unlike unresolvedCaseIds, gatingCaseIds is populated in EVERY rung (including
+  // passed) so the overview's "N gating cases" count traces to the same set the
+  // evaluator gates on.
+  it("populates gatingCaseIds on a passed gate (count survives even with nothing unresolved)", () => {
+    const gate = makeGate(["TC-1", "TC-2"]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed"), "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+    );
+    expect(state.status).toBe("passed");
+    expect(state.unresolvedCaseIds).toEqual([]);
+    expect(state.gatingCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+
+  it("populates gatingCaseIds on a failed gate", () => {
+    const gate = makeGate(["TC-1", "TC-2"]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("failed"), "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+    );
+    expect(state.status).toBe("failed");
+    expect(state.gatingCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+
+  it("populates gatingCaseIds on a pending gate", () => {
+    const gate = makeGate(["TC-1", "TC-2"]);
+    const state = evaluateGate(gate, results({ "TC-1": caseResult("passed") }), PLAN_HASH);
+    expect(state.status).toBe("pending");
+    expect(state.gatingCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+
+  it("populates gatingCaseIds on a stale gate (null results)", () => {
+    const gate = makeGate(["TC-1", "TC-2"]);
+    const state = evaluateGate(gate, null, PLAN_HASH);
+    expect(state.status).toBe("stale");
+    expect(state.gatingCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+
+  it("reflects the L3/L4 narrowing (excludes non-gating cases) when a plan is threaded", () => {
+    const gate = makeGate(["TC-L1", "TC-L2", "TC-L3", "TC-L4"]);
+    const p = plan([
+      planCase("TC-L1", 1, "functional"),
+      planCase("TC-L2", 2, "functional"),
+      planCase("TC-L3", 3, "functional"),
+      planCase("TC-L4", 4, "functional"),
+    ]);
+    const state = evaluateGate(
+      gate,
+      results({
+        "TC-L1": caseResult("passed"),
+        "TC-L2": caseResult("passed"),
+        "TC-L3": caseResult("failed"),
+        "TC-L4": caseResult("failed"),
+      }),
+      PLAN_HASH,
+      p,
+    );
+    expect(state.status).toBe("passed");
+    expect(state.gatingCaseIds).toEqual(["TC-L1", "TC-L2"]);
+  });
+});
+
 describe("evaluateGate: purity and idempotence (TC-018, NFR-007)", () => {
   it("identical inputs yield a deep-equal GateState", () => {
     const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
