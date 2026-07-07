@@ -5,7 +5,7 @@ import https from "node:https";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type { PluginManifest, PluginRecord } from "@roubo/shared";
 import {
   registerHostHandlers,

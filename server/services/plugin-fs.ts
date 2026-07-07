@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type { PluginRecord } from "@roubo/shared";
 import type { HostLogger } from "./plugin-host-api.js";
 

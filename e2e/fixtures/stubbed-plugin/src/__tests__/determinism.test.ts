@@ -4,7 +4,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
   type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import { afterEach, describe, expect, it } from "vitest";
 import { definePlugin } from "@roubo/plugin-sdk";
 import { createClock } from "../clock.js";

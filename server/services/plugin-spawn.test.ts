@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type { PluginManifest } from "@roubo/shared";
 import {
   assertSpawnAllowed,

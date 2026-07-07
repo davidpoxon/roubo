@@ -4,7 +4,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
   type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import { definePlugin } from "@roubo/plugin-sdk";
 import type { FetchInit, FetchResult, PluginContract, PluginHandle } from "@roubo/plugin-sdk";
 

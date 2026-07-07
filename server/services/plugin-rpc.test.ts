@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import { createConnection, CancellationTokenSource } from "./plugin-rpc.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

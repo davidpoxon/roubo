@@ -1,4 +1,4 @@
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 import type { FetchInit, FetchResult, HostClient, LogPayload } from "./types.js";
 
 let activeConnection: MessageConnection | null = null;

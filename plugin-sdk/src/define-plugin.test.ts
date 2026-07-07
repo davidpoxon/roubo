@@ -5,7 +5,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
   type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import { definePlugin } from "./define-plugin.js";
 import { host } from "./host-client.js";
 import type {

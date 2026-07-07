@@ -1,6 +1,6 @@
 import { promises as fsPromises, type Stats } from "node:fs";
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type { PluginManifest, PluginRecord } from "@roubo/shared";
 import * as credentialStore from "./credential-store.js";
 import {

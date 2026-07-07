@@ -1,4 +1,4 @@
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type {
   BrokerContext,
   BrokerPermissionCategory,
