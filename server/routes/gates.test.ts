@@ -82,6 +82,20 @@ vi.mock("../services/fix-issue-filer.js", async () => {
   };
 });
 
+// #432: gate evaluation now resolves the results root from a live TestBench bench
+// focused on the gate's slug (reading the same worktree the TestBench surface
+// writes marks to), falling back to the project repoPath. Mock the bench-manager
+// and spec-discovery collaborators the resolver consults. Both default to the
+// fallback shape (no benches), so every pre-existing test still evaluates against
+// the project repoPath unchanged.
+vi.mock("../services/bench-manager.js", () => ({
+  getBenches: vi.fn(() => []),
+}));
+
+vi.mock("../lib/testbench-spec-discovery.js", () => ({
+  resolveFocusedSpec: vi.fn(),
+}));
+
 import router from "./gates.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
@@ -89,6 +103,9 @@ import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { MissingPlanError } from "../lib/testbench-store.js";
+import * as benchManager from "../services/bench-manager.js";
+import * as specDiscovery from "../lib/testbench-spec-discovery.js";
+import type { Bench } from "@roubo/shared";
 import * as fixIssueFiler from "../services/fix-issue-filer.js";
 import { TrackerActionError } from "../services/tracker-action-gateway.js";
 import type { LoadedVerifyUnit } from "../services/work-unit-loader.js";
@@ -162,6 +179,11 @@ beforeEach(() => {
   // Default: no operator overrides recorded. Individual tests override this.
   vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue(emptyGateOverrides());
   vi.mocked(workUnitLoader.buildWorkUnitCaseMap).mockReturnValue(new Map());
+  // Default (#432): no TestBench benches, so gate evaluation falls back to the
+  // project repoPath. vi.clearAllMocks() clears call history but not a leaked
+  // mockReturnValue, so this must be re-asserted per test to keep a positive-case
+  // test from bleeding a testbench bench into a later one.
+  vi.mocked(benchManager.getBenches).mockReturnValue([]);
 });
 
 describe("GET /:projectId/gates", () => {
@@ -754,6 +776,111 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     ]);
     const missingId = await request(app).post("/p1/gates/WU-040/fix-issues").send({ notes: "x" });
     expect(missingId.status).toBe(400);
+  });
+});
+
+// #432: a TestBench writes observation marks under its OWN worktree
+// (bench.workspacePath/.specifications/<slug>/test-results.json, #493), but a gate
+// is project-level. Before the fix, gate evaluation always read the registered
+// project repoPath, so an in-UI mark never reached the gate and an all-passed
+// batch stayed pending forever. The fix resolves the results root from a live
+// TestBench focused on the gate's slug and reads from that worktree instead.
+describe("gate evaluation reads results from a focused TestBench worktree (#432)", () => {
+  const WORKTREE = "/workspaces/testbench-1";
+
+  function testbench(slug: string): Bench {
+    return {
+      variant: "testbench",
+      workspacePath: WORKTREE,
+      focusedSpecPath: `${WORKTREE}/.specifications/${slug}/test-cases.json`,
+    } as never;
+  }
+
+  it("flips the gate Pending->Passed when the focused worktree has the marks the project repo lacks", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-040", ["TC-019", "TC-024"], ["WU-031", "WU-032"])),
+    ]);
+    // A live TestBench focused on `alpha`, living in its own worktree.
+    vi.mocked(benchManager.getBenches).mockReturnValue([testbench("alpha")]);
+    vi.mocked(specDiscovery.resolveFocusedSpec).mockReturnValue({
+      slug: "alpha",
+      resolvedPath: `${WORKTREE}/.specifications/alpha/test-cases.json`,
+    });
+    // The worktree copy is all-passed (the operator's in-UI marks); the project
+    // repo copy is still not_started (never manually copied over). The gate must
+    // read the worktree copy.
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation((root: string) => {
+      const cases = [planCase("TC-019", 1), planCase("TC-024", 1)];
+      if (root === WORKTREE) {
+        return planAndResults(cases, {
+          "TC-019": caseResult("passed"),
+          "TC-024": caseResult("passed"),
+        }) as never;
+      }
+      return planAndResults(cases, {
+        "TC-019": caseResult("not_started"),
+        "TC-024": caseResult("not_started"),
+      }) as never;
+    });
+
+    const res = await request(app).get("/p1/gates/WU-040");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("passed");
+    expect(res.body.unresolvedCaseIds).toEqual([]);
+    // Proof it sourced the worktree, not the project repo.
+    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(WORKTREE, "alpha");
+    expect(testbenchStore.readPlanAndResults).not.toHaveBeenCalledWith(REPO, "alpha");
+  });
+
+  it("falls back to the project repoPath when no focused TestBench matches the slug (no regression)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-040", ["TC-019"], ["WU-031"])),
+    ]);
+    // A TestBench exists but focuses a DIFFERENT slug, so it must not be consulted
+    // for `alpha`: evaluation reads the project repo.
+    vi.mocked(benchManager.getBenches).mockReturnValue([testbench("beta")]);
+    vi.mocked(specDiscovery.resolveFocusedSpec).mockReturnValue({
+      slug: "beta",
+      resolvedPath: `${WORKTREE}/.specifications/beta/test-cases.json`,
+    });
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation((root: string) => {
+      if (root === REPO) {
+        return planAndResults([planCase("TC-019", 1)], {
+          "TC-019": caseResult("passed"),
+        }) as never;
+      }
+      throw new Error(`unexpected results root ${root}`);
+    });
+
+    const res = await request(app).get("/p1/gates/WU-040");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("passed");
+    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(REPO, "alpha");
+    expect(testbenchStore.readPlanAndResults).not.toHaveBeenCalledWith(WORKTREE, "alpha");
+  });
+
+  it("skips a TestBench whose focusedSpecPath is malformed and falls back (fail-closed)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-040", ["TC-019"], ["WU-031"])),
+    ]);
+    vi.mocked(benchManager.getBenches).mockReturnValue([testbench("alpha")]);
+    // A malformed / escaping focusedSpecPath throws: the bench is skipped, not fatal.
+    vi.mocked(specDiscovery.resolveFocusedSpec).mockImplementation(() => {
+      throw new Error("focusedSpecPath escapes the project repository");
+    });
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation((root: string) => {
+      if (root === REPO) {
+        return planAndResults([planCase("TC-019", 1)], {
+          "TC-019": caseResult("passed"),
+        }) as never;
+      }
+      throw new Error(`unexpected results root ${root}`);
+    });
+
+    const res = await request(app).get("/p1/gates/WU-040");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("passed");
+    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(REPO, "alpha");
   });
 });
 
