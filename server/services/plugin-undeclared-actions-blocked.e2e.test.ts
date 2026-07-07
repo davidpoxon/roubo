@@ -83,7 +83,7 @@ import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import { parseManifest } from "@roubo/shared";
 import type {
   AuditEntry,

@@ -3,7 +3,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
   type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 
 /**
  * Optional stdio-stream override shared by every `define*Plugin` entry point.

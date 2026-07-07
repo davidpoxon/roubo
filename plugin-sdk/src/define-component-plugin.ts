@@ -1,4 +1,4 @@
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 import {
   bindComponentHostConnection,
   host,

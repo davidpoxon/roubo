@@ -6,7 +6,7 @@ import {
   StreamMessageWriter,
   type CancellationToken,
   type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 
 export interface JsonRpcConnection {
   sendRequest<T>(method: string, params: unknown, token: CancellationToken): Promise<T>;

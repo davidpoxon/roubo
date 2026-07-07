@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import type {
   AuditEntry,
   BrokerContext,

@@ -89,7 +89,7 @@
           "directory": "plugins/jira-self-hosted"
         },
         "provenance": "roubo/plugins@jira-self-hosted",
-        "integrity": "sha256-2700c56c517d7d8eaab26c11fb389db53c7cf1b18418de97f445b32c123c55a8",
+        "integrity": "sha256-827116ea39f5d6773a59a35fb09ac7a5f67039df70783d861ca7bbb7447d88e8",
         "verified": true
       },
       {
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "signature": "g1oEjpbCHZ1C/IcNPh+4MYa6FjIiDzwH/QHG06IcFzOGRsZpz/VzqqZPja8H81W3stU7xpI3xwV8IZX2OdIWBA=="
+  "signature": "oWvZRStJlmJQ/65aavJ9I4ahG6neAMrY2CW0FBPb4auziSL8DuiGo+hU0yRYVw9SN6NRvroWDSe8JL89tOmZDg=="
 }
