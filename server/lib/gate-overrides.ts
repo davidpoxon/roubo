@@ -101,6 +101,11 @@ function buildMergedUnit(id: string, sources: readonly VerifyUnit[]): VerifyUnit
 
 // Build a synthetic split VerifyUnit for one part. Its gating set is the deduped
 // union of the test_case_ids the assigned WU- ids implement (per the case map).
+// Like a merged unit, the synthetic split unit is deliberately tracker-less (it
+// has no filed issue of its own): the split branch attaches the source gate's
+// filed leaves on the part's LoadedVerifyUnit.mergedFrom so the route layer can
+// fan sign-off / reopen / signed-off / fix-issue out over the real tracker issue
+// (issue #445, mirroring #435 for merges).
 function buildSplitUnit(
   id: string,
   label: string,
@@ -228,9 +233,18 @@ export function applyGateOverrides(
       dropped.push({ op, reason: gatingError });
       continue;
     }
+    // Carry the source gate's filed leaves onto EVERY split part so the route
+    // layer can fan sign-off / reopen / signed-off / fix-issue out over the real
+    // tracker issue(s): the synthetic split unit is deliberately tracker-less (it
+    // has no filed issue of its own), exactly like a merged gate (issue #445,
+    // mirroring #435). When the source is itself a merged gate its filed leaves
+    // flow through, so `mergedFrom` never holds a tracker-less synthetic. All
+    // parts share the same targets: the split partitions the covers, not the
+    // source's tracker issue, so signing off any part closes the source issue(s).
+    const splitFrom = source.mergedFrom ?? [source.unit];
     byId.delete(op.gateId);
     for (const { unit } of partUnits) {
-      byId.set(unit.id, { slug: source.slug, unit });
+      byId.set(unit.id, { slug: source.slug, unit, mergedFrom: splitFrom });
     }
   }
 

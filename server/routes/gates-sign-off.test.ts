@@ -13,6 +13,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
+// The gate write handlers share a single module-level express-rate-limit instance
+// (limit 20 / 60s, keyed by client IP), and every write request across this whole
+// file counts against that one window since the router is imported once. The
+// merged + split + fix-issue write-path tests would otherwise push past the cap
+// and flip a later test to 429. Wrap the real limiter with a high cap so the
+// draft-7 RateLimit headers are still attached while removing the shared-budget
+// fragility (mirrors gates.test.ts). No test in this file asserts a 429.
+vi.mock("express-rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("express-rate-limit")>("express-rate-limit");
+  const realRateLimit = actual.default;
+  return {
+    ...actual,
+    default: (options: Parameters<typeof realRateLimit>[0]) =>
+      realRateLimit({ ...options, limit: 100_000 }),
+  };
+});
+
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
 }));
@@ -98,8 +115,9 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
-import { mintMergeGateId } from "../lib/gate-overrides.js";
+import { mintMergeGateId, mintSplitGateId } from "../lib/gate-overrides.js";
 import * as testbenchStore from "../lib/testbench-store.js";
+import { fileFixIssueAndBlock } from "../services/fix-issue-filer.js";
 import { TrackerActionError, closeGate, reopenGate } from "../services/tracker-action-gateway.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import * as pluginManager from "../services/plugin-manager.js";
@@ -187,6 +205,61 @@ function passedMergedGate(sources?: VerifyUnit[]) {
     ...emptyGateOverrides(),
     ops: [{ op: "merge", gateIds: ["WU-040", "WU-060"] }],
   });
+  vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+    planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+      "TC-024": caseResult("passed"),
+      "TC-025": caseResult("passed"),
+    }) as never,
+  );
+}
+
+// The operator-split source gate WU-040 (covers WU-101 + WU-102) split into two
+// parts A/B (issue #445). The synthetic split parts have no tracker of their own;
+// the SOURCE gate carries the real filed tracker ref, so sign-off / reopen /
+// signed-off / fix-issue fan out over that single source for every part. All
+// parts share the one source: signing off any part closes the source issue.
+const SPLIT_A_ID = mintSplitGateId("WU-040", "A"); // SPLIT:WU-040:A
+const SPLIT_A_PATH = encodeURIComponent(SPLIT_A_ID);
+
+// A tracked source gate carrying covers (gateWithTracker alone sets no covers).
+function trackedSourceWithCovers(
+  id: string,
+  ref: string,
+  testCaseIds: string[],
+  covers: string[],
+): VerifyUnit {
+  const tracker: Tracker = { system: "github", ref, url: "https://x", blocked_by_refs: [] };
+  return { ...gate(id, testCaseIds, covers), tracker };
+}
+
+// Seed one source gate plus a recorded split over it, both parts' cases passing,
+// so each effective split part evaluates `passed`. `source` lets a test drop the
+// source's tracker. The WU- -> TC- case map is mocked so the parts partition the
+// source's covers and gating set exactly (else applyGateOverrides drops the split).
+function passedSplitGate(source?: VerifyUnit) {
+  const sourceUnit =
+    source ??
+    trackedSourceWithCovers("WU-040", "o/r#451", ["TC-024", "TC-025"], ["WU-101", "WU-102"]);
+  vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([loaded("alpha", sourceUnit)]);
+  vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue({
+    ...emptyGateOverrides(),
+    ops: [
+      {
+        op: "split",
+        gateId: "WU-040",
+        parts: [
+          { label: "A", coversWorkUnitIds: ["WU-101"] },
+          { label: "B", coversWorkUnitIds: ["WU-102"] },
+        ],
+      },
+    ],
+  });
+  vi.mocked(workUnitLoader.buildWorkUnitCaseMap).mockReturnValue(
+    new Map([
+      ["WU-101", ["TC-024"]],
+      ["WU-102", ["TC-025"]],
+    ]),
+  );
   vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
     planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
       "TC-024": caseResult("passed"),
@@ -499,5 +572,181 @@ describe("merged gate sign-off / reopen / signedOff (issue #435)", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("not-consented");
     expect(closeGate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("split gate sign-off / reopen / signedOff (issue #445)", () => {
+  it("signs off a passed split gate by closing the SOURCE gate's tracker issue", async () => {
+    passedSplitGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    // withSignedOff re-reads the (now closed) source tracker issue.
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).post(`/p1/gates/${SPLIT_A_PATH}/sign-off`);
+
+    expect(res.status).toBe(200);
+    // The synthetic split part has no tracker of its own: sign-off fans out over the
+    // one real source gate (WU-040), closing its filed issue exactly once.
+    expect(closeGate).toHaveBeenCalledTimes(1);
+    expect(closeGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-040" }));
+    expect(res.body).toMatchObject({ gateId: SPLIT_A_ID, status: "passed", signedOff: true });
+  });
+
+  it("reopens a split gate by reopening the SOURCE gate's tracker issue", async () => {
+    passedSplitGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "open" } as never);
+
+    const res = await request(app).delete(`/p1/gates/${SPLIT_A_PATH}/sign-off`);
+
+    expect(res.status).toBe(200);
+    expect(reopenGate).toHaveBeenCalledTimes(1);
+    expect(reopenGate).toHaveBeenCalledWith("p1", expect.objectContaining({ id: "WU-040" }));
+    expect(res.body).toMatchObject({ gateId: SPLIT_A_ID, signedOff: false });
+  });
+
+  it("GET derives signedOff from the source issue", async () => {
+    passedSplitGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).get(`/p1/gates/${SPLIT_A_PATH}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "passed", signedOff: true });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "o/r#451",
+    });
+  });
+
+  it("degrades loudly with 409 when the source gate has no tracker issue, without closing", async () => {
+    // Source gate carries covers but no tracker, so every split part is untracked.
+    passedSplitGate(gate("WU-040", ["TC-024", "TC-025"], ["WU-101", "WU-102"]));
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+
+    const res = await request(app).post(`/p1/gates/${SPLIT_A_PATH}/sign-off`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no tracker issue/i);
+    expect(closeGate).not.toHaveBeenCalled();
+  });
+
+  it("is fail-closed: 409 when the split part is not passed, without closing", async () => {
+    passedSplitGate();
+    // Part A gates only TC-024; mark it not_started so part A is not passable.
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+        "TC-024": caseResult("not_started"),
+        "TC-025": caseResult("passed"),
+      }) as never,
+    );
+
+    const res = await request(app).post(`/p1/gates/${SPLIT_A_PATH}/sign-off`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/not 'passed'|cannot be signed off/i);
+    expect(closeGate).not.toHaveBeenCalled();
+  });
+
+  it("404 for an unknown split part id", async () => {
+    passedSplitGate();
+    const res = await request(app).post(
+      `/p1/gates/${encodeURIComponent("SPLIT:WU-040:Z")}/sign-off`,
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("fix-issue filing fans out over source gates (issue #435/#445)", () => {
+  it("files a fix issue against the split gate's SOURCE tracker ref rather than 409ing", async () => {
+    passedSplitGate();
+    // A failed gating case on part A so a fix issue is warranted.
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+        "TC-024": caseResult("failed"),
+        "TC-025": caseResult("passed"),
+      }) as never,
+    );
+    vi.mocked(fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#500",
+      gateRef: "o/r#451",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post(`/p1/gates/${SPLIT_A_PATH}/fix-issues`)
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(201);
+    // Not a 409: the split part is blockable via its single source gate's tracker
+    // ref, and there is no second source so no additionalGateRefs is passed.
+    expect(fileFixIssueAndBlock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({
+        repoFullName: "o/r",
+        gateRef: "o/r#451",
+        failedCaseId: "TC-024",
+      }),
+    );
+    expect(vi.mocked(fileFixIssueAndBlock).mock.calls[0][1]).not.toHaveProperty(
+      "additionalGateRefs",
+    );
+  });
+
+  it("files ONE fix issue blocking EVERY source ref for a merged gate (additionalGateRefs)", async () => {
+    passedMergedGate();
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+        "TC-024": caseResult("failed"),
+        "TC-025": caseResult("passed"),
+      }) as never,
+    );
+    vi.mocked(fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#500",
+      gateRef: "o/r#451",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post(`/p1/gates/${MERGED_PATH}/fix-issues`)
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(201);
+    // One fix issue blocks BOTH source gates: gateRef is the first source, the rest
+    // ride along as additionalGateRefs (mirrors "sign-off closes every source").
+    expect(fileFixIssueAndBlock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({
+        repoFullName: "o/r",
+        gateRef: "o/r#451",
+        additionalGateRefs: ["o/r#452"],
+        failedCaseId: "TC-024",
+      }),
+    );
+  });
+
+  it("409 when a merged gate's source has no tracker, without filing", async () => {
+    passedMergedGate([
+      gateWithTracker("WU-040", "o/r#451", ["TC-024"]),
+      gate("WU-060", ["TC-025"]), // no tracker
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1), planCase("TC-025", 1)], {
+        "TC-024": caseResult("failed"),
+        "TC-025": caseResult("passed"),
+      }) as never,
+    );
+
+    const res = await request(app)
+      .post(`/p1/gates/${MERGED_PATH}/fix-issues`)
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no tracker issue/i);
+    expect(fileFixIssueAndBlock).not.toHaveBeenCalled();
   });
 });

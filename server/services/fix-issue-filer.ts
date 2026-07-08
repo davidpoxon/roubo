@@ -98,6 +98,15 @@ export interface FileFixIssueParams {
   failedCaseId: string;
   /** The gate's tracker ref the fix issue is wired to block (e.g. "owner/repo#451"). */
   gateRef: string;
+  /**
+   * Extra tracker refs the SAME fix issue must also block, beyond `gateRef`. A
+   * normally-loaded gate has none (its single target is `gateRef`); a merged (or
+   * split-of-a-merge) synthetic gate fans out over its source gates, so the fix
+   * issue blocks every source's filed issue (issue #435, issue #445), mirroring
+   * "sign-off closes every source". Absent/empty keeps the single-target flow
+   * behaviour-identical to before.
+   */
+  additionalGateRefs?: readonly string[];
   /** The verifier's failure notes. Required and non-empty (guarded here). */
   notes: string;
   /**
@@ -172,15 +181,22 @@ export async function fileFixIssueAndBlock(
   }
 
   const { failedCaseId, gateRef } = params;
+  // Every ref the fix issue must block: the primary gate ref plus any source-gate
+  // fan-out refs (merged/split gate, issue #435/#445). For a single-target gate
+  // this is just [gateRef], so one addBlockedBy call, identical to before.
+  const blockedRefs = [gateRef, ...(params.additionalGateRefs ?? [])];
 
   // Link-only retry (NFR-003): the issue already exists, so skip create and run
-  // only the block-link step. Pre-flight only the link capability.
+  // only the block-link step against every target. Pre-flight only the link
+  // capability.
   if (params.existingFixRef !== undefined && params.existingFixRef.length > 0) {
     preflightCapabilities(projectId, ["supportsBlockingLinks"], deps);
-    await deps.addBlockedBy(projectId, {
-      blockedRef: gateRef,
-      blockerRef: params.existingFixRef,
-    });
+    for (const blockedRef of blockedRefs) {
+      await deps.addBlockedBy(projectId, {
+        blockedRef,
+        blockerRef: params.existingFixRef,
+      });
+    }
     return {
       fixIssueRef: params.existingFixRef,
       gateRef,
@@ -203,12 +219,16 @@ export async function fileFixIssueAndBlock(
   // Create succeeded. From here a link failure must NOT throw: the issue exists,
   // so we surface the partial state for a link-only retry (NFR-003) rather than
   // letting the operator re-file. The gate stays non-passable regardless: the
-  // failed gating case keeps it so.
+  // failed gating case keeps it so. Every target is linked; a failure on any one
+  // surfaces link_pending, and the retry re-runs all links against the existing
+  // ref (addBlockedBy is idempotent, so already-linked sources are harmless).
   try {
-    await deps.addBlockedBy(projectId, {
-      blockedRef: gateRef,
-      blockerRef: created.ref,
-    });
+    for (const blockedRef of blockedRefs) {
+      await deps.addBlockedBy(projectId, {
+        blockedRef,
+        blockerRef: created.ref,
+      });
+    }
   } catch {
     return {
       fixIssueRef: created.ref,
