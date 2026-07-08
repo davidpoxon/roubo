@@ -63,6 +63,51 @@ export async function assertGateOpen(
   }
 }
 
+/** Options for the shared start-path issue fetch. */
+export interface FetchIssueForStartOptions {
+  /**
+   * Explicit enforcement decision. When omitted the enforcement state is
+   * resolved via `projectRegistry.resolveEnforceIssueDependencies(projectId)`.
+   */
+  enforce?: boolean;
+  /** Upper bound for the blocking-read RPC when enforcement is ON. Defaults to 3000ms. */
+  timeoutMs?: number;
+}
+
+/**
+ * Fetch the issue a gated start path needs, applying the gate's blocking-read
+ * budget when enforcement is ON so the single read cannot stall the start path.
+ *
+ * - Enforcement ON: the one `getIssue` RPC is bounded to the gate budget (3s by
+ *   default) via {@link fetchIssueBounded}. A timeout, missing plugin, or RPC
+ *   error fails closed with `409 GATE_INDETERMINATE` (NFR-002, NFR-003). The
+ *   returned issue is then handed to {@link assertGateOpen} as `prefetchedIssue`,
+ *   so the whole start request still issues exactly one `getIssue` RPC.
+ * - Enforcement OFF: a plain, ungated `getIssue` at the plugin manager's default
+ *   RPC bound (the gate never runs, FR-006). Plugin RPC errors propagate to the
+ *   caller unchanged so the route can surface them as plugin-RPC errors.
+ */
+export async function fetchIssueForStart(
+  projectId: string,
+  externalId: string,
+  pluginId: string | undefined,
+  opts: FetchIssueForStartOptions = {},
+): Promise<NormalizedIssue> {
+  const enforce = opts.enforce ?? projectRegistry.resolveEnforceIssueDependencies(projectId);
+
+  if (!pluginId) {
+    // The gated callers always resolve an active plugin first; a missing plugin
+    // here is the same unknowable state the gate treats as indeterminate.
+    throw indeterminate(externalId, "no active integration plugin");
+  }
+
+  if (!enforce) {
+    return pluginManager.invoke<NormalizedIssue>(pluginId, "getIssue", { externalId });
+  }
+
+  return fetchIssueBounded(externalId, pluginId, opts.timeoutMs ?? DEFAULT_GATE_TIMEOUT_MS);
+}
+
 /**
  * Obtain the issue's `blockedBy`, reusing a prefetched issue when supplied and
  * otherwise issuing exactly one bounded `getIssue` RPC. Any failure to determine
@@ -82,11 +127,25 @@ async function resolveBlockedBy(
     throw indeterminate(externalId, "no active integration plugin");
   }
 
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_GATE_TIMEOUT_MS;
+  const issue = await fetchIssueBounded(
+    externalId,
+    pluginId,
+    opts.timeoutMs ?? DEFAULT_GATE_TIMEOUT_MS,
+  );
+  return issue.blockedBy;
+}
 
-  // pluginManager.invoke does not guarantee a hard wall-clock bound, so race it
-  // against a timer to enforce the start-path budget. A timeout reads as
-  // indeterminate and fails closed.
+/**
+ * Issue exactly one `getIssue` RPC bounded to `timeoutMs`. pluginManager.invoke
+ * does not guarantee a hard wall-clock bound, so race it against a timer to
+ * enforce the start-path budget. A timeout, or any RPC error, reads as
+ * indeterminate and fails closed with `409 GATE_INDETERMINATE`.
+ */
+async function fetchIssueBounded(
+  externalId: string,
+  pluginId: string,
+  timeoutMs: number,
+): Promise<NormalizedIssue> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -95,11 +154,10 @@ async function resolveBlockedBy(
   });
 
   try {
-    const issue = await Promise.race([
+    return await Promise.race([
       pluginManager.invoke<NormalizedIssue>(pluginId, "getIssue", { externalId }),
       timeout,
     ]);
-    return issue.blockedBy;
   } catch (err) {
     if (err instanceof ServiceError) throw err;
     throw indeterminate(externalId, "blocking-read failed");

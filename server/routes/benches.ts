@@ -8,7 +8,7 @@ import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
-import { assertGateOpen } from "../services/start-gate.js";
+import { assertGateOpen, fetchIssueForStart } from "../services/start-gate.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import {
   getActivePluginOrRespond,
@@ -136,11 +136,21 @@ router.post("/:projectId/benches", async (req, res) => {
 
     let issue: NormalizedIssue;
     try {
-      issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
-        externalId,
-      });
+      // Bound the single getIssue read to the gate budget when enforcement is ON
+      // so a hung plugin fails closed in ~3s instead of stalling for the 30s RPC
+      // default (#438, NFR-002). fetchIssueForStart returns the full issue, which
+      // is reused as prefetchedIssue below so the request still issues one RPC.
+      issue = await fetchIssueForStart(req.params.projectId, externalId, active.pluginId);
     } catch (err) {
-      sendPluginRpcError(res, err);
+      // A gate ServiceError (GATE_INDETERMINATE) is a clean 409, not a plugin RPC
+      // failure: route it through handleCreateBenchError so it is not remapped by
+      // sendPluginRpcError. Genuine OFF-path plugin RPC errors still surface as
+      // plugin-RPC errors.
+      if (err instanceof ServiceError) {
+        handleCreateBenchError(res, err);
+      } else {
+        sendPluginRpcError(res, err);
+      }
       return;
     }
 

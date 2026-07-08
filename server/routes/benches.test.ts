@@ -41,9 +41,16 @@ vi.mock("../services/plugin-manager.js", () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock("../services/start-gate.js", () => ({
-  assertGateOpen: vi.fn(),
-}));
+// Keep fetchIssueForStart real so the route's actual prefetch-and-bound path is
+// exercised (it calls the mocked pluginManager.invoke / resolveEnforceIssueDependencies);
+// only assertGateOpen is stubbed to drive the gate outcomes.
+vi.mock("../services/start-gate.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/start-gate.js")>();
+  return {
+    ...actual,
+    assertGateOpen: vi.fn(),
+  };
+});
 
 vi.mock("../services/active-plugin.js", () => ({
   resolveActivePlugin: vi.fn(),
@@ -470,6 +477,25 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("GATE_INDETERMINATE");
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#438)", async () => {
+    // Enforcement ON: fetchIssueForStart bounds the getIssue prefetch and, on a
+    // hung or failing read, throws GATE_INDETERMINATE. That must surface as a
+    // clean 409, not be remapped as a 502/504 plugin RPC error, and the gate
+    // proper is never reached.
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("plugin hung"));
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GATE_INDETERMINATE");
+    expect(assertGateOpen).not.toHaveBeenCalled();
     expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
     expect(benchManager.createBench).not.toHaveBeenCalled();
   });
