@@ -75,6 +75,42 @@ function gateState(overrides: Record<string, unknown>) {
   };
 }
 
+// A subset plan with one gating case plus a recorded result at the given effective
+// status, so the batch view can render and select the case (#706, US-006).
+function planWithCaseStatus(derivedStatus: string) {
+  return {
+    plan: {
+      $schema: "x",
+      schemaVersion: "1.0.0",
+      specSlug: "demo",
+      cases: [
+        {
+          id: "TC-024",
+          title: "A gating case",
+          area: "demo",
+          level: 1,
+          type: "functional",
+          steps: [],
+          tags: [],
+          linked_requirement_ids: ["FR-009"],
+          linked_user_story_ids: [],
+        },
+      ],
+    },
+    results: {
+      schemaVersion: "1.0.0",
+      planHash: "h",
+      caseResults: {
+        "TC-024": { observationMarks: {}, derivedStatus },
+      },
+    },
+    stale: false,
+    planHash: "h",
+    recovered: false,
+    filteredToGateIds: ["WU-099"],
+  };
+}
+
 describe("BatchView", () => {
   it("fetches the plan filtered to the gate's gating subset (AC2)", async () => {
     mockedApi.fetchGate.mockResolvedValue(
@@ -201,6 +237,34 @@ describe("BatchView", () => {
     const signOff = screen.getByRole("button", { name: "Sign off batch" });
     fireEvent.click(signOff);
     await screen.findByText(/no tracker issue/);
+  });
+
+  it("opens the fix-issue panel when the selected gating case is failed (US-006, TC-045 S001)", async () => {
+    mockedApi.fetchGate.mockResolvedValue(
+      gateState({ status: "failed", unresolvedCaseIds: ["TC-024"] }) as never,
+    );
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planWithCaseStatus("failed") as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    // Select the failed gating case; the fix-issue panel opens with the notes +
+    // file action (AC1).
+    const row = await screen.findByTestId("case-row");
+    fireEvent.click(row);
+    expect(await screen.findByRole("button", { name: /File fix issue & block gate/ })).toBeTruthy();
+  });
+
+  it("does not open the fix-issue panel for a non-failed selected case", async () => {
+    mockedApi.fetchGate.mockResolvedValue(
+      gateState({ status: "pending", unresolvedCaseIds: ["TC-024"] }) as never,
+    );
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planWithCaseStatus("passed") as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    const row = await screen.findByTestId("case-row");
+    fireEvent.click(row);
+    // The case detail opens, but a passed case offers no fix-issue action.
+    await screen.findByRole("button", { name: "Close case detail" });
+    expect(screen.queryByRole("button", { name: /File fix issue & block gate/ })).toBeNull();
   });
 
   it("invokes onBack from the back action", async () => {

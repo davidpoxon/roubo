@@ -5,10 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../../lib/api";
 import { useGate, useInvalidateGates, useSignOffGate, useReopenGate } from "../../hooks/useGates";
 import { testbenchPlanQueryKey } from "../../hooks/useTestbenchPlan";
-import { buildRollup, flattenRollup } from "./rollup";
+import { buildRollup, flattenRollup, effectiveCaseStatus } from "./rollup";
 import CaseList from "./CaseList";
 import CaseDetail from "./CaseDetail";
 import GateStatePanel from "./GateStatePanel";
+import FileFixIssuePanel from "./FileFixIssuePanel";
 import Spinner from "../Spinner";
 
 // Batch view (#702, FR-008, AC2/AC3). Opening a gate shows only its gating
@@ -176,6 +177,14 @@ export default function BatchView({
   // (issue #436).
   const noGatingCases = gate.status === "no_gating_cases" || planQuery.data.plan.cases.length === 0;
 
+  // The fix-issue panel opens when the selected gating case is FAILED (US-006,
+  // TC-045 S001): the operator captures notes and files a tracker issue that
+  // blocks the gate. Effective status resolves an override over the derived mark,
+  // via the same helper the rollup uses.
+  const selectedCaseFailed =
+    selectedCase !== null &&
+    effectiveCaseStatus(selectedCase.id, planQuery.data.results) === "failed";
+
   return frame(
     <>
       <GateStatePanel gate={gate} />
@@ -193,25 +202,39 @@ export default function BatchView({
           </p>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 gap-4">
-          <div className={selectedCase ? "w-2/5 min-w-0 flex flex-col" : "flex-1 flex flex-col"}>
-            <CaseList
-              rows={flatRows}
-              onSelect={setSelectedCaseId}
-              selectedCaseId={selectedCaseId}
-            />
-          </div>
-          {selectedCase && (
-            <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
-              <CaseDetail
-                projectId={projectId}
-                benchId={benchId}
-                testCase={selectedCase}
-                result={planQuery.data.results?.caseResults[selectedCase.id]}
-                onBack={() => setSelectedCaseId(undefined)}
-                onMarked={handleMarked}
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
+          <div className="flex flex-1 min-h-0 gap-4">
+            <div className={selectedCase ? "w-2/5 min-w-0 flex flex-col" : "flex-1 flex flex-col"}>
+              <CaseList
+                rows={flatRows}
+                onSelect={setSelectedCaseId}
+                selectedCaseId={selectedCaseId}
               />
             </div>
+            {selectedCase && (
+              <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
+                <CaseDetail
+                  projectId={projectId}
+                  benchId={benchId}
+                  testCase={selectedCase}
+                  result={planQuery.data.results?.caseResults[selectedCase.id]}
+                  onBack={() => setSelectedCaseId(undefined)}
+                  onMarked={handleMarked}
+                />
+              </div>
+            )}
+          </div>
+          {selectedCase && selectedCaseFailed && (
+            // Keyed by the case id so it remounts (and resets its notes + filed
+            // record) when a different failed case is selected.
+            <FileFixIssuePanel
+              key={selectedCase.id}
+              projectId={projectId}
+              benchId={benchId}
+              gateId={gateId}
+              failedCaseId={selectedCase.id}
+              onFiled={handleMarked}
+            />
           )}
         </div>
       )}

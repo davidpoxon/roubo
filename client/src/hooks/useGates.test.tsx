@@ -17,6 +17,7 @@ import {
   useResetGateOverrides,
   useSignOffGate,
   useReopenGate,
+  useFileFixIssue,
   gatesQueryKey,
   gateQueryKey,
 } from "./useGates";
@@ -180,5 +181,34 @@ describe("useReopenGate", () => {
     expect(mockedApi.reopenGate).toHaveBeenCalledWith("p1", "WU-099");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gate", "p1", "WU-099"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+  });
+});
+
+// #706 (FR-009/FR-010): filing a fix issue resolves a FixIssueRecord for BOTH a
+// 201 complete and a 207 link_pending outcome (the api call does not throw on
+// 207), and on success invalidates the gate + gates + the bench's testbench plan
+// so the still-blocked state re-reads.
+describe("useFileFixIssue", () => {
+  it("files via the endpoint and invalidates the gate, gates, and testbench plan on success", async () => {
+    mockedApi.fileFixIssue.mockResolvedValue({
+      fixIssueRef: "acme/app#452",
+      gateRef: "acme/app#451",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-07-08T00:00:00.000Z",
+    } as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useFileFixIssue("p1", 3, "WU-040"), {
+      queryClient,
+    });
+    const body = { failedCaseId: "TC-024", notes: "It broke" };
+    await act(async () => {
+      await result.current.mutateAsync(body);
+    });
+    expect(mockedApi.fileFixIssue).toHaveBeenCalledWith("p1", "WU-040", body);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gate", "p1", "WU-040"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "p1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["testbenchPlan", "p1", 3] });
   });
 });

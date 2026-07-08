@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { FileFixIssueRequest } from "@roubo/shared";
 import * as api from "../lib/api";
 import type { GateSplitPart } from "../lib/api";
+import { testbenchPlanQueryKey } from "./useTestbenchPlan";
 
 // React Query hooks for the verify-gate state (#702, FR-012). Gates are
 // PROJECT-level (their plan + results are read from the registered project's
@@ -117,6 +119,27 @@ export function useReopenGate(projectId: string) {
     onSuccess: (_data, gateId) => {
       queryClient.invalidateQueries({ queryKey: gateQueryKey(projectId, gateId) });
       queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+    },
+  });
+}
+
+// File a fix issue for a failed gating case and block the gate (#706,
+// FR-009/FR-010, US-006), mirroring useSignOffGate. The mutation resolves the
+// FixIssueRecord for BOTH a 201 complete and a 207 link_pending outcome (the api
+// call does not throw on 207), so the panel branches on `record.linkStatus`. On
+// success (either outcome) the gate + gates queries are invalidated so the
+// gate-state panel re-reads its still-blocked state, and the bench's testbench
+// plan is invalidated so the case list and notes refetch (a failed case keeps the
+// gate non-passable regardless of the link's outcome). A real failure (422 / 409 /
+// 400) rejects and the caller surfaces the message; no invalidation runs.
+export function useFileFixIssue(projectId: string, benchId: number, gateId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: FileFixIssueRequest) => api.fileFixIssue(projectId, gateId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gateQueryKey(projectId, gateId) });
+      queryClient.invalidateQueries({ queryKey: gatesQueryKey(projectId) });
+      queryClient.invalidateQueries({ queryKey: testbenchPlanQueryKey(projectId, benchId) });
     },
   });
 }
