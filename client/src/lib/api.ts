@@ -64,6 +64,8 @@ import type {
   StatusCategoriesResponse,
   SourceOptionsResult,
   SourceSelection,
+  FileFixIssueRequest,
+  FixIssueRecord,
 } from "@roubo/shared";
 import type {
   Note,
@@ -653,6 +655,27 @@ export function signOffGate(projectId: string, gateId: string): Promise<GateStat
 export function reopenGate(projectId: string, gateId: string): Promise<GateState> {
   return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}/sign-off`, {
     method: "DELETE",
+  });
+}
+
+// File a fix issue for a failed gating case and wire it to block the gate (#706,
+// FR-009/FR-010, US-006). Returns the FixIssueRecord for BOTH a 201 complete and
+// a 207 link_pending outcome: `request` resolves any 2xx (Response.ok spans
+// 200-299) and the server sends the same record body for both, so callers branch
+// on `record.linkStatus`, NEVER on a thrown error. Only a real failure rejects
+// with an ApiError: 422 (empty notes or the plugin lacks the capability), 409 (no
+// tracker ref / no active integration), 400 (path-escaping evidence). The optional
+// `existingFixRef` on the body drives the link-only retry (NFR-003): the filer
+// then runs only the outstanding block-link step against the already-created ref,
+// never a duplicate create.
+export function fileFixIssue(
+  projectId: string,
+  gateId: string,
+  body: FileFixIssueRequest,
+): Promise<FixIssueRecord> {
+  return request(`/projects/${projectId}/gates/${encodeURIComponent(gateId)}/fix-issues`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 
