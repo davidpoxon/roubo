@@ -48,12 +48,24 @@ vi.mock("../services/issue-assignment.js", () => ({
   unassignIssue: vi.fn(),
 }));
 
-vi.mock("../services/start-gate.js", () => ({
-  assertGateOpen: vi.fn(),
+// Keep fetchIssueForStart real so the route's actual prefetch-and-bound path is
+// exercised (it calls the mocked pluginManager.invoke / resolveEnforceIssueDependencies);
+// only assertGateOpen is stubbed to drive the gate outcomes.
+vi.mock("../services/start-gate.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/start-gate.js")>();
+  return {
+    ...actual,
+    assertGateOpen: vi.fn(),
+  };
+});
+
+vi.mock("../services/project-registry.js", () => ({
+  resolveEnforceIssueDependencies: vi.fn(),
 }));
 
 import router from "./issues.js";
 import { assertGateOpen } from "../services/start-gate.js";
+import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
@@ -1004,6 +1016,24 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
 
       expect(res.status).toBe(409);
       expect(res.body.code).toBe("GATE_INDETERMINATE");
+      expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
+    });
+
+    it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#438)", async () => {
+      // Enforcement ON: fetchIssueForStart bounds the getIssue prefetch and, on a
+      // hung or failing read, throws GATE_INDETERMINATE. That must surface as a
+      // clean 409, not be remapped as a 502/504 plugin RPC error, and the gate
+      // proper is never reached.
+      vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+      vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("plugin hung"));
+
+      const res = await request(app)
+        .post("/p1/benches/1/assign-issue")
+        .send({ externalId: "ROUBO-42" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("GATE_INDETERMINATE");
+      expect(assertGateOpen).not.toHaveBeenCalled();
       expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
     });
   });
