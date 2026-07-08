@@ -672,16 +672,28 @@ router.post(
         throw new RouteError(400, "existingFixRef must be a string when present");
       }
 
-      // The gate must carry a tracker ref to be blockable: a gate with no filed
-      // tracker issue has no block target, so degrade loudly (FR-011) rather than
-      // a silent no-op.
-      const gateRef = loaded.unit.tracker?.ref;
-      if (!gateRef) {
+      // The gate's block targets must EACH carry a tracker ref to be blockable: a
+      // normally-loaded gate blocks its own issue; a merged/split synthetic gate
+      // has no filed issue of its own, so it blocks its source gate(s)' issues
+      // (issue #435 for merges, issue #445 for splits). One fix issue blocks every
+      // target (mirroring "sign-off closes every source"). A target with no filed
+      // tracker issue has no block target, so degrade loudly (FR-011) rather than a
+      // silent no-op; guard before filing so a partly-tracked merge never files an
+      // issue that can only block some sources.
+      const targets = signOffTargets(loaded);
+      const untracked = targets.filter((t) => !t.tracker?.ref);
+      if (untracked.length > 0) {
         throw new RouteError(
           409,
-          `Gate '${req.params.gateId}' has no tracker issue, so a fix issue cannot be wired to block it.`,
+          loaded.mergedFrom
+            ? `Gate '${req.params.gateId}' cannot be blocked by a fix issue: source gate(s) ${untracked
+                .map((t) => t.id)
+                .join(", ")} have no tracker issue.`
+            : `Gate '${req.params.gateId}' has no tracker issue, so a fix issue cannot be wired to block it.`,
         );
       }
+      const targetRefs = targets.flatMap((t) => (t.tracker?.ref ? [t.tracker.ref] : []));
+      const [gateRef, ...additionalGateRefs] = targetRefs;
       const repoFullName = repoFullNameFromRef(gateRef);
       if (repoFullName === null) {
         throw new RouteError(
@@ -717,6 +729,7 @@ router.post(
         repoFullName,
         failedCaseId,
         gateRef,
+        ...(additionalGateRefs.length > 0 ? { additionalGateRefs } : {}),
         notes,
         ...(existingFixRef ? { existingFixRef } : {}),
       });

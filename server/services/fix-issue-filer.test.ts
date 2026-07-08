@@ -215,3 +215,72 @@ describe("FixIssueFiler: capability-absent degrades up front, never an orphan is
     expect(addBlockedBy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("FixIssueFiler: one fix issue blocks every source-gate ref for a merged/split gate (issue #435/#445)", () => {
+  it("links the created fix issue against gateRef AND each additionalGateRef", async () => {
+    const { deps, createIssue, addBlockedBy } = makeDeps();
+
+    const record = await fileFixIssueAndBlock(
+      PROJECT,
+      { ...PARAMS, additionalGateRefs: ["o/r#453"] },
+      deps,
+    );
+
+    // Exactly one fix issue is created, and it blocks BOTH source refs.
+    expect(createIssue).toHaveBeenCalledTimes(1);
+    expect(addBlockedBy).toHaveBeenCalledTimes(2);
+    expect(addBlockedBy).toHaveBeenCalledWith(PROJECT, {
+      blockedRef: "o/r#451",
+      blockerRef: "o/r#452",
+    });
+    expect(addBlockedBy).toHaveBeenCalledWith(PROJECT, {
+      blockedRef: "o/r#453",
+      blockerRef: "o/r#452",
+    });
+    // The record's gateRef stays the primary target.
+    expect(record).toMatchObject({ gateRef: "o/r#451", linkStatus: "complete" });
+  });
+
+  it("surfaces link_pending (created ref) when a later source link fails", async () => {
+    let calls = 0;
+    const addBlockedBy = vi.fn(async () => {
+      calls += 1;
+      // First link succeeds, the second (additional source) fails transiently.
+      if (calls >= 2) throw new Error("transient tracker error");
+    });
+    const { deps, createIssue } = makeDeps({
+      addBlockedBy: addBlockedBy as unknown as FixIssueFilerDeps["addBlockedBy"],
+    });
+
+    const record = await fileFixIssueAndBlock(
+      PROJECT,
+      { ...PARAMS, additionalGateRefs: ["o/r#453"] },
+      deps,
+    );
+
+    // The issue WAS created; a partial link surfaces link_pending, never a re-file.
+    expect(createIssue).toHaveBeenCalledTimes(1);
+    expect(record).toMatchObject({ fixIssueRef: "o/r#452", linkStatus: "link_pending" });
+  });
+
+  it("link-only retry re-links every target against the existing ref", async () => {
+    const { deps, createIssue, addBlockedBy } = makeDeps();
+
+    await fileFixIssueAndBlock(
+      PROJECT,
+      { ...PARAMS, additionalGateRefs: ["o/r#453"], existingFixRef: "o/r#452" },
+      deps,
+    );
+
+    expect(createIssue).not.toHaveBeenCalled();
+    expect(addBlockedBy).toHaveBeenCalledTimes(2);
+    expect(addBlockedBy).toHaveBeenCalledWith(PROJECT, {
+      blockedRef: "o/r#451",
+      blockerRef: "o/r#452",
+    });
+    expect(addBlockedBy).toHaveBeenCalledWith(PROJECT, {
+      blockedRef: "o/r#453",
+      blockerRef: "o/r#452",
+    });
+  });
+});

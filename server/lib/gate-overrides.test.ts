@@ -210,6 +210,74 @@ describe("applyGateOverrides - split (AC2, TC-023)", () => {
     expect(result.gates.map((g) => g.unit.id)).not.toContain("PHASE-2");
   });
 
+  it("carries the source gate as mergedFrom on every split part so sign-off can fan out (issue #445)", () => {
+    const loaded = [
+      gate(
+        "PHASE-2",
+        ["TC-019", "TC-020", "TC-024", "TC-025"],
+        ["WU-031", "WU-032", "WU-033", "WU-034"],
+      ),
+    ];
+    const result = applyGateOverrides(
+      loaded,
+      doc([
+        {
+          op: "split",
+          gateId: "PHASE-2",
+          parts: [
+            { label: "A", coversWorkUnitIds: ["WU-031", "WU-032"] },
+            { label: "B", coversWorkUnitIds: ["WU-033", "WU-034"] },
+          ],
+        },
+      ]),
+      caseMap,
+    );
+    expect(result.gates).toHaveLength(2);
+    for (const part of result.gates) {
+      // The synthetic split unit itself stays tracker-less (it has no filed issue).
+      expect(part.unit.tracker).toBeUndefined();
+      // Each part carries the real source gate (which would carry its own tracker),
+      // so the route can fan sign-off / reopen / signed-off / fix-issue out over it.
+      expect(part.mergedFrom?.map((u) => u.id)).toEqual(["PHASE-2"]);
+    }
+  });
+
+  it("flattens a split-of-a-merge's mergedFrom to the filed leaf sources (issue #445)", () => {
+    // Merge G1+G2, then split the synthetic merged gate: each part's mergedFrom
+    // must be the two real leaves, never the tracker-less merged intermediate.
+    const leafMap: WorkUnitCaseMap = new Map([
+      ["WU-031", ["TC-019"]],
+      ["WU-032", ["TC-020"]],
+    ]);
+    const loaded = [gate("G1", ["TC-019"], ["WU-031"]), gate("G2", ["TC-020"], ["WU-032"])];
+    const mergedId = mintMergeGateId(["G1", "G2"]);
+    const result = applyGateOverrides(
+      loaded,
+      doc([
+        { op: "merge", gateIds: ["G1", "G2"] },
+        {
+          op: "split",
+          gateId: mergedId,
+          parts: [
+            { label: "A", coversWorkUnitIds: ["WU-031"] },
+            { label: "B", coversWorkUnitIds: ["WU-032"] },
+          ],
+        },
+      ]),
+      leafMap,
+    );
+    expect(result.gates).toHaveLength(2);
+    for (const part of result.gates) {
+      expect(part.mergedFrom?.map((u) => u.id)).toEqual(["G1", "G2"]);
+    }
+  });
+
+  it("leaves mergedFrom absent on a passthrough gate that is not split", () => {
+    const loaded = [gate("PHASE-2", ["TC-019"], ["WU-031"])];
+    const result = applyGateOverrides(loaded, emptyGateOverrides(), caseMap);
+    expect(result.gates[0].mergedFrom).toBeUndefined();
+  });
+
   it("drops a split whose parts do not cover every source WU (loss)", () => {
     const loaded = [gate("PHASE-2", ["TC-019", "TC-020"], ["WU-031", "WU-032"])];
     const result = applyGateOverrides(

@@ -57,11 +57,15 @@ export class WorkUnitsValidationError extends Error {
 export interface LoadedVerifyUnit {
   slug: string;
   unit: VerifyUnit;
-  // For an operator-merged synthetic gate (gate-overrides.ts): the real source
-  // gates it was merged from, flattened to their filed leaves, each carrying its
-  // own tracker manifestation. A merged gate has no single filed issue of its own,
-  // so the sign-off / reopen / signed-off computation fans out over these sources
-  // (issue #435). Absent on a normally-loaded gate and on a split gate.
+  // For an operator-merged OR operator-split synthetic gate (gate-overrides.ts):
+  // the real source gate(s) it was derived from, flattened to their filed leaves,
+  // each carrying its own tracker manifestation. A merged/split synthetic gate has
+  // no single filed issue of its own, so the sign-off / reopen / signed-off /
+  // fix-issue computations fan out over these sources (issue #435 for merges,
+  // issue #445 for splits). A merged gate's leaves are the union of every merged
+  // source; each split part carries the single source gate's filed leaves (so
+  // signing off any part closes the source issue). Absent only on a normally-
+  // loaded gate, which is its own single tracker-bearing target.
   mergedFrom?: readonly VerifyUnit[];
 }
 
