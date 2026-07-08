@@ -47,6 +47,17 @@ vi.mock("../services/work-unit-loader.js", async () => {
   return {
     WorkUnitsValidationError: actual.WorkUnitsValidationError,
     loadVerifyUnits: vi.fn(),
+    buildWorkUnitCaseMap: vi.fn(() => new Map()),
+  };
+});
+
+vi.mock("../services/gate-override-store.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/gate-override-store.js")>(
+    "../services/gate-override-store.js",
+  );
+  return {
+    GateOverrideStoreError: actual.GateOverrideStoreError,
+    loadOverrides: vi.fn(),
   };
 });
 
@@ -56,6 +67,8 @@ import * as benchManager from "../services/bench-manager.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import * as discovery from "../lib/testbench-spec-discovery.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
+import * as gateOverrideStore from "../services/gate-override-store.js";
+import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
 
 const app = express();
 app.use(express.json());
@@ -245,6 +258,9 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
       gate("WU-100", ["TC-001", "TC-002"]),
       gate("WU-200", ["TC-003"]),
     ] as never);
+    // Default: no operator regroupings recorded, so effective == raw.
+    vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue(emptyGateOverrides());
+    vi.mocked(workUnitLoader.buildWorkUnitCaseMap).mockReturnValue(new Map());
   });
 
   it("returns the unchanged full plan with no marker when ?gateIds is absent", async () => {
@@ -287,6 +303,48 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
     });
     const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
     expect(res.status).toBe(400);
+  });
+
+  // #434: a synthetic operator-merged gate id (MERGED:...) matches no raw
+  // work-unit id, so the subset filter must resolve the EFFECTIVE (override-
+  // applied) gates. With a recorded merge of WU-100 + WU-200, the merged batch
+  // resolves to the deduped union of both source gates' cases, not zero.
+  it("resolves a synthetic merged gate id to the deduped union of its source gates' cases", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      gate("WU-100", ["TC-001", "TC-002"]),
+      gate("WU-200", ["TC-002", "TC-003"]),
+    ] as never);
+    vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue({
+      ...emptyGateOverrides(),
+      ops: [{ op: "merge", gateIds: ["WU-100", "WU-200"] }],
+    });
+    // The synthetic id contains a "+", which a real client URL-encodes (a raw "+"
+    // in a query string decodes to a space); encode it the same way here.
+    const mergedId = "MERGED:WU-100+WU-200";
+    const res = await request(app).get(
+      `/p1/benches/1/testbench/plan?gateIds=${encodeURIComponent(mergedId)}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.plan.cases.map((c: { id: string }) => c.id)).toEqual([
+      "TC-001",
+      "TC-002",
+      "TC-003",
+    ]);
+    expect(res.body.filteredToGateIds).toEqual([mergedId]);
+  });
+
+  // #434: resolving effective gates loads the project's overrides document, which
+  // throws GateOverrideStoreError on a corrupt / invalid persisted doc. That is a
+  // bad-request-shaped misconfiguration (400), not a 500, mirroring gates.ts.
+  it("400 for a corrupt/invalid persisted gate-overrides document in the filter path", async () => {
+    vi.mocked(gateOverrideStore.loadOverrides).mockImplementation(() => {
+      throw new gateOverrideStore.GateOverrideStoreError("corrupt overrides document", "SCHEMA", [
+        "bad",
+      ]);
+    });
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("SCHEMA");
   });
 });
 

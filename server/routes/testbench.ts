@@ -34,6 +34,9 @@ import {
 import { RouteError, parseIntParam } from "./helpers.js";
 import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
 import * as workUnitLoader from "../services/work-unit-loader.js";
+import * as gateOverrideStore from "../services/gate-override-store.js";
+import { GateOverrideStoreError } from "../services/gate-override-store.js";
+import { applyGateOverrides } from "../lib/gate-overrides.js";
 
 const router = Router();
 
@@ -137,6 +140,13 @@ function handleError(res: import("express").Response, err: unknown): void {
     res.status(400).json({ error: err.message, errors: err.errors });
     return;
   }
+  // A corrupt / invalid persisted gate-overrides document (loaded in the
+  // ?gateIds= subset path) is likewise bad-request-shaped, not a 500. Mirrors the
+  // sibling gates.ts handler: INVALID_PROJECT_ID / PARSE / SCHEMA all map to 400.
+  if (err instanceof GateOverrideStoreError) {
+    res.status(400).json({ error: err.message, code: err.code, errors: err.errors });
+    return;
+  }
   res.status(500).json({ error: (err as Error).message });
 }
 
@@ -205,8 +215,11 @@ function parseGateIdsParam(raw: unknown): string[] | undefined {
 // are narrowed to the union of the named gates' implements.test_case_ids (the raw
 // declared gating set, not the L3/L4-narrowed set: the gate evaluator owns that
 // narrowing), and a `filteredToGateIds` marker is added to the response so an
-// existing no-param caller gets the unchanged full-plan shape. An unknown gate id
-// in the filter contributes nothing (no error): the union of known gates wins.
+// existing no-param caller gets the unchanged full-plan shape. The named ids are
+// resolved against the EFFECTIVE (operator override-applied) gates, so a synthetic
+// merged gate id (MERGED:...) resolves to the union of its source gates' cases
+// (#434), not zero. An unknown gate id in the filter contributes nothing (no
+// error): the union of known gates wins.
 router.get(
   "/:projectId/benches/:id/testbench/plan",
   planReadRateLimiter,
@@ -223,11 +236,19 @@ router.get(
         return;
       }
 
-      // Resolve the named gates from this spec's work-units and union their
-      // declared gating sets. Gates live alongside the plan under the bench's own
-      // worktree, so load from the same rootPath + slug the plan was read from.
-      const gates = workUnitLoader.loadVerifyUnits(rootPath, slug);
-      const selected = gates.filter((g) => gateIds.includes(g.unit.id));
+      // Resolve the named gates from this spec's EFFECTIVE (override-applied)
+      // gating set and union their declared gating sets. A synthetic
+      // operator-merged gate id (MERGED:...) matches no raw work-unit id, so the
+      // raw units must first have the project's recorded merge / split overrides
+      // applied (mirroring gates.ts effectiveGates), or a merged batch resolves to
+      // zero cases (#434). Gates live alongside the plan under the bench's own
+      // worktree, so load the units and case map from the same rootPath + slug the
+      // plan was read from; the overrides document is keyed by projectId.
+      const loaded = workUnitLoader.loadVerifyUnits(rootPath, slug);
+      const overrides = gateOverrideStore.loadOverrides(req.params.projectId);
+      const caseMap = workUnitLoader.buildWorkUnitCaseMap(rootPath, slug);
+      const effective = applyGateOverrides(loaded, overrides, caseMap).gates;
+      const selected = effective.filter((g) => gateIds.includes(g.unit.id));
       const subsetCaseIds = new Set<string>();
       for (const g of selected) {
         for (const caseId of g.unit.implements.test_case_ids) {
