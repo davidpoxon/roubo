@@ -112,11 +112,34 @@ function denyPermission(
 }
 
 function wrapInternal(pluginId: string, methodName: string, log: HostLogger, err: unknown): never {
-  const message = err instanceof Error ? err.message : String(err);
-  const code =
+  const baseMessage = err instanceof Error ? err.message : String(err);
+  const topCode =
     err && typeof err === "object" && "code" in err
       ? String((err as { code: unknown }).code)
-      : "internal-error";
+      : undefined;
+  // undici's fetch rejects with a bare TypeError("fetch failed") and hangs the
+  // real reason (TLS/DNS/connection codes and their human-readable message) off
+  // err.cause. Surface that cause into the wrapped message and code so the
+  // integration-test classifier can detect TLS failures (e.g.
+  // DEPTH_ZERO_SELF_SIGNED_CERT / "self signed certificate") and offer the
+  // inline self-signed-TLS opt-in (issue #442). This is additive: when err has
+  // no cause the message and code are byte-identical to the prior behaviour.
+  const cause =
+    err && typeof err === "object" && "cause" in err
+      ? (err as { cause: unknown }).cause
+      : undefined;
+  const causeCode =
+    cause && typeof cause === "object" && "code" in cause
+      ? String((cause as { code: unknown }).code)
+      : undefined;
+  const causeMessage =
+    cause instanceof Error ? cause.message : cause != null ? String(cause) : undefined;
+  const detailParts: string[] = [];
+  if (causeCode) detailParts.push(causeCode);
+  if (causeMessage && causeMessage !== baseMessage) detailParts.push(causeMessage);
+  const message =
+    detailParts.length > 0 ? `${baseMessage}: ${detailParts.join(": ")}` : baseMessage;
+  const code = topCode ?? causeCode ?? "internal-error";
   log("error", `${pluginId}.${methodName} failed: ${code}: ${message}`);
   throw new ResponseError(INTERNAL_ERROR_CODE, message, { code });
 }
