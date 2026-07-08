@@ -466,6 +466,17 @@ describe("classifyError", () => {
     expect(classifyError("401 Unauthorized")).toBe("auth");
     expect(classifyError("something else")).toBe("other");
   });
+
+  it("classifies the flattened undici cause message as tls, not other (issue #442)", () => {
+    // The message wrapInternal now produces for a self-signed-cert transport
+    // failure: the bare "fetch failed" prefix plus the surfaced err.cause code
+    // and message. Before the fix this was a bare "fetch failed" and fell to
+    // "other", hiding the inline self-signed-TLS opt-in.
+    const flattened =
+      "fetch failed: DEPTH_ZERO_SELF_SIGNED_CERT: self signed certificate in certificate chain";
+    expect(classifyError(flattened)).toBe("tls");
+    expect(classifyError("fetch failed")).toBe("other");
+  });
 });
 
 describe("errorMessage", () => {

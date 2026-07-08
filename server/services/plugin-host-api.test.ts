@@ -15,6 +15,7 @@ import {
 } from "./plugin-host-api.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { setInstanceHost, clearInstanceRegistry } from "./plugin-instance-registry.js";
+import { classifyError } from "./integration-test.js";
 
 // Self-signed cert for localhost, duplicated from plugin-http.test.ts (the
 // canonical source). Embedded so the host.fetch TLS test stays hermetic.
@@ -639,6 +640,41 @@ describe("plugin-host-api", () => {
         expect(responseErr).toBeInstanceOf(ResponseError);
         expect(responseErr.message).toBe("dns failure");
         expect(responseErr.data?.code).toBe("ENOTFOUND");
+      }
+    });
+
+    it("surfaces the undici cause (cert code + message) so a self-signed TLS failure classifies as tls (issue #442)", async () => {
+      const manifest = makeManifest([], ["api.example.com"]);
+      const connection = makeConnection();
+      const store = makeStoreSpy();
+      // The real undici transport shape: fetch rejects with a bare
+      // TypeError("fetch failed") whose cert reason lives on err.cause, not on
+      // err.message. wrapInternal must flatten the cause into the message so the
+      // integration-test classifier can see the cert string (a pre-flattened
+      // cert-string message would never reach classifyError otherwise).
+      const undiciError = Object.assign(new TypeError("fetch failed"), {
+        cause: Object.assign(new Error("self signed certificate in certificate chain"), {
+          code: "DEPTH_ZERO_SELF_SIGNED_CERT",
+        }),
+      });
+      const fetcher = vi.fn().mockRejectedValue(undiciError);
+      await registerHostHandlers(connection, makeRecord(manifest), log, { store, fetcher });
+
+      const handler = need(connection.handlers.get("host.fetch"), "host.fetch");
+      try {
+        await handler({ url: "https://api.example.com/", init: {} });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ code: string }>;
+        expect(responseErr).toBeInstanceOf(ResponseError);
+        // The wrapped message is no longer a bare "fetch failed": it carries the
+        // cert code and human-readable cause so classifyError returns "tls".
+        expect(responseErr.message).not.toBe("fetch failed");
+        expect(responseErr.message).toContain("DEPTH_ZERO_SELF_SIGNED_CERT");
+        expect(responseErr.message).toContain("self signed certificate in certificate chain");
+        expect(classifyError(responseErr.message)).toBe("tls");
+        // The top-level TypeError has no code, so the cause's code is surfaced.
+        expect(responseErr.data?.code).toBe("DEPTH_ZERO_SELF_SIGNED_CERT");
       }
     });
   });
