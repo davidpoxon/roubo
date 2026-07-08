@@ -7,6 +7,7 @@ import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { resolveActivePlugin } from "../services/active-plugin.js";
 import { assertGateOpen } from "../services/start-gate.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import {
@@ -113,6 +114,21 @@ router.post("/:projectId/benches", async (req, res) => {
     if (typeof externalId !== "string" || externalId.length === 0) {
       res.status(400).json({ error: "externalId must be a non-empty string" });
       return;
+    }
+
+    // #437: when enforcement is ON and there is no active integration plugin,
+    // run the gate before getActivePluginOrRespond so the refusal surfaces the
+    // gate-state contract (409 GATE_INDETERMINATE, per NFR-003 / TC-033) rather
+    // than the generic 503 no-active-integration that would otherwise fire first
+    // and hide the gate reason. With enforcement OFF, assertGateOpen is a no-op
+    // (no pluginId, no prefetchedIssue) and the 503 below is preserved unchanged.
+    if (!resolveActivePlugin(req.params.projectId)) {
+      try {
+        await assertGateOpen(req.params.projectId, externalId, undefined);
+      } catch (err) {
+        handleCreateBenchError(res, err);
+        return;
+      }
     }
 
     const active = await getActivePluginOrRespond(req.params.projectId, res);
