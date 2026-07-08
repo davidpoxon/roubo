@@ -34,6 +34,9 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
+    // The blockedBy derivation (#433) reads the full per-slug unit graph; default
+    // to an empty graph so these sign-off / reopen / GET tests derive no blockers.
+    loadAllUnitsForSlug: vi.fn(() => []),
   };
 });
 

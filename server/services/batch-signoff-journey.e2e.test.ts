@@ -75,6 +75,10 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
+    // The blockedBy derivation (#433) reads the full per-slug unit graph. This
+    // journey models Phase 3's block via the plugin issue's blockedBy, not the
+    // route's derived field, so an empty graph (no route-derived blockers) is fine.
+    loadAllUnitsForSlug: vi.fn(() => []),
   };
 });
 

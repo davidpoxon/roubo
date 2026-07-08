@@ -23,7 +23,9 @@ const nonPassed: GateState = {
   gateId: "WU-099",
   status: "failed",
   unresolvedCaseIds: ["TC-001", "TC-002"],
+  gatingCaseIds: ["TC-001", "TC-002"],
   coveringUnitIds: ["WU-010"],
+  blockedBy: [],
   signedOff: false,
 };
 
@@ -48,7 +50,9 @@ describe("GateStatePanel", () => {
           gateId: "WU-099",
           status: "passed",
           unresolvedCaseIds: [],
+          gatingCaseIds: [],
           coveringUnitIds: [],
+          blockedBy: [],
           signedOff: false,
         }}
       />,
@@ -65,7 +69,9 @@ describe("GateStatePanel", () => {
           gateId: "WU-099",
           status: "no_gating_cases",
           unresolvedCaseIds: [],
+          gatingCaseIds: [],
           coveringUnitIds: [],
+          blockedBy: [],
           signedOff: false,
         }}
       />,

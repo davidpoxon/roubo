@@ -60,6 +60,12 @@ export interface GateState {
   // The gating case ids whose effective status is not `passed` (FR-004): the
   // remaining human-verification work. Empty exactly when the gate is passed.
   unresolvedCaseIds: string[];
+  // The full narrowed gating set: every case this gate evaluates over, after the
+  // default-policy narrowing (L1/L2 + e2e_flow). Its length is the gate's total
+  // gating-case count, surfaced on the Batches overview (issue #433). Unlike
+  // `unresolvedCaseIds` this is populated in every rung including `passed`, so the
+  // count always traces to the same set the evaluator gates on.
+  gatingCaseIds: string[];
   // The gate's `covers` WU- ids, surfaced as the units a verifier follows up on
   // for the unresolved cases (NFR-004 observability). Empty when nothing is
   // unresolved or the gate covers nothing.
@@ -149,7 +155,12 @@ export function evaluateGate(
   // NFR-007's fail-closed intent (issue #436). Sign-off stays gated on `passed`,
   // so a no-gating-cases phase is correctly non-signable.
   if (gatingCaseIds.length === 0) {
-    return { status: "no_gating_cases", unresolvedCaseIds: [], coveringUnitIds: [] };
+    return {
+      status: "no_gating_cases",
+      unresolvedCaseIds: [],
+      gatingCaseIds: [],
+      coveringUnitIds: [],
+    };
   }
 
   // (1) STALE: results absent, or the results' planHash does not match the live
@@ -158,6 +169,7 @@ export function evaluateGate(
     return {
       status: "stale",
       unresolvedCaseIds: [...gatingCaseIds],
+      gatingCaseIds: [...gatingCaseIds],
       coveringUnitIds: gatingCaseIds.length > 0 ? coveringUnitIds : [],
     };
   }
@@ -194,15 +206,30 @@ export function evaluateGate(
 
   // (2) FAILED: any gating case effective status is failed or blocked.
   if (anyFailedOrBlocked) {
-    return { status: "failed", unresolvedCaseIds, coveringUnitIds };
+    return {
+      status: "failed",
+      unresolvedCaseIds,
+      gatingCaseIds: [...gatingCaseIds],
+      coveringUnitIds,
+    };
   }
 
   // (3) PENDING: any gating case is not_started / in_progress, absent, or
   // orphaned (and none failed/blocked).
   if (anyPending) {
-    return { status: "pending", unresolvedCaseIds, coveringUnitIds };
+    return {
+      status: "pending",
+      unresolvedCaseIds,
+      gatingCaseIds: [...gatingCaseIds],
+      coveringUnitIds,
+    };
   }
 
   // (4) PASSED: every gating case effective status is passed. Nothing unresolved.
-  return { status: "passed", unresolvedCaseIds: [], coveringUnitIds: [] };
+  return {
+    status: "passed",
+    unresolvedCaseIds: [],
+    gatingCaseIds: [...gatingCaseIds],
+    coveringUnitIds: [],
+  };
 }

@@ -54,6 +54,7 @@ import {
 } from "../lib/safe-path.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
 import type { GateState, VerifyUnit } from "../lib/gate-evaluator.js";
+import type { Unit } from "@roubo/shared/work-units-contract";
 import {
   validateGateOverrides,
   type GateOverrideOp,
@@ -94,8 +95,14 @@ const gateWriteRateLimiter = rateLimit({
 // own id, so a list caller can tell the entries apart. The evaluator deliberately
 // omits an id to stay pure (no identity / clock); the route stamps it from the
 // loaded unit (architecture.md Data model lists `gateId` on GateState).
+//
+// It also stamps the gate's `milestone` (phase) from the loaded unit, so the
+// Batches overview can title each card by phase rather than by bare gate id
+// (issue #433). Null when the unit carries no milestone (e.g. a synthetic
+// merged/split gate); the client then falls back to the gate id.
 interface GateStateResponse extends GateState {
   gateId: string;
+  milestone: string | null;
 }
 
 // Resolve a registered project's repoPath, or throw a 404 RouteError. Mirrors the
@@ -232,6 +239,7 @@ function evaluateLoadedGate(
       state = {
         status: "stale",
         unresolvedCaseIds,
+        gatingCaseIds: [...unresolvedCaseIds],
         coveringUnitIds: unresolvedCaseIds.length > 0 ? (unit.covers ?? []) : [],
       };
     } else {
@@ -239,7 +247,7 @@ function evaluateLoadedGate(
     }
   }
 
-  return { gateId: unit.id, ...state };
+  return { gateId: unit.id, milestone: unit.milestone ?? null, ...state };
 }
 
 // A gate response with the derived `signedOff` signal attached (issue #830).
@@ -290,6 +298,106 @@ async function withSignedOff(
   } catch {
     return { ...response, signedOff: false };
   }
+}
+
+// The fully projected gate response the overview consumes: the signed-off gate
+// state plus its derived upstream `blockedBy` list (issue #433, FR-001).
+type ProjectedGateStateResponse = SignedOffGateStateResponse & { blockedBy: string[] };
+
+// Derive each effective gate's upstream blockers: the ids of verify gates in the
+// same spec that this gate's phase depends on and that are NOT yet signed off
+// (issue #433, FR-001). Offline and deterministic: the dependency source is the
+// LOCAL work-unit graph, computed from the gate's own `depends_on` plus the
+// `depends_on` of each work unit the gate `covers` (no extra tracker RPCs). A
+// candidate counts as an upstream blocker only when it is itself an effective
+// gate on screen (so the overview can name a card) and its computed `signedOff`
+// is false, so a signed-off upstream gate clears the block (AC2). Synthetic
+// merged/split gates carry an empty `depends_on` and real covers, so they are
+// tolerated (they derive blockers from their covers' deps, or none) and never
+// throw. WU- ids are spec-scoped in practice, so blockers are matched within the
+// gate's own slug (mirrors buildCaseMap's last-write-wins caveat).
+function deriveBlockedBy(
+  repoPath: string,
+  gates: readonly LoadedVerifyUnit[],
+  signedOffById: ReadonlyMap<string, boolean>,
+): Map<string, string[]> {
+  // The effective gate ids present per slug: an upstream blocker must be one of
+  // them (a gate whose sign-off state we know and can render).
+  const gateIdsBySlug = new Map<string, Set<string>>();
+  for (const { slug, unit } of gates) {
+    let set = gateIdsBySlug.get(slug);
+    if (set === undefined) {
+      set = new Set<string>();
+      gateIdsBySlug.set(slug, set);
+    }
+    set.add(unit.id);
+  }
+
+  // Build each spec's unit graph (id -> unit) once, lazily, so a covered unit's
+  // deps can be read. loadAllUnitsForSlug returns [] for an absent file
+  // (fail-open) and throws only on a present-but-invalid artifact, which the gate
+  // load has already surfaced for the same slug.
+  const graphBySlug = new Map<string, Map<string, Unit>>();
+  const graphFor = (slug: string): Map<string, Unit> => {
+    let graph = graphBySlug.get(slug);
+    if (graph === undefined) {
+      // Fail-open: blockedBy is advisory observability, not a gate decision. A slug
+      // whose full unit graph cannot be read here (it was valid when its gates
+      // loaded, so a throw is exceptional) degrades to deriving blockedBy from each
+      // gate's own depends_on rather than 500-ing the whole overview.
+      let units: Unit[];
+      try {
+        units = workUnitLoader.loadAllUnitsForSlug(repoPath, slug);
+      } catch {
+        units = [];
+      }
+      graph = new Map(units.map((u) => [u.id, u]));
+      graphBySlug.set(slug, graph);
+    }
+    return graph;
+  };
+
+  const result = new Map<string, string[]>();
+  for (const { slug, unit } of gates) {
+    const graph = graphFor(slug);
+    const gateIds = gateIdsBySlug.get(slug) ?? new Set<string>();
+    // Candidate upstream ids: the gate's own deps plus each covered unit's deps.
+    const candidates = new Set<string>(unit.depends_on);
+    for (const coverId of unit.covers ?? []) {
+      const covered = graph.get(coverId);
+      if (covered) {
+        for (const dep of covered.depends_on) candidates.add(dep);
+      }
+    }
+    candidates.delete(unit.id);
+    const blockedBy = [...candidates]
+      .filter((id) => gateIds.has(id) && signedOffById.get(id) === false)
+      .sort();
+    result.set(unit.id, blockedBy);
+  }
+  return result;
+}
+
+// Project a set of effective gates into the overview response shape: evaluate
+// each, attach its `signedOff` signal, then derive each gate's upstream
+// `blockedBy` from the whole set's sign-off state (issue #433). Shared by the two
+// GET handlers and the merge / split re-projection so every gate response carries
+// the same fields (milestone + gatingCaseIds + blockedBy). The single-gate GET
+// still projects the whole set so the requested gate's upstream sign-off state is
+// known.
+async function projectGates(
+  projectId: string,
+  repoPath: string,
+  gates: readonly LoadedVerifyUnit[],
+): Promise<ProjectedGateStateResponse[]> {
+  const signed = await Promise.all(
+    gates.map((loaded) =>
+      withSignedOff(projectId, loaded, evaluateLoadedGate(projectId, repoPath, loaded)),
+    ),
+  );
+  const signedOffById = new Map(signed.map((g) => [g.gateId, g.signedOff]));
+  const blockedByById = deriveBlockedBy(repoPath, gates, signedOffById);
+  return signed.map((g) => ({ ...g, blockedBy: blockedByById.get(g.gateId) ?? [] }));
 }
 
 // Build the WU- -> test_case_ids map a split needs, for every spec the loaded
@@ -345,15 +453,7 @@ router.get(
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const { gates, invalidSpecs } = effectiveGates(repoPath, req.params.projectId);
-      const states = await Promise.all(
-        gates.map((loaded) =>
-          withSignedOff(
-            req.params.projectId,
-            loaded,
-            evaluateLoadedGate(req.params.projectId, repoPath, loaded),
-          ),
-        ),
-      );
+      const states = await projectGates(req.params.projectId, repoPath, gates);
       res.json({ gates: states, invalidSpecs });
     } catch (err) {
       handleError(res, err);
@@ -371,17 +471,14 @@ router.get(
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
       const { gates } = effectiveGates(repoPath, req.params.projectId);
-      const loaded = gates.find((g) => g.unit.id === req.params.gateId);
-      if (loaded === undefined) {
+      // Project the whole effective set (not just the requested gate) so this
+      // gate's upstream `blockedBy` reflects its siblings' sign-off state (#433).
+      const states = await projectGates(req.params.projectId, repoPath, gates);
+      const state = states.find((g) => g.gateId === req.params.gateId);
+      if (state === undefined) {
         throw new RouteError(404, `Gate '${req.params.gateId}' not found`);
       }
-      res.json(
-        await withSignedOff(
-          req.params.projectId,
-          loaded,
-          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
-        ),
-      );
+      res.json(state);
     } catch (err) {
       handleError(res, err);
     }
@@ -448,11 +545,7 @@ async function recordOp(
   }
 
   gateOverrideStore.saveOverrides(projectId, validation.data);
-  const states = await Promise.all(
-    applied.gates.map((g) =>
-      withSignedOff(projectId, g, evaluateLoadedGate(projectId, repoPath, g)),
-    ),
-  );
+  const states = await projectGates(projectId, repoPath, applied.gates);
   res.json(states);
 }
 
@@ -694,13 +787,10 @@ router.post(
       for (const target of targets) {
         await closeGate(req.params.projectId, target);
       }
-      res.json(
-        await withSignedOff(
-          req.params.projectId,
-          loaded,
-          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
-        ),
-      );
+      // Re-project the whole effective set so the response carries the updated
+      // signedOff plus milestone / gatingCaseIds / blockedBy (issue #433).
+      const states = await projectGates(req.params.projectId, repoPath, gates);
+      res.json(states.find((g) => g.gateId === req.params.gateId));
     } catch (err) {
       handleError(res, err);
     }
@@ -744,13 +834,10 @@ router.delete(
       for (const target of targets) {
         await reopenGate(req.params.projectId, target);
       }
-      res.json(
-        await withSignedOff(
-          req.params.projectId,
-          loaded,
-          evaluateLoadedGate(req.params.projectId, repoPath, loaded),
-        ),
-      );
+      // Re-project the whole effective set so the response carries the updated
+      // signedOff plus milestone / gatingCaseIds / blockedBy (issue #433).
+      const states = await projectGates(req.params.projectId, repoPath, gates);
+      res.json(states.find((g) => g.gateId === req.params.gateId));
     } catch (err) {
       handleError(res, err);
     }

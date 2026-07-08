@@ -45,8 +45,24 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
+    // The blockedBy derivation (#433) reads the full per-slug unit graph. Default
+    // to an empty graph so existing tests derive no blockers; the #433 tests set
+    // a fixture graph per call.
+    loadAllUnitsForSlug: vi.fn(() => []),
   };
 });
+
+// The signed-off signal (#830) and the blockedBy clears-on-sign-off case (#433)
+// flow through the active integration plugin. Mock both so a passed + tracked gate
+// can be made "signed off" deterministically; default resolveActivePlugin -> null
+// keeps every other test at signedOff=false without touching the real plugin path.
+vi.mock("../services/active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(() => null),
+}));
+
+vi.mock("../services/plugin-manager.js", () => ({
+  invoke: vi.fn(),
+}));
 
 vi.mock("../services/gate-override-store.js", async () => {
   const actual = await vi.importActual<typeof import("../services/gate-override-store.js")>(
@@ -107,6 +123,8 @@ import * as benchManager from "../services/bench-manager.js";
 import * as specDiscovery from "../lib/testbench-spec-discovery.js";
 import type { Bench } from "@roubo/shared";
 import * as fixIssueFiler from "../services/fix-issue-filer.js";
+import * as activePlugin from "../services/active-plugin.js";
+import * as pluginManager from "../services/plugin-manager.js";
 import { TrackerActionError } from "../services/tracker-action-gateway.js";
 import type { LoadedVerifyUnit } from "../services/work-unit-loader.js";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
@@ -184,6 +202,10 @@ beforeEach(() => {
   // mockReturnValue, so this must be re-asserted per test to keep a positive-case
   // test from bleeding a testbench bench into a later one.
   vi.mocked(benchManager.getBenches).mockReturnValue([]);
+  // Default: no active integration, so a passed + tracked gate stays signedOff
+  // false unless a test opts into the plugin path. Re-set each test so a prior
+  // test's override never leaks (clearAllMocks does not reset return values).
+  vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue(null);
 });
 
 describe("GET /:projectId/gates", () => {
@@ -905,5 +927,191 @@ describe("GET /:projectId/gates with overrides applied", () => {
     const ids = res.body.gates.map((g: { gateId: string }) => g.gateId);
     expect(ids).toHaveLength(1);
     expect(ids).not.toContain("PHASE-2");
+  });
+});
+
+// A gate carrying a milestone (phase), so the overview can title its card by
+// phase rather than by bare id (#433).
+function gateWithMilestone(
+  id: string,
+  milestone: string,
+  testCaseIds: string[],
+  covers: string[] = [],
+): VerifyUnit {
+  return { ...gate(id, testCaseIds, covers), milestone };
+}
+
+describe("GET /:projectId/gates milestone + gatingCaseIds projection (#433)", () => {
+  it("projects the gate's milestone and its full narrowed gatingCaseIds", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gateWithMilestone("WU-100", "Phase 1: Evaluator", ["TC-001", "TC-002"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-001", 1), planCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("passed"),
+      }) as never,
+    );
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    expect(res.body.gates[0]).toMatchObject({
+      gateId: "WU-100",
+      milestone: "Phase 1: Evaluator",
+      status: "passed",
+      // The full gating set is projected even on a passed gate, so the overview's
+      // count traces to the same set the evaluator gates on.
+      gatingCaseIds: ["TC-001", "TC-002"],
+      blockedBy: [],
+    });
+  });
+
+  it("projects milestone: null when the gate unit carries none (e.g. synthetic gate)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-001", 1)], { "TC-001": caseResult("passed") }) as never,
+    );
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    expect(res.body.gates[0].milestone).toBeNull();
+  });
+
+  it("narrows gatingCaseIds by the default policy (excludes L3/L4)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001", "TC-002"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      // TC-002 is L4: tracked but excluded from the gating set.
+      planAndResults([planCase("TC-001", 1), planCase("TC-002", 4)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("not_started"),
+      }) as never,
+    );
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    expect(res.body.gates[0].gatingCaseIds).toEqual(["TC-001"]);
+  });
+});
+
+describe("GET /:projectId/gates blockedBy derivation (#433, FR-001)", () => {
+  // Two verify gates in one spec: the downstream gate's own depends_on names the
+  // upstream gate, so the derivation resolves WU-GATE-1 as its upstream blocker.
+  const upstream = gateWithTracker("WU-GATE-1", "o/r#10", ["TC-UP"]);
+  const downstream: VerifyUnit = {
+    ...gate("WU-GATE-2", ["TC-DOWN"], ["WU-D"]),
+    depends_on: ["WU-GATE-1"],
+  };
+
+  beforeEach(() => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", upstream),
+      loaded("alpha", downstream),
+    ]);
+    vi.mocked(workUnitLoader.loadAllUnitsForSlug).mockReturnValue([upstream, downstream] as never);
+  });
+
+  it("lists an upstream gate in blockedBy while it is not signed off", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-UP", 1), planCase("TC-DOWN", 1)], {
+          "TC-UP": caseResult("not_started"),
+          "TC-DOWN": caseResult("not_started"),
+        }) as never,
+    );
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    const down = res.body.gates.find((g: { gateId: string }) => g.gateId === "WU-GATE-2");
+    expect(down.blockedBy).toEqual(["WU-GATE-1"]);
+    // The upstream gate has no upstream of its own.
+    const up = res.body.gates.find((g: { gateId: string }) => g.gateId === "WU-GATE-1");
+    expect(up.blockedBy).toEqual([]);
+  });
+
+  it("clears the upstream from blockedBy once it is signed off (AC2)", async () => {
+    // Upstream passes and its tracker issue is closed -> signedOff true.
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-UP", 1), planCase("TC-DOWN", 1)], {
+          "TC-UP": caseResult("passed"),
+          "TC-DOWN": caseResult("not_started"),
+        }) as never,
+    );
+    vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
+      pluginId: "github-com",
+      integrationId: "github-com",
+      pageSize: 50,
+    } as never);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    const up = res.body.gates.find((g: { gateId: string }) => g.gateId === "WU-GATE-1");
+    expect(up.signedOff).toBe(true);
+    const down = res.body.gates.find((g: { gateId: string }) => g.gateId === "WU-GATE-2");
+    // The upstream is signed off, so it no longer blocks the downstream phase.
+    expect(down.blockedBy).toEqual([]);
+  });
+
+  it("derives an upstream blocker from a covered unit's depends_on (graph path)", async () => {
+    // The downstream gate's own depends_on is empty; the blocker is reached through
+    // a unit it covers (WU-D depends_on WU-GATE-1) via the local unit graph.
+    const upstreamG = gate("WU-GATE-1", ["TC-UP"]);
+    const downstreamG: VerifyUnit = { ...gate("WU-GATE-2", ["TC-DOWN"], ["WU-D"]), depends_on: [] };
+    const coveredUnit = {
+      id: "WU-D",
+      title: "Delivery D",
+      type: "feature",
+      description: "",
+      acceptance_criteria: [],
+      depends_on: ["WU-GATE-1"],
+      implements: { requirement_ids: [], user_story_ids: [], test_case_ids: [] },
+    };
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", upstreamG),
+      loaded("alpha", downstreamG),
+    ]);
+    vi.mocked(workUnitLoader.loadAllUnitsForSlug).mockReturnValue([
+      upstreamG,
+      downstreamG,
+      coveredUnit,
+    ] as never);
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-UP", 1), planCase("TC-DOWN", 1)], {
+          "TC-UP": caseResult("not_started"),
+          "TC-DOWN": caseResult("not_started"),
+        }) as never,
+    );
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    const down = res.body.gates.find((g: { gateId: string }) => g.gateId === "WU-GATE-2");
+    expect(down.blockedBy).toEqual(["WU-GATE-1"]);
+  });
+});
+
+describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#433)", () => {
+  it("carries the downstream gate's blockedBy from the sibling upstream gate", async () => {
+    const upstream = gate("WU-GATE-1", ["TC-UP"]);
+    const downstream: VerifyUnit = {
+      ...gate("WU-GATE-2", ["TC-DOWN"]),
+      depends_on: ["WU-GATE-1"],
+    };
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", upstream),
+      loaded("alpha", downstream),
+    ]);
+    vi.mocked(workUnitLoader.loadAllUnitsForSlug).mockReturnValue([upstream, downstream] as never);
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-UP", 1), planCase("TC-DOWN", 1)], {
+          "TC-UP": caseResult("not_started"),
+          "TC-DOWN": caseResult("not_started"),
+        }) as never,
+    );
+    const res = await request(app).get("/p1/gates/WU-GATE-2");
+    expect(res.status).toBe(200);
+    expect(res.body.gateId).toBe("WU-GATE-2");
+    expect(res.body.blockedBy).toEqual(["WU-GATE-1"]);
   });
 });
