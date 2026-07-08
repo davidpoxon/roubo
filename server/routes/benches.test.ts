@@ -45,6 +45,10 @@ vi.mock("../services/start-gate.js", () => ({
   assertGateOpen: vi.fn(),
 }));
 
+vi.mock("../services/active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(),
+}));
+
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
   resolveEnforceIssueDependencies: vi.fn(),
@@ -80,6 +84,7 @@ import {
   resolveActivePluginQuiet,
 } from "./plugin-route-helpers.js";
 import { assertGateOpen } from "../services/start-gate.js";
+import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ServiceError } from "../services/service-error.js";
 
 const app = express();
@@ -228,6 +233,8 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "github-com" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "github-com",
       pageSize: 50,
@@ -298,6 +305,8 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "jira-self-hosted" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "jira-self-hosted",
       pageSize: 50,
@@ -374,6 +383,8 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "github-com" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "github-com",
       pageSize: 50,
@@ -459,6 +470,61 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("GATE_INDETERMINATE");
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /:projectId/benches with externalId (no active plugin, #437)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // No active integration plugin, so the create-and-assign flow runs the gate
+    // before getActivePluginOrRespond (#437 / NFR-003 / TC-033).
+    vi.mocked(resolveActivePlugin).mockReturnValue(null);
+    vi.mocked(fetchPluginComments).mockResolvedValue([]);
+  });
+
+  it("ON + no plugin: runs the gate first and fails closed with 409 GATE_INDETERMINATE (no bench)", async () => {
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+    vi.mocked(assertGateOpen).mockRejectedValue(
+      new ServiceError(
+        409,
+        "Cannot determine the gate state for issue owner/repo#42 (no active integration plugin); refusing to start (fail-closed)",
+        { code: "GATE_INDETERMINATE" },
+      ),
+    );
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GATE_INDETERMINATE");
+    // The gate runs with no pluginId before the 503 path is ever reached.
+    expect(assertGateOpen).toHaveBeenCalledWith("my-project", "owner/repo#42", undefined);
+    expect(getActivePluginOrRespond).not.toHaveBeenCalled();
+    expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
+    expect(benchManager.createBench).not.toHaveBeenCalled();
+  });
+
+  it("OFF + no plugin: gate is a no-op and the existing 503 no-active-integration is preserved", async () => {
+    // With enforcement OFF the gate resolves without throwing, so the flow falls
+    // through to getActivePluginOrRespond which sends the unchanged 503.
+    vi.mocked(assertGateOpen).mockResolvedValue(undefined);
+    vi.mocked(getActivePluginOrRespond).mockImplementation(async (_projectId, res) => {
+      res.status(503).json({
+        error: "no-active-integration",
+        message: "No integration plugin is configured for this project.",
+      });
+      return null;
+    });
+
+    const res = await request(app)
+      .post("/my-project/benches")
+      .send({ externalId: "owner/repo#42" });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("no-active-integration");
     expect(issueAssignment.createBenchAndAssignFromIssue).not.toHaveBeenCalled();
     expect(benchManager.createBench).not.toHaveBeenCalled();
   });
