@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "react-aria-components";
 import { AlertTriangle, X } from "lucide-react";
+import { TESTBENCH_MIGRATION_GUIDE_PATH } from "@roubo/shared/testbench-contracts";
 import type { ResultsRecoveryReason } from "../../lib/api";
 
 // The DESIGN.md "Attention banner" (amber-50 background, amber-200 border,
@@ -23,8 +24,7 @@ const STRINGS = {
     "The saved results for this bench could not be read and have been reset to a clean slate.",
   future:
     "The saved results for this bench were written by a newer version of Roubo and could not be read. They have been reset to a clean slate.",
-  migration:
-    "The saved results for this bench were written by an earlier version of Roubo and need migration. They have been reset to a clean slate.",
+  migration: `The saved results for this bench were written by an earlier version of Roubo and need migration. They have been reset to a clean slate. See ${TESTBENCH_MIGRATION_GUIDE_PATH} for the migration steps.`,
   dismiss: "Dismiss",
 };
 

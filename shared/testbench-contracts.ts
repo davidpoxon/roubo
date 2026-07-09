@@ -38,6 +38,14 @@ export const TEST_CASES_SCHEMA_VERSION = "1.1.0";
 export const TEST_RESULTS_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-results/v2.0.0.json";
 export const TEST_RESULTS_SCHEMA_VERSION = "2.0.0";
 
+// The repo-relative path to the migration history doc referenced above (NFR-005).
+// A prior-major test-results.json fails open with a version-migration-required
+// signal; this constant is the single source of truth for the pointer, so every
+// observable surface that names the migration path (the plan API payload, the
+// ResultsRecoveryBanner copy) references the same string and it cannot drift from
+// the doc that actually lives here.
+export const TESTBENCH_MIGRATION_GUIDE_PATH = "docs/testbench-schema-migrations.md";
+
 // ── Shared leaf schemas ──
 
 // The fixed derived-status set (FR-009). Owned by `testbench-domain` as a

@@ -497,6 +497,11 @@ export interface TestbenchPlanResponse {
   // optional `recoveryReason`; null on a clean read and absent from an older
   // server. The UI treats absent / null / "missing" as silent.
   recoveryReason?: ResultsRecoveryReason | null;
+  // The repo-relative migration-guide path, present only for a prior-major
+  // recovery (recoveryReason "version-migration-required", NFR-005). Mirrors the
+  // server's optional `migrationGuide`; null for every other reason and on a clean
+  // read, absent from an older server.
+  migrationGuide?: string | null;
   // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
   // FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
   filteredToGateIds?: string[];

@@ -16,6 +16,7 @@ import {
   TEST_CASES_SCHEMA_ID,
   TEST_CASES_SCHEMA_VERSION,
   TEST_RESULTS_SCHEMA_ID,
+  TESTBENCH_MIGRATION_GUIDE_PATH,
   type TestCasesPlan,
   type TestResultsFile,
 } from "@roubo/shared/testbench-contracts";
@@ -152,6 +153,9 @@ describe("readPlanAndResults", () => {
     expect(view.recovered).toBe(true);
     // NFR-005: the recovery reason names WHY it recovered (here: no prior file).
     expect(view.recoveryReason).toBe("missing");
+    // Issue #469: only a prior-major recovery names the migration guide; every
+    // other reason (here: missing) leaves it null.
+    expect(view.migrationGuide).toBeNull();
     expect(view.stale).toBe(false);
     expect(view.planHash).toBe(computePlanHash(planFor()));
   });
@@ -164,6 +168,8 @@ describe("readPlanAndResults", () => {
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
     expect(view.recoveryReason).toBe("corrupt-json");
+    // Issue #469: a generic corruption recovery does not name the migration guide.
+    expect(view.migrationGuide).toBeNull();
   });
 
   // AC3: a schema-invalid sidecar fails open.
@@ -197,6 +203,10 @@ describe("readPlanAndResults", () => {
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
     expect(view.recoveryReason).toBe("version-migration-required");
+    // Issue #469 (AC1/AC3): the observable payload names the documented migration
+    // path so a user can find the migration steps, not just the reason token.
+    expect(view.migrationGuide).toBe(TESTBENCH_MIGRATION_GUIDE_PATH);
+    expect(view.migrationGuide).toBe("docs/testbench-schema-migrations.md");
   });
 
   // AC3: a future MAJOR schema version fails open (never a lossy round-trip).
