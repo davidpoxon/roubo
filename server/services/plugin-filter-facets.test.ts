@@ -131,6 +131,19 @@ describe("getPluginFilterFacets", () => {
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it("drops a non-array response wholesale without throwing (untrusted container shape)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // The plugin is untrusted: a non-array response must not crash `.filter`.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce(null as never);
+
+    const result = await getPluginFilterFacets(PLUGIN_ID);
+
+    expect(result).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain(PLUGIN_ID);
+    warn.mockRestore();
+  });
 });
 
 describe("getPluginFacetOptions", () => {

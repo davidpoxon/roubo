@@ -62,6 +62,17 @@ export async function getPluginFilterFacets(pluginId: string): Promise<FilterFac
     throw err;
   }
 
+  // A plugin is untrusted: the `FilterFacet[]` type is only a compile-time cast,
+  // so guard the container shape before per-entry validation. A non-array
+  // response (null, an object, etc.) is dropped wholesale rather than crashing
+  // on `.filter`, so malformed output never reaches the client (FR-065).
+  if (!Array.isArray(resolved)) {
+    console.warn(
+      `[plugin-filter-facets] Ignored non-array filterFacets response from plugin "${pluginId}": ${JSON.stringify(resolved)}`,
+    );
+    return [];
+  }
+
   return resolved.filter((facet) => {
     if (FilterFacetSchema.safeParse(facet).success) return true;
     console.warn(
