@@ -30,12 +30,16 @@ const ICONS: Record<ConnectionState, ComponentType<IconProps>> = {
   disabled: Minus,
 };
 
+// Every fg/bg pair below clears WCAG 2.1 AA (4.5:1) contrast at 12px/normal, which
+// is not "large text", so the 3:1 large-text allowance does not apply (NFR-016).
+// The solid variants keep near-white text on a darkened brand background; the muted
+// stone variants keep dark-on-light text one step darker than the eye-catching tint.
 const WRAP_STYLES: Record<ConnectionState, string> = {
-  connected: "bg-emerald-500 text-emerald-50",
+  connected: "bg-emerald-700 text-emerald-50",
   disconnected: "bg-stone-300 text-stone-700 dark:bg-stone-700 dark:text-stone-200",
-  "auth-problem": "bg-amber-500 text-amber-900",
-  errored: "bg-red-500 text-red-50",
-  disabled: "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
+  "auth-problem": "bg-amber-500 text-amber-950",
+  errored: "bg-red-700 text-red-50",
+  disabled: "bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400",
 };
 
 const PILL_BASE =
