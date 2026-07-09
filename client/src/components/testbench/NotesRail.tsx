@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, TextField, TextArea, Label } from "react-aria-components";
 import { AlertTriangle } from "lucide-react";
 import type { CaseStatus, Note } from "@roubo/shared/testbench-contracts";
@@ -56,6 +56,7 @@ function authorLabel(note: Note): string {
 
 export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps) {
   const [text, setText] = useState("");
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const append = useAppendNote();
 
   const hasSentinelAuthor = notes.some((note) => note.author.isSentinel);
@@ -67,7 +68,14 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
     append.mutate(
       { projectId, benchId, caseId, text },
       {
-        onSuccess: () => setText(""),
+        onSuccess: () => {
+          // Return focus to the textarea BEFORE clearing the text. Clearing
+          // flips canSubmit to false, which disables the submit button; if that
+          // button still held keyboard focus, the browser would drop focus to
+          // document.body and keyboard users would lose their place (#478).
+          textAreaRef.current?.focus();
+          setText("");
+        },
       },
     );
   }
@@ -132,6 +140,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
         <TextField value={text} onChange={setText} className="flex flex-col gap-1">
           <Label className="text-xs font-medium text-stone-600">Add a note</Label>
           <TextArea
+            ref={textAreaRef}
             rows={3}
             placeholder="Append an immutable note"
             // ring-inset draws the focus ring inside the field's box, so a

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Note } from "@roubo/shared/testbench-contracts";
 import { NotesRail } from "./NotesRail";
@@ -101,6 +101,38 @@ describe("NotesRail (TC-032: blank rejected)", () => {
       { projectId: "p1", benchId: 1, caseId: "TC-001", text: "Looks good" },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
+  });
+});
+
+describe("NotesRail (TE-TC-081: keyboard focus after append)", () => {
+  it("returns focus to the cleared textarea after a keyboard submit, never dropping to body (#478)", async () => {
+    const user = userEvent.setup();
+    const mutate = vi.fn();
+    mockUseAppendNote.mockReturnValue(makeAppendMock({ mutate }));
+
+    render(<NotesRail projectId="p1" benchId={1} caseId="TC-001" notes={[]} />);
+
+    const textarea = screen.getByRole("textbox", { name: /add a note/i });
+    await user.type(textarea, "Looks good");
+
+    // Keyboard-submit path: Tab from the field to the submit button so it holds
+    // focus at the moment the append resolves, then activate it with Enter.
+    await user.tab();
+    const submit = screen.getByRole("button", { name: /add note/i });
+    expect(submit).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    // Drive the mutation's onSuccess, as the real append would on a 2xx.
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const onSuccess = (mutate.mock.calls[0][1] as { onSuccess: () => void }).onSuccess;
+    act(() => onSuccess());
+
+    // Focus lands on the cleared, still-enabled textarea, not document.body,
+    // so keyboard users keep their place (the button disables only after the
+    // move off it). This is the regression guarded by TE-TC-081 S002-O02.
+    expect(textarea).toHaveValue("");
+    expect(textarea).toHaveFocus();
+    expect(document.body).not.toHaveFocus();
   });
 });
 
