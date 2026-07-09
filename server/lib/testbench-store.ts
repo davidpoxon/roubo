@@ -48,6 +48,7 @@ import { writeResults } from "./testbench-results-write.js";
 import {
   TEST_RESULTS_SCHEMA_ID,
   TEST_RESULTS_SCHEMA_VERSION,
+  TESTBENCH_MIGRATION_GUIDE_PATH,
   validateTestCases,
   validateTestResults,
   type Author,
@@ -299,6 +300,12 @@ export interface PlanAndResults {
   // in docs/testbench-schema-migrations.md, distinct from generic corruption.
   // Null on a clean read; optional so existing consumers stay compiling.
   recoveryReason?: ResultsRecoveryReason | null;
+  // The repo-relative migration-guide path (TESTBENCH_MIGRATION_GUIDE_PATH), set
+  // ONLY when recoveryReason is "version-migration-required" so a prior-major
+  // recovery names the documented migration path in an observable payload field,
+  // not just in source comments (NFR-005). Null for every other reason and on a
+  // clean read; optional so existing consumers stay compiling.
+  migrationGuide?: string | null;
 }
 
 // Project the flattened file body ({ ..., caseResults, updatedAt }) down to the
@@ -339,12 +346,35 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
   const planHash = computePlanHash(plan);
 
   const { file, recovered, reason } = loadFile(rootPath, slug);
+
+  // Name the migration path in the payload ONLY for a prior-major recovery
+  // (NFR-005), sourced from the shared constant so the pointer cannot drift; null
+  // for every other reason and on a clean read.
+  const migrationGuide =
+    reason === "version-migration-required" ? TESTBENCH_MIGRATION_GUIDE_PATH : null;
+
   if (file === null) {
-    return { plan, results: null, stale: false, planHash, recovered, recoveryReason: reason };
+    return {
+      plan,
+      results: null,
+      stale: false,
+      planHash,
+      recovered,
+      recoveryReason: reason,
+      migrationGuide,
+    };
   }
 
   const stale = file.planHash !== planHash;
-  return { plan, results: fileResults(file), stale, planHash, recovered, recoveryReason: reason };
+  return {
+    plan,
+    results: fileResults(file),
+    stale,
+    planHash,
+    recovered,
+    recoveryReason: reason,
+    migrationGuide,
+  };
 }
 
 // ── Internal mutate helper ──

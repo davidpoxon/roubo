@@ -24,7 +24,7 @@ const STRINGS = {
   future:
     "The saved results for this bench were written by a newer version of Roubo and could not be read. They have been reset to a clean slate.",
   migration:
-    "The saved results for this bench were written by an earlier version of Roubo and need migration. They have been reset to a clean slate.",
+    "The saved results for this bench were written by an earlier version of Roubo and need migration. They have been reset to a clean slate. See docs/testbench-schema-migrations.md for the migration steps.",
   dismiss: "Dismiss",
 };
 
