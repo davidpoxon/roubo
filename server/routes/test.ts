@@ -32,11 +32,25 @@ const router: Router = Router();
 // Mirrors the pattern in plugins-github-oauth.ts. Also satisfies CodeQL
 // `js/missing-rate-limiting` on the file-system access in
 // /__register-fixture-project.
+//
+// #466: the full Playwright suite (workers: 1) fires well over 120 /test/*
+// requests inside a single 60s window (many __reset + __register-fixture-project
+// + __seed-* calls), so the limiter's window fills mid-suite and later
+// fixture-registering specs get a 429, breaking 10x determinism (NFR-018). Exempt
+// the e2e run itself via `skip: isE2eRateLimitExempt`, which returns true only
+// when ROUBO_E2E=1. This keeps CodeQL `js/missing-rate-limiting` satisfied
+// (the middleware stays statically applied to the router: skip is a runtime
+// predicate, not a removal of the limiter) and keeps production protected
+// (ROUBO_E2E !== "1" is never skipped, so the limiter still caps the 404 surface
+// outside the e2e harness).
+export const isE2eRateLimitExempt = (): boolean => process.env.ROUBO_E2E === "1";
+
 const testRouteRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  skip: isE2eRateLimitExempt,
 });
 
 router.use(testRouteRateLimiter);
