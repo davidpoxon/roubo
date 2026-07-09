@@ -137,7 +137,7 @@ vi.mock("../services/catalog-client.js", () => ({
   ),
 }));
 
-import router from "./test.js";
+import router, { isE2eRateLimitExempt } from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -2106,5 +2106,39 @@ describe("GET /test/__read-cut-list-cache-file (#567)", () => {
       expect.any(String),
     );
     consoleSpy.mockRestore();
+  });
+});
+
+// #466: the rate-limiter skip predicate. This suite mocks express-rate-limit to
+// a pass-through (see the top of the file), so it can't exercise the real skip
+// wiring; instead we assert the predicate directly. The predicate is the ONLY
+// thing gating the exemption, so covering its truth table protects both the e2e
+// exemption (ROUBO_E2E=1 must skip) and production (anything else must not skip,
+// keeping the limiter live on the 404 surface).
+describe("isE2eRateLimitExempt (rate-limiter skip predicate)", () => {
+  // Save/restore ROUBO_E2E locally, mirroring the file's originalRouboE2E
+  // pattern, so setting it here never leaks into a later test.
+  const savedRouboE2E = process.env.ROUBO_E2E;
+  afterEach(() => {
+    if (savedRouboE2E === undefined) {
+      delete process.env.ROUBO_E2E;
+    } else {
+      process.env.ROUBO_E2E = savedRouboE2E;
+    }
+  });
+
+  it("returns true when ROUBO_E2E === '1'", () => {
+    process.env.ROUBO_E2E = "1";
+    expect(isE2eRateLimitExempt()).toBe(true);
+  });
+
+  it("returns false when ROUBO_E2E is unset", () => {
+    delete process.env.ROUBO_E2E;
+    expect(isE2eRateLimitExempt()).toBe(false);
+  });
+
+  it("returns false when ROUBO_E2E is set to a non-'1' value", () => {
+    process.env.ROUBO_E2E = "true";
+    expect(isE2eRateLimitExempt()).toBe(false);
   });
 });
