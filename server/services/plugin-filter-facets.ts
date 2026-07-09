@@ -1,7 +1,31 @@
 import type { ConfiguredSource, FilterFacet, FilterFacetOption } from "@roubo/plugin-sdk";
+import { z } from "zod";
 import * as pluginManager from "./plugin-manager.js";
 
 const RPC_TIMEOUT_MS = 5_000;
+
+/**
+ * Host-side shape guard for a single `filterFacets` descriptor, mirroring the
+ * `FilterFacet` interface (shared/types.ts). A plugin is untrusted: it may
+ * return a descriptor that is missing `label`/`type` or otherwise the wrong
+ * shape. `getPluginFilterFacets` validates each entry against this schema and
+ * drops the ones that fail (FR-065, TC-190) so malformed descriptors never
+ * reach the client. Unknown extra keys are tolerated (not `.strict()`) so a
+ * plugin adding a field it understands is not spuriously dropped.
+ */
+const FilterFacetSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  type: z.enum(["enum", "enum-async", "multi-enum"]),
+  options: z
+    .array(
+      z.object({
+        value: z.string(),
+        label: z.string(),
+      }),
+    )
+    .optional(),
+});
 
 /**
  * The fixed common-facet set returned when a plugin built against
@@ -19,13 +43,16 @@ export const COMMON_FACET_FALLBACK: readonly FilterFacet[] = Object.freeze([
 
 /**
  * Host-side wrapper around the plugin's `filterFacets` RPC (host-API 1.1.0+,
- * FR-065). Returns the plugin's facet descriptors verbatim, or the fixed
- * common-facet set when the plugin omits the method. Any other failure
- * (transport, plugin error) is re-thrown for the caller to surface.
+ * FR-065). Returns the plugin's facet descriptors after dropping any that fail
+ * host-side validation (a plugin is untrusted; malformed entries must never
+ * reach the client), or the fixed common-facet set when the plugin omits the
+ * method. Any other failure (transport, plugin error) is re-thrown for the
+ * caller to surface.
  */
 export async function getPluginFilterFacets(pluginId: string): Promise<FilterFacet[]> {
+  let resolved: FilterFacet[];
   try {
-    return await pluginManager.invoke<FilterFacet[]>(pluginId, "filterFacets", undefined, {
+    resolved = await pluginManager.invoke<FilterFacet[]>(pluginId, "filterFacets", undefined, {
       timeoutMs: RPC_TIMEOUT_MS,
     });
   } catch (err) {
@@ -34,6 +61,25 @@ export async function getPluginFilterFacets(pluginId: string): Promise<FilterFac
     }
     throw err;
   }
+
+  // A plugin is untrusted: the `FilterFacet[]` type is only a compile-time cast,
+  // so guard the container shape before per-entry validation. A non-array
+  // response (null, an object, etc.) is dropped wholesale rather than crashing
+  // on `.filter`, so malformed output never reaches the client (FR-065).
+  if (!Array.isArray(resolved)) {
+    console.warn(
+      `[plugin-filter-facets] Ignored non-array filterFacets response from plugin "${pluginId}": ${JSON.stringify(resolved)}`,
+    );
+    return [];
+  }
+
+  return resolved.filter((facet) => {
+    if (FilterFacetSchema.safeParse(facet).success) return true;
+    console.warn(
+      `[plugin-filter-facets] Dropped malformed filterFacets descriptor from plugin "${pluginId}": ${JSON.stringify(facet)}`,
+    );
+    return false;
+  });
 }
 
 /**
