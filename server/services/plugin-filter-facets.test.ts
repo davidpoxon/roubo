@@ -68,6 +68,69 @@ describe("getPluginFilterFacets", () => {
 
     await expect(getPluginFilterFacets(PLUGIN_ID)).rejects.toThrow("connection reset");
   });
+
+  it("drops a malformed descriptor host-side while valid siblings pass through (TC-190)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const valid = { id: "milestone", label: "Milestone", type: "enum-async" as const };
+    // Missing the required `label` and `type`: malformed, must be dropped.
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce([{ id: "x" }, valid] as never);
+
+    const result = await getPluginFilterFacets(PLUGIN_ID);
+
+    expect(result).toEqual([valid]);
+    warn.mockRestore();
+  });
+
+  it("logs the drop with the plugin id and the offending entry (TC-190 S002-O03)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const offending = { id: "x" };
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce([offending] as never);
+
+    const result = await getPluginFilterFacets(PLUGIN_ID);
+
+    expect(result).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0] as string;
+    expect(message).toContain(PLUGIN_ID);
+    expect(message).toContain(JSON.stringify(offending));
+    warn.mockRestore();
+  });
+
+  it("also drops descriptors with a wrong-shaped type or empty required strings", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const valid = { id: "status", label: "Status", type: "enum" as const };
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce([
+      { id: "bad-type", label: "Bad", type: "not-a-facet-type" },
+      { id: "", label: "Empty id", type: "enum" },
+      valid,
+    ] as never);
+
+    const result = await getPluginFilterFacets(PLUGIN_ID);
+
+    expect(result).toEqual([valid]);
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it("returns an all-valid array unchanged and logs nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const descriptors = [
+      { id: "status", label: "Status", type: "enum" as const },
+      {
+        id: "milestone",
+        label: "Milestone",
+        type: "multi-enum" as const,
+        options: [{ value: "v1", label: "v1" }],
+      },
+    ];
+    vi.mocked(pluginManager.invoke).mockResolvedValueOnce(descriptors);
+
+    const result = await getPluginFilterFacets(PLUGIN_ID);
+
+    expect(result).toEqual(descriptors);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
 
 describe("getPluginFacetOptions", () => {
