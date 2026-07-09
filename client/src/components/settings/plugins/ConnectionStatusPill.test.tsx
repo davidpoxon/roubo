@@ -17,10 +17,10 @@ interface VariantCase {
 }
 
 const VARIANTS: VariantCase[] = [
-  { state: "connected", label: "Connected", wrapToken: "bg-emerald-500" },
+  { state: "connected", label: "Connected", wrapToken: "bg-emerald-700" },
   { state: "disconnected", label: "Not connected", wrapToken: "bg-stone-300" },
   { state: "auth-problem", label: "Sign in again", wrapToken: "bg-amber-500" },
-  { state: "errored", label: "Error", wrapToken: "bg-red-500" },
+  { state: "errored", label: "Error", wrapToken: "bg-red-700" },
   { state: "disabled", label: "Disabled", wrapToken: "bg-stone-200" },
 ];
 
@@ -55,6 +55,89 @@ describe("ConnectionStatusPill: five-variant taxonomy (TC-108)", () => {
     // Five variants must yield five distinct icon shapes.
     expect(seenIconShapes.size).toBe(VARIANTS.length);
   });
+});
+
+describe("ConnectionStatusPill: WCAG 2.1 AA contrast (TC-142, NFR-016)", () => {
+  // Tailwind v4 default palette (sRGB). emerald-500/#00bc7d and emerald-50/#ecfdf5
+  // are the exact values axe-core resolved on the plugin grid when it flagged the
+  // 'Connected' pill at 2.34:1 (issue #448). At 12px/normal these pills are not
+  // WCAG "large text", so the 4.5:1 threshold applies to every variant.
+  const TAILWIND_HEX: Record<string, string> = {
+    "emerald-50": "#ecfdf5",
+    "emerald-700": "#007a55",
+    "amber-500": "#fe9a00",
+    "amber-950": "#461901",
+    "red-50": "#fef2f2",
+    "red-700": "#c10007",
+    "stone-200": "#e7e5e4",
+    "stone-300": "#d6d3d1",
+    "stone-400": "#a6a09b",
+    "stone-600": "#57534d",
+    "stone-700": "#44403b",
+    "stone-800": "#292524",
+  };
+
+  function relativeLuminance(hex: string): number {
+    const n = hex.replace("#", "");
+    const toLinear = (i: number) => {
+      const c = parseInt(n.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    const r = toLinear(0);
+    const g = toLinear(2);
+    const b = toLinear(4);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function contrastRatio(fgToken: string, bgToken: string): number {
+    const fg = TAILWIND_HEX[fgToken];
+    const bg = TAILWIND_HEX[bgToken];
+    if (!fg) throw new Error(`unknown Tailwind colour token: ${fgToken}`);
+    if (!bg) throw new Error(`unknown Tailwind colour token: ${bgToken}`);
+    const hi = Math.max(relativeLuminance(fg), relativeLuminance(bg));
+    const lo = Math.min(relativeLuminance(fg), relativeLuminance(bg));
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  // Extract the fg/bg colour tokens from a rendered pill's class string for each
+  // theme it supports: the unprefixed pair (light) and any `dark:` pair (dark).
+  // The size token `text-[12px]` is deliberately not matched by these regexes.
+  function colourPairs(className: string): Array<{ theme: string; fg: string; bg: string }> {
+    const tokens = className.split(/\s+/);
+    const pick = (re: RegExp): string | undefined => {
+      for (const t of tokens) {
+        const m = t.match(re);
+        if (m) return m[1];
+      }
+      return undefined;
+    };
+    const lightBg = pick(/^bg-([a-z]+-\d+)$/);
+    const lightFg = pick(/^text-([a-z]+-\d+)$/);
+    const darkBg = pick(/^dark:bg-([a-z]+-\d+)$/);
+    const darkFg = pick(/^dark:text-([a-z]+-\d+)$/);
+    const pairs: Array<{ theme: string; fg: string; bg: string }> = [];
+    if (lightFg && lightBg) pairs.push({ theme: "light", fg: lightFg, bg: lightBg });
+    if (darkFg && darkBg) pairs.push({ theme: "dark", fg: darkFg, bg: darkBg });
+    return pairs;
+  }
+
+  for (const variant of VARIANTS) {
+    it(`renders the ${variant.state} variant at >= 4.5:1 contrast in every theme it supports`, () => {
+      render(
+        <ConnectionStatusPill status={{ state: variant.state, checkedAt: FIXED_CHECKED_AT }} />,
+      );
+      const pill = screen.getByTestId("connection-status-pill");
+      const pairs = colourPairs(pill.className);
+      expect(pairs.length).toBeGreaterThan(0);
+      for (const { theme, fg, bg } of pairs) {
+        const ratio = contrastRatio(fg, bg);
+        expect(
+          ratio,
+          `${variant.state} (${theme}): ${fg} on ${bg} = ${ratio.toFixed(2)}:1 must clear WCAG AA`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 });
 
 describe("ConnectionStatusPill: timestamp behaviour", () => {
