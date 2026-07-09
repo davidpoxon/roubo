@@ -88,6 +88,58 @@ describe("plugin-rpc", () => {
     tokenSource.dispose();
   });
 
+  it("does not crash the host when a write fails after the plugin's pipe breaks (#927)", async () => {
+    const proc = spawnEcho();
+    const conn = createConnection(proc);
+
+    const rpcErrors: Error[] = [];
+    conn.onError((error) => rpcErrors.push(error));
+
+    // Capture any unhandled rejection ourselves. Before #927 a write that failed
+    // because the plugin died mid-write escaped vscode-jsonrpc's async
+    // sendRequest executor as an unhandled rejection, which Node turns into a
+    // fatal uncaught exception that takes down the whole host server.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      // Simulate the plugin process dying mid-write: break its stdin so the next
+      // JSON-RPC write fails (EPIPE / ERR_STREAM_DESTROYED). The child (and its
+      // stdout, hence the reader) stays alive, so the connection is still open,
+      // mirroring an in-flight request write to a just-dead plugin. The request
+      // must be dispatched synchronously, before stdin's async 'close' reaches
+      // the connection, so it exercises the write path rather than a closed one.
+      const { stdin } = proc;
+      if (!stdin) throw new Error("test setup: child stdin should be piped");
+      stdin.destroy();
+      const tokenSource = new CancellationTokenSource();
+      // Guard the request promise the way plugin-manager's invoke() does. With
+      // the fix the write no longer rejects, so this settles when the connection
+      // is disposed below (mirroring proc.on('exit') -> handleChildExit).
+      const pending = conn
+        .sendRequest("echo", { hello: "world" }, tokenSource.token)
+        .catch(() => undefined);
+
+      // Let any escaping rejection surface on the task queue.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // The host survives: no unhandled rejection escaped the failed write.
+      expect(unhandled).toEqual([]);
+      // The transport error is still routed to onError, so the failure degrades
+      // to this plugin's errored/crashed handling instead of killing the host.
+      expect(rpcErrors.length).toBeGreaterThan(0);
+
+      conn.dispose();
+      await pending;
+      tokenSource.dispose();
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("routes an unregistered method to the star fallback handler end-to-end (#409)", async () => {
     const proc = spawnCaller();
     const conn = createConnection(proc);
