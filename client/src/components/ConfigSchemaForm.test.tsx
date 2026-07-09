@@ -112,6 +112,20 @@ describe("ConfigSchemaForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders a managed-field caption for a typeless oneOf union and no text input", () => {
+    render(
+      <ConfigSchemaForm
+        schema={{ properties: { weird: { oneOf: [{ type: "string" }, { type: "object" }] } } }}
+        values={{}}
+        onChange={() => {}}
+      />,
+    );
+    expect(
+      screen.getByText(/managed per project and configured automatically/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("config-field-weird")).not.toBeInTheDocument();
+  });
+
   it("emits an empty list for passwordFieldKeys when the schema is missing", () => {
     expect(passwordFieldKeys(undefined)).toEqual([]);
   });

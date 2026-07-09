@@ -10,6 +10,9 @@ interface PropertyDef {
   title?: string;
   description?: string;
   default?: unknown;
+  oneOf?: unknown[];
+  anyOf?: unknown[];
+  allOf?: unknown[];
 }
 
 export interface ConfigSchemaFormProps {
@@ -61,6 +64,8 @@ export default function ConfigSchemaForm({
         const label = def.title ?? titleCase(key);
         const help = def.description;
         const value = values[key] ?? def.default ?? "";
+        const hasUnion =
+          def.oneOf !== undefined || def.anyOf !== undefined || def.allOf !== undefined;
 
         if (def.type === "boolean") {
           const selected = Boolean(values[key] ?? def.default ?? false);
@@ -124,7 +129,7 @@ export default function ConfigSchemaForm({
           );
         }
 
-        if (def.type === "string" || def.type === undefined) {
+        if (def.type === "string" || (def.type === undefined && !hasUnion)) {
           return (
             <TextField
               key={key}
