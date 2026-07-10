@@ -102,7 +102,28 @@ beforeEach(() => {
 describe("GET /:projectId/testbench/specs", () => {
   it("returns discovered specs and invalid specs", async () => {
     vi.mocked(discovery.discoverSpecs).mockReturnValue({
-      specs: [{ slug: "testbench", path: FOCUSED, caseCount: 3 }],
+      specs: [
+        {
+          slug: "testbench",
+          path: FOCUSED,
+          caseCount: 3,
+          verification: {
+            classification: "needs-attention",
+            statusCounts: {
+              not_started: 3,
+              in_progress: 0,
+              passed: 0,
+              failed: 0,
+              blocked: 0,
+            },
+            resultsPresent: false,
+            resultsValid: false,
+            planHashMatch: false,
+            recoveryReason: null,
+            aggregationError: false,
+          },
+        },
+      ],
       invalid: [
         {
           slug: "broken",

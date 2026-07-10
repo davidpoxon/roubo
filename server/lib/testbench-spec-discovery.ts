@@ -24,13 +24,50 @@ import {
   UnsafePathError,
 } from "./safe-path.js";
 import { validateTestCases } from "@roubo/shared/testbench-contracts";
+import type { CaseStatus, TestCasesPlan } from "@roubo/shared/testbench-contracts";
+import { computePlanHash, loadResultsFile } from "./testbench-store.js";
+
+// Per-status case tally for one spec (#482). Non-negative integers keyed by the
+// five CaseStatus values; the tally is computed over the CURRENT plan's case ids
+// only, so it always sums to the spec's caseCount.
+export interface SpecStatusCounts {
+  not_started: number;
+  in_progress: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+}
+
+// The read-only, fail-open verification state discovery computes per spec (#482,
+// TSPF-FR-001/FR-002). It carries classification inputs, not presentation strings:
+//   - classification: "all-passed" iff a readable, schema-valid, hash-matching
+//     results sidecar is present AND every current-plan case is effectively
+//     passed; everything else (including aggregationError) is "needs-attention".
+//   - statusCounts: effective-status tally over the current plan (sums to caseCount).
+//   - resultsPresent: a sidecar exists on disk (the loader did not report "missing").
+//   - resultsValid: the sidecar parsed and passed schema validation.
+//   - planHashMatch: the sidecar's recorded planHash matches computePlanHash(plan).
+//   - recoveryReason: why the loader fell open (null on a clean read).
+//   - aggregationError: true when the per-spec aggregation threw (e.g. a symlinked
+//     sidecar escaping the repo) and this one spec degraded fail-open.
+export interface SpecVerification {
+  classification: "needs-attention" | "all-passed";
+  statusCounts: SpecStatusCounts;
+  resultsPresent: boolean;
+  resultsValid: boolean;
+  planHashMatch: boolean;
+  recoveryReason: string | null;
+  aggregationError: boolean;
+}
 
 // One discovered, contract-valid spec: the slug naming its `.specifications/<slug>/`
-// folder, the absolute path to its test-cases.json, and the number of cases in it.
+// folder, the absolute path to its test-cases.json, the number of cases in it, and
+// its read-only per-spec verification state (#482).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
   caseCount: number;
+  verification: SpecVerification;
 }
 
 // A spec folder that HAS a test-cases.json which failed to parse or validate
@@ -57,6 +94,83 @@ export interface SpecDiscovery {
 export type ManualPathValidation =
   | { ok: true; slug: string; caseCount: number }
   | { ok: false; errors: string[] };
+
+// A fresh, all-zero status tally.
+function zeroStatusCounts(): SpecStatusCounts {
+  return { not_started: 0, in_progress: 0, passed: 0, failed: 0, blocked: 0 };
+}
+
+// Compute one spec's read-only verification state from its results sidecar and the
+// already-parsed, contract-valid plan (#482, TSPF-FR-001/FR-002). Read-only and
+// fail-open per spec:
+//   - Results IO is delegated to the store's read-only loadResultsFile (the sole
+//     owner of test-results.json IO); no plan re-read happens (planHashMatch reuses
+//     the already-parsed plan via computePlanHash).
+//   - Effective status per case = statusOverride.status ?? derivedStatus; a plan
+//     case with no caseResults entry counts as not_started; caseResults entries for
+//     cases no longer in the plan are ignored (tally is over current plan ids only).
+//   - The whole aggregation is wrapped in try/catch so any throw (notably the
+//     loader's path-safety assertion on a symlinked sidecar escaping repoPath)
+//     degrades ONLY this spec to { needs-attention, aggregationError: true } and
+//     never fails discovery.
+function computeVerification(
+  repoPath: string,
+  slug: string,
+  plan: TestCasesPlan,
+): SpecVerification {
+  try {
+    const { file, recoveryReason } = loadResultsFile(repoPath, slug);
+    // resultsPresent: a sidecar exists on disk (anything but a "missing" recovery).
+    // resultsValid: it parsed and passed schema validation (the loader returned a file).
+    const resultsPresent = recoveryReason !== "missing";
+    const resultsValid = file !== null;
+    const planHashMatch = file !== null && file.planHash === computePlanHash(plan);
+
+    const caseResults = file?.caseResults ?? {};
+    const statusCounts = zeroStatusCounts();
+    for (const planCase of plan.cases) {
+      // A plan case absent from caseResults counts as not_started; orphaned
+      // caseResults entries (cases no longer in the plan) are ignored because we
+      // iterate the current plan's ids, not the sidecar's keys.
+      const caseResult = Object.prototype.hasOwnProperty.call(caseResults, planCase.id)
+        ? caseResults[planCase.id]
+        : undefined;
+      const effective: CaseStatus =
+        caseResult?.statusOverride?.status ?? caseResult?.derivedStatus ?? "not_started";
+      statusCounts[effective] += 1;
+    }
+
+    // all-passed only when a readable, schema-valid, hash-matching sidecar is
+    // present AND every current-plan case is effectively passed. A zero-case plan is
+    // therefore vacuously all-passed only under such a sidecar. Everything else is
+    // needs-attention.
+    const allPassed =
+      resultsPresent && resultsValid && planHashMatch && statusCounts.passed === plan.cases.length;
+
+    return {
+      classification: allPassed ? "all-passed" : "needs-attention",
+      statusCounts,
+      resultsPresent,
+      resultsValid,
+      planHashMatch,
+      recoveryReason,
+      aggregationError: false,
+    };
+  } catch {
+    // Per-spec degrade (TSPF-FR-002): any throw leaves this one spec needs-attention
+    // with safe defaults. The tally defaults to every case not_started so statusCounts
+    // still sums to caseCount.
+    return {
+      classification: "needs-attention",
+      statusCounts: { ...zeroStatusCounts(), not_started: plan.cases.length },
+      resultsPresent: false,
+      resultsValid: false,
+      planHashMatch: false,
+      recoveryReason: null,
+      aggregationError: true,
+    };
+  }
+}
 
 // Enumerate every `.specifications/<slug>/test-cases.json` under repoPath, sorting
 // each into the usable `specs` (parsed + contract-valid) or the present-but-broken
@@ -140,7 +254,15 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
       continue;
     }
 
-    specs.push({ slug, path: casesPath, caseCount: validation.data.cases.length });
+    const plan = validation.data;
+    specs.push({
+      slug,
+      path: casesPath,
+      caseCount: plan.cases.length,
+      // Per-spec, read-only, fail-open verification state (#482). Computed here in
+      // the existing loop where the parsed, contract-valid plan is already in hand.
+      verification: computeVerification(repoPath, slug, plan),
+    });
   }
 
   specs.sort((a, b) => a.slug.localeCompare(b.slug));

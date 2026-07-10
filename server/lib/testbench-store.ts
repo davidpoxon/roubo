@@ -217,6 +217,27 @@ function loadFile(
   return { file: validation.data, recovered: false, reason: null };
 }
 
+// ── Read-only results loader for discovery (#482) ──
+//
+// The purpose-named, read-only face of the private fail-open loadFile above, so
+// spec discovery can read a spec's results sidecar without reaching into the
+// store internals or duplicating the fail-open recovery ladder. Maps loadFile's
+// { file, recovered, reason } onto the { file, recoveryReason } contract the
+// discovery aggregation consumes: `file` is the validated sidecar (null when
+// missing/corrupt/invalid/version-mismatched) and `recoveryReason` names why the
+// load fell open (null on a clean read). Like loadFile it never writes and never
+// throws for a missing/corrupt/invalid file; the ONLY throw path is the
+// path-safety assertion inside resultsPath (a slug that escapes the repo or a
+// symlinked sidecar), which discovery wraps in its own per-spec try/catch so one
+// bad spec degrades rather than failing the endpoint (TSPF-FR-002).
+export function loadResultsFile(
+  rootPath: string,
+  slug: string,
+): { file: TestResultsFile | null; recoveryReason: ResultsRecoveryReason | null } {
+  const { file, reason } = loadFile(rootPath, slug);
+  return { file, recoveryReason: reason };
+}
+
 // Persist a results file atomically (same-directory temp+rename, EXDEV-safe) via
 // the #406 write primitive. The slug is re-validated inside writeResults, so this
 // path is safe even though the file object itself carries no slug. The published
