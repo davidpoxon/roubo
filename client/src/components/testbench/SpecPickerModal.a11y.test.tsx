@@ -5,6 +5,13 @@
 // needs-attention/all-passed list and the all-passed-only empty state), including
 // the expanded all-passed disclosure. Follows the vitest-axe wiring established by
 // CaseList.a11y.test.tsx and the hook-mock setup from SpecPickerModal.test.tsx.
+//
+// Coverage gap (#493): jsdom has no layout/paint engine, so axe cannot execute the
+// color-contrast rule here (it silently reports zero contrast violations even when
+// text fails WCAG AA in a real browser). Real-rendering color-contrast is therefore
+// verified separately in the Playwright spec e2e/e2e-flow/spec-picker-contrast.spec.ts,
+// which injects axe-core into Chromium and runs the color-contrast rule across both
+// themes, both modes, and both partition states.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
