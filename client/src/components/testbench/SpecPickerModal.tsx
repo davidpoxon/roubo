@@ -172,8 +172,10 @@ export default function SpecPickerModal({
 
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
-  // rows via colour hierarchy (slug/path/icon drop to muted stone, never below
-  // the AA text floor recorded in DESIGN.md).
+  // rows via colour hierarchy (slug and icon drop to muted stone). Every text
+  // class holds the per-theme AA floor (text-stone-500 on white, dark:text-stone-400
+  // on the stone-900 modal, both >= 4.5:1); the path sits at that floor in both
+  // groups, so muting collapses there and the hierarchy reads via the slug (#493).
   const renderRow = (spec: DiscoveredSpec, muted: boolean) => {
     const isSelected = manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
     const isActive = mode === "repoint" && spec.path === activePath;
@@ -198,7 +200,7 @@ export default function SpecPickerModal({
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <span
               className={`truncate ${
-                muted ? "text-stone-500 dark:text-stone-500" : "text-stone-800 dark:text-stone-200"
+                muted ? "text-stone-500 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"
               }`}
             >
               {spec.slug}
@@ -209,16 +211,12 @@ export default function SpecPickerModal({
               </span>
             )}
           </p>
-          <p
-            className={`text-[11px] font-mono truncate ${
-              muted ? "text-stone-500 dark:text-stone-600" : "text-stone-400 dark:text-stone-500"
-            }`}
-          >
+          <p className="text-[11px] font-mono truncate text-stone-500 dark:text-stone-400">
             {spec.path}
           </p>
           <p
             className={`mt-0.5 flex items-center gap-1.5 text-[11px] ${
-              muted ? "text-stone-500 dark:text-stone-500" : "text-stone-600 dark:text-stone-400"
+              muted ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"
             }`}
           >
             <SummaryMarker marker={summary.marker} />
@@ -238,7 +236,7 @@ export default function SpecPickerModal({
             )}
           </p>
         </div>
-        <span className="shrink-0 text-[11px] font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
+        <span className="shrink-0 text-[11px] font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
           {spec.caseCount} {spec.caseCount === 1 ? "case" : "cases"}
         </span>
         {isSelected && <Check size={14} className="text-amber-500 shrink-0 mt-0.5" />}
@@ -267,7 +265,7 @@ export default function SpecPickerModal({
                   <FlaskConical size={15} className="text-amber-500" />
                   {copy.title}
                 </Heading>
-                <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                   {copy.description}
                 </p>
               </div>
@@ -280,7 +278,7 @@ export default function SpecPickerModal({
                   </p>
 
                   {isLoading && (
-                    <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-600 py-3">
+                    <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-3">
                       <Spinner />
                       Discovering specs...
                     </div>
@@ -300,7 +298,7 @@ export default function SpecPickerModal({
                       <p className="text-sm text-stone-500 dark:text-stone-400">
                         No specs found in this project.
                       </p>
-                      <p className="mt-1 text-xs text-stone-400 dark:text-stone-600">
+                      <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                         Add a{" "}
                         <code className="font-mono">
                           .specifications/&lt;slug&gt;/test-cases.json
@@ -326,7 +324,7 @@ export default function SpecPickerModal({
                             <p className="font-medium text-stone-700 dark:text-stone-300">
                               {spec.slug}
                             </p>
-                            <p className="font-mono text-[11px] text-stone-400 dark:text-stone-500 truncate">
+                            <p className="font-mono text-[11px] text-stone-500 dark:text-stone-400 truncate">
                               {spec.path}
                             </p>
                             <ul className="mt-0.5 list-disc pl-4 text-[11px] text-amber-700/90 dark:text-amber-400/90">
@@ -334,7 +332,7 @@ export default function SpecPickerModal({
                                 <li key={i}>{err}</li>
                               ))}
                               {spec.errors.length > 3 && (
-                                <li className="list-none text-stone-400 dark:text-stone-500">
+                                <li className="list-none text-stone-500 dark:text-stone-400">
                                   +{spec.errors.length - 3} more
                                 </li>
                               )}
@@ -419,7 +417,7 @@ export default function SpecPickerModal({
                             />
                             <span>
                               All passed{" "}
-                              <span className="font-normal text-stone-500 dark:text-stone-500">
+                              <span className="font-normal text-stone-500 dark:text-stone-400">
                                 · {allPassed.length} spec{allPassed.length === 1 ? "" : "s"}
                               </span>
                             </span>
@@ -454,7 +452,7 @@ export default function SpecPickerModal({
                     aria-live="polite"
                   >
                     {manualState.status === "validating" && (
-                      <span className="flex items-center gap-1.5 text-stone-400 dark:text-stone-500">
+                      <span className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400">
                         <Loader2 size={12} className="animate-spin" />
                         Validating...
                       </span>

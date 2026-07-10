@@ -317,8 +317,11 @@ describe("SpecPickerModal", () => {
       const alpha = screen.getByText("shipped-alpha");
       expect(alpha).toBeInTheDocument();
       // De-emphasized via colour hierarchy: the slug drops to muted stone (never
-      // the full-strength stone-800 a needs-attention slug uses).
+      // the full-strength stone-800 a needs-attention slug uses). It holds the
+      // per-theme AA floor in both themes: text-stone-500 on white, dark:text-stone-400
+      // on the stone-900 modal (#493).
       expect(alpha).toHaveClass("text-stone-500");
+      expect(alpha).toHaveClass("dark:text-stone-400");
       expect(screen.getByText("testbench")).toHaveClass("text-stone-800");
       // Each all-passed row carries its own pass-state summary.
       expect(screen.getByText("All 5 passed")).toBeInTheDocument();
@@ -583,18 +586,23 @@ describe("SpecPickerModal", () => {
       expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/manual/test-cases.json");
     });
 
-    it("de-emphasized all-passed rows keep the stone-500 AA text floor (AC4)", async () => {
+    it("de-emphasized all-passed rows keep the per-theme AA text floor (AC4)", async () => {
       mockUseTestbenchSpecs.mockReturnValue(
         specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
       );
       renderModal();
       await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
       const slug = screen.getByText("shipped-alpha");
-      // The muted slug never drops below stone-500, the AA text floor on white
-      // recorded in roubo/DESIGN.md.
+      // The muted slug and path hold the per-theme AA text floor in BOTH themes:
+      // text-stone-500 (4.8:1 on white) and dark:text-stone-400 (6.8:1 on the
+      // stone-900 modal). Dark-theme jsdom cannot execute the axe color-contrast
+      // rule, so the real-rendering check lives in the Playwright spec
+      // e2e/e2e-flow/spec-picker-contrast.spec.ts (#493).
       expect(slug).toHaveClass("text-stone-500");
+      expect(slug).toHaveClass("dark:text-stone-400");
       const path = screen.getByText("/repo/.specifications/shipped-alpha/test-cases.json");
       expect(path).toHaveClass("text-stone-500");
+      expect(path).toHaveClass("dark:text-stone-400");
     });
   });
 });
