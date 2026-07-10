@@ -3,22 +3,81 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import type { DiscoveredSpec, InvalidSpec } from "../../lib/api";
+import type { DiscoveredSpec, InvalidSpec, SpecVerification } from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
+
+// Build a verification payload with sensible defaults; each fixture states only
+// the fields it needs (#482/#483).
+function verification(
+  over: Partial<Omit<SpecVerification, "statusCounts">> & {
+    statusCounts?: Partial<SpecVerification["statusCounts"]>;
+  } = {},
+): SpecVerification {
+  const { statusCounts, ...rest } = over;
+  return {
+    classification: "needs-attention",
+    resultsPresent: true,
+    resultsValid: true,
+    planHashMatch: true,
+    recoveryReason: null,
+    aggregationError: false,
+    ...rest,
+    statusCounts: {
+      not_started: 0,
+      in_progress: 0,
+      passed: 0,
+      failed: 0,
+      blocked: 0,
+      ...(statusCounts ?? {}),
+    },
+  };
+}
 
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
 const mockUseManualPathValidation = vi.hoisted(() => vi.fn());
 
-vi.mock("../../hooks/useTestbenchSpecs", () => ({
-  useTestbenchSpecs: (...args: unknown[]) => mockUseTestbenchSpecs(...args),
-  useManualPathValidation: (...args: unknown[]) => mockUseManualPathValidation(...args),
-}));
+// Mock only the two data-fetching hooks; keep the real pure helpers
+// (partitionSpecs / deriveSpecSummary), which SpecPickerModal imports from the
+// same module and which need no mocking.
+vi.mock("../../hooks/useTestbenchSpecs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../hooks/useTestbenchSpecs")>();
+  return {
+    ...actual,
+    useTestbenchSpecs: (...args: unknown[]) => mockUseTestbenchSpecs(...args),
+    useManualPathValidation: (...args: unknown[]) => mockUseManualPathValidation(...args),
+  };
+});
 
 import SpecPickerModal from "./SpecPickerModal";
 
 const SPECS: DiscoveredSpec[] = [
-  { slug: "testbench", path: "/repo/.specifications/testbench/test-cases.json", caseCount: 3 },
-  { slug: "billing", path: "/repo/.specifications/billing/test-cases.json", caseCount: 1 },
+  // Needs-attention: some passed, some in-progress -> "1 of 3 passed".
+  {
+    slug: "testbench",
+    path: "/repo/.specifications/testbench/test-cases.json",
+    caseCount: 3,
+    verification: verification({ statusCounts: { passed: 1, in_progress: 2 } }),
+  },
+  // Needs-attention with a failure -> "0 of 1 passed" + "· 1 failed".
+  {
+    slug: "billing",
+    path: "/repo/.specifications/billing/test-cases.json",
+    caseCount: 1,
+    verification: verification({ statusCounts: { failed: 1 } }),
+  },
+  // All-passed: relegated to the collapsed tail disclosure.
+  {
+    slug: "shipped-alpha",
+    path: "/repo/.specifications/shipped-alpha/test-cases.json",
+    caseCount: 5,
+    verification: verification({ classification: "all-passed", statusCounts: { passed: 5 } }),
+  },
+  {
+    slug: "shipped-beta",
+    path: "/repo/.specifications/shipped-beta/test-cases.json",
+    caseCount: 8,
+    verification: verification({ classification: "all-passed", statusCounts: { passed: 8 } }),
+  },
 ];
 
 function specsQuery(over: Partial<ReturnType<typeof mockUseTestbenchSpecs>> = {}) {
@@ -178,6 +237,122 @@ describe("SpecPickerModal", () => {
     expect(screen.getByRole("button", { name: "Creating..." })).toBeInTheDocument();
   });
 
+  describe("partitioned picker (#483)", () => {
+    it("lists only needs-attention specs in the main space, all-passed behind the collapsed disclosure", () => {
+      renderModal();
+      // Needs-attention specs are in the main space.
+      expect(screen.getByText("testbench")).toBeInTheDocument();
+      expect(screen.getByText("billing")).toBeInTheDocument();
+      // All-passed specs are hidden until the disclosure is expanded.
+      expect(screen.queryByText("shipped-alpha")).not.toBeInTheDocument();
+      expect(screen.queryByText("shipped-beta")).not.toBeInTheDocument();
+      // A collapsed disclosure row at the tail names the count.
+      const disclosure = screen.getByRole("button", { name: /All passed/ });
+      expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByText("· 2 specs")).toBeInTheDocument();
+    });
+
+    it("renders a pass-state summary per needs-attention spec (dot/icon plus text, never colour alone)", () => {
+      renderModal();
+      // Progress summary for a partially-passed spec.
+      expect(screen.getByText("1 of 3 passed")).toBeInTheDocument();
+      // Failure fragment for a spec with failed cases.
+      expect(screen.getByText("0 of 1 passed")).toBeInTheDocument();
+      expect(screen.getByText("· 1 failed")).toBeInTheDocument();
+    });
+
+    it("renders the 'no results yet' summary when a spec has no sidecar", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({
+          data: {
+            specs: [
+              {
+                slug: "fresh",
+                path: "/repo/.specifications/fresh/test-cases.json",
+                caseCount: 4,
+                verification: verification({
+                  resultsPresent: false,
+                  resultsValid: false,
+                  planHashMatch: false,
+                  statusCounts: { not_started: 4 },
+                }),
+              },
+            ],
+            invalid: [],
+          },
+        }),
+      );
+      renderModal();
+      expect(screen.getByText("no results yet")).toBeInTheDocument();
+    });
+
+    it("renders the 'results stale' summary when a valid sidecar mismatches the plan hash", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({
+          data: {
+            specs: [
+              {
+                slug: "moved-on",
+                path: "/repo/.specifications/moved-on/test-cases.json",
+                caseCount: 29,
+                verification: verification({
+                  resultsPresent: true,
+                  resultsValid: true,
+                  planHashMatch: false,
+                  statusCounts: { passed: 29 },
+                }),
+              },
+            ],
+            invalid: [],
+          },
+        }),
+      );
+      renderModal();
+      expect(screen.getByText("results stale")).toBeInTheDocument();
+    });
+
+    it("reveals de-emphasized all-passed rows on expand and shows their 'All M passed' summary", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      const alpha = screen.getByText("shipped-alpha");
+      expect(alpha).toBeInTheDocument();
+      // De-emphasized via colour hierarchy: the slug drops to muted stone (never
+      // the full-strength stone-800 a needs-attention slug uses).
+      expect(alpha).toHaveClass("text-stone-500");
+      expect(screen.getByText("testbench")).toHaveClass("text-stone-800");
+      // Each all-passed row carries its own pass-state summary.
+      expect(screen.getByText("All 5 passed")).toBeInTheDocument();
+      expect(screen.getByText("All 8 passed")).toBeInTheDocument();
+    });
+
+    it("collapses the all-passed disclosure again after the modal is dismissed", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      expect(screen.getByText("shipped-alpha")).toBeInTheDocument();
+      // Dismiss resets the disclosure to collapsed (so it is collapsed on reopen).
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByText("shipped-alpha")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /All passed/ })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("keeps exactly one selection across the needs-attention and all-passed groups", async () => {
+      const onCreate = vi.fn();
+      renderModal({ onCreate });
+      // Select a needs-attention row, then an all-passed row inside the disclosure.
+      await userEvent.click(screen.getByText("testbench"));
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      await userEvent.click(screen.getByText("shipped-beta"));
+      // Exactly one row is selected across both groups.
+      expect(screen.getAllByRole("radio", { checked: true })).toHaveLength(1);
+      // Confirm binds the last (all-passed) selection.
+      await userEvent.click(screen.getByRole("button", { name: /Create TestBench/ }));
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/shipped-beta/test-cases.json");
+    });
+  });
+
   describe("re-point mode (#423)", () => {
     it("uses the re-point title, helper text, and confirm label", () => {
       renderModal({ mode: "repoint" });
@@ -236,6 +411,20 @@ describe("SpecPickerModal", () => {
       await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
       expect(onCreate).not.toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
+    });
+
+    it("renders the identical partitioned view and supports cross-group single selection", async () => {
+      const onCreate = vi.fn();
+      renderModal({ mode: "repoint", onCreate });
+      // Same partition: needs-attention in the main space, all-passed collapsed.
+      expect(screen.getByText("testbench")).toBeInTheDocument();
+      expect(screen.queryByText("shipped-alpha")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByText("billing"));
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      await userEvent.click(screen.getByText("shipped-alpha"));
+      expect(screen.getAllByRole("radio", { checked: true })).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: /Re-point TestBench/ }));
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/shipped-alpha/test-cases.json");
     });
   });
 });

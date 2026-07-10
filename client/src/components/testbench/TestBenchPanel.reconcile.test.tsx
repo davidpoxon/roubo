@@ -22,10 +22,16 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: () => mockUseTestbenchPlan(),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-vi.mock("../../hooks/useTestbenchSpecs", () => ({
-  useTestbenchSpecs: () => ({ data: [], isLoading: false, isError: false, error: null }),
-  useManualPathValidation: () => ({ status: "idle" }),
-}));
+// Mock only the two data-fetching hooks; keep the real pure helpers
+// (partitionSpecs / deriveSpecSummary) the spec-picker imports from this module.
+vi.mock("../../hooks/useTestbenchSpecs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../hooks/useTestbenchSpecs")>();
+  return {
+    ...actual,
+    useTestbenchSpecs: () => ({ data: [], isLoading: false, isError: false, error: null }),
+    useManualPathValidation: () => ({ status: "idle" }),
+  };
+});
 vi.mock("../../hooks/useReconcile", () => ({
   useReconcilePreview: () => ({ mutate: mockPreviewMutate, isPending: false, error: null }),
   useReconcileApply: () => ({ mutate: mockApplyMutate, isPending: false, error: null }),

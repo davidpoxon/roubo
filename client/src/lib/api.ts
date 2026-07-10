@@ -1345,13 +1345,50 @@ export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
 // server-side shapes in server/lib/testbench-spec-discovery.ts; the client cannot
 // import from the server package, so the response types are restated here.
 
+// Per-status case tally for one spec (#482), mirrored from the server's
+// `SpecStatusCounts` (server/lib/testbench-spec-discovery.ts). Non-negative
+// integers keyed by the five CaseStatus values; the tally sums to the spec's
+// caseCount. The client cannot import from the server package, so the shape is
+// restated here.
+export interface SpecStatusCounts {
+  not_started: number;
+  in_progress: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+}
+
+// The read-only, per-spec verification state discovery computes (#482), mirrored
+// from the server's `SpecVerification`. It carries classification inputs, not
+// presentation strings: the picker keys its partition on `classification` and
+// derives each row's pass-state summary from these fields client-side.
+//   - classification: "all-passed" iff a readable, schema-valid, hash-matching
+//     results sidecar is present AND every current-plan case is effectively
+//     passed; everything else (including aggregationError) is "needs-attention".
+//   - statusCounts: effective-status tally over the current plan (sums to caseCount).
+//   - resultsPresent: a sidecar exists on disk (the loader did not report "missing").
+//   - resultsValid: the sidecar parsed and passed schema validation.
+//   - planHashMatch: the sidecar's recorded planHash matches the current plan hash.
+//   - recoveryReason: why the loader fell open (null on a clean read).
+//   - aggregationError: true when the per-spec aggregation degraded fail-open.
+export interface SpecVerification {
+  classification: "needs-attention" | "all-passed";
+  statusCounts: SpecStatusCounts;
+  resultsPresent: boolean;
+  resultsValid: boolean;
+  planHashMatch: boolean;
+  recoveryReason: string | null;
+  aggregationError: boolean;
+}
+
 // One discovered, contract-valid spec: the slug naming its
-// `.specifications/<slug>/` folder, the absolute path to its test-cases.json, and
-// the number of cases in it.
+// `.specifications/<slug>/` folder, the absolute path to its test-cases.json, the
+// number of cases in it, and its read-only per-spec verification state (#482).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
   caseCount: number;
+  verification: SpecVerification;
 }
 
 // A spec folder whose test-cases.json exists but failed to parse/validate, with

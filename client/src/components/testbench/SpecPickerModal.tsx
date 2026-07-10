@@ -11,9 +11,41 @@ import {
   Label,
   Input,
 } from "react-aria-components";
-import { FlaskConical, FileText, AlertTriangle, Check, Loader2 } from "lucide-react";
-import { useTestbenchSpecs, useManualPathValidation } from "../../hooks/useTestbenchSpecs";
+import { FlaskConical, FileText, AlertTriangle, Check, Loader2, ChevronRight } from "lucide-react";
+import {
+  useTestbenchSpecs,
+  useManualPathValidation,
+  partitionSpecs,
+  deriveSpecSummary,
+} from "../../hooks/useTestbenchSpecs";
+import type { SpecPassSummary } from "../../hooks/useTestbenchSpecs";
+import type { DiscoveredSpec } from "../../lib/api";
 import Spinner from "../Spinner";
+
+// The leading marker for a pass-state summary line (#483, TSPF-FR-006). Each
+// marker maps to a specific dot or icon; the summary text always accompanies it,
+// so state is never conveyed by colour alone (a dot/icon plus words in every
+// case). Decorative only (aria-hidden), the adjacent text carries the meaning.
+function SummaryMarker({ marker }: { marker: SpecPassSummary["marker"] }) {
+  switch (marker) {
+    case "none":
+      return (
+        <span
+          aria-hidden
+          className="w-2 h-2 rounded-full border-[1.5px] border-stone-400 dark:border-stone-500 shrink-0"
+        />
+      );
+    case "stale":
+      return <AlertTriangle size={12} aria-hidden className="text-amber-500 shrink-0" />;
+    case "passed":
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
+    case "failed":
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-red-500 shrink-0" />;
+    case "progress":
+    default:
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />;
+  }
+}
 
 // A selection is either a discovered spec row or the validated manual path. Both
 // resolve to a focusedSpecPath (the absolute path to the spec's test-cases.json)
@@ -78,6 +110,11 @@ export default function SpecPickerModal({
   const invalid = data?.invalid;
   const [manualPath, setManualPath] = useState("");
   const [selectedDiscoveredPath, setSelectedDiscoveredPath] = useState<string | null>(null);
+  // The all-passed disclosure is collapsed by default and reset to collapsed on
+  // every close (see reset()), so it is always collapsed on reopen (#483,
+  // TSPF-FR-005). Selection lives in selectedDiscoveredPath, shared across both
+  // groups, so collapsing the tail never drops a selection made inside it.
+  const [allPassedExpanded, setAllPassedExpanded] = useState(false);
 
   const manualState = useManualPathValidation(projectId, manualPath, isOpen);
 
@@ -99,6 +136,7 @@ export default function SpecPickerModal({
   const reset = () => {
     setManualPath("");
     setSelectedDiscoveredPath(null);
+    setAllPassedExpanded(false);
   };
 
   const handleClose = () => {
@@ -118,6 +156,87 @@ export default function SpecPickerModal({
   // instead of the misleading "No specs found".
   const showEmptyDiscovery = !isLoading && !isError && (specs?.length ?? 0) === 0 && !hasInvalid;
   const showInvalidSpecs = !isLoading && !isError && hasInvalid;
+
+  // Partition the discovered specs (#483, TSPF-FR-003): needs-attention specs
+  // fill the prominent main space, all-passed specs live in the collapsed tail
+  // disclosure. Purely presentational, keyed on the server's classification.
+  const { needsAttention, allPassed } = partitionSpecs(specs ?? []);
+
+  // Render one selectable spec row. Shared by both groups so selection stays a
+  // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
+  // rows via colour hierarchy (slug/path/icon drop to muted stone, never below
+  // the AA text floor recorded in DESIGN.md).
+  const renderRow = (spec: DiscoveredSpec, muted: boolean) => {
+    const isSelected = manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
+    const isActive = mode === "repoint" && spec.path === activePath;
+    const summary = deriveSpecSummary(spec);
+    return (
+      <ToggleButton
+        key={spec.path}
+        id={spec.path}
+        className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+          isSelected
+            ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+            : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
+        }`}
+      >
+        <FileText
+          size={15}
+          className={`shrink-0 mt-0.5 ${
+            muted ? "text-stone-300 dark:text-stone-600" : "text-stone-400 dark:text-stone-500"
+          }`}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <span
+              className={`truncate ${
+                muted ? "text-stone-500 dark:text-stone-500" : "text-stone-800 dark:text-stone-200"
+              }`}
+            >
+              {spec.slug}
+            </span>
+            {isActive && (
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/40 rounded-full px-1.5 py-0.5">
+                Active
+              </span>
+            )}
+          </p>
+          <p
+            className={`text-[11px] font-mono truncate ${
+              muted ? "text-stone-500 dark:text-stone-600" : "text-stone-400 dark:text-stone-500"
+            }`}
+          >
+            {spec.path}
+          </p>
+          <p
+            className={`mt-0.5 flex items-center gap-1.5 text-[11px] ${
+              muted ? "text-stone-500 dark:text-stone-500" : "text-stone-600 dark:text-stone-400"
+            }`}
+          >
+            <SummaryMarker marker={summary.marker} />
+            <span
+              className={
+                summary.marker === "stale"
+                  ? "font-medium text-amber-800 dark:text-amber-400"
+                  : undefined
+              }
+            >
+              {summary.text}
+            </span>
+            {summary.failed > 0 && (
+              <span className="font-medium text-red-600 dark:text-red-400">
+                · {summary.failed} failed
+              </span>
+            )}
+          </p>
+        </div>
+        <span className="shrink-0 text-[11px] font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
+          {spec.caseCount} {spec.caseCount === 1 ? "case" : "cases"}
+        </span>
+        {isSelected && <Check size={14} className="text-amber-500 shrink-0 mt-0.5" />}
+      </ToggleButton>
+    );
+  };
 
   return (
     <ModalOverlay
@@ -234,46 +353,56 @@ export default function SpecPickerModal({
                       }}
                       className="flex flex-col gap-1.5"
                     >
-                      {specs?.map((spec) => {
-                        const isSelected =
-                          manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
-                        const isActive = mode === "repoint" && spec.path === activePath;
-                        return (
-                          <ToggleButton
-                            key={spec.path}
-                            id={spec.path}
-                            className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
-                              isSelected
-                                ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-                                : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
-                            }`}
+                      {/* Needs-attention specs fill the main space at full strength. */}
+                      {needsAttention.map((spec) => renderRow(spec, false))}
+
+                      {/* All-passed specs are relegated to a single quiet tail
+                          disclosure, collapsed by default. The disclosure is a
+                          plain Button interspersed in the group (never a
+                          ToggleButton), so it is not part of the single
+                          selection; the all-passed rows it reveals share the same
+                          controlled group, so exactly one row is ever selected
+                          across both. */}
+                      {allPassed.length > 0 && (
+                        <>
+                          <Button
+                            aria-expanded={allPassedExpanded}
+                            onPress={() => setAllPassedExpanded((open) => !open)}
+                            className={({ isHovered, isPressed, isFocusVisible }) =>
+                              `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                isPressed
+                                  ? "bg-stone-200 dark:bg-stone-700/60"
+                                  : isHovered
+                                    ? "bg-stone-100 dark:bg-stone-800/60"
+                                    : ""
+                              } ${
+                                isFocusVisible
+                                  ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-stone-900"
+                                  : ""
+                              }`
+                            }
                           >
-                            <FileText
-                              size={15}
-                              className="text-stone-400 dark:text-stone-500 shrink-0 mt-0.5"
+                            <ChevronRight
+                              size={14}
+                              aria-hidden
+                              className={`shrink-0 text-stone-500 dark:text-stone-400 transition-transform duration-200 ${
+                                allPassedExpanded ? "rotate-90" : ""
+                              }`}
                             />
-                            <div className="min-w-0 flex-1">
-                              <p className="flex items-center gap-1.5 text-sm font-medium text-stone-800 dark:text-stone-200">
-                                <span className="truncate">{spec.slug}</span>
-                                {isActive && (
-                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/40 rounded-full px-1.5 py-0.5">
-                                    Active
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-[11px] font-mono text-stone-400 dark:text-stone-500 truncate">
-                                {spec.path}
-                              </p>
-                            </div>
-                            <span className="shrink-0 text-[11px] font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
-                              {spec.caseCount} {spec.caseCount === 1 ? "case" : "cases"}
+                            <span>
+                              All passed{" "}
+                              <span className="font-normal text-stone-500 dark:text-stone-500">
+                                · {allPassed.length} spec{allPassed.length === 1 ? "" : "s"}
+                              </span>
                             </span>
-                            {isSelected && (
-                              <Check size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                            )}
-                          </ToggleButton>
-                        );
-                      })}
+                          </Button>
+                          {allPassedExpanded && (
+                            <div aria-label="All passed specs" className="flex flex-col gap-1.5">
+                              {allPassed.map((spec) => renderRow(spec, true))}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </ToggleButtonGroup>
                   )}
                 </div>
