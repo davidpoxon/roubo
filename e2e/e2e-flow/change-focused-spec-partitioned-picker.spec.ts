@@ -153,6 +153,14 @@ async function waitForFocusedPlan(
 // rows; the slug is the first text line of each row (the Active badge, when
 // present, follows the slug on the same line and is dropped by the slug regex).
 async function capturePartition(dialog: Locator): Promise<PartitionSignature> {
+  // `allInnerTexts()` is a non-retrying snapshot: it reads whatever radios are
+  // mounted right now. On a picker's first (uncached) open the dialog is visible
+  // while `useTestbenchSpecs` is still fetching (SpecPickerModal renders a loading
+  // branch before the rows + disclosure mount), so wait for the first discovered
+  // row to mount before snapshotting; otherwise the read can race the fetch and
+  // capture an empty needs-attention set while the auto-waiting disclosure read
+  // below still resolves to the loaded count, yielding an inconsistent signature.
+  await dialog.getByRole("radio").first().waitFor();
   const rowTexts = await dialog.getByRole("radio").allInnerTexts();
   const needsAttention = rowTexts
     .map(
