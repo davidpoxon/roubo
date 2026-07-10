@@ -7,9 +7,13 @@ import {
   resolveFocusedSpec,
   validateManualPath,
 } from "./testbench-spec-discovery.js";
+import { computePlanHash } from "./testbench-store.js";
 import {
   TEST_CASES_SCHEMA_ID,
   TEST_CASES_SCHEMA_VERSION,
+  TEST_RESULTS_SCHEMA_ID,
+  TEST_RESULTS_SCHEMA_VERSION,
+  type CaseStatus,
   type TestCasesPlan,
 } from "@roubo/shared/testbench-contracts";
 import { UnsafePathError } from "./safe-path.js";
@@ -246,5 +250,283 @@ describe("resolveFocusedSpec", () => {
     } finally {
       fs.rmSync(outside, { recursive: true, force: true });
     }
+  });
+});
+
+// ── Per-spec verification aggregation (#482, TSPF-FR-001/FR-002) ──
+
+const TEST_AUTHOR = { name: "Tester", email: "tester@example.com" };
+const FIXED_TS = "2026-01-01T00:00:00.000Z";
+
+// Build a minimal CaseResult body: derivedStatus plus an optional statusOverride.
+function caseResult(derivedStatus: CaseStatus, override?: CaseStatus): Record<string, unknown> {
+  const cr: Record<string, unknown> = {
+    observationMarks: {},
+    derivedStatus,
+    notes: [],
+  };
+  if (override !== undefined) {
+    cr.statusOverride = { status: override, author: TEST_AUTHOR, timestamp: FIXED_TS };
+  }
+  return cr;
+}
+
+// Write a test-results.json sidecar next to a spec's test-cases.json. When
+// planHash is omitted it is computed from `plan` so the sidecar hash-matches; pass
+// an explicit string to simulate a stale hash.
+function writeResults(
+  slug: string,
+  plan: TestCasesPlan,
+  caseResults: Record<string, unknown>,
+  planHash?: string,
+): string {
+  const dir = path.join(repo, ".specifications", slug);
+  fs.mkdirSync(dir, { recursive: true });
+  const target = path.join(dir, "test-results.json");
+  fs.writeFileSync(
+    target,
+    JSON.stringify(
+      {
+        $schema: TEST_RESULTS_SCHEMA_ID,
+        schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+        planHash: planHash ?? computePlanHash(plan),
+        caseResults,
+        updatedAt: FIXED_TS,
+      },
+      null,
+      2,
+    ),
+  );
+  return target;
+}
+
+describe("discoverSpecs verification aggregation (#482)", () => {
+  it("carries a verification object on every spec; statusCounts sums to caseCount", () => {
+    const plan = planFor("feat", ["TC-001", "TC-002"]);
+    writeSpec("feat", plan);
+
+    const { specs } = discoverSpecs(repo);
+    expect(specs).toHaveLength(1);
+    const v = specs[0].verification;
+    // No sidecar yet: every case counts not_started, needs-attention, fail-open flags off.
+    expect(v.classification).toBe("needs-attention");
+    expect(v.resultsPresent).toBe(false);
+    expect(v.resultsValid).toBe(false);
+    expect(v.planHashMatch).toBe(false);
+    expect(v.aggregationError).toBe(false);
+    expect(v.statusCounts).toEqual({
+      not_started: 2,
+      in_progress: 0,
+      passed: 0,
+      failed: 0,
+      blocked: 0,
+    });
+    const sum = Object.values(v.statusCounts).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(specs[0].caseCount);
+  });
+
+  it("classifies all-passed when a valid hash-matching sidecar has every case passed", () => {
+    const plan = planFor("feat", ["TC-001", "TC-002"]);
+    writeSpec("feat", plan);
+    writeResults("feat", plan, {
+      "TC-001": caseResult("passed"),
+      "TC-002": caseResult("passed"),
+    });
+
+    const v = discoverSpecs(repo).specs[0].verification;
+    expect(v.classification).toBe("all-passed");
+    expect(v.resultsPresent).toBe(true);
+    expect(v.resultsValid).toBe(true);
+    expect(v.planHashMatch).toBe(true);
+    expect(v.recoveryReason).toBeNull();
+    expect(v.statusCounts.passed).toBe(2);
+  });
+
+  it("honours statusOverride over derivedStatus for effective status", () => {
+    const plan = planFor("feat", ["TC-001"]);
+    writeSpec("feat", plan);
+    // derivedStatus is failed, but the override says passed: the override wins.
+    writeResults("feat", plan, { "TC-001": caseResult("failed", "passed") });
+
+    const v = discoverSpecs(repo).specs[0].verification;
+    expect(v.statusCounts.passed).toBe(1);
+    expect(v.statusCounts.failed).toBe(0);
+    expect(v.classification).toBe("all-passed");
+  });
+
+  it("counts a plan case absent from caseResults as not_started", () => {
+    const plan = planFor("feat", ["TC-001", "TC-002"]);
+    writeSpec("feat", plan);
+    // Only TC-001 has a recorded result; TC-002 is absent from the sidecar.
+    writeResults("feat", plan, { "TC-001": caseResult("passed") });
+
+    const v = discoverSpecs(repo).specs[0].verification;
+    expect(v.statusCounts).toEqual({
+      not_started: 1,
+      in_progress: 0,
+      passed: 1,
+      failed: 0,
+      blocked: 0,
+    });
+    expect(v.classification).toBe("needs-attention");
+  });
+
+  it("ignores caseResults entries for cases no longer in the plan", () => {
+    const plan = planFor("feat", ["TC-001"]);
+    writeSpec("feat", plan);
+    // An orphaned TC-999 result (failed) must not enter the tally nor the sum.
+    writeResults("feat", plan, {
+      "TC-001": caseResult("passed"),
+      "TC-999": caseResult("failed"),
+    });
+
+    const { specs } = discoverSpecs(repo);
+    const v = specs[0].verification;
+    expect(v.statusCounts.passed).toBe(1);
+    expect(v.statusCounts.failed).toBe(0);
+    const sum = Object.values(v.statusCounts).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(specs[0].caseCount);
+    expect(v.classification).toBe("all-passed");
+  });
+
+  it("classifies needs-attention when the recorded planHash is stale", () => {
+    const plan = planFor("feat", ["TC-001"]);
+    writeSpec("feat", plan);
+    // Every case passed, but the recorded planHash does not match the current plan.
+    writeResults("feat", plan, { "TC-001": caseResult("passed") }, "stale-hash-deadbeef");
+
+    const v = discoverSpecs(repo).specs[0].verification;
+    expect(v.resultsPresent).toBe(true);
+    expect(v.resultsValid).toBe(true);
+    expect(v.planHashMatch).toBe(false);
+    expect(v.classification).toBe("needs-attention");
+  });
+
+  it("fails open on a malformed results file: resultsValid false, needs-attention, spec still listed", () => {
+    const plan = planFor("feat", ["TC-001", "TC-002"]);
+    writeSpec("feat", plan);
+    fs.writeFileSync(
+      path.join(repo, ".specifications", "feat", "test-results.json"),
+      "{ this is not valid json",
+    );
+
+    const { specs } = discoverSpecs(repo);
+    expect(specs.map((s) => s.slug)).toEqual(["feat"]);
+    const v = specs[0].verification;
+    // A sidecar exists on disk (present) but does not parse (invalid); fail-open,
+    // not an aggregation throw.
+    expect(v.resultsPresent).toBe(true);
+    expect(v.resultsValid).toBe(false);
+    expect(v.planHashMatch).toBe(false);
+    expect(v.aggregationError).toBe(false);
+    expect(v.recoveryReason).toBe("corrupt-json");
+    expect(v.classification).toBe("needs-attention");
+    // With no readable file every plan case defaults to not_started (sum preserved).
+    expect(v.statusCounts.not_started).toBe(2);
+  });
+
+  it("treats a zero-case plan as all-passed only under a valid hash-matching sidecar", () => {
+    const plan = planFor("empty", []);
+    writeSpec("empty", plan);
+    // Matching-hash, empty results: vacuously all-passed.
+    writeResults("empty", plan, {});
+
+    const spec = discoverSpecs(repo).specs[0];
+    expect(spec.caseCount).toBe(0);
+    const v = spec.verification;
+    expect(v.classification).toBe("all-passed");
+    expect(v.statusCounts).toEqual({
+      not_started: 0,
+      in_progress: 0,
+      passed: 0,
+      failed: 0,
+      blocked: 0,
+    });
+  });
+
+  it("does not treat a zero-case plan with no sidecar as all-passed", () => {
+    writeSpec("empty", planFor("empty", []));
+
+    const v = discoverSpecs(repo).specs[0].verification;
+    expect(v.resultsPresent).toBe(false);
+    expect(v.classification).toBe("needs-attention");
+  });
+
+  // TSPF-FR-002 mandatory symlink-escape fixture: a sidecar symlinked outside the
+  // repo makes the store's path-safety assertion throw; the per-spec catch degrades
+  // ONLY that spec (aggregationError true, needs-attention) while the endpoint still
+  // lists every spec.
+  it("degrades only the spec whose results sidecar symlinks outside the repo (#482)", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-verify-escape-"));
+    try {
+      const evilPlan = planFor("evil", ["TC-001"]);
+      writeSpec("evil", evilPlan);
+      // A well-formed results file living OUTSIDE the repo, reachable only via the
+      // symlinked sidecar.
+      fs.writeFileSync(
+        path.join(outside, "test-results.json"),
+        JSON.stringify(
+          {
+            $schema: TEST_RESULTS_SCHEMA_ID,
+            schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+            planHash: computePlanHash(evilPlan),
+            caseResults: { "TC-001": caseResult("passed") },
+            updatedAt: FIXED_TS,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.symlinkSync(
+        path.join(outside, "test-results.json"),
+        path.join(repo, ".specifications", "evil", "test-results.json"),
+      );
+
+      // A healthy neighbour spec aggregates normally.
+      const goodPlan = planFor("good", ["TC-001"]);
+      writeSpec("good", goodPlan);
+      writeResults("good", goodPlan, { "TC-001": caseResult("passed") });
+
+      const { specs } = discoverSpecs(repo);
+      // The endpoint returns every spec (no omission, no throw), sorted by slug.
+      expect(specs.map((s) => s.slug)).toEqual(["evil", "good"]);
+
+      const evil = specs[0].verification;
+      expect(evil.aggregationError).toBe(true);
+      expect(evil.classification).toBe("needs-attention");
+      expect(evil.resultsPresent).toBe(false);
+      expect(evil.resultsValid).toBe(false);
+      expect(evil.planHashMatch).toBe(false);
+      expect(evil.recoveryReason).toBeNull();
+      // Safe-default tally still sums to caseCount.
+      expect(evil.statusCounts.not_started).toBe(1);
+
+      const good = specs[1].verification;
+      expect(good.aggregationError).toBe(false);
+      expect(good.classification).toBe("all-passed");
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("performs zero writes: no sidecar is created and an existing one is untouched", () => {
+    const noResultsPlan = planFor("no-results", ["TC-001"]);
+    writeSpec("no-results", noResultsPlan);
+
+    const withResultsPlan = planFor("with-results", ["TC-001"]);
+    writeSpec("with-results", withResultsPlan);
+    const resultsPath = writeResults("with-results", withResultsPlan, {
+      "TC-001": caseResult("passed"),
+    });
+    const before = fs.readFileSync(resultsPath);
+
+    discoverSpecs(repo);
+
+    // Discovery created no sidecar for the spec that lacked one.
+    expect(
+      fs.existsSync(path.join(repo, ".specifications", "no-results", "test-results.json")),
+    ).toBe(false);
+    // And left the existing sidecar byte-identical.
+    expect(fs.readFileSync(resultsPath).equals(before)).toBe(true);
   });
 });
