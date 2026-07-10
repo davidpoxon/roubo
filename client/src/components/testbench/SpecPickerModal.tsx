@@ -162,6 +162,14 @@ export default function SpecPickerModal({
   // disclosure. Purely presentational, keyed on the server's classification.
   const { needsAttention, allPassed } = partitionSpecs(specs ?? []);
 
+  // Every discovered spec is all-passed (#484, TSPF-FR-007): the main space would
+  // otherwise be blank, so we show an explicit empty state pointing at the
+  // completed group below and the manual-path field. Keyed on an empty
+  // needs-attention list (not on hasInvalid): the invalid panel keeps its own
+  // separate messaging and does not participate in this condition.
+  const showAllPassedEmptyState =
+    !isLoading && !isError && (specs?.length ?? 0) > 0 && needsAttention.length === 0;
+
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
   // rows via colour hierarchy (slug/path/icon drop to muted stone, never below
@@ -334,6 +342,26 @@ export default function SpecPickerModal({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* Every discovered spec is all-passed (#484, TSPF-FR-007):
+                      an explicit message fills the main space instead of a blank
+                      list, pointing at the completed group below and the
+                      manual-path field. Rendered above the group so the collapsed
+                      all-passed disclosure sits beneath it. */}
+                  {showAllPassedEmptyState && (
+                    <div className="flex flex-col items-center text-center px-5 py-6">
+                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-green-500 mb-3">
+                        <Check size={20} strokeWidth={2.5} aria-hidden />
+                      </div>
+                      <p className="text-[15px] font-semibold text-stone-800 dark:text-stone-200">
+                        Every discovered spec has all test cases passed
+                      </p>
+                      <p className="mt-1 max-w-[380px] text-[13px] text-stone-600 dark:text-stone-400">
+                        Browse the completed specs below, or point a TestBench at a test-cases.json
+                        by hand.
+                      </p>
                     </div>
                   )}
 
