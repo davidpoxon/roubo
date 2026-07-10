@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { Readable } from "node:stream";
 import path from "node:path";
 import type {
   KeyRingEntry,
@@ -83,6 +84,15 @@ export class CatalogUnverifiedError extends Error {
 const DEFAULT_CATALOG_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 const DEFAULT_KEY_RING_URL = "https://davidpoxon.github.io/roubo-plugins/key-ring.json";
 const FETCH_TIMEOUT_MS = 5000;
+// Size budget for a fetched catalog / key-ring payload (CPHM-NFR-002, issue #495).
+// The network fetch is bounded to this many bytes, enforced both up front (declared
+// content-length) and as bytes flow (mirroring the release-asset limiter in
+// plugin-installer.ts). An oversized payload, even a validly signed one, is rejected
+// fail-closed so it degrades to cache/seed rather than being buffered and served; it
+// never reaches the verify chain, so no partial/unverified entries are listed. The
+// same cap covers the far smaller key-ring fetch (a safe superset). The seed is
+// verified locally, so this cap applies to the network path only.
+const MAX_CATALOG_BYTES = 256 * 1024;
 const CACHE_FILENAME = "catalog-cache.json";
 // In-memory memo TTL: bound network refreshes (and search-as-you-type filtering)
 // to at most one fetch + verify per window, rather than one per listCatalog call.
@@ -110,6 +120,13 @@ export interface CatalogClientOptions {
    * refresh per window. Defaults to MEMO_TTL_MS.
    */
   memoTtlMs?: number;
+  /**
+   * Network fetch size budget (bytes) for the catalog / key-ring payload
+   * (CPHM-NFR-002). A fetched payload exceeding this is rejected fail-closed and
+   * degrades to cache/seed. Tests inject a small value to exercise the guard.
+   * Defaults to MAX_CATALOG_BYTES.
+   */
+  maxCatalogBytes?: number;
 }
 
 export interface CatalogClient {
@@ -139,6 +156,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   const doFetch = options.fetchImpl ?? globalThis.fetch;
   const log = options.log ?? ((message: string) => console.warn(message));
   const memoTtlMs = options.memoTtlMs ?? MEMO_TTL_MS;
+  const maxCatalogBytes = options.maxCatalogBytes ?? MAX_CATALOG_BYTES;
 
   let lastVerified: VerifiedCatalog | null = null;
   let lastVerifiedAt = 0;
@@ -172,10 +190,63 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
     try {
       const res = await doFetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (!res.ok) return null;
-      return (await res.json()) as T;
+      // Bound the payload to the size budget (CPHM-NFR-002, issue #495), enforced the
+      // same two ways as the release-asset limiter in plugin-installer.ts. Up front,
+      // reject a declared content-length over the cap; a server may lie about or omit
+      // it, so also count bytes as they flow and stop the moment the cap is exceeded.
+      // Either breach returns null, which flows through tryNetwork -> tryCache ->
+      // trySeed, so an oversized catalog is never verified or served.
+      const declared = Number(res.headers.get("content-length"));
+      if (Number.isFinite(declared) && declared > maxCatalogBytes) {
+        log(
+          `marketplace: fetched payload from ${url} declares ${declared} bytes, over the ` +
+            `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
+        );
+        return null;
+      }
+      let text: string;
+      if (res.body) {
+        // undici's body is a WHATWG ReadableStream; a Node Readable (a test double)
+        // exposes `.pipe`. Normalise to a Node stream either way (mirroring
+        // plugin-installer.ts downloadAssetToFile), then count bytes as they arrive.
+        const body = res.body as unknown;
+        const source =
+          typeof (body as { pipe?: unknown }).pipe === "function"
+            ? (body as Readable)
+            : Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
+        const chunks: Buffer[] = [];
+        let received = 0;
+        for await (const chunk of source as AsyncIterable<Buffer>) {
+          received += chunk.length;
+          if (received > maxCatalogBytes) {
+            // Returning here ends the async iteration, which destroys the stream and
+            // stops further reads. Fail closed: degrade rather than buffer the rest.
+            log(
+              `marketplace: fetched payload from ${url} exceeds the ` +
+                `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
+            );
+            return null;
+          }
+          chunks.push(chunk);
+        }
+        text = Buffer.concat(chunks).toString("utf8");
+      } else {
+        // Defensive fallback for a body-less response (a mock exposing neither
+        // .body nor a streamable body): buffer via text() and enforce the cap
+        // post-hoc so the budget still holds.
+        text = await res.text();
+        if (Buffer.byteLength(text, "utf8") > maxCatalogBytes) {
+          log(
+            `marketplace: fetched payload from ${url} exceeds the ` +
+              `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
+          );
+          return null;
+        }
+      }
+      return JSON.parse(text) as T;
     } catch {
-      // Network error, timeout, or non-JSON body: caught, never surfaced as an
-      // unhandled exception (CPHM-TC-044).
+      // Network error, timeout, non-JSON body, or an over-budget stream abort:
+      // caught, never surfaced as an unhandled exception (CPHM-TC-044).
       return null;
     }
   }
