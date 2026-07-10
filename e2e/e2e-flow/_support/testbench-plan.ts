@@ -490,3 +490,165 @@ export const TC_043_OWNING_SLICES: Record<string, string> = {
   apply: "#413/#422 (apply reconcile: orphan-not-delete)",
   integrity: "#406/#413 (NFR-003: archived results retained, source plan unchanged)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TSPF-TC-010 (#486): the authoritative `e2e_flow` case the "create a TestBench
+// from the PARTITIONED picker, selecting an all-passed spec from the disclosure"
+// journey drift-guards against. Restated from
+// `.specifications/testbench-spec-picker-filter/test-cases.json` TSPF-TC-010: the
+// same id, preconditions, and per-step expected observations (S001-S005). The
+// journey spans this work unit's blocked-by set:
+//   #482 discovery aggregation (per-spec verification + classification),
+//   #483 partitioned spec picker (needs-attention main space + collapsed
+//        all-passed disclosure + per-row pass-state summaries + cross-group
+//        single selection),
+//   #484 empty-state / a11y slice (the main space when every spec is all-passed;
+//        a conservative superset member, its empty state must NOT fire here).
+//
+// The one genuinely new fixture mechanism the journey needs: the picker can only
+// be partitioned when the repo carries BOTH a needs-attention spec AND an
+// all-passed spec. Discovery classifies a spec all-passed only when a readable,
+// schema-valid, PLAN-HASH-MATCHING test-results.json is present with every case
+// passed, so the two plans below are seeded with `seedResults` (server-side
+// sidecar synthesis, scenario.ts / test.ts) rather than a hand-rolled sidecar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The needs-attention spec: two cases so a "partial" results seed (first case
+// passed, second not) reads as a real "1 of 2 passed" per-row summary (S002-O03)
+// and the spec stays needs-attention (passed != caseCount), filling the main
+// space (S002-O01).
+export const TSPF_TC_010_NEEDS_ATTENTION_SLUG = "partitioned-needs-attention";
+
+export const TSPF_TC_010_NEEDS_ATTENTION_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TSPF_TC_010_NEEDS_ATTENTION_SLUG,
+  cases: [
+    {
+      id: "TC-NA1",
+      title: "Needs-attention spec: a passed case",
+      area: "spec-picker",
+      level: 1,
+      type: "functional",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-006"],
+      linked_user_story_ids: [],
+      preconditions: ["The spec has a partial results sidecar"],
+      steps: [
+        {
+          id: "TC-NA1-S1",
+          instruction: "Perform the passed check",
+          observations: [{ id: "TC-NA1-S1-O1", expected: "It passes" }],
+        },
+      ],
+    },
+    {
+      id: "TC-NA2",
+      title: "Needs-attention spec: a not-yet-run case",
+      area: "spec-picker",
+      level: 1,
+      type: "functional",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-006"],
+      linked_user_story_ids: [],
+      preconditions: ["The spec has a partial results sidecar"],
+      steps: [
+        {
+          id: "TC-NA2-S1",
+          instruction: "Perform the not-yet-run check",
+          observations: [{ id: "TC-NA2-S1-O1", expected: "Not run yet" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The all-passed spec: three cases, all seeded passed, so discovery classifies it
+// all-passed (it is relegated to the collapsed disclosure, S002-O02/O04) and each
+// row reads "All 3 passed" once revealed (S003-O02).
+export const TSPF_TC_010_ALL_PASSED_SLUG = "partitioned-all-passed";
+
+export const TSPF_TC_010_ALL_PASSED_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TSPF_TC_010_ALL_PASSED_SLUG,
+  cases: [
+    {
+      id: "TC-AP1",
+      title: "All-passed spec: first passed case",
+      area: "spec-picker",
+      level: 1,
+      type: "functional",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-002"],
+      linked_user_story_ids: [],
+      preconditions: ["The spec has an all-passed results sidecar"],
+      steps: [
+        {
+          id: "TC-AP1-S1",
+          instruction: "Perform the first check",
+          observations: [{ id: "TC-AP1-S1-O1", expected: "It passes" }],
+        },
+      ],
+    },
+    {
+      id: "TC-AP2",
+      title: "All-passed spec: second passed case",
+      area: "spec-picker",
+      level: 1,
+      type: "functional",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-002"],
+      linked_user_story_ids: [],
+      preconditions: ["The spec has an all-passed results sidecar"],
+      steps: [
+        {
+          id: "TC-AP2-S1",
+          instruction: "Perform the second check",
+          observations: [{ id: "TC-AP2-S1-O1", expected: "It passes" }],
+        },
+      ],
+    },
+    {
+      id: "TC-AP3",
+      title: "All-passed spec: third passed case",
+      area: "spec-picker",
+      level: 1,
+      type: "functional",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-002"],
+      linked_user_story_ids: [],
+      preconditions: ["The spec has an all-passed results sidecar"],
+      steps: [
+        {
+          id: "TC-AP3-S1",
+          instruction: "Perform the third check",
+          observations: [{ id: "TC-AP3-S1-O1", expected: "It passes" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The all-passed spec's discovered case count, so a row assertion derives "All N
+// passed" from the seeded plan rather than hard-coding it.
+export const TSPF_TC_010_ALL_PASSED_CASE_COUNT = TSPF_TC_010_ALL_PASSED_PLAN.cases.length;
+
+// The slices that own each leg of the partitioned-picker journey, surfaced in a
+// failing run so a divergence localises to an attributable slice from THIS unit's
+// blocked-by set (FR-020 / the issue's AC7 failure-output contract).
+export const TSPF_TC_010_OWNING_SLICES: Record<string, string> = {
+  picker: "#483 (partitioned spec picker: modal opens from the empty-slot flow)",
+  discovery: "#482 (discovery aggregation: per-spec verification + classification)",
+  mainSpace: "#483/#484 (partitioned picker: needs-attention main space, no all-passed leak)",
+  summary: "#482/#483 (discovery pass-state aggregate + per-row summary)",
+  disclosure: "#483 (partitioned picker: collapsed all-passed disclosure)",
+  expandedRows: "#483 (partitioned picker: expanded, de-emphasized all-passed rows)",
+  selection: "#483 (partitioned picker: cross-group single selection)",
+  createBinding: "#482/#483 (discovery classification + picker create binding)",
+};

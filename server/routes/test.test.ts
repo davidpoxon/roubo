@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } 
 import express from "express";
 import request from "supertest";
 import { resolveWithin, resolveWithinRoots } from "../lib/safe-path.js";
+import { discoverSpecs } from "../lib/testbench-spec-discovery.js";
 
 // Redirect getRouboDir() away from the user's real `~/.roubo` (or
 // `~/.roubo-dev/<bench>`) so wipePersistedTestState() targets a throwaway
@@ -1530,6 +1531,169 @@ describe("POST /test/__register-fixture-project", () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/gitInit/);
       expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+    });
+
+    // TSPF-TC-010 (#486): an optional per-spec `seedResults` synthesizes a
+    // hash-matching test-results.json from the seeded plan so a fixture spec
+    // lands in a known verification classification for the partitioned-picker
+    // journey. Assertions run discovery over the written repo (the same
+    // aggregation the picker consumes), so they prove the sidecar is
+    // hash-matching end to end, not just present.
+    describe("seedResults sidecar option (TSPF-TC-010, #486)", () => {
+      // A schema-valid v1.1.0 plan with two cases, so "partial" leaves a genuine
+      // one-passed / one-not-passed mix.
+      const RESULTS_PLAN = {
+        $schema: "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json",
+        schemaVersion: "1.1.0",
+        specSlug: "seed-results",
+        cases: [
+          {
+            id: "TC-1",
+            title: "First case",
+            area: "demo",
+            level: 1,
+            type: "functional",
+            priority: "P0",
+            tags: [],
+            linked_requirement_ids: ["FR-1"],
+            linked_user_story_ids: [],
+            steps: [
+              {
+                id: "TC-1-S1",
+                instruction: "Do the thing",
+                observations: [{ id: "TC-1-S1-O1", expected: "It works" }],
+              },
+            ],
+          },
+          {
+            id: "TC-2",
+            title: "Second case",
+            area: "demo",
+            level: 1,
+            type: "functional",
+            priority: "P0",
+            tags: [],
+            linked_requirement_ids: ["FR-1"],
+            linked_user_story_ids: [],
+            steps: [
+              {
+                id: "TC-2-S1",
+                instruction: "Do the other thing",
+                observations: [{ id: "TC-2-S1-O1", expected: "It works" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      it("writes a hash-matching all-passed sidecar so discovery classifies the spec all-passed", async () => {
+        process.env.ROUBO_E2E = "1";
+
+        const res = await request(app)
+          .post("/test/__register-fixture-project")
+          .send({
+            projectId: "tspf-all-passed",
+            seedSpecs: [
+              { slug: "seed-results", testCases: RESULTS_PLAN, seedResults: "all-passed" },
+            ],
+          });
+
+        expect(res.status).toBe(200);
+        createdTmpdirs.push(res.body.repoPath);
+
+        // The sidecar exists next to test-cases.json.
+        const resultsPath = `${res.body.repoPath}/.specifications/seed-results/test-results.json`;
+        expect(fs.existsSync(resultsPath)).toBe(true);
+        const parsed = JSON.parse(fs.readFileSync(resultsPath, "utf-8"));
+        expect(parsed.caseResults["TC-1"].derivedStatus).toBe("passed");
+        expect(parsed.caseResults["TC-2"].derivedStatus).toBe("passed");
+
+        // End-to-end: discovery aggregates the sidecar as hash-matching, so the
+        // spec classifies all-passed with every case passed.
+        const { specs } = discoverSpecs(res.body.repoPath);
+        const spec = specs.find((s) => s.slug === "seed-results");
+        expect(spec).toBeTruthy();
+        expect(spec?.verification.classification).toBe("all-passed");
+        expect(spec?.verification.planHashMatch).toBe(true);
+        expect(spec?.verification.statusCounts.passed).toBe(2);
+      });
+
+      it("writes a partial sidecar so discovery keeps the spec needs-attention with a real pass count", async () => {
+        process.env.ROUBO_E2E = "1";
+
+        const res = await request(app)
+          .post("/test/__register-fixture-project")
+          .send({
+            projectId: "tspf-partial",
+            seedSpecs: [{ slug: "seed-results", testCases: RESULTS_PLAN, seedResults: "partial" }],
+          });
+
+        expect(res.status).toBe(200);
+        createdTmpdirs.push(res.body.repoPath);
+
+        const resultsPath = `${res.body.repoPath}/.specifications/seed-results/test-results.json`;
+        const parsed = JSON.parse(fs.readFileSync(resultsPath, "utf-8"));
+        // partial = all but the last case passed.
+        expect(parsed.caseResults["TC-1"].derivedStatus).toBe("passed");
+        expect(parsed.caseResults["TC-2"].derivedStatus).toBe("not_started");
+
+        const { specs } = discoverSpecs(res.body.repoPath);
+        const spec = specs.find((s) => s.slug === "seed-results");
+        expect(spec?.verification.classification).toBe("needs-attention");
+        expect(spec?.verification.resultsPresent).toBe(true);
+        expect(spec?.verification.planHashMatch).toBe(true);
+        expect(spec?.verification.statusCounts.passed).toBe(1);
+        expect(spec?.verification.statusCounts.not_started).toBe(1);
+      });
+
+      it("does not write a sidecar when seedResults is omitted", async () => {
+        process.env.ROUBO_E2E = "1";
+
+        const res = await request(app)
+          .post("/test/__register-fixture-project")
+          .send({
+            projectId: "tspf-no-results",
+            seedSpecs: [{ slug: "seed-results", testCases: RESULTS_PLAN }],
+          });
+
+        expect(res.status).toBe(200);
+        createdTmpdirs.push(res.body.repoPath);
+        expect(
+          fs.existsSync(`${res.body.repoPath}/.specifications/seed-results/test-results.json`),
+        ).toBe(false);
+      });
+
+      it("returns 400 when seedResults is not a recognized mode", async () => {
+        process.env.ROUBO_E2E = "1";
+
+        const res = await request(app)
+          .post("/test/__register-fixture-project")
+          .send({
+            projectId: "tspf-bad-mode",
+            seedSpecs: [{ slug: "seed-results", testCases: RESULTS_PLAN, seedResults: "mostly" }],
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/seedResults/);
+        expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when seedResults is set but testCases is not a valid plan", async () => {
+        process.env.ROUBO_E2E = "1";
+
+        const res = await request(app)
+          .post("/test/__register-fixture-project")
+          .send({
+            projectId: "tspf-bad-plan",
+            seedSpecs: [
+              { slug: "seed-results", testCases: { not: "a plan" }, seedResults: "all-passed" },
+            ],
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/valid test-cases plan/);
+        expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+      });
     });
   });
 });
