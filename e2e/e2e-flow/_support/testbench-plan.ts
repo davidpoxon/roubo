@@ -652,3 +652,199 @@ export const TSPF_TC_010_OWNING_SLICES: Record<string, string> = {
   selection: "#483 (partitioned picker: cross-group single selection)",
   createBinding: "#482/#483 (discovery classification + picker create binding)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TSPF-TC-011 (#487): the authoritative `e2e_flow` case the "change an active
+// TestBench's focused spec through the identical partitioned picker" journey
+// drift-guards against. This is the schema-valid projection of TSPF-TC-011 in
+// `.specifications/testbench-spec-picker-filter/test-cases.json`: opening the
+// re-point picker on a project whose repo carries BOTH classifications, asserting
+// it renders the IDENTICAL partition the create picker renders on the same repo
+// state (needs-attention specs in the prominent main space, all-passed specs
+// behind the same collapsed disclosure, identical per-row summaries), then
+// re-pointing to a needs-attention spec and proving the previous spec's results
+// survive (TSPF-FR-005, TSPF-US-003).
+//
+// Both pickers render the SAME SpecPickerModal off the SAME endpoint
+// (`GET /:projectId/testbench/specs`), whose per-spec `verification.classification`
+// drives the partition, so "identical" is asserted by driving both pickers on one
+// project and comparing the rendered partition. Three plans are seeded into one
+// fixture repo so both partition groups are populated:
+//   - TSPF_ACTIVE_PLAN (picker-active-spec): the create-bound spec. No results
+//     sidecar is seeded in the PROJECT repo, so discovery classifies it
+//     needs-attention with a "no results yet" summary. The test records a result
+//     against it in the bench WORKTREE (not the project repo), so the picker's
+//     project-repo partition is unaffected and stays identical across both flows.
+//   - TSPF_ATTENTION_PLAN (picker-attention-spec): seeded with a PARTIAL all-pass
+//     (one of three cases passed), so discovery classifies it needs-attention with
+//     a "1 of 3 passed" summary. It is the re-point target.
+//   - TSPF_PASSED_PLAN (picker-passed-spec): seeded with a FULL all-pass (every
+//     case passed), so discovery classifies it all-passed with an "All 2 passed"
+//     summary and relegates it behind the collapsed disclosure.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TSPF_ACTIVE_SPEC_SLUG = "picker-active-spec";
+export const TSPF_ATTENTION_SPEC_SLUG = "picker-attention-spec";
+export const TSPF_PASSED_SPEC_SLUG = "picker-passed-spec";
+
+export const TSPF_ACTIVE_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TSPF_ACTIVE_SPEC_SLUG,
+  cases: [
+    {
+      id: "TSPF-ACT-01",
+      title: "Active spec: the case a result is recorded against before the re-point",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["A TestBench is bound to the active spec"],
+      steps: [
+        {
+          id: "TSPF-ACT-01-S1",
+          instruction: "Perform the active-spec check",
+          observations: [
+            { id: "TSPF-ACT-01-S1-O1", expected: "The active spec behaves as specified" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+export const TSPF_ATTENTION_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TSPF_ATTENTION_SPEC_SLUG,
+  cases: [
+    {
+      id: "TSPF-ATT-01",
+      title: "Attention spec: the one case seeded passed (1 of 3)",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["The attention spec is discoverable in the project repo"],
+      steps: [
+        {
+          id: "TSPF-ATT-01-S1",
+          instruction: "Perform the first attention check",
+          observations: [{ id: "TSPF-ATT-01-S1-O1", expected: "The first check passes" }],
+        },
+      ],
+    },
+    {
+      id: "TSPF-ATT-02",
+      title: "Attention spec: a case left needing attention",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["The attention spec is discoverable in the project repo"],
+      steps: [
+        {
+          id: "TSPF-ATT-02-S1",
+          instruction: "Perform the second attention check",
+          observations: [{ id: "TSPF-ATT-02-S1-O1", expected: "The second check passes" }],
+        },
+      ],
+    },
+    {
+      id: "TSPF-ATT-03",
+      title: "Attention spec: another case left needing attention",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["The attention spec is discoverable in the project repo"],
+      steps: [
+        {
+          id: "TSPF-ATT-03-S1",
+          instruction: "Perform the third attention check",
+          observations: [{ id: "TSPF-ATT-03-S1-O1", expected: "The third check passes" }],
+        },
+      ],
+    },
+  ],
+};
+
+export const TSPF_PASSED_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: TSPF_PASSED_SPEC_SLUG,
+  cases: [
+    {
+      id: "TSPF-PASS-01",
+      title: "Passed spec: first case, seeded passed",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["The passed spec is discoverable in the project repo"],
+      steps: [
+        {
+          id: "TSPF-PASS-01-S1",
+          instruction: "Perform the first passed check",
+          observations: [{ id: "TSPF-PASS-01-S1-O1", expected: "The first check passes" }],
+        },
+      ],
+    },
+    {
+      id: "TSPF-PASS-02",
+      title: "Passed spec: second case, seeded passed",
+      area: "spec-picker",
+      level: 1,
+      type: "e2e_flow",
+      priority: "P0",
+      tags: [],
+      linked_requirement_ids: ["TSPF-FR-005"],
+      linked_user_story_ids: ["TSPF-US-003"],
+      preconditions: ["The passed spec is discoverable in the project repo"],
+      steps: [
+        {
+          id: "TSPF-PASS-02-S1",
+          instruction: "Perform the second passed check",
+          observations: [{ id: "TSPF-PASS-02-S1-O1", expected: "The second check passes" }],
+        },
+      ],
+    },
+  ],
+};
+
+// The slices that own each leg of the TSPF-TC-011 journey, surfaced in a failing
+// run so a divergence localises to an attributable slice (AC5, the failure-output
+// contract). This work unit's `blocked_by` set is exactly {#483}: the partitioned
+// spec-picker slice that both the create and re-point pickers render off. The
+// journey-proper steps (opening the shared picker, the partition + its identity
+// across both flows, the results-preserving re-point) therefore all name #483; the
+// enable / create / review scaffolding steps name their own setup slices, which
+// are preconditions rather than part of the drift-guarded partition journey.
+export const OWNING_SLICES_TSPF_TC011: Record<string, string> = {
+  // Preconditions (shared scaffolding, not the TSPF-TC-011 journey proper).
+  enable: "#414 (TestBench settings toggle)",
+  createBinding: "#416/#418 (create-a-TestBench flow: spec-bound worktree)",
+  reviewPanel: "#416 (bench-variant create: TestBench tab surface + results panel)",
+  // The TSPF-TC-011 journey proper (blocked by #483, the sole blocked-by).
+  repointAction: "#483 (partitioned spec picker: 'Change focused spec' opens the shared picker)",
+  partition:
+    "#483 (partitioned spec picker: needs-attention main space + all-passed disclosure + per-row summaries)",
+  identicalPartition:
+    "#483 (partitioned spec picker: create and re-point render the identical partition)",
+  repointConfirm:
+    "#483 (partitioned spec picker: re-point confirm re-points and preserves the previous spec's results)",
+};
