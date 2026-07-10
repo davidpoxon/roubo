@@ -19,6 +19,73 @@ export function useTestbenchSpecs(projectId: string, enabled: boolean) {
   });
 }
 
+// The partition the spec picker renders (#483, TSPF-FR-003): needs-attention
+// specs get the prominent main space, all-passed specs the collapsed tail
+// disclosure. Keyed SOLELY on `verification.classification` (the server owns the
+// classification; the client never re-derives it), and stable: input order is
+// preserved within each group so the server's slug sort survives the split.
+export function partitionSpecs(specs: DiscoveredSpec[]): {
+  needsAttention: DiscoveredSpec[];
+  allPassed: DiscoveredSpec[];
+} {
+  const needsAttention: DiscoveredSpec[] = [];
+  const allPassed: DiscoveredSpec[] = [];
+  for (const spec of specs) {
+    if (spec.verification.classification === "all-passed") {
+      allPassed.push(spec);
+    } else {
+      needsAttention.push(spec);
+    }
+  }
+  return { needsAttention, allPassed };
+}
+
+// The visual marker a pass-state summary leads with (#483, TSPF-FR-006). Each
+// maps to a specific dot or icon in the row; the accompanying text is always
+// present, so meaning is never carried by colour alone.
+//   - "none":     hollow stone dot   (no results yet)
+//   - "stale":    amber triangle     (results stale)
+//   - "passed":   green dot          (all cases passed)
+//   - "progress": amber dot          (some passed, no failures)
+//   - "failed":   red dot            (some passed, with failures)
+export type SpecSummaryMarker = "none" | "stale" | "passed" | "progress" | "failed";
+
+// A small, render-agnostic descriptor for a spec's pass-state summary line. The
+// component maps `marker` to a dot/icon and renders `text`; when `failed > 0` it
+// appends a red "· k failed" fragment (only the "failed" marker ever carries a
+// non-zero count).
+export interface SpecPassSummary {
+  marker: SpecSummaryMarker;
+  text: string;
+  failed: number;
+}
+
+// Derive a spec's pass-state summary purely from its verification payload and
+// case count (#483, TSPF-FR-006). Precedence mirrors the approved prototype
+// (.specifications/testbench-spec-picker-filter/design-prototype/index.html):
+//   1. no sidecar on disk           -> "no results yet"
+//   2. valid sidecar, hash mismatch -> "results stale"
+//   3. classification all-passed    -> "All M passed"
+//   4. otherwise                    -> "P of M passed" (+ "k failed" when failures exist)
+export function deriveSpecSummary(spec: DiscoveredSpec): SpecPassSummary {
+  const v = spec.verification;
+  if (!v.resultsPresent) {
+    return { marker: "none", text: "no results yet", failed: 0 };
+  }
+  if (v.resultsValid && !v.planHashMatch) {
+    return { marker: "stale", text: "results stale", failed: 0 };
+  }
+  if (v.classification === "all-passed") {
+    return { marker: "passed", text: `All ${spec.caseCount} passed`, failed: 0 };
+  }
+  const failed = v.statusCounts.failed;
+  return {
+    marker: failed > 0 ? "failed" : "progress",
+    text: `${v.statusCounts.passed} of ${spec.caseCount} passed`,
+    failed,
+  };
+}
+
 // The four named states the manual-path input cycles through (FR-003):
 //   - idle:       no path entered yet (or just cleared)
 //   - validating: a debounced request is in flight

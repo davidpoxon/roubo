@@ -28,12 +28,18 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
     mockUseTestbenchPlan(projectId, benchId),
   useSetTestbenchFocus: () => mockUseSetTestbenchFocus(),
 }));
-vi.mock("../../hooks/useTestbenchSpecs", () => ({
-  useTestbenchSpecs: (projectId: string, enabled?: boolean) =>
-    mockUseTestbenchSpecs(projectId, enabled),
-  useManualPathValidation: (projectId: string, path: string, enabled?: boolean) =>
-    mockUseManualPathValidation(projectId, path, enabled),
-}));
+// Mock only the two data-fetching hooks; keep the real pure helpers
+// (partitionSpecs / deriveSpecSummary) the spec-picker imports from this module.
+vi.mock("../../hooks/useTestbenchSpecs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../hooks/useTestbenchSpecs")>();
+  return {
+    ...actual,
+    useTestbenchSpecs: (projectId: string, enabled?: boolean) =>
+      mockUseTestbenchSpecs(projectId, enabled),
+    useManualPathValidation: (projectId: string, path: string, enabled?: boolean) =>
+      mockUseManualPathValidation(projectId, path, enabled),
+  };
+});
 // The panel now mounts the staleness/reconcile surface (#440 integration), which
 // pulls in the reconcile mutation hooks; mock them so the panel renders without a
 // QueryClientProvider.
@@ -47,9 +53,26 @@ import TestBenchPanel from "./TestBenchPanel";
 
 const FOCUSED = "/repo/.specifications/checkout/test-cases.json";
 
+// Both specs are needs-attention so they stay in the picker's main space (#483);
+// the partition keys on verification.classification, added by discovery (#482).
+const needsAttentionVerification = (caseCount: number): DiscoveredSpec["verification"] => ({
+  classification: "needs-attention",
+  statusCounts: { not_started: caseCount, in_progress: 0, passed: 0, failed: 0, blocked: 0 },
+  resultsPresent: false,
+  resultsValid: false,
+  planHashMatch: false,
+  recoveryReason: null,
+  aggregationError: false,
+});
+
 const SPECS: DiscoveredSpec[] = [
-  { slug: "checkout", path: FOCUSED, caseCount: 2 },
-  { slug: "billing", path: "/repo/.specifications/billing/test-cases.json", caseCount: 1 },
+  { slug: "checkout", path: FOCUSED, caseCount: 2, verification: needsAttentionVerification(2) },
+  {
+    slug: "billing",
+    path: "/repo/.specifications/billing/test-cases.json",
+    caseCount: 1,
+    verification: needsAttentionVerification(1),
+  },
 ];
 
 function makeCase(id: string): Case {
