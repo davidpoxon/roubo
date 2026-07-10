@@ -12,7 +12,12 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
-import { computePlanHash } from "../lib/testbench-store.js";
+import {
+  computePlanHash,
+  MissingPlanError,
+  readPlanAndResults,
+  setStatusOverride,
+} from "../lib/testbench-store.js";
 import { writeResults } from "../lib/testbench-results-write.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
@@ -1534,6 +1539,88 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__read-spec-results failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /test/__seed-spec-results (#487, TSPF-TC-011): seed a plan-hash-matching
+// test-results.json sidecar for a discovered spec in a fixture project's repo, so
+// the spec picker's server-side classification (verification.classification in
+// GET /:projectId/testbench/specs) sorts that spec into the "all-passed" group.
+// discoverSpecs reads the registered project repoPath, so the sidecar is written
+// there (NOT a bench worktree). This is the only harness seam that makes a seeded
+// spec classify all-passed: registerFixtureProject's seedSpecs writes the plan
+// (test-cases.json) only. The partitioned-picker drift guards (#487 re-point, and
+// its #486 create-flow sibling) both consume it.
+//
+// The sidecar is produced with the REAL store writer (setStatusOverride), so it
+// carries the correct planHash (computePlanHash of the on-disk plan, applied
+// inside the writer) and a contract-valid body: no hand-built JSON that could
+// drift from the schema. Each targeted case is stamped with a "passed" status
+// override. Omitting passCaseIds targets every plan case (a fully all-passed
+// spec); passing a subset yields a needs-attention spec with a "P of M passed"
+// summary, so one seam covers both partition groups. Gated by ROUBO_E2E;
+// production builds 404 the URL.
+//
+// Body: { projectId: string, slug: string, passCaseIds?: string[] }.
+router.post("/__seed-spec-results", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as {
+    projectId?: unknown;
+    slug?: unknown;
+    passCaseIds?: unknown;
+  };
+  if (typeof body.projectId !== "string" || !FIXTURE_PROJECT_ID_RE.test(body.projectId)) {
+    return res
+      .status(400)
+      .json({ error: "projectId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  if (typeof body.slug !== "string" || !SPEC_SLUG_RE.test(body.slug)) {
+    return res
+      .status(400)
+      .json({ error: "slug must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  let passCaseIds: string[] | undefined;
+  if (body.passCaseIds !== undefined) {
+    if (
+      !Array.isArray(body.passCaseIds) ||
+      !body.passCaseIds.every((id): id is string => typeof id === "string" && id.length > 0)
+    ) {
+      return res.status(400).json({ error: "passCaseIds must be an array of non-empty strings" });
+    }
+    passCaseIds = body.passCaseIds;
+  }
+  const project = projectRegistry.getProject(body.projectId);
+  if (!project || !project.config) {
+    return res.status(404).json({ error: `Project '${body.projectId}' not found` });
+  }
+  try {
+    // Read the on-disk plan so the targeted case ids are validated against it and
+    // the sidecar's planHash matches the hash discovery recomputes (the writer
+    // stamps computePlanHash(plan) on every mutation).
+    const { plan, planHash } = readPlanAndResults(project.repoPath, body.slug);
+    const planCaseIds = new Set(plan.cases.map((c) => c.id));
+    const targets = passCaseIds ?? plan.cases.map((c) => c.id);
+    for (const caseId of targets) {
+      if (!planCaseIds.has(caseId)) {
+        return res.status(400).json({ error: `case id '${caseId}' is not in spec '${body.slug}'` });
+      }
+    }
+    // Sequential (not parallel): each write load-or-inits from the prior file, so
+    // concurrent writes would clobber one another. An effective "passed" status on
+    // every plan case makes discovery classify the spec all-passed.
+    for (const caseId of targets) {
+      await setStatusOverride(project.repoPath, body.slug, caseId, "passed");
+    }
+    res.status(200).json({ ok: true, slug: body.slug, planHash, passedCaseIds: targets });
+  } catch (err) {
+    if (err instanceof MissingPlanError) {
+      return res.status(400).json({ error: err.message });
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__seed-spec-results failed:", message);
     res.status(500).json({ error: message });
   }
 });

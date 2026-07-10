@@ -316,6 +316,26 @@ export async function rewriteSpecTestCases(
 }
 
 /**
+ * #487 (TSPF-TC-011): seed a plan-hash-matching test-results.json sidecar for a
+ * discovered spec in a fixture project's repo via the ROUBO_E2E-gated
+ * `POST /test/__seed-spec-results`, so the spec picker's server-side
+ * classification sorts it into the partition's "all-passed" group. Only the plan
+ * is written by `registerFixtureProject`'s `seedSpecs`; no other seam writes a
+ * results sidecar, so this is the sole way to drive a spec to the all-passed
+ * classification the partitioned picker relies on. Omit `passCaseIds` to mark
+ * every case passed (a fully all-passed spec); pass a subset to leave the spec
+ * needs-attention with a "P of M passed" summary. The sidecar is written to the
+ * registered project repoPath (where discovery reads), not a bench worktree.
+ */
+export async function seedSpecResults(
+  request: APIRequestContext,
+  opts: { projectId: string; slug: string; passCaseIds?: string[] },
+): Promise<void> {
+  const res = await request.post("/test/__seed-spec-results", { data: opts });
+  expect(res.status(), `seed spec results for ${opts.slug}`).toBe(200);
+}
+
+/**
  * TC-043 (#440): read a provisioned TestBench's on-disk test-results.json sidecar
  * (plus the source test-cases.json sha256) via `/test/__read-spec-results`. The
  * spec uses this to assert the NFR-003 integrity invariant directly against disk:
