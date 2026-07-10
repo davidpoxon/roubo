@@ -4,6 +4,7 @@ import { Plug, Puzzle } from "lucide-react";
 import type { ConnectionStatus, PluginRecord } from "@roubo/shared";
 import {
   useConnectionStatus,
+  useConsentStatus,
   useDisablePlugin,
   useEnablePlugin,
   useUninstallPlugin,
@@ -12,6 +13,7 @@ import { useGlobalPluginIntegration } from "../../../hooks/useGlobalPluginIntegr
 import PluginConfigureDialog from "../../PluginConfigureDialog";
 import Spinner from "../../Spinner";
 import ConnectionStatusPill from "./ConnectionStatusPill";
+import ConsentReviewDialog from "./ConsentReviewDialog";
 import SourceLabel from "./SourceLabel";
 import ErroredBanner from "./ErroredBanner";
 import IncompatibleBanner from "./IncompatibleBanner";
@@ -29,6 +31,7 @@ const PRIMARY_BUTTON_CLASS =
 
 const STRINGS = {
   viewLogs: "View logs",
+  reviewPermissions: "Review permissions",
   uninstall: "Uninstall",
   uninstalling: "Uninstalling...",
   enabled: "Enabled",
@@ -50,6 +53,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const [logsOpen, setLogsOpen] = useState(false);
   const [uninstallOpen, setUninstallOpen] = useState(false);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
   const enable = useEnablePlugin();
   const disable = useDisablePlugin();
   const uninstall = useUninstallPlugin();
@@ -64,6 +68,15 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   // short-circuits to `{ state: "disabled" }` anyway). Opportunistic prefetches
   // from `PluginsTab` / `PluginConfigureDialog` populate the same query key.
   const connectionQuery = useConnectionStatus(plugin.id, isEnabled);
+
+  // Issue #490: only component plugins are consent-gated (the server refuses to
+  // start a bench-bound component whose plugin has no ConsentRecord). Integration
+  // plugins are never gated, so fetch consent (and offer the affordance) for
+  // component cards only. `consentedAt` absent means the plugin is unconsented.
+  const isComponent = plugin.manifest?.kind === "component";
+  const consentQuery = useConsentStatus(plugin.id, isComponent);
+  const consentStatus = consentQuery.data;
+  const needsConsent = isComponent && consentStatus !== undefined && !consentStatus.consentedAt;
 
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
@@ -176,6 +189,12 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             {STRINGS.viewLogs}
           </Button>
 
+          {needsConsent && (
+            <Button onPress={() => setConsentOpen(true)} className={SECONDARY_BUTTON_CLASS}>
+              {STRINGS.reviewPermissions}
+            </Button>
+          )}
+
           {isUser && (
             <DialogTrigger isOpen={uninstallOpen} onOpenChange={setUninstallOpen}>
               <Button isDisabled={uninstall.isPending} className={SECONDARY_BUTTON_CLASS}>
@@ -223,6 +242,16 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         isOpen={logsOpen}
         onClose={() => setLogsOpen(false)}
       />
+
+      {consentOpen && needsConsent && consentStatus && (
+        <ConsentReviewDialog
+          pluginId={plugin.id}
+          pluginName={displayName}
+          declared={consentStatus.declared}
+          version={version}
+          onClose={() => setConsentOpen(false)}
+        />
+      )}
     </article>
   );
 }
