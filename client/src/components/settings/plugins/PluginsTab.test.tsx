@@ -26,6 +26,7 @@ import {
   useInstallPluginCancel as _useInstallPluginCancel,
   useOpportunisticRecheckOnMount as _useOpportunisticRecheckOnMount,
   useConnectionStatus as _useConnectionStatus,
+  useConsentStatus as _useConsentStatus,
 } from "../../../hooks/usePlugins";
 import PluginsTab from "./PluginsTab";
 
@@ -40,6 +41,7 @@ const mockedInstallConfirm = vi.mocked(_useInstallPluginConfirm);
 const mockedInstallCancel = vi.mocked(_useInstallPluginCancel);
 const mockedRecheck = vi.mocked(_useOpportunisticRecheckOnMount);
 const mockedConnectionStatus = vi.mocked(_useConnectionStatus);
+const mockedConsentStatus = vi.mocked(_useConsentStatus);
 
 function record(over: Partial<PluginRecord> = {}): PluginRecord {
   return {
@@ -110,6 +112,11 @@ beforeEach(() => {
     data: undefined,
     isFetching: false,
   } as unknown as ReturnType<typeof _useConnectionStatus>);
+  // Integration cards don't fetch consent; a no-data query keeps the consent
+  // affordance hidden (issue #490).
+  mockedConsentStatus.mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof _useConsentStatus>);
 });
 
 describe("PluginsTab (TC-001, TC-018)", () => {

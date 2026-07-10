@@ -30,8 +30,10 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
 }));
 import {
   useConnectionStatus as _useConnectionStatus,
+  useConsentStatus as _useConsentStatus,
   useDisablePlugin as _useDisable,
   useEnablePlugin as _useEnable,
+  useGrantConsent as _useGrantConsent,
   useRestartPlugin as _useRestart,
   useUninstallPlugin as _useUninstall,
   usePluginLogs as _usePluginLogs,
@@ -46,6 +48,8 @@ const mockedUninstall = vi.mocked(_useUninstall);
 const mockedLogs = vi.mocked(_usePluginLogs);
 const mockedGlobalIntegration = vi.mocked(_useGlobalIntegration);
 const mockedConnectionStatus = vi.mocked(_useConnectionStatus);
+const mockedConsentStatus = vi.mocked(_useConsentStatus);
+const mockedGrantConsent = vi.mocked(_useGrantConsent);
 
 function manifest(over: Partial<PluginManifest> = {}): PluginManifest {
   return {
@@ -126,7 +130,38 @@ beforeEach(() => {
     data: undefined,
     isFetching: false,
   } as unknown as ReturnType<typeof _useConnectionStatus>);
+  // Integration cards never fetch consent (the query is gated to component
+  // cards), so the default is a no-data query. Component tests override this.
+  mockedConsentStatus.mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof _useConsentStatus>);
+  mockedGrantConsent.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof _useGrantConsent>);
 });
+
+function componentManifest(over: Partial<PluginManifest> = {}): PluginManifest {
+  return manifest({
+    id: "database",
+    name: "Database",
+    kind: "component",
+    permissions: {
+      network: { hosts: [] },
+      credentials: { slots: [] },
+      filesystem: { paths: [] },
+      processes: false,
+      docker: {},
+    },
+    ...over,
+  });
+}
+
+function componentRecord(over: Partial<PluginRecord> = {}): PluginRecord {
+  return record({ id: "database", source: "bundled", manifest: componentManifest(), ...over });
+}
 
 describe("PluginCard: header content (TC-001, TC-013, FR-057)", () => {
   it("renders name, version, source label, and description", () => {
@@ -501,6 +536,72 @@ describe("PluginCard: rechecking lifecycle (issue #204)", () => {
     render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
     const timestamp = screen.getByTestId("connection-status-pill-timestamp");
     expect(timestamp.textContent).not.toMatch(/rechecking/);
+  });
+});
+
+describe("PluginCard: consent affordance for component plugins (issue #490)", () => {
+  const declared = componentManifest().permissions;
+
+  function consentStatus(consentedAt?: string) {
+    return {
+      data: { declared, firstParty: true, ...(consentedAt ? { consentedAt } : {}) },
+    } as unknown as ReturnType<typeof _useConsentStatus>;
+  }
+
+  it("gates the consent fetch to component cards and shows Review permissions when unconsented", () => {
+    mockedConsentStatus.mockReturnValue(consentStatus());
+    render(<PluginCard plugin={componentRecord()} hostApiVersion="1.0.0" />);
+    expect(mockedConsentStatus).toHaveBeenCalledWith("database", true);
+    expect(screen.getByRole("button", { name: "Review permissions" })).toBeTruthy();
+  });
+
+  it("hides Review permissions once the component plugin is consented", () => {
+    mockedConsentStatus.mockReturnValue(consentStatus("2026-07-01T00:00:00.000Z"));
+    render(<PluginCard plugin={componentRecord()} hostApiVersion="1.0.0" />);
+    expect(screen.queryByRole("button", { name: "Review permissions" })).toBeNull();
+  });
+
+  it("hides Review permissions while the consent status is still loading", () => {
+    // Default mock: data undefined.
+    render(<PluginCard plugin={componentRecord()} hostApiVersion="1.0.0" />);
+    expect(screen.queryByRole("button", { name: "Review permissions" })).toBeNull();
+  });
+
+  it("never fetches consent or shows the affordance for an integration plugin", () => {
+    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+    expect(mockedConsentStatus).toHaveBeenCalledWith("github-com", false);
+    expect(screen.queryByRole("button", { name: "Review permissions" })).toBeNull();
+  });
+
+  it("does not show the affordance for a user (non-component) plugin", () => {
+    mockedConsentStatus.mockReturnValue(consentStatus());
+    render(<PluginCard plugin={record({ source: "user" })} hostApiVersion="1.0.0" />);
+    expect(screen.queryByRole("button", { name: "Review permissions" })).toBeNull();
+  });
+
+  it("opens the consent dialog and grants consent with the declared categories", async () => {
+    const user = userEvent.setup();
+    const mutate = vi.fn((_vars, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.());
+    mockedConsentStatus.mockReturnValue(consentStatus());
+    mockedGrantConsent.mockReturnValue({
+      mutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof _useGrantConsent>);
+    render(<PluginCard plugin={componentRecord()} hostApiVersion="1.0.0" />);
+
+    await user.click(screen.getByRole("button", { name: "Review permissions" }));
+    const dialog = screen.getByTestId("consent-review-dialog");
+    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(within(dialog).getByTestId("consent-review-confirm"));
+
+    expect(mutate.mock.calls[0][0]).toEqual({
+      pluginId: "database",
+      acknowledgedCategories: ["docker"],
+    });
+    // Success closes the dialog (consentOpen -> false unmounts it).
+    expect(screen.queryByTestId("consent-review-dialog")).toBeNull();
   });
 });
 
