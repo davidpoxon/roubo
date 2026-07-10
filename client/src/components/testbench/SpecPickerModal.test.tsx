@@ -427,4 +427,174 @@ describe("SpecPickerModal", () => {
       expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/shipped-alpha/test-cases.json");
     });
   });
+
+  describe("all-passed empty state (#484)", () => {
+    // Every discovered spec is all-passed: the main space would otherwise be
+    // blank, so the picker shows the explicit empty state.
+    const ALL_PASSED_ONLY = SPECS.filter((s) => s.verification.classification === "all-passed");
+
+    it("shows the empty-state heading and body when every discovered spec is all-passed", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal();
+      expect(
+        screen.getByText("Every discovered spec has all test cases passed"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Browse the completed specs below, or point a TestBench at a test-cases.json by hand.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("places the collapsed all-passed disclosure beneath the empty state (AC1)", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal();
+      const message = screen.getByText("Every discovered spec has all test cases passed");
+      const disclosure = screen.getByRole("button", { name: /All passed/ });
+      expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByText("· 2 specs")).toBeInTheDocument();
+      // The empty-state message precedes the disclosure in the document.
+      expect(
+        message.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("does not show the empty state for a mixed needs-attention/all-passed list", () => {
+      renderModal();
+      expect(
+        screen.queryByText("Every discovered spec has all test cases passed"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the empty state when invalid specs are also present (separate messaging)", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({
+          data: {
+            specs: ALL_PASSED_ONLY,
+            invalid: [
+              {
+                slug: "broken",
+                path: "/repo/.specifications/broken/test-cases.json",
+                errors: ["cases.0.level: Invalid input: expected number, received string"],
+              },
+            ],
+          },
+        }),
+      );
+      renderModal();
+      // The empty state does not depend on hasInvalid; both surfaces coexist.
+      expect(
+        screen.getByText("Every discovered spec has all test cases passed"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("1 spec file does not match the schema and was skipped:"),
+      ).toBeInTheDocument();
+    });
+
+    it("disclosure is keyboard operable: Enter and Space both flip aria-expanded (AC3)", async () => {
+      const user = userEvent.setup();
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal();
+      const disclosure = screen.getByRole("button", { name: /All passed/ });
+      await act(async () => {
+        disclosure.focus();
+      });
+      expect(disclosure).toHaveFocus();
+      expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      // Enter toggles open, then closed.
+      await user.keyboard("{Enter}");
+      expect(disclosure).toHaveAttribute("aria-expanded", "true");
+      await user.keyboard("{Enter}");
+      expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      // Space also toggles it.
+      await user.keyboard("[Space]");
+      expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("disclosure shows a visible focus ring under keyboard focus (AC3)", async () => {
+      const user = userEvent.setup();
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal();
+      const disclosure = screen.getByRole("button", { name: /All passed/ });
+      // Tab through the modal (keyboard modality) until the disclosure is focused.
+      for (let i = 0; i < 6 && document.activeElement !== disclosure; i++) {
+        await user.tab();
+      }
+      expect(disclosure).toHaveFocus();
+      // React Aria applies the amber focus ring only under keyboard focus-visible.
+      await waitFor(() => expect(disclosure.className).toContain("ring-amber-500"));
+    });
+
+    it("a revealed all-passed row is keyboard-selectable and enables confirm (AC3)", async () => {
+      const user = userEvent.setup();
+      const onCreate = vi.fn();
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal({ onCreate });
+      // Expand the disclosure with the keyboard.
+      const disclosure = screen.getByRole("button", { name: /All passed/ });
+      await act(async () => {
+        disclosure.focus();
+      });
+      await user.keyboard("{Enter}");
+      // Focus a revealed all-passed row and select it with the keyboard.
+      const row = screen.getByText("shipped-alpha").closest("button") as HTMLElement;
+      await act(async () => {
+        row.focus();
+      });
+      await user.keyboard("{Enter}");
+      const create = screen.getByRole("button", { name: /Create TestBench/ });
+      await waitFor(() => expect(create).not.toBeDisabled());
+      await act(async () => {
+        create.focus();
+      });
+      await user.keyboard("{Enter}");
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/shipped-alpha/test-cases.json");
+    });
+
+    it("manual-path escape hatch still validates and binds in the empty state (AC2)", async () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      mockUseManualPathValidation.mockReturnValue({
+        status: "valid",
+        slug: "manual",
+        caseCount: 2,
+        path: "/repo/.specifications/manual/test-cases.json",
+      } satisfies ManualPathState);
+      const onCreate = vi.fn();
+      renderModal({ onCreate });
+      // The empty state does not disable the manual escape hatch.
+      expect(screen.getByText(/Valid: manual \(2 cases\)/)).toBeInTheDocument();
+      await userEvent.type(
+        screen.getByLabelText("Or enter a path"),
+        "/repo/.specifications/manual/test-cases.json",
+      );
+      await userEvent.click(screen.getByRole("button", { name: /Create TestBench/ }));
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/manual/test-cases.json");
+    });
+
+    it("de-emphasized all-passed rows keep the stone-500 AA text floor (AC4)", async () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: ALL_PASSED_ONLY, invalid: [] } }),
+      );
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      const slug = screen.getByText("shipped-alpha");
+      // The muted slug never drops below stone-500, the AA text floor on white
+      // recorded in roubo/DESIGN.md.
+      expect(slug).toHaveClass("text-stone-500");
+      const path = screen.getByText("/repo/.specifications/shipped-alpha/test-cases.json");
+      expect(path).toHaveClass("text-stone-500");
+    });
+  });
 });
