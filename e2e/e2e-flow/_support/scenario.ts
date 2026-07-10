@@ -253,7 +253,12 @@ export async function registerFixtureProject(
     // `.specifications/<slug>/test-cases.json`, so TestBench spec discovery and
     // the create flow run against real files. Each `testCases` value is written
     // verbatim as the spec's plan JSON.
-    seedSpecs?: Array<{ slug: string; testCases: unknown }>;
+    // TSPF-TC-010 (#486): an entry may also carry `seedResults` to emit a
+    // hash-matching `test-results.json` sidecar synthesized from its plan, so the
+    // spec lands in a known verification classification ("all-passed" behind the
+    // picker disclosure, or "partial" needs-attention with a real pass-state
+    // summary). Omitted => no sidecar (needs-attention, "no results yet").
+    seedSpecs?: Array<{ slug: string; testCases: unknown; seedResults?: "all-passed" | "partial" }>;
     // TC-001 (#438): when true, the server `git init`s + commits the fixture
     // repo and pins its worktree source to the local HEAD, so a real TestBench
     // worktree can be provisioned without an `origin` remote.

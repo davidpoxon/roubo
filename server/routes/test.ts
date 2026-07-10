@@ -12,6 +12,8 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
+import { computePlanHash } from "../lib/testbench-store.js";
+import { writeResults } from "../lib/testbench-results-write.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
@@ -22,6 +24,15 @@ import { cutListQueryService } from "../services/cut-list-query-service.js";
 import * as catalogClient from "../services/catalog-client.js";
 import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
+import {
+  TEST_RESULTS_SCHEMA_ID,
+  TEST_RESULTS_SCHEMA_VERSION,
+  validateTestCases,
+  type CaseResult,
+  type CaseStatus,
+  type TestCasesPlan,
+  type TestResultsFile,
+} from "@roubo/shared/testbench-contracts";
 
 const router: Router = Router();
 
@@ -861,6 +872,9 @@ interface RegisterFixtureBody {
   // TestBench spec discovery (`discoverSpecs`) and the create flow can run
   // against a real `.specifications/<slug>/test-cases.json`. Each entry writes
   // its `testCases` JSON to `<repoPath>/.specifications/<slug>/test-cases.json`.
+  // TSPF-TC-010 (#486): an entry may also carry `seedResults` ("all-passed" |
+  // "partial") to emit a hash-matching test-results.json so the spec lands in a
+  // known verification classification for the partitioned-picker journey.
   seedSpecs?: unknown;
   // TC-001 (#438): when true, `git init` + an initial commit are run in the
   // fixture repo so a real TestBench worktree (`git worktree add`) can be
@@ -886,9 +900,27 @@ interface SeedBenchInput {
   assignedIssue: AssignedIssue;
 }
 
+// TSPF-TC-010 (#486): the results-seed variants a fixture spec can request so a
+// discovered spec lands in a KNOWN verification classification. `writeSeededSpecs`
+// today writes only a test-cases.json, so every seeded spec is needs-attention
+// (no results sidecar). The partitioned-picker journey needs both partitions
+// populated, so this synthesizes a schema-valid, PLAN-HASH-MATCHING
+// test-results.json from the seeded plan:
+//   - "all-passed": every plan case effectively passed => the server classifies
+//     the spec all-passed (it lands behind the picker's collapsed disclosure).
+//   - "partial": all but the last case passed (at least one passed, at least one
+//     not) => needs-attention with a real "P of M passed" per-row summary.
+type SeedResultsMode = "all-passed" | "partial";
+const SEED_RESULTS_MODES: readonly SeedResultsMode[] = ["all-passed", "partial"];
+
 interface SeedSpecInput {
   slug: string;
   testCases: unknown;
+  // TSPF-TC-010 (#486): optional results-seed. When set, the route synthesizes a
+  // hash-matching test-results.json alongside test-cases.json so the spec lands in
+  // the requested classification. Omitted => no sidecar (needs-attention, "no
+  // results yet"), preserving the prior seedSpecs behaviour.
+  seedResults?: SeedResultsMode;
 }
 
 interface ParsedRegisterFixture {
@@ -933,9 +965,54 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
     if (testCases === undefined) {
       return `seedSpecs[${i}].testCases is required`;
     }
-    parsed.push({ slug, testCases });
+    // TSPF-TC-010 (#486): validate the optional results-seed. A sidecar can only
+    // be synthesized from a schema-valid plan (its planHash must match what
+    // discovery recomputes from test-cases.json), so when seedResults is set the
+    // testCases must already parse as a valid plan; reject with a 400 here rather
+    // than throwing mid-write.
+    const seedResultsRaw = (entry as { seedResults?: unknown }).seedResults;
+    let seedResults: SeedResultsMode | undefined;
+    if (seedResultsRaw !== undefined) {
+      if (
+        typeof seedResultsRaw !== "string" ||
+        !SEED_RESULTS_MODES.includes(seedResultsRaw as SeedResultsMode)
+      ) {
+        return `seedSpecs[${i}].seedResults must be one of ${SEED_RESULTS_MODES.join(", ")} when provided`;
+      }
+      const validation = validateTestCases(testCases);
+      if (!validation.ok) {
+        return `seedSpecs[${i}].testCases must be a valid test-cases plan when seedResults is set: ${validation.errors.join("; ")}`;
+      }
+      seedResults = seedResultsRaw as SeedResultsMode;
+    }
+    parsed.push({ slug, testCases, seedResults });
   }
   return parsed;
+}
+
+// TSPF-TC-010 (#486): synthesize a schema-valid test-results.json from a seeded
+// plan so a fixture spec lands in the requested classification. The planHash is
+// computed with computePlanHash (the same hash discovery recomputes), so the
+// sidecar is hash-matching and never stale. Every case is left with an empty
+// observationMarks map and a directly-set derivedStatus, which is the effective
+// status discovery aggregates (statusOverride ?? derivedStatus ?? not_started).
+function synthesizeSeededResults(plan: TestCasesPlan, mode: SeedResultsMode): TestResultsFile {
+  const caseResults: Record<string, CaseResult> = {};
+  plan.cases.forEach((planCase, index) => {
+    // all-passed: every case passed. partial: all but the last case passed, so
+    // the spec keeps at least one passed and at least one not-passed case (stays
+    // needs-attention with a genuine "P of M passed" summary).
+    const passed = mode === "all-passed" || index < plan.cases.length - 1;
+    const derivedStatus: CaseStatus = passed ? "passed" : "not_started";
+    caseResults[planCase.id] = { observationMarks: {}, derivedStatus, notes: [] };
+  });
+  return {
+    $schema: TEST_RESULTS_SCHEMA_ID,
+    schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+    planHash: computePlanHash(plan),
+    caseResults,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function parseSeedBenches(raw: unknown): SeedBenchInput[] | string {
@@ -1077,9 +1154,14 @@ function parseRegisterFixtureBody(
 }
 
 // TC-001 (#438): write each seeded spec's test-cases.json into
-// `<repoPath>/.specifications/<slug>/test-cases.json`. Returns the list of slugs
-// written. The slug was already validated against SPEC_SLUG_RE in
-// parseSeedSpecs, so the join stays inside the repo's `.specifications` tree.
+// `<repoPath>/.specifications/<slug>/test-cases.json`. The slug was already
+// validated against SPEC_SLUG_RE in parseSeedSpecs, so the join stays inside the
+// repo's `.specifications` tree.
+//
+// TSPF-TC-010 (#486): when a spec carries `seedResults`, also emit a
+// hash-matching test-results.json sidecar (via the shared writeResults primitive)
+// synthesized from the seeded plan, so the spec lands in a known classification
+// (all-passed / needs-attention-partial) for the partitioned-picker journey.
 function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
   for (const spec of specs) {
     const specDir = path.join(repoPath, ".specifications", spec.slug);
@@ -1089,6 +1171,18 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       `${JSON.stringify(spec.testCases, null, 2)}\n`,
       "utf-8",
     );
+    if (spec.seedResults !== undefined) {
+      // parseSeedSpecs already validated the plan when seedResults is set, so this
+      // re-parse always succeeds; the guard keeps the plan-typed path honest.
+      const validation = validateTestCases(spec.testCases);
+      if (!validation.ok) {
+        throw new Error(
+          `seedResults requires a valid test-cases plan for "${spec.slug}": ${validation.errors.join("; ")}`,
+        );
+      }
+      const results = synthesizeSeededResults(validation.data, spec.seedResults);
+      writeResults(repoPath, spec.slug, `${JSON.stringify(results, null, 2)}\n`);
+    }
   }
 }
 
