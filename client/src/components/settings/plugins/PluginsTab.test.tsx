@@ -14,6 +14,16 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
     error: null,
   }),
 }));
+// ErroredBanner (rendered by a PluginCard on errored status, issue #496) calls
+// these marketplace mutation hooks unconditionally to drive its Reinstall
+// affordance. Stub them so errored-plugin rows need no QueryClientProvider;
+// these tests do not exercise the reinstall flow (ErroredBanner.test.tsx does).
+// Stub-and-forget.
+vi.mock("../../../hooks/useMarketplace", () => ({
+  useMarketplaceUpdatePreview: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarketplaceInstallConfirm: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarketplaceInstallCancel: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 import {
   usePlugins as _usePlugins,
   useDisablePlugin as _useDisable,
@@ -218,7 +228,13 @@ describe("PluginsTab (TC-001, TC-018)", () => {
       error: null,
     } as unknown as ReturnType<typeof _usePlugins>);
 
-    render(<PluginsTab />);
+    // The errored "broken" plugin renders an ErroredBanner, which reads the
+    // toast context (issue #496), so this row needs a ToastProvider ancestor.
+    render(
+      <ToastProvider>
+        <PluginsTab />
+      </ToastProvider>,
+    );
 
     // Disabled and errored plugins must be excluded: only "enabled" plugins
     // participate in opportunistic re-check (FR-054 acceptance criterion).

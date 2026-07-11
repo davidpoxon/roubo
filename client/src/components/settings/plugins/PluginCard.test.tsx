@@ -28,6 +28,20 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
     reset: vi.fn(),
   }),
 }));
+// ErroredBanner (rendered by PluginCard on errored status, issue #496) calls
+// these marketplace mutation hooks and useToast unconditionally to drive its
+// Reinstall affordance. Stub them so the errored-status renders need no
+// QueryClientProvider / ToastProvider; these tests assert the banner renders,
+// not the reinstall flow (that has its own coverage in ErroredBanner.test.tsx).
+// Stub-and-forget.
+vi.mock("../../../hooks/useMarketplace", () => ({
+  useMarketplaceUpdatePreview: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarketplaceInstallConfirm: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarketplaceInstallCancel: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("../../../hooks/useToast", () => ({
+  useToast: () => ({ addToast: vi.fn() }),
+}));
 import {
   useConnectionStatus as _useConnectionStatus,
   useConsentStatus as _useConsentStatus,

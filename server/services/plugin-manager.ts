@@ -1013,6 +1013,24 @@ function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
   proc.stderr?.on("data", handleStderr);
 }
 
+// #496: the missing-entry / not-built failure has a kind-aware recovery hint.
+// A component plugin is installed from the marketplace, so its actionable
+// recovery is to reinstall it from there (there is no local build to fix);
+// every other kind (integration, and any future kind) keeps the build-output
+// guidance. The banner renders this message verbatim (ErroredBanner), so the
+// marketplace-recovery guidance TC-082 requires has to live in the host-produced
+// message here.
+function missingEntryMessage(
+  entryRel: string,
+  resolvedDir: string,
+  kind: PluginManifest["kind"] | undefined,
+): string {
+  const base = `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built;`;
+  return kind === "component"
+    ? `${base} reinstall it from the marketplace.`
+    : `${base} check its build output exists.`;
+}
+
 async function spawnPlugin(entry: PluginEntry): Promise<void> {
   const manifest = entry.record.manifest;
   if (!manifest) return;
@@ -1046,7 +1064,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "missing-entry",
-      message: `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built; check its build output exists.`,
+      message: missingEntryMessage(entryRel, resolvedDir, manifest.kind),
     };
     return;
   }
@@ -1076,7 +1094,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "missing-entry",
-      message: `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built; check its build output exists.`,
+      message: missingEntryMessage(entryRel, resolvedDir, manifest.kind),
     };
     return;
   }
