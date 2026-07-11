@@ -1697,7 +1697,49 @@ permissions:
     expect(rec.status).toBe("errored");
     expect(rec.lastError?.code).toBe("missing-entry");
     expect(rec.lastError?.message).toContain("dist/index.js");
+    // #496: a component plugin is installed from the marketplace, so its
+    // recovery guidance points there, not at a local build.
+    expect(rec.lastError?.message).toContain("reinstall it from the marketplace");
+    expect(rec.lastError?.message).not.toContain("check its build output exists");
     // The doomed restart loop never started: no process, no restart history.
+    expect(rec.pid).toBeNull();
+    expect(rec.restartHistory).toEqual([]);
+  });
+
+  // #496: the missing-entry recovery hint is kind-aware. A non-component plugin
+  // (e.g. integration) has no marketplace-reinstall recovery, so it keeps the
+  // build-output guidance rather than the marketplace copy.
+  it("keeps the build-output guidance for a non-component plugin whose entry file is missing", async () => {
+    sandbox = await makeSandbox({});
+    const dir = path.join(sandbox.bundledDir, "unbuilt-integration");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "roubo-plugin.yaml"),
+      `id: unbuilt-integration
+name: Unbuilt Integration
+version: 0.0.0
+description: x
+kind: integration
+roubo: ^1.0.0
+entry: ./dist/index.js
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`,
+    );
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "unbuilt-integration");
+    expect(rec.status).toBe("errored");
+    expect(rec.lastError?.code).toBe("missing-entry");
+    expect(rec.lastError?.message).toContain("dist/index.js");
+    expect(rec.lastError?.message).toContain("check its build output exists");
+    expect(rec.lastError?.message).not.toContain("reinstall it from the marketplace");
     expect(rec.pid).toBeNull();
     expect(rec.restartHistory).toEqual([]);
   });

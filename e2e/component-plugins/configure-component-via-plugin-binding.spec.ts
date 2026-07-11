@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { formatDivergence, makeObserve, type JourneyStep } from "./_support/step-runner.js";
-import { registerFixtureProject } from "../e2e-flow/_support/scenario.js";
+import { loadAppShell, registerFixtureProject } from "../e2e-flow/_support/scenario.js";
 
 // CPHM-TC-081 / CPHM-TC-082 (#317) - E2E: configure a component via a plugin
 // binding, and an errored component plugin's banner guides recovery.
@@ -35,11 +35,13 @@ import { registerFixtureProject } from "../e2e-flow/_support/scenario.js";
 //   - #302 made the banner render the plugin's real lastError (code + message)
 //     and suppress the issue-snapshot line for non-integration (component)
 //     plugins, dropping the hardcoded "3 restart attempts" copy. Those facts are
-//     asserted HARD. But TC-082's expected marketplace-recovery affordances (the
-//     "reinstall it from the marketplace" copy and a Reinstall action) did NOT
-//     ship: the missing-entry message says "check its build output exists", and
-//     the banner's action is Restart (useRestartPlugin), not Reinstall. That
-//     divergence is gated and marked pending against #302.
+//     asserted HARD.
+//   - #496 then shipped TC-082's marketplace-recovery affordances: the
+//     host-produced missing-entry message is kind-aware ("reinstall it from the
+//     marketplace" for a component plugin, not "check its build output exists"),
+//     and the banner exposes a Reinstall action that stages the marketplace
+//     update/reinstall flow (distinct from Restart). Those facts are now driven
+//     at the browser level (see the marketplace-recovery test below).
 
 const OWNER_301 = {
   issue: 301,
@@ -48,6 +50,10 @@ const OWNER_301 = {
 const OWNER_302 = {
   issue: 302,
   title: "ErroredBanner surfaces the plugin's real lastError",
+} as const;
+const OWNER_496 = {
+  issue: 496,
+  title: "Errored component-plugin banner has no marketplace-recovery affordance",
 } as const;
 
 const observe081 = makeObserve("CPHM-TC-081");
@@ -73,10 +79,11 @@ const ERRORED_PLUGIN_ID = "errored-component-stub";
 // The substring of the shipped #759 missing-entry message the banner renders.
 const ENTRY_PATH_FRAGMENT = "dist/index.js";
 // TC-082 S002-O01 expects the message to guide the user to reinstall from the
-// marketplace; the shipped copy does not carry this phrase. Its live
-// presence/absence is surfaced in the divergence detail for the deterministically
-// gated marketplace-recovery block below (MARKETPLACE_REINSTALL_AFFORDANCE_WIRED);
-// the copy alone never lifts that gate.
+// marketplace. #496 made the host-produced missing-entry copy kind-aware, so a
+// component plugin's message now carries this phrase (integration/other kinds
+// keep the build-output guidance). The browser journey below asserts the phrase
+// on the rendered banner; if the affordance is un-wired, the gated block reports
+// its live presence/absence in the divergence detail.
 const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 
 // #390 shipped the editor's plugin-binding UI (the "Component plugin" selector
@@ -86,16 +93,15 @@ const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 // re-mark the journey pending rather than let it fail opaquely.
 const COMPONENTS_EDITOR_BINDING_UI_WIRED = true;
 
-// #302 shipped the real-lastError banner but NOT TC-082's marketplace-recovery
-// affordances (S003/S004): a Reinstall action that initiates a reinstall. That
-// action is a client-only affordance with no server-observable signal at this
-// altitude (the banner currently exposes Restart, useRestartPlugin), so the
-// server "reinstall it from the marketplace" copy alone cannot verify it:
-// asserting only on the copy would let this guard pass without ever checking the
-// Reinstall affordance it is named for. The guard therefore localises the drift
-// to #302 and marks the recovery affordances pending. Flip to true (and drive
-// the browser journey) once #302 ships the Reinstall action.
-const MARKETPLACE_REINSTALL_AFFORDANCE_WIRED = false;
+// #496 shipped TC-082's marketplace-recovery affordances (S003/S004): the banner
+// exposes a Reinstall action that stages the marketplace update/reinstall flow
+// (distinct from Restart, useRestartPlugin). The affordance is a client concern,
+// so it is driven at the browser level below (render the banner, assert the
+// Reinstall action, click it, observe the initiating marketplace-update request).
+// The flag stays as the drift-guard toggle: if the Reinstall affordance regresses,
+// flip it back to false to re-mark the journey pending rather than let it fail
+// opaquely.
+const MARKETPLACE_REINSTALL_AFFORDANCE_WIRED = true;
 
 interface PluginListEntry {
   id: string;
@@ -153,12 +159,12 @@ const STEPS_082: Record<string, JourneyStep> = {
   S003: {
     id: "S003",
     instruction: "Recovery affordances are present (Reinstall + View logs)",
-    owners: [OWNER_302],
+    owners: [OWNER_496],
   },
   S004: {
     id: "S004",
     instruction: "Click Reinstall: the reinstall flow for the affected plugin is initiated",
-    owners: [OWNER_302],
+    owners: [OWNER_496],
   },
 };
 
@@ -376,25 +382,15 @@ test("CPHM-TC-082: an errored component plugin surfaces its real lastError (S001
 });
 
 test("CPHM-TC-082: the errored banner guides marketplace recovery (S002 copy, S003, S004)", async ({
+  page,
   request,
 }) => {
-  const errored = await seedErroredComponentPlugin(request);
-
-  // The real-lastError facts above are asserted HARD. TC-082 additionally expects
-  // the banner to guide the user to reinstall from the marketplace (S002-O01's
-  // "reinstall it from the marketplace" copy) and to expose a Reinstall action
-  // that initiates a reinstall (S003-O01 / S004-O01). Neither shipped: the
-  // missing-entry message says "check its build output exists", and the banner's
-  // recovery action is Restart (useRestartPlugin), not Reinstall.
-  //
-  // The Reinstall affordance (S003/S004) is a client-only concern with no
-  // server-observable signal at this altitude, so this block stays deterministically
-  // pending against #302 until the affordance ships and is driven at the browser
-  // level. We surface the live "reinstall it from the marketplace" copy state in
-  // the divergence so the pending note stays accurate as #302 evolves, but never
-  // let the copy alone lift the gate (asserting only the copy would pass this
-  // guard without ever checking the Reinstall action it is named for).
+  // #496 shipped the marketplace-recovery affordances, so this block drives the
+  // real browser journey. If the affordance regresses, flip
+  // MARKETPLACE_REINSTALL_AFFORDANCE_WIRED back to false to re-mark this pending
+  // via the deterministic gate below rather than let it fail opaquely.
   if (!MARKETPLACE_REINSTALL_AFFORDANCE_WIRED) {
+    const errored = await seedErroredComponentPlugin(request);
     const marketplaceRecoveryCopyShipped = (errored.lastError?.message ?? "").includes(
       MARKETPLACE_RECOVERY_COPY,
     );
@@ -403,10 +399,82 @@ test("CPHM-TC-082: the errored banner guides marketplace recovery (S002 copy, S0
       STEPS_082.S003,
       "S003-O01",
       `the banner guides marketplace recovery: message includes "${MARKETPLACE_RECOVERY_COPY}" and a Reinstall action initiates a reinstall`,
-      `recovery copy ${marketplaceRecoveryCopyShipped ? "present" : "absent"}; the banner exposes a Restart action (useRestartPlugin), not Reinstall`,
+      `recovery copy ${marketplaceRecoveryCopyShipped ? "present" : "absent"}; the banner exposes a Reinstall action`,
     );
     test.info().annotations.push({ type: "blocked-by", description: detail });
     test.fixme(true, detail);
     return;
   }
+
+  // Drive the errored fixture into its `errored` / missing-entry state via the
+  // real enable -> spawn -> #759 host-check path, then render the app and open
+  // the Plugins settings so PluginCard shows the ErroredBanner for it.
+  await seedErroredComponentPlugin(request);
+
+  // The built server's SPA fallback 404s on a direct GET of a deep link, so load
+  // the app shell and client-side navigate to Settings > Plugins (mirrors the
+  // plugin-grid drift guard).
+  await loadAppShell(page);
+  await page.evaluate(() => {
+    window.history.pushState({}, "", "/settings#plugins");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
+  // The errored fixture's card and its red ErroredBanner. The plugins list polls
+  // on mount, so the seeded `errored` record surfaces without extra prompting.
+  const card = page.locator(`[data-plugin-id="${ERRORED_PLUGIN_ID}"]`);
+  await expect(card).toBeVisible();
+  const banner = card.getByTestId("plugin-errored-banner");
+  await expect(banner).toBeVisible();
+
+  // --- S002-O01: the rendered banner guides the user to reinstall from the
+  // marketplace (the host-produced, kind-aware missing-entry copy). ---
+  const bannerText = (await banner.textContent()) ?? "";
+  observe082(
+    STEPS_082.S002,
+    "S002-O01",
+    bannerText.includes(MARKETPLACE_RECOVERY_COPY),
+    `the banner message includes "${MARKETPLACE_RECOVERY_COPY}"`,
+    `banner text: ${bannerText.trim()}`,
+  );
+
+  // --- S003-O01: a Reinstall action is present (distinct from Restart), the
+  // recovery affordance the case is named for. ---
+  const reinstall = card.getByTestId("plugin-reinstall-action");
+  const reinstallVisible = await reinstall.isVisible().catch(() => false);
+  observe082(
+    STEPS_082.S003,
+    "S003-O01",
+    reinstallVisible,
+    "a Reinstall action is present on the errored component-plugin banner",
+    reinstallVisible ? "Reinstall action present" : "Reinstall action absent",
+  );
+
+  // --- S004-O01: clicking Reinstall initiates the marketplace reinstall for the
+  // affected plugin. We observe the initiating POST to the marketplace update
+  // endpoint (the reinstall reuses the update-preview flow); the request firing
+  // is the initiation, independent of whether the fixture is in the catalog. ---
+  let reinstallInitiated = true;
+  try {
+    await Promise.all([
+      page.waitForRequest(
+        (r) =>
+          r.method() === "POST" &&
+          r.url().includes(`/api/marketplace/plugins/${ERRORED_PLUGIN_ID}/update`),
+        { timeout: 5000 },
+      ),
+      reinstall.click(),
+    ]);
+  } catch {
+    reinstallInitiated = false;
+  }
+  observe082(
+    STEPS_082.S004,
+    "S004-O01",
+    reinstallInitiated,
+    `clicking Reinstall initiates the marketplace reinstall (POST /api/marketplace/plugins/${ERRORED_PLUGIN_ID}/update)`,
+    reinstallInitiated
+      ? "marketplace reinstall request observed"
+      : "no marketplace reinstall request observed",
+  );
 });
