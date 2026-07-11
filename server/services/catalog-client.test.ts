@@ -91,13 +91,37 @@ function buildCatalog(
   return { payload, signature };
 }
 
-function fetchReturning(catalog: SignedMarketplaceCatalog, keyRing: SignedKeyRing): typeof fetch {
+// Serve a real, streamable `Response` (a serialized body + content-length),
+// exactly as the production e2e seam and plugin-installer paths build them, so
+// every test flows through fetchEnvelope's streaming size guard unchanged. An
+// explicit `contentLength` overrides the declared header to exercise the up-front
+// check (a large declared value) or the streaming check (a small, lying value) in
+// isolation; by default it is the body's true byte length.
+function fetchReturning(
+  catalog: SignedMarketplaceCatalog,
+  keyRing: SignedKeyRing,
+  contentLength?: number,
+): typeof fetch {
   const impl = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    const body = url.includes("key-ring") ? keyRing : catalog;
-    return { ok: true, json: async () => body } as Response;
+    const body = JSON.stringify(url.includes("key-ring") ? keyRing : catalog);
+    const declared = contentLength ?? Buffer.byteLength(body, "utf8");
+    return new Response(body, {
+      status: 200,
+      headers: { "content-type": "application/json", "content-length": String(declared) },
+    });
   });
   return impl as unknown as typeof fetch;
+}
+
+// A validly signed catalog whose serialized body far exceeds a small injected
+// budget: many padded entries, mirroring CPHM-TC-010's ~8MB / 2000-entry probe.
+function oversizedEntries(count = 200): MarketplaceCatalogEntry[] {
+  return Array.from({ length: count }, (_, i) => ({
+    ...sampleEntries()[0],
+    id: `padded-${i}`,
+    summary: "x".repeat(512),
+  }));
 }
 
 const failingFetch = vi.fn(async () => {
@@ -249,6 +273,75 @@ describe("getVerifiedCatalog network path", () => {
     expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
       calls,
     );
+  });
+});
+
+describe("getVerifiedCatalog size budget (CPHM-NFR-002, issue #495)", () => {
+  it("rejects an over-budget catalog mid-stream and degrades instead of serving it (AC1, AC2, mirrors CPHM-TC-010)", async () => {
+    const keys = makeKeys();
+    // A validly signed but oversized catalog. Declared content-length lies small
+    // (10 bytes) so the up-front check passes and the streaming byte counter is
+    // the thing that catches the breach.
+    const fetchImpl = fetchReturning(
+      buildCatalog(keys, oversizedEntries()),
+      buildKeyRing(keys),
+      10,
+    );
+    const log = vi.fn();
+    const client = clientWith({
+      rootPublicKeyPem: spkiPem(keys.rootPub),
+      fetchImpl,
+      log,
+      maxCatalogBytes: 1024,
+    });
+
+    // No throw, no hang: the degrade chain resolves.
+    const result = await client.getVerifiedCatalog({ forceRefresh: true });
+
+    // Rejected fail-closed before the verify chain: never served as network, and
+    // no cache was warmed, so it degrades to the bundled seed.
+    expect(result.source).toBe("seed");
+    // None of the oversized catalog's entries leaked into the served listing.
+    expect(result.entries.some((e) => e.id.startsWith("padded-"))).toBe(false);
+    // No cache file was written from the rejected payload.
+    await expect(readCache()).rejects.toThrow();
+    // A specific budget-exceeded degrade line was logged.
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("size budget"));
+  });
+
+  it("rejects up front when the declared content-length exceeds the budget (AC1)", async () => {
+    const keys = makeKeys();
+    // A small, otherwise-valid catalog, but the server declares a content-length
+    // over the budget: rejected before the body is read.
+    const fetchImpl = fetchReturning(buildCatalog(keys, sampleEntries()), buildKeyRing(keys), 2048);
+    const client = clientWith({
+      rootPublicKeyPem: spkiPem(keys.rootPub),
+      fetchImpl,
+      maxCatalogBytes: 1024,
+    });
+
+    const result = await client.getVerifiedCatalog({ forceRefresh: true });
+
+    expect(result.source).toBe("seed");
+    expect(result.entries.some((e) => e.id.startsWith("padded-"))).toBe(false);
+    await expect(readCache()).rejects.toThrow();
+  });
+
+  it("serves a catalog that sits within the budget (guard does not over-reject)", async () => {
+    const keys = makeKeys();
+    const fetchImpl = fetchReturning(buildCatalog(keys, sampleEntries()), buildKeyRing(keys));
+    // The production default budget (256 KB), which the small sample catalog is
+    // comfortably under.
+    const client = clientWith({
+      rootPublicKeyPem: spkiPem(keys.rootPub),
+      fetchImpl,
+      maxCatalogBytes: 256 * 1024,
+    });
+
+    const result = await client.getVerifiedCatalog({ forceRefresh: true });
+
+    expect(result.source).toBe("network");
+    expect(result.entries.map((e) => e.id)).toEqual(["ghe"]);
   });
 });
 
