@@ -16,8 +16,8 @@
     "description": { "type": "string", "minLength": 1, "description": "One-line description" },
     "kind": {
       "type": "string",
-      "enum": ["integration", "component"],
-      "description": "Plugin kind. Future kinds will widen this enum without breaking existing manifests."
+      "enum": ["integration", "component", "agent"],
+      "description": "Plugin kind. Widens over time without breaking existing manifests; kept in lockstep with PluginKindSchema in shared/plugin-manifest-schema.ts."
     },
     "roubo": {
       "type": "string",
@@ -84,6 +84,23 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Plugin-global default for the category-first status exclusion (e.g. \"Done\"), ANDed into the JQL alongside excludedStatuses."
+        }
+      }
+    },
+    "agentCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Agent-plugin compatibility metadata: the agent-CLI version floor and tested ceiling the host probes before launch. Optional; imposes no new required fields on existing manifests. Kept in lockstep with AgentCompatibilitySchema in shared/plugin-manifest-schema.ts.",
+      "properties": {
+        "minVersion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Lowest agent-CLI version the plugin supports, as an exact semver version. A launch below this floor is blocked with an actionable message."
+        },
+        "testedCeiling": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Highest agent-CLI version the plugin was verified against, as an exact semver version. A launch above it proceeds with a staleness warning."
         }
       }
     },

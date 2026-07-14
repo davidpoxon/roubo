@@ -235,10 +235,12 @@ export interface InstallErrorBody {
 
 /**
  * Plugin kinds surfaced by the marketplace. Mirrors the host's plugin-manifest
- * `kind` discriminator; restated here so `shared` consumers don't reach into
- * the manifest schema for the marketplace UI.
+ * `kind` discriminator (PluginKindSchema in plugin-manifest-schema.ts) in
+ * lockstep; restated here so `shared` consumers don't reach into the manifest
+ * schema for the marketplace UI. Widens alongside PluginKindSchema: `agent`
+ * lands with the agent-plugin work (AP-FR-001).
  */
-export type MarketplaceKind = "component" | "integration";
+export type MarketplaceKind = "component" | "integration" | "agent";
 
 /**
  * One curated catalog entry as authored in the static manifest. The `source`

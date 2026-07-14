@@ -367,6 +367,176 @@ describe("PluginManifestSchema: component kind (FR-001)", () => {
   });
 });
 
+describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
+  // AP-TC-001: a well-formed kind: agent manifest passes schema validation and
+  // kind: agent is an accepted value alongside integration and component.
+  it("accepts a well-formed manifest with kind: agent (AP-TC-001)", () => {
+    const manifest = makeManifest({
+      id: "claude-code",
+      name: "Claude Code",
+      description: "Claude Code agent plugin",
+      kind: "agent",
+      agentCompatibility: { minVersion: "2.1.83", testedCeiling: "2.1.207" },
+    });
+    const result = PluginManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe("agent");
+      expect(result.data.agentCompatibility).toEqual({
+        minVersion: "2.1.83",
+        testedCeiling: "2.1.207",
+      });
+    }
+  });
+
+  it("accepts a minimal kind: agent manifest with no agentCompatibility block", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest({ kind: "agent" }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe("agent");
+      expect(result.data.agentCompatibility).toBeUndefined();
+    }
+  });
+
+  it("accepts agentCompatibility with only a minVersion (both fields optional)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "agent", agentCompatibility: { minVersion: "2.1.83" } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  // AP-TC-007: a malformed agent manifest is rejected with an error naming the
+  // offending field and the rule it violated, and no raw stack trace.
+  it("rejects a malformed agentCompatibility version naming the field and rule (AP-TC-007)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        agentCompatibility: { minVersion: ">=2.1.83" },
+      }),
+    );
+    expectFieldError(result, "agentCompatibility.minVersion");
+    if (!result.success) {
+      const errors = zodIssuesToValidationErrors(result.error.issues);
+      const match = errors.find((e) => e.path === "agentCompatibility.minVersion");
+      expect(match?.message).toBe("Must be an exact semver version");
+    }
+  });
+
+  it("rejects a malformed testedCeiling version naming the field", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        agentCompatibility: { testedCeiling: "latest" },
+      }),
+    );
+    expectFieldError(result, "agentCompatibility.testedCeiling");
+  });
+
+  it("rejects an unknown key inside agentCompatibility (strict)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        agentCompatibility: { maxVersion: "2.2.0" } as unknown as { minVersion: string },
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("surfaces the malformed agent field through parseManifest with no raw stack trace (AP-TC-007)", async () => {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const yaml = [
+      "id: claude-code",
+      "name: Claude Code",
+      "version: 1.0.0",
+      "description: Claude Code agent plugin",
+      "kind: agent",
+      "roubo: ^1.0.0",
+      "entry: ./dist/index.js",
+      "agentCompatibility:",
+      "  minVersion: not-a-version",
+      "permissions:",
+      "  network: { hosts: [] }",
+      "  credentials: { slots: [] }",
+      "  filesystem: { paths: [] }",
+      "  processes: false",
+      "",
+    ].join("\n");
+    const result = parseManifest(yaml, "/fake/roubo-plugin.yaml");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("schema");
+      expect(result.error.path).toBe("agentCompatibility.minVersion");
+      expect(result.error.message).toBe(
+        "agentCompatibility.minVersion: Must be an exact semver version",
+      );
+      // No raw stack trace leaks into the user-facing message.
+      expect(result.error.message).not.toMatch(/\n\s+at\s/);
+      expect(result.error.message).not.toContain(".ts:");
+    }
+  });
+
+  it("discovers a kind: agent manifest through parseManifest", async () => {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const yaml = [
+      "id: claude-code",
+      "name: Claude Code",
+      "version: 1.0.0",
+      "description: Claude Code agent plugin",
+      "kind: agent",
+      "roubo: ^1.0.0",
+      "entry: ./dist/index.js",
+      "agentCompatibility: { minVersion: 2.1.83, testedCeiling: 2.1.207 }",
+      "permissions:",
+      "  network: { hosts: [] }",
+      "  credentials: { slots: [] }",
+      "  filesystem: { paths: [] }",
+      "  processes: false",
+      "",
+    ].join("\n");
+    const result = parseManifest(yaml, "/fake/roubo-plugin.yaml");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.manifest.kind).toBe("agent");
+      expect(result.manifest.agentCompatibility?.minVersion).toBe("2.1.83");
+    }
+  });
+});
+
+describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-013, AP-NFR-004)", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pluginsDir = resolve(here, "..", "plugins");
+
+  async function loadManifest(pluginId: string): Promise<PluginManifest> {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const file = resolve(pluginsDir, pluginId, "roubo-plugin.yaml");
+    const result = parseManifest(readFileSync(file, "utf-8"), file);
+    if (!result.ok) throw new Error(`Failed to parse ${file}: ${JSON.stringify(result)}`);
+    return result.manifest;
+  }
+
+  const published: Array<{ id: string; kind: "integration" | "component" }> = [
+    { id: "github-com", kind: "integration" },
+    { id: "ghe", kind: "integration" },
+    { id: "jira-self-hosted", kind: "integration" },
+    { id: "process", kind: "component" },
+    { id: "database", kind: "component" },
+  ];
+
+  for (const { id, kind } of published) {
+    it(`${id} validates unchanged and keeps kind: ${kind}, not misclassified as agent`, async () => {
+      const manifest = await loadManifest(id);
+      // Re-validate the parsed manifest against the widened schema.
+      const result = PluginManifestSchema.safeParse(manifest);
+      expect(result.success).toBe(true);
+      expect(manifest.kind).toBe(kind);
+      expect(manifest.kind).not.toBe("agent");
+      // The agent-only block is absent on every existing manifest (zero new
+      // required fields imposed on them).
+      expect(manifest.agentCompatibility).toBeUndefined();
+    });
+  }
+});
+
 describe("PluginManifestSchema: ports / docker permission categories (FR-001/FR-011)", () => {
   it("accepts a ports object naming bench port keys", () => {
     const manifest = makeManifest({
@@ -702,9 +872,22 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(properties.permissions.additionalProperties).toBe(true);
   });
 
-  it("kind enum accepts integration and component (lockstep with zod)", () => {
+  it("kind enum accepts integration, component and agent (lockstep with zod)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
-    expect(properties.kind.enum).toEqual(["integration", "component"]);
+    expect(properties.kind.enum).toEqual(["integration", "component", "agent"]);
+  });
+
+  it("declares an optional agentCompatibility object with minVersion and testedCeiling (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const agentCompatibility = properties.agentCompatibility as Record<string, unknown>;
+    expect(agentCompatibility.type).toBe("object");
+    expect(agentCompatibility.additionalProperties).toBe(false);
+    const compatProps = agentCompatibility.properties as Record<string, { type: string }>;
+    expect(Object.keys(compatProps).sort()).toEqual(["minVersion", "testedCeiling"]);
+    expect(compatProps.minVersion.type).toBe("string");
+    expect(compatProps.testedCeiling.type).toBe("string");
+    // agentCompatibility itself stays optional (zero new required fields).
+    expect((jsonSchema.required as string[]).includes("agentCompatibility")).toBe(false);
   });
 
   it("declares optional contractVersion and descriptorSchemaVersion integers (lockstep with zod)", () => {
