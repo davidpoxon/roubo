@@ -116,10 +116,12 @@ export const PluginIconSchema = z
   .max(16 * 1024, "Icon must be at most 16 KB");
 export type PluginIcon = z.infer<typeof PluginIconSchema>;
 
-// The set of plugin kinds the host understands. `component` lands with the
-// component-plugin work (FR-001); `integration` is the original kind. The
-// discriminator widens here without breaking existing integration manifests.
-export const PluginKindSchema = z.enum(["integration", "component"]);
+// The set of plugin kinds the host understands. `integration` is the original
+// kind; `component` lands with the component-plugin work (FR-001); `agent` lands
+// with the agent-plugin work (AP-FR-001). The discriminator widens here without
+// breaking existing integration or component manifests, and MarketplaceKind in
+// types.ts mirrors this set in lockstep.
+export const PluginKindSchema = z.enum(["integration", "component", "agent"]);
 export type PluginKind = z.infer<typeof PluginKindSchema>;
 
 // A component plugin's static, PRE-INSTALL lifecycle shape (issue #401). A
@@ -161,6 +163,46 @@ export function isValidRouboRange(range: string): boolean {
   });
 }
 
+// A single, exact semver version (not a range), used to validate an agent
+// plugin's compatibility window (AP-FR-014). Kept dependency-free (the `shared`
+// workspace depends only on `yaml` + `zod`): `major.minor.patch` with optional
+// prerelease and build metadata, matching the `(\d+\.\d+\.\d+)` shape the
+// runtime version probe parses (spike #502). Unlike `isValidRouboRange` this
+// rejects operators, wildcards, and ranges: a version floor or ceiling is one
+// concrete version.
+const EXACT_SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+export function isExactSemverVersion(version: string): boolean {
+  return EXACT_SEMVER.test(version.trim());
+}
+
+// ── Agent compatibility ──
+
+// An agent plugin declares the agent-CLI compatibility window the host probes
+// before launch (AP-FR-014): `minVersion` is the floor a launch is blocked below
+// (mirroring the claude-version.ts MIN_VERSION precedent), `testedCeiling` the
+// highest agent-CLI version the plugin was verified against (a launch above it
+// proceeds with a staleness warning). Both are exact semver versions and both
+// optional, so the whole block is optional and imposes zero new required fields
+// on existing manifests (AP-NFR-004). The vocabulary mirrors the runtime
+// VersionProbeSpec from spike #502; the pre-launch probe and gate themselves are
+// runtime concerns handled outside this schema.
+export const AgentCompatibilitySchema = z
+  .object({
+    minVersion: z
+      .string()
+      .min(1, "Required")
+      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .optional(),
+    testedCeiling: z
+      .string()
+      .min(1, "Required")
+      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .optional(),
+  })
+  .strict();
+export type AgentCompatibility = z.infer<typeof AgentCompatibilitySchema>;
+
 // ── Root manifest ──
 
 export const PluginManifestSchema = z
@@ -196,6 +238,11 @@ export const PluginManifestSchema = z
     // the explicit host-read signal that tells bench-manager which dispatch path
     // to take, rather than probing the plugin for a `translate` method (#396).
     componentMode: z.enum(["declarative", "imperative"]).optional(),
+    // Agent plugins declare agent-CLI compatibility metadata (AP-FR-014): the
+    // version floor and tested ceiling the host probes before launch. Optional,
+    // so existing integration and component manifests validate unchanged
+    // (AP-NFR-004).
+    agentCompatibility: AgentCompatibilitySchema.optional(),
   })
   .strict();
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;

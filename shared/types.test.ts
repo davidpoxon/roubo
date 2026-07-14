@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { deriveClaudeCodeMode, GLOBAL_DEFAULT_JIG_ID, DEFAULT_JIG_SETTINGS } from "./types.js";
-import type { JigSource, JigSettings, JigMeta, ProjectConfig, NormalizedIssue } from "./types.js";
+import type {
+  JigSource,
+  JigSettings,
+  JigMeta,
+  ProjectConfig,
+  NormalizedIssue,
+  MarketplaceKind,
+} from "./types.js";
 
 describe("deriveClaudeCodeMode", () => {
   it('returns "auto" when enableAutoMode is true and startInPlanMode is false', () => {
@@ -77,6 +84,19 @@ describe("jig type exports", () => {
       },
     };
     expect(config.jigSettings?.issueTypeMappings?.["Feature"]).toBe("feature-dev");
+  });
+});
+
+describe("MarketplaceKind mirror (AP-FR-001)", () => {
+  // The marketplace kind union mirrors the plugin-manifest PluginKindSchema in
+  // lockstep; it must widen to include `agent` when the manifest kind does.
+  it("includes agent alongside component and integration", () => {
+    const kinds: MarketplaceKind[] = ["component", "integration", "agent"];
+    expect(kinds).toContain("agent");
+    // Compile-time exhaustiveness: `agent` is a member of the union, and the
+    // function's return type errors if a member is dropped from the mirror.
+    const identity = (k: MarketplaceKind): "component" | "integration" | "agent" => k;
+    expect(identity("agent")).toBe("agent");
   });
 });
 
