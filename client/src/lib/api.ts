@@ -591,12 +591,16 @@ export interface GatesResponse {
   invalidSpecs: InvalidGateSpec[];
 }
 
-// Gate state (#702, FR-012; #371). Gates are PROJECT-level, so both endpoints are
-// keyed by projectId, not by bench: `fetchGates` returns the gate list plus any
+// Gate state (#702, FR-012; #371). `fetchGates` returns the gate list plus any
 // present-but-invalid skipped specs (`invalidSpecs`); `fetchGate` returns one gate
 // (or rejects with a 404 ApiError for an unknown gate id).
-export function fetchGates(projectId: string): Promise<GatesResponse> {
-  return request(`/projects/${projectId}/gates`);
+//
+// An optional `slug` scopes the list to a single focused spec's gates (issue
+// #549), matching how the Cases tab scopes to the bench's focused spec; omitted,
+// the endpoint returns every spec's gates project-wide (backward compatible).
+export function fetchGates(projectId: string, slug?: string): Promise<GatesResponse> {
+  const query = slug === undefined ? "" : `?slug=${encodeURIComponent(slug)}`;
+  return request(`/projects/${projectId}/gates${query}`);
 }
 
 export function fetchGate(projectId: string, gateId: string): Promise<GateState> {

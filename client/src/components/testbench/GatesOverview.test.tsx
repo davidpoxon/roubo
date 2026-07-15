@@ -86,7 +86,7 @@ describe("GatesOverview", () => {
         },
       ]) as never,
     );
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("WU-099")).toBeTruthy());
     const cards = screen.getAllByTestId("gate-card");
     expect(cards).toHaveLength(2);
@@ -96,7 +96,7 @@ describe("GatesOverview", () => {
 
   it("lists the gate's covering units under a Covers label, not a mislabeled Blocked by (#433)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText(/Covers/)).toBeTruthy());
     expect(screen.getByText("WU-010")).toBeTruthy();
     // The covers line is no longer mislabeled as an upstream blocker; a gate with
@@ -106,7 +106,7 @@ describe("GatesOverview", () => {
 
   it("titles the card by phase (milestone) with the gate id as a sub-label (#433)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("Phase 2: Routes")).toBeTruthy());
     // The gate id remains visible as a mono sub-label alongside the phase title.
     expect(screen.getByText("WU-300")).toBeTruthy();
@@ -114,20 +114,20 @@ describe("GatesOverview", () => {
 
   it("falls back to the gate id as the title when the gate has no milestone (#433)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-title").textContent).toBe("WU-099"));
   });
 
   it("shows the gating-case count from gatingCaseIds (#433)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-gating-count")).toBeTruthy());
     expect(screen.getByTestId("gate-gating-count").textContent).toBe("3 gating cases");
   });
 
   it("shows an upstream Blocked by line naming the blocking gate (#433, FR-001)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([upstreamBlockedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-blocked-by")).toBeTruthy());
     expect(screen.getByTestId("gate-blocked-by").textContent).toMatch(/Blocked by/);
     expect(within(screen.getByTestId("gate-blocked-by")).getByText("WU-300")).toBeTruthy();
@@ -139,7 +139,7 @@ describe("GatesOverview", () => {
     // Same phase, now with an empty blockedBy (its upstream gate was signed off).
     const cleared = { ...upstreamBlockedGate, blockedBy: [] };
     mockedApi.fetchGates.mockResolvedValue(gatesData([cleared]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("Phase 3: UI")).toBeTruthy());
     expect(screen.queryByTestId("gate-blocked-by")).toBeNull();
     expect(screen.getByTestId("gate-card").dataset.blocked).toBeUndefined();
@@ -147,7 +147,7 @@ describe("GatesOverview", () => {
 
   it("clears the blocking line once the gate passes (AC1)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([passedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("Passed")).toBeTruthy());
     expect(screen.queryByText(/Blocked by/)).toBeNull();
   });
@@ -155,7 +155,7 @@ describe("GatesOverview", () => {
   it("invokes onOpenGate with the gate id when the card body is activated (AC1)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     const onOpen = vi.fn();
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByTestId("gate-card")).toBeTruthy());
     // The whole-card open trigger is the absolute overlay Button (#804); it
     // covers the card body and the decorative chevron alike.
@@ -166,7 +166,7 @@ describe("GatesOverview", () => {
   it("opens the split dialog from the Split control without opening the gate (AC2)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([bigPhase]) as never);
     const onOpen = vi.fn();
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
     fireEvent.click(screen.getByTestId("gate-split-trigger"));
     await waitFor(() => expect(screen.getByTestId("split-confirm")).toBeTruthy());
@@ -176,7 +176,7 @@ describe("GatesOverview", () => {
   it("toggles selection from the merge checkbox without opening the gate (AC3)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phase2, phase3]) as never);
     const onOpen = vi.fn();
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
     const checkbox = within(screen.getAllByTestId("gate-merge-checkbox")[0]).getByRole("checkbox");
@@ -191,7 +191,7 @@ describe("GatesOverview", () => {
   it("toggles selection (not open) when the card overlay is activated in merge mode", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phase2, phase3]) as never);
     const onOpen = vi.fn();
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={onOpen} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
     fireEvent.click(screen.getAllByTestId("gate-open")[0]);
@@ -203,10 +203,27 @@ describe("GatesOverview", () => {
 
   it("shows an empty-state message when there are no gates and no invalid specs (AC3)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText(/no verify gates yet/)).toBeTruthy());
     // A genuinely-empty project shows no invalid-specs warning (#371).
     expect(screen.queryByTestId("invalid-specs-warning")).toBeNull();
+  });
+
+  // #549: the list is scoped to the bench's focused spec. The slug is threaded to
+  // fetchGates so the server returns only that spec's gates (not every spec's).
+  it("fetches gates scoped to the focused spec slug (#549)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="brigade" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByText("WU-099")).toBeTruthy());
+    expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1", "brigade");
+  });
+
+  // #549: with no focused spec there is nothing to scope to, so the overview shows a
+  // "focus a spec" empty state and never fetches the project-wide gates (the leak).
+  it("shows a focus-a-spec empty state and does not fetch when no spec is focused (#549)", async () => {
+    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    await waitFor(() => expect(screen.getByText(/Focus a spec to see its batches/)).toBeTruthy());
+    expect(mockedApi.fetchGates).not.toHaveBeenCalled();
   });
 
   // #371 (AC1): a present-but-invalid spec must surface a warning naming the slug +
@@ -219,7 +236,7 @@ describe("GatesOverview", () => {
         [{ slug: "verify-gate", errors: ['work-units.json for spec "verify-gate" failed R4'] }],
       ) as never,
     );
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("invalid-specs-warning")).toBeTruthy());
     const warning = screen.getByTestId("invalid-specs-warning");
     expect(within(warning).getByText("verify-gate")).toBeTruthy();
@@ -234,7 +251,7 @@ describe("GatesOverview", () => {
     mockedApi.fetchGates.mockResolvedValue(
       gatesData([blockedGate], [{ slug: "verify-gate", errors: ["empty gating set"] }]) as never,
     );
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("WU-099")).toBeTruthy());
     expect(screen.getByTestId("gate-card")).toBeTruthy();
     const warning = screen.getByTestId("invalid-specs-warning");
@@ -244,7 +261,7 @@ describe("GatesOverview", () => {
   it("has no axe violations", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     const { container } = renderWithProviders(
-      <GatesOverview projectId="p1" onOpenGate={() => {}} />,
+      <GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />,
     );
     await waitFor(() => expect(screen.getByTestId("gate-card")).toBeTruthy());
     expect(await axe(container)).toHaveNoViolations();
@@ -281,7 +298,7 @@ describe("GatesOverview - operator merge (TC-022)", () => {
       );
     mockedApi.mergeGates.mockResolvedValue([] as never);
 
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
 
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
@@ -303,7 +320,7 @@ describe("GatesOverview - operator merge (TC-022)", () => {
       new Error("Gate 'PHASE-2' is signed off (passed) and cannot be merged"),
     );
 
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
 
     fireEvent.click(screen.getByTestId("merge-mode-trigger"));
@@ -345,7 +362,7 @@ describe("GatesOverview - operator split (TC-023)", () => {
     );
     mockedApi.splitGate.mockResolvedValue([] as never);
 
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
 
     fireEvent.click(screen.getByTestId("gate-split-trigger"));
@@ -365,7 +382,7 @@ describe("GatesOverview - operator split (TC-023)", () => {
 
   it("disables confirm when a part would be empty (no loss / two signable gates)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([bigPhase]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
 
     fireEvent.click(screen.getByTestId("gate-split-trigger"));
@@ -379,7 +396,7 @@ describe("GatesOverview - operator split (TC-023)", () => {
 
   it("does not offer a split control on a passed gate (AC3)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([passedGate]) as never);
-    renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("Passed")).toBeTruthy());
     expect(screen.queryByTestId("gate-split-trigger")).toBeNull();
   });

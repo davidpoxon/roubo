@@ -269,6 +269,80 @@ describe("GET /:projectId/gates", () => {
       { slug: "broken", errors: ['work-units.json for spec "broken" failed'] },
     ]);
   });
+
+  // #549: the Batches overview must show only the bench's focused spec, the way the
+  // Cases tab already does, instead of aggregating every spec's gates project-wide.
+  // A `?slug=` query param scopes the load to that single spec.
+  it("scopes the list to the focused spec when ?slug is given (#549)", async () => {
+    // The mocked loader keys off the slug the route threads: the focused spec sees
+    // only its own gate, the all-specs path (no slug) sees both.
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation((_repoPath, slug) =>
+      slug === "brigade"
+        ? [loaded("brigade", gate("WU-001", ["TC-001"], ["WU-001"]))]
+        : [
+            loaded("brigade", gate("WU-001", ["TC-001"], ["WU-001"])),
+            loaded("fire-warden", gate("FWM-WU-001", ["TC-050"], ["FWM-WU-001"])),
+          ],
+    );
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-001", 1), planCase("TC-050", 1)], {
+          "TC-001": caseResult("passed"),
+          "TC-050": caseResult("passed"),
+        }) as never,
+    );
+
+    const res = await request(app).get("/p1/gates?slug=brigade");
+    expect(res.status).toBe(200);
+    const ids = res.body.gates.map((g: { gateId: string }) => g.gateId);
+    expect(ids).toEqual(["WU-001"]);
+    expect(ids).not.toContain("FWM-WU-001");
+    // The load was scoped to the focused slug, not left project-wide.
+    expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).toHaveBeenCalledWith(REPO, "brigade");
+  });
+
+  it("returns every spec's gates when no ?slug is given (backward compatible, #549)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation((_repoPath, slug) =>
+      slug === undefined
+        ? [
+            loaded("brigade", gate("WU-001", ["TC-001"], ["WU-001"])),
+            loaded("fire-warden", gate("FWM-WU-001", ["TC-050"], ["FWM-WU-001"])),
+          ]
+        : [],
+    );
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(
+      () =>
+        planAndResults([planCase("TC-001", 1), planCase("TC-050", 1)], {
+          "TC-001": caseResult("passed"),
+          "TC-050": caseResult("passed"),
+        }) as never,
+    );
+
+    const res = await request(app).get("/p1/gates");
+    expect(res.status).toBe(200);
+    const ids = res.body.gates.map((g: { gateId: string }) => g.gateId).sort();
+    expect(ids).toEqual(["FWM-WU-001", "WU-001"]);
+    // The all-specs load is preserved: the loader is called with no slug.
+    expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).toHaveBeenCalledWith(REPO, undefined);
+  });
+
+  // #549 / NFR-001: the single-slug loader path skips the per-entry
+  // assertSafeIdentifier guard the all-specs enumeration applies, so an unsafe slug
+  // must be rejected at the HTTP boundary before it reaches the loader.
+  it("400 for a path-traversal ?slug (#549, NFR-001)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
+    const res = await request(app).get("/p1/gates?slug=..%2F..%2Fetc");
+    expect(res.status).toBe(400);
+    // The unsafe slug never reached the loader.
+    expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).not.toHaveBeenCalled();
+  });
+
+  it("400 for a repeated ?slug=a&slug=b (non-string) query (#549)", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
+    const res = await request(app).get("/p1/gates?slug=alpha&slug=beta");
+    expect(res.status).toBe(400);
+    expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /:projectId/gates/:gateId", () => {

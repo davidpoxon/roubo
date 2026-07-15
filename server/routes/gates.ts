@@ -430,29 +430,63 @@ function buildCaseMap(repoPath: string, loaded: readonly LoadedVerifyUnit[]): Wo
 // the GET handlers and the write handlers' guard share the exact same effective
 // view. Operator overrides regroup only the valid gates; they never touch
 // `invalidSpecs` (a skipped spec has no gates to merge or split).
+//
+// When `slug` is given the load is scoped to that single spec's work-units.json
+// (issue #549: the Batches overview must show only the bench's focused spec, the
+// way the Cases tab already does, instead of aggregating every spec project-wide);
+// when omitted the load enumerates every spec (the backward-compatible all-specs
+// behaviour). Operator overrides are project-keyed and stay so: `applyGateOverrides`
+// finds no source gates for other specs' ids, so a single-spec loaded set is inert
+// for any override targeting another spec.
 function effectiveGates(
   repoPath: string,
   projectId: string,
+  slug?: string,
 ): { gates: LoadedVerifyUnit[]; invalidSpecs: InvalidSpec[] } {
-  const { loaded, invalidSpecs } = workUnitLoader.loadVerifyUnitsWithDiagnostics(repoPath);
+  const { loaded, invalidSpecs } = workUnitLoader.loadVerifyUnitsWithDiagnostics(repoPath, slug);
   const overrides = gateOverrideStore.loadOverrides(projectId);
   const caseMap = buildCaseMap(repoPath, loaded);
   return { gates: applyGateOverrides(loaded, overrides, caseMap).gates, invalidSpecs };
 }
 
+// Parse the optional `?slug=` query param that scopes the gates list to a single
+// focused spec (issue #549). Absent -> undefined (the all-specs behaviour). When
+// present it MUST be a single string that passes the spec-slug allowlist: the
+// single-slug loader path (loadVerifyUnitsForSlug) skips the per-entry
+// assertSafeIdentifier guard the all-specs enumeration applies, so a traversal /
+// separator-bearing slug has to be rejected HERE, at the HTTP boundary, before it
+// reaches the loader. A non-string (e.g. a repeated `?slug=a&slug=b` array) is a
+// 400 RouteError; an unsafe string throws UnsafePathError, which handleError also
+// maps to a 400.
+function parseSlugQuery(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string") {
+    throw new RouteError(400, "slug query param must be a single string");
+  }
+  assertSafeIdentifier(raw, SPEC_SLUG_RE, "spec slug");
+  return raw;
+}
+
 // GET /:projectId/gates -> 200 { gates: GateState[]; invalidSpecs: InvalidSpec[] }.
-// `gates` has one entry per effective gate across the project's specs (an empty
-// array is a valid, normal response: no gates yet). `invalidSpecs` names any spec
-// whose work-units.json was present-but-invalid and skipped (#371), so the client
-// can surface a warning instead of an indistinguishable empty state. A genuinely
-// empty project returns both empty.
+// An optional `?slug=` query param scopes the response to a single focused spec's
+// gates (issue #549), so a TestBench Batches tab shows only its bench's focused
+// spec (matching the Cases tab) instead of every spec's gates project-wide. Absent
+// -> the backward-compatible all-specs behaviour. `gates` has one entry per
+// effective gate in scope (an empty array is a valid, normal response: no gates
+// yet). `invalidSpecs` names any spec whose work-units.json was present-but-invalid
+// and skipped (#371), so the client can surface a warning instead of an
+// indistinguishable empty state. A genuinely empty project returns both empty.
 router.get(
   "/:projectId/gates",
   gateReadRateLimiter,
-  async (req: Request<{ projectId: string }>, res: Response) => {
+  async (
+    req: Request<{ projectId: string }, unknown, unknown, { slug?: unknown }>,
+    res: Response,
+  ) => {
     try {
       const repoPath = resolveRepoPath(req.params.projectId);
-      const { gates, invalidSpecs } = effectiveGates(repoPath, req.params.projectId);
+      const slug = parseSlugQuery(req.query.slug);
+      const { gates, invalidSpecs } = effectiveGates(repoPath, req.params.projectId, slug);
       const states = await projectGates(req.params.projectId, repoPath, gates);
       res.json({ gates: states, invalidSpecs });
     } catch (err) {

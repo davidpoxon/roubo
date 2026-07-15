@@ -7,26 +7,37 @@ import { testbenchPlanQueryKey } from "./useTestbenchPlan";
 // React Query hooks for the verify-gate state (#702, FR-012). Gates are
 // PROJECT-level (their plan + results are read from the registered project's
 // repoPath under each gate's own spec slug), so the query keys are namespaced by
-// projectId, not by bench. The conventions mirror useTestbenchPlan.ts: stable
-// tuple query keys, `retry: false` (a gate read either resolves or is a real
-// error, e.g. a 404 for an unknown gate id, that should surface immediately, not
-// be retried), and an `enabled` gate so the caller can defer the fetch.
+// projectId. When the caller scopes the list to a bench's focused spec (issue
+// #549), the slug is appended as a third key element so two benches on different
+// specs never share one cache entry. The conventions mirror useTestbenchPlan.ts:
+// stable tuple query keys, `retry: false` (a gate read either resolves or is a
+// real error, e.g. a 404 for an unknown gate id, that should surface immediately,
+// not be retried), and an `enabled` gate so the caller can defer the fetch.
 
-export function gatesQueryKey(projectId: string) {
-  return ["gates", projectId] as const;
+// Namespaced by projectId, with the focused-spec slug appended when scoping the
+// list to one spec (issue #549). The 2-element `["gates", projectId]` form (no
+// slug) is retained as the invalidation prefix: React Query prefix-matches it
+// against every spec-scoped `["gates", projectId, slug]` entry, so the mutation
+// invalidation sites stay unchanged.
+export function gatesQueryKey(projectId: string, slug?: string) {
+  return slug === undefined
+    ? (["gates", projectId] as const)
+    : (["gates", projectId, slug] as const);
 }
 
 export function gateQueryKey(projectId: string, gateId: string) {
   return ["gate", projectId, gateId] as const;
 }
 
-// List one GateState per verify unit across the project's specs (FR-001: one
-// gate per phase). An empty array is a normal response (no gates yet).
-export function useGates(projectId: string, options: { enabled?: boolean } = {}) {
+// List one GateState per verify unit (FR-001: one gate per phase). When `slug` is
+// given the list is scoped to that focused spec's gates (issue #549); omitted, it
+// returns every spec's gates project-wide. An empty array is a normal response (no
+// gates yet).
+export function useGates(projectId: string, slug?: string, options: { enabled?: boolean } = {}) {
   const { enabled = true } = options;
   return useQuery({
-    queryKey: gatesQueryKey(projectId),
-    queryFn: () => api.fetchGates(projectId),
+    queryKey: gatesQueryKey(projectId, slug),
+    queryFn: () => api.fetchGates(projectId, slug),
     retry: false,
     enabled,
   });

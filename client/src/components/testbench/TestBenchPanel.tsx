@@ -258,9 +258,12 @@ export default function TestBenchPanel({
     </div>
   );
 
-  // Batches mode (#702): the verify-gate surface. Gates are project-level, so
-  // this renders independently of the bench's plan query (load / error / empty).
-  // It is short-circuited before the plan branches below.
+  // Batches mode (#702): the verify-gate surface. It renders independently of the
+  // bench's plan query (load / error / empty) and is short-circuited before the
+  // plan branches below. The overview is scoped to the bench's focused spec slug
+  // (issue #549), the same way the Cases tab scopes to `focusedSpecPath`, so two
+  // benches on different specs each show only their own batches; with no focused
+  // spec the overview shows a "focus a spec" empty state.
   if (viewMode === "batches") {
     return frame(
       openGateId ? (
@@ -271,7 +274,11 @@ export default function TestBenchPanel({
           onBack={() => setOpenGateId(null)}
         />
       ) : (
-        <GatesOverview projectId={projectId} onOpenGate={setOpenGateId} />
+        <GatesOverview
+          projectId={projectId}
+          specSlug={focusedSpecPath ? focusedSpecSlug(focusedSpecPath) : undefined}
+          onOpenGate={setOpenGateId}
+        />
       ),
     );
   }

@@ -47,15 +47,37 @@ describe("query keys", () => {
     expect(gatesQueryKey("p1")).toEqual(["gates", "p1"]);
     expect(gateQueryKey("p1", "WU-099")).toEqual(["gate", "p1", "WU-099"]);
   });
+
+  // #549: scoping the list to a focused spec appends the slug as a third element,
+  // so two benches on different specs never share one cache entry. The slug-less
+  // form stays a prefix of the scoped key, so the mutations' prefix invalidation
+  // (which keys on `gatesQueryKey(projectId)`) still matches every scoped entry.
+  it("appends the focused-spec slug when scoping to a spec (#549)", () => {
+    expect(gatesQueryKey("p1", "brigade")).toEqual(["gates", "p1", "brigade"]);
+    const prefix = gatesQueryKey("p1");
+    const scoped = gatesQueryKey("p1", "brigade");
+    expect(scoped.slice(0, prefix.length)).toEqual([...prefix]);
+  });
 });
 
 describe("useGates", () => {
-  it("fetches the project's gates", async () => {
+  it("fetches the project's gates (no slug: every spec, backward compatible)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
     const { result } = renderHookWithProviders(() => useGates("p1"));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1");
+    expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1", undefined);
     expect(result.current.data).toEqual(gatesResponse);
+  });
+
+  // #549: when a focused-spec slug is passed the fetch is scoped to it and the
+  // result caches under the slug-scoped key.
+  it("fetches scoped to the focused-spec slug when given (#549)", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
+    const queryClient = makeQueryClient();
+    const { result } = renderHookWithProviders(() => useGates("p1", "brigade"), { queryClient });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1", "brigade");
+    expect(queryClient.getQueryData(["gates", "p1", "brigade"])).toEqual(gatesResponse);
   });
 
   it("does not retry on failure", async () => {
@@ -67,7 +89,7 @@ describe("useGates", () => {
 
   it("does not fire while disabled", () => {
     mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
-    const { result } = renderHookWithProviders(() => useGates("p1", { enabled: false }));
+    const { result } = renderHookWithProviders(() => useGates("p1", undefined, { enabled: false }));
     expect(result.current.fetchStatus).toBe("idle");
     expect(mockedApi.fetchGates).not.toHaveBeenCalled();
   });
