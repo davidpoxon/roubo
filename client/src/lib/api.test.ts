@@ -968,6 +968,16 @@ describe("fetchGates / fetchGate (#702)", () => {
     expect(result).toEqual(body);
   });
 
+  // #549: scope the list to the bench's focused spec via ?slug=, url-encoded.
+  it("appends the focused-spec slug as ?slug= when given (#549)", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ gates: [], invalidSpecs: [] }));
+    await fetchGates("p1", "brigade-activity-report");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/gates?slug=brigade-activity-report",
+      expect.objectContaining({}),
+    );
+  });
+
   it("GETs one gate by id, url-encoding the id", async () => {
     const gate = { gateId: "WU-099", status: "passed", unresolvedCaseIds: [], coveringUnitIds: [] };
     mockFetch.mockResolvedValue(jsonResponse(gate));

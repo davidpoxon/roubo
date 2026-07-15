@@ -361,12 +361,22 @@ function errorMessage(err: unknown, fallback: string): string {
 
 export default function GatesOverview({
   projectId,
+  specSlug,
   onOpenGate,
 }: {
   projectId: string;
+  specSlug?: string;
   onOpenGate: (gateId: string) => void;
 }) {
-  const { data, isLoading, isError, error } = useGates(projectId);
+  // Scope the gate list to the bench's focused spec (issue #549): the Batches tab
+  // must show only the focused spec's batches, matching how the Cases tab scopes
+  // to `focusedSpecPath`, instead of aggregating every spec's gates project-wide.
+  // With no focused spec there is nothing to scope to, so the query is disabled and
+  // an empty "focus a spec" state renders below (mirrors the Cases path's handling
+  // of a missing focused spec).
+  const { data, isLoading, isError, error } = useGates(projectId, specSlug, {
+    enabled: specSlug !== undefined,
+  });
   const mergeMutation = useMergeGates(projectId);
   const splitMutation = useSplitGate(projectId);
 
@@ -409,6 +419,19 @@ export default function GatesOverview({
     } catch (err) {
       setActionError(errorMessage(err, "Could not split the gate."));
     }
+  }
+
+  // No focused spec (issue #549): there is nothing to scope the batches to, so the
+  // query is disabled. Show a "focus a spec" empty state rather than the all-project
+  // gates (the leak this fixes) or a misleading error from the disabled query.
+  if (specSlug === undefined) {
+    return (
+      <div className="py-8">
+        <p className="text-sm text-stone-500 dark:text-stone-600">
+          Focus a spec to see its batches.
+        </p>
+      </div>
+    );
   }
 
   if (isLoading) {
