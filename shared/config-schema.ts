@@ -346,6 +346,23 @@ export const IntegrationOverrideSchema = z
   .strict();
 export type IntegrationOverride = z.infer<typeof IntegrationOverrideSchema>;
 
+// Third-party marketplace declaration (CPHMTP-FR-007, issue #556). A project may
+// declare one or more plugin marketplaces in roubo.yaml so the project-open flow
+// can offer to register them. Each entry carries a URL ONLY: it is a source
+// pointer the host later fetches a signed catalog from, never a credential.
+// Credentials are never stored in roubo.yaml. The object is `.strict()`, so an
+// unknown extra key (in particular any attempt to smuggle a secret alongside the
+// url) is rejected. The url must be a well-formed http(s) URL; any other scheme
+// (or a non-URL value) is rejected. An older app that predates this field
+// rejects the whole declaring config on the top-level `.strict()`, an accepted
+// parse break (PRD out-of-scope).
+export const MarketplaceDeclarationSchema = z
+  .object({
+    url: z.url({ protocol: /^https?$/ }),
+  })
+  .strict();
+export type MarketplaceDeclaration = z.infer<typeof MarketplaceDeclarationSchema>;
+
 // components and ports are optional: a project may be just a worktree with jigs
 // and tools and no long-running services. Both default to {} so downstream
 // consumers always see a real (possibly empty) object.
@@ -384,6 +401,7 @@ export const RouboConfigSchema = z
     jigs: JigsConfigSchema.optional(),
     integration: IntegrationConfigSchema.optional(),
     users: UsersArraySchema.optional(),
+    marketplaces: z.array(MarketplaceDeclarationSchema).optional(),
   })
   .strict()
   .superRefine((val, ctx) => {

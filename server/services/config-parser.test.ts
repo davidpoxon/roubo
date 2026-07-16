@@ -7,6 +7,7 @@ import {
   stripSurroundingQuotes,
   parseConfig,
   validateConfigObject,
+  getDeclaredMarketplaces,
   type ResolvedTemplateContext,
 } from "./config-parser.js";
 import { makeConfig } from "../test/fixtures.js";
@@ -567,6 +568,91 @@ describe("parseConfig", () => {
     expect(result.valid).toBe(false);
     if (!result.errors) throw new Error("expected errors");
     expect(result.errors.some((e) => e.includes('"."') && e.includes("reserved"))).toBe(true);
+  });
+});
+
+describe("marketplaces (CPHMTP-FR-007, issue #556)", () => {
+  it("surfaces a declared marketplaces block on the parsed config", () => {
+    const config = makeConfig({
+      marketplaces: [{ url: "https://market.example.com" }, { url: "https://second.example.com" }],
+    });
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(result.config.marketplaces).toEqual([
+      { url: "https://market.example.com" },
+      { url: "https://second.example.com" },
+    ]);
+  });
+
+  it("parseConfig surfaces the declared marketplaces from YAML", () => {
+    const yamlContent = [
+      "project:",
+      "  name: test-project",
+      "  displayName: Test Project",
+      "  repo: org/test-project",
+      "layout:",
+      "  type: single-repo",
+      "components:",
+      "  backend:",
+      "    plugin:",
+      "      id: process",
+      "    config:",
+      "      command: npm run dev",
+      "ports:",
+      "  backend:",
+      "    base: 5000",
+      "benches:",
+      "  max: 5",
+      "marketplaces:",
+      "  - url: https://market.example.com",
+      "  - url: https://second.example.com",
+    ].join("\n");
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
+    vi.spyOn(fs, "readFileSync").mockReturnValue(yamlContent as any);
+    const result = parseConfig("/some/repo");
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(getDeclaredMarketplaces(result.config)).toEqual([
+      "https://market.example.com",
+      "https://second.example.com",
+    ]);
+  });
+
+  it("getDeclaredMarketplaces returns the declared urls in order", () => {
+    const config = makeConfig({
+      marketplaces: [{ url: "https://a.example.com" }, { url: "https://b.example.com" }],
+    });
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(getDeclaredMarketplaces(result.config)).toEqual([
+      "https://a.example.com",
+      "https://b.example.com",
+    ]);
+  });
+
+  it("getDeclaredMarketplaces returns an empty array when none are declared", () => {
+    const result = validateConfigObject(makeConfig());
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(getDeclaredMarketplaces(result.config)).toEqual([]);
+  });
+
+  it("rejects a malformed marketplaces entry (non-http(s) url) with a field error", () => {
+    const config = makeConfig({ marketplaces: [{ url: "ftp://market.example.com" }] });
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(false);
+    if (!result.fieldErrors) throw new Error("expected fieldErrors");
+    expect(result.fieldErrors.some((e) => e.path.includes("marketplaces"))).toBe(true);
+  });
+
+  it("rejects a marketplaces entry missing url", () => {
+    const config = makeConfig({ marketplaces: [{} as unknown as { url: string }] });
+    const result = validateConfigObject(config);
+    expect(result.valid).toBe(false);
+    if (!result.fieldErrors) throw new Error("expected fieldErrors");
+    expect(result.fieldErrors.some((e) => e.path.includes("marketplaces"))).toBe(true);
   });
 });
 

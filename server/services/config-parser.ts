@@ -94,6 +94,18 @@ function detectLegacyJigKeys(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * The marketplace URLs a project declares in its roubo.yaml (CPHMTP-FR-007,
+ * issue #556). The project-open flow reads this to offer registering the
+ * declared third-party marketplaces. Each entry is a URL only (never a
+ * credential), already validated as http(s) by the strict schema parse. This is
+ * a pure accessor: it performs no network I/O. Returns an empty array when the
+ * project declares none.
+ */
+export function getDeclaredMarketplaces(config: RouboConfig): string[] {
+  return config.marketplaces?.map((entry) => entry.url) ?? [];
+}
+
 export interface ResolvedTemplateContext {
   ports: Record<string, number>;
   portHttps: Record<string, boolean>;

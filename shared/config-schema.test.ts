@@ -4,6 +4,7 @@ import {
   ProjectConfigSchema,
   IntegrationOverrideSchema,
   SourceEntrySchema,
+  MarketplaceDeclarationSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
   type RouboConfig,
@@ -903,6 +904,102 @@ describe("IntegrationOverrideSchema", () => {
         integration: { bogus: 1 },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("marketplaces (CPHMTP-FR-007, CPHMTP-TC-084)", () => {
+  it("accepts an optional marketplaces block with http(s) urls", () => {
+    const config = makeConfig({
+      marketplaces: [
+        { url: "https://market.example.com" },
+        { url: "http://localhost:4000/catalog" },
+      ],
+    });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.marketplaces).toEqual([
+      { url: "https://market.example.com" },
+      { url: "http://localhost:4000/catalog" },
+    ]);
+  });
+
+  it("accepts a config with no marketplaces block (optional)", () => {
+    const result = RouboConfigSchema.safeParse(makeConfig());
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.marketplaces).toBeUndefined();
+  });
+
+  it("accepts an empty marketplaces array", () => {
+    expect(RouboConfigSchema.safeParse(makeConfig({ marketplaces: [] })).success).toBe(true);
+  });
+
+  it("rejects a marketplaces entry missing url", () => {
+    const config = makeConfig({
+      marketplaces: [{} as unknown as { url: string }],
+    });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const paths = result.error.issues.map((i) => i.path.join("."));
+    expect(paths.some((p) => p.includes("marketplaces"))).toBe(true);
+  });
+
+  it("rejects a non-http(s) url scheme (ftp)", () => {
+    const config = makeConfig({ marketplaces: [{ url: "ftp://market.example.com" }] });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects a value that is not a url", () => {
+    const config = makeConfig({ marketplaces: [{ url: "not-a-url" }] });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects a marketplaces entry with an unknown extra key (strict: never a credential)", () => {
+    const config = makeConfig({
+      marketplaces: [
+        { url: "https://market.example.com", token: "secret" } as unknown as { url: string },
+      ],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  describe("MarketplaceDeclarationSchema (direct)", () => {
+    it("accepts an https url", () => {
+      expect(
+        MarketplaceDeclarationSchema.safeParse({ url: "https://market.example.com" }).success,
+      ).toBe(true);
+    });
+
+    it("accepts an http url", () => {
+      expect(
+        MarketplaceDeclarationSchema.safeParse({ url: "http://market.example.com" }).success,
+      ).toBe(true);
+    });
+
+    it("rejects a hostless http:// url", () => {
+      expect(MarketplaceDeclarationSchema.safeParse({ url: "http://" }).success).toBe(false);
+    });
+
+    it("rejects a non-http(s) scheme", () => {
+      expect(
+        MarketplaceDeclarationSchema.safeParse({ url: "ftp://market.example.com" }).success,
+      ).toBe(false);
+    });
+
+    it("rejects a missing url", () => {
+      expect(MarketplaceDeclarationSchema.safeParse({}).success).toBe(false);
+    });
+
+    it("rejects an unknown extra key (strict)", () => {
+      expect(
+        MarketplaceDeclarationSchema.safeParse({
+          url: "https://market.example.com",
+          apiKey: "nope",
+        }).success,
+      ).toBe(false);
+    });
   });
 });
 
