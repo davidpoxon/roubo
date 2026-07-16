@@ -233,6 +233,19 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.body.code).toBe("unpack-failed");
   });
 
+  // CPHMTP-TC-051 (issue #559): a third-party entry with no usable per-artifact
+  // digest is uninstallable, and the installer refuses it before fetching the
+  // artifact. The route surfaces that refusal as 422 missing-integrity.
+  it("maps missing-integrity to 422", async () => {
+    resolveEntry.mockReturnValue(ENTRY);
+    install.mockRejectedValue(
+      new pluginInstaller.InstallError("missing-integrity", "no per-artifact digest"),
+    );
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("missing-integrity");
+  });
+
   // CPHM-TC-045/050/051: a new install while the marketplace is unreachable is
   // paused; the route maps marketplace-unreachable to 503.
   it("maps marketplace-unreachable to 503", async () => {
@@ -287,6 +300,16 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("integrity-failed");
+  });
+
+  // Issue #559: an unsigned entry with no usable digest is equally un-updatable.
+  it("maps missing-integrity to 422 on update", async () => {
+    update.mockRejectedValue(
+      new pluginInstaller.InstallError("missing-integrity", "no per-artifact digest"),
+    );
+    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("missing-integrity");
   });
 
   // CP-TC-109: a revoked entry cannot be updated; 410.

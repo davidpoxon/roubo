@@ -125,24 +125,96 @@ function assertCompatible(manifest: PluginManifest): void {
 }
 
 /**
+ * Identifies an install as coming from a REGISTERED THIRD-PARTY (unsigned)
+ * marketplace source (CPHMTP-NFR-004, issue #559). Its presence is what makes the
+ * per-artifact digest mandatory and scopes the artifact download to the source's
+ * consented origin. It is deliberately optional on every preview entry point: the
+ * first-party catalog and the raw git / local-directory paths pass no context and
+ * are behaviourally unchanged.
+ *
+ * There is no production third-party install caller yet: the merged multi-source
+ * listing that routes a third-party entry into install is issue #557. This is the
+ * enforcement seam #557 adopts, kept minimal and additive so it needs no rework.
+ */
+export interface ThirdPartyInstallContext {
+  /**
+   * The registered source's consented origin ("scheme://host[:port]"), passed
+   * straight to guardedFetch as the one allowed hop-0 origin and the only origin
+   * the credential is ever attached to. Unused on the git path (a clone runs
+   * through git's own transport, not guardedFetch), where the context serves only
+   * to make the digest mandatory.
+   */
+  sourceOrigin: string;
+  /** The source's keyring credential, if any. Attached per guardedFetch's origin rule. */
+  credential?: string;
+  /** The source's registration-time "allow http (intranet)" opt-in. Defaults to false. */
+  allowHttp?: boolean;
+}
+
+// The exact shape computePackageDigest emits ("sha256-" + 64 lowercase hex).
+const PACKAGE_DIGEST_RE = /^sha256-[0-9a-f]{64}$/;
+
+/**
+ * Whether `expected` is a digest this installer can actually verify against.
+ * Absent, empty, and malformed values are all equally unusable (CPHMTP-NFR-004):
+ * treating a malformed value as "present" would let it reach a comparison that
+ * merely fails as a mismatch, muddling "the entry is unverifiable" with "the
+ * artifact is tampered". Only the exact `computePackageDigest` shape passes.
+ */
+function hasUsableDigest(expected: string | null | undefined): boolean {
+  return typeof expected === "string" && PACKAGE_DIGEST_RE.test(expected);
+}
+
+/**
+ * Fail closed when a third-party (unsigned) install carries no usable digest
+ * (CPHMTP-NFR-004, issue #559). An unsigned source has no signature chain, so the
+ * per-artifact digest is the only integrity anchor; without one the entry is
+ * simply uninstallable. Called BEFORE the artifact is fetched (and re-asserted at
+ * verification time), so a missing, empty, or malformed digest is rejected with
+ * nothing downloaded. A no-op for first-party / raw installs, which pass no
+ * context.
+ */
+function assertThirdPartyDigestPresent(
+  expected: string | null | undefined,
+  thirdParty: ThirdPartyInstallContext | undefined,
+): void {
+  if (thirdParty === undefined) return;
+  if (hasUsableDigest(expected)) return;
+  throw new InstallError(
+    "missing-integrity",
+    "This plugin is uninstallable without a per-artifact digest: its unsigned source's catalog entry carries no usable sha256 integrity value. Nothing was fetched.",
+  );
+}
+
+/**
  * Verify the staged package's content digest against the expected digest from
- * the signed catalog entry (CP-FR-021, issue #622). Called after the manifest is
- * read and compatibility is asserted, but before the staging entry is recorded,
- * so a mismatch throws `integrity-failed` and the caller's catch removes the
- * staging directory (no partial files; the existing version, if any, is left
- * untouched). A null/undefined `expected` skips the check: the non-marketplace
- * install paths (raw git URL, local directory) carry no catalog digest.
+ * the catalog entry (CP-FR-021, issue #622). Called after the manifest is read
+ * and compatibility is asserted, but before the staging entry is recorded, so a
+ * mismatch throws `integrity-failed` and the caller's catch removes the staging
+ * directory (no partial files, no plugin record; the existing version, if any, is
+ * left untouched).
+ *
+ * A null/undefined `expected` skips the check ONLY for the non-catalog install
+ * paths (raw git URL, local directory), which carry no catalog digest. On a
+ * third-party install the skip is unreachable: the mandatory-digest rule is
+ * re-asserted here rather than trusted from the distant pre-fetch guard, so the
+ * recompute cannot be bypassed no matter how this is called (issue #559).
  */
 async function assertPackageIntegrity(
   stagingDir: string,
   expected: string | null | undefined,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<void> {
-  if (expected === null || expected === undefined) return;
+  if (thirdParty !== undefined) {
+    assertThirdPartyDigestPresent(expected, thirdParty);
+  } else if (expected === null || expected === undefined) {
+    return;
+  }
   const ok = await verifyPackageIntegrity(stagingDir, expected);
   if (!ok) {
     throw new InstallError(
       "integrity-failed",
-      "Plugin package failed integrity verification: its content digest does not match the signed catalog entry.",
+      "Plugin package failed integrity verification: its content digest does not match the digest published for this artifact.",
     );
   }
 }
@@ -347,20 +419,33 @@ async function clonePackageInto(
 // network error, or a body that exceeds the download cap. The size guard runs
 // both up front (declared content-length) and as bytes flow (a server may lie
 // about or omit content-length), so the cap holds either way (issue #370).
-async function downloadAssetToFile(assetUrl: string, destFile: string): Promise<void> {
+async function downloadAssetToFile(
+  assetUrl: string,
+  destFile: string,
+  thirdParty?: ThirdPartyInstallContext,
+): Promise<void> {
   let res: Response;
   try {
     // Route through the shared guarded transport (issue #554): SSRF / redirect
     // guarding, per-hop range re-validation, and the origin-scoped credential
-    // rule live in guardedFetch. The asset origin is the consented source origin;
-    // this slice attaches no credential. The undici fetch stays the injected
-    // transport so the test seam is unchanged, timeoutMs null keeps the download
-    // bounded by its byte cap rather than a wall-clock timeout, and the
-    // content-length + streaming maxDownloadBytes guard below is untouched. A
-    // guard block surfaces as a thrown error and maps to download-failed here,
-    // just like a transport error.
+    // rule live in guardedFetch. The undici fetch stays the injected transport so
+    // the test seam is unchanged, timeoutMs null keeps the download bounded by its
+    // byte cap rather than a wall-clock timeout, and the content-length +
+    // streaming maxDownloadBytes guard below is untouched. A guard block surfaces
+    // as a thrown error and maps to download-failed here, just like a transport
+    // error.
+    //
+    // On a third-party install the scope comes from the REGISTERED SOURCE (issue
+    // #559): its consented origin is the only hop-0 origin, its credential rides
+    // only on that origin, and plain http needs its registration opt-in. Deriving
+    // the origin from the asset URL instead (the first-party fallback below) is
+    // self-consistent by construction and so scopes nothing; it is retained only
+    // for the first-party catalog, whose entries come from a signed catalog and
+    // carry no credential.
     res = await guardedFetch(assetUrl, {
-      sourceOrigin: new URL(assetUrl).origin,
+      sourceOrigin: thirdParty?.sourceOrigin ?? new URL(assetUrl).origin,
+      ...(thirdParty?.credential !== undefined ? { credential: thirdParty.credential } : {}),
+      allowHttp: thirdParty?.allowHttp ?? false,
       fetchImpl: fetch as unknown as typeof globalThis.fetch,
       timeoutMs: null,
     });
@@ -532,6 +617,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
 // and either the duplicate check or the update id/replace handling).
 async function stageReleaseAsset(
   assetUrl: string,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<{ token: string; stagingDir: string; safeUrl: string }> {
   const safeUrl = validateAssetUrl(assetUrl);
   await ensureStagingRoot();
@@ -541,7 +627,7 @@ async function stageReleaseAsset(
   const tarballPath = resolveWithin(stagingRoot(), `${token}.tgz`);
 
   try {
-    await downloadAssetToFile(safeUrl, tarballPath);
+    await downloadAssetToFile(safeUrl, tarballPath, thirdParty);
     await unpackTarball(tarballPath, stagingDir);
   } catch (err) {
     await rmStaging(stagingDir);
@@ -565,17 +651,25 @@ async function stageReleaseAsset(
  * signed catalog) BEFORE the staging entry is recorded, so verify-before-execute
  * holds. No git clone and no build step run on the user's machine. The atomic
  * commit (stage -> rename) is `commit()`, unchanged.
+ *
+ * Passing `thirdParty` marks this an install from a registered unsigned source
+ * (issue #559): `expectedIntegrity` becomes mandatory and is checked before the
+ * download, and the fetch is scoped to that source's origin and credential.
  */
 export async function previewFromRelease(
   assetUrl: string,
   expectedIntegrity?: string | null,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<InstallPreview> {
-  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl);
+  // Pre-fetch: an unsigned entry with no usable digest is uninstallable, and must
+  // be refused before a single artifact byte is fetched (CPHMTP-NFR-004).
+  assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
+  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl, thirdParty);
 
   try {
     const manifest = await readStagingManifest(stagingDir);
     assertCompatible(manifest);
-    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity, thirdParty);
     assertNotDuplicate(manifest.id);
     const source: InstallSource = { type: "release", assetUrl: safeUrl };
     staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
@@ -603,7 +697,12 @@ export async function previewUpdateFromRelease(
   assetUrl: string,
   expectedId: string,
   expectedIntegrity?: string | null,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<InstallPreview> {
+  // Pre-fetch (issue #559): refuse an unsigned entry with no usable digest before
+  // any download. Ordered after the installed-plugin guard below only in that both
+  // precede the fetch; neither reaches the network.
+  assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
   const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
   if (!existing) {
     throw new InstallError(
@@ -618,7 +717,7 @@ export async function previewUpdateFromRelease(
     );
   }
 
-  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl);
+  const { token, stagingDir, safeUrl } = await stageReleaseAsset(assetUrl, thirdParty);
 
   try {
     const manifest = await readStagingManifest(stagingDir);
@@ -629,7 +728,7 @@ export async function previewUpdateFromRelease(
         `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
       );
     }
-    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity, thirdParty);
     const source: InstallSource = { type: "release", assetUrl: safeUrl };
     staged.set(token, {
       stagingDir,
@@ -741,7 +840,11 @@ export async function previewFromGitUrl(
   url: string,
   expectedIntegrity?: string | null,
   directory?: string,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<InstallPreview> {
+  // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
+  // before the repository is fetched.
+  assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
   const safeUrl = validateGitUrl(url);
   await ensureStagingRoot();
   const token = randomUUID();
@@ -759,7 +862,7 @@ export async function previewFromGitUrl(
   try {
     const manifest = await readStagingManifest(stagingDir);
     assertCompatible(manifest);
-    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity, thirdParty);
     assertNotDuplicate(manifest.id);
     const source: InstallSource = {
       type: "git",
@@ -788,7 +891,11 @@ export async function previewUpdateFromGitUrl(
   expectedId: string,
   expectedIntegrity?: string | null,
   directory?: string,
+  thirdParty?: ThirdPartyInstallContext,
 ): Promise<InstallPreview> {
+  // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
+  // before the repository is fetched.
+  assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
   const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
   if (!existing) {
     throw new InstallError(
@@ -826,7 +933,7 @@ export async function previewUpdateFromGitUrl(
         `Update source declares id "${manifest.id}" but the catalog entry is "${expectedId}"`,
       );
     }
-    await assertPackageIntegrity(stagingDir, expectedIntegrity);
+    await assertPackageIntegrity(stagingDir, expectedIntegrity, thirdParty);
     const source: InstallSource = {
       type: "git",
       url: safeUrl,

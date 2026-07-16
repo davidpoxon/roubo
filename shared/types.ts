@@ -210,9 +210,19 @@ export type InstallErrorCode =
   // over-entry-count tarball (issue #370). Fails closed: nothing is written
   // outside staging.
   | "unpack-failed"
-  // The staged package's content digest did not match the expected digest from
-  // the signed catalog entry (CP-FR-021): a tampered or substituted package.
+  // The staged package's content digest did not match the digest published for
+  // the artifact (CP-FR-021): a tampered or substituted package. Reachable from
+  // the signed first-party catalog and, since issue #559, from an unsigned
+  // third-party source, whose per-artifact digest is its only integrity anchor.
   | "integrity-failed"
+  // A third-party (unsigned) catalog entry carries no usable per-artifact sha256
+  // digest: absent, empty, or malformed (CPHMTP-NFR-004, issue #559). An unsigned
+  // source offers no signature chain, so the per-artifact digest is the only
+  // integrity anchor and is therefore mandatory. Rejected fail-closed BEFORE the
+  // artifact is fetched: nothing is downloaded, written, or executed. Distinct
+  // from integrity-failed, which means an artifact WAS fetched and its recomputed
+  // digest did not match.
+  | "missing-integrity"
   // The catalog entry has been revoked / taken down (CP-FR-021): it cannot be
   // installed or updated.
   | "revoked"

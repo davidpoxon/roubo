@@ -961,6 +961,268 @@ describe("installSeedArtifact (first-run seed, davidpoxon/roubo-development#310)
   });
 });
 
+// --- Mandatory digest + guarded artifact download for third-party (unsigned)
+// --- installs (CPHMTP-NFR-004 / CPHMTP-US-005, issue #559) -------------------
+
+const TP_ORIGIN = "https://example.com";
+const THIRD_PARTY: pluginInstaller.ThirdPartyInstallContext = { sourceOrigin: TP_ORIGIN };
+
+// Every value that must count as "no usable digest": absent, empty, and the
+// malformed shapes. A malformed value must NOT reach a digest comparison (which
+// would report it as a tampered artifact); it means the entry is unverifiable.
+const UNUSABLE_DIGESTS: { label: string; value: string | null | undefined }[] = [
+  { label: "undefined (absent)", value: undefined },
+  { label: "null", value: null },
+  { label: "empty string", value: "" },
+  { label: "whitespace only", value: "   " },
+  { label: "no sha256- prefix", value: "a".repeat(64) },
+  { label: "wrong algorithm", value: `sha512-${"a".repeat(64)}` },
+  { label: "hex too short", value: `sha256-${"a".repeat(63)}` },
+  { label: "hex too long", value: `sha256-${"a".repeat(65)}` },
+  { label: "uppercase hex", value: `sha256-${"A".repeat(64)}` },
+  { label: "non-hex characters", value: `sha256-${"z".repeat(64)}` },
+];
+
+// Well-formed but matching no real artifact: exercises the MISMATCH path
+// (integrity-failed), which is a different failure from an unusable digest.
+const WELL_FORMED_WRONG_DIGEST = `sha256-${"0".repeat(64)}`;
+
+async function echoTarball(): Promise<string> {
+  return makeTarball([
+    { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+    { path: "dist/index.js", content: "module.exports = {};\n" },
+  ]);
+}
+
+// Stage once with no expected digest to learn the unpacked artifact's real
+// digest, then discard the staging so the caller can re-stage against it.
+async function digestOf(tgz: string): Promise<string> {
+  fakeDownload(tgz);
+  const probe = await pluginInstaller.previewFromRelease(ASSET_URL);
+  const stagingDir = resolveWithin(pluginInstaller.__test.stagingRoot(), probe.stagingToken);
+  const { computePackageDigest } = await import("./marketplace-integrity.js");
+  const digest = await computePackageDigest(stagingDir);
+  await pluginInstaller.cancel(probe.stagingToken);
+  vi.mocked(fetch).mockReset();
+  return digest;
+}
+
+/** The init object guardedFetch passed to the injected transport for hop 0. */
+function firstFetchInit(): { headers?: Record<string, string> } {
+  const call = vi.mocked(fetch).mock.calls[0];
+  return (call?.[1] ?? {}) as { headers?: Record<string, string> };
+}
+
+describe("third-party install requires a per-artifact digest (issue #559)", () => {
+  it.each(UNUSABLE_DIGESTS)(
+    "previewFromRelease rejects $label as missing-integrity before any artifact is fetched",
+    async ({ value }) => {
+      // The download is armed and must nonetheless never be reached.
+      fakeDownload(await echoTarball());
+      await expect(
+        pluginInstaller.previewFromRelease(ASSET_URL, value, THIRD_PARTY),
+      ).rejects.toMatchObject({ code: "missing-integrity" });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(await listStaging()).toEqual([]);
+    },
+  );
+
+  it.each(UNUSABLE_DIGESTS)(
+    "previewUpdateFromRelease rejects $label as missing-integrity before any artifact is fetched",
+    async ({ value }) => {
+      vi.mocked(pluginManager.listInstalled).mockReturnValue([mockRecord({ id: "echo" })]);
+      fakeDownload(await echoTarball());
+      await expect(
+        pluginInstaller.previewUpdateFromRelease(ASSET_URL, "echo", value, THIRD_PARTY),
+      ).rejects.toMatchObject({ code: "missing-integrity" });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(await listStaging()).toEqual([]);
+    },
+  );
+
+  it.each(UNUSABLE_DIGESTS)(
+    "previewFromGitUrl rejects $label as missing-integrity before the repository is cloned",
+    async ({ value }) => {
+      fakeClone(ECHO_MANIFEST);
+      await expect(
+        pluginInstaller.previewFromGitUrl(
+          "https://github.com/example/echo.git",
+          value,
+          undefined,
+          THIRD_PARTY,
+        ),
+      ).rejects.toMatchObject({ code: "missing-integrity" });
+      expect(exec.runCommand).not.toHaveBeenCalled();
+      expect(await listStaging()).toEqual([]);
+    },
+  );
+
+  it.each(UNUSABLE_DIGESTS)(
+    "previewUpdateFromGitUrl rejects $label as missing-integrity before the repository is cloned",
+    async ({ value }) => {
+      vi.mocked(pluginManager.listInstalled).mockReturnValue([mockRecord({ id: "echo" })]);
+      fakeClone(ECHO_MANIFEST);
+      await expect(
+        pluginInstaller.previewUpdateFromGitUrl(
+          "https://github.com/example/echo.git",
+          "echo",
+          value,
+          undefined,
+          THIRD_PARTY,
+        ),
+      ).rejects.toMatchObject({ code: "missing-integrity" });
+      expect(exec.runCommand).not.toHaveBeenCalled();
+      expect(await listStaging()).toEqual([]);
+    },
+  );
+
+  it("accepts a third-party artifact whose recomputed digest matches", async () => {
+    const tgz = await echoTarball();
+    const digest = await digestOf(tgz);
+
+    fakeDownload(tgz);
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL, digest, THIRD_PARTY);
+    expect(preview.manifest.id).toBe("echo");
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+});
+
+describe("third-party install recomputes the digest over the fetched artifact (issue #559)", () => {
+  it("rejects a mismatch fail-closed: no plugin record, no files written", async () => {
+    fakeDownload(await echoTarball());
+    await expect(
+      pluginInstaller.previewFromRelease(ASSET_URL, WELL_FORMED_WRONG_DIGEST, THIRD_PARTY),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    // Unlike the missing-digest path, the artifact WAS fetched: the rejection
+    // comes from recomputing sha256 over what arrived, not from the pre-fetch guard.
+    expect(fetch).toHaveBeenCalled();
+    expect(await listStaging()).toEqual([]);
+    expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+    await expect(stat(path.join(pluginsRoot, "echo"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a tampered artifact whose content changed after the digest was published", async () => {
+    const digest = await digestOf(await echoTarball());
+    // Same manifest, different dist payload: the published digest no longer holds.
+    fakeDownload(
+      await makeTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
+        { path: "dist/index.js", content: "module.exports = { owned: true };\n" },
+      ]),
+    );
+    await expect(
+      pluginInstaller.previewFromRelease(ASSET_URL, digest, THIRD_PARTY),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    expect(await listStaging()).toEqual([]);
+    expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatch on the third-party git path fail-closed", async () => {
+    fakeClone(ECHO_MANIFEST);
+    await expect(
+      pluginInstaller.previewFromGitUrl(
+        "https://github.com/example/echo.git",
+        WELL_FORMED_WRONG_DIGEST,
+        undefined,
+        THIRD_PARTY,
+      ),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    expect(await listStaging()).toEqual([]);
+    expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+  });
+});
+
+describe("third-party artifact download is guarded and origin-scoped (issue #559)", () => {
+  it("attaches the registered source's credential on the source origin", async () => {
+    const tgz = await echoTarball();
+    const digest = await digestOf(tgz);
+
+    fakeDownload(tgz);
+    await pluginInstaller.previewFromRelease(ASSET_URL, digest, {
+      sourceOrigin: TP_ORIGIN,
+      credential: "tp-token",
+    });
+    expect(firstFetchInit().headers?.authorization).toBe("Bearer tp-token");
+  });
+
+  it("sends no Authorization on the first-party path (no third-party context)", async () => {
+    const tgz = await echoTarball();
+    const digest = await digestOf(tgz);
+
+    fakeDownload(tgz);
+    await pluginInstaller.previewFromRelease(ASSET_URL, digest);
+    expect(firstFetchInit().headers?.authorization).toBeUndefined();
+  });
+
+  it("blocks an artifact hosted off the registered source origin, before the transport", async () => {
+    const digest = await digestOf(await echoTarball());
+    fakeDownload(await echoTarball());
+    // The guard consents to exactly one hop-0 origin: the registered source's.
+    // An asset URL on any other origin is refused (a cross-origin CDN must be
+    // reached by a redirect FROM the source origin, which the guard re-validates).
+    await expect(
+      pluginInstaller.previewFromRelease("https://cdn.other.example/echo.tgz", digest, {
+        sourceOrigin: TP_ORIGIN,
+      }),
+    ).rejects.toMatchObject({ code: "download-failed" });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("refuses a plain-http source that did not opt in to http at registration", async () => {
+    const digest = await digestOf(await echoTarball());
+    fakeDownload(await echoTarball());
+    await expect(
+      pluginInstaller.previewFromRelease("http://example.com/echo.tgz", digest, {
+        sourceOrigin: "http://example.com",
+      }),
+    ).rejects.toMatchObject({ code: "download-failed" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("permits plain http when the source consented to it at registration", async () => {
+    const tgz = await echoTarball();
+    const digest = await digestOf(tgz);
+    fakeDownload(tgz);
+    const preview = await pluginInstaller.previewFromRelease(
+      "http://example.com/echo.tgz",
+      digest,
+      {
+        sourceOrigin: "http://example.com",
+        allowHttp: true,
+      },
+    );
+    expect(preview.manifest.id).toBe("echo");
+    expect(fetch).toHaveBeenCalled();
+  });
+});
+
+describe("first-party install behaviour is unchanged (CPHMTP-NFR-001, issue #559)", () => {
+  it("still installs with NO digest when no third-party context is passed", async () => {
+    fakeDownload(await echoTarball());
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL);
+    expect(preview.manifest.id).toBe("echo");
+    expect(fetch).toHaveBeenCalled();
+  });
+
+  it("still treats an empty first-party digest as integrity-failed, not missing-integrity", async () => {
+    // The mandatory-digest rule is scoped to third-party installs: the raw
+    // git/local paths keep their existing null-skip, and an empty catalog digest
+    // keeps failing the comparison exactly as before.
+    fakeDownload(await echoTarball());
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL, "")).rejects.toMatchObject({
+      code: "integrity-failed",
+    });
+  });
+
+  it("still installs a raw git URL with no digest (non-catalog path keeps the null-skip)", async () => {
+    fakeClone(ECHO_MANIFEST);
+    const preview = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    expect(preview.manifest.id).toBe("echo");
+    expect(exec.runCommand).toHaveBeenCalled();
+  });
+});
+
 function mockRecord(overrides: Partial<PluginRecord>): PluginRecord {
   return {
     id: "echo",
