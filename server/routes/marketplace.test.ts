@@ -33,15 +33,25 @@ vi.mock("../services/catalog-client.js", () => {
   return { CatalogUnverifiedError };
 });
 
+vi.mock("../services/marketplace-sources-state.js", () => ({
+  listSourceSummaries: vi.fn(),
+  addSource: vi.fn(),
+  removeSource: vi.fn(),
+}));
+
 import router from "./marketplace.js";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import * as sourcesState from "../services/marketplace-sources-state.js";
 import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 const listCatalog = vi.mocked(marketplace.listCatalog);
 const resolveEntry = vi.mocked(marketplace.resolveEntry);
 const install = vi.mocked(marketplace.install);
 const update = vi.mocked(marketplace.update);
+const listSourceSummaries = vi.mocked(sourcesState.listSourceSummaries);
+const addSource = vi.mocked(sourcesState.addSource);
+const removeSource = vi.mocked(sourcesState.removeSource);
 
 function makeApp() {
   const app = express();
@@ -294,5 +304,97 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("marketplace-unreachable");
+  });
+});
+
+// Third-party source registry endpoints (issue #553; CPHMTP-FR-001,
+// CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003). Persistence, id generation, and
+// credential handling are exercised in marketplace-sources-state.test.ts; here we
+// assert only the HTTP status/shape mapping the route owns.
+const SUMMARY = {
+  id: "example-com-0a1b2c3d",
+  url: "https://example.com/catalog.json",
+  hasCredential: true,
+  registeredAt: "2026-07-16T00:00:00.000Z",
+};
+
+describe("GET /api/marketplace/sources", () => {
+  it("returns the source summaries (first-party plus registered)", async () => {
+    const firstParty = {
+      id: "first-party",
+      url: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+      hasCredential: false,
+      registeredAt: "1970-01-01T00:00:00.000Z",
+    };
+    listSourceSummaries.mockReturnValue([firstParty, SUMMARY]);
+    const res = await request(makeApp()).get("/api/marketplace/sources");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sources: [firstParty, SUMMARY] });
+  });
+});
+
+describe("POST /api/marketplace/sources", () => {
+  it("registers a new source with 201 and passes the body through", async () => {
+    addSource.mockResolvedValue({ outcome: "created", source: SUMMARY });
+    const res = await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: SUMMARY.url, credential: "tok", allowHttp: false });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual(SUMMARY);
+    expect(addSource).toHaveBeenCalledWith({
+      url: SUMMARY.url,
+      credential: "tok",
+      allowHttp: false,
+    });
+  });
+
+  it("rejects an invalid URL with 400", async () => {
+    addSource.mockResolvedValue({ outcome: "invalid-url" });
+    const res = await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: "not a url" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("invalid-url");
+  });
+
+  it("returns 409 for an already-registered URL (credential replaced, no new row)", async () => {
+    addSource.mockResolvedValue({ outcome: "replaced", source: SUMMARY });
+    const res = await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: SUMMARY.url, credential: "rotated" });
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(SUMMARY);
+  });
+
+  it("returns 500 when the store throws (e.g. keyring unavailable)", async () => {
+    addSource.mockRejectedValue(new Error("keyring unavailable"));
+    const res = await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: SUMMARY.url, credential: "tok" });
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe("internal");
+  });
+});
+
+describe("DELETE /api/marketplace/sources/:id", () => {
+  it("removes a registered source with 204", async () => {
+    removeSource.mockResolvedValue("removed");
+    const res = await request(makeApp()).delete(`/api/marketplace/sources/${SUMMARY.id}`);
+    expect(res.status).toBe(204);
+    expect(removeSource).toHaveBeenCalledWith(SUMMARY.id);
+  });
+
+  it("refuses to remove the first-party source with 403", async () => {
+    removeSource.mockResolvedValue("first-party");
+    const res = await request(makeApp()).delete("/api/marketplace/sources/first-party");
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("forbidden");
+  });
+
+  it("returns 404 for an unknown source id", async () => {
+    removeSource.mockResolvedValue("not-found");
+    const res = await request(makeApp()).delete("/api/marketplace/sources/ghost-00000000");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("not-found");
   });
 });
