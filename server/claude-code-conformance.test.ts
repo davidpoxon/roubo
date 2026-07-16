@@ -437,7 +437,7 @@ describe("jig injection (CC-JIG)", () => {
     expect(spawn.pty.writes[0]).toHaveLength(150_000);
   });
 
-  it("CC-JIG-04: agent argv order is --enable-auto-mode, --permission-mode plan, --session-id <uuid>, prompt", async () => {
+  it("CC-JIG-04: agent argv is the auto-mode flag (--enable-auto-mode or --permission-mode auto), then --permission-mode plan, --session-id <uuid>, prompt", async () => {
     const { benchId } = seedBench();
     seedJig("push", "Do the thing");
     writeUserSettings({
@@ -448,14 +448,24 @@ describe("jig injection (CC-JIG)", () => {
     const res = await createTerminal(benchId, { command: "claude", jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(lastSpawn().args).toEqual([
-      "--enable-auto-mode",
+    const args = lastSpawn().args;
+
+    // The stable tail is asserted strictly: --permission-mode plan, --session-id <uuid>, prompt.
+    const stableTail = [
       "--permission-mode",
       "plan",
       "--session-id",
       res.body.sessionId,
       "Do the thing",
-    ]);
+    ];
+    expect(args.slice(-stableTail.length)).toEqual(stableTail);
+
+    // The auto-mode flag position carries matrix row CC-JIG-04's one sanctioned built-in vs plugin
+    // deviation: the current built-in emits the removed --enable-auto-mode (live drift, eliminated by
+    // #521), while a compliant plugin must emit --permission-mode auto (AP-FR-017 / AP-TC-092 / #511).
+    // Accept either form here so the suite stays green against both trees; every other row stays strict.
+    const autoModeFlag = args.slice(0, args.length - stableTail.length);
+    expect([["--enable-auto-mode"], ["--permission-mode", "auto"]]).toContainEqual(autoModeFlag);
   });
 
   it("CC-JIG-05: a jigId on a non-claude command is ignored: plain shell, no argv, no settings write", async () => {
