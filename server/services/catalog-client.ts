@@ -6,6 +6,7 @@ import type {
   KeyRingEntry,
   MarketplaceCatalogEntry,
   MarketplaceCatalogSource,
+  MarketplaceSource,
   SignedKeyRing,
   SignedMarketplaceCatalog,
 } from "@roubo/shared";
@@ -148,6 +149,102 @@ export interface CatalogClient {
   prefetch(): Promise<void>;
 }
 
+/**
+ * Guarded, size-capped JSON fetch shared by the first-party envelope fetch
+ * (fetchEnvelope, inside createCatalogClient) and the third-party per-source
+ * fetch (createThirdPartyCatalogClient). Routes through the shared guardedFetch
+ * transport (issue #554: SSRF / redirect guarding and per-hop range validation),
+ * then bounds the payload to `maxBytes` the same two ways as the release-asset
+ * limiter in plugin-installer.ts: reject a declared content-length over the cap
+ * up front, and count bytes as they stream and stop the moment the cap is
+ * exceeded. Any breach, network error, timeout, non-JSON body, or over-budget
+ * stream abort returns null so the caller degrades rather than serving it.
+ *
+ * The caller owns what the parsed JSON means: a signed catalog / key-ring
+ * envelope on the first-party path (which then runs the verify chain), a plain
+ * per-source catalog on the third-party path (which has no verify chain by
+ * construction). This helper only fetches, size-caps, and parses; it never
+ * verifies. Extracting it changes neither the first-party guardedFetch options
+ * (credential and allowHttp are left undefined, so it stays https-only with no
+ * Authorization header) nor the byte-cap behaviour or degrade log lines.
+ */
+async function fetchGuardedJson<T>(
+  url: string,
+  opts: {
+    fetchImpl: typeof fetch;
+    maxBytes: number;
+    log: (message: string) => void;
+    credential?: string;
+    allowHttp?: boolean;
+  },
+): Promise<T | null> {
+  const { fetchImpl, maxBytes, log } = opts;
+  try {
+    const res = await guardedFetch(url, {
+      sourceOrigin: new URL(url).origin,
+      credential: opts.credential,
+      allowHttp: opts.allowHttp,
+      fetchImpl,
+      timeoutMs: FETCH_TIMEOUT_MS,
+    });
+    if (!res.ok) return null;
+    // Reject a declared content-length over the cap up front; a server may lie
+    // about or omit it, so also count bytes as they flow below.
+    const declared = Number(res.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      log(
+        `marketplace: fetched payload from ${url} declares ${declared} bytes, over the ` +
+          `${maxBytes}-byte size budget; rejecting and degrading`,
+      );
+      return null;
+    }
+    let text: string;
+    if (res.body) {
+      // undici's body is a WHATWG ReadableStream; a Node Readable (a test double)
+      // exposes `.pipe`. Normalise to a Node stream either way (mirroring
+      // plugin-installer.ts downloadAssetToFile), then count bytes as they arrive.
+      const body = res.body as unknown;
+      const source =
+        typeof (body as { pipe?: unknown }).pipe === "function"
+          ? (body as Readable)
+          : Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
+      const chunks: Buffer[] = [];
+      let received = 0;
+      for await (const chunk of source as AsyncIterable<Buffer>) {
+        received += chunk.length;
+        if (received > maxBytes) {
+          // Returning here ends the async iteration, which destroys the stream and
+          // stops further reads. Fail closed: degrade rather than buffer the rest.
+          log(
+            `marketplace: fetched payload from ${url} exceeds the ` +
+              `${maxBytes}-byte size budget; rejecting and degrading`,
+          );
+          return null;
+        }
+        chunks.push(chunk);
+      }
+      text = Buffer.concat(chunks).toString("utf8");
+    } else {
+      // Defensive fallback for a body-less response (a mock exposing neither
+      // .body nor a streamable body): buffer via text() and enforce the cap
+      // post-hoc so the budget still holds.
+      text = await res.text();
+      if (Buffer.byteLength(text, "utf8") > maxBytes) {
+        log(
+          `marketplace: fetched payload from ${url} exceeds the ` +
+            `${maxBytes}-byte size budget; rejecting and degrading`,
+        );
+        return null;
+      }
+    }
+    return JSON.parse(text) as T;
+  } catch {
+    // Network error, timeout, non-JSON body, or an over-budget stream abort:
+    // caught, never surfaced as an unhandled exception (CPHM-TC-044).
+    return null;
+  }
+}
+
 export function createCatalogClient(options: CatalogClientOptions = {}): CatalogClient {
   // SSRF stance (amended, CPHMTP-NFR-005): no silent or env-derived URLs;
   // consented and validated sources only. The fetch target is a fixed hosted
@@ -194,77 +291,14 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   }
 
   async function fetchEnvelope<T>(url: string): Promise<T | null> {
-    try {
-      // Route through the shared guarded transport (issue #554): SSRF / redirect
-      // guarding and per-hop range validation live in guardedFetch. The
-      // first-party feed origin is the consented source origin; this slice
-      // attaches no credential. doFetch stays the injected transport so the test
-      // / e2e seam is unchanged, and the size-cap streaming below is untouched.
-      const res = await guardedFetch(url, {
-        sourceOrigin: new URL(url).origin,
-        fetchImpl: doFetch,
-        timeoutMs: FETCH_TIMEOUT_MS,
-      });
-      if (!res.ok) return null;
-      // Bound the payload to the size budget (CPHM-NFR-002, issue #495), enforced the
-      // same two ways as the release-asset limiter in plugin-installer.ts. Up front,
-      // reject a declared content-length over the cap; a server may lie about or omit
-      // it, so also count bytes as they flow and stop the moment the cap is exceeded.
-      // Either breach returns null, which flows through tryNetwork -> tryCache ->
-      // trySeed, so an oversized catalog is never verified or served.
-      const declared = Number(res.headers.get("content-length"));
-      if (Number.isFinite(declared) && declared > maxCatalogBytes) {
-        log(
-          `marketplace: fetched payload from ${url} declares ${declared} bytes, over the ` +
-            `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
-        );
-        return null;
-      }
-      let text: string;
-      if (res.body) {
-        // undici's body is a WHATWG ReadableStream; a Node Readable (a test double)
-        // exposes `.pipe`. Normalise to a Node stream either way (mirroring
-        // plugin-installer.ts downloadAssetToFile), then count bytes as they arrive.
-        const body = res.body as unknown;
-        const source =
-          typeof (body as { pipe?: unknown }).pipe === "function"
-            ? (body as Readable)
-            : Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
-        const chunks: Buffer[] = [];
-        let received = 0;
-        for await (const chunk of source as AsyncIterable<Buffer>) {
-          received += chunk.length;
-          if (received > maxCatalogBytes) {
-            // Returning here ends the async iteration, which destroys the stream and
-            // stops further reads. Fail closed: degrade rather than buffer the rest.
-            log(
-              `marketplace: fetched payload from ${url} exceeds the ` +
-                `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
-            );
-            return null;
-          }
-          chunks.push(chunk);
-        }
-        text = Buffer.concat(chunks).toString("utf8");
-      } else {
-        // Defensive fallback for a body-less response (a mock exposing neither
-        // .body nor a streamable body): buffer via text() and enforce the cap
-        // post-hoc so the budget still holds.
-        text = await res.text();
-        if (Buffer.byteLength(text, "utf8") > maxCatalogBytes) {
-          log(
-            `marketplace: fetched payload from ${url} exceeds the ` +
-              `${maxCatalogBytes}-byte size budget; rejecting and degrading`,
-          );
-          return null;
-        }
-      }
-      return JSON.parse(text) as T;
-    } catch {
-      // Network error, timeout, non-JSON body, or an over-budget stream abort:
-      // caught, never surfaced as an unhandled exception (CPHM-TC-044).
-      return null;
-    }
+    // Route through the shared guarded transport (issue #554) and the shared
+    // size-capped JSON fetch. The first-party feed origin is the consented source
+    // origin; this path attaches no credential and requires https (credential and
+    // allowHttp are left unset), so the classic SSRF vector stays closed. doFetch
+    // is the injected transport so the test / e2e seam is unchanged. A null return
+    // flows through tryNetwork -> tryCache -> trySeed, so an oversized or
+    // unreachable catalog is never verified or served.
+    return fetchGuardedJson<T>(url, { fetchImpl: doFetch, maxBytes: maxCatalogBytes, log });
   }
 
   async function writeCache(cached: CachedCatalog): Promise<void> {
@@ -373,6 +407,210 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
     },
   };
   return client;
+}
+
+// ── Third-party (unsigned) source catalog client ─────────────────────────────
+//
+// createThirdPartyCatalogClient is a SEPARATE top-level factory, wholly distinct
+// from createCatalogClient. The trust separation holds BY CONSTRUCTION, not by a
+// runtime flag (CPHMTP-NFR-001, issue #555): the first-party signed verify chain
+// (verifyEnvelopePair) is a closure INSIDE createCatalogClient, so a sibling
+// top-level factory cannot reach it. There is no verifier / key-ring parameter,
+// no signature step, and no seed floor here. The degrade chain is
+// NETWORK -> CACHE only:
+//   * network: guardedFetch the registered source URL, size-cap it, serve the
+//     plain (unsigned) entries and warm a per-source cache;
+//   * cache: on any network failure, serve this source's OWN per-source cache;
+//   * total failure (no network payload, no usable cache): an empty per-source
+//     result (never a first-party seed), with the degrade logged (CPHMTP-NFR-007).
+// getCatalog never throws. Nothing here sets `verified`: only the first-party
+// path can, and third-party entries pass through exactly as fetched.
+
+/** A third-party per-source catalog result: the entries and where they came from. */
+export interface ThirdPartyCatalogResult {
+  entries: MarketplaceCatalogEntry[];
+  /** Where the served entries came from. No `seed`: third-party sources have no seed floor. */
+  source: "network" | "cache";
+  /** ISO timestamp the served entries were fetched; null when served from an empty degrade. */
+  fetchedAt: string | null;
+}
+
+/**
+ * Per-source on-disk cache shape: the last network entries plus when they were
+ * fetched. A plain, UNVERIFIED object: no signature envelope and no key ring
+ * (unlike the first-party CachedCatalog), because third-party sources are
+ * unsigned by construction (CPHMTP-NFR-001).
+ */
+interface ThirdPartyCache {
+  entries: MarketplaceCatalogEntry[];
+  fetchedAt: string;
+}
+
+export interface ThirdPartyCatalogClientOptions {
+  /**
+   * Directory the per-source cache file lives in. Defaults to
+   * `<rouboDir>/marketplace/sources/<source.id>`, so each source is namespaced
+   * under its own id and never collides with another source or the first-party
+   * cache/seed (CPHMTP-TC-043 / TC-060 / TC-061).
+   */
+  cacheDir?: string;
+  /**
+   * The per-source credential, passed straight through to guardedFetch (attached
+   * only as an Authorization header, and only on the source origin). A thin
+   * pass-through: the credential-store lookup is a separate slice. Omitted means
+   * no credential.
+   */
+  credential?: string;
+  /** Fetch implementation (tests inject a fake); defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+  /** Degrade-event logger; defaults to console.warn. Tests inject a sink. */
+  log?: (message: string) => void;
+  /**
+   * Network fetch size budget (bytes). A fetched payload exceeding this is
+   * rejected fail-closed and degrades to cache (CPHMTP-TC-040). Tests inject a
+   * small value to exercise the guard. Defaults to MAX_CATALOG_BYTES.
+   */
+  maxCatalogBytes?: number;
+  /**
+   * In-memory memo TTL (ms): repeated getCatalog() calls without forceRefresh
+   * reuse the last resolved result for this long before the degrade chain
+   * re-runs. Defaults to MEMO_TTL_MS.
+   */
+  memoTtlMs?: number;
+}
+
+export interface ThirdPartyCatalogClient {
+  /**
+   * Resolve this source's catalog via the NETWORK -> CACHE degrade chain.
+   * `forceRefresh` re-runs the chain (a fresh network fetch); otherwise the last
+   * resolved result is reused in-memory for a short TTL. Never throws: a total
+   * failure resolves to an empty per-source result.
+   */
+  getCatalog(opts?: { forceRefresh?: boolean }): Promise<ThirdPartyCatalogResult>;
+}
+
+export function createThirdPartyCatalogClient(
+  source: MarketplaceSource,
+  options: ThirdPartyCatalogClientOptions = {},
+): ThirdPartyCatalogClient {
+  const cacheDir =
+    options.cacheDir ?? path.join(getRouboDir(), "marketplace", "sources", source.id);
+  const cacheFile = path.join(cacheDir, CACHE_FILENAME);
+  const doFetch = options.fetchImpl ?? globalThis.fetch;
+  const log = options.log ?? ((message: string) => console.warn(message));
+  const maxCatalogBytes = options.maxCatalogBytes ?? MAX_CATALOG_BYTES;
+  const memoTtlMs = options.memoTtlMs ?? MEMO_TTL_MS;
+  const credential = options.credential;
+
+  let lastResult: ThirdPartyCatalogResult | null = null;
+  let lastResultAt = 0;
+
+  async function writeCache(cache: ThirdPartyCache): Promise<void> {
+    try {
+      await mkdir(cacheDir, { recursive: true });
+      await writeFile(cacheFile, `${JSON.stringify(cache, null, 2)}\n`, "utf8");
+    } catch (err) {
+      log(
+        `marketplace: failed to write source ${source.id} catalog cache: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  async function tryNetwork(): Promise<ThirdPartyCatalogResult | null> {
+    // Every hop runs through guardedFetch with THIS source's origin and its
+    // registration opt-ins: the credential is attached only on the source origin,
+    // and a plain-http source is fetchable only when it consented to allowHttp.
+    const payload = await fetchGuardedJson<{ entries?: unknown }>(source.url, {
+      fetchImpl: doFetch,
+      maxBytes: maxCatalogBytes,
+      log,
+      credential,
+      allowHttp: source.allowHttp,
+    });
+    if (!payload) {
+      log(`marketplace: source ${source.id} fetch failed, falling back to the per-source cache`);
+      return null;
+    }
+    const entries = payload.entries;
+    if (!Array.isArray(entries)) {
+      // A reachable-but-malformed catalog is discarded and must NOT overwrite the
+      // per-source cache: only writeCache below, after a shape-valid fetch.
+      log(
+        `marketplace: source ${source.id} catalog is malformed, falling back to the per-source cache`,
+      );
+      return null;
+    }
+    const typed = entries as MarketplaceCatalogEntry[];
+    const fetchedAt = new Date().toISOString();
+    await writeCache({ entries: typed, fetchedAt });
+    return { entries: typed, source: "network", fetchedAt };
+  }
+
+  async function tryCache(): Promise<ThirdPartyCatalogResult | null> {
+    let raw: string;
+    try {
+      raw = await readFile(cacheFile, "utf8");
+    } catch {
+      // No per-source cache on disk (a never-fetched source): degrade silently.
+      return null;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      log(`marketplace: source ${source.id} cache is unparseable, serving an empty listing`);
+      return null;
+    }
+    // Fail-closed shape guard: a garbage / tampered / wrong-shape cache must
+    // degrade to an empty result, never throw and never leak a partial listing
+    // (CPHMTP-TC-057 fail-closed). There is no signature to check (third-party
+    // caches are unsigned), so the guard is a structural shape check.
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      !Array.isArray((parsed as { entries?: unknown }).entries)
+    ) {
+      log(`marketplace: source ${source.id} cache is malformed, serving an empty listing`);
+      return null;
+    }
+    const cache = parsed as ThirdPartyCache;
+    return {
+      entries: cache.entries,
+      source: "cache",
+      fetchedAt: typeof cache.fetchedAt === "string" ? cache.fetchedAt : null,
+    };
+  }
+
+  return {
+    async getCatalog(opts = {}) {
+      if (!opts.forceRefresh && lastResult && Date.now() - lastResultAt < memoTtlMs) {
+        return lastResult;
+      }
+      const fromNetwork = await tryNetwork();
+      if (fromNetwork) {
+        lastResult = fromNetwork;
+        lastResultAt = Date.now();
+        return fromNetwork;
+      }
+      const fromCache = await tryCache();
+      if (fromCache) {
+        lastResult = fromCache;
+        lastResultAt = Date.now();
+        return fromCache;
+      }
+      // Total failure: no network payload and no usable per-source cache. Serve an
+      // empty per-source listing (never a first-party seed) with the degrade
+      // logged (CPHMTP-NFR-007); getCatalog never throws.
+      log(
+        `marketplace: source ${source.id} has no reachable catalog and no usable cache; ` +
+          `serving an empty listing`,
+      );
+      const empty: ThirdPartyCatalogResult = { entries: [], source: "cache", fetchedAt: null };
+      lastResult = empty;
+      lastResultAt = Date.now();
+      return empty;
+    },
+  };
 }
 
 let defaultClient: CatalogClient | null = null;
